@@ -9,14 +9,12 @@ import {
   KindInterfaceDeclaration,
   KindObjectKeyword,
   KindObjectBindingPattern,
-  GetSourceFileOfNode,
   KindPropertyAccessExpression,
   KindTypeLiteral,
   KindUnionType,
   KindUnknownKeyword,
-  SourceFile_FileName,
 } from "@tsonic/tsts";
-import type { Node, SourceFile, Symbol } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../ast/csharp-ast.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -71,17 +69,12 @@ function getCsharpTypeForExpressionReference(
   if (sourceReferenceName !== undefined) {
     return { kind: "named", name: sanitizeIdentifier(sourceReferenceName) };
   }
-  const symbols = getTypeReferenceSymbols(node, sourceFile, input);
-  const targetBinding = firstDefined(symbols.map((symbol) => input.facts.getTargetBindingFact(symbol)));
+  const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding !== undefined) {
     const csharpType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: targetBinding.id });
     if (csharpType !== undefined) {
       return csharpType;
     }
-  }
-  const sourceTypeName = firstDefined(symbols.map((symbol) => getProjectSourceTypeName(symbol, input)));
-  if (sourceTypeName !== undefined) {
-    return { kind: "named", name: sanitizeIdentifier(sourceTypeName) };
   }
   diagnostics?.push(unsupportedNodeDiagnostic(node, "C# type expression emission requires a provider target binding or a project-source class/interface declaration."));
   return invalidType("unresolved type expression");
@@ -256,48 +249,4 @@ function getCsharpTypeForUnionTypeNode(
 function getCsharpTypeFromRuntimeCarrier(subject: Node, input: TargetCompileInput): CsharpTypeNode | undefined {
   const carrier = input.facts.getRuntimeCarrierFact(subject)?.carrier;
   return carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
-}
-
-function getProjectSourceTypeName(symbol: Symbol | undefined, input: TargetCompileInput): string | undefined {
-  const declaration = symbol?.ValueDeclaration ?? symbol?.Declarations?.find((candidate) => candidate !== undefined);
-  if (!isProjectSourceDeclaration(declaration, input)) {
-    return undefined;
-  }
-  if (declaration?.Kind !== KindClassDeclaration && declaration?.Kind !== KindInterfaceDeclaration && declaration?.Kind !== KindEnumDeclaration) {
-    return undefined;
-  }
-  return symbol?.Name;
-}
-
-function getTypeReferenceSymbols(node: Node, sourceFile: SourceFile, input: TargetCompileInput): readonly Symbol[] {
-  const resolved = input.semantics.getResolvedSymbol(node, { sourceFile });
-  const direct = input.semantics.getSymbolAtLocation(node, { sourceFile });
-  const symbols: Symbol[] = [];
-  for (const symbol of [resolved, direct]) {
-    if (symbol !== undefined && !symbols.includes(symbol)) {
-      symbols.push(symbol);
-    }
-  }
-  return symbols;
-}
-
-function firstDefined<T>(values: readonly (T | undefined)[]): T | undefined {
-  return values.find((value): value is T => value !== undefined);
-}
-
-function isProjectSourceDeclaration(declaration: Node | undefined, input: TargetCompileInput): boolean {
-  if (declaration === undefined) {
-    return false;
-  }
-  const declarationFile = GetSourceFileOfNode(declaration);
-  if (declarationFile === undefined || declarationFile.IsDeclarationFile) {
-    return false;
-  }
-  const declarationFileName = SourceFile_FileName(declarationFile);
-  if (declarationFileName.startsWith("tsts-provider://")) {
-    return false;
-  }
-  return input.sourceFiles.some((sourceFile) =>
-    sourceFile === declarationFile ||
-    (!sourceFile.IsDeclarationFile && SourceFile_FileName(sourceFile) === declarationFileName));
 }
