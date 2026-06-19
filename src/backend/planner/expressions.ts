@@ -184,6 +184,22 @@ export function planExpression(
       if (!ensureElementAccessCanBeRendered(node, expression.Expression, sourceFile, input, diagnostics)) {
         return invalidExpression("missing target element access fact");
       }
+      const selectedElementAccess = input.facts.getSelectedTargetElementAccess(node);
+      if (selectedElementAccess?.targetOperation === "string-code-unit") {
+        const receiver = planExpression(expression.Expression!, sourceFile, input, diagnostics);
+        return {
+          kind: "call",
+          callee: {
+            kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
+            receiver,
+            name: "Substring",
+          },
+          arguments: [
+            { expression: planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics) },
+            { expression: { kind: "literal", value: 1 } },
+          ],
+        };
+      }
       return {
         kind: expression.QuestionDotToken === undefined ? "element" : "optionalElement",
         receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),

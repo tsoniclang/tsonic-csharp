@@ -229,6 +229,18 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (request.target !== undefined && request.target !== "csharp") {
         return deferDecision;
       }
+      if (isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
+        const elementType = csharpNamed("System.String");
+        return acceptDecision({
+          operation: {
+            operationId: "System.String.CodeUnitAt",
+            operationKind: "indexer",
+            targetOperation: "string-code-unit",
+            resultType: elementType,
+          } satisfies TargetOperationFact,
+          resultType: elementType,
+        });
+      }
       const elementType = getTypeScriptArrayElementType(request.receiverType as Type | undefined);
       if (elementType === undefined) {
         return deferDecision;
