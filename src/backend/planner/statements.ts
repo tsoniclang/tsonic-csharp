@@ -58,7 +58,6 @@ import type {
 import { getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
-  allocateCatchValue,
   allocateControlLabel,
   allocateForOfItem,
   createDestructuringPlannerState,
@@ -69,7 +68,6 @@ import { isErasedAttributeExpressionStatement } from "./attributes.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
-import { planIdentifierName } from "./names.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -634,17 +632,19 @@ function planCatchClause(
     if (variable.name?.Kind === KindObjectBindingPattern || variable.name?.Kind === KindArrayBindingPattern) {
       diagnostics.push(unsupportedNodeDiagnostic(variable.name, "Catch destructuring requires a closed thrown-value carrier; unknown catch values cannot trickle into C#."));
       return {
-        variableName: allocateCatchValue(state),
         body: {
           statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
         },
       };
     }
+    diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission."));
+    return {
+      body: {
+        statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+      },
+    };
   }
   return {
-    ...(clause.VariableDeclaration !== undefined
-      ? { variableName: planIdentifierName(AsVariableDeclaration(clause.VariableDeclaration)!.name, "ex", diagnostics, "Catch variable name") }
-      : {}),
     body: {
       statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
     },
