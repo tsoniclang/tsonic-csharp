@@ -25,6 +25,8 @@ export interface DestructuringPlannerState {
   nextParameterIndex: number;
   nextForOfIndex: number;
   nextCatchIndex: number;
+  nextControlLabelIndex: number;
+  controlLabels: ControlLabelTarget[];
 }
 
 export function createDestructuringPlannerState(): DestructuringPlannerState {
@@ -33,7 +35,15 @@ export function createDestructuringPlannerState(): DestructuringPlannerState {
     nextParameterIndex: 0,
     nextForOfIndex: 0,
     nextCatchIndex: 0,
+    nextControlLabelIndex: 0,
+    controlLabels: [],
   };
+}
+
+export interface ControlLabelTarget {
+  readonly sourceName: string;
+  readonly breakLabel: string;
+  readonly continueLabel?: string;
 }
 
 export function allocateSyntheticParameter(state: DestructuringPlannerState): string {
@@ -52,6 +62,16 @@ export function allocateCatchValue(state: DestructuringPlannerState): string {
   const name = `__catch${state.nextCatchIndex}`;
   state.nextCatchIndex += 1;
   return name;
+}
+
+export function allocateControlLabel(
+  state: DestructuringPlannerState,
+  sourceName: string,
+  purpose: "break" | "continue",
+): string {
+  const name = `__label${state.nextControlLabelIndex}_${sourceName}_${purpose}`;
+  state.nextControlLabelIndex += 1;
+  return sanitizeIdentifier(name);
 }
 
 export function planVariableBindingStatements(

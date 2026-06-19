@@ -59,6 +59,7 @@ import { getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   allocateCatchValue,
+  allocateControlLabel,
   allocateForOfItem,
   createDestructuringPlannerState,
   planBindingPatternFromExpression,
@@ -113,14 +114,24 @@ export function planStatements(
     case KindBreakStatement: {
       const statement = AsBreakStatement(node)!;
       if (statement.Label !== undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled break requires control-flow rewriting and is not implemented yet."));
+        const target = findControlLabel(state, Node_Text(statement.Label));
+        if (target === undefined) {
+          diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled break target was not available from TSTS control-flow binding."));
+          return [];
+        }
+        return [{ kind: "goto", label: target.breakLabel }];
       }
       return [{ kind: "break" }];
     }
     case KindContinueStatement: {
       const statement = AsContinueStatement(node)!;
       if (statement.Label !== undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled continue requires control-flow rewriting and is not implemented yet."));
+        const target = findControlLabel(state, Node_Text(statement.Label));
+        if (target?.continueLabel === undefined) {
+          diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled continue target must be an iteration statement."));
+          return [];
+        }
+        return [{ kind: "goto", label: target.continueLabel }];
       }
       return [{ kind: "continue" }];
     }
@@ -155,11 +166,7 @@ export function planStatements(
       })];
     case KindLabeledStatement: {
       const statement = AsLabeledStatement(node)!;
-      return [{
-        kind: "label",
-        name: sanitizeIdentifier(Node_Text(statement.Label!)),
-        statement: planSingleStatement(statement.Statement, sourceFile, input, diagnostics, state),
-      }];
+      return [planLabeledStatement(statement, sourceFile, input, diagnostics, state)];
     }
     case KindSwitchStatement:
       return [planSwitchStatement(node, sourceFile, input, diagnostics, state)];
@@ -362,6 +369,108 @@ function planSingleStatement(
   };
 }
 
+function planLabeledStatement(
+  statement: NonNullable<ReturnType<typeof AsLabeledStatement>>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): CsharpStatement {
+  const sourceName = sanitizeIdentifier(Node_Text(statement.Label!));
+  const target = {
+    sourceName,
+    breakLabel: allocateControlLabel(state, sourceName, "break"),
+    ...(isIterationStatement(statement.Statement)
+      ? { continueLabel: allocateControlLabel(state, sourceName, "continue") }
+      : {}),
+  };
+  state.controlLabels.push(target);
+  const planned = planSingleStatement(statement.Statement, sourceFile, input, diagnostics, state);
+  state.controlLabels.pop();
+  const loweredStatement = target.continueLabel === undefined
+    ? planned
+    : attachContinueLabel(planned, target.continueLabel);
+  return {
+    kind: "block",
+    body: {
+      statements: [
+        {
+          kind: "label",
+          name: sourceName,
+          statement: loweredStatement,
+        },
+        controlLabelStatement(target.breakLabel),
+      ],
+    },
+  };
+}
+
+function findControlLabel(
+  state: DestructuringPlannerState,
+  sourceName: string,
+): { readonly breakLabel: string; readonly continueLabel?: string } | undefined {
+  const sanitized = sanitizeIdentifier(sourceName);
+  for (let index = state.controlLabels.length - 1; index >= 0; index--) {
+    const target = state.controlLabels[index]!;
+    if (target.sourceName === sanitized) {
+      return target;
+    }
+  }
+  return undefined;
+}
+
+function isIterationStatement(node: Node | undefined): boolean {
+  return node?.Kind === KindWhileStatement ||
+    node?.Kind === KindDoStatement ||
+    node?.Kind === KindForStatement ||
+    node?.Kind === KindForOfStatement;
+}
+
+function attachContinueLabel(statement: CsharpStatement, label: string): CsharpStatement {
+  switch (statement.kind) {
+    case "while":
+    case "do":
+    case "for":
+    case "foreach":
+      return {
+        ...statement,
+        body: {
+          statements: [
+            ...statement.body.statements,
+            controlLabelStatement(label),
+          ],
+        },
+      };
+    case "block": {
+      const lastIndex = statement.body.statements.length - 1;
+      const last = statement.body.statements[lastIndex];
+      if (last !== undefined) {
+        return {
+          kind: "block",
+          body: {
+            statements: statement.body.statements.map((child, index) =>
+              index === lastIndex ? attachContinueLabel(child, label) : child),
+          },
+        };
+      }
+      return statement;
+    }
+    default:
+      return statement;
+  }
+}
+
+function controlLabelStatement(label: string): CsharpStatement {
+  return {
+    kind: "label",
+    name: label,
+    statement: {
+      kind: "block",
+      body: { statements: [] },
+    },
+  };
+}
+
 function planSwitchStatement(
   node: Node,
   sourceFile: SourceFile,
@@ -427,6 +536,7 @@ function statementTerminatesSwitchSection(statement: CsharpStatement): boolean {
   switch (statement.kind) {
     case "break":
     case "continue":
+    case "goto":
     case "return":
     case "throw":
       return true;

@@ -217,6 +217,8 @@ export function printCsharpStatement(statement: CsharpStatement): string {
       return "break;";
     case "continue":
       return "continue;";
+    case "goto":
+      return `goto ${statement.label};`;
     case "throw":
       return `throw ${printCsharpExpression(statement.expression)};`;
     case "label":

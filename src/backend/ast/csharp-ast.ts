@@ -146,6 +146,7 @@ export type CsharpStatement =
   | { readonly kind: "block"; readonly body: CsharpBlock }
   | { readonly kind: "break" }
   | { readonly kind: "continue" }
+  | { readonly kind: "goto"; readonly label: string }
   | { readonly kind: "throw"; readonly expression: CsharpExpression }
   | { readonly kind: "label"; readonly name: string; readonly statement: CsharpStatement }
   | { readonly kind: "switch"; readonly expression: CsharpExpression; readonly sections: readonly CsharpSwitchSection[] }
