@@ -19,8 +19,7 @@ export function projectArtifact(input: TargetCompileInput, sourceArtifacts: read
 }
 
 export function readNamespace(input: TargetCompileInput): string {
-  const value = input.target.options?.namespace;
-  return formatNamespace(typeof value === "string" && value.length > 0 ? value : "Tsonic.Generated");
+  return formatNamespace(readOptionalStringOption(input, "namespace") ?? "Tsonic.Generated");
 }
 
 function csharpProjectProperties(input: TargetCompileInput): readonly (readonly [string, string])[] {
@@ -55,8 +54,7 @@ function csharpProjectProperties(input: TargetCompileInput): readonly (readonly 
 }
 
 function readAssemblyName(input: TargetCompileInput): string {
-  const value = input.target.options?.assemblyName;
-  return sanitizeIdentifier(typeof value === "string" && value.length > 0 ? value : "TsonicGenerated");
+  return formatAssemblyName(readOptionalStringOption(input, "assemblyName") ?? "TsonicGenerated");
 }
 
 function readStringOption(input: TargetCompileInput, key: string, fallback: string): string {
@@ -112,6 +110,17 @@ function formatNamespace(value: string): string {
     throw new Error("C# target option 'namespace' must be a dot-separated C# identifier path.");
   }
   return segments.map(sanitizeIdentifier).join(".");
+}
+
+function formatAssemblyName(value: string): string {
+  if (!isAssemblyName(value)) {
+    throw new Error("C# target option 'assemblyName' must be a file-safe .NET assembly name.");
+  }
+  return value;
+}
+
+function isAssemblyName(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(value);
 }
 
 function isPlainIdentifier(value: string): boolean {
