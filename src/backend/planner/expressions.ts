@@ -2,6 +2,7 @@ import {
   AsArrayLiteralExpression,
   AsArrowFunction,
   AsAsExpression,
+  AsAwaitExpression,
   AsBinaryExpression,
   AsCallExpression,
   AsConditionalExpression,
@@ -36,6 +37,7 @@ import {
   KindBlock,
   KindCallExpression,
   KindArrayLiteralExpression,
+  KindAwaitExpression,
   KindConditionalExpression,
   KindElementAccessExpression,
   KindEqualsEqualsEqualsToken,
@@ -97,7 +99,7 @@ import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, Cs
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
+import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, diagnoseUnsupportedAsyncSemantics } from "./modifiers.js";
 import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import { planBlockStatements } from "./statements.js";
 
@@ -195,6 +197,13 @@ export function planExpression(
       return planArrowFunctionExpression(node, sourceFile, input, diagnostics);
     case KindFunctionExpression:
       return planFunctionExpression(node, sourceFile, input, diagnostics);
+    case KindAwaitExpression: {
+      const expression = AsAwaitExpression(node)!;
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression requires finalized TSTS/provider async lowering facts before C# emission."));
+      return invalidExpression(expression.Expression === undefined
+        ? "await without expression"
+        : "await without async lowering facts");
+    }
     case KindCallExpression:
       return planCallExpression(node, sourceFile, input, diagnostics);
     case KindNewExpression: {
@@ -412,6 +421,7 @@ function planArrowFunctionExpression(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   const expression = AsArrowFunction(node)!;
+  diagnoseUnsupportedAsyncSemantics(node, "arrow function", diagnostics);
   if (expression.Body?.Kind === KindBlock) {
     return {
       kind: "lambda",
@@ -435,6 +445,7 @@ function planFunctionExpression(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   const expression = AsFunctionExpression(node)!;
+  diagnoseUnsupportedAsyncSemantics(node, "function expression", diagnostics);
   return {
     kind: "lambda",
     parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),

@@ -3,6 +3,7 @@ import {
   ModifierFlagsAbstract,
   ModifierFlagsAccessor,
   ModifierFlagsAmbient,
+  ModifierFlagsAsync,
   ModifierFlagsOverride,
   ModifierFlagsPrivate,
   ModifierFlagsProtected,
@@ -37,4 +38,18 @@ export function diagnoseTypeScriptOnlyRuntimeShapeModifiers(
       ));
     }
   }
+}
+
+export function diagnoseUnsupportedAsyncSemantics(
+  node: Node,
+  context: string,
+  diagnostics: TargetDiagnostic[],
+): void {
+  if (!HasSyntacticModifier(node, ModifierFlagsAsync)) {
+    return;
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(
+    node,
+    `Async ${context} requires finalized TSTS/provider async lowering facts before C# emission.`,
+  ));
 }

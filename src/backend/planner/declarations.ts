@@ -67,7 +67,7 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planCallArgument, planExpressionWithExpectedType } from "./expressions.js";
 import { planExpression } from "./expressions.js";
 import { planClassHeritage, planInterfaceHeritage } from "./heritage.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
+import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, diagnoseUnsupportedAsyncSemantics } from "./modifiers.js";
 import { planIdentifierName } from "./names.js";
 import { planParameters, planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements, planStatements } from "./statements.js";
@@ -240,6 +240,7 @@ export function planFunctionDeclaration(
 ): CsharpMethodDeclaration {
   const declaration = AsFunctionDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "function declaration", diagnostics);
+  diagnoseUnsupportedAsyncSemantics(node, "function declaration", diagnostics);
   const name = planIdentifierName(declaration.name, "__anonymous", diagnostics, "Function name");
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
@@ -329,6 +330,7 @@ function planMethodDeclaration(
 ): CsharpMethodDeclaration {
   const declaration = AsMethodDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "method declaration", diagnostics);
+  diagnoseUnsupportedAsyncSemantics(node, "method declaration", diagnostics);
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics);
