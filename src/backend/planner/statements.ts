@@ -58,6 +58,7 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration } from "./locals.js";
+import { planIdentifierName } from "./names.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -418,7 +419,7 @@ function planCatchClause(
   const clause = AsCatchClause(node)!;
   return {
     ...(clause.VariableDeclaration !== undefined
-      ? { variableName: sanitizeIdentifier(Node_Text(AsVariableDeclaration(clause.VariableDeclaration)!.name!)) }
+      ? { variableName: planIdentifierName(AsVariableDeclaration(clause.VariableDeclaration)!.name, "ex", diagnostics, "Catch variable name") }
       : {}),
     body: {
       statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics),

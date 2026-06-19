@@ -7,7 +7,6 @@ import {
   KindConstructor,
   KindMethodDeclaration,
   KindPropertyDeclaration,
-  Node_Text,
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -21,7 +20,7 @@ import type {
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpressionWithExpectedType } from "./expressions.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { planIdentifierName } from "./names.js";
 import { planParameters } from "./parameters.js";
 import { planBlockStatements } from "./statements.js";
 
@@ -32,9 +31,10 @@ export function planClassDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
   const declaration = AsClassDeclaration(node)!;
+  const className = planIdentifierName(declaration.name, "AnonymousClass", diagnostics, "Class name");
   return {
     kind: "class",
-    name: sanitizeIdentifier(declaration.name === undefined ? "AnonymousClass" : Node_Text(declaration.name)),
+    name: className,
     modifiers: ["public"],
     members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpTypeMember[] => {
       if (member === undefined) {
@@ -42,7 +42,7 @@ export function planClassDeclaration(
       }
       switch (member.Kind) {
         case KindConstructor:
-          return [planConstructorDeclaration(member, declaration.name === undefined ? "AnonymousClass" : Node_Text(declaration.name), sourceFile, input, diagnostics)];
+          return [planConstructorDeclaration(member, className, sourceFile, input, diagnostics)];
         case KindMethodDeclaration:
           return [planMethodDeclaration(member, sourceFile, input, diagnostics)];
         case KindPropertyDeclaration:
@@ -62,13 +62,13 @@ export function planFunctionDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsFunctionDeclaration(node)!;
-  const name = declaration.name === undefined ? "__anonymous" : sanitizeIdentifier(Node_Text(declaration.name));
+  const name = planIdentifierName(declaration.name, "__anonymous", diagnostics, "Function name");
   return {
     kind: "method",
     name,
     modifiers: ["public", "static"],
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void")),
-    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input),
+    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: {
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
     },
@@ -85,9 +85,9 @@ function planConstructorDeclaration(
   const declaration = AsConstructorDeclaration(node)!;
   return {
     kind: "constructor",
-    name: sanitizeIdentifier(className),
+    name: className,
     modifiers: ["public"],
-    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input),
+    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: {
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
     },
@@ -103,10 +103,10 @@ function planMethodDeclaration(
   const declaration = AsMethodDeclaration(node)!;
   return {
     kind: "method",
-    name: sanitizeIdentifier(declaration.name === undefined ? "method" : Node_Text(declaration.name)),
+    name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
     modifiers: ["public"],
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void")),
-    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input),
+    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: {
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
     },
@@ -123,7 +123,7 @@ function planPropertyDeclaration(
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input);
   return {
     kind: "field",
-    name: sanitizeIdentifier(declaration.name === undefined ? "field" : Node_Text(declaration.name)),
+    name: planIdentifierName(declaration.name, "field", diagnostics, "Property name"),
     modifiers: ["public"],
     type,
     ...(declaration.Initializer !== undefined
