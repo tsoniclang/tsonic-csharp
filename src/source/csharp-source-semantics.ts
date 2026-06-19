@@ -1,7 +1,8 @@
-import { TstsProviderContractVersion, createSourceSemanticsExtension, sourcePrimitive } from "@tsonic/tsts";
+import { TstsProviderContractVersion, TypeFlagsStringLike, acceptDecision, createSourceSemanticsExtension, deferDecision, sourcePrimitive } from "@tsonic/tsts";
 import type {
   CompilerExtension,
   ExtensionDiagnostic,
+  ExtensionFactSubject,
   ProviderDeclarationModel,
   ProviderExportDeclaration,
   ProviderIdentity,
@@ -17,6 +18,9 @@ import type {
   SourceSemanticsModule,
   SourceTypeMarkerDeclaration,
   TargetBindingProvider,
+  TargetOperationFact,
+  TargetSemanticProvider,
+  Type,
 } from "@tsonic/tsts";
 import type { TargetExtensionContext } from "@tsonic/target-api";
 
@@ -57,6 +61,59 @@ export function createCsharpCoreVirtualModulesExtension(_context: TargetExtensio
       context.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
     },
   };
+}
+
+export function createCsharpSurfaceOperationsExtension(_context: TargetExtensionContext): CompilerExtension {
+  return {
+    identity: {
+      id: "tsonic.csharp.surface-operations",
+      version: "0.0.1",
+      capabilityNamespace: "tsonic.csharp.surface-operations",
+    },
+    composition: {
+      kind: "target",
+      target: "csharp",
+    },
+    initialize(context): void {
+      const provider = createCsharpSurfaceOperationsProvider();
+      context.registerTargetSemanticProvider(provider);
+    },
+  };
+}
+
+function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
+  return {
+    identity: {
+      id: "tsonic.csharp.surface-operations",
+      version: "0.0.1",
+      target: "csharp",
+      extensionContractVersion: TstsProviderContractVersion,
+      providerKind: "semantic",
+    },
+    resolvePropertyAccess(request) {
+      if (request.target !== undefined && request.target !== "csharp") {
+        return deferDecision;
+      }
+      if (request.propertyName === "length" && hasTypeFlag(request.receiverType, TypeFlagsStringLike)) {
+        const resultType = { kind: "source-primitive", name: "int32" } as const;
+        return acceptDecision({
+          operation: {
+            operationId: "System.String.Length",
+            operationKind: "property",
+            targetOperation: "Length",
+            resultType,
+          } satisfies TargetOperationFact,
+          resultType,
+        });
+      }
+      return deferDecision;
+    },
+  };
+}
+
+function hasTypeFlag(subject: ExtensionFactSubject | undefined, flag: number): boolean {
+  const type = subject as Type | undefined;
+  return typeof type?.flags === "number" && (type.flags & flag) !== 0;
 }
 
 function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {

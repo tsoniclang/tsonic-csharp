@@ -14,7 +14,7 @@ import {
 } from "./bindings.js";
 import { planAttributesForSubject } from "./attributes.js";
 import type { DestructuringPlannerState } from "./bindings.js";
-import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
+import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { planIdentifierName } from "./names.js";
@@ -66,9 +66,10 @@ export function planParametersWithPrelude(
         diagnostics.push(unsupportedNodeDiagnostic(parameter.name, "Destructured parameter defaults require target object-shape lowering before C# emission."));
       }
       const parameterName = allocateSyntheticParameter(state);
+      diagnostics.push(unsupportedNodeDiagnostic(parameter.name, "Destructured parameters require finalized TSTS/provider object-shape facts before C# emission."));
       parameters.push({
         name: parameterName,
-        type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, predefined("object"), diagnostics),
+        type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, invalidCsharpType("destructured parameter type"), diagnostics),
         attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
       });

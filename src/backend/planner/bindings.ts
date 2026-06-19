@@ -2,6 +2,7 @@ import {
   AsBindingElement,
   AsBindingPattern,
   AsNumericLiteral,
+  AsParameterDeclaration,
   AsStringLiteral,
   KindArrayBindingPattern,
   KindBindingElement,
@@ -19,6 +20,7 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planIdentifierName } from "./names.js";
+import { getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 
 export interface DestructuringPlannerState {
   nextTempIndex: number;
@@ -111,7 +113,7 @@ export function planVariableBindingStatements(
       type: predefined("var"),
       initializer: planExpression(initializer, sourceFile, input, diagnostics),
     },
-    ...planBindingPatternFromExpression(bindingName, sourceExpression, sourceFile, input, diagnostics, state),
+    ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state),
   ];
 }
 
@@ -130,9 +132,11 @@ export function planParameterBindingPrelude(
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Parameter binding name is outside the current C# planning surface."));
     return [];
   }
+  const parameter = AsParameterDeclaration(getNodeParent(bindingName));
   return planBindingPatternFromExpression(
     bindingName,
     { kind: "identifier", name: parameterName },
+    parameter?.Type,
     sourceFile,
     input,
     diagnostics,
@@ -143,11 +147,17 @@ export function planParameterBindingPrelude(
 export function planBindingPatternFromExpression(
   patternNode: Node,
   sourceExpression: CsharpExpression,
+  sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
+  const ownership = getSemanticOwnership(sourceNode, sourceFile, input);
+  if (ownership.requiresTargetFact || !ownership.sourceOwned) {
+    pushMissingTargetFactDiagnostic(diagnostics, patternNode, "Destructuring requires finalized TSTS/provider object or collection shape facts before C# emission.", ownership);
+    return [];
+  }
   const pattern = AsBindingPattern(patternNode)!;
   const statements: CsharpStatement[] = [];
   const elements = pattern.Elements?.Nodes ?? [];
@@ -198,6 +208,7 @@ export function planBindingPatternFromExpression(
       statements.push(...planBindingPatternFromExpression(
         name,
         { kind: "identifier", name: nestedSourceName },
+        element.PropertyName ?? (element.name?.Kind === KindIdentifier ? element.name : undefined),
         sourceFile,
         input,
         diagnostics,
@@ -265,4 +276,8 @@ function allocateDestructuringTemp(state: DestructuringPlannerState): string {
 
 function isDirectMemberName(value: string): boolean {
   return sanitizeIdentifier(value) === value;
+}
+
+function getNodeParent(node: Node): Node | undefined {
+  return (node as { readonly Parent?: Node }).Parent;
 }

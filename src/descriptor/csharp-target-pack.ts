@@ -7,7 +7,7 @@ import type {
 } from "@tsonic/target-api";
 import type { CompilerExtension } from "@tsonic/tsts";
 import { createCsharpBackend } from "../backend/csharp-backend.js";
-import { createCsharpCoreVirtualModulesExtension, createCsharpSourceSemanticsExtension } from "../source/csharp-source-semantics.js";
+import { createCsharpCoreVirtualModulesExtension, createCsharpSourceSemanticsExtension, createCsharpSurfaceOperationsExtension } from "../source/csharp-source-semantics.js";
 import { createDotnetToolchain } from "../toolchain/dotnet-toolchain.js";
 
 export const csharpTargetId = "csharp";
@@ -20,6 +20,7 @@ export function createCsharpTargetPack(): TargetPack {
       return [
         createCsharpCoreVirtualModulesExtension(context),
         createCsharpSourceSemanticsExtension(context),
+        createCsharpSurfaceOperationsExtension(context),
       ];
     },
     createBackend(context: TargetBackendContext): TargetBackend {

@@ -12,9 +12,6 @@ import {
   AsIdentifier,
   AsIfStatement,
   AsLabeledStatement,
-  AsParameterDeclaration,
-  AsPropertyDeclaration,
-  AsPropertySignatureDeclaration,
   AsReturnStatement,
   AsSwitchStatement,
   AsThrowStatement,
@@ -24,7 +21,6 @@ import {
   AsVariableStatement,
   AsWhileStatement,
   KindArrayBindingPattern,
-  KindArrayType,
   KindBlock,
   KindBreakStatement,
   KindContinueStatement,
@@ -40,19 +36,14 @@ import {
   KindIfStatement,
   KindLabeledStatement,
   KindObjectBindingPattern,
-  KindParameter,
-  KindPropertyDeclaration,
-  KindPropertySignature,
   KindReturnStatement,
   KindSwitchStatement,
   KindThrowStatement,
   KindTryStatement,
-  KindVariableDeclaration,
   KindVariableDeclarationList,
   KindVariableStatement,
   KindWhileStatement,
   Node_Text,
-  TypeFlagsStringLike,
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -69,7 +60,6 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   allocateCatchValue,
   allocateControlLabel,
-  allocateForInIndex,
   allocateForOfItem,
   createDestructuringPlannerState,
   planBindingPatternFromExpression,
@@ -281,173 +271,23 @@ export function planStatements(
 
 function planForInStatement(
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  _sourceFile: SourceFile,
+  _input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
+  _state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  if (getForInCollectionKind(statement.Expression, sourceFile, input) === undefined) {
-    const diagnosticNode = statement.Expression ?? statement.Initializer;
-    if (diagnosticNode === undefined) {
-      diagnostics.push({
-        code: "CSHARP_UNSUPPORTED_FOR_IN_COLLECTION",
-        category: "error",
-        source: "tsonic-csharp",
-        message: "For-in requires a statically proven string or array collection; arbitrary property enumeration requires target object-shape facts.",
-      });
-    } else {
-      diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires a statically proven string or array collection; arbitrary property enumeration requires target object-shape facts."));
-    }
-    return [];
-  }
-  const indexName = allocateForInIndex(state);
-  const binding = planForInBinding(statement.Initializer, indexName, diagnostics);
-  if (binding === undefined) {
-    return [];
-  }
-  const collection = planExpression(statement.Expression!, sourceFile, input, diagnostics);
-  return [{
-    kind: "for",
-    initializer: {
-      kind: "locals",
-      locals: [{
-        name: indexName,
-        type: predefined("int"),
-        initializer: { kind: "literal", value: 0 },
-      }],
-    },
-    condition: {
-      kind: "binary",
-      left: { kind: "identifier", name: indexName },
-      operator: "<",
-      right: {
-        kind: "member",
-        receiver: collection,
-        name: "Length",
-      },
-    },
-    incrementor: {
-      kind: "postfixUnary",
-      operand: { kind: "identifier", name: indexName },
-      operator: "++",
-    },
-    body: {
-      statements: [
-        ...binding.prelude,
-        ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
-      ],
-    },
-  }];
-}
-
-function getForInCollectionKind(
-  expression: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): "array" | "string" | undefined {
-  if (expression === undefined) {
-    return undefined;
-  }
-  const type = input.checker.getTypeAtLocation(expression, { sourceFile });
-  if (type !== undefined && (type.flags & TypeFlagsStringLike) !== 0) {
-    return "string";
-  }
-  const symbol = input.checker.getSymbolAtLocation(expression, { sourceFile }) ??
-    input.checker.getResolvedSymbol(expression, { sourceFile });
-  if ((symbol?.Declarations ?? []).some((declaration) => declarationHasArrayType(declaration))) {
-    return "array";
-  }
-  return undefined;
-}
-
-function declarationHasArrayType(declaration: Node | undefined): boolean {
-  if (declaration === undefined) {
-    return false;
-  }
-  switch (declaration.Kind) {
-    case KindParameter:
-      return AsParameterDeclaration(declaration)?.Type?.Kind === KindArrayType;
-    case KindVariableDeclaration:
-      return AsVariableDeclaration(declaration)?.Type?.Kind === KindArrayType;
-    case KindPropertyDeclaration:
-      return AsPropertyDeclaration(declaration)?.Type?.Kind === KindArrayType;
-    case KindPropertySignature:
-      return AsPropertySignatureDeclaration(declaration)?.Type?.Kind === KindArrayType;
-    default:
-      return false;
-  }
-}
-
-interface PlannedForInBinding {
-  readonly prelude: readonly CsharpStatement[];
-}
-
-function planForInBinding(
-  initializer: Node | undefined,
-  indexName: string,
-  diagnostics: TargetDiagnostic[],
-): PlannedForInBinding | undefined {
-  if (initializer === undefined) {
+  const diagnosticNode = statement.Expression ?? statement.Initializer;
+  if (diagnosticNode === undefined) {
     diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_FOR_IN_BINDING",
+      code: "CSHARP_UNSUPPORTED_FOR_IN_COLLECTION",
       category: "error",
       source: "tsonic-csharp",
-      message: "For-in statement has no initializer.",
+      message: "For-in requires finalized TSTS/provider enumeration facts before C# emission.",
     });
-    return undefined;
+  } else {
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires finalized TSTS/provider enumeration facts before C# emission."));
   }
-  const keyInitializer = indexToStringExpression(indexName);
-  if (initializer.Kind === KindVariableDeclarationList) {
-    const declarations = AsVariableDeclarationList(initializer)!.Declarations?.Nodes ?? [];
-    const first = declarations.find((declaration): declaration is Node => declaration !== undefined);
-    if (first === undefined || declarations.filter((declaration) => declaration !== undefined).length !== 1) {
-      diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-in variable declaration must contain exactly one binding."));
-      return undefined;
-    }
-    const variable = AsVariableDeclaration(first)!;
-    if (variable.name?.Kind !== KindIdentifier) {
-      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? first, "For-in binding must be an identifier; destructured property keys require target enumeration facts."));
-      return undefined;
-    }
-    if (variable.Initializer !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(first, "For-in variable declaration cannot have an initializer."));
-    }
-    return {
-      prelude: [{
-        kind: "local",
-        name: sanitizeIdentifier(Node_Text(variable.name)),
-        type: predefined("string"),
-        initializer: keyInitializer,
-      }],
-    };
-  }
-  if (initializer.Kind === KindIdentifier) {
-    return {
-      prelude: [{
-        kind: "expression",
-        expression: {
-          kind: "binary",
-          left: { kind: "identifier", name: sanitizeIdentifier(Node_Text(initializer)) },
-          operator: "=",
-          right: keyInitializer,
-        },
-      }],
-    };
-  }
-  diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-in initializer binding is outside the current C# planning surface."));
-  return undefined;
-}
-
-function indexToStringExpression(indexName: string): CsharpExpression {
-  return {
-    kind: "call",
-    callee: {
-      kind: "member",
-      receiver: { kind: "identifier", name: indexName },
-      name: "ToString",
-    },
-    arguments: [],
-  };
+  return [];
 }
 
 function planForOfStatement(
@@ -516,6 +356,7 @@ function planForOfBinding(
         prelude: planBindingPatternFromExpression(
           variable.name,
           { kind: "identifier", name: itemName },
+          first,
           sourceFile,
           input,
           diagnostics,

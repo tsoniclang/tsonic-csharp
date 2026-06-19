@@ -51,7 +51,7 @@ import type {
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
 import { planAttributesForSubject } from "./attributes.js";
-import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
+import { getCsharpTypeForNode, invalidCsharpType, predefined } from "./csharp-types.js";
 import {
   createDestructuringPlannerState,
   planParameterBindingPrelude,
@@ -322,7 +322,7 @@ function planInterfacePropertyDeclaration(
     kind: "interface-property",
     name: planIdentifierName(declaration.name, "property", diagnostics, "Interface property name"),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    type: getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, predefined("object"), diagnostics),
+    type: getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("interface property type"), diagnostics),
   };
 }
 
@@ -355,7 +355,7 @@ function planPropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpFieldDeclaration {
   const declaration = AsPropertyDeclaration(node)!;
-  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, predefined("object"), diagnostics);
+  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("property type"), diagnostics);
   return {
     kind: "field",
     name: planIdentifierName(declaration.name, "field", diagnostics, "Property name"),
@@ -404,7 +404,7 @@ function mergeGetterAccessor(
   diagnostics: TargetDiagnostic[],
 ): CsharpPropertyDeclaration {
   const declaration = AsGetAccessorDeclaration(node)!;
-  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, existing?.type ?? predefined("object"), diagnostics);
+  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, existing?.type ?? invalidCsharpType("get accessor type"), diagnostics);
   const state = createDestructuringPlannerState();
   state.currentReturnType = type;
   return {
@@ -442,7 +442,7 @@ function mergeSetterAccessor(
     parameterDeclaration?.Type ?? declaration.Type ?? declaration.name,
     sourceFile,
     input,
-    existing?.type ?? predefined("object"),
+    existing?.type ?? invalidCsharpType("set accessor type"),
     diagnostics,
   );
   const parameterAlias = parameterDeclaration?.name?.Kind === KindObjectBindingPattern || parameterDeclaration?.name?.Kind === KindArrayBindingPattern
