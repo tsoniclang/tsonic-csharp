@@ -1,6 +1,7 @@
 import {
   AsArrayTypeNode,
   AsFunctionTypeNode,
+  AsInterfaceDeclaration,
   AsNumericLiteral,
   AsParameterDeclaration,
   AsPropertyAccessExpression,
@@ -940,36 +941,75 @@ function resolveCsharpObjectShape(
   subject: ExtensionFactSubject,
   context: ExtensionFactResolverContext,
 ): { readonly value: ObjectShapeFact; readonly evidence?: readonly ExtensionEvidence[] } | undefined {
-  const typeLiteral = getObjectShapeTypeLiteralSubject(subject);
-  if (typeLiteral === undefined) {
+  const shapeSubject = getObjectShapeSubject(subject);
+  if (shapeSubject === undefined) {
     return undefined;
   }
-  const members = resolveCsharpObjectShapeMembers(typeLiteral, context);
+  const members = resolveCsharpObjectShapeMembers(shapeSubject.declaration, context);
   if (members === undefined) {
     return undefined;
   }
+  const implementedContracts = shapeSubject.implementedContract === undefined
+    ? undefined
+    : [shapeSubject.implementedContract];
   return {
     value: {
       targetType: {
         kind: "target-named",
-        id: csharpObjectShapeId(typeLiteral),
+        id: csharpObjectShapeId(shapeSubject.declaration),
       },
       members,
+      ...(implementedContracts === undefined ? {} : { implements: implementedContracts }),
       constructible: true,
     },
-    evidence: [{ message: "C# structural object carrier from TypeScript type literal." }],
+    evidence: [{ message: shapeSubject.evidenceMessage }],
   };
 }
 
-function getObjectShapeTypeLiteralSubject(subject: ExtensionFactSubject): Node | undefined {
+interface CsharpObjectShapeSubject {
+  readonly declaration: Node;
+  readonly implementedContract?: TargetTypeRef;
+  readonly evidenceMessage: string;
+}
+
+function getObjectShapeSubject(subject: ExtensionFactSubject): CsharpObjectShapeSubject | undefined {
   if (isNodeSubject(subject)) {
-    return subject.Kind === KindTypeLiteral ? subject : undefined;
+    return getObjectShapeDeclarationSubject(subject);
   }
   if (isTypeSubject(subject)) {
     const declaration = subject.symbol?.ValueDeclaration ?? subject.symbol?.Declarations?.find((candidate): candidate is Node => candidate !== undefined);
-    return declaration?.Kind === KindTypeLiteral ? declaration : undefined;
+    return declaration === undefined ? undefined : getObjectShapeDeclarationSubject(declaration);
   }
   return undefined;
+}
+
+function getObjectShapeDeclarationSubject(declaration: Node): CsharpObjectShapeSubject | undefined {
+  if (declaration.Kind === KindTypeLiteral) {
+    return {
+      declaration,
+      evidenceMessage: "C# structural object carrier from TypeScript type literal.",
+    };
+  }
+  if (declaration.Kind !== KindInterfaceDeclaration) {
+    return undefined;
+  }
+  const interfaceDeclaration = AsInterfaceDeclaration(declaration);
+  const typeParameters = interfaceDeclaration?.TypeParameters?.Nodes ?? [];
+  if (typeParameters.some((typeParameter) => typeParameter !== undefined)) {
+    return undefined;
+  }
+  const name = getCsharpObjectShapeDeclarationName(declaration);
+  if (name === undefined) {
+    return undefined;
+  }
+  return {
+    declaration,
+    implementedContract: {
+      kind: "target-named",
+      id: sanitizeCsharpIdentifier(name),
+    },
+    evidenceMessage: `C# structural object carrier implementing source interface '${name}'.`,
+  };
 }
 
 function resolveCsharpObjectShapeMembers(
@@ -1022,7 +1062,14 @@ function getCsharpObjectShapePropertyName(member: Node): { readonly sourceName: 
 function csharpObjectShapeId(node: Node): string {
   const sourceFile = GetSourceFileOfNode(node);
   const fileName = sourceFile === undefined ? "unknown" : SourceFile_FileName(sourceFile);
-  return `__TsonicShape_${stableIdentifierHash(fileName)}_${Node_Pos(node)}`;
+  const sourceName = getCsharpObjectShapeDeclarationName(node);
+  const namePart = sourceName === undefined ? "" : `${sanitizeCsharpIdentifier(sourceName)}_`;
+  return `__TsonicShape_${namePart}${stableIdentifierHash(fileName)}_${Node_Pos(node)}`;
+}
+
+function getCsharpObjectShapeDeclarationName(node: Node): string | undefined {
+  const name = Node_Name(node);
+  return name === undefined || name.Kind !== KindIdentifier ? undefined : Node_Text(name);
 }
 
 function stableIdentifierHash(text: string): string {

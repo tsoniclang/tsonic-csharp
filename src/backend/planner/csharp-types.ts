@@ -169,7 +169,9 @@ export function getCsharpTypeForTstsType(
   if (typeRuntimeCarrier !== undefined) {
     return typeRuntimeCarrier;
   }
-  const objectShape = input.facts.getObjectShapeFact(type) ?? input.facts.getObjectShapeFact(type.symbol);
+  const objectShape = isTypeLiteralSemanticType(type)
+    ? input.facts.getObjectShapeFact(type) ?? input.facts.getObjectShapeFact(type.symbol)
+    : undefined;
   const objectShapeType = objectShape === undefined
     ? undefined
     : csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, diagnosticNode);
@@ -212,6 +214,11 @@ export function getCsharpTypeForTstsType(
   const typeText = input.checker.typeToString(type, { sourceFile });
   diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, `C# emission requires a closed target type from TSTS or provider facts. TSTS type: ${typeText ?? "<unknown>"}.`));
   return undefined;
+}
+
+function isTypeLiteralSemanticType(type: Type): boolean {
+  const declaration = type.symbol?.ValueDeclaration ?? type.symbol?.Declarations?.find((candidate) => candidate !== undefined);
+  return declaration?.Kind === KindTypeLiteral;
 }
 
 export function invalidCsharpType(reason: string): CsharpTypeNode {

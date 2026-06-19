@@ -699,7 +699,7 @@ function planObjectLiteralExpressionWithExpectedType(
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,
 ): CsharpExpression {
-  const objectShape = expectedTypeSubject === undefined ? undefined : input.facts.getObjectShapeFact(expectedTypeSubject);
+  const objectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input);
   if (objectShape !== undefined) {
     return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape);
   }
@@ -717,6 +717,24 @@ function planObjectLiteralExpressionWithExpectedType(
     type: expectedType,
     assignments,
   };
+}
+
+function getExpectedObjectShapeFact(
+  expectedTypeSubject: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): ObjectShapeFact | undefined {
+  if (expectedTypeSubject === undefined) {
+    return undefined;
+  }
+  const direct = input.facts.getObjectShapeFact(expectedTypeSubject);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const type = input.checker.getTypeAtLocation(expectedTypeSubject, { sourceFile });
+  return type === undefined
+    ? undefined
+    : input.facts.getObjectShapeFact(type) ?? input.facts.getObjectShapeFact(type.symbol);
 }
 
 function planObjectLiteralExpressionWithObjectShape(

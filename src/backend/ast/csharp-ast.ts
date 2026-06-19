@@ -137,6 +137,8 @@ export interface CsharpPropertyDeclaration {
   readonly modifiers: readonly CsharpModifier[];
   readonly attributes?: readonly CsharpAttribute[];
   readonly type: CsharpTypeNode;
+  readonly autoGetter?: boolean;
+  readonly autoSetter?: boolean;
   readonly getter?: CsharpBlock;
   readonly setter?: CsharpBlock;
 }

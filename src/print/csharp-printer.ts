@@ -168,26 +168,32 @@ function printMethodLines(method: CsharpMethodDeclaration): string[] {
 
 function printPropertyLines(property: CsharpPropertyDeclaration): string[] {
   const modifiers = property.modifiers.length === 0 ? "" : `${property.modifiers.join(" ")} `;
+  const accessors: string[] = [];
+  if (property.autoGetter === true) {
+    accessors.push("get;");
+  } else if (property.getter !== undefined) {
+    accessors.push(
+      "get",
+      "{",
+      ...indentLines(printCsharpStatements(property.getter.statements)),
+      "}",
+    );
+  }
+  if (property.autoSetter === true) {
+    accessors.push("set;");
+  } else if (property.setter !== undefined) {
+    accessors.push(
+      "set",
+      "{",
+      ...indentLines(printCsharpStatements(property.setter.statements)),
+      "}",
+    );
+  }
   return [
     ...printCsharpAttributes(property.attributes),
     `${modifiers}${printCsharpType(property.type)} ${property.name}`,
     "{",
-    ...(property.getter === undefined
-      ? []
-      : indentLines([
-          "get",
-          "{",
-          ...indentLines(printCsharpStatements(property.getter.statements)),
-          "}",
-        ])),
-    ...(property.setter === undefined
-      ? []
-      : indentLines([
-          "set",
-          "{",
-          ...indentLines(printCsharpStatements(property.setter.statements)),
-          "}",
-        ])),
+    ...indentLines(accessors),
     "}",
   ];
 }

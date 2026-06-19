@@ -48,6 +48,11 @@ function registerObjectShapeDeclaration(
   if (registry === undefined || registry.declarations.has(name)) {
     return;
   }
+  const interfaces = renderObjectShapeInterfaces(fact, diagnostics, diagnosticSubject);
+  if (interfaces === undefined) {
+    return;
+  }
+  const implementsInterface = interfaces.length > 0;
   const members = fact.members.map((member) => {
     const type = csharpTypeFromTargetTypeRef(member.type);
     if (type === undefined) {
@@ -55,6 +60,16 @@ function registerObjectShapeDeclaration(
         diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, `Object-shape member '${member.sourceName}' must carry a renderable target carrier type before C# emission.`));
       }
       return undefined;
+    }
+    if (implementsInterface) {
+      return {
+        kind: "property" as const,
+        name: member.targetName,
+        modifiers: ["public"] as const,
+        type,
+        autoGetter: true,
+        autoSetter: true,
+      };
     }
     return {
       kind: "field" as const,
@@ -70,6 +85,22 @@ function registerObjectShapeDeclaration(
     kind: "class",
     name,
     modifiers: ["public"],
+    ...(interfaces.length === 0 ? {} : { interfaces }),
     members: members as CsharpClassDeclaration["members"],
   });
+}
+
+function renderObjectShapeInterfaces(
+  fact: ObjectShapeFact,
+  diagnostics: TargetDiagnostic[] | undefined,
+  diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
+): readonly CsharpTypeNode[] | undefined {
+  const rendered = (fact.implements ?? []).map((contract) => csharpTypeFromTargetTypeRef(contract));
+  if (rendered.some((contract) => contract === undefined)) {
+    if (diagnostics !== undefined && diagnosticSubject !== undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, "Object-shape implemented contracts must carry renderable target type references before C# emission."));
+    }
+    return undefined;
+  }
+  return rendered as readonly CsharpTypeNode[];
 }
