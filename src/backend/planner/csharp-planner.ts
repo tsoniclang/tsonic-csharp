@@ -8,6 +8,7 @@ import {
   KindExportDeclaration,
   KindExpressionStatement,
   KindForStatement,
+  KindForOfStatement,
   KindFunctionDeclaration,
   KindIfStatement,
   KindImportDeclaration,
@@ -121,6 +122,7 @@ function planSourceFile(
       case KindWhileStatement:
       case KindDoStatement:
       case KindForStatement:
+      case KindForOfStatement:
       case KindReturnStatement:
       case KindThrowStatement:
       case KindSwitchStatement:
