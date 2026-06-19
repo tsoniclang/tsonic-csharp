@@ -24,6 +24,7 @@ export interface DestructuringPlannerState {
   nextTempIndex: number;
   nextParameterIndex: number;
   nextForOfIndex: number;
+  nextForInIndex: number;
   nextCatchIndex: number;
   nextControlLabelIndex: number;
   controlLabels: ControlLabelTarget[];
@@ -35,6 +36,7 @@ export function createDestructuringPlannerState(): DestructuringPlannerState {
     nextTempIndex: 0,
     nextParameterIndex: 0,
     nextForOfIndex: 0,
+    nextForInIndex: 0,
     nextCatchIndex: 0,
     nextControlLabelIndex: 0,
     controlLabels: [],
@@ -56,6 +58,12 @@ export function allocateSyntheticParameter(state: DestructuringPlannerState): st
 export function allocateForOfItem(state: DestructuringPlannerState): string {
   const name = `__forOf${state.nextForOfIndex}`;
   state.nextForOfIndex += 1;
+  return name;
+}
+
+export function allocateForInIndex(state: DestructuringPlannerState): string {
+  const name = `__forInIndex${state.nextForInIndex}`;
+  state.nextForInIndex += 1;
   return name;
 }
 
