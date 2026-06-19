@@ -222,7 +222,7 @@ function getCsharpTypeForTstsType(
     return predefined("bool");
   }
   if ((type.flags & TypeFlagsBigIntLike) !== 0) {
-    return predefined("long");
+    return bigIntegerType();
   }
   if ((type.flags & TypeFlagsNumberLike) !== 0) {
     return predefined("double");
@@ -254,7 +254,7 @@ function getCsharpTypeForKeywordType(kind: number): CsharpTypeNode | undefined {
     case KindBooleanKeyword:
       return predefined("bool");
     case KindBigIntKeyword:
-      return predefined("long");
+      return bigIntegerType();
     case KindVoidKeyword:
       return predefined("void");
     case KindObjectKeyword:
@@ -268,6 +268,18 @@ function getCsharpTypeForKeywordType(kind: number): CsharpTypeNode | undefined {
 
 function invalidType(reason: string): CsharpTypeNode {
   return { kind: "invalid", reason };
+}
+
+function bigIntegerType(): CsharpTypeNode {
+  return {
+    kind: "qualified",
+    left: {
+      kind: "qualified",
+      left: { kind: "named", name: "System" },
+      name: "Numerics",
+    },
+    name: "BigInteger",
+  };
 }
 
 export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boolean {
