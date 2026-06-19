@@ -532,6 +532,29 @@ export function planExpressionWithExpectedType(
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
 ): CsharpExpression {
+  const expectedTypeLiteral = planExpectedTypeLiteral(node, expectedType, diagnostics);
+  if (expectedTypeLiteral !== undefined) {
+    return expectedTypeLiteral;
+  }
+  if (node.Kind === KindAsExpression) {
+    return planExpressionWithExpectedType(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType);
+  }
+  if (node.Kind === KindSatisfiesExpression) {
+    return planExpressionWithExpectedType(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType);
+  }
+  if (node.Kind === KindNonNullExpression) {
+    return planExpressionWithExpectedType(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType);
+  }
+  if (node.Kind === KindTypeAssertionExpression) {
+    return planExpressionWithExpectedType(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics, expectedType);
+  }
+  if (node.Kind === KindParenthesizedExpression) {
+    const expression = AsParenthesizedExpression(node)!;
+    return {
+      kind: "parenthesized",
+      expression: planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType),
+    };
+  }
   if (node.Kind === KindObjectLiteralExpression) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires finalized TSTS/provider object-shape facts before C# emission."));
     return invalidExpression("object literal without finalized object-shape facts");
@@ -556,6 +579,40 @@ export function planExpressionWithExpectedType(
     };
   }
   return expression;
+}
+
+function planExpectedTypeLiteral(
+  node: Node,
+  expectedType: CsharpTypeNode,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  if (!isCsharpCharType(expectedType)) {
+    return undefined;
+  }
+  const text = getStringLiteralText(node);
+  if (text === undefined) {
+    return undefined;
+  }
+  if (text.length !== 1) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# char literals require exactly one UTF-16 code unit from TSTS/source primitive typing."));
+    return invalidExpression("invalid char literal");
+  }
+  return { kind: "charLiteral", value: text };
+}
+
+function getStringLiteralText(node: Node): string | undefined {
+  switch (node.Kind) {
+    case KindStringLiteral:
+      return AsStringLiteral(node)!.Text;
+    case KindNoSubstitutionTemplateLiteral:
+      return AsNoSubstitutionTemplateLiteral(node)!.Text;
+    default:
+      return undefined;
+  }
+}
+
+function isCsharpCharType(type: CsharpTypeNode): boolean {
+  return type.kind === "predefined" && type.name === "char";
 }
 
 function planTupleLiteralExpression(

@@ -224,6 +224,7 @@ export type CsharpExpression =
   | { readonly kind: "identifier"; readonly name: string }
   | { readonly kind: "invalid"; readonly reason: string }
   | { readonly kind: "literal"; readonly value: string | number | boolean | null }
+  | { readonly kind: "charLiteral"; readonly value: string }
   | { readonly kind: "interpolatedString"; readonly parts: readonly CsharpInterpolatedStringPart[] }
   | { readonly kind: "parenthesized"; readonly expression: CsharpExpression }
   | { readonly kind: "call"; readonly callee: CsharpExpression; readonly arguments: readonly CsharpArgument[] }
