@@ -2,6 +2,7 @@ import {
   AsBlock,
   AsCallExpression,
   AsClassDeclaration,
+  AsClassStaticBlockDeclaration,
   AsConstructorDeclaration,
   AsExpressionStatement,
   AsFunctionDeclaration,
@@ -16,6 +17,7 @@ import {
   AsSetAccessorDeclaration,
   KindCallExpression,
   KindConstructor,
+  KindClassStaticBlockDeclaration,
   KindExpressionStatement,
   KindGetAccessor,
   KindIndexSignature,
@@ -100,6 +102,9 @@ function planClassMembers(
       case KindConstructor:
         planned.push(planConstructorDeclaration(member, className, sourceFile, input, diagnostics));
         break;
+      case KindClassStaticBlockDeclaration:
+        planned.push(planClassStaticBlockDeclaration(member, className, sourceFile, input, diagnostics));
+        break;
       case KindMethodDeclaration:
         planned.push(planMethodDeclaration(member, sourceFile, input, diagnostics));
         break;
@@ -116,6 +121,25 @@ function planClassMembers(
     }
   }
   return planned;
+}
+
+function planClassStaticBlockDeclaration(
+  node: Node,
+  className: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpConstructorDeclaration {
+  const declaration = AsClassStaticBlockDeclaration(node)!;
+  return {
+    kind: "constructor",
+    name: className,
+    modifiers: ["static"],
+    parameters: [],
+    body: {
+      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
+    },
+  };
 }
 
 export function planInterfaceDeclaration(
