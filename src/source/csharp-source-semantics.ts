@@ -18,6 +18,7 @@ import type {
   SourceSemanticsModule,
   SourceTypeMarkerDeclaration,
   TargetBindingProvider,
+  TargetIterationFact,
   TargetOperationFact,
   TargetSemanticProvider,
   Type,
@@ -136,6 +137,27 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
           resultType: elementType,
         } satisfies TargetOperationFact,
         resultType: elementType,
+      });
+    },
+    resolveIteration(request) {
+      if (request.target !== undefined && request.target !== "csharp") {
+        return deferDecision;
+      }
+      if (request.iterationKind !== "sync") {
+        return deferDecision;
+      }
+      const elementType = getTypeScriptArrayElementType(request.iterableType as Type | undefined);
+      if (elementType === undefined) {
+        return deferDecision;
+      }
+      return acceptDecision({
+        iteration: {
+          operationId: "System.Array.Enumerate",
+          iterationKind: "sync",
+          targetOperation: "foreach",
+          elementType,
+        } satisfies TargetIterationFact,
+        elementType,
       });
     },
   };

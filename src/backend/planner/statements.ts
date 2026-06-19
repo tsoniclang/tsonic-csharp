@@ -70,7 +70,6 @@ import { planExpression, planExpressionWithExpectedType } from "./expressions.js
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
 import { planIdentifierName } from "./names.js";
-import { getProviderOperationOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -251,7 +250,7 @@ export function planStatements(
       if (statement.AwaitModifier !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "For-await-of requires async iteration semantics and is not implemented yet."));
       }
-      return planForOfStatement(statement, sourceFile, input, diagnostics, state);
+      return planForOfStatement(node, statement, sourceFile, input, diagnostics, state);
     }
     case KindVariableStatement: {
       const declarationList = AsVariableStatement(node)!.DeclarationList;
@@ -292,6 +291,7 @@ function planForInStatement(
 }
 
 function planForOfStatement(
+  statementNode: Node,
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
@@ -302,9 +302,14 @@ function planForOfStatement(
   if (binding === undefined) {
     return [];
   }
-  const ownership = getProviderOperationOwnership(statement.Expression, sourceFile, input);
-  if (ownership.requiresTargetFact) {
-    pushMissingTargetFactDiagnostic(diagnostics, statement.Expression!, "C# for-of enumeration requires a direct source iterable or finalized TSTS/provider enumeration facts.", ownership);
+  const selectedIteration = input.facts.getSelectedTargetIteration(statementNode);
+  if (selectedIteration === undefined) {
+    const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of emission requires finalized TSTS/provider iteration facts."));
+    return [];
+  }
+  if (selectedIteration.iterationKind !== "sync" || selectedIteration.targetOperation !== "foreach") {
+    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-of emission does not support target iteration operation '${selectedIteration.targetOperation}' with kind '${selectedIteration.iterationKind}'.`));
     return [];
   }
   return [{
