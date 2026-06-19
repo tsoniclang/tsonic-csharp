@@ -12,10 +12,12 @@ import {
   KindBooleanKeyword,
   KindBindingElement,
   KindCatchClause,
+  KindClassDeclaration,
   KindEnumDeclaration,
   KindEnumMember,
   KindFunctionType,
   KindIdentifier,
+  KindInterfaceDeclaration,
   KindNeverKeyword,
   KindNewExpression,
   KindNumberKeyword,
@@ -917,6 +919,10 @@ function resolveCsharpRuntimeCarrierForTstsType(
       };
     }
   }
+  const sourceProjectCarrier = resolveCsharpSourceProjectTypeCarrier(type, context);
+  if (sourceProjectCarrier !== undefined) {
+    return sourceProjectCarrier;
+  }
   if ((type.flags & (TypeFlagsAny | TypeFlagsUnknown)) !== 0) {
     return undefined;
   }
@@ -945,6 +951,53 @@ function resolveCsharpRuntimeCarrierForTstsType(
     return csharpNamed("System.Void");
   }
   return undefined;
+}
+
+function resolveCsharpSourceProjectTypeCarrier(
+  type: Type,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const typeReference = getTypeScriptTypeReferenceInfo(type);
+  const symbol = typeReference?.targetSymbol ?? type.symbol;
+  const sourceName = getSourceProjectTypeName(symbol);
+  if (sourceName === undefined) {
+    return undefined;
+  }
+  const typeArgumentNodes = typeReference?.typeArguments ?? [];
+  if (typeArgumentNodes.length === 0) {
+    return csharpNamed(sourceName);
+  }
+  const typeArguments = typeArgumentNodes
+    .map((argument) => context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier);
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  return {
+    kind: "target-named",
+    id: sourceName,
+    typeArguments: typeArguments as readonly TargetTypeRef[],
+  };
+}
+
+function getSourceProjectTypeName(symbol: Symbol | undefined): string | undefined {
+  const declaration = symbol?.ValueDeclaration ?? symbol?.Declarations?.find((candidate) => candidate !== undefined);
+  if (
+    declaration?.Kind !== KindClassDeclaration &&
+    declaration?.Kind !== KindInterfaceDeclaration &&
+    declaration?.Kind !== KindEnumDeclaration
+  ) {
+    return undefined;
+  }
+  const sourceFile = GetSourceFileOfNode(declaration);
+  if (sourceFile === undefined || sourceFile.IsDeclarationFile) {
+    return undefined;
+  }
+  const fileName = SourceFile_FileName(sourceFile);
+  if (fileName.startsWith("tsts-provider://")) {
+    return undefined;
+  }
+  const name = symbol?.Name;
+  return name === undefined || name.length === 0 ? undefined : name;
 }
 
 function resolveNullableUnionCarrierForTstsType(

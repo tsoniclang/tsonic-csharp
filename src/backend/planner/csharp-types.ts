@@ -10,16 +10,13 @@ import {
   KindObjectKeyword,
   KindObjectBindingPattern,
   GetSourceFileOfNode,
-  getTypeScriptUnionTypes,
   getTypeScriptTypeReferenceInfo,
-  isTypeScriptNullishType,
   KindPropertyAccessExpression,
   KindTypeLiteral,
   KindUnionType,
   KindUnknownKeyword,
   SourceFile_FileName,
   TypeFlagsAny,
-  TypeFlagsTypeParameter,
   TypeFlagsUnknown,
 } from "@tsonic/tsts";
 import type { Node, SourceFile, Symbol, Type } from "@tsonic/tsts";
@@ -164,10 +161,6 @@ export function getCsharpTypeForTstsType(
   if (typeRuntimeCarrier !== undefined) {
     return typeRuntimeCarrier;
   }
-  const nullableUnionType = getCsharpTypeForNullableUnionTstsType(type, sourceFile, input, diagnostics, diagnosticNode);
-  if (nullableUnionType !== undefined) {
-    return nullableUnionType;
-  }
   const typeSymbol = type.symbol;
   const typeTargetBinding = input.facts.getTargetBindingFact(typeSymbol);
   if (typeTargetBinding !== undefined) {
@@ -187,7 +180,7 @@ export function getCsharpTypeForTstsType(
       : { kind: "named", name: sanitizeIdentifier(sourceTypeName), typeArguments };
   }
   if (typeReference !== undefined) {
-    diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "C# emission requires a provider target binding or a project-source class/interface declaration for type references."));
+    diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "C# emission requires a provider target binding, finalized runtime carrier fact, or a project-source class/interface declaration for type references."));
     return undefined;
   }
   const typeDeclaration = typeSymbol?.ValueDeclaration ?? typeSymbol?.Declarations?.find((candidate) => candidate !== undefined);
@@ -204,36 +197,6 @@ export function getCsharpTypeForTstsType(
   const typeText = input.checker.typeToString(type, { sourceFile });
   diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, `C# emission requires a closed target type from TSTS or provider facts. TSTS type: ${typeText ?? "<unknown>"}.`));
   return undefined;
-}
-
-function getCsharpTypeForNullableUnionTstsType(
-  type: Type,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[] | undefined,
-  diagnosticNode: Node,
-): CsharpTypeNode | undefined {
-  const unionTypes = getTypeScriptUnionTypes(type);
-  if (unionTypes === undefined) {
-    return undefined;
-  }
-  const nonNullishTypes = unionTypes.filter((unionType) => !isTypeScriptNullishType(unionType));
-  if (nonNullishTypes.length !== 1 || nonNullishTypes.length === unionTypes.length) {
-    return undefined;
-  }
-  const nonNullishType = nonNullishTypes[0]!;
-  if ((nonNullishType.flags & TypeFlagsTypeParameter) !== 0) {
-    diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "Generic nullish unions require finalized target type-parameter constraint facts before C# nullable emission."));
-    return undefined;
-  }
-  const inner = getCsharpTypeForTstsType(nonNullishType, sourceFile, input, diagnostics, diagnosticNode);
-  if (inner === undefined || inner.kind === "invalid" || (inner.kind === "predefined" && inner.name === "void")) {
-    return undefined;
-  }
-  return {
-    kind: "nullable",
-    inner,
-  };
 }
 
 export function invalidCsharpType(reason: string): CsharpTypeNode {

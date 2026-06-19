@@ -879,18 +879,37 @@ function tryPlanBinaryExpression(
   }
   const expression = AsBinaryExpression(node)!;
   const operatorKind = expression.OperatorToken?.Kind;
-  if (selectedOperator === undefined && operator !== "=" && operatorKind !== KindInstanceOfKeyword) {
-    const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
-    const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
-    const ownership = combineOwnership(leftOwnership, rightOwnership);
-    pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a selected provider operator fact.", ownership);
-    return invalidExpression("missing target operator fact");
+  if (selectedOperator === undefined && operator !== "=") {
+    if (operatorKind === KindInstanceOfKeyword) {
+      const leftOwnership = getSemanticOwnership(expression.Left, sourceFile, input);
+      const rightOwnership = getSemanticOwnership(expression.Right, sourceFile, input);
+      const ownership = combineSemanticOwnership(leftOwnership, rightOwnership);
+      if (ownership.requiresTargetFact || !leftOwnership.sourceOwned || !rightOwnership.sourceOwned) {
+        pushMissingTargetFactDiagnostic(diagnostics, node, "C# instanceof emission requires source-owned operands or a selected provider operator fact.", ownership);
+        return invalidExpression("missing target instanceof fact");
+      }
+    } else {
+      const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
+      const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
+      const ownership = combineOwnership(leftOwnership, rightOwnership);
+      pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a selected provider operator fact.", ownership);
+      return invalidExpression("missing target operator fact");
+    }
   }
   return {
     kind: "binary",
     left: planExpression(expression.Left!, sourceFile, input, diagnostics),
     operator,
     right: planExpression(expression.Right!, sourceFile, input, diagnostics),
+  };
+}
+
+function combineSemanticOwnership(left: ReturnType<typeof getSemanticOwnership>, right: ReturnType<typeof getSemanticOwnership>): ReturnType<typeof getSemanticOwnership> {
+  const reasons = [...left.reasons, ...right.reasons];
+  return {
+    requiresTargetFact: left.requiresTargetFact || right.requiresTargetFact,
+    sourceOwned: left.sourceOwned && right.sourceOwned,
+    reasons,
   };
 }
 
