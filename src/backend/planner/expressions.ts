@@ -458,7 +458,7 @@ function planArrowFunctionExpression(
 ): CsharpExpression {
   const expression = AsArrowFunction(node)!;
   diagnoseUnsupportedAsyncSemantics(node, "arrow function", diagnostics);
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
+  diagnoseMissingLambdaTargetContext(node, input, diagnostics, expectedType);
   if (expression.Body?.Kind === KindBlock) {
     return {
       kind: "lambda",
@@ -484,7 +484,7 @@ function planFunctionExpression(
 ): CsharpExpression {
   const expression = AsFunctionExpression(node)!;
   diagnoseUnsupportedAsyncSemantics(node, "function expression", diagnostics);
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
+  diagnoseMissingLambdaTargetContext(node, input, diagnostics, expectedType);
   return {
     kind: "lambda",
     parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
@@ -520,7 +520,6 @@ function planLambdaParameters(
 
 function diagnoseMissingLambdaTargetContext(
   node: Node,
-  sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
@@ -529,9 +528,6 @@ function diagnoseMissingLambdaTargetContext(
     return;
   }
   if (input.facts.getContextualTargetTypeFact(node)?.targetType !== undefined) {
-    return;
-  }
-  if (input.checker.getContextualType(node, undefined, { sourceFile }) !== undefined) {
     return;
   }
   diagnostics.push(unsupportedNodeDiagnostic(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."));

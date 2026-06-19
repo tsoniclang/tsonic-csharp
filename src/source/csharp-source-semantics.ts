@@ -329,6 +329,19 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       const operation = resolveCsharpOperator(request, context);
       return operation === undefined ? deferDecision : acceptDecision(operation);
     },
+    getContextualType(request, context) {
+      if (request.target !== undefined && request.target !== "csharp") {
+        return deferDecision;
+      }
+      const targetType = resolveFirstRuntimeCarrier([request.context], context);
+      if (targetType === undefined) {
+        return deferDecision;
+      }
+      return acceptDecision({
+        type: request.context,
+        targetType,
+      });
+    },
   };
 }
 
