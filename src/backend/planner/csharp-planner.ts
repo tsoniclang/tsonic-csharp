@@ -1,7 +1,5 @@
-import { relative, basename, dirname, extname } from "node:path";
 import {
   AsArrayLiteralExpression,
-  AsArrayTypeNode,
   AsBinaryExpression,
   AsBlock,
   AsCallExpression,
@@ -38,7 +36,6 @@ import {
   KindBlock,
   KindCallExpression,
   KindArrayLiteralExpression,
-  KindArrayType,
   KindClassDeclaration,
   KindConditionalExpression,
   KindConstructor,
@@ -83,7 +80,6 @@ import {
   KindQuestionQuestionToken,
   KindReturnStatement,
   KindSlashToken,
-  KindString,
   KindStringLiteral,
   KindThisKeyword,
   KindTrueKeyword,
@@ -93,16 +89,8 @@ import {
   KindWhileStatement,
   Node_Text,
   SourceFile_FileName,
-  TypeFlagsAny,
-  TypeFlagsBigIntLike,
-  TypeFlagsBooleanLike,
-  TypeFlagsNever,
-  TypeFlagsNumberLike,
-  TypeFlagsStringLike,
-  TypeFlagsUnknown,
-  TypeFlagsVoidLike,
 } from "@tsonic/tsts";
-import type { Node, SourceFile, SourcePrimitiveFact } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetArtifact, TargetCompileInput, TargetDiagnostic, TargetSourceFile } from "@tsonic/target-api";
 import type {
   CsharpArgument,
@@ -118,9 +106,13 @@ import type {
   CsharpStatement,
   CsharpTypeDeclaration,
   CsharpTypeMember,
-  CsharpTypeNode,
 } from "../ast/csharp-ast.js";
 import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
+import { expressionToCsharpType, getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types.js";
+import { unsupportedNodeDiagnostic } from "./diagnostics.js";
+import { sanitizeIdentifier } from "./identifiers.js";
+import { projectArtifact, readNamespace } from "./project-artifacts.js";
+import { sourceFileArtifactPath, sourceFileClassName } from "./source-paths.js";
 
 export interface CsharpPlanningResult {
   readonly artifacts: readonly TargetArtifact[];
@@ -726,306 +718,9 @@ function getCsharpPostfixUnaryOperator(kind: number): string | undefined {
   }
 }
 
-function expressionToCsharpType(
-  node: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): CsharpTypeNode {
-  if (node === undefined) {
-    return predefined("object");
-  }
-  switch (node.Kind) {
-    case KindIdentifier:
-      return { kind: "named", name: sanitizeIdentifier(AsIdentifier(node)!.Text) };
-    case KindPropertyAccessExpression: {
-      const expression = AsPropertyAccessExpression(node)!;
-      const receiver = expressionToCsharpType(expression.Expression, sourceFile, input);
-      const name = sanitizeIdentifier(Node_Text(expression.name!));
-      return { kind: "qualified", left: receiver, name };
-    }
-    default:
-      return getCsharpTypeForNode(node, sourceFile, input);
-  }
-}
-
-function getCsharpTypeForNode(
-  node: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  fallback: CsharpTypeNode = predefined("object"),
-): CsharpTypeNode {
-  if (node === undefined) {
-    return fallback;
-  }
-  if (node.Kind === KindArrayType) {
-    const arrayType = AsArrayTypeNode(node)!;
-    return {
-      kind: "array",
-      elementType: getCsharpTypeForNode(arrayType.ElementType, sourceFile, input),
-    };
-  }
-  const sourcePrimitive = input.facts.getSourcePrimitiveFact(node);
-  if (sourcePrimitive !== undefined) {
-    return getCsharpTypeForSourcePrimitive(sourcePrimitive);
-  }
-  const type = input.checker.getTypeAtLocation(node, { sourceFile });
-  if (type === undefined) {
-    return fallback;
-  }
-  const typeText = input.checker.typeToString(type, { sourceFile });
-  if (typeText === "void") {
-    return predefined("void");
-  }
-  if ((type.flags & TypeFlagsStringLike) !== 0) {
-    return predefined("string");
-  }
-  if ((type.flags & TypeFlagsBooleanLike) !== 0) {
-    return predefined("bool");
-  }
-  if ((type.flags & TypeFlagsBigIntLike) !== 0) {
-    return predefined("long");
-  }
-  if ((type.flags & TypeFlagsNumberLike) !== 0) {
-    return predefined("double");
-  }
-  if ((type.flags & TypeFlagsVoidLike) !== 0) {
-    return predefined("void");
-  }
-  if ((type.flags & (TypeFlagsAny | TypeFlagsUnknown | TypeFlagsNever)) !== 0) {
-    return predefined("object");
-  }
-  return fallback;
-}
-
-function getCsharpTypeForSourcePrimitive(fact: SourcePrimitiveFact): CsharpTypeNode {
-  switch (fact.kind) {
-    case "bool":
-      return predefined("bool");
-    case "char":
-      return predefined("char");
-    case "int8":
-      return predefined("sbyte");
-    case "uint8":
-      return predefined("byte");
-    case "int16":
-      return predefined("short");
-    case "uint16":
-      return predefined("ushort");
-    case "int32":
-      return predefined("int");
-    case "uint32":
-      return predefined("uint");
-    case "int64":
-      return predefined("long");
-    case "uint64":
-      return predefined("ulong");
-    case "native-int":
-      return predefined("nint");
-    case "native-uint":
-      return predefined("nuint");
-    case "float16":
-      return { kind: "named", name: "Half" };
-    case "float32":
-      return predefined("float");
-    case "float64":
-      return predefined("double");
-    case "decimal":
-      return predefined("decimal");
-    case "int128":
-      return { kind: "named", name: "Int128" };
-    case "uint128":
-      return { kind: "named", name: "UInt128" };
-  }
-}
-
-function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boolean {
-  if (left.kind !== right.kind) {
-    return false;
-  }
-  switch (left.kind) {
-    case "predefined":
-      return right.kind === "predefined" && left.name === right.name;
-    case "named": {
-      if (right.kind !== "named" || left.name !== right.name) {
-        return false;
-      }
-      const leftArgs = left.typeArguments ?? [];
-      const rightArgs = right.typeArguments ?? [];
-      return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => sameCsharpType(arg, rightArgs[index]!));
-    }
-    case "qualified": {
-      if (right.kind !== "qualified" || left.name !== right.name || !sameCsharpType(left.left, right.left)) {
-        return false;
-      }
-      const leftArgs = left.typeArguments ?? [];
-      const rightArgs = right.typeArguments ?? [];
-      return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => sameCsharpType(arg, rightArgs[index]!));
-    }
-    case "array":
-      return right.kind === "array" && (left.rank ?? 1) === (right.rank ?? 1) && sameCsharpType(left.elementType, right.elementType);
-  }
-}
-
-function projectArtifact(input: TargetCompileInput, sourceArtifacts: readonly TargetSourceFile[]): TargetArtifact {
-  void sourceArtifacts;
-  const properties = csharpProjectProperties(input);
-  return {
-    kind: "project",
-    path: `${readAssemblyName(input)}.csproj`,
-    text: [
-      "<Project Sdk=\"Microsoft.NET.Sdk\">",
-      "  <PropertyGroup>",
-      ...properties.map(([name, value]) => `    <${name}>${escapeXml(value)}</${name}>`),
-      "  </PropertyGroup>",
-      "</Project>",
-      "",
-    ].join("\n"),
-  };
-}
-
-function csharpProjectProperties(input: TargetCompileInput): readonly (readonly [string, string])[] {
-  const properties = new Map<string, string>();
-  properties.set("TargetFramework", readStringOption(input, "targetFramework", "net10.0"));
-  properties.set("Nullable", readStringOption(input, "nullable", "enable"));
-  properties.set("ImplicitUsings", readStringOption(input, "implicitUsings", "disable"));
-  const outputType = readOptionalStringOption(input, "outputType");
-  if (outputType !== undefined) {
-    properties.set("OutputType", outputType);
-  }
-  const publishAot = readOptionalBooleanOption(input, "publishAot");
-  if (publishAot !== undefined) {
-    properties.set("PublishAot", publishAot ? "true" : "false");
-  }
-  const customProperties = input.target.options?.properties;
-  if (customProperties !== undefined) {
-    if (!isRecord(customProperties)) {
-      throw new Error("C# target option 'properties' must be an object.");
-    }
-    for (const [name, value] of Object.entries(customProperties)) {
-      if (!isXmlElementName(name)) {
-        throw new Error(`C# target property '${name}' is not a valid XML element name.`);
-      }
-      if (!isScalarPropertyValue(value)) {
-        throw new Error(`C# target property '${name}' must be a string, number, or boolean.`);
-      }
-      properties.set(name, String(value));
-    }
-  }
-  return [...properties.entries()];
-}
-
-function readNamespace(input: TargetCompileInput): string {
-  const value = input.target.options?.namespace;
-  return typeof value === "string" && value.length > 0 ? value : "Tsonic.Generated";
-}
-
-function readAssemblyName(input: TargetCompileInput): string {
-  const value = input.target.options?.assemblyName;
-  return sanitizeIdentifier(typeof value === "string" && value.length > 0 ? value : "TsonicGenerated");
-}
-
-function readStringOption(input: TargetCompileInput, key: string, fallback: string): string {
-  return readOptionalStringOption(input, key) ?? fallback;
-}
-
-function readOptionalStringOption(input: TargetCompileInput, key: string): string | undefined {
-  const value = input.target.options?.[key];
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`C# target option '${key}' must be a non-empty string.`);
-  }
-  return value;
-}
-
-function readOptionalBooleanOption(input: TargetCompileInput, key: string): boolean | undefined {
-  const value = input.target.options?.[key];
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== "boolean") {
-    throw new Error(`C# target option '${key}' must be a boolean.`);
-  }
-  return value;
-}
-
-function sourceFileClassName(input: TargetCompileInput, fileName: string): string {
-  const relativeName = projectRelativeSourcePath(input, fileName);
-  const withoutExtension = relativeName.slice(0, relativeName.length - extname(relativeName).length);
-  const text = withoutExtension.length === 0 ? "Module" : withoutExtension;
-  return toPascalCase(text);
-}
-
-function sourceFileArtifactPath(input: TargetCompileInput, fileName: string, className: string): string {
-  const relativeName = projectRelativeSourcePath(input, fileName);
-  const directory = dirname(relativeName).split(/[\\/]+/).filter((part) => part.length > 0 && part !== ".");
-  return ["src", ...directory.map(sanitizePathSegment), `${className}.cs`].join("/");
-}
-
-function projectRelativeSourcePath(input: TargetCompileInput, fileName: string): string {
-  const relativeName = relative(input.paths.projectRoot, fileName);
-  if (relativeName.length === 0 || relativeName.startsWith("..")) {
-    return basename(fileName);
-  }
-  return relativeName;
-}
-
-function sanitizePathSegment(value: string): string {
-  return sanitizeIdentifier(value).replace(/^_+$/, "_");
-}
-
-function toPascalCase(value: string): string {
-  const words = value.split(/[^A-Za-z0-9]+/).filter((word) => word.length > 0);
-  const name = words.map((word) => `${word[0]!.toUpperCase()}${word.slice(1)}`).join("");
-  return sanitizeIdentifier(name.length === 0 ? "Module" : name);
-}
-
-function sanitizeIdentifier(value: string): string {
-  const sanitized = value.replace(/[^A-Za-z0-9_]/g, "_");
-  if (sanitized.length === 0) {
-    return "_";
-  }
-  return /^[A-Za-z_]/.test(sanitized) ? sanitized : `_${sanitized}`;
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-function isXmlElementName(value: string): boolean {
-  return /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(value);
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isScalarPropertyValue(value: unknown): value is string | number | boolean {
-  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
-}
-
-function predefined(name: string): CsharpTypeNode {
-  return { kind: "predefined", name };
-}
-
 function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
     kind: "expression",
     expression,
-  };
-}
-
-function unsupportedNodeDiagnostic(node: Node, message: string): TargetDiagnostic {
-  return {
-    code: "CSHARP_UNSUPPORTED_AST",
-    category: "error",
-    source: "tsonic-csharp",
-    message: `${message} Node kind: ${KindString(node.Kind)}.`,
   };
 }
