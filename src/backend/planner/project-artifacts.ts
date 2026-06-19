@@ -20,7 +20,7 @@ export function projectArtifact(input: TargetCompileInput, sourceArtifacts: read
 
 export function readNamespace(input: TargetCompileInput): string {
   const value = input.target.options?.namespace;
-  return typeof value === "string" && value.length > 0 ? value : "Tsonic.Generated";
+  return formatNamespace(typeof value === "string" && value.length > 0 ? value : "Tsonic.Generated");
 }
 
 function csharpProjectProperties(input: TargetCompileInput): readonly (readonly [string, string])[] {
@@ -104,4 +104,16 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 
 function isScalarPropertyValue(value: unknown): value is string | number | boolean {
   return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
+function formatNamespace(value: string): string {
+  const segments = value.split(".");
+  if (segments.some((segment) => !isPlainIdentifier(segment))) {
+    throw new Error("C# target option 'namespace' must be a dot-separated C# identifier path.");
+  }
+  return segments.map(sanitizeIdentifier).join(".");
+}
+
+function isPlainIdentifier(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
 }
