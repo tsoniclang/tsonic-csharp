@@ -7,6 +7,7 @@ import {
   AsParameterDeclaration,
   AsPropertyAccessExpression,
   AsTypeReferenceNode,
+  AsTupleTypeNode,
   AsUnionTypeNode,
   KindArrayBindingPattern,
   KindArrayType,
@@ -28,6 +29,7 @@ import {
   KindTypeLiteral,
   KindStringKeyword,
   KindTypeReference,
+  KindTupleType,
   KindUndefinedKeyword,
   KindUnionType,
   KindUnknownKeyword,
@@ -129,6 +131,15 @@ export function getCsharpTypeForNode(
     return {
       kind: "array",
       elementType: getCsharpTypeForNode(arrayType.ElementType, sourceFile, input, invalidType("array element type"), diagnostics),
+    };
+  }
+  if (node.Kind === KindTupleType) {
+    const tupleType = AsTupleTypeNode(node)!;
+    return {
+      kind: "tuple",
+      elements: (tupleType.Elements?.Nodes ?? [])
+        .filter((element): element is Node => element !== undefined)
+        .map((element) => getCsharpTypeForNode(element, sourceFile, input, invalidType("tuple element type"), diagnostics)),
     };
   }
   if (node.Kind === KindFunctionType) {
@@ -324,6 +335,10 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
     }
     case "array":
       return right.kind === "array" && (left.rank ?? 1) === (right.rank ?? 1) && sameCsharpType(left.elementType, right.elementType);
+    case "tuple":
+      return right.kind === "tuple" &&
+        left.elements.length === right.elements.length &&
+        left.elements.every((element, index) => sameCsharpType(element, right.elements[index]!));
     case "function":
       return right.kind === "function" &&
         left.parameters.length === right.parameters.length &&

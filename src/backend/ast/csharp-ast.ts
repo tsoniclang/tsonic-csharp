@@ -150,6 +150,7 @@ export type CsharpTypeNode =
   | { readonly kind: "named"; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "qualified"; readonly left: CsharpTypeNode; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "array"; readonly elementType: CsharpTypeNode; readonly rank?: number }
+  | { readonly kind: "tuple"; readonly elements: readonly CsharpTypeNode[] }
   | { readonly kind: "function"; readonly parameters: readonly CsharpTypeNode[]; readonly returnType: CsharpTypeNode }
   | { readonly kind: "nullable"; readonly inner: CsharpTypeNode };
 
@@ -224,6 +225,7 @@ export type CsharpExpression =
   | { readonly kind: "postfixUnary"; readonly operand: CsharpExpression; readonly operator: string }
   | { readonly kind: "conditional"; readonly condition: CsharpExpression; readonly whenTrue: CsharpExpression; readonly whenFalse: CsharpExpression }
   | { readonly kind: "array"; readonly elements: readonly CsharpExpression[]; readonly elementType?: CsharpTypeNode }
+  | { readonly kind: "tuple"; readonly elements: readonly CsharpExpression[] }
   | { readonly kind: "default"; readonly type: CsharpTypeNode }
   | { readonly kind: "lambda"; readonly parameters: readonly CsharpLambdaParameter[]; readonly body: CsharpExpression | CsharpBlock };
 

@@ -390,6 +390,9 @@ export function planExpressionWithExpectedType(
   if (node.Kind === KindObjectLiteralExpression && isObjectInitializerTargetType(expectedType)) {
     return planObjectInitializerExpression(node, expectedType, sourceFile, input, diagnostics);
   }
+  if (node.Kind === KindArrayLiteralExpression && expectedType.kind === "tuple") {
+    return planTupleLiteralExpression(node, sourceFile, input, diagnostics);
+  }
   const expression = planExpression(node, sourceFile, input, diagnostics);
   if (expression.kind === "array" && expectedType.kind === "array") {
     return {
@@ -398,6 +401,21 @@ export function planExpressionWithExpectedType(
     };
   }
   return expression;
+}
+
+function planTupleLiteralExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const literal = AsArrayLiteralExpression(node)!;
+  return {
+    kind: "tuple",
+    elements: (literal.Elements?.Nodes ?? [])
+      .filter((element): element is Node => element !== undefined)
+      .map((element) => planExpression(element, sourceFile, input, diagnostics)),
+  };
 }
 
 function planObjectInitializerExpression(

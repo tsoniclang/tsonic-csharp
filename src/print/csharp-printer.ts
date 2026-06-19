@@ -225,6 +225,8 @@ export function printCsharpType(type: CsharpTypeNode): string {
     }
     case "array":
       return `${printCsharpType(type.elementType)}[]`;
+    case "tuple":
+      return `(${type.elements.map(printCsharpType).join(", ")})`;
     case "function":
       return printCsharpFunctionType(type.parameters, type.returnType);
     case "nullable":
@@ -397,6 +399,8 @@ export function printCsharpExpression(expression: CsharpExpression): string {
         ? `new[] ${initializer}`
         : `new ${printCsharpType(expression.elementType)}[] ${initializer}`;
     }
+    case "tuple":
+      return `(${expression.elements.map(printCsharpExpression).join(", ")})`;
     case "default":
       return `default(${printCsharpType(expression.type)})`;
     case "lambda":
