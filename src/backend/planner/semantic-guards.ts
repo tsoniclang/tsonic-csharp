@@ -1,10 +1,7 @@
 import {
-  AsParameterDeclaration,
-  AsVariableDeclaration,
   KindConstructor,
   KindFunctionDeclaration,
   KindFunctionExpression,
-  KindFunctionType,
   KindElementAccessExpression,
   KindArrayBindingPattern,
   KindBindingElement,
@@ -14,13 +11,11 @@ import {
   KindMethodDeclaration,
   KindPropertyAccessExpression,
   KindIdentifier,
-  GetSourceFileOfNode,
   KindVariableDeclaration,
-  SourceFile_FileName,
   providerVirtualDeclarationFactKey,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "@tsonic/tsts";
-import type { ExtensionFactSubject, Node, SourceFile, SourcePrimitiveFact, Symbol } from "@tsonic/tsts";
+import type { ExtensionFactSubject, Node, SourceFile, Symbol } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 
@@ -30,9 +25,7 @@ export interface SemanticOwnership {
   readonly reasons: readonly string[];
 }
 
-export interface OperationSemanticOwnership extends SemanticOwnership {
-  readonly sourcePrimitive: SourcePrimitiveFact | undefined;
-}
+export interface OperationSemanticOwnership extends SemanticOwnership {}
 
 export function getSemanticOwnership(
   node: Node | undefined,
@@ -82,8 +75,7 @@ export function getCallableSemanticOwnership(
   const symbol = getQueryableSymbol(callee, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "callee symbol");
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(callee, { sourceFile });
-  const sourceOwned = isSourceDeclaredCallable(symbol, input) ||
-    isSourceDeclaredCallableReference(sourceReference, input) ||
+  const sourceOwned = isSourceDeclaredCallableReference(sourceReference) ||
     isSourceOwnedProjectShapeSubject(callee, sourceFile, input);
   if (!sourceOwned) {
     appendSemanticNodeFactReasons(reasons, input, callee, sourceFile, "callee semantic node");
@@ -106,7 +98,6 @@ export function getProviderOperationOwnership(
       requiresTargetFact: true,
       sourceOwned: false,
       reasons: ["missing operation operand"],
-      sourcePrimitive: undefined,
     };
   }
   if (node.Kind === KindTypeLiteral) {
@@ -114,7 +105,6 @@ export function getProviderOperationOwnership(
       requiresTargetFact: true,
       sourceOwned: false,
       reasons: ["structural type literal"],
-      sourcePrimitive: undefined,
     };
   }
   if (
@@ -127,7 +117,6 @@ export function getProviderOperationOwnership(
       requiresTargetFact: true,
       sourceOwned: false,
       reasons: ["non-queryable binding syntax"],
-      sourcePrimitive: undefined,
     };
   }
   const reasons: string[] = [];
@@ -135,12 +124,11 @@ export function getProviderOperationOwnership(
   const symbol = getQueryableSymbol(node, sourceFile, input);
   appendProviderOperationFactReasons(reasons, input, symbol, "operand symbol");
   const carrier = input.semantics.getRuntimeCarrierForNode(node, { sourceFile });
-  const sourcePrimitive = getSourcePrimitiveFact(input, node, symbol);
   const typeParameter = isTypeParameterTargetRef(carrier);
   if (typeParameter) {
     reasons.push("operand type parameter");
   }
-  const sourceOwned = !typeParameter && (carrier?.kind === "source-primitive" || sourcePrimitive !== undefined || isSourceOwnedProjectShapeSubject(node, sourceFile, input));
+  const sourceOwned = !typeParameter && (carrier?.kind === "source-primitive" || isSourceOwnedProjectShapeSubject(node, sourceFile, input));
   if (!sourceOwned) {
     appendSemanticNodeFactReasons(reasons, input, node, sourceFile, "operand semantic node");
   }
@@ -148,7 +136,6 @@ export function getProviderOperationOwnership(
     requiresTargetFact: !sourceOwned && reasons.length > 0,
     sourceOwned,
     reasons,
-    sourcePrimitive,
   };
 }
 
@@ -280,15 +267,6 @@ function appendSemanticNodeFactReasons(
   }
 }
 
-function getSourcePrimitiveFact(
-  input: TargetCompileInput,
-  node: Node,
-  symbol: Symbol | undefined,
-): SourcePrimitiveFact | undefined {
-  return input.facts.getSourcePrimitiveFact(node) ??
-    input.facts.getSourcePrimitiveFact(symbol);
-}
-
 function isTypeParameterTargetRef(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "type-parameter";
 }
@@ -313,45 +291,26 @@ export function isSourceOwnedProjectConstructibleObjectSubject(node: Node | unde
   return input.semantics.isProjectSourceConstructibleObjectForNode(node, { sourceFile });
 }
 
-function isSourceDeclaredCallable(symbol: Symbol | undefined, input: TargetCompileInput): boolean {
-  const declaration = getPrimaryDeclaration(symbol);
-  return !hasProviderOnlySymbolName(symbol) &&
-    isSourceCallableDeclaration(declaration, input);
-}
-
 function isSourceDeclaredCallableReference(
   reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
-  input: TargetCompileInput,
 ): boolean {
   return reference !== undefined &&
     !hasProviderOnlySymbolName(reference.symbol) &&
-    isSourceCallableDeclaration(reference.declaration, input);
+    isSourceCallableDeclaration(reference.declaration);
 }
 
-function isSourceCallableDeclaration(declaration: Node | undefined, input: TargetCompileInput): boolean {
-  return isProjectSourceDeclaration(declaration, input) &&
-    (
-      declaration?.Kind === KindFunctionDeclaration ||
-      declaration?.Kind === KindFunctionExpression ||
-      declaration?.Kind === KindMethodDeclaration ||
-      declaration?.Kind === KindConstructor ||
-      isExplicitSourceFunctionTypedBinding(declaration)
-    );
-}
-
-function isExplicitSourceFunctionTypedBinding(declaration: Node | undefined): boolean {
+function isSourceCallableDeclaration(declaration: Node | undefined): boolean {
   switch (declaration?.Kind) {
-    case KindParameter:
-      return AsParameterDeclaration(declaration)?.Type?.Kind === KindFunctionType;
     case KindVariableDeclaration:
-      return AsVariableDeclaration(declaration)?.Type?.Kind === KindFunctionType;
+    case KindParameter:
+    case KindFunctionDeclaration:
+    case KindFunctionExpression:
+    case KindMethodDeclaration:
+    case KindConstructor:
+      return true;
     default:
       return false;
   }
-}
-
-function getPrimaryDeclaration(symbol: Symbol | undefined): Node | undefined {
-  return symbol?.ValueDeclaration ?? symbol?.Declarations?.find((candidate): candidate is Node => candidate !== undefined);
 }
 
 function getQueryableSymbol(node: Node, sourceFile: SourceFile, input: TargetCompileInput): Symbol | undefined {
@@ -367,21 +326,4 @@ function getQueryableSymbol(node: Node, sourceFile: SourceFile, input: TargetCom
 
 function hasProviderOnlySymbolName(symbol: Symbol | undefined): boolean {
   return symbol?.Name === undefined || symbol.Name.length === 0;
-}
-
-function isProjectSourceDeclaration(declaration: Node | undefined, input: TargetCompileInput): boolean {
-  if (declaration === undefined) {
-    return false;
-  }
-  const declarationFile = GetSourceFileOfNode(declaration);
-  if (declarationFile === undefined || declarationFile.IsDeclarationFile) {
-    return false;
-  }
-  const declarationFileName = SourceFile_FileName(declarationFile);
-  if (declarationFileName.startsWith("tsts-provider://")) {
-    return false;
-  }
-  return input.sourceFiles.some((sourceFile) =>
-    sourceFile === declarationFile ||
-    (!sourceFile.IsDeclarationFile && SourceFile_FileName(sourceFile) === declarationFileName));
 }

@@ -30,7 +30,6 @@ test("plain source primitive operator operands are source-owned without backend 
   assert.equal(ownership.requiresTargetFact, false);
   assert.equal(ownership.sourceOwned, true);
   assert.deepEqual(ownership.reasons, []);
-  assert.equal(ownership.sourcePrimitive, undefined);
 });
 
 test("unowned non-scalar operator operands are not direct source operations", () => {

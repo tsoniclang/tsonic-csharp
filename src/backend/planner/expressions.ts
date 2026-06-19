@@ -1129,7 +1129,6 @@ function combineOwnership(left: OperationSemanticOwnership, right: OperationSema
     requiresTargetFact: left.requiresTargetFact || right.requiresTargetFact,
     sourceOwned: left.sourceOwned && right.sourceOwned,
     reasons,
-    sourcePrimitive: left.sourcePrimitive ?? right.sourcePrimitive,
   };
 }
 
