@@ -96,7 +96,7 @@ import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, Cs
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { getCallableSemanticOwnership, getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
+import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import { planBlockStatements } from "./statements.js";
 
 export function planExpression(
@@ -548,11 +548,29 @@ function tryPlanBinaryExpression(
     return invalidExpression("selected target operator");
   }
   const expression = AsBinaryExpression(node)!;
+  if (selectedOperator === undefined) {
+    const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
+    const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
+    const ownership = combineOwnership(leftOwnership, rightOwnership);
+    if (ownership.requiresTargetFact) {
+      pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a direct primitive/source-owned operation or a selected provider operator fact.", ownership);
+      return invalidExpression("missing target operator fact");
+    }
+  }
   return {
     kind: "binary",
     left: planExpression(expression.Left!, sourceFile, input, diagnostics),
     operator,
     right: planExpression(expression.Right!, sourceFile, input, diagnostics),
+  };
+}
+
+function combineOwnership(left: ReturnType<typeof getProviderOperationOwnership>, right: ReturnType<typeof getProviderOperationOwnership>): ReturnType<typeof getProviderOperationOwnership> {
+  const reasons = [...left.reasons, ...right.reasons];
+  return {
+    requiresTargetFact: left.requiresTargetFact || right.requiresTargetFact,
+    sourceOwned: left.sourceOwned && right.sourceOwned,
+    reasons,
   };
 }
 

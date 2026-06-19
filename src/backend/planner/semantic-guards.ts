@@ -4,12 +4,15 @@ import {
   KindFunctionDeclaration,
   KindFunctionExpression,
   KindInterfaceDeclaration,
+  KindElementAccessExpression,
   KindArrayBindingPattern,
   KindBindingElement,
   KindObjectBindingPattern,
   KindParameter,
   KindTypeLiteral,
   KindMethodDeclaration,
+  KindPropertyAccessExpression,
+  KindIdentifier,
   GetSourceFileOfNode,
   SourceFile_FileName,
   TypeFlagsBigIntLike,
@@ -50,7 +53,7 @@ export function getSemanticOwnership(
   }
   const reasons: string[] = [];
   appendTargetFactReasons(reasons, input, node, "node");
-  const symbol = input.checker.getSymbolAtLocation(node, { sourceFile }) ?? input.checker.getResolvedSymbol(node, { sourceFile });
+  const symbol = getQueryableSymbol(node, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "symbol");
   const type = input.checker.getTypeAtLocation(node, { sourceFile });
   appendTargetFactReasons(reasons, input, type, "type");
@@ -75,7 +78,7 @@ export function getCallableSemanticOwnership(
   }
   const reasons: string[] = [];
   appendTargetFactReasons(reasons, input, callee, "callee node");
-  const symbol = input.checker.getSymbolAtLocation(callee, { sourceFile }) ?? input.checker.getResolvedSymbol(callee, { sourceFile });
+  const symbol = getQueryableSymbol(callee, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "callee symbol");
   const type = input.checker.getTypeAtLocation(callee, { sourceFile });
   appendTargetFactReasons(reasons, input, type, "callee type");
@@ -84,6 +87,39 @@ export function getCallableSemanticOwnership(
   return {
     requiresTargetFact: reasons.length > 0,
     sourceOwned,
+    reasons,
+  };
+}
+
+export function getProviderOperationOwnership(
+  node: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): SemanticOwnership {
+  if (node === undefined) {
+    return { requiresTargetFact: true, sourceOwned: false, reasons: ["missing operation operand"] };
+  }
+  if (node.Kind === KindTypeLiteral) {
+    return { requiresTargetFact: true, sourceOwned: false, reasons: ["structural type literal"] };
+  }
+  if (
+    node.Kind === KindObjectBindingPattern ||
+    node.Kind === KindArrayBindingPattern ||
+    node.Kind === KindBindingElement ||
+    node.Kind === KindParameter
+  ) {
+    return { requiresTargetFact: true, sourceOwned: false, reasons: ["non-queryable binding syntax"] };
+  }
+  const reasons: string[] = [];
+  appendProviderOperationFactReasons(reasons, input, node, "operand node");
+  const symbol = getQueryableSymbol(node, sourceFile, input);
+  appendProviderOperationFactReasons(reasons, input, symbol, "operand symbol");
+  const type = input.checker.getTypeAtLocation(node, { sourceFile });
+  appendProviderOperationFactReasons(reasons, input, type, "operand type");
+  appendProviderOperationFactReasons(reasons, input, type?.symbol, "operand type symbol");
+  return {
+    requiresTargetFact: reasons.length > 0,
+    sourceOwned: isDirectSourceShapeType(type, input),
     reasons,
   };
 }
@@ -150,6 +186,53 @@ function appendTargetFactReasons(
   }
 }
 
+function appendProviderOperationFactReasons(
+  reasons: string[],
+  input: TargetCompileInput,
+  subject: ExtensionFactSubject | undefined,
+  label: string,
+): void {
+  if (subject === undefined) {
+    return;
+  }
+  if (input.facts.getTargetBindingFact(subject) !== undefined) {
+    reasons.push(`${label} target binding`);
+  }
+  if (input.facts.getFact(subject, providerVirtualDeclarationFactKey) !== undefined) {
+    reasons.push(`${label} provider virtual declaration`);
+  }
+  if (input.facts.getRuntimeCarrierFact(subject) !== undefined) {
+    reasons.push(`${label} runtime carrier`);
+  }
+  if (input.facts.getTargetConversionFact(subject) !== undefined) {
+    reasons.push(`${label} target conversion`);
+  }
+  if (input.facts.getContextualTargetTypeFact(subject)?.targetType !== undefined) {
+    reasons.push(`${label} contextual target type`);
+  }
+  if (input.facts.getArgumentPassingFact(subject) !== undefined) {
+    reasons.push(`${label} argument passing`);
+  }
+  if (input.facts.getValueTypeFact(subject) !== undefined) {
+    reasons.push(`${label} value type`);
+  }
+  if (input.facts.getFieldFact(subject) !== undefined) {
+    reasons.push(`${label} field`);
+  }
+  if (input.facts.getSourceMarkerFact(subject) !== undefined) {
+    reasons.push(`${label} source marker`);
+  }
+  if (input.facts.getDefaultValueFact(subject) !== undefined) {
+    reasons.push(`${label} default value`);
+  }
+  if (input.facts.getPointerFact(subject) !== undefined) {
+    reasons.push(`${label} pointer`);
+  }
+  if (input.facts.getFunctionPointerFact(subject) !== undefined) {
+    reasons.push(`${label} function pointer`);
+  }
+}
+
 function hasBuiltinLoweredScalarType(type: Type | undefined): boolean {
   return type !== undefined &&
     (type.flags & (TypeFlagsStringLike | TypeFlagsNumberLike | TypeFlagsBooleanLike | TypeFlagsBigIntLike)) !== 0;
@@ -178,6 +261,17 @@ function isSourceDeclaredCallable(symbol: Symbol | undefined, input: TargetCompi
 
 function getPrimaryDeclaration(symbol: Symbol | undefined): Node | undefined {
   return symbol?.ValueDeclaration ?? symbol?.Declarations?.find((candidate): candidate is Node => candidate !== undefined);
+}
+
+function getQueryableSymbol(node: Node, sourceFile: SourceFile, input: TargetCompileInput): Symbol | undefined {
+  switch (node.Kind) {
+    case KindIdentifier:
+    case KindPropertyAccessExpression:
+    case KindElementAccessExpression:
+      return input.checker.getSymbolAtLocation(node, { sourceFile }) ?? input.checker.getResolvedSymbol(node, { sourceFile });
+    default:
+      return undefined;
+  }
 }
 
 function hasProviderOnlySymbolName(symbol: Symbol | undefined): boolean {
