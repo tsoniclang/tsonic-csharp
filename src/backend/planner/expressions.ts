@@ -96,6 +96,7 @@ import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, Cs
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
+import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import { planBlockStatements } from "./statements.js";
 
@@ -440,6 +441,7 @@ function planLambdaParameters(
     .filter((parameterNode): parameterNode is Node => parameterNode !== undefined)
     .map((parameterNode): CsharpLambdaParameter => {
       const parameter = AsParameterDeclaration(parameterNode)!;
+      diagnoseTypeScriptOnlyRuntimeShapeModifiers(parameterNode, "lambda parameter declaration", diagnostics);
       if (parameter.DotDotDotToken !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(parameterNode, "Rest parameters in lambdas require target delegate facts before C# emission."));
       }
