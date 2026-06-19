@@ -81,7 +81,10 @@ export function getCallableSemanticOwnership(
   appendTargetFactReasons(reasons, input, callee, "callee node");
   const symbol = getQueryableSymbol(callee, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "callee symbol");
-  const sourceOwned = isSourceDeclaredCallable(symbol, input) || isSourceOwnedProjectShapeSubject(callee, sourceFile, input);
+  const sourceReference = input.semantics.getProjectSourceReferenceForNode(callee, { sourceFile });
+  const sourceOwned = isSourceDeclaredCallable(symbol, input) ||
+    isSourceDeclaredCallableReference(sourceReference, input) ||
+    isSourceOwnedProjectShapeSubject(callee, sourceFile, input);
   if (!sourceOwned) {
     appendSemanticNodeFactReasons(reasons, input, callee, sourceFile, "callee semantic node");
     appendTargetFactReasons(reasons, input, input.semantics.getResolvedSymbol(callee, { sourceFile }), "callee resolved symbol");
@@ -313,7 +316,20 @@ export function isSourceOwnedProjectConstructibleObjectSubject(node: Node | unde
 function isSourceDeclaredCallable(symbol: Symbol | undefined, input: TargetCompileInput): boolean {
   const declaration = getPrimaryDeclaration(symbol);
   return !hasProviderOnlySymbolName(symbol) &&
-    isProjectSourceDeclaration(declaration, input) &&
+    isSourceCallableDeclaration(declaration, input);
+}
+
+function isSourceDeclaredCallableReference(
+  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  input: TargetCompileInput,
+): boolean {
+  return reference !== undefined &&
+    !hasProviderOnlySymbolName(reference.symbol) &&
+    isSourceCallableDeclaration(reference.declaration, input);
+}
+
+function isSourceCallableDeclaration(declaration: Node | undefined, input: TargetCompileInput): boolean {
+  return isProjectSourceDeclaration(declaration, input) &&
     (
       declaration?.Kind === KindFunctionDeclaration ||
       declaration?.Kind === KindFunctionExpression ||

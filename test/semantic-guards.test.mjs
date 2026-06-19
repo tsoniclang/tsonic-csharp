@@ -139,6 +139,7 @@ function fakeInput(options = {}) {
       isProjectSourceShapeForNode: () => options.projectSourceShape === true,
       isProjectSourceConstructibleObjectForNode: () => options.projectSourceConstructibleObject === true,
       getProjectSourceDeclarationForNode: () => undefined,
+      getProjectSourceReferenceForNode: () => undefined,
       getEnumMemberConstant: () => undefined,
       getReturnTypeCarrierFromDeclaration: () => undefined,
       describeTypeAtLocation: () => undefined,

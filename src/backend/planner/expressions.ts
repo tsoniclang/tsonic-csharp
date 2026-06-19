@@ -36,6 +36,7 @@ import {
   KindElementAccessExpression,
   KindEqualsToken,
   KindFalseKeyword,
+  KindFunctionDeclaration,
   KindFunctionExpression,
   KindIdentifier,
   KindNewExpression,
@@ -58,8 +59,10 @@ import {
   KindThisKeyword,
   KindTrueKeyword,
   KindTypeAssertionExpression,
+  KindVariableDeclaration,
   Node_Name,
   Node_Text,
+  SourceFile_FileName,
 } from "@tsonic/tsts";
 import type { ArgumentPassingFact, Node, ObjectShapeFact, SourceFile, TargetMember } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -79,6 +82,7 @@ import {
 } from "./semantic-guards.js";
 import type { OperationSemanticOwnership } from "./semantic-guards.js";
 import { planBlockStatements } from "./statements.js";
+import { sourceFileClassName } from "./source-paths.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 export function planExpression(
@@ -102,7 +106,7 @@ export function planExpression(
   }
   switch (node.Kind) {
     case KindIdentifier:
-      return { kind: "identifier", name: sanitizeIdentifier(AsIdentifier(node)!.Text) };
+      return planIdentifierExpression(node, sourceFile, input, diagnostics);
     case KindStringLiteral:
       return { kind: "literal", value: AsStringLiteral(node)!.Text };
     case KindNoSubstitutionTemplateLiteral:
@@ -274,6 +278,38 @@ export function planExpression(
 
 function invalidExpression(reason: string): CsharpExpression {
   return { kind: "invalid", reason };
+}
+
+function planIdentifierExpression(
+  identifier: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const sourceName = AsIdentifier(identifier)!.Text;
+  const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
+  if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
+    return { kind: "identifier", name: sanitizeIdentifier(sourceName) };
+  }
+  if (!isModuleStaticValueDeclaration(sourceReference.declaration)) {
+    diagnostics.push(unsupportedNodeDiagnostic(identifier, "Cross-file source reference requires a top-level function or variable declaration resolved by TSTS."));
+    return invalidExpression("cross-file source reference");
+  }
+  return {
+    kind: "member",
+    receiver: {
+      kind: "type",
+      type: {
+        kind: "named",
+        name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
+      },
+    },
+    name: sanitizeIdentifier(sourceReference.symbol.Name),
+  };
+}
+
+function isModuleStaticValueDeclaration(declaration: Node): boolean {
+  return declaration.Kind === KindFunctionDeclaration || declaration.Kind === KindVariableDeclaration;
 }
 
 function planPropertyAccessExpression(

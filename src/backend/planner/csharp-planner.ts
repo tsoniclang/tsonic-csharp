@@ -1,5 +1,4 @@
 import {
-  AsExportDeclaration,
   AsVariableDeclarationList,
   AsVariableStatement,
   KindClassDeclaration,
@@ -111,14 +110,8 @@ function planSourceFile(
     switch (statement.Kind) {
       case KindImportDeclaration:
       case KindTypeAliasDeclaration:
+      case KindExportDeclaration:
         continue;
-      case KindExportDeclaration: {
-        const exportDeclaration = AsExportDeclaration(statement)!;
-        if (exportDeclaration.ModuleSpecifier !== undefined) {
-          diagnostics.push(unsupportedNodeDiagnostic(statement, "Re-export declarations require finalized TSTS module-export facts before C# emission."));
-        }
-        continue;
-      }
       case KindExportAssignment:
         diagnostics.push(unsupportedNodeDiagnostic(statement, "Export assignments require finalized TSTS module-export facts before C# emission."));
         break;
