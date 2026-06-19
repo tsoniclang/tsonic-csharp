@@ -7,6 +7,8 @@ import {
   AsPropertyAccessExpression,
   AsPropertySignatureDeclaration,
   AsTupleTypeNode,
+  AsTypeParameterDeclaration,
+  AsTypeReferenceNode,
   GetSourceFileOfNode,
   KindAnyKeyword,
   KindArrayType,
@@ -32,6 +34,7 @@ import {
   KindStringLiteral,
   KindTupleType,
   KindTypeLiteral,
+  KindTypeReference,
   KindUnknownKeyword,
   KindVariableDeclaration,
   KindVoidKeyword,
@@ -141,12 +144,12 @@ export function createCsharpSourceSemanticsExtension(_context: TargetExtensionCo
   });
 }
 
-export function createCsharpCoreVirtualModulesExtension(_context: TargetExtensionContext): CompilerExtension {
+export function createCsharpTargetSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
   return {
     identity: {
-      id: "tsonic.csharp.core-virtual-modules",
+      id: "tsonic.csharp.target-semantics",
       version: "0.0.1",
-      capabilityNamespace: "tsonic.csharp.core-modules",
+      capabilityNamespace: "tsonic.csharp.target",
     },
     composition: {
       kind: "target",
@@ -154,22 +157,6 @@ export function createCsharpCoreVirtualModulesExtension(_context: TargetExtensio
     },
     initialize(context): void {
       context.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
-    },
-  };
-}
-
-export function createCsharpSurfaceOperationsExtension(_context: TargetExtensionContext): CompilerExtension {
-  return {
-    identity: {
-      id: "tsonic.csharp.surface-operations",
-      version: "0.0.1",
-      capabilityNamespace: "tsonic.csharp.surface-operations",
-    },
-    composition: {
-      kind: "target",
-      target: "csharp",
-    },
-    initialize(context): void {
       const provider = createCsharpSurfaceOperationsProvider();
       context.registerTargetSemanticProvider(provider);
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) =>
@@ -941,11 +928,11 @@ function resolveCsharpObjectShape(
   subject: ExtensionFactSubject,
   context: ExtensionFactResolverContext,
 ): { readonly value: ObjectShapeFact; readonly evidence?: readonly ExtensionEvidence[] } | undefined {
-  const shapeSubject = getObjectShapeSubject(subject);
+  const shapeSubject = getObjectShapeSubject(subject, context);
   if (shapeSubject === undefined) {
     return undefined;
   }
-  const members = resolveCsharpObjectShapeMembers(shapeSubject.declaration, context);
+  const members = resolveCsharpObjectShapeMembers(shapeSubject.declaration, context, shapeSubject.typeParameterSubstitutions);
   if (members === undefined) {
     return undefined;
   }
@@ -956,7 +943,7 @@ function resolveCsharpObjectShape(
     value: {
       targetType: {
         kind: "target-named",
-        id: csharpObjectShapeId(shapeSubject.declaration),
+        id: csharpObjectShapeId(shapeSubject),
       },
       members,
       ...(implementedContracts === undefined ? {} : { implements: implementedContracts }),
@@ -969,21 +956,31 @@ function resolveCsharpObjectShape(
 interface CsharpObjectShapeSubject {
   readonly declaration: Node;
   readonly implementedContract?: TargetTypeRef;
+  readonly typeParameterSubstitutions?: ReadonlyMap<string, TargetTypeRef>;
   readonly evidenceMessage: string;
 }
 
-function getObjectShapeSubject(subject: ExtensionFactSubject): CsharpObjectShapeSubject | undefined {
+function getObjectShapeSubject(
+  subject: ExtensionFactSubject,
+  context: ExtensionFactResolverContext,
+): CsharpObjectShapeSubject | undefined {
   if (isNodeSubject(subject)) {
-    return getObjectShapeDeclarationSubject(subject);
+    return getObjectShapeDeclarationSubject(subject, context, undefined);
   }
   if (isTypeSubject(subject)) {
-    const declaration = subject.symbol?.ValueDeclaration ?? subject.symbol?.Declarations?.find((candidate): candidate is Node => candidate !== undefined);
-    return declaration === undefined ? undefined : getObjectShapeDeclarationSubject(declaration);
+    const typeReference = getTypeScriptTypeReferenceInfo(subject);
+    const symbol = typeReference?.targetSymbol ?? subject.symbol;
+    const declaration = symbol?.ValueDeclaration ?? symbol?.Declarations?.find((candidate): candidate is Node => candidate !== undefined);
+    return declaration === undefined ? undefined : getObjectShapeDeclarationSubject(declaration, context, subject);
   }
   return undefined;
 }
 
-function getObjectShapeDeclarationSubject(declaration: Node): CsharpObjectShapeSubject | undefined {
+function getObjectShapeDeclarationSubject(
+  declaration: Node,
+  context: ExtensionFactResolverContext,
+  semanticType: Type | undefined,
+): CsharpObjectShapeSubject | undefined {
   if (declaration.Kind === KindTypeLiteral) {
     return {
       declaration,
@@ -995,7 +992,11 @@ function getObjectShapeDeclarationSubject(declaration: Node): CsharpObjectShapeS
   }
   const interfaceDeclaration = AsInterfaceDeclaration(declaration);
   const typeParameters = interfaceDeclaration?.TypeParameters?.Nodes ?? [];
-  if (typeParameters.some((typeParameter) => typeParameter !== undefined)) {
+  const concreteTypeParameters = typeParameters.filter((typeParameter): typeParameter is Node => typeParameter !== undefined);
+  const genericSpecialization = concreteTypeParameters.length === 0
+    ? { substitutions: undefined, typeArguments: undefined }
+    : resolveInterfaceObjectShapeSpecialization(concreteTypeParameters, semanticType, context);
+  if (genericSpecialization === undefined) {
     return undefined;
   }
   const name = getCsharpObjectShapeDeclarationName(declaration);
@@ -1007,14 +1008,47 @@ function getObjectShapeDeclarationSubject(declaration: Node): CsharpObjectShapeS
     implementedContract: {
       kind: "target-named",
       id: sanitizeCsharpIdentifier(name),
+      ...(genericSpecialization.typeArguments === undefined ? {} : { typeArguments: genericSpecialization.typeArguments }),
     },
+    ...(genericSpecialization.substitutions === undefined ? {} : { typeParameterSubstitutions: genericSpecialization.substitutions }),
     evidenceMessage: `C# structural object carrier implementing source interface '${name}'.`,
   };
+}
+
+function resolveInterfaceObjectShapeSpecialization(
+  typeParameterNodes: readonly Node[],
+  semanticType: Type | undefined,
+  context: ExtensionFactResolverContext,
+): { readonly substitutions: ReadonlyMap<string, TargetTypeRef>; readonly typeArguments: readonly TargetTypeRef[] } | undefined {
+  if (semanticType === undefined) {
+    return undefined;
+  }
+  const typeReference = getTypeScriptTypeReferenceInfo(semanticType);
+  if (typeReference === undefined || typeReference.typeArguments.length !== typeParameterNodes.length) {
+    return undefined;
+  }
+  const substitutions = new Map<string, TargetTypeRef>();
+  const typeArguments: TargetTypeRef[] = [];
+  for (let index = 0; index < typeParameterNodes.length; index += 1) {
+    const parameter = AsTypeParameterDeclaration(typeParameterNodes[index]!);
+    const parameterName = parameter?.name === undefined ? undefined : Node_Text(parameter.name);
+    const argument = typeReference.typeArguments[index];
+    const argumentCarrier = argument === undefined
+      ? undefined
+      : context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier;
+    if (parameterName === undefined || parameterName.length === 0 || argumentCarrier === undefined) {
+      return undefined;
+    }
+    substitutions.set(parameterName, argumentCarrier);
+    typeArguments.push(argumentCarrier);
+  }
+  return { substitutions, typeArguments };
 }
 
 function resolveCsharpObjectShapeMembers(
   typeLiteral: Node,
   context: ExtensionFactResolverContext,
+  typeParameterSubstitutions: ReadonlyMap<string, TargetTypeRef> | undefined,
 ): readonly ObjectShapeMemberFact[] | undefined {
   const members = Node_Members(typeLiteral) ?? [];
   const shaped: ObjectShapeMemberFact[] = [];
@@ -1028,7 +1062,7 @@ function resolveCsharpObjectShapeMembers(
     if (name === undefined || typeNode === undefined) {
       return undefined;
     }
-    const carrier = context.factResolver.resolve(typeNode, runtimeCarrierFactKey)?.carrier;
+    const carrier = resolveObjectShapeMemberCarrier(typeNode, context, typeParameterSubstitutions);
     if (carrier === undefined) {
       return undefined;
     }
@@ -1039,6 +1073,135 @@ function resolveCsharpObjectShapeMembers(
     });
   }
   return shaped;
+}
+
+function resolveObjectShapeMemberCarrier(
+  typeNode: Node,
+  context: ExtensionFactResolverContext,
+  typeParameterSubstitutions: ReadonlyMap<string, TargetTypeRef> | undefined,
+): TargetTypeRef | undefined {
+  const substituted = getTypeParameterSubstitution(typeNode, typeParameterSubstitutions);
+  if (substituted !== undefined) {
+    return substituted;
+  }
+  switch (typeNode.Kind) {
+    case KindArrayType: {
+      const elementType = AsArrayTypeNode(typeNode)?.ElementType;
+      const elementCarrier = elementType === undefined
+        ? undefined
+        : resolveObjectShapeMemberCarrier(elementType, context, typeParameterSubstitutions);
+      return elementCarrier === undefined
+        ? undefined
+        : { kind: "array", element: elementCarrier };
+    }
+    case KindTupleType: {
+      const elements = AsTupleTypeNode(typeNode)?.Elements?.Nodes ?? [];
+      const elementCarriers = elements
+        .filter((element): element is Node => element !== undefined)
+        .map((element) => resolveObjectShapeMemberCarrier(element, context, typeParameterSubstitutions));
+      return elementCarriers.some((element) => element === undefined)
+        ? undefined
+        : { kind: "tuple", elements: elementCarriers as readonly TargetTypeRef[] };
+    }
+    case KindFunctionType:
+      return resolveObjectShapeFunctionMemberCarrier(typeNode, context, typeParameterSubstitutions);
+    default: {
+      const carrier = context.factResolver.resolve(typeNode, runtimeCarrierFactKey)?.carrier;
+      return carrier === undefined
+        ? undefined
+        : substituteObjectShapeMemberType(carrier, typeParameterSubstitutions);
+    }
+  }
+}
+
+function resolveObjectShapeFunctionMemberCarrier(
+  typeNode: Node,
+  context: ExtensionFactResolverContext,
+  typeParameterSubstitutions: ReadonlyMap<string, TargetTypeRef> | undefined,
+): TargetTypeRef | undefined {
+  const functionType = AsFunctionTypeNode(typeNode);
+  if (functionType === undefined || (functionType.TypeParameters?.Nodes ?? []).some((typeParameter) => typeParameter !== undefined)) {
+    return undefined;
+  }
+  const parameterCarriers: TargetTypeRef[] = [];
+  for (const parameterNode of functionType.Parameters?.Nodes ?? []) {
+    const parameter = parameterNode === undefined ? undefined : AsParameterDeclaration(parameterNode);
+    if (parameter === undefined || parameter.DotDotDotToken !== undefined || parameter.QuestionToken !== undefined || parameter.Initializer !== undefined || parameter.Type === undefined) {
+      return undefined;
+    }
+    const parameterCarrier = resolveObjectShapeMemberCarrier(parameter.Type, context, typeParameterSubstitutions);
+    if (parameterCarrier === undefined) {
+      return undefined;
+    }
+    parameterCarriers.push(parameterCarrier);
+  }
+  const returnCarrier = functionType.Type === undefined
+    ? csharpNamed("System.Void")
+    : resolveObjectShapeMemberCarrier(functionType.Type, context, typeParameterSubstitutions);
+  if (returnCarrier === undefined) {
+    return undefined;
+  }
+  if (isVoidTargetType(returnCarrier)) {
+    return {
+      kind: "target-named",
+      id: `System.Action\`${parameterCarriers.length}`,
+      typeArguments: parameterCarriers,
+    };
+  }
+  return {
+    kind: "target-named",
+    id: `System.Func\`${parameterCarriers.length + 1}`,
+    typeArguments: [...parameterCarriers, returnCarrier],
+  };
+}
+
+function getTypeParameterSubstitution(
+  typeNode: Node,
+  typeParameterSubstitutions: ReadonlyMap<string, TargetTypeRef> | undefined,
+): TargetTypeRef | undefined {
+  if (typeParameterSubstitutions === undefined || typeNode.Kind !== KindTypeReference) {
+    return undefined;
+  }
+  const typeName = AsTypeReferenceNode(typeNode)?.TypeName;
+  if (typeName?.Kind !== KindIdentifier) {
+    return undefined;
+  }
+  return typeParameterSubstitutions.get(Node_Text(typeName));
+}
+
+function substituteObjectShapeMemberType(
+  type: TargetTypeRef,
+  substitutions: ReadonlyMap<string, TargetTypeRef> | undefined,
+): TargetTypeRef {
+  if (substitutions === undefined) {
+    return type;
+  }
+  switch (type.kind) {
+    case "type-parameter":
+      return substitutions.get(type.name) ?? type;
+    case "target-named": {
+      const typeArguments = type.typeArguments?.map((argument) => substituteObjectShapeMemberType(argument, substitutions));
+      return typeArguments === undefined ? type : { ...type, typeArguments };
+    }
+    case "nullable":
+      return { ...type, inner: substituteObjectShapeMemberType(type.inner, substitutions) };
+    case "array":
+      return { ...type, element: substituteObjectShapeMemberType(type.element, substitutions) };
+    case "tuple":
+      return { ...type, elements: type.elements.map((element) => substituteObjectShapeMemberType(element, substitutions)) };
+    case "pointer":
+      return { ...type, pointee: substituteObjectShapeMemberType(type.pointee, substitutions) };
+    case "function-pointer":
+      return {
+        ...type,
+        args: type.args.map((argument) => substituteObjectShapeMemberType(argument, substitutions)),
+        result: substituteObjectShapeMemberType(type.result, substitutions),
+      };
+    case "associated-type":
+      return { ...type, owner: substituteObjectShapeMemberType(type.owner, substitutions) };
+    default:
+      return type;
+  }
 }
 
 function getCsharpObjectShapePropertyName(member: Node): { readonly sourceName: string; readonly targetName: string } | undefined {
@@ -1059,12 +1222,22 @@ function getCsharpObjectShapePropertyName(member: Node): { readonly sourceName: 
   };
 }
 
-function csharpObjectShapeId(node: Node): string {
+function csharpObjectShapeId(shapeSubject: CsharpObjectShapeSubject): string {
+  const node = shapeSubject.declaration;
   const sourceFile = GetSourceFileOfNode(node);
   const fileName = sourceFile === undefined ? "unknown" : SourceFile_FileName(sourceFile);
   const sourceName = getCsharpObjectShapeDeclarationName(node);
   const namePart = sourceName === undefined ? "" : `${sanitizeCsharpIdentifier(sourceName)}_`;
-  return `__TsonicShape_${namePart}${stableIdentifierHash(fileName)}_${Node_Pos(node)}`;
+  const specializationPart = getObjectShapeSpecializationIdPart(shapeSubject);
+  return `__TsonicShape_${namePart}${stableIdentifierHash(fileName)}_${Node_Pos(node)}${specializationPart}`;
+}
+
+function getObjectShapeSpecializationIdPart(shapeSubject: CsharpObjectShapeSubject): string {
+  if (shapeSubject.implementedContract?.kind !== "target-named" || (shapeSubject.implementedContract.typeArguments ?? []).length === 0) {
+    return "";
+  }
+  const key = targetTypeRefKey(shapeSubject.implementedContract);
+  return key === undefined ? "" : `_${stableIdentifierHash(key)}`;
 }
 
 function getCsharpObjectShapeDeclarationName(node: Node): string | undefined {

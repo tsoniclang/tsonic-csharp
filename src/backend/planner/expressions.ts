@@ -731,7 +731,8 @@ function getExpectedObjectShapeFact(
   if (direct !== undefined) {
     return direct;
   }
-  const type = input.checker.getTypeAtLocation(expectedTypeSubject, { sourceFile });
+  const type = input.checker.getTypeFromTypeNode(expectedTypeSubject, { sourceFile })
+    ?? input.checker.getTypeAtLocation(expectedTypeSubject, { sourceFile });
   return type === undefined
     ? undefined
     : input.facts.getObjectShapeFact(type) ?? input.facts.getObjectShapeFact(type.symbol);
@@ -838,7 +839,8 @@ function isSourceOwnedObjectInitializerType(
   if (expectedTypeSubject === undefined) {
     return false;
   }
-  const semanticType = input.checker.getTypeAtLocation(expectedTypeSubject, { sourceFile });
+  const semanticType = input.checker.getTypeFromTypeNode(expectedTypeSubject, { sourceFile })
+    ?? input.checker.getTypeAtLocation(expectedTypeSubject, { sourceFile });
   return isSourceOwnedProjectConstructibleObjectType(semanticType, input);
 }
 

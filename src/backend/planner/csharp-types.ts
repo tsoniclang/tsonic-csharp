@@ -7,6 +7,7 @@ import {
   KindExpressionWithTypeArguments,
   KindIdentifier,
   KindInterfaceDeclaration,
+  IsTypeNode,
   KindObjectKeyword,
   KindObjectBindingPattern,
   GetSourceFileOfNode,
@@ -146,7 +147,9 @@ export function getCsharpTypeForNode(
       return csharpType;
     }
   }
-  const type = input.checker.getTypeAtLocation(node, { sourceFile });
+  const type = IsTypeNode(node)
+    ? input.checker.getTypeFromTypeNode(node, { sourceFile })
+    : input.checker.getTypeAtLocation(node, { sourceFile });
   if (type === undefined) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type, but TSTS did not return a type for this node."));
     return invalidType("missing TSTS type");

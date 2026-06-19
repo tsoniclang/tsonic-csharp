@@ -2,8 +2,8 @@ export { createCsharpTargetPack, csharpTargetId } from "./descriptor/csharp-targ
 export {
   csharpLangModule,
   csharpTypesModule,
-  createCsharpCoreVirtualModulesExtension,
   createCsharpSourceSemanticsExtension,
+  createCsharpTargetSemanticsExtension,
   neutralLangModule,
   neutralTypesModule,
 } from "./source/csharp-source-semantics.js";
