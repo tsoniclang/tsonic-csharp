@@ -33,7 +33,6 @@ import {
   KindPropertySignature,
   KindSetAccessor,
   KindSuperKeyword,
-  TypeFlagsNumberLike,
   HasSyntacticModifier,
   ModifierFlagsStatic,
   Node_Name,
@@ -220,11 +219,12 @@ function planEnumMember(
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumMember {
   const member = AsEnumMember(node)!;
-  const initializerType = member.Initializer === undefined
-    ? undefined
-    : input.checker.getTypeAtLocation(member.Initializer, { sourceFile });
-  if (initializerType !== undefined && (initializerType.flags & TypeFlagsNumberLike) === 0) {
-    diagnostics.push(unsupportedNodeDiagnostic(member.Initializer!, "C# enum member initializers must be number-like constants; string or provider-owned enum carriers require finalized target facts."));
+  const enumValue = input.checker.getEnumMemberValue(node, { sourceFile });
+  if (
+    member.Initializer !== undefined &&
+    (enumValue === undefined || typeof enumValue.value !== "number" || !Number.isInteger(enumValue.value))
+  ) {
+    diagnostics.push(unsupportedNodeDiagnostic(member.Initializer!, "C# enum member initializers must be integer constants evaluated by TSTS; string or provider-owned enum carriers require finalized target facts."));
   }
   return {
     name: planIdentifierName(Node_Name(node), "AnonymousMember", diagnostics, "Enum member name"),
