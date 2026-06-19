@@ -95,6 +95,7 @@ import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, Cs
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
+import { planBlockStatements } from "./statements.js";
 
 export function planExpression(
   node: Node,
@@ -258,8 +259,13 @@ function planArrowFunctionExpression(
 ): CsharpExpression {
   const expression = AsArrowFunction(node)!;
   if (expression.Body?.Kind === KindBlock) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Block-bodied arrow functions require statement-lambda planning before C# emission."));
-    return invalidExpression("block-bodied arrow function");
+    return {
+      kind: "lambda",
+      parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+      body: {
+        statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics),
+      },
+    };
   }
   return {
     kind: "lambda",
@@ -275,11 +281,12 @@ function planFunctionExpression(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   const expression = AsFunctionExpression(node)!;
-  diagnostics.push(unsupportedNodeDiagnostic(node, "Function expressions require statement-lambda planning before C# emission; use expression-bodied arrow functions for delegate values."));
   return {
     kind: "lambda",
     parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
-    body: invalidExpression("function expression"),
+    body: {
+      statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics),
+    },
   };
 }
 

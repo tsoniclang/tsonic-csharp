@@ -426,7 +426,7 @@ function printCsharpLambda(
 }
 
 function printCsharpLambdaParameters(parameters: readonly CsharpLambdaParameter[]): string {
-  if (parameters.length === 1) {
+  if (parameters.length === 1 && parameters[0]?.type === undefined) {
     return printCsharpLambdaParameter(parameters[0]!);
   }
   return `(${parameters.map(printCsharpLambdaParameter).join(", ")})`;
