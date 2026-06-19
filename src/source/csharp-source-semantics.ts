@@ -20,6 +20,7 @@ import {
   KindEnumDeclaration,
   KindEnumMember,
   KindFunctionType,
+  KindGetAccessor,
   KindIdentifier,
   KindInterfaceDeclaration,
   KindNeverKeyword,
@@ -32,6 +33,7 @@ import {
   KindPropertySignature,
   KindStringKeyword,
   KindStringLiteral,
+  KindSetAccessor,
   KindTupleType,
   KindTypeLiteral,
   KindTypeReference,
@@ -607,16 +609,61 @@ function resolveSourceProjectPropertyAccess(
     : undefined;
   const effectiveReceiverType = getSingleNonNullishUnionType(receiverType) ?? receiverType;
   const sourceTypeName = getSourceProjectShapeName(effectiveReceiverType?.symbol);
-  if (sourceTypeName === undefined) {
+  const propertyTargetName = getSourceProjectPropertyTargetName(request);
+  if (sourceTypeName === undefined || propertyTargetName === undefined) {
     return undefined;
   }
   return {
     operation: {
       operationId: `tsonic.csharp.source.${sourceTypeName}.${request.propertyName}`,
       operationKind: "property",
-      targetOperation: sanitizeCsharpIdentifier(request.propertyName),
+      targetOperation: propertyTargetName,
     } satisfies TargetOperationFact,
   };
+}
+
+function getSourceProjectPropertyTargetName(request: ResolvePropertyAccessRequest): string | undefined {
+  const symbol = firstSourceProjectPropertySymbol([
+    request.propertySymbol,
+    request.resolvedPropertySymbol,
+  ]);
+  if (symbol === undefined) {
+    return undefined;
+  }
+  const sourceName = symbol.Name;
+  if (sourceName !== request.propertyName) {
+    return undefined;
+  }
+  return sanitizeCsharpIdentifier(sourceName);
+}
+
+function firstSourceProjectPropertySymbol(subjects: readonly (ExtensionFactSubject | undefined)[]): Symbol | undefined {
+  for (const subject of subjects) {
+    if (subject === undefined || !isSymbolSubject(subject)) {
+      continue;
+    }
+    const declaration = sourceProjectPropertyDeclaration(subject);
+    if (declaration !== undefined) {
+      return subject;
+    }
+  }
+  return undefined;
+}
+
+function sourceProjectPropertyDeclaration(symbol: Symbol): Node | undefined {
+  const declaration = symbol.ValueDeclaration ?? symbol.Declarations?.find((candidate): candidate is Node => candidate !== undefined);
+  if (
+    declaration?.Kind !== KindPropertyDeclaration &&
+    declaration?.Kind !== KindPropertySignature &&
+    declaration?.Kind !== KindGetAccessor &&
+    declaration?.Kind !== KindSetAccessor &&
+    declaration?.Kind !== KindVariableDeclaration &&
+    declaration?.Kind !== KindParameter &&
+    declaration?.Kind !== KindBindingElement
+  ) {
+    return undefined;
+  }
+  return isDeclarationFileNode(declaration) ? undefined : declaration;
 }
 
 function selectProviderTargetMember(
