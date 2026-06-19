@@ -1,6 +1,8 @@
 import {
   AsParameterDeclaration,
   AsVariableDeclaration,
+  AsClassDeclaration,
+  AsConstructorDeclaration,
   KindClassDeclaration,
   KindConstructor,
   KindFunctionDeclaration,
@@ -301,7 +303,22 @@ export function isSourceOwnedProjectConstructibleObjectType(type: Type | undefin
     return false;
   }
   const declaration = getPrimaryDeclaration(effectiveType?.symbol);
-  return isProjectSourceDeclaration(declaration, input) && declaration?.Kind === KindClassDeclaration;
+  if (!isProjectSourceDeclaration(declaration, input) || declaration?.Kind !== KindClassDeclaration) {
+    return false;
+  }
+  return hasParameterlessConstruction(declaration);
+}
+
+function hasParameterlessConstruction(classDeclaration: Node): boolean {
+  const constructors = (AsClassDeclaration(classDeclaration)?.Members?.Nodes ?? [])
+    .filter((member): member is Node => member?.Kind === KindConstructor);
+  if (constructors.length === 0) {
+    return true;
+  }
+  return constructors.some((constructor) => {
+    const parameters = AsConstructorDeclaration(constructor)?.Parameters?.Nodes ?? [];
+    return parameters.every((parameter) => parameter === undefined);
+  });
 }
 
 function getSingleNonNullishUnionType(type: Type | undefined): Type | undefined {
