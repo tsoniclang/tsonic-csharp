@@ -287,12 +287,26 @@ function planIdentifierExpression(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   const sourceName = AsIdentifier(identifier)!.Text;
-  const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
+  return planProjectSourceModuleMemberReference(identifier, sourceFile, input, diagnostics) ??
+    { kind: "identifier", name: sanitizeIdentifier(sourceName) };
+}
+
+function isModuleStaticValueDeclaration(declaration: Node): boolean {
+  return declaration.Kind === KindFunctionDeclaration || declaration.Kind === KindVariableDeclaration;
+}
+
+function planProjectSourceModuleMemberReference(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  const sourceReference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile });
   if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
-    return { kind: "identifier", name: sanitizeIdentifier(sourceName) };
+    return undefined;
   }
   if (!isModuleStaticValueDeclaration(sourceReference.declaration)) {
-    diagnostics.push(unsupportedNodeDiagnostic(identifier, "Cross-file source reference requires a top-level function or variable declaration resolved by TSTS."));
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Cross-file source reference requires a top-level function or variable declaration resolved by TSTS."));
     return invalidExpression("cross-file source reference");
   }
   return {
@@ -306,10 +320,6 @@ function planIdentifierExpression(
     },
     name: sanitizeIdentifier(sourceReference.symbol.Name),
   };
-}
-
-function isModuleStaticValueDeclaration(declaration: Node): boolean {
-  return declaration.Kind === KindFunctionDeclaration || declaration.Kind === KindVariableDeclaration;
 }
 
 function planPropertyAccessExpression(
@@ -352,6 +362,10 @@ function planPropertyAccessExpression(
   if (targetOperation !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
     return invalidExpression("selected target property");
+  }
+  const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
+  if (sourceModuleMemberReference !== undefined) {
+    return sourceModuleMemberReference;
   }
   const sourceName = Node_Text(expression.name!);
   const receiver = expression.Expression;
