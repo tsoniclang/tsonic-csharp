@@ -99,17 +99,17 @@ function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
       packageName: "@tsonic/core",
       subpath: "lang.js",
       exports: [
-        { kind: "call-marker", exportName: "out", marker: "out" },
-        { kind: "call-marker", exportName: "ref", marker: "ref" },
-        { kind: "call-marker", exportName: "inref", marker: "inref" },
-        { kind: "call-marker", exportName: "borrow", marker: "borrow" },
-        { kind: "call-marker", exportName: "borrowMut", marker: "borrowMut" },
+        { kind: "call-marker", exportName: "writeonlyRef", marker: "byrefWriteonlyMustInit" },
+        { kind: "call-marker", exportName: "readwriteRef", marker: "byrefReadwrite" },
+        { kind: "call-marker", exportName: "readonlyRef", marker: "byrefReadonly" },
+        { kind: "call-marker", exportName: "borrowShared", marker: "borrowShared" },
+        { kind: "call-marker", exportName: "borrowMutable", marker: "borrowMutable" },
         { kind: "call-marker", exportName: "move", marker: "move" },
         { kind: "call-marker", exportName: "valueType", marker: "valueType" },
         { kind: "call-marker", exportName: "field", marker: "field" },
-        { kind: "call-marker", exportName: "defaultof", marker: "defaultof" },
-        { kind: "type-marker", exportName: "ptr", marker: "ptr" },
-        { kind: "type-marker", exportName: "fnptr", marker: "fnptr" },
+        { kind: "call-marker", exportName: "defaultValue", marker: "defaultValue" },
+        { kind: "type-marker", exportName: "pointer", marker: "pointer" },
+        { kind: "type-marker", exportName: "functionPointer", marker: "functionPointer" },
       ],
     },
     {
@@ -117,8 +117,14 @@ function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
       packageName: "@tsonic/csharp",
       subpath: "lang.js",
       exports: [
+        { kind: "call-marker", exportName: "out", marker: "byrefWriteonlyMustInit" },
+        { kind: "call-marker", exportName: "ref", marker: "byrefReadwrite" },
+        { kind: "call-marker", exportName: "inref", marker: "byrefReadonly" },
         { kind: "call-marker", exportName: "struct", marker: "valueType" },
         { kind: "call-marker", exportName: "attribute", marker: "attribute" },
+        { kind: "call-marker", exportName: "defaultof", marker: "defaultValue" },
+        { kind: "type-marker", exportName: "ptr", marker: "pointer" },
+        { kind: "type-marker", exportName: "fnptr", marker: "functionPointer" },
       ],
     },
   ];
@@ -231,9 +237,9 @@ function primitiveExportToProviderDeclaration(declaration: SourcePrimitiveDeclar
 function callMarkerToProviderDeclaration(declaration: SourceCallMarkerDeclaration): ProviderExportDeclaration {
   const typeParameter = { name: "T" };
   const typeParameterRef: ProviderTypeExpression = { kind: "type-parameter", name: "T" };
-  const parameters = declaration.marker === "defaultof"
+  const parameters = declaration.marker === "defaultValue"
     ? []
-    : [{ name: "value", type: typeParameterRef, optional: declaration.marker !== "out" && declaration.marker !== "ref" && declaration.marker !== "inref" }];
+    : [{ name: "value", type: typeParameterRef, optional: !isRequiredStorageMarker(declaration.marker) }];
   return {
     id: declaration.exportName,
     name: declaration.exportName,
@@ -245,6 +251,10 @@ function callMarkerToProviderDeclaration(declaration: SourceCallMarkerDeclaratio
       returnType: typeParameterRef,
     }],
   };
+}
+
+function isRequiredStorageMarker(marker: SourceCallMarkerDeclaration["marker"]): boolean {
+  return marker === "byrefReadonly" || marker === "byrefReadwrite" || marker === "byrefWriteonlyMustInit";
 }
 
 function typeMarkerToProviderDeclaration(declaration: SourceTypeMarkerDeclaration): ProviderExportDeclaration {

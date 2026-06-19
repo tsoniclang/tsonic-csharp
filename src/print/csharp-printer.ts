@@ -3,6 +3,7 @@ import type {
   CsharpCompilationUnit,
   CsharpExpression,
   CsharpForInitializer,
+  CsharpInterpolatedStringPart,
   CsharpInterfaceMember,
   CsharpLocalDeclaration,
   CsharpMethodDeclaration,
@@ -275,6 +276,8 @@ export function printCsharpExpression(expression: CsharpExpression): string {
       return expression.name;
     case "literal":
       return printLiteral(expression.value);
+    case "interpolatedString":
+      return printInterpolatedString(expression.parts);
     case "parenthesized":
       return `(${printCsharpExpression(expression.expression)})`;
     case "member":
@@ -303,6 +306,18 @@ export function printCsharpExpression(expression: CsharpExpression): string {
     case "default":
       return `default(${printCsharpType(expression.type)})`;
   }
+}
+
+function printInterpolatedString(parts: readonly CsharpInterpolatedStringPart[]): string {
+  const body = parts.map((part) => {
+    switch (part.kind) {
+      case "text":
+        return escapeCsharpInterpolatedStringText(part.text);
+      case "expression":
+        return `{${printCsharpExpression(part.expression)}}`;
+    }
+  }).join("");
+  return `$"${body}"`;
 }
 
 function printCsharpLocalDeclaration(local: CsharpLocalDeclaration): string {
@@ -347,6 +362,17 @@ function printLiteral(value: string | number | boolean | null): string {
     return JSON.stringify(value);
   }
   return String(value);
+}
+
+function escapeCsharpInterpolatedStringText(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, "\\\"")
+    .replace(/{/g, "{{")
+    .replace(/}/g, "}}")
+    .replace(/\r/g, "\\r")
+    .replace(/\n/g, "\\n")
+    .replace(/\t/g, "\\t");
 }
 
 function indentLines(lines: readonly string[]): string[] {

@@ -6,12 +6,15 @@ import {
   AsElementAccessExpression,
   AsIdentifier,
   AsNewExpression,
+  AsNoSubstitutionTemplateLiteral,
   AsNumericLiteral,
   AsParenthesizedExpression,
   AsPostfixUnaryExpression,
   AsPrefixUnaryExpression,
   AsPropertyAccessExpression,
   AsStringLiteral,
+  AsTemplateExpression,
+  AsTemplateSpan,
   KindAmpersandAmpersandToken,
   KindAsteriskToken,
   KindBarBarToken,
@@ -35,6 +38,7 @@ import {
   KindMinusMinusToken,
   KindMinusToken,
   KindNewExpression,
+  KindNoSubstitutionTemplateLiteral,
   KindNullKeyword,
   KindNumericLiteral,
   KindParenthesizedExpression,
@@ -48,13 +52,14 @@ import {
   KindSlashToken,
   KindStringLiteral,
   KindSuperKeyword,
+  KindTemplateExpression,
   KindThisKeyword,
   KindTrueKeyword,
   Node_Text,
 } from "@tsonic/tsts";
 import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
@@ -83,6 +88,8 @@ export function planExpression(
       return { kind: "identifier", name: sanitizeIdentifier(AsIdentifier(node)!.Text) };
     case KindStringLiteral:
       return { kind: "literal", value: AsStringLiteral(node)!.Text };
+    case KindNoSubstitutionTemplateLiteral:
+      return { kind: "literal", value: AsNoSubstitutionTemplateLiteral(node)!.Text };
     case KindNumericLiteral:
       return { kind: "literal", value: Number(AsNumericLiteral(node)!.Text) };
     case KindTrueKeyword:
@@ -111,6 +118,8 @@ export function planExpression(
           .map((element) => planExpression(element, sourceFile, input, diagnostics)),
       };
     }
+    case KindTemplateExpression:
+      return planTemplateExpression(node, sourceFile, input, diagnostics);
     case KindPropertyAccessExpression: {
       const expression = AsPropertyAccessExpression(node)!;
       return {
@@ -211,6 +220,30 @@ export function planCallArgument(
     expression: planExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics),
     passing: getCsharpArgumentPassing(argumentPassing.mode),
   };
+}
+
+function planTemplateExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const expression = AsTemplateExpression(node)!;
+  const parts: CsharpInterpolatedStringPart[] = [
+    { kind: "text", text: Node_Text(expression.Head) },
+  ];
+  for (const spanNode of expression.TemplateSpans?.Nodes ?? []) {
+    if (spanNode === undefined) {
+      continue;
+    }
+    const span = AsTemplateSpan(spanNode)!;
+    parts.push({
+      kind: "expression",
+      expression: planExpression(span.Expression!, sourceFile, input, diagnostics),
+    });
+    parts.push({ kind: "text", text: Node_Text(span.Literal) });
+  }
+  return { kind: "interpolatedString", parts };
 }
 
 function getCsharpArgumentPassing(mode: ArgumentPassingFact["mode"]): CsharpArgument["passing"] {

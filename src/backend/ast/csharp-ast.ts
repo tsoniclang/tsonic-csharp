@@ -162,6 +162,7 @@ export interface CsharpLocalDeclaration {
 export type CsharpExpression =
   | { readonly kind: "identifier"; readonly name: string }
   | { readonly kind: "literal"; readonly value: string | number | boolean | null }
+  | { readonly kind: "interpolatedString"; readonly parts: readonly CsharpInterpolatedStringPart[] }
   | { readonly kind: "parenthesized"; readonly expression: CsharpExpression }
   | { readonly kind: "call"; readonly callee: CsharpExpression; readonly arguments: readonly CsharpArgument[] }
   | { readonly kind: "new"; readonly type: CsharpTypeNode; readonly arguments: readonly CsharpArgument[] }
@@ -173,6 +174,10 @@ export type CsharpExpression =
   | { readonly kind: "conditional"; readonly condition: CsharpExpression; readonly whenTrue: CsharpExpression; readonly whenFalse: CsharpExpression }
   | { readonly kind: "array"; readonly elements: readonly CsharpExpression[]; readonly elementType?: CsharpTypeNode }
   | { readonly kind: "default"; readonly type: CsharpTypeNode };
+
+export type CsharpInterpolatedStringPart =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "expression"; readonly expression: CsharpExpression };
 
 export interface CsharpArgument {
   readonly expression: CsharpExpression;
