@@ -199,6 +199,18 @@ export function planExpression(
       return planCallExpression(node, sourceFile, input, diagnostics);
     case KindNewExpression: {
       const expression = AsNewExpression(node)!;
+      const selectedTargetCall = input.facts.getSelectedTargetCall(node);
+      if (selectedTargetCall !== undefined && selectedTargetCall.member.kind !== "constructor") {
+        diagnostics.push(unsupportedNodeDiagnostic(node, `New expression expected a provider constructor fact, but provider selected a ${selectedTargetCall.member.kind} member.`));
+        return invalidExpression("selected target constructor");
+      }
+      if (selectedTargetCall === undefined) {
+        const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
+        if (ownership.requiresTargetFact) {
+          pushMissingTargetFactDiagnostic(diagnostics, node, "C# construction emission requires a source-owned constructor or a selected target constructor fact.", ownership);
+          return invalidExpression("missing target constructor fact");
+        }
+      }
       return {
         kind: "new",
         type: expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics),
