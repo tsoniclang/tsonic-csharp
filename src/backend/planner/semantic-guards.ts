@@ -62,7 +62,7 @@ export function getSemanticOwnership(
   const symbol = getQueryableSymbol(node, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "symbol");
   const type = input.checker.getTypeAtLocation(node, { sourceFile });
-  const sourceOwned = isDirectSourceShapeType(type, input);
+  const sourceOwned = isSourceOwnedProjectShapeType(type, input);
   if (!sourceOwned) {
     appendTargetFactReasons(reasons, input, type, "type");
     appendTargetFactReasons(reasons, input, type?.symbol, "type symbol");
@@ -89,7 +89,7 @@ export function getCallableSemanticOwnership(
   const type = input.checker.getTypeAtLocation(callee, { sourceFile });
   appendTargetFactReasons(reasons, input, type, "callee type");
   appendTargetFactReasons(reasons, input, type?.symbol, "callee type symbol");
-  const sourceOwned = isSourceDeclaredCallable(symbol, input) || isDirectSourceShapeType(type, input);
+  const sourceOwned = isSourceDeclaredCallable(symbol, input) || isSourceOwnedProjectShapeType(type, input);
   return {
     requiresTargetFact: reasons.length > 0,
     sourceOwned,
@@ -145,7 +145,7 @@ export function getProviderOperationOwnership(
   }
   return {
     requiresTargetFact: reasons.length > 0,
-    sourceOwned: !typeParameter && (sourcePrimitive !== undefined || isDirectSourceShapeType(type, input)),
+    sourceOwned: !typeParameter && (sourcePrimitive !== undefined || isSourceOwnedProjectShapeType(type, input)),
     reasons,
     sourcePrimitive,
   };
@@ -276,7 +276,7 @@ function isTypeParameterType(type: Type | undefined): boolean {
   return type !== undefined && (type.flags & TypeFlagsTypeParameter) !== 0;
 }
 
-function isDirectSourceShapeType(type: Type | undefined, input: TargetCompileInput): boolean {
+export function isSourceOwnedProjectShapeType(type: Type | undefined, input: TargetCompileInput): boolean {
   if (isTypeParameterType(type)) {
     return true;
   }

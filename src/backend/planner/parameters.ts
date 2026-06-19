@@ -74,7 +74,6 @@ export function planParametersWithPrelude(
         diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Required parameters cannot follow C# optional parameters."));
       }
       const parameterName = allocateSyntheticParameter(state);
-      diagnostics.push(unsupportedNodeDiagnostic(parameter.name, "Destructured parameters require finalized TSTS/provider object-shape facts before C# emission."));
       parameters.push({
         name: parameterName,
         type,

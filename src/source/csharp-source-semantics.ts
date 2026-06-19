@@ -8,15 +8,21 @@ import {
   KindArrayType,
   KindBigIntKeyword,
   KindBooleanKeyword,
+  KindBindingElement,
   KindEnumDeclaration,
   KindEnumMember,
   KindFunctionType,
+  KindIdentifier,
   KindNeverKeyword,
   KindNumberKeyword,
   KindNumericLiteral,
+  KindParameter,
+  KindPropertyAccessExpression,
+  KindPropertyDeclaration,
   KindStringKeyword,
   KindTupleType,
   KindUnknownKeyword,
+  KindVariableDeclaration,
   KindVoidKeyword,
   TstsProviderContractVersion,
   TypeFlagsAny,
@@ -35,6 +41,10 @@ import {
   getTypeScriptArrayElementType,
   getTypeScriptTypeReferenceInfo,
   isTypeScriptStringLikeType,
+  Node_Name,
+  Node_Symbol,
+  Node_Text,
+  Node_Type,
   runtimeCarrierFactKey,
   sourcePrimitive,
   sourcePrimitiveFactKey,
@@ -56,6 +66,7 @@ import type {
   ProviderModuleResolution,
   ProviderOwnership,
   ProviderTypeExpression,
+  ResolveCallResult,
   ResolveOperationResult,
   ResolveOperatorRequest,
   RuntimeCarrierFact,
@@ -66,8 +77,10 @@ import type {
   SourceSemanticsExportDeclaration,
   SourceSemanticsModule,
   SourceTypeMarkerDeclaration,
+  Symbol,
   TargetBindingProvider,
   TargetIterationFact,
+  TargetMember,
   TargetOperationFact,
   TargetSemanticProvider,
   TargetTypeRef,
@@ -145,6 +158,18 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       target: "csharp",
       extensionContractVersion: TstsProviderContractVersion,
       providerKind: "semantic",
+    },
+    resolveCall(request, context) {
+      if (request.target !== undefined && request.target !== "csharp") {
+        return deferDecision;
+      }
+      const delegateCall = resolveDelegateCall(
+        [request.callee, request.calleeSymbol, request.calleeType],
+        request.callee,
+        request.arguments,
+        context,
+      );
+      return delegateCall === undefined ? deferDecision : acceptDecision(delegateCall);
     },
     resolvePropertyAccess(request) {
       if (request.target !== undefined && request.target !== "csharp") {
@@ -225,6 +250,102 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
   };
 }
 
+function resolveDelegateCall(
+  carrierSubjects: readonly (ExtensionFactSubject | undefined)[],
+  callee: ExtensionFactSubject,
+  args: readonly ExtensionFactSubject[],
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  const carrier = resolveFirstRuntimeCarrier(carrierSubjects, context);
+  if (!isCsharpDelegateCarrier(carrier)) {
+    return undefined;
+  }
+  const parameters = getDelegateParameterTypes(carrier);
+  if (parameters === undefined || parameters.length !== args.length) {
+    return undefined;
+  }
+  const calleeSourceName = getCallCalleeSourceName(callee);
+  if (calleeSourceName === undefined) {
+    return undefined;
+  }
+  const returnType = getDelegateReturnType(carrier);
+  const member = {
+    id: "tsonic.csharp.delegate.Invoke",
+    sourceName: calleeSourceName,
+    targetName: calleeSourceName,
+    kind: "method",
+    static: false,
+    parameters: parameters.map((type, index) => ({
+      name: `arg${index}`,
+      type,
+      passingMode: "by-value",
+    })),
+    ...(returnType === undefined ? {} : { returnType }),
+  } satisfies TargetMember;
+  return {
+    selectedSignature: { member },
+    ...(returnType === undefined ? {} : { returnType }),
+  };
+}
+
+function resolveFirstRuntimeCarrier(
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  context: ExtensionDecisionContext,
+): TargetTypeRef | undefined {
+  for (const subject of subjects) {
+    if (subject === undefined) {
+      continue;
+    }
+    const carrier = context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier;
+    if (carrier !== undefined) {
+      return carrier;
+    }
+  }
+  return undefined;
+}
+
+function isCsharpDelegateCarrier(type: TargetTypeRef | undefined): type is Extract<TargetTypeRef, { readonly kind: "target-named" }> {
+  return type?.kind === "target-named" &&
+    (type.id.startsWith("System.Func`") || type.id.startsWith("System.Action`"));
+}
+
+function getDelegateParameterTypes(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): readonly TargetTypeRef[] | undefined {
+  const typeArguments = type.typeArguments ?? [];
+  if (type.id.startsWith("System.Action`")) {
+    return typeArguments;
+  }
+  if (type.id.startsWith("System.Func`")) {
+    return typeArguments.length === 0 ? undefined : typeArguments.slice(0, -1);
+  }
+  return undefined;
+}
+
+function getDelegateReturnType(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): TargetTypeRef | undefined {
+  if (type.id.startsWith("System.Action`")) {
+    return undefined;
+  }
+  return type.typeArguments?.[type.typeArguments.length - 1];
+}
+
+function getCallCalleeSourceName(callee: ExtensionFactSubject): string | undefined {
+  if (!isNodeSubject(callee)) {
+    return undefined;
+  }
+  if (callee.Kind === KindIdentifier) {
+    const sourceName = Node_Text(callee);
+    return sourceName.length === 0 ? undefined : sourceName;
+  }
+  if (callee.Kind === KindPropertyAccessExpression) {
+    const name = Node_Name(callee);
+    if (name === undefined) {
+      return undefined;
+    }
+    const sourceName = Node_Text(name);
+    return sourceName.length === 0 ? undefined : sourceName;
+  }
+  return undefined;
+}
+
 function sourcePrimitiveInt32(): SourcePrimitiveFact {
   return {
     kind: "int32",
@@ -264,6 +385,24 @@ function resolveCsharpRuntimeCarrier(
         evidence: [{ message: "C# carrier from TypeScript type syntax." }],
       };
     }
+    const nodeSymbol = Node_Symbol(subject);
+    const nodeSymbolCarrier = nodeSymbol === undefined ? undefined : resolveCsharpRuntimeCarrierForSymbol(nodeSymbol, context);
+    if (nodeSymbolCarrier !== undefined) {
+      return {
+        value: { carrier: nodeSymbolCarrier },
+        evidence: [{ message: "C# carrier from source declaration annotation." }],
+      };
+    }
+  }
+
+  if (isSymbolSubject(subject)) {
+    const symbolCarrier = resolveCsharpRuntimeCarrierForSymbol(subject, context);
+    if (symbolCarrier !== undefined) {
+      return {
+        value: { carrier: symbolCarrier },
+        evidence: [{ message: "C# carrier from source declaration annotation." }],
+      };
+    }
   }
 
   if (isTypeSubject(subject)) {
@@ -289,6 +428,29 @@ function runtimeCarrierFromTargetBinding(id: string): { readonly value: RuntimeC
     },
     evidence: [{ message: `C# carrier from target binding '${id}'.` }],
   };
+}
+
+function resolveCsharpRuntimeCarrierForSymbol(
+  symbol: Symbol,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const declaration = symbol.ValueDeclaration ?? symbol.Declarations?.find((candidate) => candidate !== undefined);
+  const typeNode = declaration === undefined ? undefined : getRuntimeCarrierDeclarationTypeNode(declaration);
+  return typeNode === undefined
+    ? undefined
+    : context.factResolver.resolve(typeNode, runtimeCarrierFactKey)?.carrier;
+}
+
+function getRuntimeCarrierDeclarationTypeNode(declaration: Node): Node | undefined {
+  switch (declaration.Kind) {
+    case KindVariableDeclaration:
+    case KindParameter:
+    case KindPropertyDeclaration:
+    case KindBindingElement:
+      return Node_Type(declaration);
+    default:
+      return undefined;
+  }
 }
 
 function resolveCsharpRuntimeCarrierForTypeNode(
@@ -455,6 +617,13 @@ function isNodeSubject(subject: ExtensionFactSubject): subject is Node {
   return typeof subject === "object" &&
     subject !== null &&
     typeof (subject as { readonly Kind?: unknown }).Kind === "number";
+}
+
+function isSymbolSubject(subject: ExtensionFactSubject): subject is Symbol {
+  return typeof subject === "object" &&
+    subject !== null &&
+    typeof (subject as { readonly Name?: unknown }).Name === "string" &&
+    ("Declarations" in subject || "ValueDeclaration" in subject);
 }
 
 function isTypeSubject(subject: ExtensionFactSubject): subject is Type {
