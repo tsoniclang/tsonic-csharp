@@ -269,7 +269,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         resultType: elementType,
       });
     },
-    resolveIteration(request) {
+    resolveIteration(request, context) {
       if (request.target !== undefined && request.target !== "csharp") {
         return deferDecision;
       }
@@ -284,6 +284,24 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
           } satisfies TargetIterationFact,
           elementType,
         });
+      }
+      if (request.iterationKind === "property-key") {
+        const objectShape = context.factResolver.resolve(request.iterable, objectShapeFactKey) ??
+          (request.iterableType === undefined
+            ? undefined
+            : context.factResolver.resolve(request.iterableType, objectShapeFactKey));
+        if (objectShape !== undefined) {
+          const keyType = csharpNamed("System.String");
+          return acceptDecision({
+            iteration: {
+              operationId: "Tsonic.CSharp.ObjectShape.Keys",
+              iterationKind: "property-key",
+              targetOperation: "object-shape-keys",
+              elementType: keyType,
+            } satisfies TargetIterationFact,
+            elementType: keyType,
+          });
+        }
       }
       const elementType = getTypeScriptArrayElementType(request.iterableType as Type | undefined);
       if (elementType === undefined) {
