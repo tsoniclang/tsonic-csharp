@@ -42,9 +42,6 @@ export function planParametersWithPrelude(
   const prelude: CsharpStatement[] = [];
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(parameterNode)!;
-    if (parameter.DotDotDotToken !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Rest parameters require target varargs facts before C# emission."));
-    }
     if (parameter.Initializer !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Default parameter initializers require target optional-argument lowering before C# emission."));
     }
@@ -52,6 +49,7 @@ export function planParametersWithPrelude(
       parameters.push({
         name: planIdentifierName(parameter.name, "arg", diagnostics, "Parameter name"),
         type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, undefined, diagnostics),
+        ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
       });
       continue;
     }
@@ -60,6 +58,7 @@ export function planParametersWithPrelude(
       parameters.push({
         name: parameterName,
         type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, predefined("object"), diagnostics),
+        ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
       });
       prelude.push(...planParameterBindingPrelude(parameter.name, parameterName, sourceFile, input, diagnostics, state));
       continue;

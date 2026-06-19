@@ -7,6 +7,7 @@ import type {
   CsharpInterfaceMember,
   CsharpLocalDeclaration,
   CsharpMethodDeclaration,
+  CsharpParameter,
   CsharpPropertyDeclaration,
   CsharpStatement,
   CsharpConstructorDeclaration,
@@ -71,10 +72,7 @@ function printInterfaceMemberLines(member: CsharpInterfaceMember): string[] {
   switch (member.kind) {
     case "interface-method": {
       const typeParameters = printTypeParameters(member.typeParameters);
-      const parameters = member.parameters.map((parameter) => {
-        const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
-        return `${passing}${printCsharpType(parameter.type)} ${parameter.name}`;
-      }).join(", ");
+      const parameters = member.parameters.map(printCsharpParameter).join(", ");
       return [`${printCsharpType(member.returnType)} ${member.name}${typeParameters}(${parameters});`];
     }
     case "interface-property":
@@ -100,10 +98,7 @@ function printTypeMemberLines(member: CsharpTypeMember): string[] {
 
 function printConstructorLines(constructor: CsharpConstructorDeclaration): string[] {
   const modifiers = constructor.modifiers.length === 0 ? "" : `${constructor.modifiers.join(" ")} `;
-  const parameters = constructor.parameters.map((parameter) => {
-    const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
-    return `${passing}${printCsharpType(parameter.type)} ${parameter.name}`;
-  }).join(", ");
+  const parameters = constructor.parameters.map(printCsharpParameter).join(", ");
   const baseInitializer = constructor.baseArguments === undefined
     ? ""
     : ` : base(${constructor.baseArguments.map(printCsharpArgument).join(", ")})`;
@@ -118,10 +113,7 @@ function printConstructorLines(constructor: CsharpConstructorDeclaration): strin
 function printMethodLines(method: CsharpMethodDeclaration): string[] {
   const modifiers = method.modifiers.length === 0 ? "" : `${method.modifiers.join(" ")} `;
   const typeParameters = printTypeParameters(method.typeParameters);
-  const parameters = method.parameters.map((parameter) => {
-    const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
-    return `${passing}${printCsharpType(parameter.type)} ${parameter.name}`;
-  }).join(", ");
+  const parameters = method.parameters.map(printCsharpParameter).join(", ");
   return [
     `${modifiers}${printCsharpType(method.returnType)} ${method.name}${typeParameters}(${parameters})`,
     "{",
@@ -384,6 +376,12 @@ function printCsharpLocalDeclarator(local: CsharpLocalDeclaration): string {
 function printCsharpArgument(argument: CsharpArgument): string {
   const expression = printCsharpExpression(argument.expression);
   return argument.passing === undefined ? expression : `${argument.passing} ${expression}`;
+}
+
+function printCsharpParameter(parameter: CsharpParameter): string {
+  const paramsPrefix = parameter.isParams === true ? "params " : "";
+  const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
+  return `${paramsPrefix}${passing}${printCsharpType(parameter.type)} ${parameter.name}`;
 }
 
 function printLiteral(value: string | number | boolean | null): string {
