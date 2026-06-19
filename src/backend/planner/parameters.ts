@@ -17,6 +17,7 @@ import type { DestructuringPlannerState } from "./bindings.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
+import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { planIdentifierName } from "./names.js";
 
 export interface PlannedParameterList {
@@ -45,6 +46,7 @@ export function planParametersWithPrelude(
   let hasDefaultParameter = false;
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(parameterNode)!;
+    diagnoseTypeScriptOnlyRuntimeShapeModifiers(parameterNode!, "parameter declaration", diagnostics);
     const defaultValue = planParameterDefaultValue(parameter.Initializer, sourceFile, input, diagnostics);
     if (defaultValue !== undefined) {
       hasDefaultParameter = true;

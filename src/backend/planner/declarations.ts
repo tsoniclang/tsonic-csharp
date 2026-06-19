@@ -67,6 +67,7 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planCallArgument, planExpressionWithExpectedType } from "./expressions.js";
 import { planExpression } from "./expressions.js";
 import { planClassHeritage, planInterfaceHeritage } from "./heritage.js";
+import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { planIdentifierName } from "./names.js";
 import { planParameters, planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements, planStatements } from "./statements.js";
@@ -79,6 +80,7 @@ export function planClassDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpClassDeclaration {
   const declaration = AsClassDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "class declaration", diagnostics);
   const className = planIdentifierName(declaration.name, "AnonymousClass", diagnostics, "Class name");
   const heritage = planClassHeritage(declaration.HeritageClauses?.Nodes ?? [], sourceFile, input, diagnostics);
   return {
@@ -157,6 +159,7 @@ export function planInterfaceDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceDeclaration {
   const declaration = AsInterfaceDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface declaration", diagnostics);
   const interfaces = planInterfaceHeritage(declaration.HeritageClauses?.Nodes ?? [], sourceFile, input, diagnostics);
   return {
     kind: "interface",
@@ -191,6 +194,7 @@ export function planEnumDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumDeclaration {
   const declaration = AsEnumDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "enum declaration", diagnostics);
   return {
     kind: "enum",
     name: planIdentifierName(declaration.name, "AnonymousEnum", diagnostics, "Enum name"),
@@ -235,6 +239,7 @@ export function planFunctionDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsFunctionDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "function declaration", diagnostics);
   const name = planIdentifierName(declaration.name, "__anonymous", diagnostics, "Function name");
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
@@ -265,6 +270,7 @@ function planConstructorDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpConstructorDeclaration {
   const declaration = AsConstructorDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "constructor declaration", diagnostics);
   const bodyStatements = AsBlock(declaration.Body)?.Statements?.Nodes ?? [];
   const leadingSuperCall = getLeadingSuperCall(bodyStatements);
   const state = createDestructuringPlannerState();
@@ -322,6 +328,7 @@ function planMethodDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsMethodDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "method declaration", diagnostics);
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics);
@@ -350,6 +357,7 @@ function planInterfaceMethodDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceMethodDeclaration {
   const declaration = AsMethodSignatureDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface method declaration", diagnostics);
   return {
     kind: "interface-method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Interface method name"),
@@ -367,6 +375,7 @@ function planInterfacePropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfacePropertyDeclaration {
   const declaration = AsPropertySignatureDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface property declaration", diagnostics);
   if (declaration.Initializer !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Interface property initializers have no direct C# interface equivalent."));
   }
@@ -385,6 +394,7 @@ function planInterfaceIndexerDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpInterfaceIndexerDeclaration {
   const declaration = AsIndexSignatureDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface index signature", diagnostics);
   const parameterNodes = declaration.Parameters?.Nodes ?? [];
   const parameterNode = parameterNodes.find((item): item is Node => item !== undefined);
   if (parameterNode === undefined || parameterNodes.filter((item) => item !== undefined).length !== 1) {
@@ -407,6 +417,7 @@ function planPropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpFieldDeclaration {
   const declaration = AsPropertyDeclaration(node)!;
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "property declaration", diagnostics);
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("property type"), diagnostics);
   return {
     kind: "field",
@@ -428,6 +439,7 @@ function mergeAccessorProperty(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): void {
+  diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "accessor declaration", diagnostics);
   const accessor = node.Kind === KindGetAccessor
     ? AsGetAccessorDeclaration(node)!
     : AsSetAccessorDeclaration(node)!;
