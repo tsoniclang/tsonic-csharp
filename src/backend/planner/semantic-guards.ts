@@ -118,9 +118,12 @@ export function getProviderOperationOwnership(
   const type = input.checker.getTypeAtLocation(node, { sourceFile });
   appendProviderOperationFactReasons(reasons, input, type, "operand type");
   appendProviderOperationFactReasons(reasons, input, type?.symbol, "operand type symbol");
+  if (isTypeParameterType(type)) {
+    reasons.push("operand type parameter");
+  }
   return {
     requiresTargetFact: reasons.length > 0,
-    sourceOwned: isDirectSourceShapeType(type, input),
+    sourceOwned: !isTypeParameterType(type) && isDirectSourceShapeType(type, input),
     reasons,
   };
 }
@@ -239,8 +242,12 @@ function hasBuiltinLoweredScalarType(type: Type | undefined): boolean {
     (type.flags & (TypeFlagsStringLike | TypeFlagsNumberLike | TypeFlagsBooleanLike | TypeFlagsBigIntLike)) !== 0;
 }
 
+function isTypeParameterType(type: Type | undefined): boolean {
+  return type !== undefined && (type.flags & TypeFlagsTypeParameter) !== 0;
+}
+
 function isDirectSourceShapeType(type: Type | undefined, input: TargetCompileInput): boolean {
-  if (type !== undefined && (type.flags & TypeFlagsTypeParameter) !== 0) {
+  if (isTypeParameterType(type)) {
     return true;
   }
   const declaration = getPrimaryDeclaration(type?.symbol);

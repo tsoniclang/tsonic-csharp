@@ -648,7 +648,7 @@ function tryPlanBinaryExpression(
     return invalidExpression("selected target operator");
   }
   const expression = AsBinaryExpression(node)!;
-  if (selectedOperator === undefined) {
+  if (selectedOperator === undefined && operator !== "=") {
     const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
     const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
     const ownership = combineOwnership(leftOwnership, rightOwnership);
