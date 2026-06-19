@@ -193,7 +193,7 @@ export function getCsharpTypeForNode(
   return invalidType("unsupported semantic type");
 }
 
-function getCsharpTypeForTstsType(
+export function getCsharpTypeForTstsType(
   type: Type,
   sourceFile: SourceFile,
   input: TargetCompileInput,

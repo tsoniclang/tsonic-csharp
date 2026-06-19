@@ -58,7 +58,7 @@ import type {
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
 import { planAttributesForSubject } from "./attributes.js";
-import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
+import { getCsharpTypeForNode, getCsharpTypeForTstsType, invalidCsharpType } from "./csharp-types.js";
 import {
   createDestructuringPlannerState,
   planParameterBindingPrelude,
@@ -379,8 +379,14 @@ function getExplicitReturnType(
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> {
   if (typeNode === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(declarationNode, `C# ${context} emission requires an explicit return type or finalized TSTS/provider return-type facts.`));
-    return invalidCsharpType(`${context} return type`);
+    const signature = input.checker.getSignatureFromDeclaration(declarationNode, { sourceFile });
+    const returnType = input.checker.getReturnTypeOfSignature(signature, { sourceFile });
+    if (returnType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(declarationNode, `C# ${context} emission requires a return type, but TSTS did not return an inferred signature return type.`));
+      return invalidCsharpType(`${context} return type`);
+    }
+    const inferred = getCsharpTypeForTstsType(returnType, sourceFile, input, diagnostics, declarationNode);
+    return inferred ?? invalidCsharpType(`${context} return type`);
   }
   return getCsharpTypeForNode(typeNode, sourceFile, input, invalidCsharpType(`${context} return type`), diagnostics);
 }
