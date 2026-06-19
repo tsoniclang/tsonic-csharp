@@ -1,4 +1,6 @@
 import {
+  AsVariableDeclarationList,
+  AsVariableStatement,
   KindClassDeclaration,
   KindDebuggerStatement,
   KindDoStatement,
@@ -20,7 +22,7 @@ import {
   KindWhileStatement,
   SourceFile_FileName,
 } from "@tsonic/tsts";
-import type { SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetArtifact, TargetCompileInput, TargetDiagnostic, TargetSourceFile } from "@tsonic/target-api";
 import type {
   CsharpCompilationUnit,
@@ -32,9 +34,11 @@ import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
 import { predefined } from "./csharp-types.js";
 import { planClassDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
+import { planLocalDeclaration } from "./locals.js";
 import { projectArtifact, readNamespace } from "./project-artifacts.js";
 import { sourceFileArtifactPath, sourceFileClassName } from "./source-paths.js";
 import { planStatements } from "./statements.js";
+import { planValueTypeDeclaration } from "./value-types.js";
 
 export interface CsharpPlanningResult {
   readonly artifacts: readonly TargetArtifact[];
@@ -91,8 +95,10 @@ function planSourceFile(
       case KindClassDeclaration:
         namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));
         break;
-      case KindExpressionStatement:
       case KindVariableStatement:
+        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, topLevelStatements);
+        break;
+      case KindExpressionStatement:
       case KindIfStatement:
       case KindWhileStatement:
       case KindDoStatement:
@@ -145,4 +151,34 @@ function planSourceFile(
     path: sourceFileArtifactPath(input, fileName, moduleClassName),
     text: printCsharpCompilationUnit(unit),
   };
+}
+
+function planTopLevelVariableStatement(
+  statement: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  namespaceMembers: CsharpTypeDeclaration[],
+  topLevelStatements: CsharpStatement[],
+): void {
+  const declarationList = AsVariableStatement(statement)!.DeclarationList;
+  const declarations = AsVariableDeclarationList(declarationList)!.Declarations?.Nodes ?? [];
+  if (declarations.length === 0) {
+    topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics));
+    return;
+  }
+  for (const declaration of declarations) {
+    if (declaration === undefined) {
+      continue;
+    }
+    const valueType = input.facts.getValueTypeFact(declaration);
+    if (valueType !== undefined) {
+      namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
+      continue;
+    }
+    topLevelStatements.push({
+      kind: "local",
+      ...planLocalDeclaration(declaration, sourceFile, input, diagnostics),
+    });
+  }
 }
