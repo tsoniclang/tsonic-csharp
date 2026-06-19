@@ -113,6 +113,11 @@ type AttributeBuilderTypeName =
 const attributeTargetTypeName = "__TsonicCsharpAttributeTarget";
 const attributeArgumentTypeName = "__TsonicCsharpAttributeArgument";
 
+interface TargetBindingAccess {
+  readonly binding: TargetBindingFact;
+  readonly staticAccess: boolean;
+}
+
 export function createCsharpSourceSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
   return createSourceSemanticsExtension({
     identity: {
@@ -440,24 +445,21 @@ function resolveProviderTargetMethodCall(
   if (sourceName.length === 0) {
     return undefined;
   }
-  const targetBinding = getTargetBindingFromSubject(context, Node_Symbol(receiver)) ??
-    getTargetBindingFromSubject(context, Node_Type(receiver)) ??
-    getTargetBindingFromSubject(context, request.receiverSymbol) ??
-    getTargetBindingFromSubject(context, request.resolvedReceiverSymbol) ??
-    getTargetBindingFromSubject(context, request.receiverType);
-  if (targetBinding === undefined) {
-    return undefined;
-  }
-  const methods = (targetBinding.members ?? [])
-    .filter((member) =>
+  const member = selectProviderTargetMember(
+    context,
+    receiver,
+    request.receiverSymbol,
+    request.resolvedReceiverSymbol,
+    request.receiverType,
+    (member, staticAccess) =>
       member.kind === "method" &&
-      member.static === true &&
+      memberStaticMatchesAccess(member, staticAccess) &&
       member.sourceName === sourceName &&
-      targetMemberAcceptsArity(member, request.arguments.length));
-  if (methods.length !== 1) {
+      targetMemberAcceptsArity(member, request.arguments.length),
+  );
+  if (member === undefined) {
     return undefined;
   }
-  const member = methods[0]!;
   return {
     selectedSignature: { member },
     ...(member.returnType === undefined
@@ -475,23 +477,20 @@ function resolveProviderTargetPropertyAccess(
   context: ExtensionDecisionContext,
 ): ResolveOperationResult | undefined {
   const receiverNode = isNodeSubject(request.receiver) ? request.receiver : undefined;
-  const targetBinding = getTargetBindingFromSubject(context, receiverNode === undefined ? undefined : Node_Symbol(receiverNode)) ??
-    getTargetBindingFromSubject(context, receiverNode === undefined ? undefined : Node_Type(receiverNode)) ??
-    getTargetBindingFromSubject(context, request.receiverSymbol) ??
-    getTargetBindingFromSubject(context, request.resolvedReceiverSymbol) ??
-    getTargetBindingFromSubject(context, request.receiverType);
-  if (targetBinding === undefined) {
-    return undefined;
-  }
-  const properties = (targetBinding.members ?? [])
-    .filter((member) =>
+  const member = selectProviderTargetMember(
+    context,
+    receiverNode,
+    request.receiverSymbol,
+    request.resolvedReceiverSymbol,
+    request.receiverType,
+    (member, staticAccess) =>
       (member.kind === "property" || member.kind === "field") &&
-      member.static === true &&
-      member.sourceName === request.propertyName);
-  if (properties.length !== 1) {
+      memberStaticMatchesAccess(member, staticAccess) &&
+      member.sourceName === request.propertyName,
+  );
+  if (member === undefined) {
     return undefined;
   }
-  const member = properties[0]!;
   const operation = {
     operationId: member.id,
     operationKind: "property",
@@ -504,6 +503,75 @@ function resolveProviderTargetPropertyAccess(
     operation,
     ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
   };
+}
+
+function selectProviderTargetMember(
+  context: ExtensionDecisionContext,
+  receiverNode: Node | undefined,
+  receiverSymbol: ExtensionFactSubject | undefined,
+  resolvedReceiverSymbol: ExtensionFactSubject | undefined,
+  receiverType: ExtensionFactSubject | undefined,
+  predicate: (member: TargetMember, staticAccess: boolean) => boolean,
+): TargetMember | undefined {
+  const matches: TargetMember[] = [];
+  for (const candidate of getTargetBindingAccessCandidates(context, receiverNode, receiverSymbol, resolvedReceiverSymbol, receiverType)) {
+    for (const member of candidate.binding.members ?? []) {
+      if (predicate(member, candidate.staticAccess) && !matches.some((existing) => existing.id === member.id && existing.static === member.static)) {
+        matches.push(member);
+      }
+    }
+  }
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function getTargetBindingAccessCandidates(
+  context: ExtensionDecisionContext,
+  receiverNode: Node | undefined,
+  receiverSymbol: ExtensionFactSubject | undefined,
+  resolvedReceiverSymbol: ExtensionFactSubject | undefined,
+  receiverType: ExtensionFactSubject | undefined,
+): readonly TargetBindingAccess[] {
+  const candidates: TargetBindingAccess[] = [];
+  const staticBinding = getFirstTargetBinding(context, [
+    receiverNode === undefined ? undefined : Node_Symbol(receiverNode),
+    receiverSymbol,
+    resolvedReceiverSymbol,
+  ]);
+  if (staticBinding !== undefined) {
+    candidates.push({
+      binding: staticBinding,
+      staticAccess: true,
+    });
+  }
+  const typeBinding = getTargetBindingFromSubject(context, receiverType);
+  if (typeBinding !== undefined) {
+    candidates.push({
+      binding: typeBinding,
+      staticAccess: true,
+    });
+    candidates.push({
+      binding: typeBinding,
+      staticAccess: false,
+    });
+  }
+  return candidates;
+}
+
+function getFirstTargetBinding(
+  context: ExtensionDecisionContext,
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+): TargetBindingFact | undefined {
+  for (const subject of subjects) {
+    const binding = getTargetBindingFromSubject(context, subject);
+    if (binding !== undefined) {
+      return binding;
+    }
+  }
+  return undefined;
+}
+
+function memberStaticMatchesAccess(member: TargetMember, staticAccess: boolean): boolean {
+  return staticAccess ? member.static === true : member.static !== true;
 }
 
 function getTargetBindingFromSubject(
@@ -1631,6 +1699,22 @@ function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
           name: "message",
           type: { kind: "string" },
         }],
+      }],
+    }, {
+      id: "Message",
+      name: "message",
+      targetName: "Message",
+      kind: "property",
+      type: { kind: "string" },
+    }, {
+      id: "ToString",
+      name: "toString",
+      targetName: "ToString",
+      kind: "method",
+      signatures: [{
+        id: "System.Exception.ToString()",
+        parameters: [],
+        returnType: { kind: "string" },
       }],
     }],
   };
