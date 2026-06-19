@@ -51,7 +51,10 @@ export type CsharpTypeMember =
   | CsharpFieldDeclaration
   | CsharpPropertyDeclaration;
 
-export type CsharpInterfaceMember = CsharpInterfaceMethodDeclaration | CsharpInterfacePropertyDeclaration;
+export type CsharpInterfaceMember =
+  | CsharpInterfaceMethodDeclaration
+  | CsharpInterfacePropertyDeclaration
+  | CsharpInterfaceIndexerDeclaration;
 
 export interface CsharpInterfaceMethodDeclaration {
   readonly kind: "interface-method";
@@ -65,6 +68,13 @@ export interface CsharpInterfacePropertyDeclaration {
   readonly kind: "interface-property";
   readonly name: string;
   readonly type: CsharpTypeNode;
+}
+
+export interface CsharpInterfaceIndexerDeclaration {
+  readonly kind: "interface-indexer";
+  readonly keyName: string;
+  readonly keyType: CsharpTypeNode;
+  readonly valueType: CsharpTypeNode;
 }
 
 export interface CsharpConstructorDeclaration {

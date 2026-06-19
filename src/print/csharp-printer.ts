@@ -81,6 +81,8 @@ function printInterfaceMemberLines(member: CsharpInterfaceMember): string[] {
     }
     case "interface-property":
       return [`${printCsharpType(member.type)} ${member.name} { get; }`];
+    case "interface-indexer":
+      return [`${printCsharpType(member.valueType)} this[${printCsharpType(member.keyType)} ${member.keyName}] { get; }`];
   }
 }
 

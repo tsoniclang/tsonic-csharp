@@ -15,6 +15,7 @@ export type {
   CsharpExpression,
   CsharpFieldDeclaration,
   CsharpInterfaceDeclaration,
+  CsharpInterfaceIndexerDeclaration,
   CsharpInterfaceMember,
   CsharpInterfaceMethodDeclaration,
   CsharpInterfacePropertyDeclaration,

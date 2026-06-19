@@ -7,6 +7,7 @@ import {
   AsFunctionDeclaration,
   AsGetAccessorDeclaration,
   AsInterfaceDeclaration,
+  AsIndexSignatureDeclaration,
   AsMethodDeclaration,
   AsMethodSignatureDeclaration,
   AsParameterDeclaration,
@@ -37,6 +38,7 @@ import type {
   CsharpConstructorDeclaration,
   CsharpFieldDeclaration,
   CsharpInterfaceDeclaration,
+  CsharpInterfaceIndexerDeclaration,
   CsharpInterfaceMember,
   CsharpInterfaceMethodDeclaration,
   CsharpInterfacePropertyDeclaration,
@@ -138,8 +140,7 @@ export function planInterfaceDeclaration(
         case KindPropertySignature:
           return [planInterfacePropertyDeclaration(member, sourceFile, input, diagnostics)];
         case KindIndexSignature:
-          diagnostics.push(unsupportedNodeDiagnostic(member, "Index signatures require finalized target indexer facts before C# interface emission."));
-          return [];
+          return [planInterfaceIndexerDeclaration(member, sourceFile, input, diagnostics)];
         default:
           diagnostics.push(unsupportedNodeDiagnostic(member, "Interface member is outside the current C# planning surface."));
           return [];
@@ -286,6 +287,27 @@ function planInterfacePropertyDeclaration(
     kind: "interface-property",
     name: planIdentifierName(declaration.name, "property", diagnostics, "Interface property name"),
     type: getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, predefined("object"), diagnostics),
+  };
+}
+
+function planInterfaceIndexerDeclaration(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpInterfaceIndexerDeclaration {
+  const declaration = AsIndexSignatureDeclaration(node)!;
+  const parameterNodes = declaration.Parameters?.Nodes ?? [];
+  const parameterNode = parameterNodes.find((item): item is Node => item !== undefined);
+  if (parameterNode === undefined || parameterNodes.filter((item) => item !== undefined).length !== 1) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Interface index signature requires exactly one key parameter."));
+  }
+  const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(parameterNode);
+  return {
+    kind: "interface-indexer",
+    keyName: planIdentifierName(parameterDeclaration?.name, "key", diagnostics, "Interface indexer key name"),
+    keyType: getCsharpTypeForNode(parameterDeclaration?.Type ?? parameterDeclaration?.name, sourceFile, input, undefined, diagnostics),
+    valueType: getCsharpTypeForNode(declaration.Type, sourceFile, input, undefined, diagnostics),
   };
 }
 
