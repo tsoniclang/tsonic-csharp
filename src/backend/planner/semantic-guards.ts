@@ -295,17 +295,13 @@ export function isSourceOwnedProjectShapeType(type: Type | undefined, input: Tar
     );
 }
 
-export function isSourceOwnedProjectObjectType(type: Type | undefined, input: TargetCompileInput): boolean {
+export function isSourceOwnedProjectConstructibleObjectType(type: Type | undefined, input: TargetCompileInput): boolean {
   const effectiveType = getSingleNonNullishUnionType(type) ?? type;
   if (isTypeParameterType(effectiveType)) {
     return false;
   }
   const declaration = getPrimaryDeclaration(effectiveType?.symbol);
-  return isProjectSourceDeclaration(declaration, input) &&
-    (
-      declaration?.Kind === KindClassDeclaration ||
-      declaration?.Kind === KindInterfaceDeclaration
-    );
+  return isProjectSourceDeclaration(declaration, input) && declaration?.Kind === KindClassDeclaration;
 }
 
 function getSingleNonNullishUnionType(type: Type | undefined): Type | undefined {

@@ -108,7 +108,7 @@ import {
   getCallableSemanticOwnership,
   getProviderOperationOwnership,
   getSemanticOwnership,
-  isSourceOwnedProjectObjectType,
+  isSourceOwnedProjectConstructibleObjectType,
   pushMissingTargetFactDiagnostic,
 } from "./semantic-guards.js";
 import type { OperationSemanticOwnership } from "./semantic-guards.js";
@@ -655,7 +655,7 @@ function isSourceOwnedObjectInitializerType(
     return false;
   }
   const semanticType = input.checker.getTypeAtLocation(expectedTypeSubject, { sourceFile });
-  return isSourceOwnedProjectObjectType(semanticType, input);
+  return isSourceOwnedProjectConstructibleObjectType(semanticType, input);
 }
 
 function planObjectLiteralAssignment(
