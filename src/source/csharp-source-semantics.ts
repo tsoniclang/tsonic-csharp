@@ -1,4 +1,4 @@
-import { TstsProviderContractVersion, TypeFlagsStringLike, acceptDecision, createSourceSemanticsExtension, deferDecision, getTypeScriptArrayElementType, sourcePrimitive } from "@tsonic/tsts";
+import { TstsProviderContractVersion, acceptDecision, createSourceSemanticsExtension, deferDecision, getTypeScriptArrayElementType, isTypeScriptStringLikeType, sourcePrimitive } from "@tsonic/tsts";
 import type {
   CompilerExtension,
   ExtensionDiagnostic,
@@ -98,7 +98,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (request.target !== undefined && request.target !== "csharp") {
         return deferDecision;
       }
-      if (request.propertyName === "length" && hasTypeFlag(request.receiverType, TypeFlagsStringLike)) {
+      if (request.propertyName === "length" && isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
         const resultType = sourcePrimitiveInt32();
         return acceptDecision({
           operation: {
@@ -171,11 +171,6 @@ function sourcePrimitiveInt32(): ExtensionFactSubject {
     kind: "source-primitive",
     name: "int32",
   };
-}
-
-function hasTypeFlag(subject: ExtensionFactSubject | undefined, flag: number): boolean {
-  const type = subject as Type | undefined;
-  return typeof type?.flags === "number" && (type.flags & flag) !== 0;
 }
 
 function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
