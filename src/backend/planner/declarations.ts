@@ -23,6 +23,7 @@ import { planExpressionWithExpectedType } from "./expressions.js";
 import { planIdentifierName } from "./names.js";
 import { planParameters } from "./parameters.js";
 import { planBlockStatements } from "./statements.js";
+import { planTypeParameters } from "./type-parameters.js";
 
 export function planClassDeclaration(
   node: Node,
@@ -36,6 +37,7 @@ export function planClassDeclaration(
     kind: "class",
     name: className,
     modifiers: ["public"],
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
     members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpTypeMember[] => {
       if (member === undefined) {
         return [];
@@ -67,7 +69,8 @@ export function planFunctionDeclaration(
     kind: "method",
     name,
     modifiers: ["public", "static"],
-    returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void")),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: {
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
@@ -105,7 +108,8 @@ function planMethodDeclaration(
     kind: "method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
     modifiers: ["public"],
-    returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void")),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: {
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
@@ -120,7 +124,7 @@ function planPropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpFieldDeclaration {
   const declaration = AsPropertyDeclaration(node)!;
-  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input);
+  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, predefined("object"), diagnostics);
   return {
     kind: "field",
     name: planIdentifierName(declaration.name, "field", diagnostics, "Property name"),

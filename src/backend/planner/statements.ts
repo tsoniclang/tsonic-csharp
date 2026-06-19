@@ -289,7 +289,7 @@ function planForOfBinding(
     const identifier = AsIdentifier(initializer)!;
     return {
       name: sanitizeIdentifier(identifier.Text),
-      type: getCsharpTypeForNode(initializer, sourceFile, input),
+      type: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
     };
   }
   diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of initializer binding is outside the current C# planning surface."));

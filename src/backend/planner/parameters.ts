@@ -15,7 +15,7 @@ export function planParameters(
     const parameter = AsParameterDeclaration(parameterNode)!;
     return {
       name: planIdentifierName(parameter.name, "arg", diagnostics, "Parameter name"),
-      type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input),
+      type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, undefined, diagnostics),
     };
   });
 }

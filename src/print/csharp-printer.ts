@@ -8,6 +8,7 @@ import type {
   CsharpStatement,
   CsharpConstructorDeclaration,
   CsharpSwitchSection,
+  CsharpTypeParameter,
   CsharpTypeDeclaration,
   CsharpTypeMember,
   CsharpTypeNode,
@@ -40,8 +41,14 @@ export function printCsharpCompilationUnit(unit: CsharpCompilationUnit): string 
 
 function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[] {
   const modifiers = declaration.modifiers.length === 0 ? "" : `${declaration.modifiers.join(" ")} `;
+  const typeParameters = printTypeParameters(declaration.typeParameters);
+  const bases = [
+    ...(declaration.kind === "class" && declaration.baseType !== undefined ? [declaration.baseType] : []),
+    ...(declaration.interfaces ?? []),
+  ];
+  const baseList = bases.length === 0 ? "" : ` : ${bases.map(printCsharpType).join(", ")}`;
   return [
-    `${modifiers}${declaration.kind} ${declaration.name}`,
+    `${modifiers}${declaration.kind} ${declaration.name}${typeParameters}${baseList}`,
     "{",
     ...indentLines(declaration.members.flatMap(printTypeMemberLines)),
     "}",
@@ -78,16 +85,23 @@ function printConstructorLines(constructor: CsharpConstructorDeclaration): strin
 
 function printMethodLines(method: CsharpMethodDeclaration): string[] {
   const modifiers = method.modifiers.length === 0 ? "" : `${method.modifiers.join(" ")} `;
+  const typeParameters = printTypeParameters(method.typeParameters);
   const parameters = method.parameters.map((parameter) => {
     const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
     return `${passing}${printCsharpType(parameter.type)} ${parameter.name}`;
   }).join(", ");
   return [
-    `${modifiers}${printCsharpType(method.returnType)} ${method.name}(${parameters})`,
+    `${modifiers}${printCsharpType(method.returnType)} ${method.name}${typeParameters}(${parameters})`,
     "{",
     ...indentLines(printCsharpStatements(method.body.statements)),
     "}",
   ];
+}
+
+function printTypeParameters(typeParameters: readonly CsharpTypeParameter[] | undefined): string {
+  return typeParameters === undefined || typeParameters.length === 0
+    ? ""
+    : `<${typeParameters.map((typeParameter) => typeParameter.name).join(", ")}>`;
 }
 
 export function printCsharpType(type: CsharpTypeNode): string {

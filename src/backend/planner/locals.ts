@@ -13,7 +13,7 @@ export function planLocalDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
-  const type = getCsharpTypeForNode(variable.Type ?? variable.name, sourceFile, input);
+  const type = getCsharpTypeForNode(variable.Type ?? variable.name, sourceFile, input, undefined, diagnostics);
   return {
     name: planIdentifierName(variable.name, "local", diagnostics, "Local binding name"),
     type,

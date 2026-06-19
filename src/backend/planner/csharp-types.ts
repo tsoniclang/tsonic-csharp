@@ -2,9 +2,23 @@ import {
   AsArrayTypeNode,
   AsIdentifier,
   AsPropertyAccessExpression,
+  AsTypeReferenceNode,
+  KindArrayBindingPattern,
   KindArrayType,
+  KindAnyKeyword,
+  KindBigIntKeyword,
+  KindBooleanKeyword,
   KindIdentifier,
+  KindNeverKeyword,
+  KindNumberKeyword,
+  KindObjectKeyword,
+  KindObjectBindingPattern,
   KindPropertyAccessExpression,
+  KindTypeLiteral,
+  KindStringKeyword,
+  KindTypeReference,
+  KindUnknownKeyword,
+  KindVoidKeyword,
   Node_Text,
   TypeFlagsAny,
   TypeFlagsBigIntLike,
@@ -16,9 +30,11 @@ import {
   TypeFlagsVoidLike,
 } from "@tsonic/tsts";
 import type { Node, SourceFile, SourcePrimitiveFact } from "@tsonic/tsts";
-import type { TargetCompileInput } from "@tsonic/target-api";
+import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../ast/csharp-ast.js";
+import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
+import { csharpTypeFromSourcePrimitiveKind, csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 export function expressionToCsharpType(
   node: Node | undefined,
@@ -47,24 +63,84 @@ export function getCsharpTypeForNode(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   fallback: CsharpTypeNode = predefined("object"),
+  diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
   if (node === undefined) {
+    return fallback;
+  }
+  const sourcePrimitive = input.facts.getSourcePrimitiveFact(node);
+  if (sourcePrimitive !== undefined) {
+    return getCsharpTypeForSourcePrimitive(sourcePrimitive);
+  }
+  const keywordType = getCsharpTypeForKeywordType(node.Kind);
+  if (keywordType !== undefined) {
+    return keywordType;
+  }
+  if (node.Kind === KindTypeLiteral) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
+    return fallback;
+  }
+  if (node.Kind === KindObjectBindingPattern || node.Kind === KindArrayBindingPattern) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));
     return fallback;
   }
   if (node.Kind === KindArrayType) {
     const arrayType = AsArrayTypeNode(node)!;
     return {
       kind: "array",
-      elementType: getCsharpTypeForNode(arrayType.ElementType, sourceFile, input),
+      elementType: getCsharpTypeForNode(arrayType.ElementType, sourceFile, input, predefined("object"), diagnostics),
     };
   }
-  const sourcePrimitive = input.facts.getSourcePrimitiveFact(node);
-  if (sourcePrimitive !== undefined) {
-    return getCsharpTypeForSourcePrimitive(sourcePrimitive);
+  if (node.Kind === KindTypeReference) {
+    const typeReference = AsTypeReferenceNode(node)!;
+    const rendered = expressionToCsharpType(typeReference.TypeName, sourceFile, input);
+    const typeArguments = (typeReference.TypeArguments?.Nodes ?? [])
+      .filter((argument): argument is Node => argument !== undefined)
+      .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, predefined("object"), diagnostics));
+    if (typeArguments.length === 0) {
+      return rendered;
+    }
+    switch (rendered.kind) {
+      case "named":
+        return { ...rendered, typeArguments };
+      case "qualified":
+        return { ...rendered, typeArguments };
+      default:
+        return fallback;
+    }
+  }
+  const contextualTargetType = input.facts.getContextualTargetTypeFact(node)?.targetType;
+  if (contextualTargetType !== undefined) {
+    const csharpType = csharpTypeFromTargetTypeRef(contextualTargetType);
+    if (csharpType !== undefined) {
+      return csharpType;
+    }
+  }
+  const nodeRuntimeCarrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
+  if (nodeRuntimeCarrier !== undefined) {
+    const csharpType = csharpTypeFromTargetTypeRef(nodeRuntimeCarrier);
+    if (csharpType !== undefined) {
+      return csharpType;
+    }
   }
   const type = input.checker.getTypeAtLocation(node, { sourceFile });
   if (type === undefined) {
     return fallback;
+  }
+  const typeRuntimeCarrier = input.facts.getRuntimeCarrierFact(type)?.carrier;
+  if (typeRuntimeCarrier !== undefined) {
+    const csharpType = csharpTypeFromTargetTypeRef(typeRuntimeCarrier);
+    if (csharpType !== undefined) {
+      return csharpType;
+    }
+  }
+  const symbol = input.checker.getSymbolAtLocation(node, { sourceFile }) ?? input.checker.getResolvedSymbol(node, { sourceFile });
+  const targetBinding = input.facts.getTargetBindingFact(symbol);
+  if (targetBinding !== undefined) {
+    const csharpType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: targetBinding.id });
+    if (csharpType !== undefined) {
+      return csharpType;
+    }
   }
   const typeText = input.checker.typeToString(type, { sourceFile });
   if (typeText === "void") {
@@ -92,43 +168,28 @@ export function getCsharpTypeForNode(
 }
 
 export function getCsharpTypeForSourcePrimitive(fact: SourcePrimitiveFact): CsharpTypeNode {
-  switch (fact.kind) {
-    case "bool":
-      return predefined("bool");
-    case "char":
-      return predefined("char");
-    case "int8":
-      return predefined("sbyte");
-    case "uint8":
-      return predefined("byte");
-    case "int16":
-      return predefined("short");
-    case "uint16":
-      return predefined("ushort");
-    case "int32":
-      return predefined("int");
-    case "uint32":
-      return predefined("uint");
-    case "int64":
-      return predefined("long");
-    case "uint64":
-      return predefined("ulong");
-    case "native-int":
-      return predefined("nint");
-    case "native-uint":
-      return predefined("nuint");
-    case "float16":
-      return { kind: "named", name: "Half" };
-    case "float32":
-      return predefined("float");
-    case "float64":
+  return csharpTypeFromSourcePrimitiveKind(fact.kind);
+}
+
+function getCsharpTypeForKeywordType(kind: number): CsharpTypeNode | undefined {
+  switch (kind) {
+    case KindStringKeyword:
+      return predefined("string");
+    case KindNumberKeyword:
       return predefined("double");
-    case "decimal":
-      return predefined("decimal");
-    case "int128":
-      return { kind: "named", name: "Int128" };
-    case "uint128":
-      return { kind: "named", name: "UInt128" };
+    case KindBooleanKeyword:
+      return predefined("bool");
+    case KindBigIntKeyword:
+      return predefined("long");
+    case KindVoidKeyword:
+      return predefined("void");
+    case KindObjectKeyword:
+    case KindAnyKeyword:
+    case KindUnknownKeyword:
+    case KindNeverKeyword:
+      return predefined("object");
+    default:
+      return undefined;
   }
 }
 
