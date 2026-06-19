@@ -225,8 +225,11 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       const providerPropertyAccess = resolveProviderTargetPropertyAccess(request, context);
       return providerPropertyAccess === undefined ? deferDecision : acceptDecision(providerPropertyAccess);
     },
-    resolveElementAccess(request) {
+    resolveElementAccess(request, context) {
       if (request.target !== undefined && request.target !== "csharp") {
+        return deferDecision;
+      }
+      if (!isCsharpIntegralIndexArgument(request, context)) {
         return deferDecision;
       }
       if (isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
@@ -1605,6 +1608,25 @@ function isIntegerNumericLiteral(subject: ExtensionFactSubject | undefined): boo
   }
   const value = Number(AsNumericLiteral(node)!.Text.replace(/_/g, ""));
   return Number.isSafeInteger(value);
+}
+
+function isCsharpIntegralIndexArgument(
+  request: {
+    readonly argument: ExtensionFactSubject;
+    readonly argumentSymbol?: ExtensionFactSubject;
+    readonly resolvedArgumentSymbol?: ExtensionFactSubject;
+    readonly argumentType?: ExtensionFactSubject;
+  },
+  context: ExtensionDecisionContext,
+): boolean {
+  if (isIntegerNumericLiteral(request.argument)) {
+    return true;
+  }
+  const primitive = resolveSourcePrimitiveSubject(context, request.argument) ??
+    resolveSourcePrimitiveSubject(context, request.argumentSymbol) ??
+    resolveSourcePrimitiveSubject(context, request.resolvedArgumentSymbol) ??
+    resolveSourcePrimitiveSubject(context, request.argumentType);
+  return primitive !== undefined && isIntegralPrimitive(primitive);
 }
 
 function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
