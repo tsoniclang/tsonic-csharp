@@ -36,6 +36,9 @@ type AttributeBuilderTypeName =
   | "AttributeMethodBuilder"
   | "AttributeParameterBuilder";
 
+const attributeTargetTypeName = "__TsonicCsharpAttributeTarget";
+const attributeArgumentTypeName = "__TsonicCsharpAttributeArgument";
+
 export function createCsharpSourceSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
   return createSourceSemanticsExtension({
     identity: {
@@ -404,6 +407,8 @@ function attributeBuilderProviderDeclarations(declaration: SourceCallMarkerDecla
         returnType: builder,
       }],
     },
+    attributeSupportType(attributeTargetTypeName, attributeTargetShape()),
+    attributeSupportType(attributeArgumentTypeName, attributeArgumentShape()),
     attributeBuilderInterface("AttributeBuilder", [
       attributeAddMember("AttributeBuilder", targetType),
       selectorMember("property", "AttributeMemberBuilder", targetType),
@@ -431,6 +436,18 @@ function attributeBuilderProviderDeclarations(declaration: SourceCallMarkerDecla
   ];
 }
 
+function attributeSupportType(
+  name: string,
+  type: ProviderTypeExpression,
+): ProviderExportDeclaration {
+  return {
+    id: name,
+    name,
+    kind: "type",
+    type,
+  };
+}
+
 function attributeBuilderInterface(
   name: string,
   members: readonly ProviderMemberDeclaration[],
@@ -455,8 +472,8 @@ function attributeAddMember(
     signatures: [{
       id: "add(attribute,args)",
       parameters: [
-        { name: "attribute", type: { kind: "unknown" } },
-        { name: "args", type: { kind: "array", elementType: { kind: "unknown" } }, rest: true },
+        { name: "attribute", type: { kind: "reference", name: attributeTargetTypeName } },
+        { name: "args", type: { kind: "array", elementType: { kind: "reference", name: attributeArgumentTypeName } }, rest: true },
       ],
       returnType: attributeBuilderType(builderName, targetType),
     }],
@@ -474,12 +491,13 @@ function selectorMember(
     kind: "method",
     signatures: [{
       id: `${name}(selector)`,
+      typeParameters: [{ name: "TSelected" }],
       parameters: [{
         name: "selector",
         type: {
           kind: "function",
           parameters: [{ name: "target", type: targetType }],
-          returnType: { kind: "unknown" },
+          returnType: { kind: "type-parameter", name: "TSelected" },
         },
       }],
       returnType: attributeBuilderType(builderName, targetType),
@@ -508,7 +526,44 @@ function typeMarkerToProviderDeclaration(declaration: SourceTypeMarkerDeclaratio
     name: declaration.exportName,
     kind: "type",
     typeParameters: [{ name: "T" }],
-    type: { kind: "unknown" },
+    type: sourceMarkerOpaqueType(declaration.marker),
+  };
+}
+
+function attributeTargetShape(): ProviderTypeExpression {
+  return {
+    kind: "opaque",
+    id: "tsonic.csharp.attribute.target",
+    displayName: "C# attribute target",
+    sourceShape: { kind: "object" },
+  };
+}
+
+function attributeArgumentShape(): ProviderTypeExpression {
+  return {
+    kind: "union",
+    types: [
+      { kind: "string" },
+      { kind: "number" },
+      { kind: "boolean" },
+      { kind: "bigint" },
+      { kind: "literal", value: null },
+      {
+        kind: "opaque",
+        id: "tsonic.csharp.attribute.argument",
+        displayName: "C# provider-backed attribute argument",
+        sourceShape: { kind: "object" },
+      },
+    ],
+  };
+}
+
+function sourceMarkerOpaqueType(marker: SourceTypeMarkerDeclaration["marker"]): ProviderTypeExpression {
+  return {
+    kind: "opaque",
+    id: `tsonic.csharp.marker.${marker}`,
+    displayName: `C# ${marker} marker`,
+    sourceShape: { kind: "object" },
   };
 }
 
