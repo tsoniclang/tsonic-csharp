@@ -15,6 +15,7 @@ import {
   KindImportDeclaration,
   KindInterfaceDeclaration,
   KindLabeledStatement,
+  NodeFlagsConst,
   KindReturnStatement,
   KindSwitchStatement,
   KindThrowStatement,
@@ -192,7 +193,9 @@ function planTopLevelVariableStatement(
   topLevelStatements: CsharpStatement[],
 ): void {
   const declarationList = AsVariableStatement(statement)!.DeclarationList;
-  const declarations = AsVariableDeclarationList(declarationList)!.Declarations?.Nodes ?? [];
+  const variableDeclarationList = AsVariableDeclarationList(declarationList)!;
+  const declarations = variableDeclarationList.Declarations?.Nodes ?? [];
+  const isConst = (variableDeclarationList.Flags & NodeFlagsConst) !== 0;
   if (declarations.length === 0) {
     topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics));
     return;
@@ -211,7 +214,7 @@ function planTopLevelVariableStatement(
       kind: "field",
       name: field.name,
       type: field.type,
-      modifiers: ["public", "static"],
+      modifiers: isConst ? ["public", "static", "readonly"] : ["public", "static"],
       ...(field.initializer === undefined ? {} : { initializer: field.initializer }),
     });
   }
