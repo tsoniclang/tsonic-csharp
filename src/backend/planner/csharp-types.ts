@@ -17,8 +17,6 @@ import {
   KindUnionType,
   KindUnknownKeyword,
   SourceFile_FileName,
-  TypeFlagsAny,
-  TypeFlagsUnknown,
 } from "@tsonic/tsts";
 import type { Node, SourceFile, Symbol, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -209,10 +207,6 @@ export function getCsharpTypeForTstsType(
     (typeDeclaration?.Kind === KindClassDeclaration || typeDeclaration?.Kind === KindInterfaceDeclaration || typeDeclaration?.Kind === KindEnumDeclaration)
   ) {
     return { kind: "named", name: sanitizeIdentifier(typeSymbol!.Name) };
-  }
-  if ((type.flags & (TypeFlagsAny | TypeFlagsUnknown)) !== 0) {
-    diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
-    return undefined;
   }
   const typeText = input.checker.typeToString(type, { sourceFile });
   diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, `C# emission requires a closed target type from TSTS or provider facts. TSTS type: ${typeText ?? "<unknown>"}.`));

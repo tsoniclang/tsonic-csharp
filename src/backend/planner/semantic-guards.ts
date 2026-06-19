@@ -25,9 +25,9 @@ import {
   KindVariableDeclaration,
   isTypeScriptNullishType,
   SourceFile_FileName,
-  TypeFlagsTypeParameter,
   providerVirtualDeclarationFactKey,
 } from "@tsonic/tsts";
+import type { TargetTypeRef } from "@tsonic/tsts";
 import type { ExtensionFactSubject, Node, SourceFile, SourcePrimitiveFact, Symbol, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -145,7 +145,7 @@ export function getProviderOperationOwnership(
   appendProviderOperationFactReasons(reasons, input, type, "operand type");
   appendProviderOperationFactReasons(reasons, input, type?.symbol, "operand type symbol");
   const sourcePrimitive = getSourcePrimitiveFact(input, node, symbol, type);
-  const typeParameter = isTypeParameterType(type);
+  const typeParameter = hasTypeParameterCarrier(type, input);
   if (typeParameter) {
     reasons.push("operand type parameter");
   }
@@ -278,13 +278,21 @@ function getSourcePrimitiveFact(
     input.facts.getSourcePrimitiveFact(type?.symbol);
 }
 
-function isTypeParameterType(type: Type | undefined): boolean {
-  return type !== undefined && (type.flags & TypeFlagsTypeParameter) !== 0;
+function hasTypeParameterCarrier(type: Type | undefined, input: TargetCompileInput): boolean {
+  if (type === undefined) {
+    return false;
+  }
+  return isTypeParameterTargetRef(input.facts.getRuntimeCarrierFact(type)?.carrier) ||
+    isTypeParameterTargetRef(input.facts.getRuntimeCarrierFact(type.symbol)?.carrier);
+}
+
+function isTypeParameterTargetRef(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "type-parameter";
 }
 
 export function isSourceOwnedProjectShapeType(type: Type | undefined, input: TargetCompileInput): boolean {
   const effectiveType = getSingleNonNullishUnionType(type) ?? type;
-  if (isTypeParameterType(effectiveType)) {
+  if (hasTypeParameterCarrier(effectiveType, input)) {
     return true;
   }
   const declaration = getPrimaryDeclaration(effectiveType?.symbol);
@@ -299,7 +307,7 @@ export function isSourceOwnedProjectShapeType(type: Type | undefined, input: Tar
 
 export function isSourceOwnedProjectConstructibleObjectType(type: Type | undefined, input: TargetCompileInput): boolean {
   const effectiveType = getSingleNonNullishUnionType(type) ?? type;
-  if (isTypeParameterType(effectiveType)) {
+  if (hasTypeParameterCarrier(effectiveType, input)) {
     return false;
   }
   const declaration = getPrimaryDeclaration(effectiveType?.symbol);
