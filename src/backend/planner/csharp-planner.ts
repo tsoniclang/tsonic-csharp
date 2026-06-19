@@ -2,10 +2,15 @@ import {
   AsArrayLiteralExpression,
   AsBinaryExpression,
   AsBlock,
+  AsBreakStatement,
   AsCallExpression,
+  AsCaseBlock,
+  AsCaseOrDefaultClause,
+  AsCatchClause,
   AsClassDeclaration,
   AsConditionalExpression,
   AsConstructorDeclaration,
+  AsContinueStatement,
   AsDoStatement,
   AsElementAccessExpression,
   AsExpressionStatement,
@@ -14,6 +19,7 @@ import {
   AsFunctionDeclaration,
   AsIdentifier,
   AsIfStatement,
+  AsLabeledStatement,
   AsMethodDeclaration,
   AsNewExpression,
   AsNumericLiteral,
@@ -25,6 +31,9 @@ import {
   AsPrefixUnaryExpression,
   AsReturnStatement,
   AsStringLiteral,
+  AsSwitchStatement,
+  AsThrowStatement,
+  AsTryStatement,
   AsVariableDeclaration,
   AsVariableDeclarationList,
   AsVariableStatement,
@@ -34,13 +43,18 @@ import {
   KindBarBarToken,
   KindBinaryExpression,
   KindBlock,
+  KindBreakStatement,
   KindCallExpression,
   KindArrayLiteralExpression,
   KindClassDeclaration,
   KindConditionalExpression,
   KindConstructor,
+  KindContinueStatement,
+  KindDebuggerStatement,
+  KindDefaultClause,
   KindDoStatement,
   KindElementAccessExpression,
+  KindEmptyStatement,
   KindEqualsEqualsEqualsToken,
   KindEqualsEqualsToken,
   KindEqualsToken,
@@ -61,6 +75,7 @@ import {
   KindIfStatement,
   KindImportDeclaration,
   KindInterfaceDeclaration,
+  KindLabeledStatement,
   KindLessThanEqualsToken,
   KindLessThanToken,
   KindMethodDeclaration,
@@ -81,8 +96,11 @@ import {
   KindReturnStatement,
   KindSlashToken,
   KindStringLiteral,
+  KindSwitchStatement,
   KindThisKeyword,
+  KindThrowStatement,
   KindTrueKeyword,
+  KindTryStatement,
   KindTypeAliasDeclaration,
   KindVariableDeclarationList,
   KindVariableStatement,
@@ -96,6 +114,7 @@ import type {
   CsharpArgument,
   CsharpCompilationUnit,
   CsharpConstructorDeclaration,
+  CsharpCatchClause,
   CsharpExpression,
   CsharpFieldDeclaration,
   CsharpForInitializer,
@@ -104,6 +123,7 @@ import type {
   CsharpMethodDeclaration,
   CsharpParameter,
   CsharpStatement,
+  CsharpSwitchSection,
   CsharpTypeDeclaration,
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
@@ -171,7 +191,14 @@ function planSourceFile(
       case KindVariableStatement:
       case KindIfStatement:
       case KindWhileStatement:
+      case KindDoStatement:
+      case KindForStatement:
       case KindReturnStatement:
+      case KindThrowStatement:
+      case KindSwitchStatement:
+      case KindTryStatement:
+      case KindDebuggerStatement:
+      case KindLabeledStatement:
         topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics));
         break;
       default:
@@ -357,6 +384,8 @@ function planStatements(
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpStatement[] {
   switch (node.Kind) {
+    case KindEmptyStatement:
+      return [];
     case KindBlock:
       return [{
         kind: "block",
@@ -370,9 +399,64 @@ function planStatements(
         kind: "return",
         ...(statement.Expression !== undefined
           ? { expression: planExpression(statement.Expression, sourceFile, input, diagnostics) }
-          : {}),
+        : {}),
       }];
     }
+    case KindBreakStatement: {
+      const statement = AsBreakStatement(node)!;
+      if (statement.Label !== undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled break requires control-flow rewriting and is not implemented yet."));
+      }
+      return [{ kind: "break" }];
+    }
+    case KindContinueStatement: {
+      const statement = AsContinueStatement(node)!;
+      if (statement.Label !== undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled continue requires control-flow rewriting and is not implemented yet."));
+      }
+      return [{ kind: "continue" }];
+    }
+    case KindThrowStatement: {
+      const statement = AsThrowStatement(node)!;
+      if (statement.Expression === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
+        return [expressionStatement({ kind: "identifier", name: "__unsupported" })];
+      }
+      return [{
+        kind: "throw",
+        expression: planExpression(statement.Expression, sourceFile, input, diagnostics),
+      }];
+    }
+    case KindDebuggerStatement:
+      return [expressionStatement({
+        kind: "call",
+        callee: {
+          kind: "member",
+          receiver: {
+            kind: "member",
+            receiver: {
+              kind: "member",
+              receiver: { kind: "identifier", name: "System" },
+              name: "Diagnostics",
+            },
+            name: "Debugger",
+          },
+          name: "Break",
+        },
+        arguments: [],
+      })];
+    case KindLabeledStatement: {
+      const statement = AsLabeledStatement(node)!;
+      return [{
+        kind: "label",
+        name: sanitizeIdentifier(Node_Text(statement.Label!)),
+        statement: planSingleStatement(statement.Statement, sourceFile, input, diagnostics),
+      }];
+    }
+    case KindSwitchStatement:
+      return [planSwitchStatement(node, sourceFile, input, diagnostics)];
+    case KindTryStatement:
+      return [planTryStatement(node, sourceFile, input, diagnostics)];
     case KindExpressionStatement:
       return [expressionStatement(planExpression(AsExpressionStatement(node)!.Expression!, sourceFile, input, diagnostics))];
     case KindIfStatement: {
@@ -450,6 +534,134 @@ function planStatements(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Statement is outside the current C# planning surface."));
       return [expressionStatement({ kind: "identifier", name: "__unsupported" })];
   }
+}
+
+function planSingleStatement(
+  node: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpStatement {
+  const statements = planNestedStatementBody(node, sourceFile, input, diagnostics);
+  if (statements.length === 1) {
+    return statements[0]!;
+  }
+  return {
+    kind: "block",
+    body: { statements },
+  };
+}
+
+function planSwitchStatement(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpStatement {
+  const statement = AsSwitchStatement(node)!;
+  return {
+    kind: "switch",
+    expression: planExpression(statement.Expression!, sourceFile, input, diagnostics),
+    sections: planSwitchSections(statement.CaseBlock, sourceFile, input, diagnostics),
+  };
+}
+
+function planSwitchSections(
+  caseBlockNode: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpSwitchSection[] {
+  if (caseBlockNode === undefined) {
+    return [];
+  }
+  const caseBlock = AsCaseBlock(caseBlockNode)!;
+  const sections = (caseBlock.Clauses?.Nodes ?? [])
+    .filter((clause): clause is Node => clause !== undefined)
+    .map((clause) => planSwitchSection(clause, sourceFile, input, diagnostics));
+  for (const section of sections) {
+    const last = section.statements[section.statements.length - 1];
+    if (section.statements.length > 0 && (last === undefined || !statementTerminatesSwitchSection(last))) {
+      diagnostics.push({
+        code: "CSHARP_UNSUPPORTED_SWITCH_FALLTHROUGH",
+        category: "error",
+        source: "tsonic-csharp",
+        message: "Switch case fallthrough requires control-flow lowering and is not implemented yet.",
+      });
+    }
+  }
+  return sections;
+}
+
+function planSwitchSection(
+  clauseNode: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpSwitchSection {
+  const clause = AsCaseOrDefaultClause(clauseNode)!;
+  return {
+    label: clauseNode.Kind === KindDefaultClause
+      ? { kind: "default" }
+      : { kind: "case", expression: planExpression(clause.Expression!, sourceFile, input, diagnostics) },
+    statements: (clause.Statements?.Nodes ?? [])
+      .filter((statement): statement is Node => statement !== undefined)
+      .flatMap((statement) => planStatements(statement, sourceFile, input, diagnostics)),
+  };
+}
+
+function statementTerminatesSwitchSection(statement: CsharpStatement): boolean {
+  switch (statement.kind) {
+    case "break":
+    case "continue":
+    case "return":
+    case "throw":
+      return true;
+    case "block": {
+      const last = statement.body.statements[statement.body.statements.length - 1];
+      return last !== undefined && statementTerminatesSwitchSection(last);
+    }
+    default:
+      return false;
+  }
+}
+
+function planTryStatement(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpStatement {
+  const statement = AsTryStatement(node)!;
+  return {
+    kind: "try",
+    tryBody: {
+      statements: planBlockStatements(statement.TryBlock, sourceFile, input, diagnostics),
+    },
+    ...(statement.CatchClause !== undefined
+      ? { catchClause: planCatchClause(statement.CatchClause, sourceFile, input, diagnostics) }
+      : {}),
+    ...(statement.FinallyBlock !== undefined
+      ? { finallyBody: { statements: planBlockStatements(statement.FinallyBlock, sourceFile, input, diagnostics) } }
+      : {}),
+  };
+}
+
+function planCatchClause(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpCatchClause {
+  const clause = AsCatchClause(node)!;
+  return {
+    ...(clause.VariableDeclaration !== undefined
+      ? { variableName: sanitizeIdentifier(Node_Text(AsVariableDeclaration(clause.VariableDeclaration)!.name!)) }
+      : {}),
+    body: {
+      statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics),
+    },
+  };
 }
 
 function planForInitializer(

@@ -81,6 +81,12 @@ export type CsharpStatement =
   | { readonly kind: "expression"; readonly expression: CsharpExpression }
   | { readonly kind: "local"; readonly name: string; readonly type: CsharpTypeNode; readonly initializer?: CsharpExpression }
   | { readonly kind: "block"; readonly body: CsharpBlock }
+  | { readonly kind: "break" }
+  | { readonly kind: "continue" }
+  | { readonly kind: "throw"; readonly expression: CsharpExpression }
+  | { readonly kind: "label"; readonly name: string; readonly statement: CsharpStatement }
+  | { readonly kind: "switch"; readonly expression: CsharpExpression; readonly sections: readonly CsharpSwitchSection[] }
+  | { readonly kind: "try"; readonly tryBody: CsharpBlock; readonly catchClause?: CsharpCatchClause; readonly finallyBody?: CsharpBlock }
   | { readonly kind: "if"; readonly condition: CsharpExpression; readonly thenBody: CsharpBlock; readonly elseBody?: CsharpBlock }
   | { readonly kind: "while"; readonly condition: CsharpExpression; readonly body: CsharpBlock }
   | { readonly kind: "do"; readonly body: CsharpBlock; readonly condition: CsharpExpression }
@@ -91,6 +97,20 @@ export type CsharpStatement =
       readonly incrementor?: CsharpExpression;
       readonly body: CsharpBlock;
     };
+
+export interface CsharpSwitchSection {
+  readonly label: CsharpSwitchLabel;
+  readonly statements: readonly CsharpStatement[];
+}
+
+export type CsharpSwitchLabel =
+  | { readonly kind: "case"; readonly expression: CsharpExpression }
+  | { readonly kind: "default" };
+
+export interface CsharpCatchClause {
+  readonly variableName?: string;
+  readonly body: CsharpBlock;
+}
 
 export type CsharpForInitializer =
   | { readonly kind: "locals"; readonly locals: readonly CsharpLocalDeclaration[] }

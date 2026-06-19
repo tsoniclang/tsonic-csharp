@@ -7,6 +7,7 @@ import type {
   CsharpMethodDeclaration,
   CsharpStatement,
   CsharpConstructorDeclaration,
+  CsharpSwitchSection,
   CsharpTypeDeclaration,
   CsharpTypeMember,
   CsharpTypeNode,
@@ -122,6 +123,49 @@ export function printCsharpStatement(statement: CsharpStatement): string {
         ...indentLines(printCsharpStatements(statement.body.statements)),
         "}",
       ].join("\n");
+    case "break":
+      return "break;";
+    case "continue":
+      return "continue;";
+    case "throw":
+      return `throw ${printCsharpExpression(statement.expression)};`;
+    case "label":
+      return [
+        `${statement.name}:`,
+        ...indentLines(printCsharpStatement(statement.statement).split("\n")),
+      ].join("\n");
+    case "switch":
+      return [
+        `switch (${printCsharpExpression(statement.expression)})`,
+        "{",
+        ...indentLines(statement.sections.flatMap(printCsharpSwitchSection)),
+        "}",
+      ].join("\n");
+    case "try":
+      return [
+        "try",
+        "{",
+        ...indentLines(printCsharpStatements(statement.tryBody.statements)),
+        "}",
+        ...(statement.catchClause === undefined
+          ? []
+          : [
+              statement.catchClause.variableName === undefined
+                ? "catch"
+                : `catch (Exception ${statement.catchClause.variableName})`,
+              "{",
+              ...indentLines(printCsharpStatements(statement.catchClause.body.statements)),
+              "}",
+            ]),
+        ...(statement.finallyBody === undefined
+          ? []
+          : [
+              "finally",
+              "{",
+              ...indentLines(printCsharpStatements(statement.finallyBody.statements)),
+              "}",
+            ]),
+      ].join("\n");
     case "if":
       return [
         `if (${printCsharpExpression(statement.condition)})`,
@@ -164,6 +208,16 @@ export function printCsharpStatement(statement: CsharpStatement): string {
 
 function printCsharpStatements(statements: readonly CsharpStatement[]): string[] {
   return statements.flatMap((statement) => printCsharpStatement(statement).split("\n"));
+}
+
+function printCsharpSwitchSection(section: CsharpSwitchSection): string[] {
+  const label = section.label.kind === "default"
+    ? "default:"
+    : `case ${printCsharpExpression(section.label.expression)}:`;
+  return [
+    label,
+    ...indentLines(printCsharpStatements(section.statements)),
+  ];
 }
 
 export function printCsharpExpression(expression: CsharpExpression): string {
