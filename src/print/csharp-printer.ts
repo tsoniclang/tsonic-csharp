@@ -219,6 +219,10 @@ export function printCsharpStatement(statement: CsharpStatement): string {
       return "continue;";
     case "goto":
       return `goto ${statement.label};`;
+    case "goto-switch":
+      return statement.label.kind === "default"
+        ? "goto default;"
+        : `goto case ${printCsharpExpression(statement.label.expression)};`;
     case "throw":
       return `throw ${printCsharpExpression(statement.expression)};`;
     case "label":

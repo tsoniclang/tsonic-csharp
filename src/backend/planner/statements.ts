@@ -500,18 +500,29 @@ function planSwitchSections(
   const sections = (caseBlock.Clauses?.Nodes ?? [])
     .filter((clause): clause is Node => clause !== undefined)
     .map((clause) => planSwitchSection(clause, sourceFile, input, diagnostics, state));
-  for (const section of sections) {
+  return sections.map((section, index) => {
     const last = section.statements[section.statements.length - 1];
-    if (section.statements.length > 0 && (last === undefined || !statementTerminatesSwitchSection(last))) {
-      diagnostics.push({
-        code: "CSHARP_UNSUPPORTED_SWITCH_FALLTHROUGH",
-        category: "error",
-        source: "tsonic-csharp",
-        message: "Switch case fallthrough requires control-flow lowering and is not implemented yet.",
-      });
+    const next = sections[index + 1];
+    if (next !== undefined && (last === undefined || !statementTerminatesSwitchSection(last))) {
+      return {
+        ...section,
+        statements: [
+          ...section.statements,
+          { kind: "goto-switch" as const, label: next.label },
+        ],
+      };
     }
-  }
-  return sections;
+    if (next === undefined && (last === undefined || !statementTerminatesSwitchSection(last))) {
+      return {
+        ...section,
+        statements: [
+          ...section.statements,
+          { kind: "break" as const },
+        ],
+      };
+    }
+    return section;
+  });
 }
 
 function planSwitchSection(
@@ -537,6 +548,7 @@ function statementTerminatesSwitchSection(statement: CsharpStatement): boolean {
     case "break":
     case "continue":
     case "goto":
+    case "goto-switch":
     case "return":
     case "throw":
       return true;
