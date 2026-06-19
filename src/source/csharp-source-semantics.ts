@@ -187,8 +187,9 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         context,
       );
       const providerConstructorCall = resolveProviderTargetConstructorCall(request, context);
+      const builtinMethodCall = resolveCsharpBuiltinMethodCall(request);
       const providerMethodCall = resolveProviderTargetMethodCall(request, context);
-      const call = delegateCall ?? providerConstructorCall ?? providerMethodCall;
+      const call = delegateCall ?? providerConstructorCall ?? builtinMethodCall ?? providerMethodCall;
       return call === undefined ? deferDecision : acceptDecision(call);
     },
     resolvePropertyAccess(request, context) {
@@ -391,6 +392,38 @@ function getDelegateReturnType(type: Extract<TargetTypeRef, { readonly kind: "ta
     return undefined;
   }
   return type.typeArguments?.[type.typeArguments.length - 1];
+}
+
+function resolveCsharpBuiltinMethodCall(request: ResolveCallRequest): ResolveCallResult | undefined {
+  if (!isNodeSubject(request.callee) || request.callee.Kind !== KindPropertyAccessExpression) {
+    return undefined;
+  }
+  const propertyAccess = AsPropertyAccessExpression(request.callee);
+  const name = propertyAccess?.name;
+  if (name === undefined || request.arguments.length !== 0) {
+    return undefined;
+  }
+  const sourceName = Node_Text(name);
+  if (sourceName === "toString" && isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
+    const returnType = csharpNamed("System.String");
+    return {
+      selectedSignature: {
+        member: {
+          id: "System.String.ToString()",
+          sourceName,
+          targetName: "ToString",
+          kind: "method",
+          static: false,
+          parameters: [],
+          returnType,
+        },
+      },
+      returnType: {
+        carrier: returnType,
+      } satisfies RuntimeCarrierFact,
+    };
+  }
+  return undefined;
 }
 
 function resolveProviderTargetConstructorCall(
