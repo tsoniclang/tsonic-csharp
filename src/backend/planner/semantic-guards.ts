@@ -8,6 +8,7 @@ import {
   KindFunctionType,
   KindInterfaceDeclaration,
   KindEnumDeclaration,
+  KindEnumMember,
   KindElementAccessExpression,
   KindArrayBindingPattern,
   KindBindingElement,
@@ -22,12 +23,13 @@ import {
   SourceFile_FileName,
   TypeFlagsBigIntLike,
   TypeFlagsBooleanLike,
+  TypeFlagsEnumLike,
   TypeFlagsNumberLike,
   TypeFlagsStringLike,
   TypeFlagsTypeParameter,
   providerVirtualDeclarationFactKey,
 } from "@tsonic/tsts";
-import type { ExtensionFactSubject, Node, SourceFile, Symbol, Type } from "@tsonic/tsts";
+import type { ExtensionFactSubject, Node, SourceFile, SourcePrimitiveFact, Symbol, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 
@@ -35,6 +37,18 @@ export interface SemanticOwnership {
   readonly requiresTargetFact: boolean;
   readonly sourceOwned: boolean;
   readonly reasons: readonly string[];
+}
+
+export interface OperationSemanticOwnership extends SemanticOwnership {
+  readonly sourcePrimitive: SourcePrimitiveFact | undefined;
+  readonly typeFlags: {
+    readonly stringLike: boolean;
+    readonly numberLike: boolean;
+    readonly booleanLike: boolean;
+    readonly bigintLike: boolean;
+    readonly enumLike: boolean;
+    readonly typeParameter: boolean;
+  };
 }
 
 export function getSemanticOwnership(
@@ -100,12 +114,24 @@ export function getProviderOperationOwnership(
   node: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): SemanticOwnership {
+): OperationSemanticOwnership {
   if (node === undefined) {
-    return { requiresTargetFact: true, sourceOwned: false, reasons: ["missing operation operand"] };
+    return {
+      requiresTargetFact: true,
+      sourceOwned: false,
+      reasons: ["missing operation operand"],
+      sourcePrimitive: undefined,
+      typeFlags: emptyOperationTypeFlags(),
+    };
   }
   if (node.Kind === KindTypeLiteral) {
-    return { requiresTargetFact: true, sourceOwned: false, reasons: ["structural type literal"] };
+    return {
+      requiresTargetFact: true,
+      sourceOwned: false,
+      reasons: ["structural type literal"],
+      sourcePrimitive: undefined,
+      typeFlags: emptyOperationTypeFlags(),
+    };
   }
   if (
     node.Kind === KindObjectBindingPattern ||
@@ -113,7 +139,13 @@ export function getProviderOperationOwnership(
     node.Kind === KindBindingElement ||
     node.Kind === KindParameter
   ) {
-    return { requiresTargetFact: true, sourceOwned: false, reasons: ["non-queryable binding syntax"] };
+    return {
+      requiresTargetFact: true,
+      sourceOwned: false,
+      reasons: ["non-queryable binding syntax"],
+      sourcePrimitive: undefined,
+      typeFlags: emptyOperationTypeFlags(),
+    };
   }
   const reasons: string[] = [];
   appendProviderOperationFactReasons(reasons, input, node, "operand node");
@@ -122,13 +154,17 @@ export function getProviderOperationOwnership(
   const type = input.checker.getTypeAtLocation(node, { sourceFile });
   appendProviderOperationFactReasons(reasons, input, type, "operand type");
   appendProviderOperationFactReasons(reasons, input, type?.symbol, "operand type symbol");
-  if (isTypeParameterType(type)) {
+  const typeFlags = operationTypeFlags(type);
+  const sourcePrimitive = getSourcePrimitiveFact(input, node, symbol, type);
+  if (typeFlags.typeParameter) {
     reasons.push("operand type parameter");
   }
   return {
     requiresTargetFact: reasons.length > 0,
-    sourceOwned: !isTypeParameterType(type) && (hasBuiltinLoweredScalarType(type) || isDirectSourceShapeType(type, input)),
+    sourceOwned: !typeFlags.typeParameter && (sourcePrimitive !== undefined || hasBuiltinLoweredScalarType(type) || isDirectSourceShapeType(type, input)),
     reasons,
+    sourcePrimitive,
+    typeFlags,
   };
 }
 
@@ -246,6 +282,43 @@ function hasBuiltinLoweredScalarType(type: Type | undefined): boolean {
     (type.flags & (TypeFlagsStringLike | TypeFlagsNumberLike | TypeFlagsBooleanLike | TypeFlagsBigIntLike)) !== 0;
 }
 
+function emptyOperationTypeFlags(): OperationSemanticOwnership["typeFlags"] {
+  return {
+    stringLike: false,
+    numberLike: false,
+    booleanLike: false,
+    bigintLike: false,
+    enumLike: false,
+    typeParameter: false,
+  };
+}
+
+function operationTypeFlags(type: Type | undefined): OperationSemanticOwnership["typeFlags"] {
+  if (type === undefined) {
+    return emptyOperationTypeFlags();
+  }
+  return {
+    stringLike: (type.flags & TypeFlagsStringLike) !== 0,
+    numberLike: (type.flags & TypeFlagsNumberLike) !== 0,
+    booleanLike: (type.flags & TypeFlagsBooleanLike) !== 0,
+    bigintLike: (type.flags & TypeFlagsBigIntLike) !== 0,
+    enumLike: (type.flags & TypeFlagsEnumLike) !== 0,
+    typeParameter: (type.flags & TypeFlagsTypeParameter) !== 0,
+  };
+}
+
+function getSourcePrimitiveFact(
+  input: TargetCompileInput,
+  node: Node,
+  symbol: Symbol | undefined,
+  type: Type | undefined,
+): SourcePrimitiveFact | undefined {
+  return input.facts.getSourcePrimitiveFact(node) ??
+    input.facts.getSourcePrimitiveFact(symbol) ??
+    input.facts.getSourcePrimitiveFact(type) ??
+    input.facts.getSourcePrimitiveFact(type?.symbol);
+}
+
 function isTypeParameterType(type: Type | undefined): boolean {
   return type !== undefined && (type.flags & TypeFlagsTypeParameter) !== 0;
 }
@@ -256,7 +329,12 @@ function isDirectSourceShapeType(type: Type | undefined, input: TargetCompileInp
   }
   const declaration = getPrimaryDeclaration(type?.symbol);
   return isProjectSourceDeclaration(declaration, input) &&
-    (declaration?.Kind === KindClassDeclaration || declaration?.Kind === KindInterfaceDeclaration || declaration?.Kind === KindEnumDeclaration);
+    (
+      declaration?.Kind === KindClassDeclaration ||
+      declaration?.Kind === KindInterfaceDeclaration ||
+      declaration?.Kind === KindEnumDeclaration ||
+      declaration?.Kind === KindEnumMember
+    );
 }
 
 function isSourceDeclaredCallable(symbol: Symbol | undefined, input: TargetCompileInput): boolean {

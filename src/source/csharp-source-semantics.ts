@@ -1,8 +1,10 @@
-import { TstsProviderContractVersion, acceptDecision, createSourceSemanticsExtension, deferDecision, getTypeScriptArrayElementType, isTypeScriptStringLikeType, sourcePrimitive } from "@tsonic/tsts";
+import { AsNumericLiteral, KindNumericLiteral, TstsProviderContractVersion, acceptDecision, createSourceSemanticsExtension, deferDecision, getTypeScriptArrayElementType, isTypeScriptStringLikeType, sourcePrimitive, sourcePrimitiveFactKey } from "@tsonic/tsts";
 import type {
   CompilerExtension,
+  ExtensionDecisionContext,
   ExtensionDiagnostic,
   ExtensionFactSubject,
+  Node,
   ProviderDeclarationModel,
   ProviderExportDeclaration,
   ProviderIdentity,
@@ -11,8 +13,11 @@ import type {
   ProviderModuleResolution,
   ProviderOwnership,
   ProviderTypeExpression,
+  ResolveOperationResult,
+  ResolveOperatorRequest,
   SourceCallMarkerDeclaration,
   SourcePrimitiveDeclaration,
+  SourcePrimitiveFact,
   SourcePrimitiveKind,
   SourceSemanticsExportDeclaration,
   SourceSemanticsModule,
@@ -163,14 +168,288 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         elementType,
       });
     },
+    resolveOperator(request, context) {
+      if (request.target !== undefined && request.target !== "csharp") {
+        return deferDecision;
+      }
+      const operation = resolveSourcePrimitiveOperator(request, context);
+      return operation === undefined ? deferDecision : acceptDecision(operation);
+    },
   };
 }
 
-function sourcePrimitiveInt32(): ExtensionFactSubject {
+function sourcePrimitiveInt32(): SourcePrimitiveFact {
   return {
-    kind: "source-primitive",
-    name: "int32",
+    kind: "int32",
+    runtimeBase: "number",
+    signed: true,
+    width: 32,
   };
+}
+
+function resolveSourcePrimitiveOperator(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  const leftPrimitive = request.leftSourcePrimitive ??
+    resolveSourcePrimitiveSubject(context, request.left) ??
+    resolveSourcePrimitiveSubject(context, request.leftSymbol) ??
+    resolveSourcePrimitiveSubject(context, request.leftType);
+  const rightPrimitive = request.rightSourcePrimitive ??
+    resolveSourcePrimitiveSubject(context, request.right) ??
+    resolveSourcePrimitiveSubject(context, request.rightSymbol) ??
+    resolveSourcePrimitiveSubject(context, request.rightType);
+  if (leftPrimitive === undefined && rightPrimitive === undefined) {
+    return undefined;
+  }
+  const semanticOperator = normalizeSourcePrimitiveOperator(request.operator, request.right);
+  const targetOperation = csharpOperatorToken(semanticOperator);
+  if (targetOperation === undefined) {
+    return undefined;
+  }
+  const resultType = getSourcePrimitiveOperatorResult(
+    semanticOperator,
+    leftPrimitive,
+    rightPrimitive,
+    isIntegerNumericLiteral(request.left),
+    isIntegerNumericLiteral(request.right),
+  );
+  if (resultType === undefined) {
+    return undefined;
+  }
+  return {
+    operation: {
+      operationId: `tsonic.csharp.source.${sourcePrimitiveResultName(resultType)}.${semanticOperator}`,
+      operationKind: "operator",
+      targetOperation,
+      resultType,
+    } satisfies TargetOperationFact,
+    resultType,
+  };
+}
+
+function normalizeSourcePrimitiveOperator(operator: string, right: ExtensionFactSubject | undefined): string {
+  if (right === undefined && (operator === "+" || operator === "-")) {
+    return `u${operator}`;
+  }
+  return operator;
+}
+
+function resolveSourcePrimitiveSubject(
+  context: ExtensionDecisionContext,
+  subject: ExtensionFactSubject | undefined,
+): SourcePrimitiveFact | undefined {
+  return subject === undefined ? undefined : context.factResolver.resolve(subject, sourcePrimitiveFactKey);
+}
+
+function getSourcePrimitiveOperatorResult(
+  operator: string,
+  left: SourcePrimitiveFact | undefined,
+  right: SourcePrimitiveFact | undefined,
+  leftLiteral: boolean,
+  rightLiteral: boolean,
+): ExtensionFactSubject | undefined {
+  switch (operator) {
+    case "!":
+      return isBoolPrimitive(left) ? sourcePrimitiveBool() : undefined;
+    case "~":
+      return left !== undefined && isIntegralPrimitive(left) ? sourcePrimitiveSubject(left) : undefined;
+    case "++":
+    case "--":
+    case "u+":
+    case "u-":
+      return left !== undefined && isNumericPrimitive(left) ? sourcePrimitiveSubject(left) : undefined;
+    case "&&":
+    case "||":
+      return isBoolPrimitive(left) && isBoolPrimitive(right) ? sourcePrimitiveBool() : undefined;
+    case "==":
+    case "===":
+    case "!=":
+    case "!==":
+      return canCompareSourcePrimitives(left, right) ? sourcePrimitiveBool() : undefined;
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+      return canCompareNumericSourcePrimitives(left, right) ? sourcePrimitiveBool() : undefined;
+    case "+":
+    case "+=":
+    case "-":
+    case "-=":
+    case "*":
+    case "*=":
+    case "/":
+    case "/=":
+    case "%":
+    case "%=":
+      return sourcePrimitiveNumericResult(left, right, leftLiteral, rightLiteral);
+    case "&":
+    case "&=":
+    case "|":
+    case "|=":
+    case "^":
+    case "^=":
+    case "<<":
+    case "<<=":
+    case ">>":
+    case ">>=":
+    case ">>>":
+    case ">>>=":
+      return sourcePrimitiveIntegralResult(left, right, leftLiteral, rightLiteral);
+    default:
+      return undefined;
+  }
+}
+
+function csharpOperatorToken(operator: string): string | undefined {
+  switch (operator) {
+    case "u+":
+      return "+";
+    case "u-":
+      return "-";
+    case "===":
+      return "==";
+    case "!==":
+      return "!=";
+    case "+":
+    case "+=":
+    case "-":
+    case "-=":
+    case "*":
+    case "*=":
+    case "/":
+    case "/=":
+    case "%":
+    case "%=":
+    case "!":
+    case "~":
+    case "++":
+    case "--":
+    case "==":
+    case "!=":
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+    case "&&":
+    case "||":
+    case "&":
+    case "&=":
+    case "|":
+    case "|=":
+    case "^":
+    case "^=":
+    case "<<":
+    case "<<=":
+    case ">>":
+    case ">>=":
+    case ">>>":
+    case ">>>=":
+      return operator;
+    default:
+      return undefined;
+  }
+}
+
+function sourcePrimitiveBool(): SourcePrimitiveFact {
+  return {
+    kind: "bool",
+    runtimeBase: "boolean",
+  };
+}
+
+function sourcePrimitiveSubject(fact: SourcePrimitiveFact): SourcePrimitiveFact {
+  return fact;
+}
+
+function sourcePrimitiveResultName(subject: ExtensionFactSubject): string {
+  const primitiveSubject = subject as { readonly kind?: string; readonly name?: string };
+  return primitiveSubject.kind ?? primitiveSubject.name ?? "unknown";
+}
+
+function canCompareSourcePrimitives(left: SourcePrimitiveFact | undefined, right: SourcePrimitiveFact | undefined): boolean {
+  return left !== undefined &&
+    right !== undefined &&
+    left.kind === right.kind &&
+    (isBoolPrimitive(left) || isNumericPrimitive(left) || isCharPrimitive(left));
+}
+
+function canCompareNumericSourcePrimitives(left: SourcePrimitiveFact | undefined, right: SourcePrimitiveFact | undefined): boolean {
+  return left !== undefined && right !== undefined && left.kind === right.kind && isNumericPrimitive(left);
+}
+
+function sourcePrimitiveNumericResult(
+  left: SourcePrimitiveFact | undefined,
+  right: SourcePrimitiveFact | undefined,
+  leftLiteral: boolean,
+  rightLiteral: boolean,
+): ExtensionFactSubject | undefined {
+  if (left !== undefined && right !== undefined && left.kind === right.kind && isNumericPrimitive(left)) {
+    return sourcePrimitiveSubject(left);
+  }
+  if (left !== undefined && isNumericPrimitive(left) && rightLiteral) {
+    return sourcePrimitiveSubject(left);
+  }
+  if (right !== undefined && isNumericPrimitive(right) && leftLiteral) {
+    return sourcePrimitiveSubject(right);
+  }
+  return undefined;
+}
+
+function sourcePrimitiveIntegralResult(
+  left: SourcePrimitiveFact | undefined,
+  right: SourcePrimitiveFact | undefined,
+  leftLiteral: boolean,
+  rightLiteral: boolean,
+): ExtensionFactSubject | undefined {
+  if (left !== undefined && right !== undefined && isIntegralPrimitive(left) && isIntegralPrimitive(right)) {
+    return sourcePrimitiveSubject(left);
+  }
+  if (left !== undefined && isIntegralPrimitive(left) && rightLiteral) {
+    return sourcePrimitiveSubject(left);
+  }
+  if (right !== undefined && isIntegralPrimitive(right) && leftLiteral) {
+    return sourcePrimitiveSubject(right);
+  }
+  return undefined;
+}
+
+function isBoolPrimitive(primitive: SourcePrimitiveFact | undefined): boolean {
+  return primitive?.kind === "bool";
+}
+
+function isCharPrimitive(primitive: SourcePrimitiveFact): boolean {
+  return primitive.kind === "char16" || primitive.kind === "char32";
+}
+
+function isNumericPrimitive(primitive: SourcePrimitiveFact): boolean {
+  return primitive.runtimeBase !== "boolean" &&
+    primitive.runtimeBase !== "string" &&
+    primitive.runtimeBase !== "object";
+}
+
+function isIntegralPrimitive(primitive: SourcePrimitiveFact): boolean {
+  return primitive.kind === "int8" ||
+    primitive.kind === "uint8" ||
+    primitive.kind === "int16" ||
+    primitive.kind === "uint16" ||
+    primitive.kind === "int32" ||
+    primitive.kind === "uint32" ||
+    primitive.kind === "int64" ||
+    primitive.kind === "uint64" ||
+    primitive.kind === "int128" ||
+    primitive.kind === "uint128" ||
+    primitive.kind === "native-int" ||
+    primitive.kind === "native-uint";
+}
+
+function isIntegerNumericLiteral(subject: ExtensionFactSubject | undefined): boolean {
+  const node = subject as Node | undefined;
+  if (node?.Kind !== KindNumericLiteral) {
+    return false;
+  }
+  const value = Number(AsNumericLiteral(node)!.Text.replace(/_/g, ""));
+  return Number.isSafeInteger(value);
 }
 
 function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
