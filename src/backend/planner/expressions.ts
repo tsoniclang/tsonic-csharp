@@ -1,11 +1,13 @@
 import {
   AsArrayLiteralExpression,
+  AsAsExpression,
   AsBinaryExpression,
   AsCallExpression,
   AsConditionalExpression,
   AsElementAccessExpression,
   AsIdentifier,
   AsNewExpression,
+  AsNonNullExpression,
   AsNoSubstitutionTemplateLiteral,
   AsNumericLiteral,
   AsParenthesizedExpression,
@@ -13,9 +15,12 @@ import {
   AsPrefixUnaryExpression,
   AsPropertyAccessExpression,
   AsStringLiteral,
+  AsSatisfiesExpression,
   AsTemplateExpression,
   AsTemplateSpan,
+  AsTypeAssertion,
   KindAmpersandAmpersandToken,
+  KindAsExpression,
   KindAsteriskToken,
   KindBarBarToken,
   KindBinaryExpression,
@@ -39,6 +44,7 @@ import {
   KindMinusToken,
   KindNewExpression,
   KindNoSubstitutionTemplateLiteral,
+  KindNonNullExpression,
   KindNullKeyword,
   KindNumericLiteral,
   KindParenthesizedExpression,
@@ -51,10 +57,12 @@ import {
   KindQuestionQuestionToken,
   KindSlashToken,
   KindStringLiteral,
+  KindSatisfiesExpression,
   KindSuperKeyword,
   KindTemplateExpression,
   KindThisKeyword,
   KindTrueKeyword,
+  KindTypeAssertionExpression,
   Node_Text,
 } from "@tsonic/tsts";
 import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
@@ -102,6 +110,14 @@ export function planExpression(
       return { kind: "identifier", name: "this" };
     case KindSuperKeyword:
       return { kind: "identifier", name: "base" };
+    case KindAsExpression:
+      return planExpression(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics);
+    case KindSatisfiesExpression:
+      return planExpression(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics);
+    case KindNonNullExpression:
+      return planExpression(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics);
+    case KindTypeAssertionExpression:
+      return planExpression(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics);
     case KindParenthesizedExpression: {
       const expression = AsParenthesizedExpression(node)!;
       return {
