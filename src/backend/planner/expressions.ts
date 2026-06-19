@@ -304,13 +304,13 @@ function planPropertyAccessExpression(
           kind: "type",
           type: receiverType,
         },
-        name: sanitizeIdentifier(targetOperation.targetOperation),
+        name: targetOperation.targetOperation,
       };
     }
     return {
       kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
       receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
-      name: sanitizeIdentifier(targetOperation.targetOperation),
+      name: targetOperation.targetOperation,
     };
   }
   if (targetOperation !== undefined) {
@@ -416,13 +416,13 @@ function planSelectedTargetCallee(
           kind: "type",
           type: receiverType,
         },
-        name: sanitizeIdentifier(member.targetName),
+        name: member.targetName,
       };
     }
     return {
       kind: property.QuestionDotToken === undefined ? "member" : "optionalMember",
       receiver: planExpression(property.Expression!, sourceFile, input, diagnostics),
-      name: sanitizeIdentifier(member.targetName),
+      name: member.targetName,
     };
   }
   if (callee?.Kind === KindIdentifier) {
@@ -437,7 +437,7 @@ function planSelectedTargetCallee(
     }
     return {
       kind: "identifier",
-      name: sanitizeIdentifier(member.targetName),
+      name: member.targetName,
     };
   }
   diagnostics.push({

@@ -614,7 +614,7 @@ function resolveSourceProjectPropertyAccess(
     operation: {
       operationId: `tsonic.csharp.source.${sourceTypeName}.${request.propertyName}`,
       operationKind: "property",
-      targetOperation: request.propertyName,
+      targetOperation: sanitizeCsharpIdentifier(request.propertyName),
     } satisfies TargetOperationFact,
   };
 }
@@ -1613,7 +1613,7 @@ function getSourceProjectTypeName(symbol: Symbol | undefined): string | undefine
     return undefined;
   }
   const name = symbol?.Name;
-  return name === undefined || name.length === 0 ? undefined : name;
+  return name === undefined || name.length === 0 ? undefined : sanitizeCsharpIdentifier(name);
 }
 
 function getSourceProjectShapeName(symbol: Symbol | undefined): string | undefined {
@@ -1633,7 +1633,7 @@ function getSourceProjectShapeName(symbol: Symbol | undefined): string | undefin
     return undefined;
   }
   const name = symbol?.Name;
-  return name === undefined || name.length === 0 ? undefined : name;
+  return name === undefined || name.length === 0 ? undefined : sanitizeCsharpIdentifier(name);
 }
 
 function getSourceProjectClassName(symbol: Symbol | undefined): string | undefined {
@@ -1650,7 +1650,7 @@ function getSourceProjectClassName(symbol: Symbol | undefined): string | undefin
     return undefined;
   }
   const name = symbol?.Name;
-  return name === undefined || name.length === 0 ? undefined : name;
+  return name === undefined || name.length === 0 ? undefined : sanitizeCsharpIdentifier(name);
 }
 
 function resolveNullableUnionCarrierForTstsType(
