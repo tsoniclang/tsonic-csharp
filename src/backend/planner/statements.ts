@@ -70,6 +70,7 @@ import { planExpression, planExpressionWithExpectedType } from "./expressions.js
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
 import { planIdentifierName } from "./names.js";
+import { getProviderOperationOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -299,6 +300,11 @@ function planForOfStatement(
 ): readonly CsharpStatement[] {
   const binding = planForOfBinding(statement.Initializer, sourceFile, input, diagnostics, state);
   if (binding === undefined) {
+    return [];
+  }
+  const ownership = getProviderOperationOwnership(statement.Expression, sourceFile, input);
+  if (ownership.requiresTargetFact) {
+    pushMissingTargetFactDiagnostic(diagnostics, statement.Expression!, "C# for-of enumeration requires a direct source iterable or finalized TSTS/provider enumeration facts.", ownership);
     return [];
   }
   return [{

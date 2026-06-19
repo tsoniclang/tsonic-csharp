@@ -216,10 +216,24 @@ export function planExpression(
     }
     case KindPrefixUnaryExpression: {
       const expression = AsPrefixUnaryExpression(node)!;
-      const operator = getCsharpPrefixUnaryOperator(expression.Operator);
+      const selectedOperator = input.facts.getSelectedTargetOperator(node);
+      const operator = selectedOperator?.operationKind === "operator"
+        ? selectedOperator.targetOperation
+        : getCsharpPrefixUnaryOperator(expression.Operator);
       if (operator === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Prefix unary operator is outside the current C# planning surface."));
         return invalidExpression("unsupported prefix unary operator");
+      }
+      if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
+        diagnostics.push(unsupportedNodeDiagnostic(node, `Prefix unary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
+        return invalidExpression("selected target prefix operator");
+      }
+      if (selectedOperator === undefined) {
+        const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
+        if (ownership.requiresTargetFact) {
+          pushMissingTargetFactDiagnostic(diagnostics, node, "C# prefix unary operator emission requires a direct primitive/source-owned operation or a selected provider operator fact.", ownership);
+          return invalidExpression("missing target prefix operator fact");
+        }
       }
       return {
         kind: "prefixUnary",
@@ -229,10 +243,24 @@ export function planExpression(
     }
     case KindPostfixUnaryExpression: {
       const expression = AsPostfixUnaryExpression(node)!;
-      const operator = getCsharpPostfixUnaryOperator(expression.Operator);
+      const selectedOperator = input.facts.getSelectedTargetOperator(node);
+      const operator = selectedOperator?.operationKind === "operator"
+        ? selectedOperator.targetOperation
+        : getCsharpPostfixUnaryOperator(expression.Operator);
       if (operator === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Postfix unary operator is outside the current C# planning surface."));
         return invalidExpression("unsupported postfix unary operator");
+      }
+      if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
+        diagnostics.push(unsupportedNodeDiagnostic(node, `Postfix unary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
+        return invalidExpression("selected target postfix operator");
+      }
+      if (selectedOperator === undefined) {
+        const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
+        if (ownership.requiresTargetFact) {
+          pushMissingTargetFactDiagnostic(diagnostics, node, "C# postfix unary operator emission requires a direct primitive/source-owned operation or a selected provider operator fact.", ownership);
+          return invalidExpression("missing target postfix operator fact");
+        }
       }
       return {
         kind: "postfixUnary",
