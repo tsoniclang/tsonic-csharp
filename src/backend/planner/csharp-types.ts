@@ -9,8 +9,10 @@ import {
   KindAnyKeyword,
   KindBigIntKeyword,
   KindBooleanKeyword,
+  KindClassDeclaration,
   KindExpressionWithTypeArguments,
   KindIdentifier,
+  KindInterfaceDeclaration,
   KindNeverKeyword,
   KindNumberKeyword,
   KindObjectKeyword,
@@ -22,16 +24,18 @@ import {
   KindUnknownKeyword,
   KindVoidKeyword,
   Node_Text,
+  Type_AsTypeReference,
   TypeFlagsAny,
   TypeFlagsBigIntLike,
   TypeFlagsBooleanLike,
   TypeFlagsNever,
   TypeFlagsNumberLike,
   TypeFlagsStringLike,
+  TypeFlagsTypeParameter,
   TypeFlagsUnknown,
   TypeFlagsVoidLike,
 } from "@tsonic/tsts";
-import type { Node, SourceFile, SourcePrimitiveFact } from "@tsonic/tsts";
+import type { Node, SourceFile, SourcePrimitiveFact, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../ast/csharp-ast.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -147,17 +151,6 @@ export function getCsharpTypeForNode(
       return csharpType;
     }
   }
-  const type = input.checker.getTypeAtLocation(node, { sourceFile });
-  if (type === undefined) {
-    return fallback;
-  }
-  const typeRuntimeCarrier = input.facts.getRuntimeCarrierFact(type)?.carrier;
-  if (typeRuntimeCarrier !== undefined) {
-    const csharpType = csharpTypeFromTargetTypeRef(typeRuntimeCarrier);
-    if (csharpType !== undefined) {
-      return csharpType;
-    }
-  }
   const symbol = input.checker.getSymbolAtLocation(node, { sourceFile }) ?? input.checker.getResolvedSymbol(node, { sourceFile });
   const targetBinding = input.facts.getTargetBindingFact(symbol);
   if (targetBinding !== undefined) {
@@ -165,6 +158,58 @@ export function getCsharpTypeForNode(
     if (csharpType !== undefined) {
       return csharpType;
     }
+  }
+  const type = input.checker.getTypeAtLocation(node, { sourceFile });
+  if (type === undefined) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type, but TSTS did not return a type for this node."));
+    return fallback;
+  }
+  const semanticType = getCsharpTypeForTstsType(type, sourceFile, input, diagnostics, node);
+  if (semanticType !== undefined) {
+    return semanticType;
+  }
+  return fallback;
+}
+
+function getCsharpTypeForTstsType(
+  type: Type,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[] | undefined,
+  diagnosticNode: Node,
+): CsharpTypeNode | undefined {
+  const typeRuntimeCarrier = input.facts.getRuntimeCarrierFact(type)?.carrier;
+  if (typeRuntimeCarrier !== undefined) {
+    const csharpType = csharpTypeFromTargetTypeRef(typeRuntimeCarrier);
+    if (csharpType !== undefined) {
+      return csharpType;
+    }
+  }
+  const typeSymbol = type.symbol;
+  const typeTargetBinding = input.facts.getTargetBindingFact(typeSymbol);
+  if (typeTargetBinding !== undefined) {
+    const csharpType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: typeTargetBinding.id });
+    if (csharpType !== undefined) {
+      return csharpType;
+    }
+  }
+  const typeReference = Type_AsTypeReference(type);
+  const typeReferenceTargetSymbol = typeReference?.__tsgoEmbedded0?.target?.symbol;
+  if (typeReference !== undefined && (typeReferenceTargetSymbol?.Name ?? typeSymbol?.Name) !== undefined) {
+    const typeName = typeReferenceTargetSymbol?.Name ?? typeSymbol!.Name;
+    const typeArguments = (typeReference.resolvedTypeArguments ?? [])
+      .filter((argument): argument is Type => argument !== undefined)
+      .map((argument) => getCsharpTypeForTstsType(argument, sourceFile, input, diagnostics, diagnosticNode) ?? predefined("object"));
+    return typeArguments.length === 0
+      ? { kind: "named", name: sanitizeIdentifier(typeName) }
+      : { kind: "named", name: sanitizeIdentifier(typeName), typeArguments };
+  }
+  if ((type.flags & TypeFlagsTypeParameter) !== 0 && typeSymbol?.Name !== undefined && typeSymbol.Name.length > 0) {
+    return { kind: "named", name: sanitizeIdentifier(typeSymbol.Name) };
+  }
+  const typeDeclaration = typeSymbol?.ValueDeclaration ?? typeSymbol?.Declarations?.find((candidate) => candidate !== undefined);
+  if (typeDeclaration?.Kind === KindClassDeclaration || typeDeclaration?.Kind === KindInterfaceDeclaration) {
+    return { kind: "named", name: sanitizeIdentifier(typeSymbol!.Name) };
   }
   const typeText = input.checker.typeToString(type, { sourceFile });
   if (typeText === "void") {
@@ -186,13 +231,14 @@ export function getCsharpTypeForNode(
     return predefined("void");
   }
   if ((type.flags & (TypeFlagsAny | TypeFlagsUnknown)) !== 0) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
-    return fallback;
+    diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
+    return undefined;
   }
   if ((type.flags & TypeFlagsNever) !== 0) {
     return predefined("object");
   }
-  return fallback;
+  diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, `C# emission requires a closed target type from TSTS or provider facts. TSTS type: ${typeText ?? "<unknown>"}.`));
+  return undefined;
 }
 
 export function getCsharpTypeForSourcePrimitive(fact: SourcePrimitiveFact): CsharpTypeNode {
