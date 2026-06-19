@@ -114,7 +114,7 @@ function planSourceFile(
         namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));
         break;
       case KindVariableStatement:
-        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, topLevelStatements);
+        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements);
         break;
       case KindExpressionStatement:
       case KindIfStatement:
@@ -176,6 +176,7 @@ function planTopLevelVariableStatement(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   namespaceMembers: CsharpTypeDeclaration[],
+  moduleMembers: CsharpTypeMember[],
   topLevelStatements: CsharpStatement[],
 ): void {
   const declarationList = AsVariableStatement(statement)!.DeclarationList;
@@ -193,9 +194,13 @@ function planTopLevelVariableStatement(
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
     }
-    topLevelStatements.push({
-      kind: "local",
-      ...planLocalDeclaration(declaration, sourceFile, input, diagnostics),
+    const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics);
+    moduleMembers.push({
+      kind: "field",
+      name: field.name,
+      type: field.type,
+      modifiers: ["public", "static"],
+      ...(field.initializer === undefined ? {} : { initializer: field.initializer }),
     });
   }
 }
