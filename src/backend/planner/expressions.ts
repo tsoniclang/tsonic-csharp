@@ -26,46 +26,18 @@ import {
   AsTemplateExpression,
   AsTemplateSpan,
   AsTypeAssertion,
-  KindAmpersandAmpersandToken,
-  KindAmpersandEqualsToken,
-  KindAmpersandToken,
   KindArrowFunction,
   KindAsExpression,
-  KindAsteriskEqualsToken,
-  KindAsteriskToken,
-  KindBarBarToken,
-  KindBarEqualsToken,
-  KindBarToken,
-  KindBinaryExpression,
   KindBlock,
   KindCallExpression,
   KindArrayLiteralExpression,
   KindAwaitExpression,
   KindConditionalExpression,
   KindElementAccessExpression,
-  KindEqualsEqualsEqualsToken,
-  KindEqualsEqualsToken,
   KindEqualsToken,
-  KindExclamationEqualsEqualsToken,
-  KindExclamationEqualsToken,
   KindFalseKeyword,
   KindFunctionExpression,
-  KindCaretEqualsToken,
-  KindCaretToken,
-  KindGreaterThanEqualsToken,
-  KindGreaterThanGreaterThanEqualsToken,
-  KindGreaterThanGreaterThanGreaterThanEqualsToken,
-  KindGreaterThanGreaterThanGreaterThanToken,
-  KindGreaterThanGreaterThanToken,
-  KindGreaterThanToken,
   KindIdentifier,
-  KindInstanceOfKeyword,
-  KindLessThanEqualsToken,
-  KindLessThanLessThanEqualsToken,
-  KindLessThanLessThanToken,
-  KindLessThanToken,
-  KindMinusEqualsToken,
-  KindMinusToken,
   KindNewExpression,
   KindNoSubstitutionTemplateLiteral,
   KindNonNullExpression,
@@ -73,17 +45,10 @@ import {
   KindNumericLiteral,
   KindObjectLiteralExpression,
   KindParenthesizedExpression,
-  KindPercentEqualsToken,
-  KindPercentToken,
-  KindPlusEqualsToken,
-  KindPlusToken,
   KindPostfixUnaryExpression,
   KindPrefixUnaryExpression,
   KindPropertyAssignment,
   KindPropertyAccessExpression,
-  KindQuestionQuestionToken,
-  KindSlashEqualsToken,
-  KindSlashToken,
   KindShorthandPropertyAssignment,
   KindSpreadAssignment,
   KindStringLiteral,
@@ -1009,49 +974,24 @@ function tryPlanBinaryExpression(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   const selectedOperator = input.facts.getSelectedTargetOperator(node);
-  const operator = selectedOperator?.operationKind === "operator"
-    ? selectedOperator.targetOperation
-    : getCsharpBinaryOperator(node);
-  if (operator === undefined) {
-    return undefined;
-  }
   if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
     diagnostics.push(unsupportedNodeDiagnostic(node, `Binary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
     return invalidExpression("selected target operator");
   }
   const expression = AsBinaryExpression(node)!;
-  const operatorKind = expression.OperatorToken?.Kind;
-  if (selectedOperator === undefined && operator !== "=") {
-    if (operatorKind === KindInstanceOfKeyword) {
-      const leftOwnership = getSemanticOwnership(expression.Left, sourceFile, input);
-      const rightOwnership = getSemanticOwnership(expression.Right, sourceFile, input);
-      const ownership = combineSemanticOwnership(leftOwnership, rightOwnership);
-      if (ownership.requiresTargetFact || !leftOwnership.sourceOwned || !rightOwnership.sourceOwned) {
-        pushMissingTargetFactDiagnostic(diagnostics, node, "C# instanceof emission requires source-owned operands or a selected provider operator fact.", ownership);
-        return invalidExpression("missing target instanceof fact");
-      }
-    } else {
-      const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
-      const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
-      const ownership = combineOwnership(leftOwnership, rightOwnership);
-      pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a selected provider operator fact.", ownership);
-      return invalidExpression("missing target operator fact");
-    }
+  const operator = selectedOperator?.targetOperation ?? getSimpleAssignmentOperator(expression);
+  if (operator === undefined) {
+    const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
+    const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
+    const ownership = combineOwnership(leftOwnership, rightOwnership);
+    pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a selected provider operator fact.", ownership);
+    return invalidExpression("missing target operator fact");
   }
   return {
     kind: "binary",
     left: planExpression(expression.Left!, sourceFile, input, diagnostics),
     operator,
     right: planExpression(expression.Right!, sourceFile, input, diagnostics),
-  };
-}
-
-function combineSemanticOwnership(left: ReturnType<typeof getSemanticOwnership>, right: ReturnType<typeof getSemanticOwnership>): ReturnType<typeof getSemanticOwnership> {
-  const reasons = [...left.reasons, ...right.reasons];
-  return {
-    requiresTargetFact: left.requiresTargetFact || right.requiresTargetFact,
-    sourceOwned: left.sourceOwned && right.sourceOwned,
-    reasons,
   };
 }
 
@@ -1065,83 +1005,8 @@ function combineOwnership(left: OperationSemanticOwnership, right: OperationSema
   };
 }
 
-function getCsharpBinaryOperator(node: Node): string | undefined {
-  if (node.Kind === KindBinaryExpression) {
-    const operatorKind = AsBinaryExpression(node)!.OperatorToken?.Kind;
-    switch (operatorKind) {
-      case KindPlusToken:
-        return "+";
-      case KindMinusToken:
-        return "-";
-      case KindAsteriskToken:
-        return "*";
-      case KindSlashToken:
-        return "/";
-      case KindPercentToken:
-        return "%";
-      case KindPlusEqualsToken:
-        return "+=";
-      case KindMinusEqualsToken:
-        return "-=";
-      case KindAsteriskEqualsToken:
-        return "*=";
-      case KindSlashEqualsToken:
-        return "/=";
-      case KindPercentEqualsToken:
-        return "%=";
-      case KindQuestionQuestionToken:
-        return "??";
-      case KindEqualsToken:
-        return "=";
-      case KindEqualsEqualsToken:
-      case KindEqualsEqualsEqualsToken:
-        return "==";
-      case KindExclamationEqualsToken:
-      case KindExclamationEqualsEqualsToken:
-        return "!=";
-      case KindLessThanToken:
-        return "<";
-      case KindLessThanEqualsToken:
-        return "<=";
-      case KindGreaterThanToken:
-        return ">";
-      case KindGreaterThanEqualsToken:
-        return ">=";
-      case KindInstanceOfKeyword:
-        return "is";
-      case KindAmpersandAmpersandToken:
-        return "&&";
-      case KindBarBarToken:
-        return "||";
-      case KindAmpersandToken:
-        return "&";
-      case KindBarToken:
-        return "|";
-      case KindCaretToken:
-        return "^";
-      case KindLessThanLessThanToken:
-        return "<<";
-      case KindGreaterThanGreaterThanToken:
-        return ">>";
-      case KindGreaterThanGreaterThanGreaterThanToken:
-        return ">>>";
-      case KindAmpersandEqualsToken:
-        return "&=";
-      case KindBarEqualsToken:
-        return "|=";
-      case KindCaretEqualsToken:
-        return "^=";
-      case KindLessThanLessThanEqualsToken:
-        return "<<=";
-      case KindGreaterThanGreaterThanEqualsToken:
-        return ">>=";
-      case KindGreaterThanGreaterThanGreaterThanEqualsToken:
-        return ">>>=";
-      default:
-        return undefined;
-    }
-  }
-  return undefined;
+function getSimpleAssignmentOperator(expression: NonNullable<ReturnType<typeof AsBinaryExpression>>): string | undefined {
+  return expression.OperatorToken?.Kind === KindEqualsToken ? "=" : undefined;
 }
 
 function isNode(value: unknown): value is Node {

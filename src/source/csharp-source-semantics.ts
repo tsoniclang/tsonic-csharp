@@ -1581,6 +1581,23 @@ function getSourceProjectTypeName(symbol: Symbol | undefined): string | undefine
   return name === undefined || name.length === 0 ? undefined : name;
 }
 
+function getSourceProjectClassName(symbol: Symbol | undefined): string | undefined {
+  const declaration = symbol?.ValueDeclaration ?? symbol?.Declarations?.find((candidate) => candidate !== undefined);
+  if (declaration?.Kind !== KindClassDeclaration) {
+    return undefined;
+  }
+  const sourceFile = GetSourceFileOfNode(declaration);
+  if (sourceFile === undefined || sourceFile.IsDeclarationFile) {
+    return undefined;
+  }
+  const fileName = SourceFile_FileName(sourceFile);
+  if (fileName.startsWith("tsts-provider://")) {
+    return undefined;
+  }
+  const name = symbol?.Name;
+  return name === undefined || name.length === 0 ? undefined : name;
+}
+
 function resolveNullableUnionCarrierForTstsType(
   type: Type,
   context: ExtensionFactResolverContext,
@@ -1677,8 +1694,31 @@ function resolveCsharpOperator(
   request: ResolveOperatorRequest,
   context: ExtensionDecisionContext,
 ): ResolveOperationResult | undefined {
-  return resolveSourcePrimitiveOperator(request, context) ??
+  return resolveSourceProjectInstanceOfOperator(request) ??
+    resolveSourcePrimitiveOperator(request, context) ??
     resolveBuiltinTypeOperator(request);
+}
+
+function resolveSourceProjectInstanceOfOperator(request: ResolveOperatorRequest): ResolveOperationResult | undefined {
+  if (request.operator !== "instanceof") {
+    return undefined;
+  }
+  const rightSymbol = request.rightSymbol !== undefined && isSymbolSubject(request.rightSymbol)
+    ? request.rightSymbol
+    : undefined;
+  if (getSourceProjectClassName(rightSymbol) === undefined) {
+    return undefined;
+  }
+  const resultType = csharpNamed("System.Boolean");
+  return {
+    operation: {
+      operationId: "tsonic.csharp.source.instanceof",
+      operationKind: "operator",
+      targetOperation: "is",
+      resultType,
+    } satisfies TargetOperationFact,
+    resultType,
+  };
 }
 
 function resolveSourcePrimitiveOperator(
