@@ -1,8 +1,11 @@
 import {
+  AsParameterDeclaration,
+  AsVariableDeclaration,
   KindClassDeclaration,
   KindConstructor,
   KindFunctionDeclaration,
   KindFunctionExpression,
+  KindFunctionType,
   KindInterfaceDeclaration,
   KindEnumDeclaration,
   KindElementAccessExpression,
@@ -15,6 +18,7 @@ import {
   KindPropertyAccessExpression,
   KindIdentifier,
   GetSourceFileOfNode,
+  KindVariableDeclaration,
   SourceFile_FileName,
   TypeFlagsBigIntLike,
   TypeFlagsBooleanLike,
@@ -263,8 +267,20 @@ function isSourceDeclaredCallable(symbol: Symbol | undefined, input: TargetCompi
       declaration?.Kind === KindFunctionDeclaration ||
       declaration?.Kind === KindFunctionExpression ||
       declaration?.Kind === KindMethodDeclaration ||
-      declaration?.Kind === KindConstructor
+      declaration?.Kind === KindConstructor ||
+      isExplicitSourceFunctionTypedBinding(declaration)
     );
+}
+
+function isExplicitSourceFunctionTypedBinding(declaration: Node | undefined): boolean {
+  switch (declaration?.Kind) {
+    case KindParameter:
+      return AsParameterDeclaration(declaration)?.Type?.Kind === KindFunctionType;
+    case KindVariableDeclaration:
+      return AsVariableDeclaration(declaration)?.Type?.Kind === KindFunctionType;
+    default:
+      return false;
+  }
 }
 
 function getPrimaryDeclaration(symbol: Symbol | undefined): Node | undefined {

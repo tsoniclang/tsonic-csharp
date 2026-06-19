@@ -210,7 +210,7 @@ export function planExpression(
       }
       if (selectedTargetCall === undefined) {
         const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
-        if (ownership.requiresTargetFact) {
+        if (ownership.requiresTargetFact || !ownership.sourceOwned) {
           pushMissingTargetFactDiagnostic(diagnostics, node, "C# construction emission requires a source-owned constructor or a selected target constructor fact.", ownership);
           return invalidExpression("missing target constructor fact");
         }
@@ -366,7 +366,7 @@ function planCallExpression(
     };
   }
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
-  if (ownership.requiresTargetFact) {
+  if (ownership.requiresTargetFact || !ownership.sourceOwned) {
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# call emission requires a source-owned callable or a selected target signature fact.", ownership);
     return invalidExpression("missing target call fact");
   }
