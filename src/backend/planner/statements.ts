@@ -21,6 +21,7 @@ import {
   AsVariableStatement,
   AsWhileStatement,
   KindArrayBindingPattern,
+  KindArrayLiteralExpression,
   KindBlock,
   KindBreakStatement,
   KindContinueStatement,
@@ -312,7 +313,7 @@ function planForOfStatement(
     kind: "foreach",
     itemType: binding.type,
     itemName: binding.name,
-    collection: planExpression(statement.Expression!, sourceFile, input, diagnostics),
+    collection: planForOfCollectionExpression(statement.Expression, binding.type, sourceFile, input, diagnostics),
     body: {
       statements: [
         ...binding.prelude,
@@ -320,6 +321,34 @@ function planForOfStatement(
       ],
     },
   }];
+}
+
+function planForOfCollectionExpression(
+  expression: Node | undefined,
+  elementType: ReturnType<typeof getCsharpTypeForNode>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  if (expression === undefined) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_FOR_OF_COLLECTION",
+      category: "error",
+      source: "tsonic-csharp",
+      message: "For-of requires a collection expression.",
+    });
+    return { kind: "invalid", reason: "missing for-of collection" };
+  }
+  if (expression.Kind === KindArrayLiteralExpression) {
+    return planExpressionWithExpectedType(
+      expression,
+      sourceFile,
+      input,
+      diagnostics,
+      { kind: "array", elementType },
+    );
+  }
+  return planExpression(expression, sourceFile, input, diagnostics);
 }
 
 interface PlannedForOfBinding extends CsharpLocalDeclaration {
