@@ -5,19 +5,24 @@ import {
   AsConstructorDeclaration,
   AsExpressionStatement,
   AsFunctionDeclaration,
+  AsGetAccessorDeclaration,
   AsInterfaceDeclaration,
   AsMethodDeclaration,
   AsMethodSignatureDeclaration,
+  AsParameterDeclaration,
   AsPropertyDeclaration,
   AsPropertySignatureDeclaration,
+  AsSetAccessorDeclaration,
   KindCallExpression,
   KindConstructor,
   KindExpressionStatement,
+  KindGetAccessor,
   KindIndexSignature,
   KindMethodDeclaration,
   KindMethodSignature,
   KindPropertyDeclaration,
   KindPropertySignature,
+  KindSetAccessor,
   KindSuperKeyword,
   HasSyntacticModifier,
   ModifierFlagsStatic,
@@ -33,6 +38,9 @@ import type {
   CsharpInterfaceMethodDeclaration,
   CsharpInterfacePropertyDeclaration,
   CsharpMethodDeclaration,
+  CsharpParameter,
+  CsharpPropertyDeclaration,
+  CsharpStatement,
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
@@ -60,23 +68,43 @@ export function planClassDeclaration(
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
     ...(heritage.interfaces.length === 0 ? {} : { interfaces: heritage.interfaces }),
-    members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpTypeMember[] => {
-      if (member === undefined) {
-        return [];
-      }
-      switch (member.Kind) {
-        case KindConstructor:
-          return [planConstructorDeclaration(member, className, sourceFile, input, diagnostics)];
-        case KindMethodDeclaration:
-          return [planMethodDeclaration(member, sourceFile, input, diagnostics)];
-        case KindPropertyDeclaration:
-          return [planPropertyDeclaration(member, sourceFile, input, diagnostics)];
-        default:
-          diagnostics.push(unsupportedNodeDiagnostic(member, "Class member is outside the current C# planning surface."));
-          return [];
-      }
-    }),
+    members: planClassMembers(declaration.Members?.Nodes ?? [], className, sourceFile, input, diagnostics),
   };
+}
+
+function planClassMembers(
+  members: readonly (Node | undefined)[],
+  className: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpTypeMember[] {
+  const planned: CsharpTypeMember[] = [];
+  const accessorProperties = new Map<string, CsharpPropertyDeclaration>();
+  for (const member of members) {
+    if (member === undefined) {
+      continue;
+    }
+    switch (member.Kind) {
+      case KindConstructor:
+        planned.push(planConstructorDeclaration(member, className, sourceFile, input, diagnostics));
+        break;
+      case KindMethodDeclaration:
+        planned.push(planMethodDeclaration(member, sourceFile, input, diagnostics));
+        break;
+      case KindPropertyDeclaration:
+        planned.push(planPropertyDeclaration(member, sourceFile, input, diagnostics));
+        break;
+      case KindGetAccessor:
+      case KindSetAccessor:
+        mergeAccessorProperty(member, planned, accessorProperties, sourceFile, input, diagnostics);
+        break;
+      default:
+        diagnostics.push(unsupportedNodeDiagnostic(member, "Class member is outside the current C# planning surface."));
+        break;
+    }
+  }
+  return planned;
 }
 
 export function planInterfaceDeclaration(
@@ -250,6 +278,114 @@ function planPropertyDeclaration(
       ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type) }
       : {}),
   };
+}
+
+function mergeAccessorProperty(
+  node: Node,
+  planned: CsharpTypeMember[],
+  accessorProperties: Map<string, CsharpPropertyDeclaration>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): void {
+  const accessor = node.Kind === KindGetAccessor
+    ? AsGetAccessorDeclaration(node)!
+    : AsSetAccessorDeclaration(node)!;
+  const name = planIdentifierName(accessor.name, "property", diagnostics, "Accessor name");
+  const existing = accessorProperties.get(name);
+  const next = node.Kind === KindGetAccessor
+    ? mergeGetterAccessor(existing, node, name, sourceFile, input, diagnostics)
+    : mergeSetterAccessor(existing, node, name, sourceFile, input, diagnostics);
+  accessorProperties.set(name, next);
+  if (existing === undefined) {
+    planned.push(next);
+    return;
+  }
+  const index = planned.indexOf(existing);
+  if (index >= 0) {
+    planned[index] = next;
+  }
+}
+
+function mergeGetterAccessor(
+  existing: CsharpPropertyDeclaration | undefined,
+  node: Node,
+  name: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpPropertyDeclaration {
+  const declaration = AsGetAccessorDeclaration(node)!;
+  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, existing?.type ?? predefined("object"), diagnostics);
+  return {
+    kind: "property",
+    name,
+    modifiers: existing?.modifiers ?? planClassMemberModifiers(node),
+    type,
+    getter: {
+      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
+    },
+    ...(existing?.setter === undefined ? {} : { setter: existing.setter }),
+  };
+}
+
+function mergeSetterAccessor(
+  existing: CsharpPropertyDeclaration | undefined,
+  node: Node,
+  name: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpPropertyDeclaration {
+  const declaration = AsSetAccessorDeclaration(node)!;
+  const parameters = planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics);
+  const parameter = parameters[0];
+  if (parameter === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Set accessor requires exactly one parameter."));
+  }
+  if (parameters.length > 1) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Set accessor has more than one parameter."));
+  }
+  const parameterNode = declaration.Parameters?.Nodes?.[0];
+  const type = getCsharpTypeForNode(
+    parameterNode === undefined ? declaration.Type ?? declaration.name : AsParameterDeclaration(parameterNode)!.Type,
+    sourceFile,
+    input,
+    existing?.type ?? predefined("object"),
+    diagnostics,
+  );
+  return {
+    kind: "property",
+    name,
+    modifiers: existing?.modifiers ?? planClassMemberModifiers(node),
+    type,
+    ...(existing?.getter === undefined ? {} : { getter: existing.getter }),
+    setter: {
+      statements: planSetAccessorStatements(declaration.Body, parameter, sourceFile, input, diagnostics),
+    },
+  };
+}
+
+function planSetAccessorStatements(
+  body: Node | undefined,
+  parameter: Pick<CsharpParameter, "name" | "type"> | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpStatement[] {
+  const statements = planBlockStatements(body, sourceFile, input, diagnostics);
+  if (parameter === undefined || parameter.name === "value") {
+    return statements;
+  }
+  return [
+    {
+      kind: "local",
+      name: parameter.name,
+      type: parameter.type,
+      initializer: { kind: "identifier", name: "value" },
+    },
+    ...statements,
+  ];
 }
 
 function planClassMemberModifiers(node: Node): readonly ("public" | "static")[] {

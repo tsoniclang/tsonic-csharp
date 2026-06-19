@@ -4,7 +4,8 @@ import { sanitizeIdentifier } from "./identifiers.js";
 
 const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
   ["bool", "bool"],
-  ["char", "char"],
+  ["char16", "char"],
+  ["char32", "System.Text.Rune"],
   ["int8", "sbyte"],
   ["uint8", "byte"],
   ["int16", "short"],
@@ -18,7 +19,7 @@ const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
   ["float16", "Half"],
   ["float32", "float"],
   ["float64", "double"],
-  ["decimal", "decimal"],
+  ["decimal128", "decimal"],
   ["int128", "Int128"],
   ["uint128", "UInt128"],
 ]);

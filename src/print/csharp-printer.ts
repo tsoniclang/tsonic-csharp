@@ -7,6 +7,7 @@ import type {
   CsharpInterfaceMember,
   CsharpLocalDeclaration,
   CsharpMethodDeclaration,
+  CsharpPropertyDeclaration,
   CsharpStatement,
   CsharpConstructorDeclaration,
   CsharpSwitchSection,
@@ -92,6 +93,8 @@ function printTypeMemberLines(member: CsharpTypeMember): string[] {
       return printConstructorLines(member);
     case "method":
       return printMethodLines(member);
+    case "property":
+      return printPropertyLines(member);
   }
 }
 
@@ -123,6 +126,31 @@ function printMethodLines(method: CsharpMethodDeclaration): string[] {
     `${modifiers}${printCsharpType(method.returnType)} ${method.name}${typeParameters}(${parameters})`,
     "{",
     ...indentLines(printCsharpStatements(method.body.statements)),
+    "}",
+  ];
+}
+
+function printPropertyLines(property: CsharpPropertyDeclaration): string[] {
+  const modifiers = property.modifiers.length === 0 ? "" : `${property.modifiers.join(" ")} `;
+  return [
+    `${modifiers}${printCsharpType(property.type)} ${property.name}`,
+    "{",
+    ...(property.getter === undefined
+      ? []
+      : indentLines([
+          "get",
+          "{",
+          ...indentLines(printCsharpStatements(property.getter.statements)),
+          "}",
+        ])),
+    ...(property.setter === undefined
+      ? []
+      : indentLines([
+          "set",
+          "{",
+          ...indentLines(printCsharpStatements(property.setter.statements)),
+          "}",
+        ])),
     "}",
   ];
 }

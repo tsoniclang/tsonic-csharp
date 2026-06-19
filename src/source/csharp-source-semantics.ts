@@ -60,7 +60,7 @@ function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
       subpath: "types.js",
       exports: [
         sourcePrimitive("bool", "bool", "boolean"),
-        sourcePrimitive("char", "char", "string", false, 16),
+        sourcePrimitive("char16", "char16", "string", false, 16),
         sourcePrimitive("int8", "int8", "number", true, 8),
         sourcePrimitive("uint8", "uint8", "number", false, 8),
         sourcePrimitive("int16", "int16", "number", true, 16),
@@ -69,9 +69,15 @@ function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
         sourcePrimitive("uint32", "uint32", "number", false, 32),
         sourcePrimitive("int64", "int64", "bigint", true, 64),
         sourcePrimitive("uint64", "uint64", "bigint", false, 64),
+        sourcePrimitive("int128", "int128", "bigint", true, 128),
+        sourcePrimitive("uint128", "uint128", "bigint", false, 128),
+        sourcePrimitive("nativeInt", "native-int", "number", true),
+        sourcePrimitive("nativeUint", "native-uint", "number", false),
+        sourcePrimitive("float16", "float16", "number", true, 16),
         sourcePrimitive("float32", "float32", "number", true, 32),
         sourcePrimitive("float64", "float64", "number", true, 64),
-        sourcePrimitive("decimal", "decimal", "number", true, 128),
+        sourcePrimitive("decimal128", "decimal128", "number", true, 128),
+        sourcePrimitive("char32", "char32", "string", false, 32),
       ],
     },
     {
@@ -88,10 +94,12 @@ function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
         sourcePrimitive("uint", "uint32", "number", false, 32),
         sourcePrimitive("long", "int64", "bigint", true, 64),
         sourcePrimitive("ulong", "uint64", "bigint", false, 64),
+        sourcePrimitive("nint", "native-int", "number", true),
+        sourcePrimitive("nuint", "native-uint", "number", false),
         sourcePrimitive("float", "float32", "number", true, 32),
         sourcePrimitive("double", "float64", "number", true, 64),
-        sourcePrimitive("decimal", "decimal", "number", true, 128),
-        sourcePrimitive("char", "char", "string", false, 16),
+        sourcePrimitive("decimal", "decimal128", "number", true, 128),
+        sourcePrimitive("char", "char16", "string", false, 16),
       ],
     },
     {
@@ -271,8 +279,10 @@ function getCsharpPrimitiveTargetIdentity(primitive: SourcePrimitiveKind): strin
   switch (primitive) {
     case "bool":
       return "System.Boolean";
-    case "char":
+    case "char16":
       return "System.Char";
+    case "char32":
+      return "System.Text.Rune";
     case "int8":
       return "System.SByte";
     case "uint8":
@@ -299,7 +309,7 @@ function getCsharpPrimitiveTargetIdentity(primitive: SourcePrimitiveKind): strin
       return "System.Single";
     case "float64":
       return "System.Double";
-    case "decimal":
+    case "decimal128":
       return "System.Decimal";
     case "int128":
       return "System.Int128";
@@ -312,8 +322,10 @@ function getCsharpPrimitiveDisplayName(primitive: SourcePrimitiveKind): string {
   switch (primitive) {
     case "bool":
       return "bool";
-    case "char":
+    case "char16":
       return "char";
+    case "char32":
+      return "System.Text.Rune";
     case "int8":
       return "sbyte";
     case "uint8":
@@ -340,7 +352,7 @@ function getCsharpPrimitiveDisplayName(primitive: SourcePrimitiveKind): string {
       return "float";
     case "float64":
       return "double";
-    case "decimal":
+    case "decimal128":
       return "decimal";
     case "int128":
       return "Int128";

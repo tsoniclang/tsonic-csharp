@@ -23,6 +23,7 @@ export type {
   CsharpModifier,
   CsharpNamespace,
   CsharpParameter,
+  CsharpPropertyDeclaration,
   CsharpStatement,
   CsharpStructDeclaration,
   CsharpTypeDeclaration,

@@ -45,7 +45,11 @@ export interface CsharpInterfaceDeclaration {
   readonly members: readonly CsharpInterfaceMember[];
 }
 
-export type CsharpTypeMember = CsharpConstructorDeclaration | CsharpMethodDeclaration | CsharpFieldDeclaration;
+export type CsharpTypeMember =
+  | CsharpConstructorDeclaration
+  | CsharpMethodDeclaration
+  | CsharpFieldDeclaration
+  | CsharpPropertyDeclaration;
 
 export type CsharpInterfaceMember = CsharpInterfaceMethodDeclaration | CsharpInterfacePropertyDeclaration;
 
@@ -92,6 +96,15 @@ export interface CsharpFieldDeclaration {
   readonly modifiers: readonly CsharpModifier[];
   readonly type: CsharpTypeNode;
   readonly initializer?: CsharpExpression;
+}
+
+export interface CsharpPropertyDeclaration {
+  readonly kind: "property";
+  readonly name: string;
+  readonly modifiers: readonly CsharpModifier[];
+  readonly type: CsharpTypeNode;
+  readonly getter?: CsharpBlock;
+  readonly setter?: CsharpBlock;
 }
 
 export interface CsharpParameter {
