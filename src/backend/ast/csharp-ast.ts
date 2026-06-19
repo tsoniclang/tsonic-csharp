@@ -206,6 +206,7 @@ export type CsharpSwitchLabel =
   | { readonly kind: "default" };
 
 export interface CsharpCatchClause {
+  readonly variableType?: CsharpTypeNode;
   readonly variableName?: string;
   readonly body: CsharpBlock;
 }

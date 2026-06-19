@@ -300,7 +300,7 @@ export function printCsharpStatement(statement: CsharpStatement): string {
           : [
               statement.catchClause.variableName === undefined
                 ? "catch"
-                : `catch (Exception ${statement.catchClause.variableName})`,
+                : `catch (${printCsharpType(statement.catchClause.variableType ?? { kind: "invalid", reason: "missing catch variable type" })} ${statement.catchClause.variableName})`,
               "{",
               ...indentLines(printCsharpStatements(statement.catchClause.body.statements)),
               "}",

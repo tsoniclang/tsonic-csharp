@@ -10,6 +10,7 @@ import {
   KindBigIntKeyword,
   KindBooleanKeyword,
   KindBindingElement,
+  KindCatchClause,
   KindEnumDeclaration,
   KindEnumMember,
   KindFunctionType,
@@ -476,6 +477,16 @@ function resolveCsharpRuntimeCarrier(
     };
   }
 
+  if (isNodeSubject(subject)) {
+    const catchCarrier = resolveCsharpCatchVariableCarrier(subject);
+    if (catchCarrier !== undefined) {
+      return {
+        value: { carrier: catchCarrier },
+        evidence: [{ message: "C# catch binding carrier from target exception model." }],
+      };
+    }
+  }
+
   const directTargetBinding = context.facts.get(subject, targetBindingFactKey);
   if (directTargetBinding !== undefined) {
     return runtimeCarrierFromTargetBinding(directTargetBinding.id);
@@ -532,6 +543,16 @@ function runtimeCarrierFromTargetBinding(id: string): { readonly value: RuntimeC
     },
     evidence: [{ message: `C# carrier from target binding '${id}'.` }],
   };
+}
+
+function resolveCsharpCatchVariableCarrier(node: Node): TargetTypeRef | undefined {
+  if (node.Kind === KindVariableDeclaration && node.Parent?.Kind === KindCatchClause) {
+    return csharpNamed("System.Exception");
+  }
+  if (node.Kind === KindIdentifier && node.Parent?.Kind === KindVariableDeclaration && node.Parent.Parent?.Kind === KindCatchClause) {
+    return csharpNamed("System.Exception");
+  }
+  return undefined;
 }
 
 function resolveCsharpRuntimeCarrierForSymbol(

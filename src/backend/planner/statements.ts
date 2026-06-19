@@ -70,6 +70,7 @@ import { planExpression, planExpressionWithExpectedType } from "./expressions.js
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
+import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -674,8 +675,20 @@ function planCatchClause(
         },
       };
     }
-    diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission."));
+    const carrier = input.facts.getRuntimeCarrierFact(variable.name ?? clause.VariableDeclaration)?.carrier ??
+      input.facts.getRuntimeCarrierFact(clause.VariableDeclaration)?.carrier;
+    const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+    if (!isCsharpExceptionCarrier(carrier) || variableType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission."));
+      return {
+        body: {
+          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+        },
+      };
+    }
     return {
+      variableType,
+      variableName: variable.name === undefined ? undefined : sanitizeIdentifier(Node_Text(variable.name)),
       body: {
         statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
       },
