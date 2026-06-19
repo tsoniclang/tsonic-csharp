@@ -10,13 +10,14 @@ import {
   KindStringLiteral,
   Node_Text,
 } from "@tsonic/tsts";
-import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
+import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { getSemanticOwnership, isSourceOwnedProjectShapeType, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
@@ -176,7 +177,7 @@ function planArrayBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  const sourceCarrier = getRuntimeCarrier(input, sourceNode, sourceFile);
+  const sourceCarrier = getRuntimeCarrierForExpression(input, sourceNode, sourceFile);
   if (sourceCarrier === undefined || (sourceCarrier.kind !== "array" && sourceCarrier.kind !== "tuple")) {
     diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression."));
     return [];
@@ -353,27 +354,6 @@ function getDirectSourcePropertyName(
   return sanitizeIdentifier(Node_Text(propertyName));
 }
 
-function getRuntimeCarrier(
-  input: TargetCompileInput,
-  sourceNode: Node | undefined,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  if (sourceNode === undefined) {
-    return undefined;
-  }
-  const direct = input.facts.getRuntimeCarrierFact(sourceNode)?.carrier;
-  if (direct !== undefined) {
-    return direct;
-  }
-  const symbol = input.checker.getSymbolAtLocation(sourceNode, { sourceFile }) ?? input.checker.getResolvedSymbol(sourceNode, { sourceFile });
-  const symbolCarrier = input.facts.getRuntimeCarrierFact(symbol)?.carrier;
-  if (symbolCarrier !== undefined) {
-    return symbolCarrier;
-  }
-  const sourceType = input.checker.getTypeAtLocation(sourceNode, { sourceFile });
-  return sourceType === undefined ? undefined : getRuntimeCarrierForType(input, sourceType);
-}
-
 function isSourceOwnedBindingElement(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
@@ -384,11 +364,6 @@ function isSourceOwnedBindingElement(
   }
   const sourceType = input.checker.getTypeAtLocation(sourceNode, { sourceFile });
   return isSourceOwnedProjectShapeType(sourceType, input);
-}
-
-function getRuntimeCarrierForType(input: TargetCompileInput, type: Type): TargetTypeRef | undefined {
-  return input.facts.getRuntimeCarrierFact(type)?.carrier ??
-    input.facts.getRuntimeCarrierFact(type.symbol)?.carrier;
 }
 
 function getNodeParent(node: Node): Node | undefined {

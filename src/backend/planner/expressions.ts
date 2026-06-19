@@ -96,9 +96,11 @@ import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js"
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, diagnoseUnsupportedAsyncSemantics } from "./modifiers.js";
+import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import type { OperationSemanticOwnership } from "./semantic-guards.js";
 import { planBlockStatements } from "./statements.js";
+import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 export function planExpression(
   node: Node,
@@ -154,8 +156,7 @@ export function planExpression(
       };
     }
     case KindArrayLiteralExpression: {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires an expected target array or tuple type from TSTS/provider facts before C# emission."));
-      return invalidExpression("array literal without expected target type");
+      return planArrayLiteralExpressionFromFacts(node, sourceFile, input, diagnostics);
     }
     case KindObjectLiteralExpression:
       diagnostics.push(unsupportedNodeDiagnostic(node, "Object literals require an explicit target type before C# emission."));
@@ -649,6 +650,28 @@ function planArrayLiteralExpression(
       .filter((element): element is Node => element !== undefined)
       .map((element) => planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType)),
   };
+}
+
+function planArrayLiteralExpressionFromFacts(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const carrier = getRuntimeCarrierForExpression(input, node, sourceFile);
+  if (carrier?.kind === "array") {
+    const elementType = csharpTypeFromTargetTypeRef(carrier.element);
+    if (elementType !== undefined) {
+      return planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType);
+    }
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires a renderable provider element carrier type before C# emission."));
+    return invalidExpression("array literal with unrenderable element carrier");
+  }
+  if (carrier?.kind === "tuple") {
+    return planTupleLiteralExpression(node, sourceFile, input, diagnostics);
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires finalized TSTS/provider array or tuple runtime-carrier facts before C# emission."));
+  return invalidExpression("array literal without runtime carrier");
 }
 
 function tryPlanBinaryExpression(

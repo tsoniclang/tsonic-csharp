@@ -178,7 +178,7 @@ export function planStatements(
       if (isErasedAttributeExpressionStatement(node, input)) {
         return [];
       }
-      return [expressionStatement(planExpression(AsExpressionStatement(node)!.Expression!, sourceFile, input, diagnostics))];
+      return [expressionStatement(planDiscardedExpression(planExpression(AsExpressionStatement(node)!.Expression!, sourceFile, input, diagnostics)))];
     case KindIfStatement: {
       const statement = AsIfStatement(node)!;
       return [{
@@ -751,4 +751,51 @@ function expressionStatement(expression: CsharpExpression): CsharpStatement {
     kind: "expression",
     expression,
   };
+}
+
+function planDiscardedExpression(expression: CsharpExpression): CsharpExpression {
+  return isValidCsharpExpressionStatement(expression)
+    ? expression
+    : {
+        kind: "binary",
+        left: { kind: "identifier", name: "_" },
+        operator: "=",
+        right: expression,
+      };
+}
+
+function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean {
+  switch (expression.kind) {
+    case "call":
+    case "new":
+    case "objectInitializer":
+    case "postfixUnary":
+      return true;
+    case "prefixUnary":
+      return expression.operator === "++" || expression.operator === "--";
+    case "binary":
+      return isAssignmentOperator(expression.operator);
+    default:
+      return false;
+  }
+}
+
+function isAssignmentOperator(operator: string): boolean {
+  switch (operator) {
+    case "=":
+    case "+=":
+    case "-=":
+    case "*=":
+    case "/=":
+    case "%=":
+    case "&=":
+    case "|=":
+    case "^=":
+    case "<<=":
+    case ">>=":
+    case ">>>=":
+      return true;
+    default:
+      return false;
+  }
 }
