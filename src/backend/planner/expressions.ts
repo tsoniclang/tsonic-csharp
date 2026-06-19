@@ -1024,6 +1024,10 @@ function tryPlanBinaryExpression(
     return invalidExpression("selected target operator");
   }
   const expression = AsBinaryExpression(node)!;
+  const typeTest = tryPlanTypeTestExpression(expression, selectedOperator, sourceFile, input, diagnostics);
+  if (typeTest !== undefined) {
+    return typeTest;
+  }
   const typeofComparison = tryPlanTypeofComparisonExpression(expression, selectedOperator, sourceFile, input, diagnostics);
   if (typeofComparison !== undefined) {
     return typeofComparison;
@@ -1041,6 +1045,27 @@ function tryPlanBinaryExpression(
     left: planExpression(expression.Left!, sourceFile, input, diagnostics),
     operator,
     right: planExpression(expression.Right!, sourceFile, input, diagnostics),
+  };
+}
+
+function tryPlanTypeTestExpression(
+  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
+  selectedOperator: ReturnType<TargetCompileInput["facts"]["getSelectedTargetOperator"]>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  if (selectedOperator?.operationKind !== "operator" || selectedOperator.targetOperation !== "is") {
+    return undefined;
+  }
+  if (expression.Left === undefined || expression.Right === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(expression.Left!, "Provider selected a type-test operation, but the expression is missing an operand."));
+    return invalidExpression("selected type-test without operands");
+  }
+  return {
+    kind: "isType",
+    expression: planExpression(expression.Left, sourceFile, input, diagnostics),
+    type: expressionToCsharpType(expression.Right, sourceFile, input, diagnostics),
   };
 }
 

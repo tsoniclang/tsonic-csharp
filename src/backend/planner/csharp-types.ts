@@ -65,6 +65,12 @@ function getCsharpTypeForExpressionReference(
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
+  const sourceReferenceName = getProjectSourceReferenceTypeName(
+    input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }),
+  );
+  if (sourceReferenceName !== undefined) {
+    return { kind: "named", name: sanitizeIdentifier(sourceReferenceName) };
+  }
   const symbols = getTypeReferenceSymbols(node, sourceFile, input);
   const targetBinding = firstDefined(symbols.map((symbol) => input.facts.getTargetBindingFact(symbol)));
   if (targetBinding !== undefined) {
@@ -79,6 +85,22 @@ function getCsharpTypeForExpressionReference(
   }
   diagnostics?.push(unsupportedNodeDiagnostic(node, "C# type expression emission requires a provider target binding or a project-source class/interface declaration."));
   return invalidType("unresolved type expression");
+}
+
+function getProjectSourceReferenceTypeName(
+  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+): string | undefined {
+  if (reference === undefined) {
+    return undefined;
+  }
+  if (
+    reference.declaration.Kind !== KindClassDeclaration &&
+    reference.declaration.Kind !== KindInterfaceDeclaration &&
+    reference.declaration.Kind !== KindEnumDeclaration
+  ) {
+    return undefined;
+  }
+  return reference.symbol.Name;
 }
 
 export function getCsharpTypeForNode(

@@ -1984,7 +1984,11 @@ function resolveSourceProjectInstanceOfOperator(request: ResolveOperatorRequest)
   if (request.operator !== "instanceof") {
     return undefined;
   }
-  const rightSymbol = request.rightSymbol !== undefined && isSymbolSubject(request.rightSymbol)
+  const rightSymbol = request.rightAliasedSymbol !== undefined && isSymbolSubject(request.rightAliasedSymbol)
+    ? request.rightAliasedSymbol
+    : request.rightResolvedSymbol !== undefined && isSymbolSubject(request.rightResolvedSymbol)
+    ? request.rightResolvedSymbol
+    : request.rightSymbol !== undefined && isSymbolSubject(request.rightSymbol)
     ? request.rightSymbol
     : undefined;
   if (getSourceProjectClassName(rightSymbol) === undefined) {
