@@ -1,5 +1,6 @@
 export { createCsharpTargetPack, csharpTargetId } from "./descriptor/csharp-target-pack.js";
 export {
+  csharpLangModule,
   csharpTypesModule,
   createCsharpCoreVirtualModulesExtension,
   createCsharpSourceSemanticsExtension,
@@ -13,6 +14,10 @@ export type {
   CsharpCompilationUnit,
   CsharpExpression,
   CsharpFieldDeclaration,
+  CsharpInterfaceDeclaration,
+  CsharpInterfaceMember,
+  CsharpInterfaceMethodDeclaration,
+  CsharpInterfacePropertyDeclaration,
   CsharpMember,
   CsharpMethodDeclaration,
   CsharpModifier,

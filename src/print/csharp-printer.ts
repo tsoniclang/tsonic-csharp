@@ -3,6 +3,7 @@ import type {
   CsharpCompilationUnit,
   CsharpExpression,
   CsharpForInitializer,
+  CsharpInterfaceMember,
   CsharpLocalDeclaration,
   CsharpMethodDeclaration,
   CsharpStatement,
@@ -32,6 +33,7 @@ export function printCsharpCompilationUnit(unit: CsharpCompilationUnit): string 
         break;
       case "class":
       case "struct":
+      case "interface":
         lines.push(...printTypeDeclarationLines(member));
         break;
     }
@@ -47,12 +49,35 @@ function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[]
     ...(declaration.interfaces ?? []),
   ];
   const baseList = bases.length === 0 ? "" : ` : ${bases.map(printCsharpType).join(", ")}`;
+  if (declaration.kind === "interface") {
+    return [
+      `${modifiers}interface ${declaration.name}${typeParameters}${baseList}`,
+      "{",
+      ...indentLines(declaration.members.flatMap(printInterfaceMemberLines)),
+      "}",
+    ];
+  }
   return [
     `${modifiers}${declaration.kind} ${declaration.name}${typeParameters}${baseList}`,
     "{",
     ...indentLines(declaration.members.flatMap(printTypeMemberLines)),
     "}",
   ];
+}
+
+function printInterfaceMemberLines(member: CsharpInterfaceMember): string[] {
+  switch (member.kind) {
+    case "interface-method": {
+      const typeParameters = printTypeParameters(member.typeParameters);
+      const parameters = member.parameters.map((parameter) => {
+        const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
+        return `${passing}${printCsharpType(parameter.type)} ${parameter.name}`;
+      }).join(", ");
+      return [`${printCsharpType(member.returnType)} ${member.name}${typeParameters}(${parameters});`];
+    }
+    case "interface-property":
+      return [`${printCsharpType(member.type)} ${member.name} { get; }`];
+  }
 }
 
 function printTypeMemberLines(member: CsharpTypeMember): string[] {

@@ -22,6 +22,7 @@ import type { TargetExtensionContext } from "@tsonic/target-api";
 export const neutralTypesModule = "@tsonic/core/types.js";
 export const csharpTypesModule = "@tsonic/csharp/types.js";
 export const neutralLangModule = "@tsonic/core/lang.js";
+export const csharpLangModule = "@tsonic/csharp/lang.js";
 
 export function createCsharpSourceSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
   return createSourceSemanticsExtension({
@@ -101,12 +102,23 @@ function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
         { kind: "call-marker", exportName: "out", marker: "out" },
         { kind: "call-marker", exportName: "ref", marker: "ref" },
         { kind: "call-marker", exportName: "inref", marker: "inref" },
-        { kind: "call-marker", exportName: "struct", marker: "struct" },
+        { kind: "call-marker", exportName: "borrow", marker: "borrow" },
+        { kind: "call-marker", exportName: "borrowMut", marker: "borrowMut" },
+        { kind: "call-marker", exportName: "move", marker: "move" },
+        { kind: "call-marker", exportName: "valueType", marker: "valueType" },
         { kind: "call-marker", exportName: "field", marker: "field" },
-        { kind: "call-marker", exportName: "attribute", marker: "attribute" },
         { kind: "call-marker", exportName: "defaultof", marker: "defaultof" },
         { kind: "type-marker", exportName: "ptr", marker: "ptr" },
         { kind: "type-marker", exportName: "fnptr", marker: "fnptr" },
+      ],
+    },
+    {
+      moduleSpecifier: csharpLangModule,
+      packageName: "@tsonic/csharp",
+      subpath: "lang.js",
+      exports: [
+        { kind: "call-marker", exportName: "struct", marker: "valueType" },
+        { kind: "call-marker", exportName: "attribute", marker: "attribute" },
       ],
     },
   ];

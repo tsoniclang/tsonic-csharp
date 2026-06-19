@@ -15,7 +15,7 @@ export interface CsharpNamespace {
   readonly members: readonly CsharpTypeDeclaration[];
 }
 
-export type CsharpTypeDeclaration = CsharpClassDeclaration | CsharpStructDeclaration;
+export type CsharpTypeDeclaration = CsharpClassDeclaration | CsharpStructDeclaration | CsharpInterfaceDeclaration;
 
 export interface CsharpClassDeclaration {
   readonly kind: "class";
@@ -36,7 +36,32 @@ export interface CsharpStructDeclaration {
   readonly members: readonly CsharpTypeMember[];
 }
 
+export interface CsharpInterfaceDeclaration {
+  readonly kind: "interface";
+  readonly name: string;
+  readonly modifiers: readonly CsharpModifier[];
+  readonly typeParameters?: readonly CsharpTypeParameter[];
+  readonly interfaces?: readonly CsharpTypeNode[];
+  readonly members: readonly CsharpInterfaceMember[];
+}
+
 export type CsharpTypeMember = CsharpConstructorDeclaration | CsharpMethodDeclaration | CsharpFieldDeclaration;
+
+export type CsharpInterfaceMember = CsharpInterfaceMethodDeclaration | CsharpInterfacePropertyDeclaration;
+
+export interface CsharpInterfaceMethodDeclaration {
+  readonly kind: "interface-method";
+  readonly name: string;
+  readonly typeParameters?: readonly CsharpTypeParameter[];
+  readonly returnType: CsharpTypeNode;
+  readonly parameters: readonly CsharpParameter[];
+}
+
+export interface CsharpInterfacePropertyDeclaration {
+  readonly kind: "interface-property";
+  readonly name: string;
+  readonly type: CsharpTypeNode;
+}
 
 export interface CsharpConstructorDeclaration {
   readonly kind: "constructor";

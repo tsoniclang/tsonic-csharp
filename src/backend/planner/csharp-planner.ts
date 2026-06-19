@@ -30,7 +30,7 @@ import type {
 } from "../ast/csharp-ast.js";
 import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
 import { predefined } from "./csharp-types.js";
-import { planClassDeclaration, planFunctionDeclaration } from "./declarations.js";
+import { planClassDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { projectArtifact, readNamespace } from "./project-artifacts.js";
 import { sourceFileArtifactPath, sourceFileClassName } from "./source-paths.js";
@@ -80,9 +80,11 @@ function planSourceFile(
       case KindImportDeclaration:
       case KindExportDeclaration:
       case KindExportAssignment:
-      case KindInterfaceDeclaration:
       case KindTypeAliasDeclaration:
         continue;
+      case KindInterfaceDeclaration:
+        namespaceMembers.push(planInterfaceDeclaration(statement, sourceFile, input, diagnostics));
+        break;
       case KindFunctionDeclaration:
         members.push(planFunctionDeclaration(statement, sourceFile, input, diagnostics));
         break;

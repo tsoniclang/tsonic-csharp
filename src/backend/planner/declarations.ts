@@ -2,11 +2,17 @@ import {
   AsClassDeclaration,
   AsConstructorDeclaration,
   AsFunctionDeclaration,
+  AsInterfaceDeclaration,
   AsMethodDeclaration,
+  AsMethodSignatureDeclaration,
   AsPropertyDeclaration,
+  AsPropertySignatureDeclaration,
   KindConstructor,
+  KindIndexSignature,
   KindMethodDeclaration,
+  KindMethodSignature,
   KindPropertyDeclaration,
+  KindPropertySignature,
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -14,12 +20,17 @@ import type {
   CsharpClassDeclaration,
   CsharpConstructorDeclaration,
   CsharpFieldDeclaration,
+  CsharpInterfaceDeclaration,
+  CsharpInterfaceMember,
+  CsharpInterfaceMethodDeclaration,
+  CsharpInterfacePropertyDeclaration,
   CsharpMethodDeclaration,
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpressionWithExpectedType } from "./expressions.js";
+import { planClassHeritage, planInterfaceHeritage } from "./heritage.js";
 import { planIdentifierName } from "./names.js";
 import { planParameters } from "./parameters.js";
 import { planBlockStatements } from "./statements.js";
@@ -33,11 +44,14 @@ export function planClassDeclaration(
 ): CsharpClassDeclaration {
   const declaration = AsClassDeclaration(node)!;
   const className = planIdentifierName(declaration.name, "AnonymousClass", diagnostics, "Class name");
+  const heritage = planClassHeritage(declaration.HeritageClauses?.Nodes ?? [], sourceFile, input, diagnostics);
   return {
     kind: "class",
     name: className,
     modifiers: ["public"],
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
+    ...(heritage.interfaces.length === 0 ? {} : { interfaces: heritage.interfaces }),
     members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpTypeMember[] => {
       if (member === undefined) {
         return [];
@@ -51,6 +65,40 @@ export function planClassDeclaration(
           return [planPropertyDeclaration(member, sourceFile, input, diagnostics)];
         default:
           diagnostics.push(unsupportedNodeDiagnostic(member, "Class member is outside the current C# planning surface."));
+          return [];
+      }
+    }),
+  };
+}
+
+export function planInterfaceDeclaration(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpInterfaceDeclaration {
+  const declaration = AsInterfaceDeclaration(node)!;
+  const interfaces = planInterfaceHeritage(declaration.HeritageClauses?.Nodes ?? [], sourceFile, input, diagnostics);
+  return {
+    kind: "interface",
+    name: planIdentifierName(declaration.name, "AnonymousInterface", diagnostics, "Interface name"),
+    modifiers: ["public"],
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    ...(interfaces.length === 0 ? {} : { interfaces }),
+    members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
+      if (member === undefined) {
+        return [];
+      }
+      switch (member.Kind) {
+        case KindMethodSignature:
+          return [planInterfaceMethodDeclaration(member, sourceFile, input, diagnostics)];
+        case KindPropertySignature:
+          return [planInterfacePropertyDeclaration(member, sourceFile, input, diagnostics)];
+        case KindIndexSignature:
+          diagnostics.push(unsupportedNodeDiagnostic(member, "Index signatures require finalized target indexer facts before C# interface emission."));
+          return [];
+        default:
+          diagnostics.push(unsupportedNodeDiagnostic(member, "Interface member is outside the current C# planning surface."));
           return [];
       }
     }),
@@ -114,6 +162,39 @@ function planMethodDeclaration(
     body: {
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
     },
+  };
+}
+
+function planInterfaceMethodDeclaration(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpInterfaceMethodDeclaration {
+  const declaration = AsMethodSignatureDeclaration(node)!;
+  return {
+    kind: "interface-method",
+    name: planIdentifierName(declaration.name, "method", diagnostics, "Interface method name"),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
+    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+  };
+}
+
+function planInterfacePropertyDeclaration(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpInterfacePropertyDeclaration {
+  const declaration = AsPropertySignatureDeclaration(node)!;
+  if (declaration.Initializer !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Interface property initializers have no direct C# interface equivalent."));
+  }
+  return {
+    kind: "interface-property",
+    name: planIdentifierName(declaration.name, "property", diagnostics, "Interface property name"),
+    type: getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, predefined("object"), diagnostics),
   };
 }
 

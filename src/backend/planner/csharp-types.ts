@@ -1,5 +1,6 @@
 import {
   AsArrayTypeNode,
+  AsExpressionWithTypeArguments,
   AsIdentifier,
   AsPropertyAccessExpression,
   AsTypeReferenceNode,
@@ -8,6 +9,7 @@ import {
   KindAnyKeyword,
   KindBigIntKeyword,
   KindBooleanKeyword,
+  KindExpressionWithTypeArguments,
   KindIdentifier,
   KindNeverKeyword,
   KindNumberKeyword,
@@ -40,6 +42,7 @@ export function expressionToCsharpType(
   node: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
   if (node === undefined) {
     return predefined("object");
@@ -49,12 +52,29 @@ export function expressionToCsharpType(
       return { kind: "named", name: sanitizeIdentifier(AsIdentifier(node)!.Text) };
     case KindPropertyAccessExpression: {
       const expression = AsPropertyAccessExpression(node)!;
-      const receiver = expressionToCsharpType(expression.Expression, sourceFile, input);
+      const receiver = expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics);
       const name = sanitizeIdentifier(Node_Text(expression.name!));
       return { kind: "qualified", left: receiver, name };
     }
+    case KindExpressionWithTypeArguments: {
+      const expression = AsExpressionWithTypeArguments(node)!;
+      const rendered = expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics);
+      const typeArguments = (expression.TypeArguments?.Nodes ?? [])
+        .filter((argument): argument is Node => argument !== undefined)
+        .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, predefined("object"), diagnostics));
+      if (typeArguments.length === 0) {
+        return rendered;
+      }
+      switch (rendered.kind) {
+        case "named":
+        case "qualified":
+          return { ...rendered, typeArguments };
+        default:
+          return rendered;
+      }
+    }
     default:
-      return getCsharpTypeForNode(node, sourceFile, input);
+      return getCsharpTypeForNode(node, sourceFile, input, predefined("object"), diagnostics);
   }
 }
 
@@ -93,7 +113,7 @@ export function getCsharpTypeForNode(
   }
   if (node.Kind === KindTypeReference) {
     const typeReference = AsTypeReferenceNode(node)!;
-    const rendered = expressionToCsharpType(typeReference.TypeName, sourceFile, input);
+    const rendered = expressionToCsharpType(typeReference.TypeName, sourceFile, input, diagnostics);
     const typeArguments = (typeReference.TypeArguments?.Nodes ?? [])
       .filter((argument): argument is Node => argument !== undefined)
       .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, predefined("object"), diagnostics));
