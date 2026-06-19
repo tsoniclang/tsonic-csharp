@@ -1,4 +1,5 @@
 import {
+  AsExportAssignment,
   AsVariableDeclarationList,
   AsVariableStatement,
   KindClassDeclaration,
@@ -35,9 +36,11 @@ import type {
 } from "../ast/csharp-ast.js";
 import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
 import { isErasedAttributeExpressionStatement } from "./attributes.js";
-import { predefined } from "./csharp-types.js";
+import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
+import { planExpression } from "./expressions.js";
+import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration } from "./locals.js";
 import { beginObjectShapePlanning, takeObjectShapeDeclarations } from "./object-shapes.js";
 import { projectArtifact, readNamespace } from "./project-artifacts.js";
@@ -112,9 +115,13 @@ function planSourceFile(
       case KindTypeAliasDeclaration:
       case KindExportDeclaration:
         continue;
-      case KindExportAssignment:
-        diagnostics.push(unsupportedNodeDiagnostic(statement, "Export assignments require finalized TSTS module-export facts before C# emission."));
+      case KindExportAssignment: {
+        const exportMember = planExportAssignment(statement, sourceFile, input, diagnostics);
+        if (exportMember !== undefined) {
+          members.push(exportMember);
+        }
         break;
+      }
       case KindInterfaceDeclaration:
         namespaceMembers.push(planInterfaceDeclaration(statement, sourceFile, input, diagnostics));
         break;
@@ -183,6 +190,30 @@ function planSourceFile(
     fileName,
     moduleClassName,
     unit,
+  };
+}
+
+function planExportAssignment(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpTypeMember | undefined {
+  const assignment = AsExportAssignment(node)!;
+  if (assignment.IsExportEquals) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Export equals requires finalized TSTS CommonJS module-export facts before C# emission."));
+    return undefined;
+  }
+  if (assignment.Expression === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Default export assignment must have an expression."));
+    return undefined;
+  }
+  return {
+    kind: "field",
+    name: sanitizeIdentifier("default"),
+    modifiers: ["public", "static", "readonly"],
+    type: getCsharpTypeForNode(assignment.Expression, sourceFile, input, undefined, diagnostics),
+    initializer: planExpression(assignment.Expression, sourceFile, input, diagnostics),
   };
 }
 

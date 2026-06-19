@@ -35,6 +35,7 @@ import {
   KindConditionalExpression,
   KindElementAccessExpression,
   KindEqualsToken,
+  KindExportAssignment,
   KindFalseKeyword,
   KindFunctionDeclaration,
   KindFunctionExpression,
@@ -292,7 +293,9 @@ function planIdentifierExpression(
 }
 
 function isModuleStaticValueDeclaration(declaration: Node): boolean {
-  return declaration.Kind === KindFunctionDeclaration || declaration.Kind === KindVariableDeclaration;
+  return declaration.Kind === KindFunctionDeclaration ||
+    declaration.Kind === KindVariableDeclaration ||
+    declaration.Kind === KindExportAssignment;
 }
 
 function planProjectSourceModuleMemberReference(
