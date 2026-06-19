@@ -55,9 +55,11 @@ import type {
 } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
+import { createDestructuringPlannerState } from "./bindings.js";
+import type { DestructuringPlannerState } from "./bindings.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { planLocalDeclaration } from "./locals.js";
+import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
 import { planIdentifierName } from "./names.js";
 
 export function planBlockStatements(
@@ -65,13 +67,14 @@ export function planBlockStatements(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
   if (blockNode === undefined) {
     return [];
   }
   const block = AsBlock(blockNode)!;
   return (block.Statements?.Nodes ?? []).flatMap((statement) =>
-    statement === undefined ? [] : planStatements(statement, sourceFile, input, diagnostics));
+    statement === undefined ? [] : planStatements(statement, sourceFile, input, diagnostics, state));
 }
 
 export function planStatements(
@@ -79,6 +82,7 @@ export function planStatements(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
   switch (node.Kind) {
     case KindEmptyStatement:
@@ -87,7 +91,7 @@ export function planStatements(
       return [{
         kind: "block",
         body: {
-          statements: planBlockStatements(node, sourceFile, input, diagnostics),
+          statements: planBlockStatements(node, sourceFile, input, diagnostics, state),
         },
       }];
     case KindReturnStatement: {
@@ -147,13 +151,13 @@ export function planStatements(
       return [{
         kind: "label",
         name: sanitizeIdentifier(Node_Text(statement.Label!)),
-        statement: planSingleStatement(statement.Statement, sourceFile, input, diagnostics),
+        statement: planSingleStatement(statement.Statement, sourceFile, input, diagnostics, state),
       }];
     }
     case KindSwitchStatement:
-      return [planSwitchStatement(node, sourceFile, input, diagnostics)];
+      return [planSwitchStatement(node, sourceFile, input, diagnostics, state)];
     case KindTryStatement:
-      return [planTryStatement(node, sourceFile, input, diagnostics)];
+      return [planTryStatement(node, sourceFile, input, diagnostics, state)];
     case KindExpressionStatement:
       return [expressionStatement(planExpression(AsExpressionStatement(node)!.Expression!, sourceFile, input, diagnostics))];
     case KindIfStatement: {
@@ -162,10 +166,10 @@ export function planStatements(
         kind: "if",
         condition: planExpression(statement.Expression!, sourceFile, input, diagnostics),
         thenBody: {
-          statements: planNestedStatementBody(statement.ThenStatement, sourceFile, input, diagnostics),
+          statements: planNestedStatementBody(statement.ThenStatement, sourceFile, input, diagnostics, state),
         },
         ...(statement.ElseStatement !== undefined
-          ? { elseBody: { statements: planNestedStatementBody(statement.ElseStatement, sourceFile, input, diagnostics) } }
+          ? { elseBody: { statements: planNestedStatementBody(statement.ElseStatement, sourceFile, input, diagnostics, state) } }
           : {}),
       }];
     }
@@ -175,7 +179,7 @@ export function planStatements(
         kind: "while",
         condition: planExpression(statement.Expression!, sourceFile, input, diagnostics),
         body: {
-          statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics),
+          statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
         },
       }];
     }
@@ -184,7 +188,7 @@ export function planStatements(
       return [{
         kind: "do",
         body: {
-          statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics),
+          statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
         },
         condition: planExpression(statement.Expression!, sourceFile, input, diagnostics),
       }];
@@ -203,7 +207,7 @@ export function planStatements(
           ? { incrementor: planExpression(statement.Incrementor, sourceFile, input, diagnostics) }
           : {}),
         body: {
-          statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics),
+          statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
         },
       }];
     }
@@ -215,7 +219,7 @@ export function planStatements(
       if (statement.AwaitModifier !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "For-await-of requires async iteration semantics and is not implemented yet."));
       }
-      return [planForOfStatement(statement, sourceFile, input, diagnostics)];
+      return [planForOfStatement(statement, sourceFile, input, diagnostics, state)];
     }
     case KindVariableStatement: {
       const declarationList = AsVariableStatement(node)!.DeclarationList;
@@ -226,10 +230,7 @@ export function planStatements(
       }
       return declarations
         .filter((declaration): declaration is Node => declaration !== undefined)
-        .map((declaration) => ({
-            kind: "local",
-            ...planLocalDeclaration(declaration, sourceFile, input, diagnostics),
-        }));
+        .flatMap((declaration) => planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state));
     }
     default:
       diagnostics.push(unsupportedNodeDiagnostic(node, "Statement is outside the current C# planning surface."));
@@ -242,6 +243,7 @@ function planForOfStatement(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
 ): CsharpStatement {
   const binding = planForOfBinding(statement.Initializer, sourceFile, input, diagnostics);
   return {
@@ -250,7 +252,7 @@ function planForOfStatement(
     itemName: binding.name,
     collection: planExpression(statement.Expression!, sourceFile, input, diagnostics),
     body: {
-      statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics),
+      statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
     },
   };
 }
@@ -304,8 +306,9 @@ function planSingleStatement(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
 ): CsharpStatement {
-  const statements = planNestedStatementBody(node, sourceFile, input, diagnostics);
+  const statements = planNestedStatementBody(node, sourceFile, input, diagnostics, state);
   if (statements.length === 1) {
     return statements[0]!;
   }
@@ -320,12 +323,13 @@ function planSwitchStatement(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
 ): CsharpStatement {
   const statement = AsSwitchStatement(node)!;
   return {
     kind: "switch",
     expression: planExpression(statement.Expression!, sourceFile, input, diagnostics),
-    sections: planSwitchSections(statement.CaseBlock, sourceFile, input, diagnostics),
+    sections: planSwitchSections(statement.CaseBlock, sourceFile, input, diagnostics, state),
   };
 }
 
@@ -334,6 +338,7 @@ function planSwitchSections(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
 ): readonly CsharpSwitchSection[] {
   if (caseBlockNode === undefined) {
     return [];
@@ -341,7 +346,7 @@ function planSwitchSections(
   const caseBlock = AsCaseBlock(caseBlockNode)!;
   const sections = (caseBlock.Clauses?.Nodes ?? [])
     .filter((clause): clause is Node => clause !== undefined)
-    .map((clause) => planSwitchSection(clause, sourceFile, input, diagnostics));
+    .map((clause) => planSwitchSection(clause, sourceFile, input, diagnostics, state));
   for (const section of sections) {
     const last = section.statements[section.statements.length - 1];
     if (section.statements.length > 0 && (last === undefined || !statementTerminatesSwitchSection(last))) {
@@ -361,6 +366,7 @@ function planSwitchSection(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
 ): CsharpSwitchSection {
   const clause = AsCaseOrDefaultClause(clauseNode)!;
   return {
@@ -369,7 +375,7 @@ function planSwitchSection(
       : { kind: "case", expression: planExpression(clause.Expression!, sourceFile, input, diagnostics) },
     statements: (clause.Statements?.Nodes ?? [])
       .filter((statement): statement is Node => statement !== undefined)
-      .flatMap((statement) => planStatements(statement, sourceFile, input, diagnostics)),
+      .flatMap((statement) => planStatements(statement, sourceFile, input, diagnostics, state)),
   };
 }
 
@@ -394,18 +400,19 @@ function planTryStatement(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
 ): CsharpStatement {
   const statement = AsTryStatement(node)!;
   return {
     kind: "try",
     tryBody: {
-      statements: planBlockStatements(statement.TryBlock, sourceFile, input, diagnostics),
+      statements: planBlockStatements(statement.TryBlock, sourceFile, input, diagnostics, state),
     },
     ...(statement.CatchClause !== undefined
-      ? { catchClause: planCatchClause(statement.CatchClause, sourceFile, input, diagnostics) }
+      ? { catchClause: planCatchClause(statement.CatchClause, sourceFile, input, diagnostics, state) }
       : {}),
     ...(statement.FinallyBlock !== undefined
-      ? { finallyBody: { statements: planBlockStatements(statement.FinallyBlock, sourceFile, input, diagnostics) } }
+      ? { finallyBody: { statements: planBlockStatements(statement.FinallyBlock, sourceFile, input, diagnostics, state) } }
       : {}),
   };
 }
@@ -415,6 +422,7 @@ function planCatchClause(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
 ): CsharpCatchClause {
   const clause = AsCatchClause(node)!;
   return {
@@ -422,7 +430,7 @@ function planCatchClause(
       ? { variableName: planIdentifierName(AsVariableDeclaration(clause.VariableDeclaration)!.name, "ex", diagnostics, "Catch variable name") }
       : {}),
     body: {
-      statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics),
+      statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
     },
   };
 }
@@ -458,14 +466,15 @@ function planNestedStatementBody(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   if (node === undefined) {
     return [];
   }
   if (node.Kind === KindBlock) {
-    return planBlockStatements(node, sourceFile, input, diagnostics);
+    return planBlockStatements(node, sourceFile, input, diagnostics, state);
   }
-  return planStatements(node, sourceFile, input, diagnostics);
+  return planStatements(node, sourceFile, input, diagnostics, state);
 }
 
 function expressionStatement(expression: CsharpExpression): CsharpStatement {
