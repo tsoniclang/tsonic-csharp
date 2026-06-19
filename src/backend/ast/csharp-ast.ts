@@ -123,6 +123,7 @@ export interface CsharpParameter {
   readonly type: CsharpTypeNode;
   readonly passing?: "in" | "out" | "ref";
   readonly isParams?: boolean;
+  readonly defaultValue?: CsharpExpression;
 }
 
 export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly";

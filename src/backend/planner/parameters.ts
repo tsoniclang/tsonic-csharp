@@ -6,7 +6,7 @@ import {
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpParameter, CsharpStatement } from "../ast/csharp-ast.js";
+import type { CsharpExpression, CsharpParameter, CsharpStatement } from "../ast/csharp-ast.js";
 import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
@@ -15,6 +15,7 @@ import {
 import type { DestructuringPlannerState } from "./bindings.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
+import { planExpression } from "./expressions.js";
 import { planIdentifierName } from "./names.js";
 
 export interface PlannedParameterList {
@@ -40,20 +41,28 @@ export function planParametersWithPrelude(
 ): PlannedParameterList {
   const parameters: CsharpParameter[] = [];
   const prelude: CsharpStatement[] = [];
+  let hasDefaultParameter = false;
   for (const parameterNode of parameterNodes) {
     const parameter = AsParameterDeclaration(parameterNode)!;
-    if (parameter.Initializer !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Default parameter initializers require target optional-argument lowering before C# emission."));
+    const defaultValue = planParameterDefaultValue(parameter.Initializer, sourceFile, input, diagnostics);
+    if (defaultValue !== undefined) {
+      hasDefaultParameter = true;
+    } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Required parameters cannot follow C# optional parameters."));
     }
     if (parameter.name?.Kind === KindIdentifier) {
       parameters.push({
         name: planIdentifierName(parameter.name, "arg", diagnostics, "Parameter name"),
         type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, undefined, diagnostics),
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
+        ...(defaultValue === undefined ? {} : { defaultValue }),
       });
       continue;
     }
     if (parameter.name?.Kind === KindObjectBindingPattern || parameter.name?.Kind === KindArrayBindingPattern) {
+      if (defaultValue !== undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(parameter.name, "Destructured parameter defaults require target object-shape lowering before C# emission."));
+      }
       const parameterName = allocateSyntheticParameter(state);
       parameters.push({
         name: parameterName,
@@ -67,7 +76,25 @@ export function planParametersWithPrelude(
     parameters.push({
       name: planIdentifierName(parameter.name, "arg", diagnostics, "Parameter name"),
       type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, undefined, diagnostics),
+      ...(defaultValue === undefined ? {} : { defaultValue }),
     });
   }
   return { parameters, prelude };
+}
+
+function planParameterDefaultValue(
+  initializer: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  if (initializer === undefined) {
+    return undefined;
+  }
+  const defaultValue = planExpression(initializer, sourceFile, input, diagnostics);
+  if (defaultValue.kind === "literal") {
+    return defaultValue;
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(initializer, "C# parameter defaults require compile-time literal values."));
+  return undefined;
 }

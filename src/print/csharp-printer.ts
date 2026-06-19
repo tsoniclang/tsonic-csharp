@@ -406,7 +406,10 @@ function printCsharpArgument(argument: CsharpArgument): string {
 function printCsharpParameter(parameter: CsharpParameter): string {
   const paramsPrefix = parameter.isParams === true ? "params " : "";
   const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
-  return `${paramsPrefix}${passing}${printCsharpType(parameter.type)} ${parameter.name}`;
+  const defaultValue = parameter.defaultValue === undefined
+    ? ""
+    : ` = ${printCsharpExpression(parameter.defaultValue)}`;
+  return `${paramsPrefix}${passing}${printCsharpType(parameter.type)} ${parameter.name}${defaultValue}`;
 }
 
 function printLiteral(value: string | number | boolean | null): string {
