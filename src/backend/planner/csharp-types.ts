@@ -21,6 +21,7 @@ import {
   KindObjectBindingPattern,
   GetSourceFileOfNode,
   getTypeScriptArrayElementType,
+  getTypeScriptTypeReferenceInfo,
   KindPropertyAccessExpression,
   KindTypeLiteral,
   KindStringKeyword,
@@ -29,7 +30,6 @@ import {
   KindUnknownKeyword,
   KindVoidKeyword,
   SourceFile_FileName,
-  Type_AsTypeReference,
   TypeFlagsAny,
   TypeFlagsBigIntLike,
   TypeFlagsBooleanLike,
@@ -216,7 +216,7 @@ export function getCsharpTypeForTstsType(
       return csharpType;
     }
   }
-  const typeReference = Type_AsTypeReference(type);
+  const typeReference = getTypeScriptTypeReferenceInfo(type);
   const arrayElementType = getTypeScriptArrayElementType(type);
   if (arrayElementType !== undefined) {
     return {
@@ -224,11 +224,10 @@ export function getCsharpTypeForTstsType(
       elementType: getCsharpTypeForTstsType(arrayElementType, sourceFile, input, diagnostics, diagnosticNode) ?? invalidType("array element type"),
     };
   }
-  const typeReferenceTargetSymbol = typeReference?.__tsgoEmbedded0?.target?.symbol;
+  const typeReferenceTargetSymbol = typeReference?.targetSymbol;
   const sourceTypeName = getProjectSourceTypeName(typeReferenceTargetSymbol ?? typeSymbol, input);
   if (typeReference !== undefined && sourceTypeName !== undefined) {
-    const typeArguments = (typeReference.resolvedTypeArguments ?? [])
-      .filter((argument): argument is Type => argument !== undefined)
+    const typeArguments = typeReference.typeArguments
       .map((argument) => getCsharpTypeForTstsType(argument, sourceFile, input, diagnostics, diagnosticNode) ?? invalidType("unresolved generic type argument"));
     return typeArguments.length === 0
       ? { kind: "named", name: sanitizeIdentifier(sourceTypeName) }
