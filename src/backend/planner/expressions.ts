@@ -204,7 +204,7 @@ export function planExpression(
       const operator = getCsharpPrefixUnaryOperator(expression.Operator);
       if (operator === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Prefix unary operator is outside the current C# planning surface."));
-        return { kind: "identifier", name: "__unsupported" };
+        return invalidExpression("unsupported prefix unary operator");
       }
       return {
         kind: "prefixUnary",
@@ -217,7 +217,7 @@ export function planExpression(
       const operator = getCsharpPostfixUnaryOperator(expression.Operator);
       if (operator === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Postfix unary operator is outside the current C# planning surface."));
-        return { kind: "identifier", name: "__unsupported" };
+        return invalidExpression("unsupported postfix unary operator");
       }
       return {
         kind: "postfixUnary",
@@ -231,9 +231,13 @@ export function planExpression(
         return binary;
       }
       diagnostics.push(unsupportedNodeDiagnostic(node, "Expression is outside the current C# planning surface."));
-      return { kind: "identifier", name: "__unsupported" };
+      return invalidExpression("unsupported expression");
     }
   }
+}
+
+function invalidExpression(reason: string): CsharpExpression {
+  return { kind: "invalid", reason };
 }
 
 export function planCallArgument(

@@ -302,6 +302,8 @@ export function printCsharpExpression(expression: CsharpExpression): string {
   switch (expression.kind) {
     case "identifier":
       return expression.name;
+    case "invalid":
+      throw new Error(`Invalid C# expression reached printer: ${expression.reason}`);
     case "literal":
       return printLiteral(expression.value);
     case "interpolatedString":

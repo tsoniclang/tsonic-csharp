@@ -128,7 +128,7 @@ export function planStatements(
       const statement = AsThrowStatement(node)!;
       if (statement.Expression === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
-        return [expressionStatement({ kind: "identifier", name: "__unsupported" })];
+        return [];
       }
       return [{
         kind: "throw",
@@ -230,20 +230,20 @@ export function planStatements(
     }
     case KindForInStatement:
       diagnostics.push(unsupportedNodeDiagnostic(node, "For-in requires target property enumeration semantics and is not implemented yet."));
-      return [expressionStatement({ kind: "identifier", name: "__unsupported" })];
+      return [];
     case KindForOfStatement: {
       const statement = AsForInOrOfStatement(node)!;
       if (statement.AwaitModifier !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "For-await-of requires async iteration semantics and is not implemented yet."));
       }
-      return [planForOfStatement(statement, sourceFile, input, diagnostics, state)];
+      return planForOfStatement(statement, sourceFile, input, diagnostics, state);
     }
     case KindVariableStatement: {
       const declarationList = AsVariableStatement(node)!.DeclarationList;
       const declarations = AsVariableDeclarationList(declarationList)!.Declarations?.Nodes ?? [];
       if (declarations.length === 0) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Variable statement has no declaration."));
-        return [expressionStatement({ kind: "identifier", name: "__unsupported" })];
+        return [];
       }
       return declarations
         .filter((declaration): declaration is Node => declaration !== undefined)
@@ -251,7 +251,7 @@ export function planStatements(
     }
     default:
       diagnostics.push(unsupportedNodeDiagnostic(node, "Statement is outside the current C# planning surface."));
-      return [expressionStatement({ kind: "identifier", name: "__unsupported" })];
+      return [];
   }
 }
 
@@ -261,9 +261,12 @@ function planForOfStatement(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): CsharpStatement {
+): readonly CsharpStatement[] {
   const binding = planForOfBinding(statement.Initializer, sourceFile, input, diagnostics, state);
-  return {
+  if (binding === undefined) {
+    return [];
+  }
+  return [{
     kind: "foreach",
     itemType: binding.type,
     itemName: binding.name,
@@ -274,7 +277,7 @@ function planForOfStatement(
         ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
       ],
     },
-  };
+  }];
 }
 
 interface PlannedForOfBinding extends CsharpLocalDeclaration {
@@ -287,7 +290,7 @@ function planForOfBinding(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): PlannedForOfBinding {
+): PlannedForOfBinding | undefined {
   if (initializer === undefined) {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_FOR_OF_BINDING",
@@ -295,22 +298,14 @@ function planForOfBinding(
       source: "tsonic-csharp",
       message: "For-of statement has no initializer.",
     });
-    return {
-      name: "__unsupported",
-      type: predefined("object"),
-      prelude: [],
-    };
+    return undefined;
   }
   if (initializer.Kind === KindVariableDeclarationList) {
     const declarations = AsVariableDeclarationList(initializer)!.Declarations?.Nodes ?? [];
     const first = declarations.find((declaration): declaration is Node => declaration !== undefined);
     if (first === undefined || declarations.filter((declaration) => declaration !== undefined).length !== 1) {
       diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of variable declaration must contain exactly one binding."));
-      return {
-        name: "__unsupported",
-        type: predefined("object"),
-        prelude: [],
-      };
+      return undefined;
     }
     const variable = AsVariableDeclaration(first)!;
     if (variable.Initializer !== undefined) {
@@ -347,11 +342,7 @@ function planForOfBinding(
     };
   }
   diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of initializer binding is outside the current C# planning surface."));
-  return {
-    name: "__unsupported",
-    type: predefined("object"),
-    prelude: [],
-  };
+  return undefined;
 }
 
 function planSingleStatement(

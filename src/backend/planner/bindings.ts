@@ -67,17 +67,11 @@ export function planVariableBindingStatements(
   }
   if (bindingName.Kind !== KindObjectBindingPattern && bindingName.Kind !== KindArrayBindingPattern) {
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Variable binding name is outside the current C# planning surface."));
-    return [{
-      kind: "expression",
-      expression: { kind: "identifier", name: "__unsupported" },
-    }];
+    return [];
   }
   if (initializer === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Destructuring variable declaration requires an initializer."));
-    return [{
-      kind: "expression",
-      expression: { kind: "identifier", name: "__unsupported" },
-    }];
+    return [];
   }
   const sourceName = allocateDestructuringTemp(state);
   const sourceExpression: CsharpExpression = { kind: "identifier", name: sourceName };
