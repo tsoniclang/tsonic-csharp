@@ -19,6 +19,8 @@ import {
   KindPropertyDeclaration,
   KindPropertySignature,
   KindSuperKeyword,
+  HasSyntacticModifier,
+  ModifierFlagsStatic,
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -188,7 +190,7 @@ function planMethodDeclaration(
   return {
     kind: "method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
-    modifiers: ["public"],
+    modifiers: planClassMemberModifiers(node),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
@@ -242,10 +244,16 @@ function planPropertyDeclaration(
   return {
     kind: "field",
     name: planIdentifierName(declaration.name, "field", diagnostics, "Property name"),
-    modifiers: ["public"],
+    modifiers: planClassMemberModifiers(node),
     type,
     ...(declaration.Initializer !== undefined
       ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type) }
       : {}),
   };
+}
+
+function planClassMemberModifiers(node: Node): readonly ("public" | "static")[] {
+  return HasSyntacticModifier(node, ModifierFlagsStatic)
+    ? ["public", "static"]
+    : ["public"];
 }
