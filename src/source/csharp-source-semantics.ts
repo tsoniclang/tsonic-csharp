@@ -4,6 +4,7 @@ import {
   AsNumericLiteral,
   AsParameterDeclaration,
   AsPropertyAccessExpression,
+  AsPropertySignatureDeclaration,
   AsTupleTypeNode,
   GetSourceFileOfNode,
   KindAnyKeyword,
@@ -25,11 +26,15 @@ import {
   KindParameter,
   KindPropertyAccessExpression,
   KindPropertyDeclaration,
+  KindPropertySignature,
   KindStringKeyword,
+  KindStringLiteral,
   KindTupleType,
+  KindTypeLiteral,
   KindUnknownKeyword,
   KindVariableDeclaration,
   KindVoidKeyword,
+  Node_Members,
   SourceFile_FileName,
   TstsProviderContractVersion,
   TypeFlagsAny,
@@ -52,9 +57,11 @@ import {
   isTypeScriptStringLikeType,
   isTypeScriptNullishType,
   Node_Name,
+  Node_Pos,
   Node_Symbol,
   Node_Text,
   Node_Type,
+  objectShapeFactKey,
   runtimeCarrierFactKey,
   sourcePrimitive,
   sourcePrimitiveFactKey,
@@ -81,6 +88,8 @@ import type {
   ResolveOperationResult,
   ResolveOperatorRequest,
   ResolvePropertyAccessRequest,
+  ObjectShapeFact,
+  ObjectShapeMemberFact,
   RuntimeCarrierFact,
   SourceCallMarkerDeclaration,
   SourcePrimitiveDeclaration,
@@ -164,6 +173,8 @@ export function createCsharpSurfaceOperationsExtension(_context: TargetExtension
       context.registerTargetSemanticProvider(provider);
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) =>
         resolveCsharpRuntimeCarrier(subject, resolverContext));
+      context.factResolver.register(objectShapeFactKey, (subject, resolverContext) =>
+        resolveCsharpObjectShape(subject, resolverContext));
     },
   };
 }
@@ -906,6 +917,190 @@ function runtimeCarrierFromTargetBinding(id: string): { readonly value: RuntimeC
     evidence: [{ message: `C# carrier from target binding '${id}'.` }],
   };
 }
+
+function resolveCsharpObjectShape(
+  subject: ExtensionFactSubject,
+  context: ExtensionFactResolverContext,
+): { readonly value: ObjectShapeFact; readonly evidence?: readonly ExtensionEvidence[] } | undefined {
+  const typeLiteral = getObjectShapeTypeLiteralSubject(subject);
+  if (typeLiteral === undefined) {
+    return undefined;
+  }
+  const members = resolveCsharpObjectShapeMembers(typeLiteral, context);
+  if (members === undefined) {
+    return undefined;
+  }
+  return {
+    value: {
+      targetType: {
+        kind: "target-named",
+        id: csharpObjectShapeId(typeLiteral),
+      },
+      members,
+      constructible: true,
+    },
+    evidence: [{ message: "C# structural object carrier from TypeScript type literal." }],
+  };
+}
+
+function getObjectShapeTypeLiteralSubject(subject: ExtensionFactSubject): Node | undefined {
+  if (isNodeSubject(subject)) {
+    return subject.Kind === KindTypeLiteral ? subject : undefined;
+  }
+  if (isTypeSubject(subject)) {
+    const declaration = subject.symbol?.ValueDeclaration ?? subject.symbol?.Declarations?.find((candidate): candidate is Node => candidate !== undefined);
+    return declaration?.Kind === KindTypeLiteral ? declaration : undefined;
+  }
+  return undefined;
+}
+
+function resolveCsharpObjectShapeMembers(
+  typeLiteral: Node,
+  context: ExtensionFactResolverContext,
+): readonly ObjectShapeMemberFact[] | undefined {
+  const members = Node_Members(typeLiteral) ?? [];
+  const shaped: ObjectShapeMemberFact[] = [];
+  for (const member of members) {
+    if (member?.Kind !== KindPropertySignature) {
+      return undefined;
+    }
+    const signature = AsPropertySignatureDeclaration(member);
+    const name = getCsharpObjectShapePropertyName(member);
+    const typeNode = signature?.Type;
+    if (name === undefined || typeNode === undefined) {
+      return undefined;
+    }
+    const carrier = context.factResolver.resolve(typeNode, runtimeCarrierFactKey)?.carrier;
+    if (carrier === undefined) {
+      return undefined;
+    }
+    shaped.push({
+      sourceName: name.sourceName,
+      targetName: name.targetName,
+      type: carrier,
+    });
+  }
+  return shaped;
+}
+
+function getCsharpObjectShapePropertyName(member: Node): { readonly sourceName: string; readonly targetName: string } | undefined {
+  const name = Node_Name(member);
+  if (name === undefined) {
+    return undefined;
+  }
+  if (name.Kind !== KindIdentifier && name.Kind !== KindStringLiteral) {
+    return undefined;
+  }
+  const sourceName = Node_Text(name);
+  if (sourceName.length === 0) {
+    return undefined;
+  }
+  return {
+    sourceName,
+    targetName: sanitizeCsharpIdentifier(sourceName),
+  };
+}
+
+function csharpObjectShapeId(node: Node): string {
+  const sourceFile = GetSourceFileOfNode(node);
+  const fileName = sourceFile === undefined ? "unknown" : SourceFile_FileName(sourceFile);
+  return `__TsonicShape_${stableIdentifierHash(fileName)}_${Node_Pos(node)}`;
+}
+
+function stableIdentifierHash(text: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function sanitizeCsharpIdentifier(text: string): string {
+  const sanitized = text.replace(/[^A-Za-z0-9_]/g, "_");
+  const prefixed = /^[A-Za-z_]/.test(sanitized) ? sanitized : `_${sanitized}`;
+  return csharpReservedIdentifiers.has(prefixed) ? `@${prefixed}` : prefixed;
+}
+
+const csharpReservedIdentifiers = new Set([
+  "abstract",
+  "as",
+  "base",
+  "bool",
+  "break",
+  "byte",
+  "case",
+  "catch",
+  "char",
+  "checked",
+  "class",
+  "const",
+  "continue",
+  "decimal",
+  "default",
+  "delegate",
+  "do",
+  "double",
+  "else",
+  "enum",
+  "event",
+  "explicit",
+  "extern",
+  "false",
+  "finally",
+  "fixed",
+  "float",
+  "for",
+  "foreach",
+  "goto",
+  "if",
+  "implicit",
+  "in",
+  "int",
+  "interface",
+  "internal",
+  "is",
+  "lock",
+  "long",
+  "namespace",
+  "new",
+  "null",
+  "object",
+  "operator",
+  "out",
+  "override",
+  "params",
+  "private",
+  "protected",
+  "public",
+  "readonly",
+  "ref",
+  "return",
+  "sbyte",
+  "sealed",
+  "short",
+  "sizeof",
+  "stackalloc",
+  "static",
+  "string",
+  "struct",
+  "switch",
+  "this",
+  "throw",
+  "true",
+  "try",
+  "typeof",
+  "uint",
+  "ulong",
+  "unchecked",
+  "unsafe",
+  "ushort",
+  "using",
+  "virtual",
+  "void",
+  "volatile",
+  "while",
+]);
 
 function resolveCsharpCatchVariableCarrier(node: Node): TargetTypeRef | undefined {
   if (node.Kind === KindVariableDeclaration && node.Parent?.Kind === KindCatchClause) {

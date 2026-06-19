@@ -10,13 +10,14 @@ import {
   KindStringLiteral,
   Node_Text,
 } from "@tsonic/tsts";
-import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
+import type { Node, ObjectShapeFact, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
+import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { getSemanticOwnership, isSourceOwnedProjectShapeType, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
@@ -248,6 +249,11 @@ function planObjectBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
+  const objectShape = getObjectShapeForBindingSource(sourceNode, sourceFile, input);
+  if (objectShape !== undefined) {
+    csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, patternNode);
+    return planObjectShapeBindingPattern(patternNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state);
+  }
   const ownership = getSemanticOwnership(sourceNode, sourceFile, input);
   const sourceOwnedBindingElement = isSourceOwnedBindingElement(sourceNode, sourceFile, input);
   if (!sourceOwnedBindingElement && (ownership.requiresTargetFact || !ownership.sourceOwned)) {
@@ -261,6 +267,72 @@ function planObjectBindingPattern(
     }
     return planObjectBindingElement(elementNode, sourceExpression, sourceFile, input, diagnostics, state);
   });
+}
+
+function planObjectShapeBindingPattern(
+  patternNode: Node,
+  sourceExpression: CsharpExpression,
+  objectShape: ObjectShapeFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): readonly CsharpStatement[] {
+  const elements = AsBindingPattern(patternNode)?.Elements?.Nodes ?? [];
+  return elements.flatMap((elementNode) => {
+    if (elementNode === undefined) {
+      return [];
+    }
+    return planObjectShapeBindingElement(elementNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state);
+  });
+}
+
+function planObjectShapeBindingElement(
+  elementNode: Node,
+  sourceExpression: CsharpExpression,
+  objectShape: ObjectShapeFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): readonly CsharpStatement[] {
+  const element = AsBindingElement(elementNode);
+  if (element === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object binding pattern element must be a binding element."));
+    return [];
+  }
+  if (element.DotDotDotToken !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires finalized provider object-spread semantics before C# emission."));
+    return [];
+  }
+  if (element.Initializer !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Destructuring defaults require finalized undefined/default-value semantics before C# emission."));
+    return [];
+  }
+  const name = element.name;
+  if (name === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object binding element must have a target binding name."));
+    return [];
+  }
+  const sourceName = getObjectShapeBindingPropertySourceName(elementNode, diagnostics);
+  const member = sourceName === undefined
+    ? undefined
+    : objectShape.members.find((candidate) => candidate.sourceName === sourceName);
+  if (member === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object destructuring property must match a finalized provider object-shape member."));
+    return [];
+  }
+  const projectedType = csharpTypeFromTargetTypeRef(member.type);
+  if (projectedType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
+    return [];
+  }
+  const projected: CsharpExpression = {
+    kind: "member",
+    receiver: sourceExpression,
+    name: member.targetName,
+  };
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planObjectBindingElement(
@@ -299,6 +371,22 @@ function planObjectBindingElement(
     name: propertyName,
   };
   return planBindingNameFromProjection(name, projected, undefined, elementNode, sourceFile, input, diagnostics, state);
+}
+
+function getObjectShapeForBindingSource(
+  sourceNode: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): ObjectShapeFact | undefined {
+  if (sourceNode === undefined) {
+    return undefined;
+  }
+  const direct = input.facts.getObjectShapeFact(sourceNode);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const type = input.checker.getTypeAtLocation(sourceNode, { sourceFile });
+  return input.facts.getObjectShapeFact(type) ?? input.facts.getObjectShapeFact(type?.symbol);
 }
 
 function planBindingNameFromProjection(
@@ -359,6 +447,25 @@ function getDirectSourcePropertyName(
     return undefined;
   }
   return sanitizeIdentifier(Node_Text(propertyName));
+}
+
+function getObjectShapeBindingPropertySourceName(
+  elementNode: Node,
+  diagnostics: TargetDiagnostic[],
+): string | undefined {
+  const element = AsBindingElement(elementNode);
+  if (element === undefined) {
+    return undefined;
+  }
+  const propertyName = element.PropertyName ?? element.name;
+  if (propertyName === undefined) {
+    return undefined;
+  }
+  if (propertyName.Kind !== KindIdentifier && propertyName.Kind !== KindStringLiteral) {
+    diagnostics.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from object-shape facts supports only identifier or string-literal property names."));
+    return undefined;
+  }
+  return Node_Text(propertyName);
 }
 
 function isSourceOwnedBindingElement(

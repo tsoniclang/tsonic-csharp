@@ -24,6 +24,7 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../ast/csharp-ast.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
+import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 export function expressionToCsharpType(
@@ -106,6 +107,13 @@ export function getCsharpTypeForNode(
     return invalidType("object keyword type");
   }
   if (node.Kind === KindTypeLiteral) {
+    const objectShape = input.facts.getObjectShapeFact(node);
+    const objectShapeType = objectShape === undefined
+      ? undefined
+      : csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, node);
+    if (objectShapeType !== undefined) {
+      return objectShapeType;
+    }
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
     return invalidType("structural object type");
   }
@@ -160,6 +168,13 @@ export function getCsharpTypeForTstsType(
   const typeRuntimeCarrier = getCsharpTypeFromRuntimeCarrier(type, input);
   if (typeRuntimeCarrier !== undefined) {
     return typeRuntimeCarrier;
+  }
+  const objectShape = input.facts.getObjectShapeFact(type) ?? input.facts.getObjectShapeFact(type.symbol);
+  const objectShapeType = objectShape === undefined
+    ? undefined
+    : csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, diagnosticNode);
+  if (objectShapeType !== undefined) {
+    return objectShapeType;
   }
   const typeSymbol = type.symbol;
   const typeTargetBinding = input.facts.getTargetBindingFact(typeSymbol);

@@ -40,6 +40,7 @@ import { predefined } from "./csharp-types.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planLocalDeclaration } from "./locals.js";
+import { beginObjectShapePlanning, takeObjectShapeDeclarations } from "./object-shapes.js";
 import { projectArtifact, readNamespace } from "./project-artifacts.js";
 import { sourceFileArtifactPath, sourceFileClassName } from "./source-paths.js";
 import { planStatements } from "./statements.js";
@@ -95,6 +96,7 @@ function planSourceFile(
   if (sourceFile.IsDeclarationFile || fileName.startsWith("tsts-provider://")) {
     return undefined;
   }
+  beginObjectShapePlanning(input);
   const moduleClassName = sourceFileClassName(input, fileName);
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
@@ -172,7 +174,8 @@ function planSourceFile(
       members,
     });
   }
-  if (namespaceMembers.length === 0) {
+  const shapeDeclarations = takeObjectShapeDeclarations(input);
+  if (namespaceMembers.length === 0 && shapeDeclarations.length === 0) {
     return undefined;
   }
   const unit: CsharpCompilationUnit = {
@@ -180,7 +183,7 @@ function planSourceFile(
     members: [{
       kind: "namespace",
       name: readNamespace(input),
-      members: namespaceMembers,
+      members: [...shapeDeclarations, ...namespaceMembers],
     }],
   };
   return {
