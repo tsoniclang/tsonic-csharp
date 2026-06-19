@@ -20,6 +20,7 @@ import {
   AsVariableDeclarationList,
   AsVariableStatement,
   AsWhileStatement,
+  KindArrayBindingPattern,
   KindBlock,
   KindBreakStatement,
   KindContinueStatement,
@@ -34,6 +35,7 @@ import {
   KindIdentifier,
   KindIfStatement,
   KindLabeledStatement,
+  KindObjectBindingPattern,
   KindReturnStatement,
   KindSwitchStatement,
   KindThrowStatement,
@@ -55,7 +57,12 @@ import type {
 } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { createDestructuringPlannerState } from "./bindings.js";
+import {
+  allocateCatchValue,
+  allocateForOfItem,
+  createDestructuringPlannerState,
+  planBindingPatternFromExpression,
+} from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
@@ -195,10 +202,13 @@ export function planStatements(
     }
     case KindForStatement: {
       const statement = AsForStatement(node)!;
-      return [{
+      const initializer = statement.Initializer === undefined
+        ? undefined
+        : planForInitializer(statement.Initializer, sourceFile, input, diagnostics, state);
+      const plannedFor: CsharpStatement = {
         kind: "for",
-        ...(statement.Initializer !== undefined
-          ? { initializer: planForInitializer(statement.Initializer, sourceFile, input, diagnostics) }
+        ...(initializer?.initializer !== undefined
+          ? { initializer: initializer.initializer }
           : {}),
         ...(statement.Condition !== undefined
           ? { condition: planExpression(statement.Condition, sourceFile, input, diagnostics) }
@@ -209,7 +219,14 @@ export function planStatements(
         body: {
           statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
         },
-      }];
+      };
+      const initializerPrelude = initializer?.prelude ?? [];
+      return initializerPrelude.length === 0
+        ? [plannedFor]
+        : [{
+            kind: "block",
+            body: { statements: [...initializerPrelude, plannedFor] },
+          }];
     }
     case KindForInStatement:
       diagnostics.push(unsupportedNodeDiagnostic(node, "For-in requires target property enumeration semantics and is not implemented yet."));
@@ -245,16 +262,23 @@ function planForOfStatement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): CsharpStatement {
-  const binding = planForOfBinding(statement.Initializer, sourceFile, input, diagnostics);
+  const binding = planForOfBinding(statement.Initializer, sourceFile, input, diagnostics, state);
   return {
     kind: "foreach",
     itemType: binding.type,
     itemName: binding.name,
     collection: planExpression(statement.Expression!, sourceFile, input, diagnostics),
     body: {
-      statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+      statements: [
+        ...binding.prelude,
+        ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+      ],
     },
   };
+}
+
+interface PlannedForOfBinding extends CsharpLocalDeclaration {
+  readonly prelude: readonly CsharpStatement[];
 }
 
 function planForOfBinding(
@@ -262,7 +286,8 @@ function planForOfBinding(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): CsharpLocalDeclaration {
+  state: DestructuringPlannerState,
+): PlannedForOfBinding {
   if (initializer === undefined) {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_FOR_OF_BINDING",
@@ -273,6 +298,7 @@ function planForOfBinding(
     return {
       name: "__unsupported",
       type: predefined("object"),
+      prelude: [],
     };
   }
   if (initializer.Kind === KindVariableDeclarationList) {
@@ -283,21 +309,48 @@ function planForOfBinding(
       return {
         name: "__unsupported",
         type: predefined("object"),
+        prelude: [],
       };
     }
-    return planLocalDeclaration(first, sourceFile, input, diagnostics);
+    const variable = AsVariableDeclaration(first)!;
+    if (variable.Initializer !== undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(first, "For-of variable declaration cannot have an initializer."));
+    }
+    if (variable.name?.Kind === KindObjectBindingPattern || variable.name?.Kind === KindArrayBindingPattern) {
+      const itemName = allocateForOfItem(state);
+      return {
+        name: itemName,
+        type: variable.Type === undefined
+          ? predefined("var")
+          : getCsharpTypeForNode(variable.Type, sourceFile, input, predefined("var"), diagnostics),
+        prelude: planBindingPatternFromExpression(
+          variable.name,
+          { kind: "identifier", name: itemName },
+          sourceFile,
+          input,
+          diagnostics,
+          state,
+        ),
+      };
+    }
+    return {
+      ...planLocalDeclaration(first, sourceFile, input, diagnostics),
+      prelude: [],
+    };
   }
   if (initializer.Kind === KindIdentifier) {
     const identifier = AsIdentifier(initializer)!;
     return {
       name: sanitizeIdentifier(identifier.Text),
       type: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
+      prelude: [],
     };
   }
   diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of initializer binding is outside the current C# planning surface."));
   return {
     name: "__unsupported",
     type: predefined("object"),
+    prelude: [],
   };
 }
 
@@ -425,6 +478,18 @@ function planCatchClause(
   state: DestructuringPlannerState,
 ): CsharpCatchClause {
   const clause = AsCatchClause(node)!;
+  if (clause.VariableDeclaration !== undefined) {
+    const variable = AsVariableDeclaration(clause.VariableDeclaration)!;
+    if (variable.name?.Kind === KindObjectBindingPattern || variable.name?.Kind === KindArrayBindingPattern) {
+      diagnostics.push(unsupportedNodeDiagnostic(variable.name, "Catch destructuring requires a closed thrown-value carrier; unknown catch values cannot trickle into C#."));
+      return {
+        variableName: allocateCatchValue(state),
+        body: {
+          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+        },
+      };
+    }
+  }
   return {
     ...(clause.VariableDeclaration !== undefined
       ? { variableName: planIdentifierName(AsVariableDeclaration(clause.VariableDeclaration)!.name, "ex", diagnostics, "Catch variable name") }
@@ -435,14 +500,30 @@ function planCatchClause(
   };
 }
 
+interface PlannedForInitializer {
+  readonly initializer?: CsharpForInitializer;
+  readonly prelude: readonly CsharpStatement[];
+}
+
 function planForInitializer(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): CsharpForInitializer {
+  state: DestructuringPlannerState,
+): PlannedForInitializer {
   if (node.Kind === KindVariableDeclarationList) {
     const declarations = AsVariableDeclarationList(node)!.Declarations?.Nodes ?? [];
+    const concreteDeclarations = declarations.filter((declaration): declaration is Node => declaration !== undefined);
+    if (concreteDeclarations.some((declaration) => {
+      const variable = AsVariableDeclaration(declaration)!;
+      return variable.name?.Kind === KindObjectBindingPattern || variable.name?.Kind === KindArrayBindingPattern;
+    })) {
+      return {
+        prelude: concreteDeclarations.flatMap((declaration) =>
+          planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)),
+      };
+    }
     const locals = declarations
       .filter((declaration): declaration is Node => declaration !== undefined)
       .map((declaration) => planLocalDeclaration(declaration, sourceFile, input, diagnostics));
@@ -451,13 +532,19 @@ function planForInitializer(
       diagnostics.push(unsupportedNodeDiagnostic(node, "C# for-initializer cannot represent mixed local declaration types without statement rewriting."));
     }
     return {
-      kind: "locals",
-      locals,
+      initializer: {
+        kind: "locals",
+        locals,
+      },
+      prelude: [],
     };
   }
   return {
-    kind: "expression",
-    expression: planExpression(node, sourceFile, input, diagnostics),
+    initializer: {
+      kind: "expression",
+      expression: planExpression(node, sourceFile, input, diagnostics),
+    },
+    prelude: [],
   };
 }
 

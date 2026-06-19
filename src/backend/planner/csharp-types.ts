@@ -92,6 +92,10 @@ export function getCsharpTypeForNode(
   if (sourcePrimitive !== undefined) {
     return getCsharpTypeForSourcePrimitive(sourcePrimitive);
   }
+  if (node.Kind === KindAnyKeyword || node.Kind === KindUnknownKeyword) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
+    return fallback;
+  }
   const keywordType = getCsharpTypeForKeywordType(node.Kind);
   if (keywordType !== undefined) {
     return keywordType;
@@ -181,7 +185,11 @@ export function getCsharpTypeForNode(
   if ((type.flags & TypeFlagsVoidLike) !== 0) {
     return predefined("void");
   }
-  if ((type.flags & (TypeFlagsAny | TypeFlagsUnknown | TypeFlagsNever)) !== 0) {
+  if ((type.flags & (TypeFlagsAny | TypeFlagsUnknown)) !== 0) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
+    return fallback;
+  }
+  if ((type.flags & TypeFlagsNever) !== 0) {
     return predefined("object");
   }
   return fallback;
@@ -204,8 +212,6 @@ function getCsharpTypeForKeywordType(kind: number): CsharpTypeNode | undefined {
     case KindVoidKeyword:
       return predefined("void");
     case KindObjectKeyword:
-    case KindAnyKeyword:
-    case KindUnknownKeyword:
     case KindNeverKeyword:
       return predefined("object");
     default:

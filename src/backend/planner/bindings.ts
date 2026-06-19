@@ -18,10 +18,36 @@ import { planIdentifierName } from "./names.js";
 
 export interface DestructuringPlannerState {
   nextTempIndex: number;
+  nextParameterIndex: number;
+  nextForOfIndex: number;
+  nextCatchIndex: number;
 }
 
 export function createDestructuringPlannerState(): DestructuringPlannerState {
-  return { nextTempIndex: 0 };
+  return {
+    nextTempIndex: 0,
+    nextParameterIndex: 0,
+    nextForOfIndex: 0,
+    nextCatchIndex: 0,
+  };
+}
+
+export function allocateSyntheticParameter(state: DestructuringPlannerState): string {
+  const name = `__param${state.nextParameterIndex}`;
+  state.nextParameterIndex += 1;
+  return name;
+}
+
+export function allocateForOfItem(state: DestructuringPlannerState): string {
+  const name = `__forOf${state.nextForOfIndex}`;
+  state.nextForOfIndex += 1;
+  return name;
+}
+
+export function allocateCatchValue(state: DestructuringPlannerState): string {
+  const name = `__catch${state.nextCatchIndex}`;
+  state.nextCatchIndex += 1;
+  return name;
 }
 
 export function planVariableBindingStatements(
@@ -58,7 +84,7 @@ export function planVariableBindingStatements(
       type: predefined("var"),
       initializer: planExpression(initializer, sourceFile, input, diagnostics),
     },
-    ...planBindingPatternStatements(bindingName, sourceExpression, sourceFile, input, diagnostics, state),
+    ...planBindingPatternFromExpression(bindingName, sourceExpression, sourceFile, input, diagnostics, state),
   ];
 }
 
@@ -77,7 +103,7 @@ export function planParameterBindingPrelude(
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Parameter binding name is outside the current C# planning surface."));
     return [];
   }
-  return planBindingPatternStatements(
+  return planBindingPatternFromExpression(
     bindingName,
     { kind: "identifier", name: parameterName },
     sourceFile,
@@ -87,7 +113,7 @@ export function planParameterBindingPrelude(
   );
 }
 
-function planBindingPatternStatements(
+export function planBindingPatternFromExpression(
   patternNode: Node,
   sourceExpression: CsharpExpression,
   sourceFile: SourceFile,
@@ -135,7 +161,7 @@ function planBindingPatternStatements(
         type: predefined("var"),
         initializer: elementSource,
       });
-      statements.push(...planBindingPatternStatements(
+      statements.push(...planBindingPatternFromExpression(
         name,
         { kind: "identifier", name: nestedSourceName },
         sourceFile,

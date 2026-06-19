@@ -20,6 +20,8 @@ import {
   KindIndexSignature,
   KindMethodDeclaration,
   KindMethodSignature,
+  KindArrayBindingPattern,
+  KindObjectBindingPattern,
   KindPrivateIdentifier,
   KindPropertyDeclaration,
   KindPropertySignature,
@@ -45,11 +47,15 @@ import type {
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
+import {
+  createDestructuringPlannerState,
+  planParameterBindingPrelude,
+} from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planCallArgument, planExpressionWithExpectedType } from "./expressions.js";
 import { planClassHeritage, planInterfaceHeritage } from "./heritage.js";
 import { planIdentifierName } from "./names.js";
-import { planParameters } from "./parameters.js";
+import { planParameters, planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements, planStatements } from "./statements.js";
 import { planTypeParameters } from "./type-parameters.js";
 
@@ -150,15 +156,20 @@ export function planFunctionDeclaration(
 ): CsharpMethodDeclaration {
   const declaration = AsFunctionDeclaration(node)!;
   const name = planIdentifierName(declaration.name, "__anonymous", diagnostics, "Function name");
+  const state = createDestructuringPlannerState();
+  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   return {
     kind: "method",
     name,
     modifiers: ["public", "static"],
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
-    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    parameters: parameters.parameters,
     body: {
-      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
+      statements: [
+        ...parameters.prelude,
+        ...planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
+      ],
     },
   };
 }
@@ -173,11 +184,16 @@ function planConstructorDeclaration(
   const declaration = AsConstructorDeclaration(node)!;
   const bodyStatements = AsBlock(declaration.Body)?.Statements?.Nodes ?? [];
   const leadingSuperCall = getLeadingSuperCall(bodyStatements);
+  const state = createDestructuringPlannerState();
+  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  if (leadingSuperCall !== undefined && parameters.prelude.length > 0 && (leadingSuperCall.Arguments?.Nodes ?? []).length > 0) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Constructor base arguments cannot reference destructured parameter locals until base-argument rewriting is finalized."));
+  }
   return {
     kind: "constructor",
     name: className,
     modifiers: ["public"],
-    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    parameters: parameters.parameters,
     ...(leadingSuperCall === undefined
       ? {}
       : {
@@ -187,11 +203,17 @@ function planConstructorDeclaration(
         }),
     body: {
       statements: leadingSuperCall === undefined
-        ? planBlockStatements(declaration.Body, sourceFile, input, diagnostics)
-        : bodyStatements
-            .slice(1)
-            .filter((statement): statement is Node => statement !== undefined)
-            .flatMap((statement) => planStatements(statement, sourceFile, input, diagnostics)),
+        ? [
+            ...parameters.prelude,
+            ...planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
+          ]
+        : [
+            ...parameters.prelude,
+            ...bodyStatements
+              .slice(1)
+              .filter((statement): statement is Node => statement !== undefined)
+              .flatMap((statement) => planStatements(statement, sourceFile, input, diagnostics, state)),
+          ],
     },
   };
 }
@@ -216,15 +238,20 @@ function planMethodDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpMethodDeclaration {
   const declaration = AsMethodDeclaration(node)!;
+  const state = createDestructuringPlannerState();
+  const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   return {
     kind: "method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
     modifiers: planClassMemberModifiers(node, declaration.name),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
-    parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    parameters: parameters.parameters,
     body: {
-      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
+      statements: [
+        ...parameters.prelude,
+        ...planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
+      ],
     },
   };
 }
@@ -339,22 +366,34 @@ function mergeSetterAccessor(
   diagnostics: TargetDiagnostic[],
 ): CsharpPropertyDeclaration {
   const declaration = AsSetAccessorDeclaration(node)!;
-  const parameters = planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics);
-  const parameter = parameters[0];
-  if (parameter === undefined) {
+  const parameterNodes = declaration.Parameters?.Nodes ?? [];
+  const parameterNode = parameterNodes[0];
+  const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(parameterNode)!;
+  if (parameterDeclaration === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Set accessor requires exactly one parameter."));
   }
-  if (parameters.length > 1) {
+  if (parameterNodes.filter((parameterItem) => parameterItem !== undefined).length > 1) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Set accessor has more than one parameter."));
   }
-  const parameterNode = declaration.Parameters?.Nodes?.[0];
   const type = getCsharpTypeForNode(
-    parameterNode === undefined ? declaration.Type ?? declaration.name : AsParameterDeclaration(parameterNode)!.Type,
+    parameterDeclaration?.Type ?? declaration.Type ?? declaration.name,
     sourceFile,
     input,
     existing?.type ?? predefined("object"),
     diagnostics,
   );
+  const parameterAlias = parameterDeclaration?.name?.Kind === KindObjectBindingPattern || parameterDeclaration?.name?.Kind === KindArrayBindingPattern
+    ? undefined
+    : parameterDeclaration === undefined
+      ? undefined
+      : {
+          name: planIdentifierName(parameterDeclaration.name, "value", diagnostics, "Set accessor parameter name"),
+          type,
+        };
+  const state = createDestructuringPlannerState();
+  const parameterPrelude = parameterDeclaration?.name?.Kind === KindObjectBindingPattern || parameterDeclaration?.name?.Kind === KindArrayBindingPattern
+    ? planParameterBindingPrelude(parameterDeclaration.name, "value", sourceFile, input, diagnostics, state)
+    : [];
   return {
     kind: "property",
     name,
@@ -362,7 +401,7 @@ function mergeSetterAccessor(
     type,
     ...(existing?.getter === undefined ? {} : { getter: existing.getter }),
     setter: {
-      statements: planSetAccessorStatements(declaration.Body, parameter, sourceFile, input, diagnostics),
+      statements: planSetAccessorStatements(declaration.Body, parameterAlias, parameterPrelude, sourceFile, input, diagnostics, state),
     },
   };
 }
@@ -370,21 +409,23 @@ function mergeSetterAccessor(
 function planSetAccessorStatements(
   body: Node | undefined,
   parameter: Pick<CsharpParameter, "name" | "type"> | undefined,
+  parameterPrelude: readonly CsharpStatement[],
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state: ReturnType<typeof createDestructuringPlannerState>,
 ): readonly CsharpStatement[] {
-  const statements = planBlockStatements(body, sourceFile, input, diagnostics);
-  if (parameter === undefined || parameter.name === "value") {
-    return statements;
-  }
+  const statements = planBlockStatements(body, sourceFile, input, diagnostics, state);
   return [
-    {
-      kind: "local",
-      name: parameter.name,
-      type: parameter.type,
-      initializer: { kind: "identifier", name: "value" },
-    },
+    ...(parameter === undefined || parameter.name === "value"
+      ? []
+      : [{
+          kind: "local" as const,
+          name: parameter.name,
+          type: parameter.type,
+          initializer: { kind: "identifier" as const, name: "value" },
+        }]),
+    ...parameterPrelude,
     ...statements,
   ];
 }
