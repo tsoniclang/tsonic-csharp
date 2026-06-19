@@ -13,11 +13,14 @@ import {
   AsNonNullExpression,
   AsNoSubstitutionTemplateLiteral,
   AsNumericLiteral,
+  AsObjectLiteralExpression,
   AsParameterDeclaration,
   AsParenthesizedExpression,
   AsPostfixUnaryExpression,
   AsPrefixUnaryExpression,
+  AsPropertyAssignment,
   AsPropertyAccessExpression,
+  AsShorthandPropertyAssignment,
   AsStringLiteral,
   AsSatisfiesExpression,
   AsTemplateExpression,
@@ -76,10 +79,13 @@ import {
   KindPlusToken,
   KindPostfixUnaryExpression,
   KindPrefixUnaryExpression,
+  KindPropertyAssignment,
   KindPropertyAccessExpression,
   KindQuestionQuestionToken,
   KindSlashEqualsToken,
   KindSlashToken,
+  KindShorthandPropertyAssignment,
+  KindSpreadAssignment,
   KindStringLiteral,
   KindSatisfiesExpression,
   KindSuperKeyword,
@@ -87,6 +93,7 @@ import {
   KindThisKeyword,
   KindTrueKeyword,
   KindTypeAssertionExpression,
+  Node_Name,
   Node_Text,
 } from "@tsonic/tsts";
 import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
@@ -584,8 +591,7 @@ export function planExpressionWithExpectedType(
     return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
   }
   if (node.Kind === KindObjectLiteralExpression) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires finalized TSTS/provider object-shape facts before C# emission."));
-    return invalidExpression("object literal without finalized object-shape facts");
+    return planObjectLiteralExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType);
   }
   if (node.Kind === KindArrayLiteralExpression && expectedType.kind === "tuple") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics);
@@ -603,6 +609,91 @@ export function planExpressionWithExpectedType(
     };
   }
   return planExpression(node, sourceFile, input, diagnostics);
+}
+
+function planObjectLiteralExpressionWithExpectedType(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  expectedType: CsharpTypeNode,
+): CsharpExpression {
+  if (!isSourceOwnedObjectInitializerType(expectedType)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires a source-owned expected type or finalized TSTS/provider object-shape facts before C# emission."));
+    return invalidExpression("object literal without finalized object-shape facts");
+  }
+  const literal = AsObjectLiteralExpression(node)!;
+  const assignments = (literal.Properties?.Nodes ?? [])
+    .filter((property): property is Node => property !== undefined)
+    .map((property) => planObjectLiteralAssignment(property, sourceFile, input, diagnostics))
+    .filter((assignment): assignment is { readonly name: string; readonly expression: CsharpExpression } => assignment !== undefined);
+  return {
+    kind: "objectInitializer",
+    type: expectedType,
+    assignments,
+  };
+}
+
+function isSourceOwnedObjectInitializerType(type: CsharpTypeNode): boolean {
+  return type.kind === "named";
+}
+
+function planObjectLiteralAssignment(
+  property: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): { readonly name: string; readonly expression: CsharpExpression } | undefined {
+  switch (property.Kind) {
+    case KindPropertyAssignment: {
+      const propertyAssignment = AsPropertyAssignment(property)!;
+      const name = getSourceOwnedObjectInitializerMemberName(property, diagnostics);
+      if (name === undefined || propertyAssignment.Initializer === undefined) {
+        if (propertyAssignment.Initializer === undefined) {
+          diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal property assignment must have an initializer."));
+        }
+        return undefined;
+      }
+      return {
+        name,
+        expression: planExpression(propertyAssignment.Initializer, sourceFile, input, diagnostics),
+      };
+    }
+    case KindShorthandPropertyAssignment: {
+      const shorthand = AsShorthandPropertyAssignment(property)!;
+      if (shorthand.ObjectAssignmentInitializer !== undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal shorthand defaults require finalized default-value semantics before C# emission."));
+        return undefined;
+      }
+      const nameNode = Node_Name(property);
+      const name = getSourceOwnedObjectInitializerMemberName(property, diagnostics);
+      if (name === undefined || nameNode === undefined) {
+        return undefined;
+      }
+      return {
+        name,
+        expression: planExpression(nameNode, sourceFile, input, diagnostics),
+      };
+    }
+    case KindSpreadAssignment:
+      diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal spread requires finalized provider object-spread semantics before C# emission."));
+      return undefined;
+    default:
+      diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal member is outside the current C# planning surface."));
+      return undefined;
+  }
+}
+
+function getSourceOwnedObjectInitializerMemberName(
+  property: Node,
+  diagnostics: TargetDiagnostic[],
+): string | undefined {
+  const nameNode = Node_Name(property);
+  if (nameNode === undefined || nameNode.Kind !== KindIdentifier) {
+    diagnostics.push(unsupportedNodeDiagnostic(nameNode ?? property, "Source-owned object initializers support identifier property names; other names require finalized provider object-shape facts."));
+    return undefined;
+  }
+  return sanitizeIdentifier(Node_Text(nameNode));
 }
 
 function planExpectedTypeLiteral(
