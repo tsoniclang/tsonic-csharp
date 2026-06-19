@@ -20,9 +20,14 @@ import {
   AsTemplateSpan,
   AsTypeAssertion,
   KindAmpersandAmpersandToken,
+  KindAmpersandEqualsToken,
+  KindAmpersandToken,
   KindAsExpression,
+  KindAsteriskEqualsToken,
   KindAsteriskToken,
   KindBarBarToken,
+  KindBarEqualsToken,
+  KindBarToken,
   KindBinaryExpression,
   KindCallExpression,
   KindArrayLiteralExpression,
@@ -35,12 +40,21 @@ import {
   KindExclamationEqualsToken,
   KindExclamationToken,
   KindFalseKeyword,
+  KindCaretEqualsToken,
+  KindCaretToken,
   KindGreaterThanEqualsToken,
+  KindGreaterThanGreaterThanEqualsToken,
+  KindGreaterThanGreaterThanGreaterThanEqualsToken,
+  KindGreaterThanGreaterThanGreaterThanToken,
+  KindGreaterThanGreaterThanToken,
   KindGreaterThanToken,
   KindIdentifier,
   KindLessThanEqualsToken,
+  KindLessThanLessThanEqualsToken,
+  KindLessThanLessThanToken,
   KindLessThanToken,
   KindMinusMinusToken,
+  KindMinusEqualsToken,
   KindMinusToken,
   KindNewExpression,
   KindNoSubstitutionTemplateLiteral,
@@ -48,19 +62,23 @@ import {
   KindNullKeyword,
   KindNumericLiteral,
   KindParenthesizedExpression,
+  KindPercentEqualsToken,
   KindPercentToken,
   KindPlusPlusToken,
+  KindPlusEqualsToken,
   KindPlusToken,
   KindPostfixUnaryExpression,
   KindPrefixUnaryExpression,
   KindPropertyAccessExpression,
   KindQuestionQuestionToken,
+  KindSlashEqualsToken,
   KindSlashToken,
   KindStringLiteral,
   KindSatisfiesExpression,
   KindSuperKeyword,
   KindTemplateExpression,
   KindThisKeyword,
+  KindTildeToken,
   KindTrueKeyword,
   KindTypeAssertionExpression,
   Node_Text,
@@ -325,6 +343,16 @@ function getCsharpBinaryOperator(node: Node): string | undefined {
         return "/";
       case KindPercentToken:
         return "%";
+      case KindPlusEqualsToken:
+        return "+=";
+      case KindMinusEqualsToken:
+        return "-=";
+      case KindAsteriskEqualsToken:
+        return "*=";
+      case KindSlashEqualsToken:
+        return "/=";
+      case KindPercentEqualsToken:
+        return "%=";
       case KindQuestionQuestionToken:
         return "??";
       case KindEqualsToken:
@@ -347,6 +375,30 @@ function getCsharpBinaryOperator(node: Node): string | undefined {
         return "&&";
       case KindBarBarToken:
         return "||";
+      case KindAmpersandToken:
+        return "&";
+      case KindBarToken:
+        return "|";
+      case KindCaretToken:
+        return "^";
+      case KindLessThanLessThanToken:
+        return "<<";
+      case KindGreaterThanGreaterThanToken:
+        return ">>";
+      case KindGreaterThanGreaterThanGreaterThanToken:
+        return ">>>";
+      case KindAmpersandEqualsToken:
+        return "&=";
+      case KindBarEqualsToken:
+        return "|=";
+      case KindCaretEqualsToken:
+        return "^=";
+      case KindLessThanLessThanEqualsToken:
+        return "<<=";
+      case KindGreaterThanGreaterThanEqualsToken:
+        return ">>=";
+      case KindGreaterThanGreaterThanGreaterThanEqualsToken:
+        return ">>>=";
       default:
         return undefined;
     }
@@ -362,6 +414,8 @@ function getCsharpPrefixUnaryOperator(kind: number): string | undefined {
       return "-";
     case KindExclamationToken:
       return "!";
+    case KindTildeToken:
+      return "~";
     case KindPlusPlusToken:
       return "++";
     case KindMinusMinusToken:
