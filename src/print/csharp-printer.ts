@@ -226,6 +226,8 @@ export function printCsharpType(type: CsharpTypeNode): string {
       return `${printCsharpType(type.elementType)}[]`;
     case "function":
       return printCsharpFunctionType(type.parameters, type.returnType);
+    case "nullable":
+      return `${printCsharpType(type.inner)}?`;
   }
 }
 

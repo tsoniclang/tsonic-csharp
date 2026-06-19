@@ -150,7 +150,8 @@ export type CsharpTypeNode =
   | { readonly kind: "named"; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "qualified"; readonly left: CsharpTypeNode; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "array"; readonly elementType: CsharpTypeNode; readonly rank?: number }
-  | { readonly kind: "function"; readonly parameters: readonly CsharpTypeNode[]; readonly returnType: CsharpTypeNode };
+  | { readonly kind: "function"; readonly parameters: readonly CsharpTypeNode[]; readonly returnType: CsharpTypeNode }
+  | { readonly kind: "nullable"; readonly inner: CsharpTypeNode };
 
 export interface CsharpBlock {
   readonly statements: readonly CsharpStatement[];

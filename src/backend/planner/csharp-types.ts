@@ -3,9 +3,11 @@ import {
   AsExpressionWithTypeArguments,
   AsFunctionTypeNode,
   AsIdentifier,
+  AsLiteralTypeNode,
   AsParameterDeclaration,
   AsPropertyAccessExpression,
   AsTypeReferenceNode,
+  AsUnionTypeNode,
   KindArrayBindingPattern,
   KindArrayType,
   KindAnyKeyword,
@@ -16,7 +18,9 @@ import {
   KindFunctionType,
   KindIdentifier,
   KindInterfaceDeclaration,
+  KindLiteralType,
   KindNeverKeyword,
+  KindNullKeyword,
   KindNumberKeyword,
   KindObjectKeyword,
   KindObjectBindingPattern,
@@ -24,6 +28,8 @@ import {
   KindTypeLiteral,
   KindStringKeyword,
   KindTypeReference,
+  KindUndefinedKeyword,
+  KindUnionType,
   KindUnknownKeyword,
   KindVoidKeyword,
   Node_Text,
@@ -110,6 +116,9 @@ export function getCsharpTypeForNode(
   if (node.Kind === KindTypeLiteral) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
     return invalidType("structural object type");
+  }
+  if (node.Kind === KindUnionType) {
+    return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
   }
   if (node.Kind === KindObjectBindingPattern || node.Kind === KindArrayBindingPattern) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));
@@ -320,6 +329,8 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
         left.parameters.length === right.parameters.length &&
         left.parameters.every((parameter, index) => sameCsharpType(parameter, right.parameters[index]!)) &&
         sameCsharpType(left.returnType, right.returnType);
+    case "nullable":
+      return right.kind === "nullable" && sameCsharpType(left.inner, right.inner);
   }
 }
 
@@ -372,4 +383,31 @@ function getCsharpTypeForFunctionTypeParameter(
     return invalidType("function type untyped parameter");
   }
   return getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics);
+}
+
+function getCsharpTypeForUnionTypeNode(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode {
+  const unionType = AsUnionTypeNode(node)!;
+  const members = (unionType.Types?.Nodes ?? []).filter((member): member is Node => member !== undefined);
+  const nonNullishMembers = members.filter((member) => !isNullishTypeNode(member));
+  if (nonNullishMembers.length !== 1 || nonNullishMembers.length === members.length) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Union type annotations require nullable shape or finalized runtime-carrier facts before C# emission."));
+    return invalidType("union type");
+  }
+  const inner = getCsharpTypeForNode(nonNullishMembers[0], sourceFile, input, undefined, diagnostics);
+  return inner.kind === "invalid" ? inner : { kind: "nullable", inner };
+}
+
+function isNullishTypeNode(node: Node): boolean {
+  if (node.Kind === KindUndefinedKeyword || node.Kind === KindNullKeyword) {
+    return true;
+  }
+  if (node.Kind !== KindLiteralType) {
+    return false;
+  }
+  return AsLiteralTypeNode(node)!.Literal?.Kind === KindNullKeyword;
 }
