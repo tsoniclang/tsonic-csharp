@@ -469,7 +469,7 @@ function resolveProviderTargetConstructorCall(
     return undefined;
   }
   const constructors = (targetBinding.members ?? [])
-    .filter((member) => member.kind === "constructor" && targetMemberAcceptsArity(member, request.arguments.length));
+    .filter((member) => member.kind === "constructor" && targetMemberAcceptsCall(member, request, context));
   if (constructors.length !== 1) {
     return undefined;
   }
@@ -517,7 +517,7 @@ function resolveProviderTargetMethodCall(
       member.kind === "method" &&
       memberStaticMatchesAccess(member, staticAccess) &&
       member.sourceName === sourceName &&
-      targetMemberAcceptsArity(member, request.arguments.length),
+      targetMemberAcceptsCall(member, request, context),
   );
   if (member === undefined) {
     return undefined;
@@ -659,6 +659,139 @@ function targetMemberAcceptsArity(member: TargetMember, argumentCount: number): 
     return argumentCount >= required;
   }
   return argumentCount >= required && argumentCount <= parameters.length;
+}
+
+function targetMemberAcceptsCall(
+  member: TargetMember,
+  request: Pick<ResolveCallRequest, "arguments" | "argumentSymbols" | "resolvedArgumentSymbols" | "argumentTypes">,
+  context: ExtensionDecisionContext,
+): boolean {
+  if (!targetMemberAcceptsArity(member, request.arguments.length)) {
+    return false;
+  }
+  for (let index = 0; index < request.arguments.length; index += 1) {
+    const parameter = getTargetParameterForArgument(member, index);
+    if (parameter === undefined) {
+      return false;
+    }
+    const argumentCarrier = resolveCallArgumentCarrier(request, index, context);
+    if (argumentCarrier === undefined || !targetTypeRefMatches(argumentCarrier, parameter.type)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function resolveCallArgumentCarrier(
+  request: Pick<ResolveCallRequest, "arguments" | "argumentSymbols" | "resolvedArgumentSymbols" | "argumentTypes">,
+  index: number,
+  context: ExtensionDecisionContext,
+): TargetTypeRef | undefined {
+  const argument = request.arguments[index];
+  const argumentSymbol = request.argumentSymbols?.[index];
+  const resolvedArgumentSymbol = request.resolvedArgumentSymbols?.[index];
+  const argumentType = request.argumentTypes?.[index];
+  return resolveFirstRuntimeCarrier([
+    argument,
+    argumentSymbol,
+    resolvedArgumentSymbol,
+    argumentType,
+  ], context);
+}
+
+function getTargetParameterForArgument(member: TargetMember, index: number): TargetMember["parameters"][number] | undefined {
+  const direct = member.parameters[index];
+  if (direct !== undefined) {
+    return direct;
+  }
+  const last = member.parameters[member.parameters.length - 1];
+  return last?.paramsArray === true ? last : undefined;
+}
+
+function targetTypeRefMatches(actual: TargetTypeRef, expected: TargetTypeRef): boolean {
+  const actualKey = targetTypeRefKey(actual);
+  const expectedKey = targetTypeRefKey(expected);
+  return actualKey !== undefined && actualKey === expectedKey;
+}
+
+function targetTypeRefKey(type: TargetTypeRef): string | undefined {
+  switch (type.kind) {
+    case "source-primitive":
+      return `target:${sourcePrimitiveTargetId(type.name)}`;
+    case "target-named": {
+      const typeArguments = targetTypeArgumentsKey(type.typeArguments);
+      return typeArguments === undefined ? undefined : `target:${type.id}${typeArguments}`;
+    }
+    case "type-parameter":
+      return `type-parameter:${type.name}`;
+    case "nullable": {
+      const inner = targetTypeRefKey(type.inner);
+      return inner === undefined ? undefined : `nullable:${inner}`;
+    }
+    case "array": {
+      const element = targetTypeRefKey(type.element);
+      return element === undefined ? undefined : `array:${type.rank ?? 1}:${element}`;
+    }
+    case "tuple": {
+      const elements = type.elements.map(targetTypeRefKey);
+      return elements.some((element) => element === undefined)
+        ? undefined
+        : `tuple:${elements.join(",")}`;
+    }
+    default:
+      return undefined;
+  }
+}
+
+function targetTypeArgumentsKey(typeArguments: readonly TargetTypeRef[] | undefined): string | undefined {
+  if (typeArguments === undefined || typeArguments.length === 0) {
+    return "";
+  }
+  const keys = typeArguments.map(targetTypeRefKey);
+  return keys.some((key) => key === undefined) ? undefined : `<${keys.join(",")}>`;
+}
+
+function sourcePrimitiveTargetId(kind: SourcePrimitiveKind): string {
+  switch (kind) {
+    case "bool":
+      return "System.Boolean";
+    case "char16":
+      return "System.Char";
+    case "char32":
+      return "System.Text.Rune";
+    case "int8":
+      return "System.SByte";
+    case "uint8":
+      return "System.Byte";
+    case "int16":
+      return "System.Int16";
+    case "uint16":
+      return "System.UInt16";
+    case "int32":
+      return "System.Int32";
+    case "uint32":
+      return "System.UInt32";
+    case "int64":
+      return "System.Int64";
+    case "uint64":
+      return "System.UInt64";
+    case "native-int":
+      return "System.IntPtr";
+    case "native-uint":
+      return "System.UIntPtr";
+    case "float16":
+      return "System.Half";
+    case "float32":
+      return "System.Single";
+    case "float64":
+      return "System.Double";
+    case "decimal128":
+      return "System.Decimal";
+    case "int128":
+      return "System.Int128";
+    case "uint128":
+      return "System.UInt128";
+  }
 }
 
 function getCallCalleeSourceName(callee: ExtensionFactSubject): string | undefined {
@@ -1812,6 +1945,7 @@ function csharpTargetProviderExports(moduleSpecifier: string): readonly Provider
 }
 
 function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
+  const stringType = providerCsharpStringType();
   return {
     id: "Exception",
     name: "Exception",
@@ -1829,7 +1963,7 @@ function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
         id: "System.Exception..ctor(System.String)",
         parameters: [{
           name: "message",
-          type: { kind: "string" },
+          type: stringType,
         }],
       }],
     }, {
@@ -1837,7 +1971,7 @@ function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
       name: "message",
       targetName: "Message",
       kind: "property",
-      type: { kind: "string" },
+      type: stringType,
     }, {
       id: "ToString",
       name: "toString",
@@ -1846,7 +1980,7 @@ function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
       signatures: [{
         id: "System.Exception.ToString()",
         parameters: [],
-        returnType: { kind: "string" },
+        returnType: stringType,
       }],
     }],
   };
@@ -1881,6 +2015,7 @@ function csharpConvertProviderDeclaration(): ProviderExportDeclaration {
 }
 
 function csharpEnvironmentProviderDeclaration(): ProviderExportDeclaration {
+  const stringType = providerCsharpStringType();
   return {
     id: "Environment",
     name: "Environment",
@@ -1896,7 +2031,7 @@ function csharpEnvironmentProviderDeclaration(): ProviderExportDeclaration {
       targetName: "NewLine",
       kind: "property",
       static: true,
-      type: { kind: "string" },
+      type: stringType,
     }],
   };
 }
@@ -1982,7 +2117,7 @@ function attributeBuilderProviderDeclarations(declaration: SourceCallMarkerDecla
         kind: "method",
         signatures: [{
           id: "parameter(name)",
-          parameters: [{ name: "name", type: { kind: "string" } }],
+          parameters: [{ name: "name", type: providerCsharpStringType() }],
           returnType: attributeBuilderType("AttributeParameterBuilder", targetType),
         }],
       },
@@ -2112,6 +2247,16 @@ function attributeArgumentShape(): ProviderTypeExpression {
         sourceShape: { kind: "object" },
       },
     ],
+  };
+}
+
+function providerCsharpStringType(): ProviderTypeExpression {
+  return {
+    kind: "target-named",
+    target: "csharp",
+    id: "System.String",
+    displayName: "string",
+    sourceShape: { kind: "string" },
   };
 }
 
