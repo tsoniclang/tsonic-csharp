@@ -56,6 +56,12 @@ export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode
       return csharpTypeFromTargetNamedId(type.id, (type.typeArguments ?? []).map(csharpTypeFromTargetTypeRef));
     case "type-parameter":
       return { kind: "named", name: sanitizeIdentifier(type.name) };
+    case "nullable": {
+      const inner = csharpTypeFromTargetTypeRef(type.inner);
+      return inner === undefined
+        ? undefined
+        : { kind: "nullable", inner };
+    }
     case "array": {
       const elementType = csharpTypeFromTargetTypeRef(type.element);
       return elementType === undefined

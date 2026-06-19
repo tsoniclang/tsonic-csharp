@@ -19,7 +19,9 @@ import {
   KindPropertyAccessExpression,
   KindIdentifier,
   GetSourceFileOfNode,
+  getTypeScriptUnionTypes,
   KindVariableDeclaration,
+  isTypeScriptNullishType,
   SourceFile_FileName,
   TypeFlagsTypeParameter,
   providerVirtualDeclarationFactKey,
@@ -279,10 +281,11 @@ function isTypeParameterType(type: Type | undefined): boolean {
 }
 
 export function isSourceOwnedProjectShapeType(type: Type | undefined, input: TargetCompileInput): boolean {
-  if (isTypeParameterType(type)) {
+  const effectiveType = getSingleNonNullishUnionType(type) ?? type;
+  if (isTypeParameterType(effectiveType)) {
     return true;
   }
-  const declaration = getPrimaryDeclaration(type?.symbol);
+  const declaration = getPrimaryDeclaration(effectiveType?.symbol);
   return isProjectSourceDeclaration(declaration, input) &&
     (
       declaration?.Kind === KindClassDeclaration ||
@@ -290,6 +293,17 @@ export function isSourceOwnedProjectShapeType(type: Type | undefined, input: Tar
       declaration?.Kind === KindEnumDeclaration ||
       declaration?.Kind === KindEnumMember
     );
+}
+
+function getSingleNonNullishUnionType(type: Type | undefined): Type | undefined {
+  const unionTypes = getTypeScriptUnionTypes(type);
+  if (unionTypes === undefined) {
+    return undefined;
+  }
+  const nonNullishTypes = unionTypes.filter((unionType) => !isTypeScriptNullishType(unionType));
+  return nonNullishTypes.length === 1 && nonNullishTypes.length < unionTypes.length
+    ? nonNullishTypes[0]
+    : undefined;
 }
 
 function isSourceDeclaredCallable(symbol: Symbol | undefined, input: TargetCompileInput): boolean {

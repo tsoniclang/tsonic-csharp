@@ -42,8 +42,10 @@ import {
   deferDecision,
   getSingleTypeScriptCallSignatureInfo,
   getTypeScriptArrayElementType,
+  getTypeScriptUnionTypes,
   getTypeScriptTypeReferenceInfo,
   isTypeScriptStringLikeType,
+  isTypeScriptNullishType,
   Node_Name,
   Node_Symbol,
   Node_Text,
@@ -586,6 +588,10 @@ function resolveCsharpRuntimeCarrierForTstsType(
       id: targetBinding.id,
     };
   }
+  const nullableUnionCarrier = resolveNullableUnionCarrierForTstsType(type, context);
+  if (nullableUnionCarrier !== undefined) {
+    return nullableUnionCarrier;
+  }
   const arrayElementType = getTypeScriptArrayElementType(type);
   if (arrayElementType !== undefined) {
     const elementCarrier = context.factResolver.resolve(arrayElementType, runtimeCarrierFactKey)?.carrier;
@@ -641,6 +647,32 @@ function resolveCsharpRuntimeCarrierForTstsType(
     return csharpNamed("System.Void");
   }
   return undefined;
+}
+
+function resolveNullableUnionCarrierForTstsType(
+  type: Type,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const unionTypes = getTypeScriptUnionTypes(type);
+  if (unionTypes === undefined) {
+    return undefined;
+  }
+  const nonNullishTypes = unionTypes.filter((unionType) => !isTypeScriptNullishType(unionType));
+  if (nonNullishTypes.length !== 1 || nonNullishTypes.length === unionTypes.length) {
+    return undefined;
+  }
+  const inner = context.factResolver.resolve(nonNullishTypes[0]!, runtimeCarrierFactKey)?.carrier;
+  return inner === undefined ? undefined : nullableTargetType(inner);
+}
+
+function nullableTargetType(inner: TargetTypeRef): TargetTypeRef | undefined {
+  if (inner.kind === "type-parameter" || isVoidTargetType(inner)) {
+    return undefined;
+  }
+  return {
+    kind: "nullable",
+    inner,
+  };
 }
 
 function csharpNamed(id: string): TargetTypeRef {
@@ -764,6 +796,12 @@ function resolveBuiltinTypeOperator(
   request: ResolveOperatorRequest,
 ): ResolveOperationResult | undefined {
   const semanticOperator = normalizeSourcePrimitiveOperator(request.operator, request.right);
+  const nullishCoalesce = semanticOperator === "??"
+    ? resolveNullishCoalesceOperator(request)
+    : undefined;
+  if (nullishCoalesce !== undefined) {
+    return nullishCoalesce;
+  }
   const targetOperation = csharpOperatorToken(semanticOperator);
   if (targetOperation === undefined) {
     return undefined;
@@ -789,6 +827,40 @@ function resolveBuiltinTypeOperator(
     } satisfies TargetOperationFact,
     ...(resultType !== undefined ? { resultType } : {}),
   };
+}
+
+function resolveNullishCoalesceOperator(request: ResolveOperatorRequest): ResolveOperationResult | undefined {
+  const leftType = request.leftType !== undefined && isTypeSubject(request.leftType) ? request.leftType : undefined;
+  const rightType = request.rightType !== undefined && isTypeSubject(request.rightType) ? request.rightType : undefined;
+  const leftInnerType = getSingleNonNullishUnionType(leftType);
+  if (leftInnerType === undefined || rightType === undefined) {
+    return undefined;
+  }
+  const leftKind = getBuiltinOperatorKind(leftInnerType);
+  const rightKind = getBuiltinOperatorKind(rightType);
+  if (leftKind === undefined || rightKind === undefined || leftKind !== rightKind || leftKind === "type-parameter") {
+    return undefined;
+  }
+  return {
+    operation: {
+      operationId: `tsonic.csharp.builtin.${leftKind}.??.${rightKind}`,
+      operationKind: "operator",
+      targetOperation: "??",
+      resultType: leftInnerType,
+    } satisfies TargetOperationFact,
+    resultType: leftInnerType,
+  };
+}
+
+function getSingleNonNullishUnionType(type: Type | undefined): Type | undefined {
+  const unionTypes = getTypeScriptUnionTypes(type);
+  if (unionTypes === undefined) {
+    return undefined;
+  }
+  const nonNullishTypes = unionTypes.filter((unionType) => !isTypeScriptNullishType(unionType));
+  return nonNullishTypes.length === 1 && nonNullishTypes.length < unionTypes.length
+    ? nonNullishTypes[0]
+    : undefined;
 }
 
 function getBuiltinOperatorKind(subject: ExtensionFactSubject | undefined): BuiltinOperatorKind | undefined {
