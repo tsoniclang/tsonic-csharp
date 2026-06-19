@@ -55,6 +55,7 @@ import {
   KindGreaterThanGreaterThanToken,
   KindGreaterThanToken,
   KindIdentifier,
+  KindInstanceOfKeyword,
   KindLessThanEqualsToken,
   KindLessThanLessThanEqualsToken,
   KindLessThanLessThanToken,
@@ -646,6 +647,8 @@ function getCsharpBinaryOperator(node: Node): string | undefined {
         return ">";
       case KindGreaterThanEqualsToken:
         return ">=";
+      case KindInstanceOfKeyword:
+        return "is";
       case KindAmpersandAmpersandToken:
         return "&&";
       case KindBarBarToken:
