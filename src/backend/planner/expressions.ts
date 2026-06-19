@@ -393,6 +393,15 @@ export function planExpressionWithExpectedType(
   if (node.Kind === KindArrayLiteralExpression && expectedType.kind === "tuple") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics);
   }
+  if (node.Kind === KindConditionalExpression) {
+    const expression = AsConditionalExpression(node)!;
+    return {
+      kind: "conditional",
+      condition: planExpression(expression.Condition!, sourceFile, input, diagnostics),
+      whenTrue: planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType),
+      whenFalse: planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType),
+    };
+  }
   const expression = planExpression(node, sourceFile, input, diagnostics);
   if (expression.kind === "array" && expectedType.kind === "array") {
     return {
