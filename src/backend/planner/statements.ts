@@ -65,6 +65,7 @@ import {
   planBindingPatternFromExpression,
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
+import { isErasedAttributeExpressionStatement } from "./attributes.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
@@ -173,6 +174,9 @@ export function planStatements(
     case KindTryStatement:
       return [planTryStatement(node, sourceFile, input, diagnostics, state)];
     case KindExpressionStatement:
+      if (isErasedAttributeExpressionStatement(node, input)) {
+        return [];
+      }
       return [expressionStatement(planExpression(AsExpressionStatement(node)!.Expression!, sourceFile, input, diagnostics))];
     case KindIfStatement: {
       const statement = AsIfStatement(node)!;

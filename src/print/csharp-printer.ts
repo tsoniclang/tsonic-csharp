@@ -1,5 +1,6 @@
 import type {
   CsharpArgument,
+  CsharpAttribute,
   CsharpCompilationUnit,
   CsharpExpression,
   CsharpForInitializer,
@@ -55,6 +56,7 @@ function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[]
   const baseList = bases.length === 0 ? "" : ` : ${bases.map(printCsharpType).join(", ")}`;
   if (declaration.kind === "interface") {
     return [
+      ...printCsharpAttributes(declaration.attributes),
       `${modifiers}interface ${declaration.name}${typeParameters}${baseList}`,
       ...constraintLines,
       "{",
@@ -63,6 +65,7 @@ function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[]
     ];
   }
   return [
+    ...printCsharpAttributes(declaration.attributes),
     `${modifiers}${declaration.kind} ${declaration.name}${typeParameters}${baseList}`,
     ...constraintLines,
     "{",
@@ -77,12 +80,21 @@ function printInterfaceMemberLines(member: CsharpInterfaceMember): string[] {
       const typeParameters = printTypeParameters(member.typeParameters);
       const constraints = printTypeParameterConstraintSuffix(member.typeParameters);
       const parameters = member.parameters.map(printCsharpParameter).join(", ");
-      return [`${printCsharpType(member.returnType)} ${member.name}${typeParameters}(${parameters})${constraints};`];
+      return [
+        ...printCsharpAttributes(member.attributes),
+        `${printCsharpType(member.returnType)} ${member.name}${typeParameters}(${parameters})${constraints};`,
+      ];
     }
     case "interface-property":
-      return [`${printCsharpType(member.type)} ${member.name} { get; }`];
+      return [
+        ...printCsharpAttributes(member.attributes),
+        `${printCsharpType(member.type)} ${member.name} { get; }`,
+      ];
     case "interface-indexer":
-      return [`${printCsharpType(member.valueType)} this[${printCsharpType(member.keyType)} ${member.keyName}] { get; }`];
+      return [
+        ...printCsharpAttributes(member.attributes),
+        `${printCsharpType(member.valueType)} this[${printCsharpType(member.keyType)} ${member.keyName}] { get; }`,
+      ];
   }
 }
 
@@ -91,7 +103,10 @@ function printTypeMemberLines(member: CsharpTypeMember): string[] {
     case "field": {
       const modifiers = member.modifiers.length === 0 ? "" : `${member.modifiers.join(" ")} `;
       const initializer = member.initializer === undefined ? "" : ` = ${printCsharpExpression(member.initializer)}`;
-      return [`${modifiers}${printCsharpType(member.type)} ${member.name}${initializer};`];
+      return [
+        ...printCsharpAttributes(member.attributes),
+        `${modifiers}${printCsharpType(member.type)} ${member.name}${initializer};`,
+      ];
     }
     case "constructor":
       return printConstructorLines(member);
@@ -109,6 +124,7 @@ function printConstructorLines(constructor: CsharpConstructorDeclaration): strin
     ? ""
     : ` : base(${constructor.baseArguments.map(printCsharpArgument).join(", ")})`;
   return [
+    ...printCsharpAttributes(constructor.attributes),
     `${modifiers}${constructor.name}(${parameters})${baseInitializer}`,
     "{",
     ...indentLines(printCsharpStatements(constructor.body.statements)),
@@ -122,6 +138,7 @@ function printMethodLines(method: CsharpMethodDeclaration): string[] {
   const constraintLines = printTypeParameterConstraintLines(method.typeParameters);
   const parameters = method.parameters.map(printCsharpParameter).join(", ");
   return [
+    ...printCsharpAttributes(method.attributes),
     `${modifiers}${printCsharpType(method.returnType)} ${method.name}${typeParameters}(${parameters})`,
     ...constraintLines,
     "{",
@@ -133,6 +150,7 @@ function printMethodLines(method: CsharpMethodDeclaration): string[] {
 function printPropertyLines(property: CsharpPropertyDeclaration): string[] {
   const modifiers = property.modifiers.length === 0 ? "" : `${property.modifiers.join(" ")} `;
   return [
+    ...printCsharpAttributes(property.attributes),
     `${modifiers}${printCsharpType(property.type)} ${property.name}`,
     "{",
     ...(property.getter === undefined
@@ -153,6 +171,15 @@ function printPropertyLines(property: CsharpPropertyDeclaration): string[] {
         ])),
     "}",
   ];
+}
+
+function printCsharpAttributes(attributes: readonly CsharpAttribute[] | undefined): readonly string[] {
+  return (attributes ?? []).map((attribute) => {
+    const argumentsText = attribute.arguments === undefined || attribute.arguments.length === 0
+      ? ""
+      : `(${attribute.arguments.map(printCsharpArgument).join(", ")})`;
+    return `[${printCsharpType(attribute.type)}${argumentsText}]`;
+  });
 }
 
 function printTypeParameters(typeParameters: readonly CsharpTypeParameter[] | undefined): string {
@@ -410,12 +437,14 @@ function printCsharpArgument(argument: CsharpArgument): string {
 }
 
 function printCsharpParameter(parameter: CsharpParameter): string {
+  const attributes = printCsharpAttributes(parameter.attributes).join(" ");
+  const attributePrefix = attributes.length === 0 ? "" : `${attributes} `;
   const paramsPrefix = parameter.isParams === true ? "params " : "";
   const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
   const defaultValue = parameter.defaultValue === undefined
     ? ""
     : ` = ${printCsharpExpression(parameter.defaultValue)}`;
-  return `${paramsPrefix}${passing}${printCsharpType(parameter.type)} ${parameter.name}${defaultValue}`;
+  return `${attributePrefix}${paramsPrefix}${passing}${printCsharpType(parameter.type)} ${parameter.name}${defaultValue}`;
 }
 
 function printLiteral(value: string | number | boolean | null): string {

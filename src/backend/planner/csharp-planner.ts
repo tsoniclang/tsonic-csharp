@@ -32,6 +32,7 @@ import type {
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
 import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
+import { isErasedAttributeExpressionStatement } from "./attributes.js";
 import { predefined } from "./csharp-types.js";
 import { planClassDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -97,6 +98,9 @@ function planSourceFile(
   const topLevelStatements: CsharpStatement[] = [];
   for (const statement of sourceFile.Statements?.Nodes ?? []) {
     if (statement === undefined) {
+      continue;
+    }
+    if (isErasedAttributeExpressionStatement(statement, input)) {
       continue;
     }
     switch (statement.Kind) {

@@ -5,6 +5,7 @@ import type {
   ProviderDeclarationModel,
   ProviderExportDeclaration,
   ProviderIdentity,
+  ProviderMemberDeclaration,
   ProviderModuleContext,
   ProviderModuleResolution,
   ProviderOwnership,
@@ -23,6 +24,12 @@ export const neutralTypesModule = "@tsonic/core/types.js";
 export const csharpTypesModule = "@tsonic/csharp/types.js";
 export const neutralLangModule = "@tsonic/core/lang.js";
 export const csharpLangModule = "@tsonic/csharp/lang.js";
+
+type AttributeBuilderTypeName =
+  | "AttributeBuilder"
+  | "AttributeMemberBuilder"
+  | "AttributeMethodBuilder"
+  | "AttributeParameterBuilder";
 
 export function createCsharpSourceSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
   return createSourceSemanticsExtension({
@@ -115,6 +122,7 @@ function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
         { kind: "call-marker", exportName: "move", marker: "move" },
         { kind: "call-marker", exportName: "valueType", marker: "valueType" },
         { kind: "call-marker", exportName: "field", marker: "field" },
+        { kind: "call-marker", exportName: "attributes", marker: "attributes" },
         { kind: "call-marker", exportName: "defaultValue", marker: "defaultValue" },
         { kind: "type-marker", exportName: "pointer", marker: "pointer" },
         { kind: "type-marker", exportName: "functionPointer", marker: "functionPointer" },
@@ -188,7 +196,7 @@ function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider {
       return {
         moduleSpecifier: resolution.moduleSpecifier,
         providerModuleId: resolution.providerModuleId,
-        exports: module.exports.map(toProviderExportDeclaration),
+        exports: module.exports.flatMap(toProviderExportDeclarations),
         evidence: [{ message: "Declaration model is generated from target source semantics." }],
       };
     },
@@ -217,14 +225,14 @@ function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider {
   };
 }
 
-function toProviderExportDeclaration(declaration: SourceSemanticsExportDeclaration): ProviderExportDeclaration {
+function toProviderExportDeclarations(declaration: SourceSemanticsExportDeclaration): readonly ProviderExportDeclaration[] {
   switch (declaration.kind) {
     case "source-primitive":
-      return primitiveExportToProviderDeclaration(declaration);
+      return [primitiveExportToProviderDeclaration(declaration)];
     case "call-marker":
-      return callMarkerToProviderDeclaration(declaration);
+      return callMarkerToProviderDeclarations(declaration);
     case "type-marker":
-      return typeMarkerToProviderDeclaration(declaration);
+      return [typeMarkerToProviderDeclaration(declaration)];
   }
 }
 
@@ -242,13 +250,16 @@ function primitiveExportToProviderDeclaration(declaration: SourcePrimitiveDeclar
   };
 }
 
-function callMarkerToProviderDeclaration(declaration: SourceCallMarkerDeclaration): ProviderExportDeclaration {
+function callMarkerToProviderDeclarations(declaration: SourceCallMarkerDeclaration): readonly ProviderExportDeclaration[] {
+  if (declaration.marker === "attributes") {
+    return attributeBuilderProviderDeclarations(declaration);
+  }
   const typeParameter = { name: "T" };
   const typeParameterRef: ProviderTypeExpression = { kind: "type-parameter", name: "T" };
   const parameters = declaration.marker === "defaultValue"
     ? []
     : [{ name: "value", type: typeParameterRef, optional: !isRequiredStorageMarker(declaration.marker) }];
-  return {
+  return [{
     id: declaration.exportName,
     name: declaration.exportName,
     kind: "function",
@@ -258,6 +269,116 @@ function callMarkerToProviderDeclaration(declaration: SourceCallMarkerDeclaratio
       parameters,
       returnType: typeParameterRef,
     }],
+  }];
+}
+
+function attributeBuilderProviderDeclarations(declaration: SourceCallMarkerDeclaration): readonly ProviderExportDeclaration[] {
+  const typeParameter = { name: "T" };
+  const targetType: ProviderTypeExpression = { kind: "type-parameter", name: "T" };
+  const builder = attributeBuilderType("AttributeBuilder", targetType);
+  return [
+    {
+      id: declaration.exportName,
+      name: declaration.exportName,
+      kind: "function",
+      signatures: [{
+        id: `${declaration.exportName}<T>`,
+        typeParameters: [typeParameter],
+        parameters: [],
+        returnType: builder,
+      }],
+    },
+    attributeBuilderInterface("AttributeBuilder", [
+      attributeAddMember("AttributeBuilder", targetType),
+      selectorMember("property", "AttributeMemberBuilder", targetType),
+      selectorMember("method", "AttributeMethodBuilder", targetType),
+    ]),
+    attributeBuilderInterface("AttributeMemberBuilder", [
+      attributeAddMember("AttributeMemberBuilder", targetType),
+    ]),
+    attributeBuilderInterface("AttributeMethodBuilder", [
+      attributeAddMember("AttributeMethodBuilder", targetType),
+      {
+        id: "parameter(name)",
+        name: "parameter",
+        kind: "method",
+        signatures: [{
+          id: "parameter(name)",
+          parameters: [{ name: "name", type: { kind: "string" } }],
+          returnType: attributeBuilderType("AttributeParameterBuilder", targetType),
+        }],
+      },
+    ]),
+    attributeBuilderInterface("AttributeParameterBuilder", [
+      attributeAddMember("AttributeParameterBuilder", targetType),
+    ]),
+  ];
+}
+
+function attributeBuilderInterface(
+  name: string,
+  members: readonly ProviderMemberDeclaration[],
+): ProviderExportDeclaration {
+  return {
+    id: name,
+    name,
+    kind: "interface",
+    typeParameters: [{ name: "T" }],
+    members,
+  };
+}
+
+function attributeAddMember(
+  builderName: AttributeBuilderTypeName,
+  targetType: ProviderTypeExpression,
+): ProviderMemberDeclaration {
+  return {
+    id: "add(attribute,args)",
+    name: "add",
+    kind: "method",
+    signatures: [{
+      id: "add(attribute,args)",
+      parameters: [
+        { name: "attribute", type: { kind: "unknown" } },
+        { name: "args", type: { kind: "array", elementType: { kind: "unknown" } }, rest: true },
+      ],
+      returnType: attributeBuilderType(builderName, targetType),
+    }],
+  };
+}
+
+function selectorMember(
+  name: "method" | "property",
+  builderName: AttributeBuilderTypeName,
+  targetType: ProviderTypeExpression,
+): ProviderMemberDeclaration {
+  return {
+    id: `${name}(selector)`,
+    name,
+    kind: "method",
+    signatures: [{
+      id: `${name}(selector)`,
+      parameters: [{
+        name: "selector",
+        type: {
+          kind: "function",
+          parameters: [{ name: "target", type: targetType }],
+          returnType: { kind: "unknown" },
+        },
+      }],
+      returnType: attributeBuilderType(builderName, targetType),
+    }],
+  };
+}
+
+function attributeBuilderType(
+  name: AttributeBuilderTypeName,
+  targetType: ProviderTypeExpression,
+): ProviderTypeExpression {
+  return {
+    kind: "reference",
+    name,
+    typeArguments: [targetType],
   };
 }
 

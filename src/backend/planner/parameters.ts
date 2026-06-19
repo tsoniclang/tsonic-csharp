@@ -12,6 +12,7 @@ import {
   createDestructuringPlannerState,
   planParameterBindingPrelude,
 } from "./bindings.js";
+import { planAttributesForSubject } from "./attributes.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -54,6 +55,7 @@ export function planParametersWithPrelude(
       parameters.push({
         name: planIdentifierName(parameter.name, "arg", diagnostics, "Parameter name"),
         type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, undefined, diagnostics),
+        attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
         ...(defaultValue === undefined ? {} : { defaultValue }),
       });
@@ -67,6 +69,7 @@ export function planParametersWithPrelude(
       parameters.push({
         name: parameterName,
         type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, predefined("object"), diagnostics),
+        attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
       });
       prelude.push(...planParameterBindingPrelude(parameter.name, parameterName, sourceFile, input, diagnostics, state));
@@ -76,6 +79,7 @@ export function planParametersWithPrelude(
     parameters.push({
       name: planIdentifierName(parameter.name, "arg", diagnostics, "Parameter name"),
       type: getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, undefined, diagnostics),
+      attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
       ...(defaultValue === undefined ? {} : { defaultValue }),
     });
   }

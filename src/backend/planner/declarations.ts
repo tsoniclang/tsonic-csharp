@@ -48,6 +48,7 @@ import type {
   CsharpStatement,
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
+import { planAttributesForSubject } from "./attributes.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import {
   createDestructuringPlannerState,
@@ -74,6 +75,7 @@ export function planClassDeclaration(
     kind: "class",
     name: className,
     modifiers: ["public"],
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
     ...(heritage.interfaces.length === 0 ? {} : { interfaces: heritage.interfaces }),
@@ -128,6 +130,7 @@ export function planInterfaceDeclaration(
     kind: "interface",
     name: planIdentifierName(declaration.name, "AnonymousInterface", diagnostics, "Interface name"),
     modifiers: ["public"],
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     ...(interfaces.length === 0 ? {} : { interfaces }),
     members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
@@ -163,6 +166,7 @@ export function planFunctionDeclaration(
     kind: "method",
     name,
     modifiers: ["public", "static"],
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: parameters.parameters,
@@ -194,6 +198,7 @@ function planConstructorDeclaration(
     kind: "constructor",
     name: className,
     modifiers: ["public"],
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     parameters: parameters.parameters,
     ...(leadingSuperCall === undefined
       ? {}
@@ -245,6 +250,7 @@ function planMethodDeclaration(
     kind: "method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
     modifiers: planClassMemberModifiers(node, declaration.name),
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: parameters.parameters,
@@ -267,6 +273,7 @@ function planInterfaceMethodDeclaration(
   return {
     kind: "interface-method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Interface method name"),
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
@@ -286,6 +293,7 @@ function planInterfacePropertyDeclaration(
   return {
     kind: "interface-property",
     name: planIdentifierName(declaration.name, "property", diagnostics, "Interface property name"),
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type: getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, predefined("object"), diagnostics),
   };
 }
@@ -305,6 +313,7 @@ function planInterfaceIndexerDeclaration(
   const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(parameterNode);
   return {
     kind: "interface-indexer",
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     keyName: planIdentifierName(parameterDeclaration?.name, "key", diagnostics, "Interface indexer key name"),
     keyType: getCsharpTypeForNode(parameterDeclaration?.Type ?? parameterDeclaration?.name, sourceFile, input, undefined, diagnostics),
     valueType: getCsharpTypeForNode(declaration.Type, sourceFile, input, undefined, diagnostics),
@@ -323,6 +332,7 @@ function planPropertyDeclaration(
     kind: "field",
     name: planIdentifierName(declaration.name, "field", diagnostics, "Property name"),
     modifiers: planClassMemberModifiers(node, declaration.name),
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     ...(declaration.Initializer !== undefined
       ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type) }
@@ -371,6 +381,7 @@ function mergeGetterAccessor(
     kind: "property",
     name,
     modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name),
+    attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     getter: {
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
@@ -420,6 +431,7 @@ function mergeSetterAccessor(
     kind: "property",
     name,
     modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name),
+    attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     ...(existing?.getter === undefined ? {} : { getter: existing.getter }),
     setter: {

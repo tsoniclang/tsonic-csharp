@@ -2,6 +2,7 @@ import { AsVariableDeclaration } from "@tsonic/tsts";
 import type { Node, SourceFile, ValueTypeFact } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpFieldDeclaration, CsharpStructDeclaration, CsharpTypeNode } from "../ast/csharp-ast.js";
+import { planAttributesForSubject } from "./attributes.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planIdentifierName } from "./names.js";
@@ -18,6 +19,7 @@ export function planValueTypeDeclaration(
     kind: "struct",
     name: planIdentifierName(declaration.name, "AnonymousValueType", diagnostics, "Value type name"),
     modifiers: ["public"],
+    attributes: planAttributesForSubject(declarationNode, sourceFile, input, diagnostics),
     members: (valueType.fields ?? []).map((field): CsharpFieldDeclaration => ({
       kind: "field",
       name: field.name,

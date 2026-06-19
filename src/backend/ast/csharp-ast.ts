@@ -21,6 +21,7 @@ export interface CsharpClassDeclaration {
   readonly kind: "class";
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
+  readonly attributes?: readonly CsharpAttribute[];
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly baseType?: CsharpTypeNode;
   readonly interfaces?: readonly CsharpTypeNode[];
@@ -31,6 +32,7 @@ export interface CsharpStructDeclaration {
   readonly kind: "struct";
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
+  readonly attributes?: readonly CsharpAttribute[];
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly interfaces?: readonly CsharpTypeNode[];
   readonly members: readonly CsharpTypeMember[];
@@ -40,6 +42,7 @@ export interface CsharpInterfaceDeclaration {
   readonly kind: "interface";
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
+  readonly attributes?: readonly CsharpAttribute[];
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly interfaces?: readonly CsharpTypeNode[];
   readonly members: readonly CsharpInterfaceMember[];
@@ -59,6 +62,7 @@ export type CsharpInterfaceMember =
 export interface CsharpInterfaceMethodDeclaration {
   readonly kind: "interface-method";
   readonly name: string;
+  readonly attributes?: readonly CsharpAttribute[];
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly returnType: CsharpTypeNode;
   readonly parameters: readonly CsharpParameter[];
@@ -67,11 +71,13 @@ export interface CsharpInterfaceMethodDeclaration {
 export interface CsharpInterfacePropertyDeclaration {
   readonly kind: "interface-property";
   readonly name: string;
+  readonly attributes?: readonly CsharpAttribute[];
   readonly type: CsharpTypeNode;
 }
 
 export interface CsharpInterfaceIndexerDeclaration {
   readonly kind: "interface-indexer";
+  readonly attributes?: readonly CsharpAttribute[];
   readonly keyName: string;
   readonly keyType: CsharpTypeNode;
   readonly valueType: CsharpTypeNode;
@@ -81,6 +87,7 @@ export interface CsharpConstructorDeclaration {
   readonly kind: "constructor";
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
+  readonly attributes?: readonly CsharpAttribute[];
   readonly parameters: readonly CsharpParameter[];
   readonly baseArguments?: readonly CsharpArgument[];
   readonly body: CsharpBlock;
@@ -90,6 +97,7 @@ export interface CsharpMethodDeclaration {
   readonly kind: "method";
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
+  readonly attributes?: readonly CsharpAttribute[];
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly returnType: CsharpTypeNode;
   readonly parameters: readonly CsharpParameter[];
@@ -105,6 +113,7 @@ export interface CsharpFieldDeclaration {
   readonly kind: "field";
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
+  readonly attributes?: readonly CsharpAttribute[];
   readonly type: CsharpTypeNode;
   readonly initializer?: CsharpExpression;
 }
@@ -113,6 +122,7 @@ export interface CsharpPropertyDeclaration {
   readonly kind: "property";
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
+  readonly attributes?: readonly CsharpAttribute[];
   readonly type: CsharpTypeNode;
   readonly getter?: CsharpBlock;
   readonly setter?: CsharpBlock;
@@ -121,9 +131,15 @@ export interface CsharpPropertyDeclaration {
 export interface CsharpParameter {
   readonly name: string;
   readonly type: CsharpTypeNode;
+  readonly attributes?: readonly CsharpAttribute[];
   readonly passing?: "in" | "out" | "ref";
   readonly isParams?: boolean;
   readonly defaultValue?: CsharpExpression;
+}
+
+export interface CsharpAttribute {
+  readonly type: CsharpTypeNode;
+  readonly arguments?: readonly CsharpArgument[];
 }
 
 export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly";
