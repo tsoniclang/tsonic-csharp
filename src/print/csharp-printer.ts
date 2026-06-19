@@ -297,6 +297,8 @@ export function printCsharpExpression(expression: CsharpExpression): string {
         ? `new[] ${initializer}`
         : `new ${printCsharpType(expression.elementType)}[] ${initializer}`;
     }
+    case "default":
+      return `default(${printCsharpType(expression.type)})`;
   }
 }
 

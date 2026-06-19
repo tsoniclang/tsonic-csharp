@@ -51,10 +51,10 @@ import {
   KindTrueKeyword,
   Node_Text,
 } from "@tsonic/tsts";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../ast/csharp-ast.js";
-import { expressionToCsharpType } from "./csharp-types.js";
+import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 
@@ -64,6 +64,19 @@ export function planExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
+  const defaultValue = input.facts.getDefaultValueFact(node);
+  if (defaultValue !== undefined) {
+    return {
+      kind: "default",
+      type: isNode(defaultValue.type)
+        ? getCsharpTypeForNode(defaultValue.type, sourceFile, input, undefined, diagnostics)
+        : unsupportedFactExpressionType(node, diagnostics),
+    };
+  }
+  const argumentPassing = input.facts.getArgumentPassingFact(node);
+  if (argumentPassing !== undefined && argumentPassing.targetExpression !== node && isNode(argumentPassing.targetExpression)) {
+    return planExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics);
+  }
   switch (node.Kind) {
     case KindIdentifier:
       return { kind: "identifier", name: sanitizeIdentifier(AsIdentifier(node)!.Text) };
@@ -116,19 +129,19 @@ export function planExpression(
       return {
         kind: "call",
         callee: planExpression(expression.Expression!, sourceFile, input, diagnostics),
-        arguments: (expression.Arguments?.Nodes ?? []).map((argument): CsharpArgument => ({
-          expression: planExpression(argument!, sourceFile, input, diagnostics),
-        })),
+        arguments: (expression.Arguments?.Nodes ?? [])
+          .filter((argument): argument is Node => argument !== undefined)
+          .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
       };
     }
     case KindNewExpression: {
       const expression = AsNewExpression(node)!;
       return {
         kind: "new",
-        type: expressionToCsharpType(expression.Expression, sourceFile, input),
-        arguments: (expression.Arguments?.Nodes ?? []).map((argument): CsharpArgument => ({
-          expression: planExpression(argument!, sourceFile, input, diagnostics),
-        })),
+        type: expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics),
+        arguments: (expression.Arguments?.Nodes ?? [])
+          .filter((argument): argument is Node => argument !== undefined)
+          .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
       };
     }
     case KindConditionalExpression: {
@@ -174,6 +187,39 @@ export function planExpression(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Expression is outside the current C# planning surface."));
       return { kind: "identifier", name: "__unsupported" };
     }
+  }
+}
+
+function planCallArgument(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpArgument {
+  const argumentPassing = input.facts.getArgumentPassingFact(node);
+  if (argumentPassing === undefined) {
+    return { expression: planExpression(node, sourceFile, input, diagnostics) };
+  }
+  if (!isNode(argumentPassing.targetExpression)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
+    return { expression: planExpression(node, sourceFile, input, diagnostics) };
+  }
+  return {
+    expression: planExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics),
+    passing: getCsharpArgumentPassing(argumentPassing.mode),
+  };
+}
+
+function getCsharpArgumentPassing(mode: ArgumentPassingFact["mode"]): CsharpArgument["passing"] {
+  switch (mode) {
+    case "byref-writeonly-must-init":
+      return "out";
+    case "byref-readwrite":
+      return "ref";
+    case "byref-readonly":
+      return "in";
+    default:
+      return undefined;
   }
 }
 
@@ -271,6 +317,17 @@ function getCsharpPrefixUnaryOperator(kind: number): string | undefined {
     default:
       return undefined;
   }
+}
+
+function isNode(value: unknown): value is Node {
+  return typeof value === "object"
+    && value !== null
+    && typeof (value as { readonly Kind?: unknown }).Kind === "number";
+}
+
+function unsupportedFactExpressionType(node: Node, diagnostics: TargetDiagnostic[]): CsharpTypeNode {
+  diagnostics.push(unsupportedNodeDiagnostic(node, "Source fact type subject must be an AST type node before C# expression emission."));
+  return { kind: "predefined", name: "object" };
 }
 
 function getCsharpPostfixUnaryOperator(kind: number): string | undefined {
