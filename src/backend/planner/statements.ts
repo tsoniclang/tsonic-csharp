@@ -520,7 +520,9 @@ function planForInitializer(
       .map((declaration) => planLocalDeclaration(declaration, sourceFile, input, diagnostics));
     const first = locals[0];
     if (first !== undefined && locals.some((local) => !sameCsharpType(local.type, first.type))) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "C# for-initializer cannot represent mixed local declaration types without statement rewriting."));
+      return {
+        prelude: locals.map((local) => ({ kind: "local", ...local })),
+      };
     }
     return {
       initializer: {
