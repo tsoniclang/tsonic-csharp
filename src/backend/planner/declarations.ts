@@ -1,18 +1,24 @@
 import {
+  AsBlock,
+  AsCallExpression,
   AsClassDeclaration,
   AsConstructorDeclaration,
+  AsExpressionStatement,
   AsFunctionDeclaration,
   AsInterfaceDeclaration,
   AsMethodDeclaration,
   AsMethodSignatureDeclaration,
   AsPropertyDeclaration,
   AsPropertySignatureDeclaration,
+  KindCallExpression,
   KindConstructor,
+  KindExpressionStatement,
   KindIndexSignature,
   KindMethodDeclaration,
   KindMethodSignature,
   KindPropertyDeclaration,
   KindPropertySignature,
+  KindSuperKeyword,
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -29,11 +35,11 @@ import type {
 } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { planExpressionWithExpectedType } from "./expressions.js";
+import { planCallArgument, planExpressionWithExpectedType } from "./expressions.js";
 import { planClassHeritage, planInterfaceHeritage } from "./heritage.js";
 import { planIdentifierName } from "./names.js";
 import { planParameters } from "./parameters.js";
-import { planBlockStatements } from "./statements.js";
+import { planBlockStatements, planStatements } from "./statements.js";
 import { planTypeParameters } from "./type-parameters.js";
 
 export function planClassDeclaration(
@@ -134,15 +140,42 @@ function planConstructorDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpConstructorDeclaration {
   const declaration = AsConstructorDeclaration(node)!;
+  const bodyStatements = AsBlock(declaration.Body)?.Statements?.Nodes ?? [];
+  const leadingSuperCall = getLeadingSuperCall(bodyStatements);
   return {
     kind: "constructor",
     name: className,
     modifiers: ["public"],
     parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    ...(leadingSuperCall === undefined
+      ? {}
+      : {
+          baseArguments: (leadingSuperCall.Arguments?.Nodes ?? [])
+            .filter((argument): argument is Node => argument !== undefined)
+            .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
+        }),
     body: {
-      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
+      statements: leadingSuperCall === undefined
+        ? planBlockStatements(declaration.Body, sourceFile, input, diagnostics)
+        : bodyStatements
+            .slice(1)
+            .filter((statement): statement is Node => statement !== undefined)
+            .flatMap((statement) => planStatements(statement, sourceFile, input, diagnostics)),
     },
   };
+}
+
+function getLeadingSuperCall(statements: readonly (Node | undefined)[]): NonNullable<ReturnType<typeof AsCallExpression>> | undefined {
+  const first = statements[0];
+  if (first?.Kind !== KindExpressionStatement) {
+    return undefined;
+  }
+  const expression = AsExpressionStatement(first)!.Expression;
+  if (expression?.Kind !== KindCallExpression) {
+    return undefined;
+  }
+  const call = AsCallExpression(expression)!;
+  return call.Expression?.Kind === KindSuperKeyword ? call : undefined;
 }
 
 function planMethodDeclaration(

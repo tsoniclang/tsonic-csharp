@@ -100,8 +100,11 @@ function printConstructorLines(constructor: CsharpConstructorDeclaration): strin
     const passing = parameter.passing === undefined ? "" : `${parameter.passing} `;
     return `${passing}${printCsharpType(parameter.type)} ${parameter.name}`;
   }).join(", ");
+  const baseInitializer = constructor.baseArguments === undefined
+    ? ""
+    : ` : base(${constructor.baseArguments.map(printCsharpArgument).join(", ")})`;
   return [
-    `${modifiers}${constructor.name}(${parameters})`,
+    `${modifiers}${constructor.name}(${parameters})${baseInitializer}`,
     "{",
     ...indentLines(printCsharpStatements(constructor.body.statements)),
     "}",

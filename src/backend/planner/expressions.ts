@@ -47,6 +47,7 @@ import {
   KindQuestionQuestionToken,
   KindSlashToken,
   KindStringLiteral,
+  KindSuperKeyword,
   KindThisKeyword,
   KindTrueKeyword,
   Node_Text,
@@ -92,6 +93,8 @@ export function planExpression(
       return { kind: "literal", value: null };
     case KindThisKeyword:
       return { kind: "identifier", name: "this" };
+    case KindSuperKeyword:
+      return { kind: "identifier", name: "base" };
     case KindParenthesizedExpression: {
       const expression = AsParenthesizedExpression(node)!;
       return {
@@ -190,7 +193,7 @@ export function planExpression(
   }
 }
 
-function planCallArgument(
+export function planCallArgument(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,

@@ -68,6 +68,7 @@ export interface CsharpConstructorDeclaration {
   readonly name: string;
   readonly modifiers: readonly CsharpModifier[];
   readonly parameters: readonly CsharpParameter[];
+  readonly baseArguments?: readonly CsharpArgument[];
   readonly body: CsharpBlock;
 }
 
