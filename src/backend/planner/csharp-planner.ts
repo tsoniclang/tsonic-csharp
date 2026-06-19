@@ -81,7 +81,7 @@ import type {
 import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
 import { getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { planExpression } from "./expressions.js";
+import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { projectArtifact, readNamespace } from "./project-artifacts.js";
 import { sourceFileArtifactPath, sourceFileClassName } from "./source-paths.js";
@@ -270,13 +270,14 @@ function planPropertyDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpFieldDeclaration {
   const declaration = AsPropertyDeclaration(node)!;
+  const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input);
   return {
     kind: "field",
     name: sanitizeIdentifier(declaration.name === undefined ? "field" : Node_Text(declaration.name)),
     modifiers: ["public"],
-    type: getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input),
+    type,
     ...(declaration.Initializer !== undefined
-      ? { initializer: planExpression(declaration.Initializer, sourceFile, input, diagnostics) }
+      ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type) }
       : {}),
   };
 }
@@ -715,11 +716,12 @@ function planLocalDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
+  const type = getCsharpTypeForNode(variable.Type ?? variable.name, sourceFile, input);
   return {
     name: sanitizeIdentifier(variable.name === undefined ? "local" : Node_Text(variable.name)),
-    type: getCsharpTypeForNode(variable.Type ?? variable.name, sourceFile, input),
+    type,
     ...(variable.Initializer !== undefined
-      ? { initializer: planExpression(variable.Initializer, sourceFile, input, diagnostics) }
+      ? { initializer: planExpressionWithExpectedType(variable.Initializer, sourceFile, input, diagnostics, type) }
       : {}),
   };
 }

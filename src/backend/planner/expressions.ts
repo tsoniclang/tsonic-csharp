@@ -53,7 +53,7 @@ import {
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpArgument, CsharpExpression } from "../ast/csharp-ast.js";
+import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { expressionToCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
@@ -175,6 +175,23 @@ export function planExpression(
       return { kind: "identifier", name: "__unsupported" };
     }
   }
+}
+
+export function planExpressionWithExpectedType(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  expectedType: CsharpTypeNode,
+): CsharpExpression {
+  const expression = planExpression(node, sourceFile, input, diagnostics);
+  if (expression.kind === "array" && expectedType.kind === "array") {
+    return {
+      ...expression,
+      elementType: expectedType.elementType,
+    };
+  }
+  return expression;
 }
 
 function tryPlanBinaryExpression(

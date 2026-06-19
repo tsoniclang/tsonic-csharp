@@ -251,8 +251,13 @@ export function printCsharpExpression(expression: CsharpExpression): string {
       return `${printCsharpExpression(expression.operand)}${expression.operator}`;
     case "conditional":
       return `${printCsharpExpression(expression.condition)} ? ${printCsharpExpression(expression.whenTrue)} : ${printCsharpExpression(expression.whenFalse)}`;
-    case "array":
-      return `new[] { ${expression.elements.map(printCsharpExpression).join(", ")} }`;
+    case "array": {
+      const elements = expression.elements.map(printCsharpExpression).join(", ");
+      const initializer = elements.length === 0 ? "{ }" : `{ ${elements} }`;
+      return expression.elementType === undefined
+        ? `new[] ${initializer}`
+        : `new ${printCsharpType(expression.elementType)}[] ${initializer}`;
+    }
   }
 }
 

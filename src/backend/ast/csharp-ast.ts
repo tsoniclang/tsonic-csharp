@@ -135,7 +135,7 @@ export type CsharpExpression =
   | { readonly kind: "prefixUnary"; readonly operator: string; readonly operand: CsharpExpression }
   | { readonly kind: "postfixUnary"; readonly operand: CsharpExpression; readonly operator: string }
   | { readonly kind: "conditional"; readonly condition: CsharpExpression; readonly whenTrue: CsharpExpression; readonly whenFalse: CsharpExpression }
-  | { readonly kind: "array"; readonly elements: readonly CsharpExpression[] };
+  | { readonly kind: "array"; readonly elements: readonly CsharpExpression[]; readonly elementType?: CsharpTypeNode };
 
 export interface CsharpArgument {
   readonly expression: CsharpExpression;
