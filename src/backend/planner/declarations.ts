@@ -4,6 +4,8 @@ import {
   AsClassDeclaration,
   AsClassStaticBlockDeclaration,
   AsConstructorDeclaration,
+  AsEnumDeclaration,
+  AsEnumMember,
   AsExpressionStatement,
   AsFunctionDeclaration,
   AsGetAccessorDeclaration,
@@ -19,6 +21,7 @@ import {
   KindConstructor,
   KindClassStaticBlockDeclaration,
   KindExpressionStatement,
+  KindEnumMember,
   KindGetAccessor,
   KindIndexSignature,
   KindMethodDeclaration,
@@ -32,12 +35,15 @@ import {
   KindSuperKeyword,
   HasSyntacticModifier,
   ModifierFlagsStatic,
+  Node_Name,
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpClassDeclaration,
   CsharpConstructorDeclaration,
+  CsharpEnumDeclaration,
+  CsharpEnumMember,
   CsharpFieldDeclaration,
   CsharpInterfaceDeclaration,
   CsharpInterfaceIndexerDeclaration,
@@ -58,6 +64,7 @@ import {
 } from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planCallArgument, planExpressionWithExpectedType } from "./expressions.js";
+import { planExpression } from "./expressions.js";
 import { planClassHeritage, planInterfaceHeritage } from "./heritage.js";
 import { planIdentifierName } from "./names.js";
 import { planParameters, planParametersWithPrelude } from "./parameters.js";
@@ -173,6 +180,44 @@ export function planInterfaceDeclaration(
           return [];
       }
     }),
+  };
+}
+
+export function planEnumDeclaration(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpEnumDeclaration {
+  const declaration = AsEnumDeclaration(node)!;
+  return {
+    kind: "enum",
+    name: planIdentifierName(declaration.name, "AnonymousEnum", diagnostics, "Enum name"),
+    modifiers: ["public"],
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+    members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpEnumMember[] => {
+      if (member === undefined) {
+        return [];
+      }
+      if (member.Kind !== KindEnumMember) {
+        diagnostics.push(unsupportedNodeDiagnostic(member, "Enum member is outside the current C# planning surface."));
+        return [];
+      }
+      return [planEnumMember(member, sourceFile, input, diagnostics)];
+    }),
+  };
+}
+
+function planEnumMember(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpEnumMember {
+  const member = AsEnumMember(node)!;
+  return {
+    name: planIdentifierName(Node_Name(node), "AnonymousMember", diagnostics, "Enum member name"),
+    ...(member.Initializer === undefined ? {} : { value: planExpression(member.Initializer, sourceFile, input, diagnostics) }),
   };
 }
 

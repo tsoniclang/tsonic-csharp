@@ -3,6 +3,7 @@ import type {
   CsharpAttribute,
   CsharpCompilationUnit,
   CsharpExpression,
+  CsharpEnumMember,
   CsharpForInitializer,
   CsharpInterpolatedStringPart,
   CsharpInterfaceMember,
@@ -40,6 +41,7 @@ export function printCsharpCompilationUnit(unit: CsharpCompilationUnit): string 
       case "class":
       case "struct":
       case "interface":
+      case "enum":
         lines.push(...printTypeDeclarationLines(member));
         break;
     }
@@ -49,6 +51,15 @@ export function printCsharpCompilationUnit(unit: CsharpCompilationUnit): string 
 
 function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[] {
   const modifiers = declaration.modifiers.length === 0 ? "" : `${declaration.modifiers.join(" ")} `;
+  if (declaration.kind === "enum") {
+    return [
+      ...printCsharpAttributes(declaration.attributes),
+      `${modifiers}enum ${declaration.name}`,
+      "{",
+      ...indentLines(declaration.members.map(printEnumMemberLine)),
+      "}",
+    ];
+  }
   const typeParameters = printTypeParameters(declaration.typeParameters);
   const constraintLines = printTypeParameterConstraintLines(declaration.typeParameters);
   const bases = [
@@ -74,6 +85,12 @@ function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[]
     ...indentLines(declaration.members.flatMap(printTypeMemberLines)),
     "}",
   ];
+}
+
+function printEnumMemberLine(member: CsharpEnumMember, index: number, members: readonly CsharpEnumMember[]): string {
+  const value = member.value === undefined ? "" : ` = ${printCsharpExpression(member.value)}`;
+  const suffix = index === members.length - 1 ? "" : ",";
+  return `${member.name}${value}${suffix}`;
 }
 
 function printInterfaceMemberLines(member: CsharpInterfaceMember): string[] {

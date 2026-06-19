@@ -10,6 +10,7 @@ import {
   KindBigIntKeyword,
   KindBooleanKeyword,
   KindClassDeclaration,
+  KindEnumDeclaration,
   KindExpressionWithTypeArguments,
   KindFunctionType,
   KindIdentifier,
@@ -233,7 +234,10 @@ function getCsharpTypeForTstsType(
     return { kind: "named", name: sanitizeIdentifier(typeSymbol.Name) };
   }
   const typeDeclaration = typeSymbol?.ValueDeclaration ?? typeSymbol?.Declarations?.find((candidate) => candidate !== undefined);
-  if (isProjectSourceDeclaration(typeDeclaration, input) && (typeDeclaration?.Kind === KindClassDeclaration || typeDeclaration?.Kind === KindInterfaceDeclaration)) {
+  if (
+    isProjectSourceDeclaration(typeDeclaration, input) &&
+    (typeDeclaration?.Kind === KindClassDeclaration || typeDeclaration?.Kind === KindInterfaceDeclaration || typeDeclaration?.Kind === KindEnumDeclaration)
+  ) {
     return { kind: "named", name: sanitizeIdentifier(typeSymbol!.Name) };
   }
   if ((type.flags & TypeFlagsStringLike) !== 0) {
@@ -427,7 +431,7 @@ function getProjectSourceTypeName(symbol: Symbol | undefined, input: TargetCompi
   if (!isProjectSourceDeclaration(declaration, input)) {
     return undefined;
   }
-  if (declaration?.Kind !== KindClassDeclaration && declaration?.Kind !== KindInterfaceDeclaration) {
+  if (declaration?.Kind !== KindClassDeclaration && declaration?.Kind !== KindInterfaceDeclaration && declaration?.Kind !== KindEnumDeclaration) {
     return undefined;
   }
   return symbol?.Name;

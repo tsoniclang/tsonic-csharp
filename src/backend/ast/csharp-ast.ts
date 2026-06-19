@@ -15,7 +15,7 @@ export interface CsharpNamespace {
   readonly members: readonly CsharpTypeDeclaration[];
 }
 
-export type CsharpTypeDeclaration = CsharpClassDeclaration | CsharpStructDeclaration | CsharpInterfaceDeclaration;
+export type CsharpTypeDeclaration = CsharpClassDeclaration | CsharpStructDeclaration | CsharpInterfaceDeclaration | CsharpEnumDeclaration;
 
 export interface CsharpClassDeclaration {
   readonly kind: "class";
@@ -46,6 +46,19 @@ export interface CsharpInterfaceDeclaration {
   readonly typeParameters?: readonly CsharpTypeParameter[];
   readonly interfaces?: readonly CsharpTypeNode[];
   readonly members: readonly CsharpInterfaceMember[];
+}
+
+export interface CsharpEnumDeclaration {
+  readonly kind: "enum";
+  readonly name: string;
+  readonly modifiers: readonly CsharpModifier[];
+  readonly attributes?: readonly CsharpAttribute[];
+  readonly members: readonly CsharpEnumMember[];
+}
+
+export interface CsharpEnumMember {
+  readonly name: string;
+  readonly value?: CsharpExpression;
 }
 
 export type CsharpTypeMember =

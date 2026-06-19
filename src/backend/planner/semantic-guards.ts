@@ -4,6 +4,7 @@ import {
   KindFunctionDeclaration,
   KindFunctionExpression,
   KindInterfaceDeclaration,
+  KindEnumDeclaration,
   KindElementAccessExpression,
   KindArrayBindingPattern,
   KindBindingElement,
@@ -244,7 +245,7 @@ function isDirectSourceShapeType(type: Type | undefined, input: TargetCompileInp
   }
   const declaration = getPrimaryDeclaration(type?.symbol);
   return isProjectSourceDeclaration(declaration, input) &&
-    (declaration?.Kind === KindClassDeclaration || declaration?.Kind === KindInterfaceDeclaration);
+    (declaration?.Kind === KindClassDeclaration || declaration?.Kind === KindInterfaceDeclaration || declaration?.Kind === KindEnumDeclaration);
 }
 
 function isSourceDeclaredCallable(symbol: Symbol | undefined, input: TargetCompileInput): boolean {

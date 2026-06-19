@@ -4,6 +4,7 @@ import {
   KindClassDeclaration,
   KindDebuggerStatement,
   KindDoStatement,
+  KindEnumDeclaration,
   KindExportAssignment,
   KindExportDeclaration,
   KindExpressionStatement,
@@ -34,7 +35,7 @@ import type {
 import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
 import { isErasedAttributeExpressionStatement } from "./attributes.js";
 import { predefined } from "./csharp-types.js";
-import { planClassDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
+import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planLocalDeclaration } from "./locals.js";
 import { projectArtifact, readNamespace } from "./project-artifacts.js";
@@ -111,6 +112,9 @@ function planSourceFile(
         continue;
       case KindInterfaceDeclaration:
         namespaceMembers.push(planInterfaceDeclaration(statement, sourceFile, input, diagnostics));
+        break;
+      case KindEnumDeclaration:
+        namespaceMembers.push(planEnumDeclaration(statement, sourceFile, input, diagnostics));
         break;
       case KindFunctionDeclaration:
         members.push(planFunctionDeclaration(statement, sourceFile, input, diagnostics));
