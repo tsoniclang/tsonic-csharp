@@ -1,11 +1,15 @@
 import {
   AsBindingElement,
   AsBindingPattern,
+  AsNumericLiteral,
+  AsStringLiteral,
   KindArrayBindingPattern,
   KindBindingElement,
   KindIdentifier,
+  KindNumericLiteral,
   KindObjectBindingPattern,
   KindOmittedExpression,
+  KindStringLiteral,
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -134,6 +138,13 @@ export function planBindingPatternFromExpression(
       continue;
     }
     const element = AsBindingElement(elementNode)!;
+    if (patternNode.Kind === KindArrayBindingPattern &&
+      element.name === undefined &&
+      element.PropertyName === undefined &&
+      element.DotDotDotToken === undefined &&
+      element.Initializer === undefined) {
+      continue;
+    }
     if (element.DotDotDotToken !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Rest binding requires target collection/object remainder semantics."));
       continue;
@@ -192,19 +203,43 @@ function planObjectBindingElementSource(
 ): CsharpExpression | undefined {
   const element = AsBindingElement(elementNode)!;
   const property = element.PropertyName ?? element.name;
-  if (property?.Kind !== KindIdentifier) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object destructuring currently requires identifier property names."));
-    return undefined;
+  switch (property?.Kind) {
+    case KindIdentifier:
+      return {
+        kind: "member",
+        receiver: sourceExpression,
+        name: sanitizeIdentifier(planIdentifierName(property, "property", diagnostics, "Destructured property name")),
+      };
+    case KindStringLiteral: {
+      const propertyName = AsStringLiteral(property)!.Text;
+      if (!isDirectMemberName(propertyName)) {
+        diagnostics.push(unsupportedNodeDiagnostic(elementNode, "String-literal object destructuring keys require target object-shape facts unless the key is a direct target member name."));
+        return undefined;
+      }
+      return {
+        kind: "member",
+        receiver: sourceExpression,
+        name: sanitizeIdentifier(propertyName),
+      };
+    }
+    case KindNumericLiteral:
+      return {
+        kind: "element",
+        receiver: sourceExpression,
+        argument: { kind: "literal", value: Number(AsNumericLiteral(property)!.Text) },
+      };
+    default:
+      diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object destructuring property names require identifier, numeric, or direct string-literal keys before C# emission."));
+      return undefined;
   }
-  return {
-    kind: "member",
-    receiver: sourceExpression,
-    name: sanitizeIdentifier(planIdentifierName(property, "property", diagnostics, "Destructured property name")),
-  };
 }
 
 function allocateDestructuringTemp(state: DestructuringPlannerState): string {
   const name = `__destructure${state.nextTempIndex}`;
   state.nextTempIndex += 1;
   return name;
+}
+
+function isDirectMemberName(value: string): boolean {
+  return sanitizeIdentifier(value) === value;
 }
