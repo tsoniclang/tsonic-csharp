@@ -106,10 +106,12 @@ function planSourceFile(
     }
     switch (statement.Kind) {
       case KindImportDeclaration:
-      case KindExportDeclaration:
-      case KindExportAssignment:
       case KindTypeAliasDeclaration:
         continue;
+      case KindExportDeclaration:
+      case KindExportAssignment:
+        diagnostics.push(unsupportedNodeDiagnostic(statement, "Standalone export declarations require finalized TSTS module-export facts before C# emission."));
+        break;
       case KindInterfaceDeclaration:
         namespaceMembers.push(planInterfaceDeclaration(statement, sourceFile, input, diagnostics));
         break;
