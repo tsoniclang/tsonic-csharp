@@ -16,6 +16,12 @@ export function planIdentifierName(
   description: string,
 ): string {
   if (node === undefined) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_NAME",
+      category: "error",
+      source: "tsonic-csharp",
+      message: `${description} must be present for direct C# source emission; backend name synthesis is not allowed without finalized TSTS/provider facts.`,
+    });
     return fallback;
   }
   if (node.Kind === KindIdentifier) {
