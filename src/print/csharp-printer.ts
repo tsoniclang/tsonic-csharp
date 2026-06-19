@@ -6,6 +6,7 @@ import type {
   CsharpForInitializer,
   CsharpInterpolatedStringPart,
   CsharpInterfaceMember,
+  CsharpLambdaParameter,
   CsharpLocalDeclaration,
   CsharpMethodDeclaration,
   CsharpParameter,
@@ -223,6 +224,8 @@ export function printCsharpType(type: CsharpTypeNode): string {
     }
     case "array":
       return `${printCsharpType(type.elementType)}[]`;
+    case "function":
+      return printCsharpFunctionType(type.parameters, type.returnType);
   }
 }
 
@@ -364,8 +367,12 @@ export function printCsharpExpression(expression: CsharpExpression): string {
       return `(${printCsharpExpression(expression.expression)})`;
     case "member":
       return `${printCsharpExpression(expression.receiver)}.${expression.name}`;
+    case "optionalMember":
+      return `${printCsharpExpression(expression.receiver)}?.${expression.name}`;
     case "element":
       return `${printCsharpExpression(expression.receiver)}[${printCsharpExpression(expression.argument)}]`;
+    case "optionalElement":
+      return `${printCsharpExpression(expression.receiver)}?[${printCsharpExpression(expression.argument)}]`;
     case "call":
       return `${printCsharpExpression(expression.callee)}(${expression.arguments.map(printCsharpArgument).join(", ")})`;
     case "new":
@@ -387,7 +394,46 @@ export function printCsharpExpression(expression: CsharpExpression): string {
     }
     case "default":
       return `default(${printCsharpType(expression.type)})`;
+    case "lambda":
+      return printCsharpLambda(expression);
   }
+}
+
+function printCsharpFunctionType(parameters: readonly CsharpTypeNode[], returnType: CsharpTypeNode): string {
+  if (returnType.kind === "predefined" && returnType.name === "void") {
+    return parameters.length === 0
+      ? "Action"
+      : `Action<${parameters.map(printCsharpType).join(", ")}>`;
+  }
+  return `Func<${[...parameters, returnType].map(printCsharpType).join(", ")}>`;
+}
+
+function printCsharpLambda(
+  lambda: Extract<CsharpExpression, { readonly kind: "lambda" }>,
+): string {
+  const parameters = printCsharpLambdaParameters(lambda.parameters);
+  if ("statements" in lambda.body) {
+    return [
+      `${parameters} =>`,
+      "{",
+      ...indentLines(printCsharpStatements(lambda.body.statements)),
+      "}",
+    ].join("\n");
+  }
+  return `${parameters} => ${printCsharpExpression(lambda.body)}`;
+}
+
+function printCsharpLambdaParameters(parameters: readonly CsharpLambdaParameter[]): string {
+  if (parameters.length === 1) {
+    return printCsharpLambdaParameter(parameters[0]!);
+  }
+  return `(${parameters.map(printCsharpLambdaParameter).join(", ")})`;
+}
+
+function printCsharpLambdaParameter(parameter: CsharpLambdaParameter): string {
+  return parameter.type === undefined
+    ? parameter.name
+    : `${printCsharpType(parameter.type)} ${parameter.name}`;
 }
 
 function printInterpolatedString(parts: readonly CsharpInterpolatedStringPart[]): string {

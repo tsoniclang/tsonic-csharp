@@ -1,15 +1,18 @@
 import {
   AsArrayLiteralExpression,
+  AsArrowFunction,
   AsAsExpression,
   AsBinaryExpression,
   AsCallExpression,
   AsConditionalExpression,
   AsElementAccessExpression,
+  AsFunctionExpression,
   AsIdentifier,
   AsNewExpression,
   AsNonNullExpression,
   AsNoSubstitutionTemplateLiteral,
   AsNumericLiteral,
+  AsParameterDeclaration,
   AsParenthesizedExpression,
   AsPostfixUnaryExpression,
   AsPrefixUnaryExpression,
@@ -22,6 +25,7 @@ import {
   KindAmpersandAmpersandToken,
   KindAmpersandEqualsToken,
   KindAmpersandToken,
+  KindArrowFunction,
   KindAsExpression,
   KindAsteriskEqualsToken,
   KindAsteriskToken,
@@ -29,6 +33,7 @@ import {
   KindBarEqualsToken,
   KindBarToken,
   KindBinaryExpression,
+  KindBlock,
   KindCallExpression,
   KindArrayLiteralExpression,
   KindConditionalExpression,
@@ -40,6 +45,7 @@ import {
   KindExclamationEqualsToken,
   KindExclamationToken,
   KindFalseKeyword,
+  KindFunctionExpression,
   KindCaretEqualsToken,
   KindCaretToken,
   KindGreaterThanEqualsToken,
@@ -85,7 +91,7 @@ import {
 } from "@tsonic/tsts";
 import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
@@ -157,7 +163,7 @@ export function planExpression(
     case KindPropertyAccessExpression: {
       const expression = AsPropertyAccessExpression(node)!;
       return {
-        kind: "member",
+        kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
         receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
         name: sanitizeIdentifier(Node_Text(expression.name!)),
       };
@@ -165,11 +171,15 @@ export function planExpression(
     case KindElementAccessExpression: {
       const expression = AsElementAccessExpression(node)!;
       return {
-        kind: "element",
+        kind: expression.QuestionDotToken === undefined ? "element" : "optionalElement",
         receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
         argument: planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics),
       };
     }
+    case KindArrowFunction:
+      return planArrowFunctionExpression(node, sourceFile, input, diagnostics);
+    case KindFunctionExpression:
+      return planFunctionExpression(node, sourceFile, input, diagnostics);
     case KindCallExpression: {
       const expression = AsCallExpression(node)!;
       return {
@@ -238,6 +248,62 @@ export function planExpression(
 
 function invalidExpression(reason: string): CsharpExpression {
   return { kind: "invalid", reason };
+}
+
+function planArrowFunctionExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const expression = AsArrowFunction(node)!;
+  if (expression.Body?.Kind === KindBlock) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Block-bodied arrow functions require statement-lambda planning before C# emission."));
+    return invalidExpression("block-bodied arrow function");
+  }
+  return {
+    kind: "lambda",
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    body: planExpression(expression.Body!, sourceFile, input, diagnostics),
+  };
+}
+
+function planFunctionExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const expression = AsFunctionExpression(node)!;
+  diagnostics.push(unsupportedNodeDiagnostic(node, "Function expressions require statement-lambda planning before C# emission; use expression-bodied arrow functions for delegate values."));
+  return {
+    kind: "lambda",
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    body: invalidExpression("function expression"),
+  };
+}
+
+function planLambdaParameters(
+  parameterNodes: readonly (Node | undefined)[],
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpLambdaParameter[] {
+  return parameterNodes
+    .filter((parameterNode): parameterNode is Node => parameterNode !== undefined)
+    .map((parameterNode): CsharpLambdaParameter => {
+      const parameter = AsParameterDeclaration(parameterNode)!;
+      if (parameter.DotDotDotToken !== undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(parameterNode, "Rest parameters in lambdas require target delegate facts before C# emission."));
+      }
+      if (parameter.name?.Kind !== KindIdentifier) {
+        diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode, "Lambda parameter binding is outside the current C# planning surface."));
+      }
+      return {
+        name: parameter.name?.Kind === KindIdentifier ? sanitizeIdentifier(Node_Text(parameter.name)) : "arg",
+        ...(parameter.Type === undefined ? {} : { type: getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics) }),
+      };
+    });
 }
 
 export function planCallArgument(

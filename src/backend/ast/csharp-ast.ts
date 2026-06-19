@@ -149,7 +149,8 @@ export type CsharpTypeNode =
   | { readonly kind: "invalid"; readonly reason: string }
   | { readonly kind: "named"; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "qualified"; readonly left: CsharpTypeNode; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
-  | { readonly kind: "array"; readonly elementType: CsharpTypeNode; readonly rank?: number };
+  | { readonly kind: "array"; readonly elementType: CsharpTypeNode; readonly rank?: number }
+  | { readonly kind: "function"; readonly parameters: readonly CsharpTypeNode[]; readonly returnType: CsharpTypeNode };
 
 export interface CsharpBlock {
   readonly statements: readonly CsharpStatement[];
@@ -213,13 +214,21 @@ export type CsharpExpression =
   | { readonly kind: "call"; readonly callee: CsharpExpression; readonly arguments: readonly CsharpArgument[] }
   | { readonly kind: "new"; readonly type: CsharpTypeNode; readonly arguments: readonly CsharpArgument[] }
   | { readonly kind: "member"; readonly receiver: CsharpExpression; readonly name: string }
+  | { readonly kind: "optionalMember"; readonly receiver: CsharpExpression; readonly name: string }
   | { readonly kind: "element"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
+  | { readonly kind: "optionalElement"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
   | { readonly kind: "binary"; readonly left: CsharpExpression; readonly operator: string; readonly right: CsharpExpression }
   | { readonly kind: "prefixUnary"; readonly operator: string; readonly operand: CsharpExpression }
   | { readonly kind: "postfixUnary"; readonly operand: CsharpExpression; readonly operator: string }
   | { readonly kind: "conditional"; readonly condition: CsharpExpression; readonly whenTrue: CsharpExpression; readonly whenFalse: CsharpExpression }
   | { readonly kind: "array"; readonly elements: readonly CsharpExpression[]; readonly elementType?: CsharpTypeNode }
-  | { readonly kind: "default"; readonly type: CsharpTypeNode };
+  | { readonly kind: "default"; readonly type: CsharpTypeNode }
+  | { readonly kind: "lambda"; readonly parameters: readonly CsharpLambdaParameter[]; readonly body: CsharpExpression | CsharpBlock };
+
+export interface CsharpLambdaParameter {
+  readonly name: string;
+  readonly type?: CsharpTypeNode;
+}
 
 export type CsharpInterpolatedStringPart =
   | { readonly kind: "text"; readonly text: string }

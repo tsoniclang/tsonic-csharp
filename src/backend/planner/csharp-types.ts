@@ -1,7 +1,9 @@
 import {
   AsArrayTypeNode,
   AsExpressionWithTypeArguments,
+  AsFunctionTypeNode,
   AsIdentifier,
+  AsParameterDeclaration,
   AsPropertyAccessExpression,
   AsTypeReferenceNode,
   KindArrayBindingPattern,
@@ -11,6 +13,7 @@ import {
   KindBooleanKeyword,
   KindClassDeclaration,
   KindExpressionWithTypeArguments,
+  KindFunctionType,
   KindIdentifier,
   KindInterfaceDeclaration,
   KindNeverKeyword,
@@ -118,6 +121,9 @@ export function getCsharpTypeForNode(
       kind: "array",
       elementType: getCsharpTypeForNode(arrayType.ElementType, sourceFile, input, invalidType("array element type"), diagnostics),
     };
+  }
+  if (node.Kind === KindFunctionType) {
+    return getCsharpTypeForFunctionTypeNode(node, sourceFile, input, diagnostics);
   }
   if (node.Kind === KindTypeReference) {
     const typeReference = AsTypeReferenceNode(node)!;
@@ -309,9 +315,61 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
     }
     case "array":
       return right.kind === "array" && (left.rank ?? 1) === (right.rank ?? 1) && sameCsharpType(left.elementType, right.elementType);
+    case "function":
+      return right.kind === "function" &&
+        left.parameters.length === right.parameters.length &&
+        left.parameters.every((parameter, index) => sameCsharpType(parameter, right.parameters[index]!)) &&
+        sameCsharpType(left.returnType, right.returnType);
   }
 }
 
 export function predefined(name: string): CsharpTypeNode {
   return { kind: "predefined", name };
+}
+
+function getCsharpTypeForFunctionTypeNode(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode {
+  const functionType = AsFunctionTypeNode(node)!;
+  const typeParameters = functionType.TypeParameters?.Nodes ?? [];
+  if (typeParameters.some((typeParameter) => typeParameter !== undefined)) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Generic function types require target delegate facts before C# emission."));
+    return invalidType("generic function type");
+  }
+  const parameters = (functionType.Parameters?.Nodes ?? [])
+    .filter((parameter): parameter is Node => parameter !== undefined)
+    .map((parameter) => getCsharpTypeForFunctionTypeParameter(parameter, sourceFile, input, diagnostics));
+  if (parameters.some((parameter) => parameter.kind === "invalid")) {
+    return invalidType("function type parameter");
+  }
+  return {
+    kind: "function",
+    parameters,
+    returnType: getCsharpTypeForNode(functionType.Type, sourceFile, input, predefined("void"), diagnostics),
+  };
+}
+
+function getCsharpTypeForFunctionTypeParameter(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode {
+  const parameter = AsParameterDeclaration(node)!;
+  if (parameter.DotDotDotToken !== undefined) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Rest parameters in function types require target delegate facts before C# emission."));
+    return invalidType("function type rest parameter");
+  }
+  if (parameter.QuestionToken !== undefined || parameter.Initializer !== undefined) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Optional/defaulted function-type parameters require target delegate facts before C# emission."));
+    return invalidType("function type optional parameter");
+  }
+  if (parameter.Type === undefined) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Function-type parameters must have closed TSTS types before C# emission."));
+    return invalidType("function type untyped parameter");
+  }
+  return getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics);
 }
