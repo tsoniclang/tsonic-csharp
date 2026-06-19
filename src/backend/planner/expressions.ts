@@ -74,7 +74,7 @@ import {
   getCallableSemanticOwnership,
   getProviderOperationOwnership,
   getSemanticOwnership,
-  isSourceOwnedProjectConstructibleObjectType,
+  isSourceOwnedProjectConstructibleObjectSubject,
   pushMissingTargetFactDiagnostic,
 } from "./semantic-guards.js";
 import type { OperationSemanticOwnership } from "./semantic-guards.js";
@@ -692,11 +692,7 @@ function getExpectedObjectShapeFact(
   if (direct !== undefined) {
     return direct;
   }
-  const type = input.checker.getTypeFromTypeNode(expectedTypeSubject, { sourceFile })
-    ?? input.checker.getTypeAtLocation(expectedTypeSubject, { sourceFile });
-  return type === undefined
-    ? undefined
-    : input.facts.getObjectShapeFact(type) ?? input.facts.getObjectShapeFact(type.symbol);
+  return input.semantics.getObjectShapeForNode(expectedTypeSubject, { sourceFile });
 }
 
 function planObjectLiteralExpressionWithObjectShape(
@@ -800,9 +796,7 @@ function isSourceOwnedObjectInitializerType(
   if (expectedTypeSubject === undefined) {
     return false;
   }
-  const semanticType = input.checker.getTypeFromTypeNode(expectedTypeSubject, { sourceFile })
-    ?? input.checker.getTypeAtLocation(expectedTypeSubject, { sourceFile });
-  return isSourceOwnedProjectConstructibleObjectType(semanticType, input);
+  return isSourceOwnedProjectConstructibleObjectSubject(expectedTypeSubject, sourceFile, input);
 }
 
 function planObjectLiteralAssignment(

@@ -57,7 +57,7 @@ import type {
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
 import { planAttributesForSubject } from "./attributes.js";
-import { getCsharpTypeForNode, getCsharpTypeForTstsType, invalidCsharpType } from "./csharp-types.js";
+import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import {
   createDestructuringPlannerState,
   planParameterBindingPrelude,
@@ -70,6 +70,7 @@ import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, diagnoseUnsupportedAsyncSe
 import { planIdentifierName } from "./names.js";
 import { planParameters, planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements, planStatements } from "./statements.js";
+import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { planTypeParameters } from "./type-parameters.js";
 
 export function planClassDeclaration(
@@ -219,7 +220,7 @@ function planEnumMember(
   diagnostics: TargetDiagnostic[],
 ): CsharpEnumMember {
   const member = AsEnumMember(node)!;
-  const enumValue = input.checker.getEnumMemberValue(node, { sourceFile });
+  const enumValue = input.semantics.getEnumMemberConstant(node, { sourceFile });
   if (
     member.Initializer !== undefined &&
     (enumValue === undefined || typeof enumValue.value !== "number" || !Number.isInteger(enumValue.value))
@@ -381,13 +382,12 @@ function getExplicitReturnType(
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> {
   if (typeNode === undefined) {
-    const signature = input.checker.getSignatureFromDeclaration(declarationNode, { sourceFile });
-    const returnType = input.checker.getReturnTypeOfSignature(signature, { sourceFile });
-    if (returnType === undefined) {
+    const returnCarrier = input.semantics.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile });
+    if (returnCarrier === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(declarationNode, `C# ${context} emission requires a return type, but TSTS did not return an inferred signature return type.`));
       return invalidCsharpType(`${context} return type`);
     }
-    const inferred = getCsharpTypeForTstsType(returnType, sourceFile, input, diagnostics, declarationNode);
+    const inferred = csharpTypeFromTargetTypeRef(returnCarrier);
     return inferred ?? invalidCsharpType(`${context} return type`);
   }
   return getCsharpTypeForNode(typeNode, sourceFile, input, invalidCsharpType(`${context} return type`), diagnostics);

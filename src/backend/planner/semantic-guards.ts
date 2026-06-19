@@ -1,16 +1,10 @@
 import {
   AsParameterDeclaration,
   AsVariableDeclaration,
-  AsClassDeclaration,
-  AsConstructorDeclaration,
-  KindClassDeclaration,
   KindConstructor,
   KindFunctionDeclaration,
   KindFunctionExpression,
   KindFunctionType,
-  KindInterfaceDeclaration,
-  KindEnumDeclaration,
-  KindEnumMember,
   KindElementAccessExpression,
   KindArrayBindingPattern,
   KindBindingElement,
@@ -26,7 +20,7 @@ import {
   providerVirtualDeclarationFactKey,
 } from "@tsonic/tsts";
 import type { TargetTypeRef } from "@tsonic/tsts";
-import type { ExtensionFactSubject, Node, SourceFile, SourcePrimitiveFact, Symbol, Type } from "@tsonic/tsts";
+import type { ExtensionFactSubject, Node, SourceFile, SourcePrimitiveFact, Symbol } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 
@@ -63,14 +57,13 @@ export function getSemanticOwnership(
   appendTargetFactReasons(reasons, input, node, "node");
   const symbol = getQueryableSymbol(node, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "symbol");
-  const type = input.checker.getTypeAtLocation(node, { sourceFile });
-  const sourceOwned = isSourceOwnedProjectShapeType(type, input);
+  const sourceOwned = isSourceOwnedProjectShapeSubject(node, sourceFile, input);
   if (!sourceOwned) {
-    appendTargetFactReasons(reasons, input, type, "type");
-    appendTargetFactReasons(reasons, input, type?.symbol, "type symbol");
+    appendSemanticNodeFactReasons(reasons, input, node, sourceFile, "semantic node");
+    appendTargetFactReasons(reasons, input, input.semantics.getResolvedSymbol(node, { sourceFile }), "resolved symbol");
   }
   return {
-    requiresTargetFact: reasons.length > 0,
+    requiresTargetFact: !sourceOwned && reasons.length > 0,
     sourceOwned,
     reasons,
   };
@@ -88,14 +81,13 @@ export function getCallableSemanticOwnership(
   appendTargetFactReasons(reasons, input, callee, "callee node");
   const symbol = getQueryableSymbol(callee, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "callee symbol");
-  const type = input.checker.getTypeAtLocation(callee, { sourceFile });
-  const sourceOwned = isSourceDeclaredCallable(symbol, input) || isSourceOwnedProjectShapeType(type, input);
+  const sourceOwned = isSourceDeclaredCallable(symbol, input) || isSourceOwnedProjectShapeSubject(callee, sourceFile, input);
   if (!sourceOwned) {
-    appendTargetFactReasons(reasons, input, type, "callee type");
-    appendTargetFactReasons(reasons, input, type?.symbol, "callee type symbol");
+    appendSemanticNodeFactReasons(reasons, input, callee, sourceFile, "callee semantic node");
+    appendTargetFactReasons(reasons, input, input.semantics.getResolvedSymbol(callee, { sourceFile }), "callee resolved symbol");
   }
   return {
-    requiresTargetFact: reasons.length > 0,
+    requiresTargetFact: !sourceOwned && reasons.length > 0,
     sourceOwned,
     reasons,
   };
@@ -139,17 +131,19 @@ export function getProviderOperationOwnership(
   appendProviderOperationFactReasons(reasons, input, node, "operand node");
   const symbol = getQueryableSymbol(node, sourceFile, input);
   appendProviderOperationFactReasons(reasons, input, symbol, "operand symbol");
-  const type = input.checker.getTypeAtLocation(node, { sourceFile });
-  appendProviderOperationFactReasons(reasons, input, type, "operand type");
-  appendProviderOperationFactReasons(reasons, input, type?.symbol, "operand type symbol");
-  const sourcePrimitive = getSourcePrimitiveFact(input, node, symbol, type);
-  const typeParameter = hasTypeParameterCarrier(type, input);
+  const carrier = input.semantics.getRuntimeCarrierForNode(node, { sourceFile });
+  const sourcePrimitive = getSourcePrimitiveFact(input, node, symbol);
+  const typeParameter = isTypeParameterTargetRef(carrier);
   if (typeParameter) {
     reasons.push("operand type parameter");
   }
+  const sourceOwned = !typeParameter && (carrier?.kind === "source-primitive" || sourcePrimitive !== undefined || isSourceOwnedProjectShapeSubject(node, sourceFile, input));
+  if (!sourceOwned) {
+    appendSemanticNodeFactReasons(reasons, input, node, sourceFile, "operand semantic node");
+  }
   return {
-    requiresTargetFact: reasons.length > 0,
-    sourceOwned: !typeParameter && (sourcePrimitive !== undefined || isSourceOwnedProjectShapeType(type, input)),
+    requiresTargetFact: !sourceOwned && reasons.length > 0,
+    sourceOwned,
     reasons,
     sourcePrimitive,
   };
@@ -264,65 +258,56 @@ function appendProviderOperationFactReasons(
   }
 }
 
+function appendSemanticNodeFactReasons(
+  reasons: string[],
+  input: TargetCompileInput,
+  node: Node,
+  sourceFile: SourceFile,
+  label: string,
+): void {
+  if (input.semantics.getRuntimeCarrierForNode(node, { sourceFile }) !== undefined) {
+    const carrier = input.semantics.getRuntimeCarrierForNode(node, { sourceFile });
+    reasons.push(carrier?.kind === "source-primitive" ? `${label} source primitive` : `${label} runtime carrier`);
+  }
+  if (input.semantics.getObjectShapeForNode(node, { sourceFile }) !== undefined) {
+    reasons.push(`${label} object shape`);
+  }
+  if (input.semantics.getTargetBindingForReference(node, { sourceFile }) !== undefined) {
+    reasons.push(`${label} target binding`);
+  }
+}
+
 function getSourcePrimitiveFact(
   input: TargetCompileInput,
   node: Node,
   symbol: Symbol | undefined,
-  type: Type | undefined,
 ): SourcePrimitiveFact | undefined {
   return input.facts.getSourcePrimitiveFact(node) ??
-    input.facts.getSourcePrimitiveFact(symbol) ??
-    input.facts.getSourcePrimitiveFact(type) ??
-    input.facts.getSourcePrimitiveFact(type?.symbol);
-}
-
-function hasTypeParameterCarrier(type: Type | undefined, input: TargetCompileInput): boolean {
-  if (type === undefined) {
-    return false;
-  }
-  return isTypeParameterTargetRef(input.facts.getRuntimeCarrierFact(type)?.carrier) ||
-    isTypeParameterTargetRef(input.facts.getRuntimeCarrierFact(type.symbol)?.carrier);
+    input.facts.getSourcePrimitiveFact(symbol);
 }
 
 function isTypeParameterTargetRef(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "type-parameter";
 }
 
-export function isSourceOwnedProjectShapeType(type: Type | undefined, input: TargetCompileInput): boolean {
-  if (hasTypeParameterCarrier(type, input)) {
-    return true;
-  }
-  const declaration = getPrimaryDeclaration(type?.symbol);
-  return isProjectSourceDeclaration(declaration, input) &&
-    (
-      declaration?.Kind === KindClassDeclaration ||
-      declaration?.Kind === KindInterfaceDeclaration ||
-      declaration?.Kind === KindEnumDeclaration ||
-      declaration?.Kind === KindEnumMember
-    );
-}
-
-export function isSourceOwnedProjectConstructibleObjectType(type: Type | undefined, input: TargetCompileInput): boolean {
-  if (hasTypeParameterCarrier(type, input)) {
+export function isSourceOwnedProjectShapeSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
+  if (node === undefined) {
     return false;
   }
-  const declaration = getPrimaryDeclaration(type?.symbol);
-  if (!isProjectSourceDeclaration(declaration, input) || declaration?.Kind !== KindClassDeclaration) {
-    return false;
-  }
-  return hasParameterlessConstruction(declaration);
-}
-
-function hasParameterlessConstruction(classDeclaration: Node): boolean {
-  const constructors = (AsClassDeclaration(classDeclaration)?.Members?.Nodes ?? [])
-    .filter((member): member is Node => member?.Kind === KindConstructor);
-  if (constructors.length === 0) {
+  if (isTypeParameterTargetRef(input.semantics.getRuntimeCarrierForNode(node, { sourceFile }))) {
     return true;
   }
-  return constructors.some((constructor) => {
-    const parameters = AsConstructorDeclaration(constructor)?.Parameters?.Nodes ?? [];
-    return parameters.every((parameter) => parameter === undefined);
-  });
+  return input.semantics.isProjectSourceShapeForNode(node, { sourceFile });
+}
+
+export function isSourceOwnedProjectConstructibleObjectSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
+  if (node === undefined) {
+    return false;
+  }
+  if (isTypeParameterTargetRef(input.semantics.getRuntimeCarrierForNode(node, { sourceFile }))) {
+    return false;
+  }
+  return input.semantics.isProjectSourceConstructibleObjectForNode(node, { sourceFile });
 }
 
 function isSourceDeclaredCallable(symbol: Symbol | undefined, input: TargetCompileInput): boolean {
@@ -358,7 +343,7 @@ function getQueryableSymbol(node: Node, sourceFile: SourceFile, input: TargetCom
     case KindIdentifier:
     case KindPropertyAccessExpression:
     case KindElementAccessExpression:
-      return input.checker.getSymbolAtLocation(node, { sourceFile }) ?? input.checker.getResolvedSymbol(node, { sourceFile });
+      return input.semantics.getSymbolAtLocation(node, { sourceFile }) ?? input.semantics.getResolvedSymbol(node, { sourceFile });
     default:
       return undefined;
   }

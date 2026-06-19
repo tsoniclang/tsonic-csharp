@@ -478,8 +478,7 @@ function getObjectShapeForForInExpression(
   if (direct !== undefined) {
     return direct;
   }
-  const type = input.checker.getTypeAtLocation(expression, { sourceFile });
-  return input.facts.getObjectShapeFact(type) ?? input.facts.getObjectShapeFact(type?.symbol);
+  return input.semantics.getObjectShapeForNode(expression, { sourceFile });
 }
 
 interface PlannedForInBinding {

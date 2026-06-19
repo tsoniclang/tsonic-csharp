@@ -14,7 +14,7 @@ test("provider-owned operator operands require selected target operator facts", 
   const ownership = getProviderOperationOwnership(operand, {}, input);
 
   assert.equal(ownership.requiresTargetFact, true);
-  assert.deepEqual(ownership.reasons, ["operand type target binding"]);
+  assert.deepEqual(ownership.reasons, ["operand semantic node target binding"]);
 });
 
 test("plain source primitive operator operands are source-owned without backend type-flag inspection", () => {
@@ -30,7 +30,7 @@ test("plain source primitive operator operands are source-owned without backend 
   assert.equal(ownership.requiresTargetFact, false);
   assert.equal(ownership.sourceOwned, true);
   assert.deepEqual(ownership.reasons, []);
-  assert.equal(ownership.sourcePrimitive.kind, "int32");
+  assert.equal(ownership.sourcePrimitive, undefined);
 });
 
 test("unowned non-scalar operator operands are not direct source operations", () => {
@@ -58,7 +58,7 @@ test("primitive member access still requires selected target member facts", () =
 
   assert.equal(ownership.requiresTargetFact, true);
   assert.equal(ownership.sourceOwned, false);
-  assert.deepEqual(ownership.reasons, ["type source primitive"]);
+  assert.deepEqual(ownership.reasons, ["semantic node source primitive"]);
 });
 
 test("type parameter operands are classified from finalized runtime carrier facts", () => {
@@ -74,7 +74,7 @@ test("type parameter operands are classified from finalized runtime carrier fact
 
   assert.equal(ownership.requiresTargetFact, true);
   assert.equal(ownership.sourceOwned, false);
-  assert.deepEqual(ownership.reasons, ["operand type runtime carrier", "operand type parameter"]);
+  assert.deepEqual(ownership.reasons, ["operand type parameter", "operand semantic node runtime carrier"]);
 });
 
 test("provider-owned constructor callees require selected target constructor facts", () => {
@@ -98,11 +98,6 @@ function node(kind) {
 function fakeInput(options = {}) {
   return {
     sourceFiles: [],
-    checker: {
-      getSymbolAtLocation: () => options.symbolAtLocation,
-      getResolvedSymbol: () => undefined,
-      getTypeAtLocation: () => options.typeAtLocation,
-    },
     facts: {
       getSelectedTargetCall: () => options.selectedTargetCall,
       getTargetBindingFact: (subject) => subject !== undefined && subject === options.targetBindingSubject
@@ -124,6 +119,29 @@ function fakeInput(options = {}) {
       getDefaultValueFact: () => undefined,
       getPointerFact: () => undefined,
       getFunctionPointerFact: () => undefined,
+    },
+    semantics: {
+      getSymbolAtLocation: () => options.symbolAtLocation,
+      getResolvedSymbol: () => undefined,
+      getRuntimeCarrierForNode: () => {
+        if (options.runtimeCarrierSubject !== undefined && options.runtimeCarrierSubject === options.typeAtLocation) {
+          return options.runtimeCarrier?.carrier;
+        }
+        if (options.sourcePrimitiveSubject !== undefined && options.sourcePrimitiveSubject === options.typeAtLocation) {
+          return { kind: "source-primitive", name: "int32" };
+        }
+        return undefined;
+      },
+      getObjectShapeForNode: () => undefined,
+      getTargetBindingForReference: () => options.targetBindingSubject !== undefined && options.targetBindingSubject === options.typeAtLocation
+        ? { target: "csharp", id: "Example.TargetType" }
+        : undefined,
+      isProjectSourceShapeForNode: () => options.projectSourceShape === true,
+      isProjectSourceConstructibleObjectForNode: () => options.projectSourceConstructibleObject === true,
+      getProjectSourceDeclarationForNode: () => undefined,
+      getEnumMemberConstant: () => undefined,
+      getReturnTypeCarrierFromDeclaration: () => undefined,
+      describeTypeAtLocation: () => undefined,
     },
   };
 }

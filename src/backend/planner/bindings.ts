@@ -19,7 +19,7 @@ import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
-import { getSemanticOwnership, isSourceOwnedProjectShapeType, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
+import { getSemanticOwnership, isSourceOwnedProjectShapeSubject, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 export interface DestructuringPlannerState {
@@ -385,8 +385,7 @@ function getObjectShapeForBindingSource(
   if (direct !== undefined) {
     return direct;
   }
-  const type = input.checker.getTypeAtLocation(sourceNode, { sourceFile });
-  return input.facts.getObjectShapeFact(type) ?? input.facts.getObjectShapeFact(type?.symbol);
+  return input.semantics.getObjectShapeForNode(sourceNode, { sourceFile });
 }
 
 function planBindingNameFromProjection(
@@ -476,8 +475,7 @@ function isSourceOwnedBindingElement(
   if (sourceNode?.Kind !== KindBindingElement) {
     return false;
   }
-  const sourceType = input.checker.getTypeAtLocation(sourceNode, { sourceFile });
-  return isSourceOwnedProjectShapeType(sourceType, input);
+  return isSourceOwnedProjectShapeSubject(sourceNode, sourceFile, input);
 }
 
 function getNodeParent(node: Node): Node | undefined {
