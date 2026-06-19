@@ -30,6 +30,7 @@ export interface DestructuringPlannerState {
   nextControlLabelIndex: number;
   controlLabels: ControlLabelTarget[];
   currentReturnType?: CsharpTypeNode;
+  currentReturnTypeSubject?: Node;
 }
 
 export function createDestructuringPlannerState(): DestructuringPlannerState {

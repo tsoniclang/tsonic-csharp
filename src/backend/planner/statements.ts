@@ -113,7 +113,7 @@ export function planStatements(
           ? {
               expression: state.currentReturnType === undefined
                 ? planExpression(statement.Expression, sourceFile, input, diagnostics)
-                : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, state.currentReturnType),
+                : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, state.currentReturnType, state.currentReturnTypeSubject),
             }
           : {}),
       }];
@@ -561,11 +561,12 @@ function planForOfCollectionExpression(
   if (expression.Kind === KindArrayLiteralExpression) {
     return planExpressionWithExpectedType(
       expression,
-      sourceFile,
-      input,
-      diagnostics,
-      { kind: "array", elementType },
-    );
+        sourceFile,
+        input,
+        diagnostics,
+        { kind: "array", elementType },
+        undefined,
+      );
   }
   return planExpression(expression, sourceFile, input, diagnostics);
 }

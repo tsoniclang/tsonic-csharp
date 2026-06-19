@@ -246,6 +246,7 @@ export function planFunctionDeclaration(
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
   state.currentReturnType = returnType;
+  state.currentReturnTypeSubject = declaration.Type;
   return {
     kind: "method",
     name,
@@ -335,6 +336,7 @@ function planMethodDeclaration(
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
   state.currentReturnType = returnType;
+  state.currentReturnTypeSubject = declaration.Type;
   return {
     kind: "method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
@@ -449,7 +451,7 @@ function planPropertyDeclaration(
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     ...(declaration.Initializer !== undefined
-      ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type) }
+      ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
       : {}),
   };
 }

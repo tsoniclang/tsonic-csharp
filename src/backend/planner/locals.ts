@@ -20,7 +20,7 @@ export function planLocalDeclaration(
     name: planIdentifierName(variable.name, "local", diagnostics, "Local binding name"),
     type,
     ...(variable.Initializer !== undefined
-      ? { initializer: planExpressionWithExpectedType(variable.Initializer, sourceFile, input, diagnostics, type) }
+      ? { initializer: planExpressionWithExpectedType(variable.Initializer, sourceFile, input, diagnostics, type, variable.Type ?? variable.name) }
       : {}),
   };
 }

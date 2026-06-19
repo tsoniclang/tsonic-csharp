@@ -104,7 +104,13 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, diagnoseUnsupportedAsyncSemantics } from "./modifiers.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
-import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
+import {
+  getCallableSemanticOwnership,
+  getProviderOperationOwnership,
+  getSemanticOwnership,
+  isSourceOwnedProjectObjectType,
+  pushMissingTargetFactDiagnostic,
+} from "./semantic-guards.js";
 import type { OperationSemanticOwnership } from "./semantic-guards.js";
 import { planBlockStatements } from "./statements.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
@@ -560,28 +566,29 @@ export function planExpressionWithExpectedType(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
+  expectedTypeSubject?: Node,
 ): CsharpExpression {
   const expectedTypeLiteral = planExpectedTypeLiteral(node, expectedType, diagnostics);
   if (expectedTypeLiteral !== undefined) {
     return expectedTypeLiteral;
   }
   if (node.Kind === KindAsExpression) {
-    return planExpressionWithExpectedType(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType);
+    return planExpressionWithExpectedType(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   if (node.Kind === KindSatisfiesExpression) {
-    return planExpressionWithExpectedType(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType);
+    return planExpressionWithExpectedType(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   if (node.Kind === KindNonNullExpression) {
-    return planExpressionWithExpectedType(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType);
+    return planExpressionWithExpectedType(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   if (node.Kind === KindTypeAssertionExpression) {
-    return planExpressionWithExpectedType(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics, expectedType);
+    return planExpressionWithExpectedType(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   if (node.Kind === KindParenthesizedExpression) {
     const expression = AsParenthesizedExpression(node)!;
     return {
       kind: "parenthesized",
-      expression: planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType),
+      expression: planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
     };
   }
   if (node.Kind === KindArrowFunction) {
@@ -591,7 +598,7 @@ export function planExpressionWithExpectedType(
     return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
   }
   if (node.Kind === KindObjectLiteralExpression) {
-    return planObjectLiteralExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType);
+    return planObjectLiteralExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   if (node.Kind === KindArrayLiteralExpression && expectedType.kind === "tuple") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics);
@@ -604,8 +611,8 @@ export function planExpressionWithExpectedType(
     return {
       kind: "conditional",
       condition: planExpression(expression.Condition!, sourceFile, input, diagnostics),
-      whenTrue: planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType),
-      whenFalse: planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType),
+      whenTrue: planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
+      whenFalse: planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
     };
   }
   return planExpression(node, sourceFile, input, diagnostics);
@@ -617,8 +624,9 @@ function planObjectLiteralExpressionWithExpectedType(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
+  expectedTypeSubject: Node | undefined,
 ): CsharpExpression {
-  if (!isSourceOwnedObjectInitializerType(expectedType)) {
+  if (!isSourceOwnedObjectInitializerType(expectedType, expectedTypeSubject, sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires a source-owned expected type or finalized TSTS/provider object-shape facts before C# emission."));
     return invalidExpression("object literal without finalized object-shape facts");
   }
@@ -634,8 +642,20 @@ function planObjectLiteralExpressionWithExpectedType(
   };
 }
 
-function isSourceOwnedObjectInitializerType(type: CsharpTypeNode): boolean {
-  return type.kind === "named";
+function isSourceOwnedObjectInitializerType(
+  type: CsharpTypeNode,
+  expectedTypeSubject: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  if (type.kind !== "named") {
+    return false;
+  }
+  if (expectedTypeSubject === undefined) {
+    return false;
+  }
+  const semanticType = input.checker.getTypeAtLocation(expectedTypeSubject, { sourceFile });
+  return isSourceOwnedProjectObjectType(semanticType, input);
 }
 
 function planObjectLiteralAssignment(

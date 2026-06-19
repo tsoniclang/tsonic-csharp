@@ -49,7 +49,7 @@ export function planParametersWithPrelude(
     diagnoseTypeScriptOnlyRuntimeShapeModifiers(parameterNode!, "parameter declaration", diagnostics);
     if (parameter.name?.Kind === KindIdentifier) {
       const type = getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, undefined, diagnostics);
-      const defaultValue = planParameterDefaultValue(parameter.Initializer, sourceFile, input, diagnostics, type);
+      const defaultValue = planParameterDefaultValue(parameter.Initializer, sourceFile, input, diagnostics, type, parameter.Type ?? parameter.name);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
       } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
@@ -66,7 +66,7 @@ export function planParametersWithPrelude(
     }
     if (parameter.name?.Kind === KindObjectBindingPattern || parameter.name?.Kind === KindArrayBindingPattern) {
       const type = getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, invalidCsharpType("destructured parameter type"), diagnostics);
-      const defaultValue = planParameterDefaultValue(parameter.Initializer, sourceFile, input, diagnostics, type);
+      const defaultValue = planParameterDefaultValue(parameter.Initializer, sourceFile, input, diagnostics, type, parameter.Type ?? parameter.name);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
         diagnostics.push(unsupportedNodeDiagnostic(parameter.name, "Destructured parameter defaults require target object-shape lowering before C# emission."));
@@ -84,7 +84,7 @@ export function planParametersWithPrelude(
       continue;
     }
     const type = getCsharpTypeForNode(parameter.Type ?? parameter.name, sourceFile, input, undefined, diagnostics);
-    const defaultValue = planParameterDefaultValue(parameter.Initializer, sourceFile, input, diagnostics, type);
+    const defaultValue = planParameterDefaultValue(parameter.Initializer, sourceFile, input, diagnostics, type, parameter.Type ?? parameter.name);
     if (defaultValue !== undefined) {
       hasDefaultParameter = true;
     } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
@@ -107,11 +107,12 @@ function planParameterDefaultValue(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
+  expectedTypeSubject: Node | undefined,
 ): CsharpExpression | undefined {
   if (initializer === undefined) {
     return undefined;
   }
-  const defaultValue = planExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, expectedType);
+  const defaultValue = planExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   if (defaultValue.kind === "literal" || defaultValue.kind === "charLiteral") {
     return defaultValue;
   }
