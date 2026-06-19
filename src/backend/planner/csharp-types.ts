@@ -20,6 +20,7 @@ import {
   KindObjectKeyword,
   KindObjectBindingPattern,
   GetSourceFileOfNode,
+  getTypeScriptArrayElementType,
   KindPropertyAccessExpression,
   KindTypeLiteral,
   KindStringKeyword,
@@ -216,6 +217,13 @@ export function getCsharpTypeForTstsType(
     }
   }
   const typeReference = Type_AsTypeReference(type);
+  const arrayElementType = getTypeScriptArrayElementType(type);
+  if (arrayElementType !== undefined) {
+    return {
+      kind: "array",
+      elementType: getCsharpTypeForTstsType(arrayElementType, sourceFile, input, diagnostics, diagnosticNode) ?? invalidType("array element type"),
+    };
+  }
   const typeReferenceTargetSymbol = typeReference?.__tsgoEmbedded0?.target?.symbol;
   const sourceTypeName = getProjectSourceTypeName(typeReferenceTargetSymbol ?? typeSymbol, input);
   if (typeReference !== undefined && sourceTypeName !== undefined) {
