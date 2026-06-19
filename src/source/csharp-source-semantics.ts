@@ -15,6 +15,7 @@ import {
   KindFunctionType,
   KindIdentifier,
   KindNeverKeyword,
+  KindNewExpression,
   KindNumberKeyword,
   KindNumericLiteral,
   KindParameter,
@@ -71,6 +72,7 @@ import type {
   ProviderModuleResolution,
   ProviderOwnership,
   ProviderTypeExpression,
+  ResolveCallRequest,
   ResolveCallResult,
   ResolveOperationResult,
   ResolveOperatorRequest,
@@ -84,6 +86,7 @@ import type {
   SourceTypeMarkerDeclaration,
   Symbol,
   TargetBindingProvider,
+  TargetBindingFact,
   TargetIterationFact,
   TargetMember,
   TargetOperationFact,
@@ -175,7 +178,9 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         request.arguments,
         context,
       );
-      return delegateCall === undefined ? deferDecision : acceptDecision(delegateCall);
+      const providerConstructorCall = resolveProviderTargetConstructorCall(request, context);
+      const call = delegateCall ?? providerConstructorCall;
+      return call === undefined ? deferDecision : acceptDecision(call);
     },
     resolvePropertyAccess(request) {
       if (request.target !== undefined && request.target !== "csharp") {
@@ -364,6 +369,66 @@ function getDelegateReturnType(type: Extract<TargetTypeRef, { readonly kind: "ta
     return undefined;
   }
   return type.typeArguments?.[type.typeArguments.length - 1];
+}
+
+function resolveProviderTargetConstructorCall(
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (!isNodeSubject(request.call) || request.call.Kind !== KindNewExpression) {
+    return undefined;
+  }
+  const targetBinding = getTargetBindingFromSubject(context, request.calleeSymbol) ??
+    getTargetBindingFromSubject(context, request.resolvedCalleeSymbol) ??
+    getTargetBindingFromSubject(context, request.calleeType);
+  if (targetBinding === undefined || targetBinding.kind !== "class") {
+    return undefined;
+  }
+  const constructors = (targetBinding.members ?? [])
+    .filter((member) => member.kind === "constructor" && targetMemberAcceptsArity(member, request.arguments.length));
+  if (constructors.length !== 1) {
+    return undefined;
+  }
+  const returnType = {
+    kind: "target-named",
+    id: targetBinding.id,
+  } satisfies TargetTypeRef;
+  return {
+    selectedSignature: {
+      member: {
+        ...constructors[0]!,
+        returnType,
+      },
+    },
+    returnType: {
+      carrier: returnType,
+    } satisfies RuntimeCarrierFact,
+  };
+}
+
+function getTargetBindingFromSubject(
+  context: ExtensionDecisionContext,
+  subject: ExtensionFactSubject | undefined,
+): TargetBindingFact | undefined {
+  if (subject === undefined) {
+    return undefined;
+  }
+  const direct = context.facts.get(subject, targetBindingFactKey);
+  if (direct !== undefined) {
+    return direct;
+  }
+  return isTypeSubject(subject)
+    ? context.facts.get(subject.symbol, targetBindingFactKey)
+    : undefined;
+}
+
+function targetMemberAcceptsArity(member: TargetMember, argumentCount: number): boolean {
+  const parameters = member.parameters;
+  const required = parameters.filter((parameter) => parameter.optional !== true && parameter.paramsArray !== true).length;
+  if (parameters.some((parameter) => parameter.paramsArray === true)) {
+    return argumentCount >= required;
+  }
+  return argumentCount >= required && argumentCount <= parameters.length;
 }
 
 function getCallCalleeSourceName(callee: ExtensionFactSubject): string | undefined {
@@ -1381,7 +1446,7 @@ function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider {
       return {
         moduleSpecifier: resolution.moduleSpecifier,
         providerModuleId: resolution.providerModuleId,
-        exports: module.exports.flatMap(toProviderExportDeclarations),
+        exports: providerExportDeclarationsForModule(module),
         evidence: [{ message: "Declaration model is generated from target source semantics." }],
       };
     },
@@ -1390,16 +1455,14 @@ function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider {
         return undefined;
       }
       const module = modules.get(symbol.moduleSpecifier);
-      const declaration = module?.exports.find((candidate) => candidate.exportName === symbol.exportName);
+      const declaration = module === undefined
+        ? undefined
+        : providerExportDeclarationsForModule(module).find((candidate) => candidate.name === symbol.exportName);
       if (declaration === undefined) {
         return undefined;
       }
-      if (declaration.kind === "source-primitive") {
-        return {
-          target: "csharp",
-          id: getCsharpPrimitiveTargetIdentity(declaration.primitive),
-          displayName: getCsharpPrimitiveDisplayName(declaration.primitive),
-        };
+      if (declaration.targetIdentity !== undefined) {
+        return declaration.targetIdentity;
       }
       return {
         target: "csharp",
@@ -1407,6 +1470,45 @@ function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider {
         displayName: symbol.exportName,
       };
     },
+  };
+}
+
+function providerExportDeclarationsForModule(module: SourceSemanticsModule): readonly ProviderExportDeclaration[] {
+  return [
+    ...module.exports.flatMap(toProviderExportDeclarations),
+    ...csharpTargetProviderExports(module.moduleSpecifier),
+  ];
+}
+
+function csharpTargetProviderExports(moduleSpecifier: string): readonly ProviderExportDeclaration[] {
+  if (moduleSpecifier !== csharpLangModule) {
+    return [];
+  }
+  return [csharpExceptionProviderDeclaration()];
+}
+
+function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
+  return {
+    id: "Exception",
+    name: "Exception",
+    kind: "class",
+    targetIdentity: {
+      target: "csharp",
+      id: "System.Exception",
+      displayName: "System.Exception",
+    },
+    members: [{
+      id: "constructor(message)",
+      name: "constructor",
+      kind: "constructor",
+      signatures: [{
+        id: "System.Exception..ctor(System.String)",
+        parameters: [{
+          name: "message",
+          type: { kind: "string" },
+        }],
+      }],
+    }],
   };
 }
 

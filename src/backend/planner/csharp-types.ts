@@ -70,15 +70,15 @@ function getCsharpTypeForExpressionReference(
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
-  const symbol = input.checker.getSymbolAtLocation(node, { sourceFile }) ?? input.checker.getResolvedSymbol(node, { sourceFile });
-  const targetBinding = input.facts.getTargetBindingFact(symbol);
+  const symbols = getTypeReferenceSymbols(node, sourceFile, input);
+  const targetBinding = firstDefined(symbols.map((symbol) => input.facts.getTargetBindingFact(symbol)));
   if (targetBinding !== undefined) {
     const csharpType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: targetBinding.id });
     if (csharpType !== undefined) {
       return csharpType;
     }
   }
-  const sourceTypeName = getProjectSourceTypeName(symbol, input);
+  const sourceTypeName = firstDefined(symbols.map((symbol) => getProjectSourceTypeName(symbol, input)));
   if (sourceTypeName !== undefined) {
     return { kind: "named", name: sanitizeIdentifier(sourceTypeName) };
   }
@@ -133,8 +133,8 @@ export function getCsharpTypeForNode(
       return csharpType;
     }
   }
-  const symbol = input.checker.getSymbolAtLocation(node, { sourceFile }) ?? input.checker.getResolvedSymbol(node, { sourceFile });
-  const targetBinding = input.facts.getTargetBindingFact(symbol);
+  const targetBinding = firstDefined(getTypeReferenceSymbols(node, sourceFile, input)
+    .map((symbol) => input.facts.getTargetBindingFact(symbol)));
   if (targetBinding !== undefined) {
     const csharpType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: targetBinding.id });
     if (csharpType !== undefined) {
@@ -334,6 +334,22 @@ function getProjectSourceTypeName(symbol: Symbol | undefined, input: TargetCompi
     return undefined;
   }
   return symbol?.Name;
+}
+
+function getTypeReferenceSymbols(node: Node, sourceFile: SourceFile, input: TargetCompileInput): readonly Symbol[] {
+  const resolved = input.checker.getResolvedSymbol(node, { sourceFile });
+  const direct = input.checker.getSymbolAtLocation(node, { sourceFile });
+  const symbols: Symbol[] = [];
+  for (const symbol of [resolved, direct]) {
+    if (symbol !== undefined && !symbols.includes(symbol)) {
+      symbols.push(symbol);
+    }
+  }
+  return symbols;
+}
+
+function firstDefined<T>(values: readonly (T | undefined)[]): T | undefined {
+  return values.find((value): value is T => value !== undefined);
 }
 
 function isProjectSourceDeclaration(declaration: Node | undefined, input: TargetCompileInput): boolean {

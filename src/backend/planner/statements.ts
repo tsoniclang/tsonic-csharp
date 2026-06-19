@@ -46,7 +46,7 @@ import {
   KindWhileStatement,
   Node_Text,
 } from "@tsonic/tsts";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpCatchClause,
@@ -69,6 +69,7 @@ import { isErasedAttributeExpressionStatement } from "./attributes.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
+import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -145,8 +146,15 @@ export function planStatements(
         diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
         return [];
       }
-      diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require finalized TSTS/provider exception-carrier facts before C# emission."));
-      return [];
+      const carrier = getRuntimeCarrierForExpression(input, statement.Expression, sourceFile);
+      if (!isCsharpExceptionCarrier(carrier)) {
+        diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require finalized TSTS/provider exception-carrier facts before C# emission."));
+        return [];
+      }
+      return [{
+        kind: "throw",
+        expression: planExpression(statement.Expression, sourceFile, input, diagnostics),
+      }];
     }
     case KindDebuggerStatement:
       return [expressionStatement({
@@ -751,6 +759,10 @@ function expressionStatement(expression: CsharpExpression): CsharpStatement {
     kind: "expression",
     expression,
   };
+}
+
+function isCsharpExceptionCarrier(carrier: TargetTypeRef | undefined): boolean {
+  return carrier?.kind === "target-named" && carrier.id === "System.Exception";
 }
 
 function planDiscardedExpression(expression: CsharpExpression): CsharpExpression {

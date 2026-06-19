@@ -213,9 +213,12 @@ export function planExpression(
           return invalidExpression("missing target constructor fact");
         }
       }
+      const selectedConstructorType = selectedTargetCall?.member.returnType === undefined
+        ? undefined
+        : csharpTypeFromTargetTypeRef(selectedTargetCall.member.returnType);
       return {
         kind: "new",
-        type: expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics),
+        type: selectedConstructorType ?? expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics),
         arguments: (expression.Arguments?.Nodes ?? [])
           .filter((argument): argument is Node => argument !== undefined)
           .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
