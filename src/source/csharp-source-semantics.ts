@@ -1,4 +1,4 @@
-import { TstsProviderContractVersion, TypeFlagsStringLike, acceptDecision, createSourceSemanticsExtension, deferDecision, sourcePrimitive } from "@tsonic/tsts";
+import { TstsProviderContractVersion, TypeFlagsStringLike, acceptDecision, createSourceSemanticsExtension, deferDecision, getTypeScriptArrayElementType, sourcePrimitive } from "@tsonic/tsts";
 import type {
   CompilerExtension,
   ExtensionDiagnostic,
@@ -95,7 +95,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         return deferDecision;
       }
       if (request.propertyName === "length" && hasTypeFlag(request.receiverType, TypeFlagsStringLike)) {
-        const resultType = { kind: "source-primitive", name: "int32" } as const;
+        const resultType = sourcePrimitiveInt32();
         return acceptDecision({
           operation: {
             operationId: "System.String.Length",
@@ -106,8 +106,45 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
           resultType,
         });
       }
+      if (request.propertyName === "length" && getTypeScriptArrayElementType(request.receiverType as Type | undefined) !== undefined) {
+        const resultType = sourcePrimitiveInt32();
+        return acceptDecision({
+          operation: {
+            operationId: "System.Array.Length",
+            operationKind: "property",
+            targetOperation: "Length",
+            resultType,
+          } satisfies TargetOperationFact,
+          resultType,
+        });
+      }
       return deferDecision;
     },
+    resolveElementAccess(request) {
+      if (request.target !== undefined && request.target !== "csharp") {
+        return deferDecision;
+      }
+      const elementType = getTypeScriptArrayElementType(request.receiverType as Type | undefined);
+      if (elementType === undefined) {
+        return deferDecision;
+      }
+      return acceptDecision({
+        operation: {
+          operationId: "System.Array.GetItem",
+          operationKind: "indexer",
+          targetOperation: "[]",
+          resultType: elementType,
+        } satisfies TargetOperationFact,
+        resultType: elementType,
+      });
+    },
+  };
+}
+
+function sourcePrimitiveInt32(): ExtensionFactSubject {
+  return {
+    kind: "source-primitive",
+    name: "int32",
   };
 }
 
