@@ -12,11 +12,14 @@ import {
   AsNonNullExpression,
   AsNoSubstitutionTemplateLiteral,
   AsNumericLiteral,
+  AsObjectLiteralExpression,
   AsParameterDeclaration,
   AsParenthesizedExpression,
   AsPostfixUnaryExpression,
   AsPrefixUnaryExpression,
+  AsPropertyAssignment,
   AsPropertyAccessExpression,
+  AsShorthandPropertyAssignment,
   AsStringLiteral,
   AsSatisfiesExpression,
   AsTemplateExpression,
@@ -67,6 +70,7 @@ import {
   KindNonNullExpression,
   KindNullKeyword,
   KindNumericLiteral,
+  KindObjectLiteralExpression,
   KindParenthesizedExpression,
   KindPercentEqualsToken,
   KindPercentToken,
@@ -75,11 +79,14 @@ import {
   KindPlusToken,
   KindPostfixUnaryExpression,
   KindPrefixUnaryExpression,
+  KindPropertyAssignment,
   KindPropertyAccessExpression,
   KindQuestionQuestionToken,
   KindSlashEqualsToken,
   KindSlashToken,
   KindStringLiteral,
+  KindShorthandPropertyAssignment,
+  KindSpreadAssignment,
   KindSatisfiesExpression,
   KindSuperKeyword,
   KindTemplateExpression,
@@ -91,7 +98,7 @@ import {
 } from "@tsonic/tsts";
 import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
@@ -159,6 +166,9 @@ export function planExpression(
           .map((element) => planExpression(element, sourceFile, input, diagnostics)),
       };
     }
+    case KindObjectLiteralExpression:
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Object literals require an explicit target type before C# emission."));
+      return invalidExpression("object literal without target type");
     case KindTemplateExpression:
       return planTemplateExpression(node, sourceFile, input, diagnostics);
     case KindPropertyAccessExpression: {
@@ -377,6 +387,9 @@ export function planExpressionWithExpectedType(
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
 ): CsharpExpression {
+  if (node.Kind === KindObjectLiteralExpression && isObjectInitializerTargetType(expectedType)) {
+    return planObjectInitializerExpression(node, expectedType, sourceFile, input, diagnostics);
+  }
   const expression = planExpression(node, sourceFile, input, diagnostics);
   if (expression.kind === "array" && expectedType.kind === "array") {
     return {
@@ -385,6 +398,81 @@ export function planExpressionWithExpectedType(
     };
   }
   return expression;
+}
+
+function planObjectInitializerExpression(
+  node: Node,
+  expectedType: CsharpTypeNode,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const literal = AsObjectLiteralExpression(node)!;
+  const assignments: CsharpObjectInitializerAssignment[] = [];
+  for (const property of literal.Properties?.Nodes ?? []) {
+    if (property === undefined) {
+      continue;
+    }
+    switch (property.Kind) {
+      case KindPropertyAssignment: {
+        const assignment = AsPropertyAssignment(property)!;
+        const name = getObjectInitializerPropertyName(assignment.name, diagnostics, property);
+        if (name !== undefined) {
+          assignments.push({
+            name,
+            expression: planExpression(assignment.Initializer!, sourceFile, input, diagnostics),
+          });
+        }
+        break;
+      }
+      case KindShorthandPropertyAssignment: {
+        const assignment = AsShorthandPropertyAssignment(property)!;
+        const name = sanitizeIdentifier(Node_Text(assignment.name));
+        assignments.push({
+          name,
+          expression: { kind: "identifier", name },
+        });
+        break;
+      }
+      case KindSpreadAssignment:
+        diagnostics.push(unsupportedNodeDiagnostic(property, "Object spread requires finalized target object-copy semantics before C# emission."));
+        break;
+      default:
+        diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal member is outside the current C# object-initializer surface."));
+        break;
+    }
+  }
+  return {
+    kind: "objectInitializer",
+    type: expectedType,
+    assignments,
+  };
+}
+
+function isObjectInitializerTargetType(type: CsharpTypeNode): boolean {
+  return type.kind === "named" || type.kind === "qualified";
+}
+
+function getObjectInitializerPropertyName(
+  node: Node | undefined,
+  diagnostics: TargetDiagnostic[],
+  diagnosticNode: Node,
+): string | undefined {
+  switch (node?.Kind) {
+    case KindIdentifier:
+      return sanitizeIdentifier(Node_Text(node));
+    case KindStringLiteral: {
+      const name = AsStringLiteral(node)!.Text;
+      if (sanitizeIdentifier(name) === name) {
+        return name;
+      }
+      diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "String-literal object initializer keys require direct C# member names."));
+      return undefined;
+    }
+    default:
+      diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "Object initializer keys require identifier or direct string-literal member names."));
+      return undefined;
+  }
 }
 
 function tryPlanBinaryExpression(

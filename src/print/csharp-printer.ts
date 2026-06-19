@@ -9,6 +9,7 @@ import type {
   CsharpLambdaParameter,
   CsharpLocalDeclaration,
   CsharpMethodDeclaration,
+  CsharpObjectInitializerAssignment,
   CsharpParameter,
   CsharpPropertyDeclaration,
   CsharpStatement,
@@ -379,6 +380,8 @@ export function printCsharpExpression(expression: CsharpExpression): string {
       return `${printCsharpExpression(expression.callee)}(${expression.arguments.map(printCsharpArgument).join(", ")})`;
     case "new":
       return `new ${printCsharpType(expression.type)}(${expression.arguments.map(printCsharpArgument).join(", ")})`;
+    case "objectInitializer":
+      return printCsharpObjectInitializer(expression.type, expression.assignments);
     case "binary":
       return `${printCsharpExpression(expression.left)} ${expression.operator} ${printCsharpExpression(expression.right)}`;
     case "prefixUnary":
@@ -399,6 +402,22 @@ export function printCsharpExpression(expression: CsharpExpression): string {
     case "lambda":
       return printCsharpLambda(expression);
   }
+}
+
+function printCsharpObjectInitializer(
+  type: CsharpTypeNode,
+  assignments: readonly CsharpObjectInitializerAssignment[],
+): string {
+  if (assignments.length === 0) {
+    return `new ${printCsharpType(type)}()`;
+  }
+  return [
+    `new ${printCsharpType(type)}`,
+    "{",
+    ...indentLines(assignments.map((assignment) =>
+      `${assignment.name} = ${printCsharpExpression(assignment.expression)},`)),
+    "}",
+  ].join("\n");
 }
 
 function printCsharpFunctionType(parameters: readonly CsharpTypeNode[], returnType: CsharpTypeNode): string {

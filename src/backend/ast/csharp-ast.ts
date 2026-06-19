@@ -214,6 +214,7 @@ export type CsharpExpression =
   | { readonly kind: "parenthesized"; readonly expression: CsharpExpression }
   | { readonly kind: "call"; readonly callee: CsharpExpression; readonly arguments: readonly CsharpArgument[] }
   | { readonly kind: "new"; readonly type: CsharpTypeNode; readonly arguments: readonly CsharpArgument[] }
+  | { readonly kind: "objectInitializer"; readonly type: CsharpTypeNode; readonly assignments: readonly CsharpObjectInitializerAssignment[] }
   | { readonly kind: "member"; readonly receiver: CsharpExpression; readonly name: string }
   | { readonly kind: "optionalMember"; readonly receiver: CsharpExpression; readonly name: string }
   | { readonly kind: "element"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
@@ -229,6 +230,11 @@ export type CsharpExpression =
 export interface CsharpLambdaParameter {
   readonly name: string;
   readonly type?: CsharpTypeNode;
+}
+
+export interface CsharpObjectInitializerAssignment {
+  readonly name: string;
+  readonly expression: CsharpExpression;
 }
 
 export type CsharpInterpolatedStringPart =
