@@ -46,7 +46,7 @@ import {
   KindWhileStatement,
   Node_Text,
 } from "@tsonic/tsts";
-import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetIterationFact, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpCatchClause,
@@ -60,6 +60,7 @@ import { getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   allocateControlLabel,
+  allocateForInIndex,
   allocateForOfItem,
   createDestructuringPlannerState,
   planBindingPatternFromExpression,
@@ -250,7 +251,7 @@ export function planStatements(
           }];
     }
     case KindForInStatement:
-      return planForInStatement(AsForInOrOfStatement(node)!, sourceFile, input, diagnostics, state);
+      return planForInStatement(node, AsForInOrOfStatement(node)!, sourceFile, input, diagnostics, state);
     case KindForOfStatement: {
       const statement = AsForInOrOfStatement(node)!;
       if (statement.AwaitModifier !== undefined) {
@@ -276,24 +277,233 @@ export function planStatements(
 }
 
 function planForInStatement(
+  statementNode: Node,
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
-  _sourceFile: SourceFile,
-  _input: TargetCompileInput,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-  _state: DestructuringPlannerState,
+  state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  const diagnosticNode = statement.Expression ?? statement.Initializer;
-  if (diagnosticNode === undefined) {
+  const binding = planForInBinding(statement.Initializer, sourceFile, input, diagnostics);
+  if (binding === undefined) {
+    return [];
+  }
+  const selectedIteration = input.facts.getSelectedTargetIteration(statementNode);
+  if (selectedIteration === undefined) {
+    const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires finalized TSTS/provider enumeration facts before C# emission."));
+    return [];
+  }
+  if (selectedIteration.iterationKind !== "property-key" || selectedIteration.targetOperation !== "array-index-keys") {
+    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-in emission does not support target iteration operation '${selectedIteration.targetOperation}' with kind '${selectedIteration.iterationKind}'.`));
+    return [];
+  }
+  const keyType = getForInKeyType(selectedIteration, statementNode, diagnostics);
+  if (keyType === undefined) {
+    return [];
+  }
+  if (binding.currentType !== undefined && !sameCsharpType(binding.currentType, keyType)) {
+    diagnostics.push(unsupportedNodeDiagnostic(binding.node, "For-in key binding must have the finalized provider key type."));
+    return [];
+  }
+  if (statement.Expression === undefined) {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_FOR_IN_COLLECTION",
       category: "error",
       source: "tsonic-csharp",
-      message: "For-in requires finalized TSTS/provider enumeration facts before C# emission.",
+      message: "For-in requires a collection expression.",
     });
-  } else {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires finalized TSTS/provider enumeration facts before C# emission."));
+    return [];
   }
-  return [];
+  const indexName = allocateForInIndex(state);
+  const collectionName = `__forInTarget${indexName.slice("__forInIndex".length)}`;
+  const plannedLoop: CsharpStatement = {
+    kind: "for",
+    initializer: {
+      kind: "locals",
+      locals: [{
+        name: indexName,
+        type: predefined("int"),
+        initializer: { kind: "literal", value: 0 },
+      }],
+    },
+    condition: {
+      kind: "binary",
+      left: { kind: "identifier", name: indexName },
+      operator: "<",
+      right: {
+        kind: "member",
+        receiver: { kind: "identifier", name: collectionName },
+        name: "Length",
+      },
+    },
+    incrementor: {
+      kind: "postfixUnary",
+      operand: { kind: "identifier", name: indexName },
+      operator: "++",
+    },
+    body: {
+      statements: [
+        planForInKeyBindingStatement(binding, keyType, indexName),
+        ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+      ],
+    },
+  };
+  return [{
+    kind: "block",
+    body: {
+      statements: [
+        {
+          kind: "local",
+          name: collectionName,
+          type: predefined("var"),
+          initializer: planExpression(statement.Expression, sourceFile, input, diagnostics),
+        },
+        plannedLoop,
+      ],
+    },
+  }];
+}
+
+interface PlannedForInBinding {
+  readonly kind: "local" | "assignment";
+  readonly name: string;
+  readonly node: Node;
+  readonly currentType?: ReturnType<typeof getCsharpTypeForNode>;
+}
+
+function planForInBinding(
+  initializer: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): PlannedForInBinding | undefined {
+  if (initializer === undefined) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_FOR_IN_BINDING",
+      category: "error",
+      source: "tsonic-csharp",
+      message: "For-in statement has no initializer.",
+    });
+    return undefined;
+  }
+  if (initializer.Kind === KindVariableDeclarationList) {
+    const declarations = AsVariableDeclarationList(initializer)!.Declarations?.Nodes ?? [];
+    const concreteDeclarations = declarations.filter((declaration): declaration is Node => declaration !== undefined);
+    const first = concreteDeclarations[0];
+    if (first === undefined || concreteDeclarations.length !== 1) {
+      diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-in variable declaration must contain exactly one binding."));
+      return undefined;
+    }
+    const variable = AsVariableDeclaration(first)!;
+    if (variable.Initializer !== undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(first, "For-in variable declaration cannot have an initializer."));
+      return undefined;
+    }
+    if (variable.name === undefined || variable.name.Kind !== KindIdentifier) {
+      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? first, "For-in C# key binding must be an identifier; binding patterns require finalized object-key destructuring facts."));
+      return undefined;
+    }
+    return {
+      kind: "local",
+      name: sanitizeIdentifier(Node_Text(variable.name)),
+      node: first,
+      currentType: getCsharpTypeForNode(variable.name, sourceFile, input, undefined, diagnostics),
+    };
+  }
+  if (initializer.Kind === KindIdentifier) {
+    const identifier = AsIdentifier(initializer)!;
+    return {
+      kind: "assignment",
+      name: sanitizeIdentifier(identifier.Text),
+      node: initializer,
+      currentType: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
+    };
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-in initializer binding is outside the current C# planning surface."));
+  return undefined;
+}
+
+function getForInKeyType(
+  selectedIteration: TargetIterationFact,
+  diagnosticNode: Node,
+  diagnostics: TargetDiagnostic[],
+): ReturnType<typeof getCsharpTypeForNode> | undefined {
+  const targetKeyType = selectedIteration.elementType === undefined
+    ? undefined
+    : targetTypeRefFromFactSubject(selectedIteration.elementType);
+  const keyType = targetKeyType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetKeyType);
+  if (keyType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-in key emission requires a provider iteration fact with a closed target key type."));
+    return undefined;
+  }
+  return keyType;
+}
+
+function targetTypeRefFromFactSubject(subject: TargetIterationFact["elementType"]): TargetTypeRef | undefined {
+  if (subject === undefined || typeof subject !== "object" || subject === null) {
+    return undefined;
+  }
+  const kind = (subject as { readonly kind?: unknown }).kind;
+  switch (kind) {
+    case "source-primitive":
+    case "target-named":
+    case "type-parameter":
+    case "nullable":
+    case "array":
+    case "tuple":
+      return subject as TargetTypeRef;
+    default:
+      return undefined;
+  }
+}
+
+function planForInKeyBindingStatement(
+  binding: PlannedForInBinding,
+  keyType: ReturnType<typeof getCsharpTypeForNode>,
+  indexName: string,
+): CsharpStatement {
+  const keyExpression = forInKeyExpression(indexName);
+  if (binding.kind === "local") {
+    return {
+      kind: "local",
+      name: binding.name,
+      type: keyType,
+      initializer: keyExpression,
+    };
+  }
+  return expressionStatement({
+    kind: "binary",
+    left: { kind: "identifier", name: binding.name },
+    operator: "=",
+    right: keyExpression,
+  });
+}
+
+function forInKeyExpression(indexName: string): CsharpExpression {
+  return {
+    kind: "call",
+    callee: {
+      kind: "member",
+      receiver: { kind: "identifier", name: indexName },
+      name: "ToString",
+    },
+    arguments: [{
+      expression: {
+        kind: "member",
+        receiver: {
+          kind: "member",
+          receiver: {
+            kind: "member",
+            receiver: { kind: "identifier", name: "System" },
+            name: "Globalization",
+          },
+          name: "CultureInfo",
+        },
+        name: "InvariantCulture",
+      },
+    }],
+  };
 }
 
 function planForOfStatement(
@@ -497,6 +707,7 @@ function isIterationStatement(node: Node | undefined): boolean {
   return node?.Kind === KindWhileStatement ||
     node?.Kind === KindDoStatement ||
     node?.Kind === KindForStatement ||
+    node?.Kind === KindForInStatement ||
     node?.Kind === KindForOfStatement;
 }
 

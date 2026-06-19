@@ -235,11 +235,23 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (request.target !== undefined && request.target !== "csharp") {
         return deferDecision;
       }
-      if (request.iterationKind !== "sync") {
-        return deferDecision;
-      }
       const elementType = getTypeScriptArrayElementType(request.iterableType as Type | undefined);
       if (elementType === undefined) {
+        return deferDecision;
+      }
+      if (request.iterationKind === "property-key") {
+        const keyType = csharpNamed("System.String");
+        return acceptDecision({
+          iteration: {
+            operationId: "System.Array.Keys",
+            iterationKind: "property-key",
+            targetOperation: "array-index-keys",
+            elementType: keyType,
+          } satisfies TargetIterationFact,
+          elementType: keyType,
+        });
+      }
+      if (request.iterationKind !== "sync") {
         return deferDecision;
       }
       return acceptDecision({
