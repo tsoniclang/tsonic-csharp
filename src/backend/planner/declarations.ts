@@ -58,7 +58,7 @@ import type {
   CsharpTypeMember,
 } from "../ast/csharp-ast.js";
 import { planAttributesForSubject } from "./attributes.js";
-import { getCsharpTypeForNode, invalidCsharpType, predefined } from "./csharp-types.js";
+import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import {
   createDestructuringPlannerState,
   planParameterBindingPrelude,
@@ -244,7 +244,7 @@ export function planFunctionDeclaration(
   const name = planIdentifierName(declaration.name, "__anonymous", diagnostics, "Function name");
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const returnType = getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics);
+  const returnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
   state.currentReturnType = returnType;
   return {
     kind: "method",
@@ -333,7 +333,7 @@ function planMethodDeclaration(
   diagnoseUnsupportedAsyncSemantics(node, "method declaration", diagnostics);
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
-  const returnType = getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics);
+  const returnType = getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
   state.currentReturnType = returnType;
   return {
     kind: "method",
@@ -365,9 +365,24 @@ function planInterfaceMethodDeclaration(
     name: planIdentifierName(declaration.name, "method", diagnostics, "Interface method name"),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
-    returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
+    returnType: getExplicitReturnType(declaration.Type, node, "interface method declaration", sourceFile, input, diagnostics),
     parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
   };
+}
+
+function getExplicitReturnType(
+  typeNode: Node | undefined,
+  declarationNode: Node,
+  context: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): ReturnType<typeof getCsharpTypeForNode> {
+  if (typeNode === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(declarationNode, `C# ${context} emission requires an explicit return type or finalized TSTS/provider return-type facts.`));
+    return invalidCsharpType(`${context} return type`);
+  }
+  return getCsharpTypeForNode(typeNode, sourceFile, input, invalidCsharpType(`${context} return type`), diagnostics);
 }
 
 function planInterfacePropertyDeclaration(
