@@ -157,13 +157,8 @@ export function planExpression(
       };
     }
     case KindArrayLiteralExpression: {
-      const expression = AsArrayLiteralExpression(node)!;
-      return {
-        kind: "array",
-        elements: (expression.Elements?.Nodes ?? [])
-          .filter((element): element is Node => element !== undefined)
-          .map((element) => planExpression(element, sourceFile, input, diagnostics)),
-      };
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires an expected target array or tuple type from TSTS/provider facts before C# emission."));
+      return invalidExpression("array literal without expected target type");
     }
     case KindObjectLiteralExpression:
       diagnostics.push(unsupportedNodeDiagnostic(node, "Object literals require an explicit target type before C# emission."));
@@ -573,6 +568,9 @@ export function planExpressionWithExpectedType(
   if (node.Kind === KindArrayLiteralExpression && expectedType.kind === "tuple") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics);
   }
+  if (node.Kind === KindArrayLiteralExpression && expectedType.kind === "array") {
+    return planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType);
+  }
   if (node.Kind === KindConditionalExpression) {
     const expression = AsConditionalExpression(node)!;
     return {
@@ -582,14 +580,7 @@ export function planExpressionWithExpectedType(
       whenFalse: planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType),
     };
   }
-  const expression = planExpression(node, sourceFile, input, diagnostics);
-  if (expression.kind === "array" && expectedType.kind === "array") {
-    return {
-      ...expression,
-      elementType: expectedType.elementType,
-    };
-  }
-  return expression;
+  return planExpression(node, sourceFile, input, diagnostics);
 }
 
 function planExpectedTypeLiteral(
@@ -638,6 +629,23 @@ function planTupleLiteralExpression(
     elements: (literal.Elements?.Nodes ?? [])
       .filter((element): element is Node => element !== undefined)
       .map((element) => planExpression(element, sourceFile, input, diagnostics)),
+  };
+}
+
+function planArrayLiteralExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  elementType: CsharpTypeNode,
+): CsharpExpression {
+  const literal = AsArrayLiteralExpression(node)!;
+  return {
+    kind: "array",
+    elementType,
+    elements: (literal.Elements?.Nodes ?? [])
+      .filter((element): element is Node => element !== undefined)
+      .map((element) => planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType)),
   };
 }
 
