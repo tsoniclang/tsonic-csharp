@@ -222,7 +222,9 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         });
       }
       const providerPropertyAccess = resolveProviderTargetPropertyAccess(request, context);
-      return providerPropertyAccess === undefined ? deferDecision : acceptDecision(providerPropertyAccess);
+      const sourceProjectPropertyAccess = resolveSourceProjectPropertyAccess(request);
+      const propertyAccess = providerPropertyAccess ?? sourceProjectPropertyAccess;
+      return propertyAccess === undefined ? deferDecision : acceptDecision(propertyAccess);
     },
     resolveElementAccess(request, context) {
       if (request.target !== undefined && request.target !== "csharp") {
@@ -581,6 +583,26 @@ function resolveProviderTargetPropertyAccess(
   return {
     operation,
     ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
+  };
+}
+
+function resolveSourceProjectPropertyAccess(
+  request: ResolvePropertyAccessRequest,
+): ResolveOperationResult | undefined {
+  const receiverType = request.receiverType !== undefined && isTypeSubject(request.receiverType)
+    ? request.receiverType
+    : undefined;
+  const effectiveReceiverType = getSingleNonNullishUnionType(receiverType) ?? receiverType;
+  const sourceTypeName = getSourceProjectShapeName(effectiveReceiverType?.symbol);
+  if (sourceTypeName === undefined) {
+    return undefined;
+  }
+  return {
+    operation: {
+      operationId: `tsonic.csharp.source.${sourceTypeName}.${request.propertyName}`,
+      operationKind: "property",
+      targetOperation: request.propertyName,
+    } satisfies TargetOperationFact,
   };
 }
 
@@ -1566,6 +1588,26 @@ function getSourceProjectTypeName(symbol: Symbol | undefined): string | undefine
     declaration?.Kind !== KindClassDeclaration &&
     declaration?.Kind !== KindInterfaceDeclaration &&
     declaration?.Kind !== KindEnumDeclaration
+  ) {
+    return undefined;
+  }
+  const sourceFile = GetSourceFileOfNode(declaration);
+  if (sourceFile === undefined || sourceFile.IsDeclarationFile) {
+    return undefined;
+  }
+  const fileName = SourceFile_FileName(sourceFile);
+  if (fileName.startsWith("tsts-provider://")) {
+    return undefined;
+  }
+  const name = symbol?.Name;
+  return name === undefined || name.length === 0 ? undefined : name;
+}
+
+function getSourceProjectShapeName(symbol: Symbol | undefined): string | undefined {
+  const declaration = symbol?.ValueDeclaration ?? symbol?.Declarations?.find((candidate) => candidate !== undefined);
+  if (
+    declaration?.Kind !== KindClassDeclaration &&
+    declaration?.Kind !== KindInterfaceDeclaration
   ) {
     return undefined;
   }

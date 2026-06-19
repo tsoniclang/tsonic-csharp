@@ -21,9 +21,7 @@ import {
   KindPropertyAccessExpression,
   KindIdentifier,
   GetSourceFileOfNode,
-  getTypeScriptUnionTypes,
   KindVariableDeclaration,
-  isTypeScriptNullishType,
   SourceFile_FileName,
   providerVirtualDeclarationFactKey,
 } from "@tsonic/tsts";
@@ -291,11 +289,10 @@ function isTypeParameterTargetRef(type: TargetTypeRef | undefined): boolean {
 }
 
 export function isSourceOwnedProjectShapeType(type: Type | undefined, input: TargetCompileInput): boolean {
-  const effectiveType = getSingleNonNullishUnionType(type) ?? type;
-  if (hasTypeParameterCarrier(effectiveType, input)) {
+  if (hasTypeParameterCarrier(type, input)) {
     return true;
   }
-  const declaration = getPrimaryDeclaration(effectiveType?.symbol);
+  const declaration = getPrimaryDeclaration(type?.symbol);
   return isProjectSourceDeclaration(declaration, input) &&
     (
       declaration?.Kind === KindClassDeclaration ||
@@ -306,11 +303,10 @@ export function isSourceOwnedProjectShapeType(type: Type | undefined, input: Tar
 }
 
 export function isSourceOwnedProjectConstructibleObjectType(type: Type | undefined, input: TargetCompileInput): boolean {
-  const effectiveType = getSingleNonNullishUnionType(type) ?? type;
-  if (hasTypeParameterCarrier(effectiveType, input)) {
+  if (hasTypeParameterCarrier(type, input)) {
     return false;
   }
-  const declaration = getPrimaryDeclaration(effectiveType?.symbol);
+  const declaration = getPrimaryDeclaration(type?.symbol);
   if (!isProjectSourceDeclaration(declaration, input) || declaration?.Kind !== KindClassDeclaration) {
     return false;
   }
@@ -327,17 +323,6 @@ function hasParameterlessConstruction(classDeclaration: Node): boolean {
     const parameters = AsConstructorDeclaration(constructor)?.Parameters?.Nodes ?? [];
     return parameters.every((parameter) => parameter === undefined);
   });
-}
-
-function getSingleNonNullishUnionType(type: Type | undefined): Type | undefined {
-  const unionTypes = getTypeScriptUnionTypes(type);
-  if (unionTypes === undefined) {
-    return undefined;
-  }
-  const nonNullishTypes = unionTypes.filter((unionType) => !isTypeScriptNullishType(unionType));
-  return nonNullishTypes.length === 1 && nonNullishTypes.length < unionTypes.length
-    ? nonNullishTypes[0]
-    : undefined;
 }
 
 function isSourceDeclaredCallable(symbol: Symbol | undefined, input: TargetCompileInput): boolean {
