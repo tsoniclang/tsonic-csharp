@@ -96,7 +96,7 @@ import {
   Node_Name,
   Node_Text,
 } from "@tsonic/tsts";
-import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
+import type { ArgumentPassingFact, Node, SourceFile, TargetMember } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
@@ -361,7 +361,7 @@ function planCallExpression(
   if (selectedTargetCall !== undefined) {
     return {
       kind: "call",
-      callee: planSelectedTargetCallee(expression.Expression, selectedTargetCall.member.targetName, sourceFile, input, diagnostics),
+      callee: planSelectedTargetCallee(expression.Expression, selectedTargetCall.member, sourceFile, input, diagnostics),
       arguments: (expression.Arguments?.Nodes ?? [])
         .filter((argument): argument is Node => argument !== undefined)
         .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
@@ -383,23 +383,57 @@ function planCallExpression(
 
 function planSelectedTargetCallee(
   callee: Node | undefined,
-  targetName: string,
+  member: TargetMember,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   if (callee?.Kind === KindPropertyAccessExpression) {
     const property = AsPropertyAccessExpression(callee)!;
+    if (member.static === true) {
+      const receiverType = member.declaringType === undefined
+        ? undefined
+        : csharpTypeFromTargetTypeRef(member.declaringType);
+      if (receiverType === undefined) {
+        diagnostics.push({
+          code: "CSHARP_UNSUPPORTED_AST",
+          category: "error",
+          source: "tsonic-csharp",
+          message: "Selected static target call requires a declaring target type fact before C# emission.",
+        });
+        return invalidExpression("selected target static call declaring type");
+      }
+      if (receiverType.kind === "invalid") {
+        return invalidExpression("selected target static call receiver");
+      }
+      return {
+        kind: "member",
+        receiver: {
+          kind: "type",
+          type: receiverType,
+        },
+        name: sanitizeIdentifier(member.targetName),
+      };
+    }
     return {
       kind: property.QuestionDotToken === undefined ? "member" : "optionalMember",
       receiver: planExpression(property.Expression!, sourceFile, input, diagnostics),
-      name: sanitizeIdentifier(targetName),
+      name: sanitizeIdentifier(member.targetName),
     };
   }
   if (callee?.Kind === KindIdentifier) {
+    if (member.static === true) {
+      diagnostics.push({
+        code: "CSHARP_UNSUPPORTED_AST",
+        category: "error",
+        source: "tsonic-csharp",
+        message: "Selected static target call requires a property-access callee so the provider-owned target type is explicit.",
+      });
+      return invalidExpression("selected static target call callee");
+    }
     return {
       kind: "identifier",
-      name: sanitizeIdentifier(targetName),
+      name: sanitizeIdentifier(member.targetName),
     };
   }
   diagnostics.push({

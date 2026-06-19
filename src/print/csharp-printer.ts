@@ -381,6 +381,8 @@ export function printCsharpExpression(expression: CsharpExpression): string {
       return expression.name;
     case "invalid":
       throw new Error(`Invalid C# expression reached printer: ${expression.reason}`);
+    case "type":
+      return printCsharpType(expression.type);
     case "literal":
       return printLiteral(expression.value);
     case "charLiteral":

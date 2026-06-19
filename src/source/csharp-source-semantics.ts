@@ -3,6 +3,7 @@ import {
   AsFunctionTypeNode,
   AsNumericLiteral,
   AsParameterDeclaration,
+  AsPropertyAccessExpression,
   AsTupleTypeNode,
   GetSourceFileOfNode,
   KindAnyKeyword,
@@ -180,7 +181,8 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         context,
       );
       const providerConstructorCall = resolveProviderTargetConstructorCall(request, context);
-      const call = delegateCall ?? providerConstructorCall;
+      const providerMethodCall = resolveProviderTargetMethodCall(request, context);
+      const call = delegateCall ?? providerConstructorCall ?? providerMethodCall;
       return call === undefined ? deferDecision : acceptDecision(call);
     },
     resolvePropertyAccess(request) {
@@ -416,6 +418,53 @@ function resolveProviderTargetConstructorCall(
     returnType: {
       carrier: returnType,
     } satisfies RuntimeCarrierFact,
+  };
+}
+
+function resolveProviderTargetMethodCall(
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (!isNodeSubject(request.callee) || request.callee.Kind !== KindPropertyAccessExpression) {
+    return undefined;
+  }
+  const propertyAccess = AsPropertyAccessExpression(request.callee);
+  const receiver = propertyAccess?.Expression;
+  const name = propertyAccess?.name;
+  if (receiver === undefined || name === undefined) {
+    return undefined;
+  }
+  const sourceName = Node_Text(name);
+  if (sourceName.length === 0) {
+    return undefined;
+  }
+  const targetBinding = getTargetBindingFromSubject(context, Node_Symbol(receiver)) ??
+    getTargetBindingFromSubject(context, Node_Type(receiver)) ??
+    getTargetBindingFromSubject(context, request.receiverSymbol) ??
+    getTargetBindingFromSubject(context, request.resolvedReceiverSymbol) ??
+    getTargetBindingFromSubject(context, request.receiverType);
+  if (targetBinding === undefined) {
+    return undefined;
+  }
+  const methods = (targetBinding.members ?? [])
+    .filter((member) =>
+      member.kind === "method" &&
+      member.static === true &&
+      member.sourceName === sourceName &&
+      targetMemberAcceptsArity(member, request.arguments.length));
+  if (methods.length !== 1) {
+    return undefined;
+  }
+  const member = methods[0]!;
+  return {
+    selectedSignature: { member },
+    ...(member.returnType === undefined
+      ? {}
+      : {
+        returnType: {
+          carrier: member.returnType,
+        } satisfies RuntimeCarrierFact,
+      }),
   };
 }
 
@@ -1517,7 +1566,10 @@ function csharpTargetProviderExports(moduleSpecifier: string): readonly Provider
   if (moduleSpecifier !== csharpLangModule) {
     return [];
   }
-  return [csharpExceptionProviderDeclaration()];
+  return [
+    csharpExceptionProviderDeclaration(),
+    csharpConvertProviderDeclaration(),
+  ];
 }
 
 function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
@@ -1540,6 +1592,34 @@ function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
           name: "message",
           type: { kind: "string" },
         }],
+      }],
+    }],
+  };
+}
+
+function csharpConvertProviderDeclaration(): ProviderExportDeclaration {
+  return {
+    id: "Convert",
+    name: "Convert",
+    kind: "class",
+    targetIdentity: {
+      target: "csharp",
+      id: "System.Convert",
+      displayName: "System.Convert",
+    },
+    members: [{
+      id: "toByte(value)",
+      name: "toByte",
+      kind: "method",
+      static: true,
+      signatures: [{
+        id: "System.Convert.ToByte(System.Double)",
+        name: "ToByte",
+        parameters: [{
+          name: "value",
+          type: { kind: "source-primitive", name: "float64" },
+        }],
+        returnType: { kind: "source-primitive", name: "uint8" },
       }],
     }],
   };
