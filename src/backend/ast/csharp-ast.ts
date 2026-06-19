@@ -88,6 +88,7 @@ export interface CsharpMethodDeclaration {
 
 export interface CsharpTypeParameter {
   readonly name: string;
+  readonly constraints?: readonly CsharpTypeNode[];
 }
 
 export interface CsharpFieldDeclaration {

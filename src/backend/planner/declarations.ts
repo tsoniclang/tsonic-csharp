@@ -72,7 +72,7 @@ export function planClassDeclaration(
     kind: "class",
     name: className,
     modifiers: ["public"],
-    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     ...(heritage.baseType === undefined ? {} : { baseType: heritage.baseType }),
     ...(heritage.interfaces.length === 0 ? {} : { interfaces: heritage.interfaces }),
     members: planClassMembers(declaration.Members?.Nodes ?? [], className, sourceFile, input, diagnostics),
@@ -126,7 +126,7 @@ export function planInterfaceDeclaration(
     kind: "interface",
     name: planIdentifierName(declaration.name, "AnonymousInterface", diagnostics, "Interface name"),
     modifiers: ["public"],
-    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     ...(interfaces.length === 0 ? {} : { interfaces }),
     members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpInterfaceMember[] => {
       if (member === undefined) {
@@ -162,7 +162,7 @@ export function planFunctionDeclaration(
     kind: "method",
     name,
     modifiers: ["public", "static"],
-    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: parameters.parameters,
     body: {
@@ -244,7 +244,7 @@ function planMethodDeclaration(
     kind: "method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
     modifiers: planClassMemberModifiers(node, declaration.name),
-    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: parameters.parameters,
     body: {
@@ -266,7 +266,7 @@ function planInterfaceMethodDeclaration(
   return {
     kind: "interface-method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Interface method name"),
-    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
+    typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
   };

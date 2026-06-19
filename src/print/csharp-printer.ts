@@ -47,6 +47,7 @@ export function printCsharpCompilationUnit(unit: CsharpCompilationUnit): string 
 function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[] {
   const modifiers = declaration.modifiers.length === 0 ? "" : `${declaration.modifiers.join(" ")} `;
   const typeParameters = printTypeParameters(declaration.typeParameters);
+  const constraintLines = printTypeParameterConstraintLines(declaration.typeParameters);
   const bases = [
     ...(declaration.kind === "class" && declaration.baseType !== undefined ? [declaration.baseType] : []),
     ...(declaration.interfaces ?? []),
@@ -55,6 +56,7 @@ function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[]
   if (declaration.kind === "interface") {
     return [
       `${modifiers}interface ${declaration.name}${typeParameters}${baseList}`,
+      ...constraintLines,
       "{",
       ...indentLines(declaration.members.flatMap(printInterfaceMemberLines)),
       "}",
@@ -62,6 +64,7 @@ function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[]
   }
   return [
     `${modifiers}${declaration.kind} ${declaration.name}${typeParameters}${baseList}`,
+    ...constraintLines,
     "{",
     ...indentLines(declaration.members.flatMap(printTypeMemberLines)),
     "}",
@@ -72,8 +75,9 @@ function printInterfaceMemberLines(member: CsharpInterfaceMember): string[] {
   switch (member.kind) {
     case "interface-method": {
       const typeParameters = printTypeParameters(member.typeParameters);
+      const constraints = printTypeParameterConstraintSuffix(member.typeParameters);
       const parameters = member.parameters.map(printCsharpParameter).join(", ");
-      return [`${printCsharpType(member.returnType)} ${member.name}${typeParameters}(${parameters});`];
+      return [`${printCsharpType(member.returnType)} ${member.name}${typeParameters}(${parameters})${constraints};`];
     }
     case "interface-property":
       return [`${printCsharpType(member.type)} ${member.name} { get; }`];
@@ -113,9 +117,11 @@ function printConstructorLines(constructor: CsharpConstructorDeclaration): strin
 function printMethodLines(method: CsharpMethodDeclaration): string[] {
   const modifiers = method.modifiers.length === 0 ? "" : `${method.modifiers.join(" ")} `;
   const typeParameters = printTypeParameters(method.typeParameters);
+  const constraintLines = printTypeParameterConstraintLines(method.typeParameters);
   const parameters = method.parameters.map(printCsharpParameter).join(", ");
   return [
     `${modifiers}${printCsharpType(method.returnType)} ${method.name}${typeParameters}(${parameters})`,
+    ...constraintLines,
     "{",
     ...indentLines(printCsharpStatements(method.body.statements)),
     "}",
@@ -151,6 +157,23 @@ function printTypeParameters(typeParameters: readonly CsharpTypeParameter[] | un
   return typeParameters === undefined || typeParameters.length === 0
     ? ""
     : `<${typeParameters.map((typeParameter) => typeParameter.name).join(", ")}>`;
+}
+
+function printTypeParameterConstraintLines(typeParameters: readonly CsharpTypeParameter[] | undefined): string[] {
+  return (typeParameters ?? [])
+    .flatMap((typeParameter) => printTypeParameterConstraint(typeParameter));
+}
+
+function printTypeParameterConstraintSuffix(typeParameters: readonly CsharpTypeParameter[] | undefined): string {
+  const constraints = printTypeParameterConstraintLines(typeParameters);
+  return constraints.length === 0 ? "" : ` ${constraints.join(" ")}`;
+}
+
+function printTypeParameterConstraint(typeParameter: CsharpTypeParameter): readonly string[] {
+  const constraints = typeParameter.constraints ?? [];
+  return constraints.length === 0
+    ? []
+    : [`where ${typeParameter.name} : ${constraints.map(printCsharpType).join(", ")}`];
 }
 
 export function printCsharpType(type: CsharpTypeNode): string {
