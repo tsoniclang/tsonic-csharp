@@ -55,6 +55,7 @@ import type {
   CsharpLocalDeclaration,
   CsharpStatement,
   CsharpSwitchSection,
+  CsharpTypeNode,
 } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -62,6 +63,7 @@ import {
   allocateControlLabel,
   allocateForInIndex,
   allocateForOfItem,
+  allocateForOfLoop,
   createDestructuringPlannerState,
   planBindingPatternFromExpression,
 } from "./bindings.js";
@@ -524,6 +526,9 @@ function planForOfStatement(
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of emission requires finalized TSTS/provider iteration facts."));
     return [];
   }
+  if (selectedIteration.iterationKind === "sync" && selectedIteration.targetOperation === "string-code-points") {
+    return planStringCodePointForOfStatement(statementNode, statement, binding, sourceFile, input, diagnostics, state);
+  }
   if (selectedIteration.iterationKind !== "sync" || selectedIteration.targetOperation !== "foreach") {
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-of emission does not support target iteration operation '${selectedIteration.targetOperation}' with kind '${selectedIteration.iterationKind}'.`));
     return [];
@@ -569,6 +574,194 @@ function planForOfCollectionExpression(
       );
   }
   return planExpression(expression, sourceFile, input, diagnostics);
+}
+
+function planStringCodePointForOfStatement(
+  statementNode: Node,
+  statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
+  binding: PlannedForOfBinding,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): readonly CsharpStatement[] {
+  const stringType = predefined("string");
+  if (!sameCsharpType(binding.type, stringType)) {
+    diagnostics.push(unsupportedNodeDiagnostic(statementNode, "String for-of binding must have the finalized provider element type string."));
+    return [];
+  }
+  if (statement.Expression === undefined) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_FOR_OF_COLLECTION",
+      category: "error",
+      source: "tsonic-csharp",
+      message: "For-of requires a collection expression.",
+    });
+    return [];
+  }
+  const loopIndex = allocateForOfLoop(state);
+  const collectionName = `__forOfString${loopIndex}`;
+  const indexName = `__forOfIndex${loopIndex}`;
+  const bindingIdentifier = { kind: "identifier", name: binding.name } satisfies CsharpExpression;
+  const collectionIdentifier = { kind: "identifier", name: collectionName } satisfies CsharpExpression;
+  const indexIdentifier = { kind: "identifier", name: indexName } satisfies CsharpExpression;
+  return [{
+    kind: "block",
+    body: {
+      statements: [
+        {
+          kind: "local",
+          name: collectionName,
+          type: stringType,
+          initializer: planExpression(statement.Expression, sourceFile, input, diagnostics),
+        },
+        {
+          kind: "for",
+          initializer: {
+            kind: "locals",
+            locals: [{
+              name: indexName,
+              type: predefined("int"),
+              initializer: { kind: "literal", value: 0 },
+            }],
+          },
+          condition: lessThan(indexIdentifier, member(collectionIdentifier, "Length")),
+          body: {
+            statements: [
+              {
+                kind: "local",
+                name: binding.name,
+                type: stringType,
+              },
+              {
+                kind: "if",
+                condition: stringHasSurrogatePairAt(collectionIdentifier, indexIdentifier),
+                thenBody: {
+                  statements: [
+                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, 2)),
+                    assign(indexIdentifier, add(indexIdentifier, literal(2))),
+                  ],
+                },
+                elseBody: {
+                  statements: [
+                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, 1)),
+                    {
+                      kind: "expression",
+                      expression: {
+                        kind: "postfixUnary",
+                        operand: indexIdentifier,
+                        operator: "++",
+                      },
+                    },
+                  ],
+                },
+              },
+              ...binding.prelude,
+              ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
+            ],
+          },
+        },
+      ],
+    },
+  }];
+}
+
+function stringHasSurrogatePairAt(collection: CsharpExpression, index: CsharpExpression): CsharpExpression {
+  return and(
+    lessThan(add(index, literal(1)), member(collection, "Length")),
+    and(
+      callStatic(predefined("char"), "IsHighSurrogate", [element(collection, index)]),
+      callStatic(predefined("char"), "IsLowSurrogate", [element(collection, add(index, literal(1)))]),
+    ),
+  );
+}
+
+function substring(collection: CsharpExpression, start: CsharpExpression, length: number): CsharpExpression {
+  return {
+    kind: "call",
+    callee: member(collection, "Substring"),
+    arguments: [
+      { expression: start },
+      { expression: literal(length) },
+    ],
+  };
+}
+
+function callStatic(type: CsharpTypeNode, name: string, args: readonly CsharpExpression[]): CsharpExpression {
+  return {
+    kind: "call",
+    callee: {
+      kind: "member",
+      receiver: {
+        kind: "type",
+        type,
+      },
+      name,
+    },
+    arguments: args.map((expression) => ({ expression })),
+  };
+}
+
+function assign(left: CsharpExpression, right: CsharpExpression): CsharpStatement {
+  return {
+    kind: "expression",
+    expression: {
+      kind: "binary",
+      left,
+      operator: "=",
+      right,
+    },
+  };
+}
+
+function and(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
+  return {
+    kind: "binary",
+    left,
+    operator: "&&",
+    right,
+  };
+}
+
+function lessThan(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
+  return {
+    kind: "binary",
+    left,
+    operator: "<",
+    right,
+  };
+}
+
+function add(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
+  return {
+    kind: "binary",
+    left,
+    operator: "+",
+    right,
+  };
+}
+
+function member(receiver: CsharpExpression, name: string): CsharpExpression {
+  return {
+    kind: "member",
+    receiver,
+    name,
+  };
+}
+
+function element(receiver: CsharpExpression, argument: CsharpExpression): CsharpExpression {
+  return {
+    kind: "element",
+    receiver,
+    argument,
+  };
+}
+
+function literal(value: number): CsharpExpression {
+  return {
+    kind: "literal",
+    value,
+  };
 }
 
 interface PlannedForOfBinding extends CsharpLocalDeclaration {

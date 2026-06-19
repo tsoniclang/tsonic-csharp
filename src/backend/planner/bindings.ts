@@ -63,6 +63,12 @@ export function allocateForOfItem(state: DestructuringPlannerState): string {
   return name;
 }
 
+export function allocateForOfLoop(state: DestructuringPlannerState): number {
+  const index = state.nextForOfIndex;
+  state.nextForOfIndex += 1;
+  return index;
+}
+
 export function allocateForInIndex(state: DestructuringPlannerState): string {
   const name = `__forInIndex${state.nextForInIndex}`;
   state.nextForInIndex += 1;

@@ -245,6 +245,18 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (request.target !== undefined && request.target !== "csharp") {
         return deferDecision;
       }
+      if (request.iterationKind === "sync" && isTypeScriptStringLikeType(request.iterableType as Type | undefined)) {
+        const elementType = csharpNamed("System.String");
+        return acceptDecision({
+          iteration: {
+            operationId: "System.String.CodePointIteration",
+            iterationKind: "sync",
+            targetOperation: "string-code-points",
+            elementType,
+          } satisfies TargetIterationFact,
+          elementType,
+        });
+      }
       const elementType = getTypeScriptArrayElementType(request.iterableType as Type | undefined);
       if (elementType === undefined) {
         return deferDecision;
