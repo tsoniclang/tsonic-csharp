@@ -25,6 +25,7 @@ import {
   KindInterfaceDeclaration,
   KindNeverKeyword,
   KindNewExpression,
+  KindNoSubstitutionTemplateLiteral,
   KindNumberKeyword,
   KindNumericLiteral,
   KindParameter,
@@ -1796,9 +1797,187 @@ function resolveCsharpOperator(
   request: ResolveOperatorRequest,
   context: ExtensionDecisionContext,
 ): ResolveOperationResult | undefined {
-  return resolveSourceProjectInstanceOfOperator(request) ??
+  return resolveTypeofComparisonOperator(request, context) ??
+    resolveSourceProjectInstanceOfOperator(request) ??
     resolveSourcePrimitiveOperator(request, context) ??
     resolveBuiltinTypeOperator(request);
+}
+
+function resolveTypeofComparisonOperator(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  const comparison = getTypeofComparison(request);
+  if (comparison === undefined) {
+    return undefined;
+  }
+  const operandCarrier = resolveFirstRuntimeCarrier([
+    comparison.operand,
+    comparison.operandSymbol,
+    comparison.operandType,
+  ], context);
+  const targetType = getTypeofPatternTargetType(operandCarrier, comparison.runtimeKind);
+  if (targetType === undefined) {
+    return undefined;
+  }
+  const resultType = csharpNamed("System.Boolean");
+  return {
+    operation: {
+      operationId: `tsonic.csharp.typeof.${comparison.runtimeKind}.${comparison.negated ? "not" : "is"}`,
+      operationKind: "operator",
+      targetOperation: comparison.negated ? "typeof-is-not" : "typeof-is",
+      targetType,
+      resultType,
+    } satisfies TargetOperationFact,
+    resultType,
+  };
+}
+
+type TypeofRuntimeKind = "string" | "number" | "boolean" | "bigint";
+
+interface TypeofComparison {
+  readonly operand: ExtensionFactSubject;
+  readonly operandType?: ExtensionFactSubject;
+  readonly operandSymbol?: ExtensionFactSubject;
+  readonly runtimeKind: TypeofRuntimeKind;
+  readonly negated: boolean;
+}
+
+function getTypeofComparison(request: ResolveOperatorRequest): TypeofComparison | undefined {
+  const negated = getTypeofNegation(request.operator);
+  if (negated === undefined) {
+    return undefined;
+  }
+  const rightRuntimeKind = getTypeofRuntimeKindLiteral(request.right);
+  if (request.leftTypeofOperand !== undefined && rightRuntimeKind !== undefined) {
+    return {
+      operand: request.leftTypeofOperand,
+      ...(request.leftTypeofOperandType !== undefined ? { operandType: request.leftTypeofOperandType } : {}),
+      ...(request.leftTypeofOperandSymbol !== undefined ? { operandSymbol: request.leftTypeofOperandSymbol } : {}),
+      runtimeKind: rightRuntimeKind,
+      negated,
+    };
+  }
+  const leftRuntimeKind = getTypeofRuntimeKindLiteral(request.left);
+  if (request.rightTypeofOperand !== undefined && leftRuntimeKind !== undefined) {
+    return {
+      operand: request.rightTypeofOperand,
+      ...(request.rightTypeofOperandType !== undefined ? { operandType: request.rightTypeofOperandType } : {}),
+      ...(request.rightTypeofOperandSymbol !== undefined ? { operandSymbol: request.rightTypeofOperandSymbol } : {}),
+      runtimeKind: leftRuntimeKind,
+      negated,
+    };
+  }
+  return undefined;
+}
+
+function getTypeofNegation(operator: string): boolean | undefined {
+  switch (operator) {
+    case "==":
+    case "===":
+      return false;
+    case "!=":
+    case "!==":
+      return true;
+    default:
+      return undefined;
+  }
+}
+
+function getTypeofRuntimeKindLiteral(subject: ExtensionFactSubject | undefined): TypeofRuntimeKind | undefined {
+  if (subject === undefined || !isNodeSubject(subject)) {
+    return undefined;
+  }
+  if (subject.Kind !== KindStringLiteral && subject.Kind !== KindNoSubstitutionTemplateLiteral) {
+    return undefined;
+  }
+  const value = Node_Text(subject);
+  switch (value) {
+    case "string":
+    case "number":
+    case "boolean":
+    case "bigint":
+      return value;
+    default:
+      return undefined;
+  }
+}
+
+function getTypeofPatternTargetType(
+  carrier: TargetTypeRef | undefined,
+  runtimeKind: TypeofRuntimeKind,
+): TargetTypeRef | undefined {
+  const targetType = carrier?.kind === "nullable" ? carrier.inner : carrier;
+  return targetType !== undefined && getTypeofRuntimeKindForTargetType(targetType) === runtimeKind
+    ? targetType
+    : undefined;
+}
+
+function getTypeofRuntimeKindForTargetType(type: TargetTypeRef): TypeofRuntimeKind | undefined {
+  switch (type.kind) {
+    case "source-primitive":
+      return getTypeofRuntimeKindForSourcePrimitive(type.name);
+    case "target-named":
+      return getTypeofRuntimeKindForTargetId(type.id);
+    default:
+      return undefined;
+  }
+}
+
+function getTypeofRuntimeKindForSourcePrimitive(kind: SourcePrimitiveKind): TypeofRuntimeKind | undefined {
+  switch (kind) {
+    case "bool":
+      return "boolean";
+    case "int8":
+    case "uint8":
+    case "int16":
+    case "uint16":
+    case "int32":
+    case "uint32":
+    case "int64":
+    case "uint64":
+    case "native-int":
+    case "native-uint":
+    case "float16":
+    case "float32":
+    case "float64":
+    case "decimal128":
+    case "int128":
+    case "uint128":
+      return "number";
+    default:
+      return undefined;
+  }
+}
+
+function getTypeofRuntimeKindForTargetId(id: string): TypeofRuntimeKind | undefined {
+  switch (id) {
+    case "System.String":
+      return "string";
+    case "System.Boolean":
+      return "boolean";
+    case "System.Numerics.BigInteger":
+      return "bigint";
+    case "System.SByte":
+    case "System.Byte":
+    case "System.Int16":
+    case "System.UInt16":
+    case "System.Int32":
+    case "System.UInt32":
+    case "System.Int64":
+    case "System.UInt64":
+    case "System.Int128":
+    case "System.UInt128":
+    case "System.IntPtr":
+    case "System.UIntPtr":
+    case "System.Half":
+    case "System.Single":
+    case "System.Double":
+    case "System.Decimal":
+      return "number";
+    default:
+      return undefined;
+  }
 }
 
 function resolveSourceProjectInstanceOfOperator(request: ResolveOperatorRequest): ResolveOperationResult | undefined {

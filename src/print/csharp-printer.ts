@@ -413,6 +413,8 @@ export function printCsharpExpression(expression: CsharpExpression): string {
       return printCsharpObjectInitializer(expression.type, expression.assignments);
     case "binary":
       return `${printCsharpExpression(expression.left)} ${expression.operator} ${printCsharpExpression(expression.right)}`;
+    case "isType":
+      return `${printCsharpExpression(expression.expression)} is ${expression.negated === true ? "not " : ""}${printCsharpType(expression.type)}`;
     case "prefixUnary":
       return `${expression.operator}${printCsharpExpression(expression.operand)}`;
     case "postfixUnary":

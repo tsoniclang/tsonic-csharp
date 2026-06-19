@@ -239,6 +239,7 @@ export type CsharpExpression =
   | { readonly kind: "element"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
   | { readonly kind: "optionalElement"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
   | { readonly kind: "binary"; readonly left: CsharpExpression; readonly operator: string; readonly right: CsharpExpression }
+  | { readonly kind: "isType"; readonly expression: CsharpExpression; readonly type: CsharpTypeNode; readonly negated?: boolean }
   | { readonly kind: "prefixUnary"; readonly operator: string; readonly operand: CsharpExpression }
   | { readonly kind: "postfixUnary"; readonly operand: CsharpExpression; readonly operator: string }
   | { readonly kind: "conditional"; readonly condition: CsharpExpression; readonly whenTrue: CsharpExpression; readonly whenFalse: CsharpExpression }

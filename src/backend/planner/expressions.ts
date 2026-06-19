@@ -59,8 +59,10 @@ import {
   KindTemplateExpression,
   KindThisKeyword,
   KindTrueKeyword,
+  KindTypeOfExpression,
   KindTypeAssertionExpression,
   KindVariableDeclaration,
+  Node_Expression,
   Node_Name,
   Node_Text,
   SourceFile_FileName,
@@ -1022,6 +1024,10 @@ function tryPlanBinaryExpression(
     return invalidExpression("selected target operator");
   }
   const expression = AsBinaryExpression(node)!;
+  const typeofComparison = tryPlanTypeofComparisonExpression(expression, selectedOperator, sourceFile, input, diagnostics);
+  if (typeofComparison !== undefined) {
+    return typeofComparison;
+  }
   const operator = selectedOperator?.targetOperation ?? getSimpleAssignmentOperator(expression);
   if (operator === undefined) {
     const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
@@ -1036,6 +1042,49 @@ function tryPlanBinaryExpression(
     operator,
     right: planExpression(expression.Right!, sourceFile, input, diagnostics),
   };
+}
+
+function tryPlanTypeofComparisonExpression(
+  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
+  selectedOperator: ReturnType<TargetCompileInput["facts"]["getSelectedTargetOperator"]>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  if (selectedOperator?.operationKind !== "operator" ||
+    (selectedOperator.targetOperation !== "typeof-is" && selectedOperator.targetOperation !== "typeof-is-not")) {
+    return undefined;
+  }
+  const operand = getTypeofComparisonOperand(expression);
+  if (operand === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(expression.Left!, "Provider selected a typeof comparison operation, but the compared expression is not a typeof expression."));
+    return invalidExpression("selected typeof comparison without typeof operand");
+  }
+  const targetType = selectedOperator.targetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(selectedOperator.targetType);
+  if (targetType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(operand, "Provider selected a typeof comparison operation without a renderable target type."));
+    return invalidExpression("selected typeof comparison without target type");
+  }
+  return {
+    kind: "isType",
+    expression: planExpression(operand, sourceFile, input, diagnostics),
+    type: targetType,
+    ...(selectedOperator.targetOperation === "typeof-is-not" ? { negated: true } : {}),
+  };
+}
+
+function getTypeofComparisonOperand(
+  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
+): Node | undefined {
+  if (expression.Left?.Kind === KindTypeOfExpression) {
+    return Node_Expression(expression.Left);
+  }
+  if (expression.Right?.Kind === KindTypeOfExpression) {
+    return Node_Expression(expression.Right);
+  }
+  return undefined;
 }
 
 function combineOwnership(left: OperationSemanticOwnership, right: OperationSemanticOwnership): OperationSemanticOwnership {

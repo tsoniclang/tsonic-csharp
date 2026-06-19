@@ -115,7 +115,7 @@ export function getCsharpTypeForNode(
     return invalidType("structural object type");
   }
   if (node.Kind === KindUnionType) {
-    return getCsharpTypeForUnionTypeNode(node, input, diagnostics);
+    return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
   }
   if (node.Kind === KindObjectBindingPattern || node.Kind === KindArrayBindingPattern) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));
@@ -202,6 +202,7 @@ export function predefined(name: string): CsharpTypeNode {
 
 function getCsharpTypeForUnionTypeNode(
   node: Node,
+  sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
@@ -215,6 +216,13 @@ function getCsharpTypeForUnionTypeNode(
   const runtimeCarrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
   if (runtimeCarrier !== undefined) {
     const carrier = csharpTypeFromTargetTypeRef(runtimeCarrier);
+    if (carrier !== undefined) {
+      return carrier;
+    }
+  }
+  const semanticRuntimeCarrier = input.semantics.getRuntimeCarrierForNode(node, { sourceFile });
+  if (semanticRuntimeCarrier !== undefined) {
+    const carrier = csharpTypeFromTargetTypeRef(semanticRuntimeCarrier);
     if (carrier !== undefined) {
       return carrier;
     }
