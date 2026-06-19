@@ -1,26 +1,16 @@
 import {
-  AsBindingElement,
-  AsBindingPattern,
-  AsNumericLiteral,
   AsParameterDeclaration,
-  AsStringLiteral,
   KindArrayBindingPattern,
-  KindBindingElement,
   KindIdentifier,
-  KindNumericLiteral,
   KindObjectBindingPattern,
-  KindOmittedExpression,
-  KindStringLiteral,
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../ast/csharp-ast.js";
-import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
+import { predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { planIdentifierName } from "./names.js";
-import { getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 
 export interface DestructuringPlannerState {
   nextTempIndex: number;
@@ -146,136 +136,21 @@ export function planParameterBindingPrelude(
 
 export function planBindingPatternFromExpression(
   patternNode: Node,
-  sourceExpression: CsharpExpression,
-  sourceNode: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  _sourceExpression: CsharpExpression,
+  _sourceNode: Node | undefined,
+  _sourceFile: SourceFile,
+  _input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
+  _state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  const ownership = getSemanticOwnership(sourceNode, sourceFile, input);
-  if (ownership.requiresTargetFact || !ownership.sourceOwned) {
-    pushMissingTargetFactDiagnostic(diagnostics, patternNode, "Destructuring requires finalized TSTS/provider object or collection shape facts before C# emission.", ownership);
-    return [];
-  }
-  const pattern = AsBindingPattern(patternNode)!;
-  const statements: CsharpStatement[] = [];
-  const elements = pattern.Elements?.Nodes ?? [];
-  for (let index = 0; index < elements.length; index++) {
-    const elementNode = elements[index];
-    if (elementNode === undefined || elementNode.Kind === KindOmittedExpression) {
-      continue;
-    }
-    if (elementNode.Kind !== KindBindingElement) {
-      diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Binding pattern element is outside the current C# planning surface."));
-      continue;
-    }
-    const element = AsBindingElement(elementNode)!;
-    if (patternNode.Kind === KindArrayBindingPattern &&
-      element.name === undefined &&
-      element.PropertyName === undefined &&
-      element.DotDotDotToken === undefined &&
-      element.Initializer === undefined) {
-      continue;
-    }
-    if (element.DotDotDotToken !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Rest binding requires target collection/object remainder semantics."));
-      continue;
-    }
-    if (element.Initializer !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Default binding initializers require undefined-aware target lowering."));
-      continue;
-    }
-    const elementSource = patternNode.Kind === KindArrayBindingPattern
-      ? {
-          kind: "element" as const,
-          receiver: sourceExpression,
-          argument: { kind: "literal" as const, value: index },
-        }
-      : planObjectBindingElementSource(elementNode, sourceExpression, diagnostics);
-    if (elementSource === undefined) {
-      continue;
-    }
-    const name = element.name;
-    if (name?.Kind === KindObjectBindingPattern || name?.Kind === KindArrayBindingPattern) {
-      const nestedSourceName = allocateDestructuringTemp(state);
-      statements.push({
-        kind: "local",
-        name: nestedSourceName,
-        type: predefined("var"),
-        initializer: elementSource,
-      });
-      statements.push(...planBindingPatternFromExpression(
-        name,
-        { kind: "identifier", name: nestedSourceName },
-        element.PropertyName ?? (element.name?.Kind === KindIdentifier ? element.name : undefined),
-        sourceFile,
-        input,
-        diagnostics,
-        state,
-      ));
-      continue;
-    }
-    if (name?.Kind !== KindIdentifier) {
-      diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Destructured binding target must be an identifier or nested binding pattern."));
-      continue;
-    }
-    statements.push({
-      kind: "local",
-      name: planIdentifierName(name, "binding", diagnostics, "Destructured binding name"),
-      type: getCsharpTypeForNode(name, sourceFile, input, predefined("var"), diagnostics),
-      initializer: elementSource,
-    });
-  }
-  return statements;
-}
-
-function planObjectBindingElementSource(
-  elementNode: Node,
-  sourceExpression: CsharpExpression,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression | undefined {
-  const element = AsBindingElement(elementNode)!;
-  const property = element.PropertyName ?? element.name;
-  switch (property?.Kind) {
-    case KindIdentifier:
-      return {
-        kind: "member",
-        receiver: sourceExpression,
-        name: sanitizeIdentifier(planIdentifierName(property, "property", diagnostics, "Destructured property name")),
-      };
-    case KindStringLiteral: {
-      const propertyName = AsStringLiteral(property)!.Text;
-      if (!isDirectMemberName(propertyName)) {
-        diagnostics.push(unsupportedNodeDiagnostic(elementNode, "String-literal object destructuring keys require target object-shape facts unless the key is a direct target member name."));
-        return undefined;
-      }
-      return {
-        kind: "member",
-        receiver: sourceExpression,
-        name: sanitizeIdentifier(propertyName),
-      };
-    }
-    case KindNumericLiteral:
-      return {
-        kind: "element",
-        receiver: sourceExpression,
-        argument: { kind: "literal", value: Number(AsNumericLiteral(property)!.Text) },
-      };
-    default:
-      diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object destructuring property names require identifier, numeric, or direct string-literal keys before C# emission."));
-      return undefined;
-  }
+  diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Destructuring requires finalized TSTS/provider object or collection shape facts before C# emission."));
+  return [];
 }
 
 function allocateDestructuringTemp(state: DestructuringPlannerState): string {
   const name = `__destructure${state.nextTempIndex}`;
   state.nextTempIndex += 1;
   return name;
-}
-
-function isDirectMemberName(value: string): boolean {
-  return sanitizeIdentifier(value) === value;
 }
 
 function getNodeParent(node: Node): Node | undefined {
