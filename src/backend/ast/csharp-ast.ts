@@ -117,6 +117,7 @@ export type CsharpModifier = "public" | "internal" | "private" | "static" | "rea
 
 export type CsharpTypeNode =
   | { readonly kind: "predefined"; readonly name: string }
+  | { readonly kind: "invalid"; readonly reason: string }
   | { readonly kind: "named"; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "qualified"; readonly left: CsharpTypeNode; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "array"; readonly elementType: CsharpTypeNode; readonly rank?: number };

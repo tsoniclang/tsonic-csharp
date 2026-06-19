@@ -49,7 +49,7 @@ export function expressionToCsharpType(
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
   if (node === undefined) {
-    return predefined("object");
+    return invalidType("missing type expression");
   }
   switch (node.Kind) {
     case KindIdentifier:
@@ -65,7 +65,7 @@ export function expressionToCsharpType(
       const rendered = expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics);
       const typeArguments = (expression.TypeArguments?.Nodes ?? [])
         .filter((argument): argument is Node => argument !== undefined)
-        .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, predefined("object"), diagnostics));
+        .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("missing type argument"), diagnostics));
       if (typeArguments.length === 0) {
         return rendered;
       }
@@ -78,7 +78,7 @@ export function expressionToCsharpType(
       }
     }
     default:
-      return getCsharpTypeForNode(node, sourceFile, input, predefined("object"), diagnostics);
+      return getCsharpTypeForNode(node, sourceFile, input, invalidType("unsupported type expression"), diagnostics);
   }
 }
 
@@ -86,7 +86,7 @@ export function getCsharpTypeForNode(
   node: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-  fallback: CsharpTypeNode = predefined("object"),
+  fallback: CsharpTypeNode = invalidType("missing C# type"),
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
   if (node === undefined) {
@@ -98,7 +98,7 @@ export function getCsharpTypeForNode(
   }
   if (node.Kind === KindAnyKeyword || node.Kind === KindUnknownKeyword) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
-    return fallback;
+    return invalidType("any or unknown type");
   }
   const keywordType = getCsharpTypeForKeywordType(node.Kind);
   if (keywordType !== undefined) {
@@ -106,17 +106,17 @@ export function getCsharpTypeForNode(
   }
   if (node.Kind === KindTypeLiteral) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
-    return fallback;
+    return invalidType("structural object type");
   }
   if (node.Kind === KindObjectBindingPattern || node.Kind === KindArrayBindingPattern) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));
-    return fallback;
+    return invalidType("binding pattern type");
   }
   if (node.Kind === KindArrayType) {
     const arrayType = AsArrayTypeNode(node)!;
     return {
       kind: "array",
-      elementType: getCsharpTypeForNode(arrayType.ElementType, sourceFile, input, predefined("object"), diagnostics),
+      elementType: getCsharpTypeForNode(arrayType.ElementType, sourceFile, input, invalidType("array element type"), diagnostics),
     };
   }
   if (node.Kind === KindTypeReference) {
@@ -124,7 +124,7 @@ export function getCsharpTypeForNode(
     const rendered = expressionToCsharpType(typeReference.TypeName, sourceFile, input, diagnostics);
     const typeArguments = (typeReference.TypeArguments?.Nodes ?? [])
       .filter((argument): argument is Node => argument !== undefined)
-      .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, predefined("object"), diagnostics));
+      .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("type reference argument"), diagnostics));
     if (typeArguments.length === 0) {
       return rendered;
     }
@@ -134,7 +134,7 @@ export function getCsharpTypeForNode(
       case "qualified":
         return { ...rendered, typeArguments };
       default:
-        return fallback;
+        return invalidType("type reference target");
     }
   }
   const contextualTargetType = input.facts.getContextualTargetTypeFact(node)?.targetType;
@@ -162,13 +162,13 @@ export function getCsharpTypeForNode(
   const type = input.checker.getTypeAtLocation(node, { sourceFile });
   if (type === undefined) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type, but TSTS did not return a type for this node."));
-    return fallback;
+    return invalidType("missing TSTS type");
   }
   const semanticType = getCsharpTypeForTstsType(type, sourceFile, input, diagnostics, node);
   if (semanticType !== undefined) {
     return semanticType;
   }
-  return fallback;
+  return invalidType("unsupported semantic type");
 }
 
 function getCsharpTypeForTstsType(
@@ -199,7 +199,7 @@ function getCsharpTypeForTstsType(
     const typeName = typeReferenceTargetSymbol?.Name ?? typeSymbol!.Name;
     const typeArguments = (typeReference.resolvedTypeArguments ?? [])
       .filter((argument): argument is Type => argument !== undefined)
-      .map((argument) => getCsharpTypeForTstsType(argument, sourceFile, input, diagnostics, diagnosticNode) ?? predefined("object"));
+      .map((argument) => getCsharpTypeForTstsType(argument, sourceFile, input, diagnostics, diagnosticNode) ?? invalidType("unresolved generic type argument"));
     return typeArguments.length === 0
       ? { kind: "named", name: sanitizeIdentifier(typeName) }
       : { kind: "named", name: sanitizeIdentifier(typeName), typeArguments };
@@ -235,7 +235,7 @@ function getCsharpTypeForTstsType(
     return undefined;
   }
   if ((type.flags & TypeFlagsNever) !== 0) {
-    return predefined("object");
+    return predefined("void");
   }
   diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, `C# emission requires a closed target type from TSTS or provider facts. TSTS type: ${typeText ?? "<unknown>"}.`));
   return undefined;
@@ -258,11 +258,16 @@ function getCsharpTypeForKeywordType(kind: number): CsharpTypeNode | undefined {
     case KindVoidKeyword:
       return predefined("void");
     case KindObjectKeyword:
-    case KindNeverKeyword:
       return predefined("object");
+    case KindNeverKeyword:
+      return predefined("void");
     default:
       return undefined;
   }
+}
+
+function invalidType(reason: string): CsharpTypeNode {
+  return { kind: "invalid", reason };
 }
 
 export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boolean {
@@ -272,6 +277,8 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
   switch (left.kind) {
     case "predefined":
       return right.kind === "predefined" && left.name === right.name;
+    case "invalid":
+      return right.kind === "invalid" && left.reason === right.reason;
     case "named": {
       if (right.kind !== "named" || left.name !== right.name) {
         return false;

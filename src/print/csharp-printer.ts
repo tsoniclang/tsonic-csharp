@@ -165,6 +165,8 @@ export function printCsharpType(type: CsharpTypeNode): string {
   switch (type.kind) {
     case "predefined":
       return type.name;
+    case "invalid":
+      throw new Error(`Invalid C# type reached printer: ${type.reason}`);
     case "named":
       return type.typeArguments === undefined || type.typeArguments.length === 0
         ? type.name

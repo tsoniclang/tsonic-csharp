@@ -45,16 +45,34 @@ export interface CsharpPlanningResult {
   readonly diagnostics: readonly TargetDiagnostic[];
 }
 
+interface PlannedCsharpSourceFile {
+  readonly fileName: string;
+  readonly moduleClassName: string;
+  readonly unit: CsharpCompilationUnit;
+}
+
 export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningResult {
   const diagnostics: TargetDiagnostic[] = [];
-  const artifacts: TargetArtifact[] = [];
-  const sourceArtifacts: TargetSourceFile[] = [];
+  const plannedSources: PlannedCsharpSourceFile[] = [];
   for (const sourceFile of input.sourceFiles) {
-    const sourceArtifact = planSourceFile(sourceFile, input, diagnostics);
-    if (sourceArtifact !== undefined) {
-      sourceArtifacts.push(sourceArtifact);
+    const plannedSource = planSourceFile(sourceFile, input, diagnostics);
+    if (plannedSource !== undefined) {
+      plannedSources.push(plannedSource);
     }
   }
+  if (diagnostics.length > 0) {
+    return {
+      artifacts: [],
+      diagnostics,
+    };
+  }
+  const sourceArtifacts: TargetSourceFile[] = plannedSources.map((source) => ({
+    kind: "source",
+    language: "csharp",
+    path: sourceFileArtifactPath(input, source.fileName, source.moduleClassName),
+    text: printCsharpCompilationUnit(source.unit),
+  }));
+  const artifacts: TargetArtifact[] = [];
   artifacts.push(projectArtifact(input, sourceArtifacts));
   artifacts.push(...sourceArtifacts);
   return {
@@ -67,7 +85,7 @@ function planSourceFile(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): TargetSourceFile | undefined {
+): PlannedCsharpSourceFile | undefined {
   const fileName = SourceFile_FileName(sourceFile);
   if (sourceFile.IsDeclarationFile || fileName.startsWith("tsts-provider://")) {
     return undefined;
@@ -146,10 +164,9 @@ function planSourceFile(
     }],
   };
   return {
-    kind: "source",
-    language: "csharp",
-    path: sourceFileArtifactPath(input, fileName, moduleClassName),
-    text: printCsharpCompilationUnit(unit),
+    fileName,
+    moduleClassName,
+    unit,
   };
 }
 
