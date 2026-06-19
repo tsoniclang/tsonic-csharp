@@ -95,6 +95,7 @@ import {
   KindTrueKeyword,
   KindTypeAssertionExpression,
   Node_Text,
+  TypeFlagsStringLike,
 } from "@tsonic/tsts";
 import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -176,7 +177,7 @@ export function planExpression(
       return {
         kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
         receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
-        name: sanitizeIdentifier(Node_Text(expression.name!)),
+        name: getCsharpPropertyAccessName(expression.Expression!, Node_Text(expression.name!), sourceFile, input),
       };
     }
     case KindElementAccessExpression: {
@@ -259,6 +260,21 @@ export function planExpression(
 
 function invalidExpression(reason: string): CsharpExpression {
   return { kind: "invalid", reason };
+}
+
+function getCsharpPropertyAccessName(
+  receiver: Node,
+  sourceName: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): string {
+  if (sourceName === "length") {
+    const receiverType = input.checker.getTypeAtLocation(receiver, { sourceFile });
+    if (receiverType !== undefined && (receiverType.flags & TypeFlagsStringLike) !== 0) {
+      return "Length";
+    }
+  }
+  return sanitizeIdentifier(sourceName);
 }
 
 function planArrowFunctionExpression(

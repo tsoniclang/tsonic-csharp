@@ -6,6 +6,7 @@ import {
   AsLiteralTypeNode,
   AsParameterDeclaration,
   AsPropertyAccessExpression,
+  AsTypeAliasDeclaration,
   AsTypeReferenceNode,
   AsTupleTypeNode,
   AsUnionTypeNode,
@@ -29,6 +30,7 @@ import {
   KindTypeLiteral,
   KindStringKeyword,
   KindTypeReference,
+  KindTypeAliasDeclaration,
   KindTupleType,
   KindUndefinedKeyword,
   KindUnionType,
@@ -146,6 +148,10 @@ export function getCsharpTypeForNode(
     return getCsharpTypeForFunctionTypeNode(node, sourceFile, input, diagnostics);
   }
   if (node.Kind === KindTypeReference) {
+    const aliasType = getCsharpTypeForAliasReference(node, sourceFile, input, diagnostics);
+    if (aliasType !== undefined) {
+      return aliasType;
+    }
     const typeReference = AsTypeReferenceNode(node)!;
     const rendered = expressionToCsharpType(typeReference.TypeName, sourceFile, input, diagnostics);
     const typeArguments = (typeReference.TypeArguments?.Nodes ?? [])
@@ -195,6 +201,37 @@ export function getCsharpTypeForNode(
     return semanticType;
   }
   return invalidType("unsupported semantic type");
+}
+
+function getCsharpTypeForAliasReference(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  const typeReference = AsTypeReferenceNode(node)!;
+  const symbol = input.checker.getSymbolAtLocation(typeReference.TypeName, { sourceFile }) ??
+    input.checker.getResolvedSymbol(typeReference.TypeName, { sourceFile });
+  const declarations = symbol?.Declarations ?? [];
+  if (!declarations.some((declaration) => declaration?.Kind === KindTypeAliasDeclaration)) {
+    return undefined;
+  }
+  for (const declaration of declarations) {
+    if (declaration?.Kind !== KindTypeAliasDeclaration) {
+      continue;
+    }
+    const alias = AsTypeAliasDeclaration(declaration);
+    const sourcePrimitive = input.facts.getSourcePrimitiveFact(alias?.Type);
+    if (sourcePrimitive !== undefined) {
+      return getCsharpTypeForSourcePrimitive(sourcePrimitive);
+    }
+  }
+  const type = input.checker.getTypeAtLocation(node, { sourceFile });
+  if (type === undefined) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Type alias references require a resolved TSTS semantic type before C# emission."));
+    return invalidType("missing type alias target");
+  }
+  return getCsharpTypeForTstsType(type, sourceFile, input, diagnostics, node);
 }
 
 function getCsharpTypeForTstsType(
