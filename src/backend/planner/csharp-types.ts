@@ -11,7 +11,6 @@ import {
   KindObjectKeyword,
   KindObjectBindingPattern,
   GetSourceFileOfNode,
-  getTypeScriptTypeReferenceInfo,
   KindPropertyAccessExpression,
   KindTypeLiteral,
   KindUnionType,
@@ -186,20 +185,6 @@ export function getCsharpTypeForTstsType(
     if (csharpType !== undefined) {
       return csharpType;
     }
-  }
-  const typeReference = getTypeScriptTypeReferenceInfo(type);
-  const typeReferenceTargetSymbol = typeReference?.targetSymbol;
-  const sourceTypeName = getProjectSourceTypeName(typeReferenceTargetSymbol ?? typeSymbol, input);
-  if (typeReference !== undefined && sourceTypeName !== undefined) {
-    const typeArguments = typeReference.typeArguments
-      .map((argument) => getCsharpTypeForTstsType(argument, sourceFile, input, diagnostics, diagnosticNode) ?? invalidType("unresolved generic type argument"));
-    return typeArguments.length === 0
-      ? { kind: "named", name: sanitizeIdentifier(sourceTypeName) }
-      : { kind: "named", name: sanitizeIdentifier(sourceTypeName), typeArguments };
-  }
-  if (typeReference !== undefined) {
-    diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "C# emission requires a provider target binding, finalized runtime carrier fact, or a project-source class/interface declaration for type references."));
-    return undefined;
   }
   const typeDeclaration = typeSymbol?.ValueDeclaration ?? typeSymbol?.Declarations?.find((candidate) => candidate !== undefined);
   if (
