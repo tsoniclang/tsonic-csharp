@@ -66,7 +66,7 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planCallArgument, planExpressionWithExpectedType } from "./expressions.js";
 import { planExpression } from "./expressions.js";
 import { planClassHeritage, planInterfaceHeritage } from "./heritage.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, diagnoseUnsupportedAsyncSemantics } from "./modifiers.js";
+import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, isAsyncNode } from "./modifiers.js";
 import { planIdentifierName } from "./names.js";
 import { planParameters, planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements, planStatements } from "./statements.js";
@@ -241,7 +241,6 @@ export function planFunctionDeclaration(
 ): CsharpMethodDeclaration {
   const declaration = AsFunctionDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "function declaration", diagnostics);
-  diagnoseUnsupportedAsyncSemantics(node, "function declaration", diagnostics);
   const name = planIdentifierName(declaration.name, "__anonymous", diagnostics, "Function name");
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
@@ -251,7 +250,7 @@ export function planFunctionDeclaration(
   return {
     kind: "method",
     name,
-    modifiers: ["public", "static"],
+    modifiers: isAsyncNode(node) ? ["public", "static", "async"] : ["public", "static"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType,
@@ -332,7 +331,6 @@ function planMethodDeclaration(
 ): CsharpMethodDeclaration {
   const declaration = AsMethodDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "method declaration", diagnostics);
-  diagnoseUnsupportedAsyncSemantics(node, "method declaration", diagnostics);
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
@@ -341,7 +339,7 @@ function planMethodDeclaration(
   return {
     kind: "method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
-    modifiers: planClassMemberModifiers(node, declaration.name),
+    modifiers: planMethodModifiers(node, declaration.name),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType,
@@ -588,4 +586,12 @@ function planClassMemberModifiers(node: Node, name: Node | undefined): readonly 
   return HasSyntacticModifier(node, ModifierFlagsStatic)
     ? [access, "static"]
     : [access];
+}
+
+function planMethodModifiers(node: Node, name: Node | undefined): CsharpMethodDeclaration["modifiers"] {
+  const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name)];
+  if (isAsyncNode(node)) {
+    modifiers.push("async");
+  }
+  return modifiers;
 }

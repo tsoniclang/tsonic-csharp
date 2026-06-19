@@ -407,6 +407,8 @@ export function printCsharpExpression(expression: CsharpExpression): string {
       return `${printCsharpExpression(expression.receiver)}?[${printCsharpExpression(expression.argument)}]`;
     case "call":
       return `${printCsharpExpression(expression.callee)}(${expression.arguments.map(printCsharpArgument).join(", ")})`;
+    case "await":
+      return `await ${printCsharpExpression(expression.expression)}`;
     case "new":
       return `new ${printCsharpType(expression.type)}(${expression.arguments.map(printCsharpArgument).join(", ")})`;
     case "objectInitializer":
@@ -466,15 +468,16 @@ function printCsharpLambda(
   lambda: Extract<CsharpExpression, { readonly kind: "lambda" }>,
 ): string {
   const parameters = printCsharpLambdaParameters(lambda.parameters);
+  const asyncPrefix = lambda.async === true ? "async " : "";
   if ("statements" in lambda.body) {
     return [
-      `${parameters} =>`,
+      `${asyncPrefix}${parameters} =>`,
       "{",
       ...indentLines(printCsharpStatements(lambda.body.statements)),
       "}",
     ].join("\n");
   }
-  return `${parameters} => ${printCsharpExpression(lambda.body)}`;
+  return `${asyncPrefix}${parameters} => ${printCsharpExpression(lambda.body)}`;
 }
 
 function printCsharpLambdaParameters(parameters: readonly CsharpLambdaParameter[]): string {

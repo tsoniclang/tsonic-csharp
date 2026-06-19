@@ -157,7 +157,7 @@ export interface CsharpAttribute {
   readonly arguments?: readonly CsharpArgument[];
 }
 
-export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly";
+export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "async";
 
 export type CsharpTypeNode =
   | { readonly kind: "predefined"; readonly name: string }
@@ -232,6 +232,7 @@ export type CsharpExpression =
   | { readonly kind: "interpolatedString"; readonly parts: readonly CsharpInterpolatedStringPart[] }
   | { readonly kind: "parenthesized"; readonly expression: CsharpExpression }
   | { readonly kind: "call"; readonly callee: CsharpExpression; readonly arguments: readonly CsharpArgument[] }
+  | { readonly kind: "await"; readonly expression: CsharpExpression }
   | { readonly kind: "new"; readonly type: CsharpTypeNode; readonly arguments: readonly CsharpArgument[] }
   | { readonly kind: "objectInitializer"; readonly type: CsharpTypeNode; readonly assignments: readonly CsharpObjectInitializerAssignment[] }
   | { readonly kind: "member"; readonly receiver: CsharpExpression; readonly name: string }
@@ -246,7 +247,7 @@ export type CsharpExpression =
   | { readonly kind: "array"; readonly elements: readonly CsharpExpression[]; readonly elementType?: CsharpTypeNode }
   | { readonly kind: "tuple"; readonly elements: readonly CsharpExpression[] }
   | { readonly kind: "default"; readonly type: CsharpTypeNode }
-  | { readonly kind: "lambda"; readonly parameters: readonly CsharpLambdaParameter[]; readonly body: CsharpExpression | CsharpBlock };
+  | { readonly kind: "lambda"; readonly async?: boolean; readonly parameters: readonly CsharpLambdaParameter[]; readonly body: CsharpExpression | CsharpBlock };
 
 export interface CsharpLambdaParameter {
   readonly name: string;

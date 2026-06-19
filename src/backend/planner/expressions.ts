@@ -66,6 +66,8 @@ import {
   Node_Name,
   Node_Text,
   SourceFile_FileName,
+  HasSyntacticModifier,
+  ModifierFlagsAsync,
 } from "@tsonic/tsts";
 import type { ArgumentPassingFact, Node, ObjectShapeFact, SourceFile, TargetMember } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -73,7 +75,7 @@ import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, Cs
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, diagnoseUnsupportedAsyncSemantics } from "./modifiers.js";
+import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import {
@@ -185,10 +187,14 @@ export function planExpression(
       return planFunctionExpression(node, sourceFile, input, diagnostics);
     case KindAwaitExpression: {
       const expression = AsAwaitExpression(node)!;
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression requires finalized TSTS/provider async lowering facts before C# emission."));
-      return invalidExpression(expression.Expression === undefined
-        ? "await without expression"
-        : "await without async lowering facts");
+      if (expression.Expression === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression must have an expression."));
+        return invalidExpression("await without expression");
+      }
+      return {
+        kind: "await",
+        expression: planExpression(expression.Expression, sourceFile, input, diagnostics),
+      };
     }
     case KindCallExpression:
       return planCallExpression(node, sourceFile, input, diagnostics);
@@ -512,11 +518,11 @@ function planArrowFunctionExpression(
   expectedType?: CsharpTypeNode,
 ): CsharpExpression {
   const expression = AsArrowFunction(node)!;
-  diagnoseUnsupportedAsyncSemantics(node, "arrow function", diagnostics);
   diagnoseMissingLambdaTargetContext(node, input, diagnostics, expectedType);
   if (expression.Body?.Kind === KindBlock) {
     return {
       kind: "lambda",
+      ...(isAsyncExpression(node) ? { async: true } : {}),
       parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
       body: {
         statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics),
@@ -525,6 +531,7 @@ function planArrowFunctionExpression(
   }
   return {
     kind: "lambda",
+    ...(isAsyncExpression(node) ? { async: true } : {}),
     parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: planExpression(expression.Body!, sourceFile, input, diagnostics),
   };
@@ -538,15 +545,19 @@ function planFunctionExpression(
   expectedType?: CsharpTypeNode,
 ): CsharpExpression {
   const expression = AsFunctionExpression(node)!;
-  diagnoseUnsupportedAsyncSemantics(node, "function expression", diagnostics);
   diagnoseMissingLambdaTargetContext(node, input, diagnostics, expectedType);
   return {
     kind: "lambda",
+    ...(isAsyncExpression(node) ? { async: true } : {}),
     parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: {
       statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics),
     },
   };
+}
+
+function isAsyncExpression(node: Node): boolean {
+  return HasSyntacticModifier(node, ModifierFlagsAsync);
 }
 
 function planLambdaParameters(

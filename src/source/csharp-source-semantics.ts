@@ -1569,6 +1569,10 @@ function resolveCsharpRuntimeCarrierForTstsType(
   }
   const typeReference = getTypeScriptTypeReferenceInfo(type);
   if (typeReference !== undefined) {
+    const promiseCarrier = resolveStandardPromiseCarrier(typeReference, context);
+    if (promiseCarrier !== undefined) {
+      return promiseCarrier;
+    }
     const referenceBinding = context.facts.get(typeReference.targetSymbol, targetBindingFactKey);
     if (referenceBinding !== undefined) {
       const typeArguments = typeReference.typeArguments
@@ -1615,6 +1619,42 @@ function resolveCsharpRuntimeCarrierForTstsType(
     return csharpNamed("System.Void");
   }
   return undefined;
+}
+
+function resolveStandardPromiseCarrier(
+  typeReference: NonNullable<ReturnType<typeof getTypeScriptTypeReferenceInfo>>,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  if (!isStandardPromiseSymbol(typeReference.targetSymbol) || typeReference.typeArguments.length !== 1) {
+    return undefined;
+  }
+  const promisedType = typeReference.typeArguments[0];
+  const promisedCarrier = promisedType === undefined
+    ? undefined
+    : context.factResolver.resolve(promisedType, runtimeCarrierFactKey)?.carrier;
+  if (promisedCarrier === undefined) {
+    return undefined;
+  }
+  if (isVoidTargetType(promisedCarrier)) {
+    return csharpNamed("System.Threading.Tasks.Task");
+  }
+  return {
+    kind: "target-named",
+    id: "System.Threading.Tasks.Task`1",
+    typeArguments: [promisedCarrier],
+  };
+}
+
+function isStandardPromiseSymbol(symbol: Symbol | undefined): boolean {
+  if (symbol?.Name !== "Promise") {
+    return false;
+  }
+  return (symbol.Declarations ?? []).some((declaration) => {
+    const sourceFile = declaration === undefined ? undefined : GetSourceFileOfNode(declaration);
+    return sourceFile !== undefined &&
+      sourceFile.IsDeclarationFile &&
+      SourceFile_FileName(sourceFile).endsWith("lib.es2015.promise.d.ts");
+  });
 }
 
 function resolveCsharpSourceProjectTypeCarrier(
