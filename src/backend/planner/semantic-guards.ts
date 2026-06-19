@@ -123,7 +123,7 @@ export function getProviderOperationOwnership(
   }
   return {
     requiresTargetFact: reasons.length > 0,
-    sourceOwned: !isTypeParameterType(type) && isDirectSourceShapeType(type, input),
+    sourceOwned: !isTypeParameterType(type) && (hasBuiltinLoweredScalarType(type) || isDirectSourceShapeType(type, input)),
     reasons,
   };
 }

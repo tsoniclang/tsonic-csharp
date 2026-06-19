@@ -26,6 +26,20 @@ test("closed primitive operator operands remain direct syntax", () => {
   const ownership = getProviderOperationOwnership(operand, {}, input);
 
   assert.equal(ownership.requiresTargetFact, false);
+  assert.equal(ownership.sourceOwned, true);
+  assert.deepEqual(ownership.reasons, []);
+});
+
+test("unowned non-scalar operator operands are not direct source operations", () => {
+  const operand = node(KindIdentifier);
+  const input = fakeInput({
+    typeAtLocation: { flags: 0 },
+  });
+
+  const ownership = getProviderOperationOwnership(operand, {}, input);
+
+  assert.equal(ownership.requiresTargetFact, false);
+  assert.equal(ownership.sourceOwned, false);
   assert.deepEqual(ownership.reasons, []);
 });
 

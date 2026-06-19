@@ -248,7 +248,7 @@ export function planExpression(
       }
       if (selectedOperator === undefined) {
         const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
-        if (ownership.requiresTargetFact) {
+        if (ownership.requiresTargetFact || !ownership.sourceOwned) {
           pushMissingTargetFactDiagnostic(diagnostics, node, "C# prefix unary operator emission requires a direct primitive/source-owned operation or a selected provider operator fact.", ownership);
           return invalidExpression("missing target prefix operator fact");
         }
@@ -275,7 +275,7 @@ export function planExpression(
       }
       if (selectedOperator === undefined) {
         const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
-        if (ownership.requiresTargetFact) {
+        if (ownership.requiresTargetFact || !ownership.sourceOwned) {
           pushMissingTargetFactDiagnostic(diagnostics, node, "C# postfix unary operator emission requires a direct primitive/source-owned operation or a selected provider operator fact.", ownership);
           return invalidExpression("missing target postfix operator fact");
         }
@@ -688,7 +688,7 @@ function tryPlanBinaryExpression(
     const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
     const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
     const ownership = combineOwnership(leftOwnership, rightOwnership);
-    if (ownership.requiresTargetFact) {
+    if (ownership.requiresTargetFact || !ownership.sourceOwned) {
       pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a direct primitive/source-owned operation or a selected provider operator fact.", ownership);
       return invalidExpression("missing target operator fact");
     }
