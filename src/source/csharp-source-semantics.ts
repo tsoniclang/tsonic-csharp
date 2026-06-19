@@ -1941,6 +1941,8 @@ function csharpTargetProviderExports(moduleSpecifier: string): readonly Provider
     csharpExceptionProviderDeclaration(),
     csharpConvertProviderDeclaration(),
     csharpEnvironmentProviderDeclaration(),
+    attributeSupportType(attributeTargetTypeName, attributeTargetShape()),
+    csharpClsCompliantAttributeProviderDeclaration(),
   ];
 }
 
@@ -2033,6 +2035,20 @@ function csharpEnvironmentProviderDeclaration(): ProviderExportDeclaration {
       static: true,
       type: stringType,
     }],
+  };
+}
+
+function csharpClsCompliantAttributeProviderDeclaration(): ProviderExportDeclaration {
+  return {
+    id: "CLSCompliantAttribute",
+    name: "CLSCompliantAttribute",
+    kind: "value",
+    targetIdentity: {
+      target: "csharp",
+      id: "System.CLSCompliantAttribute",
+      displayName: "System.CLSCompliantAttribute",
+    },
+    type: { kind: "reference", name: attributeTargetTypeName },
   };
 }
 
