@@ -166,6 +166,13 @@ export function printCsharpStatement(statement: CsharpStatement): string {
               "}",
             ]),
       ].join("\n");
+    case "foreach":
+      return [
+        `foreach (${printCsharpType(statement.itemType)} ${statement.itemName} in ${printCsharpExpression(statement.collection)})`,
+        "{",
+        ...indentLines(printCsharpStatements(statement.body.statements)),
+        "}",
+      ].join("\n");
     case "if":
       return [
         `if (${printCsharpExpression(statement.condition)})`,

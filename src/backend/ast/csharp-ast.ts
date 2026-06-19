@@ -87,6 +87,7 @@ export type CsharpStatement =
   | { readonly kind: "label"; readonly name: string; readonly statement: CsharpStatement }
   | { readonly kind: "switch"; readonly expression: CsharpExpression; readonly sections: readonly CsharpSwitchSection[] }
   | { readonly kind: "try"; readonly tryBody: CsharpBlock; readonly catchClause?: CsharpCatchClause; readonly finallyBody?: CsharpBlock }
+  | { readonly kind: "foreach"; readonly itemType: CsharpTypeNode; readonly itemName: string; readonly collection: CsharpExpression; readonly body: CsharpBlock }
   | { readonly kind: "if"; readonly condition: CsharpExpression; readonly thenBody: CsharpBlock; readonly elseBody?: CsharpBlock }
   | { readonly kind: "while"; readonly condition: CsharpExpression; readonly body: CsharpBlock }
   | { readonly kind: "do"; readonly body: CsharpBlock; readonly condition: CsharpExpression }
