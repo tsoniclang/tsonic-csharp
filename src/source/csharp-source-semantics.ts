@@ -78,6 +78,7 @@ import type {
   ResolveCallResult,
   ResolveOperationResult,
   ResolveOperatorRequest,
+  ResolvePropertyAccessRequest,
   RuntimeCarrierFact,
   SourceCallMarkerDeclaration,
   SourcePrimitiveDeclaration,
@@ -185,7 +186,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       const call = delegateCall ?? providerConstructorCall ?? providerMethodCall;
       return call === undefined ? deferDecision : acceptDecision(call);
     },
-    resolvePropertyAccess(request) {
+    resolvePropertyAccess(request, context) {
       if (request.target !== undefined && request.target !== "csharp") {
         return deferDecision;
       }
@@ -213,7 +214,8 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
           resultType,
         });
       }
-      return deferDecision;
+      const providerPropertyAccess = resolveProviderTargetPropertyAccess(request, context);
+      return providerPropertyAccess === undefined ? deferDecision : acceptDecision(providerPropertyAccess);
     },
     resolveElementAccess(request) {
       if (request.target !== undefined && request.target !== "csharp") {
@@ -465,6 +467,42 @@ function resolveProviderTargetMethodCall(
           carrier: member.returnType,
         } satisfies RuntimeCarrierFact,
       }),
+  };
+}
+
+function resolveProviderTargetPropertyAccess(
+  request: ResolvePropertyAccessRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  const receiverNode = isNodeSubject(request.receiver) ? request.receiver : undefined;
+  const targetBinding = getTargetBindingFromSubject(context, receiverNode === undefined ? undefined : Node_Symbol(receiverNode)) ??
+    getTargetBindingFromSubject(context, receiverNode === undefined ? undefined : Node_Type(receiverNode)) ??
+    getTargetBindingFromSubject(context, request.receiverSymbol) ??
+    getTargetBindingFromSubject(context, request.resolvedReceiverSymbol) ??
+    getTargetBindingFromSubject(context, request.receiverType);
+  if (targetBinding === undefined) {
+    return undefined;
+  }
+  const properties = (targetBinding.members ?? [])
+    .filter((member) =>
+      (member.kind === "property" || member.kind === "field") &&
+      member.static === true &&
+      member.sourceName === request.propertyName);
+  if (properties.length !== 1) {
+    return undefined;
+  }
+  const member = properties[0]!;
+  const operation = {
+    operationId: member.id,
+    operationKind: "property",
+    targetOperation: member.targetName,
+    ...(member.static !== undefined ? { static: member.static } : {}),
+    ...(member.declaringType !== undefined ? { declaringType: member.declaringType } : {}),
+    ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
+  } satisfies TargetOperationFact;
+  return {
+    operation,
+    ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
   };
 }
 
@@ -1569,6 +1607,7 @@ function csharpTargetProviderExports(moduleSpecifier: string): readonly Provider
   return [
     csharpExceptionProviderDeclaration(),
     csharpConvertProviderDeclaration(),
+    csharpEnvironmentProviderDeclaration(),
   ];
 }
 
@@ -1621,6 +1660,27 @@ function csharpConvertProviderDeclaration(): ProviderExportDeclaration {
         }],
         returnType: { kind: "source-primitive", name: "uint8" },
       }],
+    }],
+  };
+}
+
+function csharpEnvironmentProviderDeclaration(): ProviderExportDeclaration {
+  return {
+    id: "Environment",
+    name: "Environment",
+    kind: "class",
+    targetIdentity: {
+      target: "csharp",
+      id: "System.Environment",
+      displayName: "System.Environment",
+    },
+    members: [{
+      id: "NewLine",
+      name: "newLine",
+      targetName: "NewLine",
+      kind: "property",
+      static: true,
+      type: { kind: "string" },
     }],
   };
 }

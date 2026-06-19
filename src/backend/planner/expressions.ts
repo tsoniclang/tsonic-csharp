@@ -177,16 +177,7 @@ export function planExpression(
     case KindTemplateExpression:
       return planTemplateExpression(node, sourceFile, input, diagnostics);
     case KindPropertyAccessExpression: {
-      const expression = AsPropertyAccessExpression(node)!;
-      const name = getCsharpPropertyAccessName(node, expression.Expression, Node_Text(expression.name!), sourceFile, input, diagnostics);
-      if (name === undefined) {
-        return invalidExpression("missing target property fact");
-      }
-      return {
-        kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
-        receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
-        name,
-      };
+      return planPropertyAccessExpression(node, sourceFile, input, diagnostics);
     }
     case KindElementAccessExpression: {
       const expression = AsElementAccessExpression(node)!;
@@ -303,28 +294,59 @@ function invalidExpression(reason: string): CsharpExpression {
   return { kind: "invalid", reason };
 }
 
-function getCsharpPropertyAccessName(
+function planPropertyAccessExpression(
   propertyAccess: Node,
-  receiver: Node | undefined,
-  sourceName: string,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): string | undefined {
+): CsharpExpression {
+  const expression = AsPropertyAccessExpression(propertyAccess)!;
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   if (targetOperation !== undefined && targetOperation.operationKind === "property") {
-    return targetOperation.targetOperation;
+    if (targetOperation.static === true) {
+      const receiverType = targetOperation.declaringType === undefined
+        ? undefined
+        : csharpTypeFromTargetTypeRef(targetOperation.declaringType);
+      if (receiverType === undefined) {
+        diagnostics.push({
+          code: "CSHARP_UNSUPPORTED_AST",
+          category: "error",
+          source: "tsonic-csharp",
+          message: "Selected static target property requires a declaring target type fact before C# emission.",
+        });
+        return invalidExpression("selected target static property declaring type");
+      }
+      return {
+        kind: "member",
+        receiver: {
+          kind: "type",
+          type: receiverType,
+        },
+        name: sanitizeIdentifier(targetOperation.targetOperation),
+      };
+    }
+    return {
+      kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
+      receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
+      name: sanitizeIdentifier(targetOperation.targetOperation),
+    };
   }
   if (targetOperation !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
-    return undefined;
+    return invalidExpression("selected target property");
   }
+  const sourceName = Node_Text(expression.name!);
+  const receiver = expression.Expression;
   const ownership = getSemanticOwnership(receiver, sourceFile, input);
   if (ownership.requiresTargetFact || !ownership.sourceOwned) {
     pushMissingTargetFactDiagnostic(diagnostics, propertyAccess, `C# property access '${sourceName}' must be selected by TSTS/provider facts before emission.`, ownership);
-    return undefined;
+    return invalidExpression("missing target property fact");
   }
-  return sanitizeIdentifier(sourceName);
+  return {
+    kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
+    receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
+    name: sanitizeIdentifier(sourceName),
+  };
 }
 
 function ensureElementAccessCanBeRendered(
