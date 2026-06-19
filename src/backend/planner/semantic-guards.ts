@@ -87,9 +87,11 @@ export function getCallableSemanticOwnership(
   const symbol = getQueryableSymbol(callee, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "callee symbol");
   const type = input.checker.getTypeAtLocation(callee, { sourceFile });
-  appendTargetFactReasons(reasons, input, type, "callee type");
-  appendTargetFactReasons(reasons, input, type?.symbol, "callee type symbol");
   const sourceOwned = isSourceDeclaredCallable(symbol, input) || isSourceOwnedProjectShapeType(type, input);
+  if (!sourceOwned) {
+    appendTargetFactReasons(reasons, input, type, "callee type");
+    appendTargetFactReasons(reasons, input, type?.symbol, "callee type symbol");
+  }
   return {
     requiresTargetFact: reasons.length > 0,
     sourceOwned,

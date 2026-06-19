@@ -4,6 +4,7 @@ import {
   AsNumericLiteral,
   AsParameterDeclaration,
   AsTupleTypeNode,
+  GetSourceFileOfNode,
   KindAnyKeyword,
   KindArrayType,
   KindBigIntKeyword,
@@ -24,6 +25,7 @@ import {
   KindUnknownKeyword,
   KindVariableDeclaration,
   KindVoidKeyword,
+  SourceFile_FileName,
   TstsProviderContractVersion,
   TypeFlagsAny,
   TypeFlagsBigIntLike,
@@ -38,6 +40,7 @@ import {
   acceptDecision,
   createSourceSemanticsExtension,
   deferDecision,
+  getSingleTypeScriptCallSignatureInfo,
   getTypeScriptArrayElementType,
   getTypeScriptTypeReferenceInfo,
   isTypeScriptStringLikeType,
@@ -166,6 +169,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       const delegateCall = resolveDelegateCall(
         [request.callee, request.calleeSymbol, request.calleeType],
         request.callee,
+        request.calleeSymbol,
         request.arguments,
         context,
       );
@@ -253,9 +257,13 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
 function resolveDelegateCall(
   carrierSubjects: readonly (ExtensionFactSubject | undefined)[],
   callee: ExtensionFactSubject,
+  calleeSymbol: ExtensionFactSubject | undefined,
   args: readonly ExtensionFactSubject[],
   context: ExtensionDecisionContext,
 ): ResolveCallResult | undefined {
+  if (!isDelegateValueSymbol(calleeSymbol)) {
+    return undefined;
+  }
   const carrier = resolveFirstRuntimeCarrier(carrierSubjects, context);
   if (!isCsharpDelegateCarrier(carrier)) {
     return undefined;
@@ -286,6 +294,35 @@ function resolveDelegateCall(
     selectedSignature: { member },
     ...(returnType === undefined ? {} : { returnType }),
   };
+}
+
+function isDelegateValueSymbol(subject: ExtensionFactSubject | undefined): boolean {
+  const symbol = subject as Symbol | undefined;
+  const declaration = symbol?.ValueDeclaration ?? symbol?.Declarations?.find((candidate): candidate is Node => candidate !== undefined);
+  if (isDeclarationFileNode(declaration)) {
+    return false;
+  }
+  switch (declaration?.Kind) {
+    case KindVariableDeclaration:
+    case KindParameter:
+    case KindPropertyDeclaration:
+    case KindBindingElement:
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isDeclarationFileNode(node: Node | undefined): boolean {
+  if (node === undefined) {
+    return false;
+  }
+  const sourceFile = GetSourceFileOfNode(node);
+  if (sourceFile === undefined) {
+    return false;
+  }
+  const fileName = SourceFile_FileName(sourceFile);
+  return fileName.endsWith(".d.ts");
 }
 
 function resolveFirstRuntimeCarrier(
@@ -556,6 +593,10 @@ function resolveCsharpRuntimeCarrierForTstsType(
       ? undefined
       : { kind: "array", element: elementCarrier };
   }
+  const callSignatureCarrier = resolveCsharpRuntimeCarrierForCallSignature(type, context);
+  if (callSignatureCarrier !== undefined) {
+    return callSignatureCarrier;
+  }
   const typeReference = getTypeScriptTypeReferenceInfo(type);
   if (typeReference !== undefined) {
     const referenceBinding = context.facts.get(typeReference.targetSymbol, targetBindingFactKey);
@@ -630,6 +671,37 @@ function isTypeSubject(subject: ExtensionFactSubject): subject is Type {
   return typeof subject === "object" &&
     subject !== null &&
     typeof (subject as { readonly flags?: unknown }).flags === "number";
+}
+
+function resolveCsharpRuntimeCarrierForCallSignature(
+  type: Type,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const signature = getSingleTypeScriptCallSignatureInfo(type);
+  if (signature === undefined || signature.hasRestParameter || signature.returnType === undefined) {
+    return undefined;
+  }
+  const parameterTypes = signature.parameterTypes
+    .map((parameterType) => context.factResolver.resolve(parameterType, runtimeCarrierFactKey)?.carrier);
+  if (parameterTypes.some((parameterType) => parameterType === undefined)) {
+    return undefined;
+  }
+  const returnType = context.factResolver.resolve(signature.returnType, runtimeCarrierFactKey)?.carrier;
+  if (returnType === undefined) {
+    return undefined;
+  }
+  if (isVoidTargetType(returnType)) {
+    return {
+      kind: "target-named",
+      id: `System.Action\`${parameterTypes.length}`,
+      typeArguments: parameterTypes as readonly TargetTypeRef[],
+    };
+  }
+  return {
+    kind: "target-named",
+    id: `System.Func\`${parameterTypes.length + 1}`,
+    typeArguments: [...(parameterTypes as readonly TargetTypeRef[]), returnType],
+  };
 }
 
 function isSourceEnumType(type: Type): boolean {

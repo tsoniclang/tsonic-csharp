@@ -400,10 +400,11 @@ function planArrowFunctionExpression(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  expectedType?: CsharpTypeNode,
 ): CsharpExpression {
   const expression = AsArrowFunction(node)!;
   diagnoseUnsupportedAsyncSemantics(node, "arrow function", diagnostics);
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics);
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
   if (expression.Body?.Kind === KindBlock) {
     return {
       kind: "lambda",
@@ -425,10 +426,11 @@ function planFunctionExpression(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  expectedType?: CsharpTypeNode,
 ): CsharpExpression {
   const expression = AsFunctionExpression(node)!;
   diagnoseUnsupportedAsyncSemantics(node, "function expression", diagnostics);
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics);
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
   return {
     kind: "lambda",
     parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
@@ -467,7 +469,11 @@ function diagnoseMissingLambdaTargetContext(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  expectedType?: CsharpTypeNode,
 ): void {
+  if (expectedType !== undefined && isCsharpDelegateType(expectedType)) {
+    return;
+  }
   if (input.facts.getContextualTargetTypeFact(node)?.targetType !== undefined) {
     return;
   }
@@ -475,6 +481,10 @@ function diagnoseMissingLambdaTargetContext(
     return;
   }
   diagnostics.push(unsupportedNodeDiagnostic(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."));
+}
+
+function isCsharpDelegateType(type: CsharpTypeNode): boolean {
+  return type.kind === "named" && (type.name === "Func" || type.name === "Action");
 }
 
 export function planCallArgument(
@@ -563,6 +573,12 @@ export function planExpressionWithExpectedType(
       kind: "parenthesized",
       expression: planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType),
     };
+  }
+  if (node.Kind === KindArrowFunction) {
+    return planArrowFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
+  }
+  if (node.Kind === KindFunctionExpression) {
+    return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
   }
   if (node.Kind === KindObjectLiteralExpression) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires finalized TSTS/provider object-shape facts before C# emission."));
