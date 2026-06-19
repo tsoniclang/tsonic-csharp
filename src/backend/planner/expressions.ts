@@ -45,7 +45,6 @@ import {
   KindEqualsToken,
   KindExclamationEqualsEqualsToken,
   KindExclamationEqualsToken,
-  KindExclamationToken,
   KindFalseKeyword,
   KindFunctionExpression,
   KindCaretEqualsToken,
@@ -62,7 +61,6 @@ import {
   KindLessThanLessThanEqualsToken,
   KindLessThanLessThanToken,
   KindLessThanToken,
-  KindMinusMinusToken,
   KindMinusEqualsToken,
   KindMinusToken,
   KindNewExpression,
@@ -74,7 +72,6 @@ import {
   KindParenthesizedExpression,
   KindPercentEqualsToken,
   KindPercentToken,
-  KindPlusPlusToken,
   KindPlusEqualsToken,
   KindPlusToken,
   KindPostfixUnaryExpression,
@@ -88,7 +85,6 @@ import {
   KindSuperKeyword,
   KindTemplateExpression,
   KindThisKeyword,
-  KindTildeToken,
   KindTrueKeyword,
   KindTypeAssertionExpression,
   Node_Text,
@@ -238,22 +234,15 @@ export function planExpression(
       const selectedOperator = input.facts.getSelectedTargetOperator(node);
       const operator = selectedOperator?.operationKind === "operator"
         ? selectedOperator.targetOperation
-        : getCsharpPrefixUnaryOperator(expression.Operator);
+        : undefined;
       if (operator === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Prefix unary operator is outside the current C# planning surface."));
-        return invalidExpression("unsupported prefix unary operator");
+        const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
+        pushMissingTargetFactDiagnostic(diagnostics, node, "C# prefix unary operator emission requires a selected provider operator fact.", ownership);
+        return invalidExpression("missing target prefix operator fact");
       }
       if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
         diagnostics.push(unsupportedNodeDiagnostic(node, `Prefix unary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
         return invalidExpression("selected target prefix operator");
-      }
-      if (selectedOperator === undefined) {
-        const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
-        const directOperator = isDirectCsharpPrefixUnaryOperatorAllowed(expression.Operator, expression.Operand, ownership);
-        if (ownership.requiresTargetFact || !directOperator.allowed) {
-          pushMissingTargetFactDiagnostic(diagnostics, node, "C# prefix unary operator emission requires a direct primitive/source-owned operation or a selected provider operator fact.", withDirectOperatorReason(ownership, directOperator.reason));
-          return invalidExpression("missing target prefix operator fact");
-        }
       }
       return {
         kind: "prefixUnary",
@@ -266,22 +255,15 @@ export function planExpression(
       const selectedOperator = input.facts.getSelectedTargetOperator(node);
       const operator = selectedOperator?.operationKind === "operator"
         ? selectedOperator.targetOperation
-        : getCsharpPostfixUnaryOperator(expression.Operator);
+        : undefined;
       if (operator === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Postfix unary operator is outside the current C# planning surface."));
-        return invalidExpression("unsupported postfix unary operator");
+        const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
+        pushMissingTargetFactDiagnostic(diagnostics, node, "C# postfix unary operator emission requires a selected provider operator fact.", ownership);
+        return invalidExpression("missing target postfix operator fact");
       }
       if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
         diagnostics.push(unsupportedNodeDiagnostic(node, `Postfix unary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
         return invalidExpression("selected target postfix operator");
-      }
-      if (selectedOperator === undefined) {
-        const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
-        const directOperator = isDirectCsharpPostfixUnaryOperatorAllowed(expression.Operator, expression.Operand, ownership);
-        if (ownership.requiresTargetFact || !directOperator.allowed) {
-          pushMissingTargetFactDiagnostic(diagnostics, node, "C# postfix unary operator emission requires a direct primitive/source-owned operation or a selected provider operator fact.", withDirectOperatorReason(ownership, directOperator.reason));
-          return invalidExpression("missing target postfix operator fact");
-        }
       }
       return {
         kind: "postfixUnary",
@@ -688,15 +670,12 @@ function tryPlanBinaryExpression(
   }
   const expression = AsBinaryExpression(node)!;
   const operatorKind = expression.OperatorToken?.Kind;
-  if (selectedOperator === undefined && operator !== "=") {
+  if (selectedOperator === undefined && operator !== "=" && operatorKind !== KindInstanceOfKeyword) {
     const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
     const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
     const ownership = combineOwnership(leftOwnership, rightOwnership);
-    const directOperator = isDirectCsharpBinaryOperatorAllowed(operatorKind, expression.Left, expression.Right, leftOwnership, rightOwnership);
-    if (ownership.requiresTargetFact || !directOperator.allowed) {
-      pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a direct primitive/source-owned operation or a selected provider operator fact.", withDirectOperatorReason(ownership, directOperator.reason));
-      return invalidExpression("missing target operator fact");
-    }
+    pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a selected provider operator fact.", ownership);
+    return invalidExpression("missing target operator fact");
   }
   return {
     kind: "binary",
@@ -713,290 +692,7 @@ function combineOwnership(left: OperationSemanticOwnership, right: OperationSema
     sourceOwned: left.sourceOwned && right.sourceOwned,
     reasons,
     sourcePrimitive: left.sourcePrimitive ?? right.sourcePrimitive,
-    typeFlags: {
-      stringLike: left.typeFlags.stringLike || right.typeFlags.stringLike,
-      numberLike: left.typeFlags.numberLike || right.typeFlags.numberLike,
-      booleanLike: left.typeFlags.booleanLike || right.typeFlags.booleanLike,
-      bigintLike: left.typeFlags.bigintLike || right.typeFlags.bigintLike,
-      enumLike: left.typeFlags.enumLike || right.typeFlags.enumLike,
-      typeParameter: left.typeFlags.typeParameter || right.typeFlags.typeParameter,
-    },
   };
-}
-
-interface DirectOperatorDecision {
-  readonly allowed: boolean;
-  readonly reason: string;
-}
-
-function isDirectCsharpBinaryOperatorAllowed(
-  operatorKind: number | undefined,
-  leftNode: Node | undefined,
-  rightNode: Node | undefined,
-  left: OperationSemanticOwnership,
-  right: OperationSemanticOwnership,
-): DirectOperatorDecision {
-  switch (operatorKind) {
-    case KindAmpersandAmpersandToken:
-    case KindBarBarToken:
-      return directDecision(isBooleanOperand(left) && isBooleanOperand(right), "logical operators require boolean operands from TSTS or source primitive facts");
-    case KindEqualsEqualsToken:
-    case KindEqualsEqualsEqualsToken:
-    case KindExclamationEqualsToken:
-    case KindExclamationEqualsEqualsToken:
-      return directDecision(areDirectEqualityOperands(left, right), "equality operators require scalar/source-primitive operands or a provider-selected operator");
-    case KindLessThanToken:
-    case KindLessThanEqualsToken:
-    case KindGreaterThanToken:
-    case KindGreaterThanEqualsToken:
-      return directDecision(areDirectNumericOperands(leftNode, rightNode, left, right), "relational operators require numeric operands from TSTS/source primitive facts or a provider-selected operator");
-    case KindPlusToken:
-    case KindPlusEqualsToken:
-      return directDecision(
-        areDirectNumericOperands(leftNode, rightNode, left, right) || areDirectStringConcatOperands(left, right),
-        "plus operators require numeric operands, plain string concatenation operands, or a provider-selected operator",
-      );
-    case KindMinusToken:
-    case KindAsteriskToken:
-    case KindSlashToken:
-    case KindPercentToken:
-    case KindMinusEqualsToken:
-    case KindAsteriskEqualsToken:
-    case KindSlashEqualsToken:
-    case KindPercentEqualsToken:
-      return directDecision(areDirectNumericOperands(leftNode, rightNode, left, right), "arithmetic operators require numeric operands from TSTS/source primitive facts or a provider-selected operator");
-    case KindAmpersandToken:
-    case KindBarToken:
-    case KindCaretToken:
-    case KindLessThanLessThanToken:
-    case KindGreaterThanGreaterThanToken:
-    case KindGreaterThanGreaterThanGreaterThanToken:
-    case KindAmpersandEqualsToken:
-    case KindBarEqualsToken:
-    case KindCaretEqualsToken:
-    case KindLessThanLessThanEqualsToken:
-    case KindGreaterThanGreaterThanEqualsToken:
-    case KindGreaterThanGreaterThanGreaterThanEqualsToken:
-      return directDecision(areDirectIntegralOperands(leftNode, rightNode, left, right), "bitwise and shift operators require integral source primitive operands or integer literal operands");
-    case KindQuestionQuestionToken:
-      return directDecision(left.sourceOwned && right.sourceOwned, "nullish coalescing requires source-owned operands or a provider-selected operation");
-    case KindInstanceOfKeyword:
-      return directDecision(true, "instanceof is rendered as a syntax-level type test");
-    default:
-      return directDecision(false, "operator kind is outside the direct C# operator surface");
-  }
-}
-
-function isDirectCsharpPrefixUnaryOperatorAllowed(
-  operatorKind: number,
-  operandNode: Node | undefined,
-  operand: OperationSemanticOwnership,
-): DirectOperatorDecision {
-  switch (operatorKind) {
-    case KindExclamationToken:
-      return directDecision(isBooleanOperand(operand), "logical not requires a boolean operand from TSTS or source primitive facts");
-    case KindTildeToken:
-      return directDecision(isIntegralOperand(operandNode, operand), "bitwise not requires an integral source primitive operand or an integer literal operand");
-    case KindPlusToken:
-    case KindMinusToken:
-      return directDecision(isNumericOperand(operandNode, operand), "unary plus/minus requires a numeric operand from TSTS/source primitive facts");
-    default:
-      return directDecision(false, "prefix operator kind is outside the direct C# operator surface");
-  }
-}
-
-function isDirectCsharpPostfixUnaryOperatorAllowed(
-  operatorKind: number,
-  operandNode: Node | undefined,
-  operand: OperationSemanticOwnership,
-): DirectOperatorDecision {
-  switch (operatorKind) {
-    case KindPlusPlusToken:
-    case KindMinusMinusToken:
-      return directDecision(!isNumericLiteralNode(operandNode) && isNumericOperand(operandNode, operand), "postfix increment/decrement requires mutable numeric source operands");
-    default:
-      return directDecision(false, "postfix operator kind is outside the direct C# operator surface");
-  }
-}
-
-function directDecision(allowed: boolean, reason: string): DirectOperatorDecision {
-  return { allowed, reason };
-}
-
-function withDirectOperatorReason(ownership: OperationSemanticOwnership, reason: string): OperationSemanticOwnership {
-  return {
-    ...ownership,
-    reasons: ownership.reasons.includes(reason) ? ownership.reasons : [...ownership.reasons, reason],
-  };
-}
-
-function areDirectEqualityOperands(left: OperationSemanticOwnership, right: OperationSemanticOwnership): boolean {
-  return (isBooleanOperand(left) && isBooleanOperand(right)) ||
-    (isNumericOperand(undefined, left) && isNumericOperand(undefined, right)) ||
-    (isPlainStringOperand(left) && isPlainStringOperand(right)) ||
-    (isCharSourcePrimitive(left) && isCharSourcePrimitive(right)) ||
-    (isSourceOwnedNumericOperand(left) && isSourceOwnedNumericOperand(right));
-}
-
-function areDirectStringConcatOperands(left: OperationSemanticOwnership, right: OperationSemanticOwnership): boolean {
-  return (isPlainStringOperand(left) || isPlainStringOperand(right)) &&
-    (isPlainStringOperand(left) || isPlainNumberOperand(left) || isPlainBooleanOperand(left)) &&
-    (isPlainStringOperand(right) || isPlainNumberOperand(right) || isPlainBooleanOperand(right));
-}
-
-function areDirectNumericOperands(
-  leftNode: Node | undefined,
-  rightNode: Node | undefined,
-  left: OperationSemanticOwnership,
-  right: OperationSemanticOwnership,
-): boolean {
-  if (isPlainNumberOperand(left) && isPlainNumberOperand(right)) {
-    return true;
-  }
-  if ((isPlainNumberOperand(left) && isNumericSourcePrimitive(right)) || (isPlainNumberOperand(right) && isNumericSourcePrimitive(left))) {
-    return true;
-  }
-  if (isPlainBigIntOperand(left) && isPlainBigIntOperand(right)) {
-    return true;
-  }
-  if (isNumericSourcePrimitive(left) && isNumericSourcePrimitive(right)) {
-    return left.sourcePrimitive?.kind === right.sourcePrimitive?.kind;
-  }
-  if (isNumericSourcePrimitive(left) && isNumericLiteralCompatibleWithSourcePrimitive(rightNode, left.sourcePrimitive)) {
-    return true;
-  }
-  if (isNumericSourcePrimitive(right) && isNumericLiteralCompatibleWithSourcePrimitive(leftNode, right.sourcePrimitive)) {
-    return true;
-  }
-  return false;
-}
-
-function areDirectIntegralOperands(
-  leftNode: Node | undefined,
-  rightNode: Node | undefined,
-  left: OperationSemanticOwnership,
-  right: OperationSemanticOwnership,
-): boolean {
-  if (isIntegralSourcePrimitive(left) && isIntegralSourcePrimitive(right)) {
-    return true;
-  }
-  if (isSourceOwnedNumericOperand(left) && isSourceOwnedNumericOperand(right)) {
-    return true;
-  }
-  if (isIntegralSourcePrimitive(left) && isIntegerNumericLiteralNode(rightNode)) {
-    return true;
-  }
-  if (isIntegralSourcePrimitive(right) && isIntegerNumericLiteralNode(leftNode)) {
-    return true;
-  }
-  if (isSourceOwnedNumericOperand(left) && isIntegerNumericLiteralNode(rightNode)) {
-    return true;
-  }
-  if (isSourceOwnedNumericOperand(right) && isIntegerNumericLiteralNode(leftNode)) {
-    return true;
-  }
-  return false;
-}
-
-function isBooleanOperand(operand: OperationSemanticOwnership): boolean {
-  return isBoolSourcePrimitive(operand) || isPlainBooleanOperand(operand);
-}
-
-function isNumericOperand(node: Node | undefined, operand: OperationSemanticOwnership): boolean {
-  return isPlainNumberOperand(operand) ||
-    isPlainBigIntOperand(operand) ||
-    isNumericSourcePrimitive(operand) ||
-    isNumericLiteralNode(node);
-}
-
-function isIntegralOperand(node: Node | undefined, operand: OperationSemanticOwnership): boolean {
-  return isIntegralSourcePrimitive(operand) || isIntegerNumericLiteralNode(node);
-}
-
-function isPlainStringOperand(operand: OperationSemanticOwnership): boolean {
-  return operand.sourcePrimitive === undefined && operand.typeFlags.stringLike;
-}
-
-function isPlainNumberOperand(operand: OperationSemanticOwnership): boolean {
-  return operand.sourcePrimitive === undefined && operand.typeFlags.numberLike;
-}
-
-function isPlainBigIntOperand(operand: OperationSemanticOwnership): boolean {
-  return operand.sourcePrimitive === undefined && operand.typeFlags.bigintLike;
-}
-
-function isPlainBooleanOperand(operand: OperationSemanticOwnership): boolean {
-  return operand.sourcePrimitive === undefined && operand.typeFlags.booleanLike;
-}
-
-function isSourceOwnedNumericOperand(operand: OperationSemanticOwnership): boolean {
-  return operand.sourcePrimitive === undefined && operand.sourceOwned && operand.typeFlags.enumLike;
-}
-
-function isBoolSourcePrimitive(operand: OperationSemanticOwnership): boolean {
-  return operand.sourcePrimitive?.kind === "bool";
-}
-
-function isCharSourcePrimitive(operand: OperationSemanticOwnership): boolean {
-  return operand.sourcePrimitive?.kind === "char16" || operand.sourcePrimitive?.kind === "char32";
-}
-
-function isNumericSourcePrimitive(operand: OperationSemanticOwnership): boolean {
-  const primitive = operand.sourcePrimitive;
-  return primitive !== undefined &&
-    primitive.runtimeBase !== "boolean" &&
-    primitive.runtimeBase !== "string" &&
-    primitive.runtimeBase !== "object";
-}
-
-function isIntegralSourcePrimitive(operand: OperationSemanticOwnership): boolean {
-  const kind = operand.sourcePrimitive?.kind;
-  return kind === "int8" ||
-    kind === "uint8" ||
-    kind === "int16" ||
-    kind === "uint16" ||
-    kind === "int32" ||
-    kind === "uint32" ||
-    kind === "int64" ||
-    kind === "uint64" ||
-    kind === "int128" ||
-    kind === "uint128" ||
-    kind === "native-int" ||
-    kind === "native-uint";
-}
-
-function isNumericLiteralCompatibleWithSourcePrimitive(node: Node | undefined, primitive: OperationSemanticOwnership["sourcePrimitive"]): boolean {
-  if (primitive === undefined || !isNumericLiteralNode(node)) {
-    return false;
-  }
-  return isIntegralPrimitiveKind(primitive.kind) ? isIntegerNumericLiteralNode(node) : true;
-}
-
-function isIntegralPrimitiveKind(kind: NonNullable<OperationSemanticOwnership["sourcePrimitive"]>["kind"]): boolean {
-  return kind === "int8" ||
-    kind === "uint8" ||
-    kind === "int16" ||
-    kind === "uint16" ||
-    kind === "int32" ||
-    kind === "uint32" ||
-    kind === "int64" ||
-    kind === "uint64" ||
-    kind === "int128" ||
-    kind === "uint128" ||
-    kind === "native-int" ||
-    kind === "native-uint";
-}
-
-function isNumericLiteralNode(node: Node | undefined): boolean {
-  return node?.Kind === KindNumericLiteral;
-}
-
-function isIntegerNumericLiteralNode(node: Node | undefined): boolean {
-  if (node?.Kind !== KindNumericLiteral) {
-    return false;
-  }
-  const value = Number(AsNumericLiteral(node)!.Text.replace(/_/g, ""));
-  return Number.isSafeInteger(value);
 }
 
 function getCsharpBinaryOperator(node: Node): string | undefined {
@@ -1078,25 +774,6 @@ function getCsharpBinaryOperator(node: Node): string | undefined {
   return undefined;
 }
 
-function getCsharpPrefixUnaryOperator(kind: number): string | undefined {
-  switch (kind) {
-    case KindPlusToken:
-      return "+";
-    case KindMinusToken:
-      return "-";
-    case KindExclamationToken:
-      return "!";
-    case KindTildeToken:
-      return "~";
-    case KindPlusPlusToken:
-      return "++";
-    case KindMinusMinusToken:
-      return "--";
-    default:
-      return undefined;
-  }
-}
-
 function isNode(value: unknown): value is Node {
   return typeof value === "object"
     && value !== null
@@ -1106,15 +783,4 @@ function isNode(value: unknown): value is Node {
 function unsupportedFactExpressionType(node: Node, diagnostics: TargetDiagnostic[]): CsharpTypeNode {
   diagnostics.push(unsupportedNodeDiagnostic(node, "Source fact type subject must be an AST type node before C# expression emission."));
   return { kind: "invalid", reason: "source fact expression type" };
-}
-
-function getCsharpPostfixUnaryOperator(kind: number): string | undefined {
-  switch (kind) {
-    case KindPlusPlusToken:
-      return "++";
-    case KindMinusMinusToken:
-      return "--";
-    default:
-      return undefined;
-  }
 }

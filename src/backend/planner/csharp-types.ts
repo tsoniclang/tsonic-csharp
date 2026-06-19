@@ -1,51 +1,30 @@
 import {
-  AsArrayTypeNode,
   AsExpressionWithTypeArguments,
-  AsFunctionTypeNode,
-  AsParameterDeclaration,
-  AsTupleTypeNode,
   KindArrayBindingPattern,
-  KindArrayType,
   KindAnyKeyword,
-  KindBigIntKeyword,
-  KindBooleanKeyword,
   KindClassDeclaration,
   KindEnumDeclaration,
   KindExpressionWithTypeArguments,
-  KindFunctionType,
   KindIdentifier,
   KindInterfaceDeclaration,
-  KindNeverKeyword,
-  KindNumberKeyword,
   KindObjectKeyword,
   KindObjectBindingPattern,
   GetSourceFileOfNode,
-  getTypeScriptArrayElementType,
   getTypeScriptTypeReferenceInfo,
   KindPropertyAccessExpression,
   KindTypeLiteral,
-  KindStringKeyword,
-  KindTupleType,
   KindUnionType,
   KindUnknownKeyword,
-  KindVoidKeyword,
   SourceFile_FileName,
   TypeFlagsAny,
-  TypeFlagsBigIntLike,
-  TypeFlagsBooleanLike,
-  TypeFlagsNever,
-  TypeFlagsNumberLike,
-  TypeFlagsStringLike,
-  TypeFlagsTypeParameter,
   TypeFlagsUnknown,
-  TypeFlagsVoidLike,
 } from "@tsonic/tsts";
-import type { Node, SourceFile, SourcePrimitiveFact, Symbol, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, Symbol, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../ast/csharp-ast.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { csharpTypeFromSourcePrimitiveKind, csharpTypeFromTargetTypeRef } from "./target-types.js";
+import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 export function expressionToCsharpType(
   node: Node | undefined,
@@ -114,9 +93,9 @@ export function getCsharpTypeForNode(
   if (node === undefined) {
     return fallback;
   }
-  const sourcePrimitive = input.facts.getSourcePrimitiveFact(node);
-  if (sourcePrimitive !== undefined) {
-    return getCsharpTypeForSourcePrimitive(sourcePrimitive);
+  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
+  if (nodeCarrierType !== undefined) {
+    return nodeCarrierType;
   }
   if (node.Kind === KindAnyKeyword || node.Kind === KindUnknownKeyword) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
@@ -125,10 +104,6 @@ export function getCsharpTypeForNode(
   if (node.Kind === KindObjectKeyword) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; TypeScript object is a broad structural carrier and cannot be emitted without provider facts."));
     return invalidType("object keyword type");
-  }
-  const keywordType = getCsharpTypeForKeywordType(node.Kind);
-  if (keywordType !== undefined) {
-    return keywordType;
   }
   if (node.Kind === KindTypeLiteral) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
@@ -140,25 +115,6 @@ export function getCsharpTypeForNode(
   if (node.Kind === KindObjectBindingPattern || node.Kind === KindArrayBindingPattern) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));
     return invalidType("binding pattern type");
-  }
-  if (node.Kind === KindArrayType) {
-    const arrayType = AsArrayTypeNode(node)!;
-    return {
-      kind: "array",
-      elementType: getCsharpTypeForNode(arrayType.ElementType, sourceFile, input, invalidType("array element type"), diagnostics),
-    };
-  }
-  if (node.Kind === KindTupleType) {
-    const tupleType = AsTupleTypeNode(node)!;
-    return {
-      kind: "tuple",
-      elements: (tupleType.Elements?.Nodes ?? [])
-        .filter((element): element is Node => element !== undefined)
-        .map((element) => getCsharpTypeForNode(element, sourceFile, input, invalidType("tuple element type"), diagnostics)),
-    };
-  }
-  if (node.Kind === KindFunctionType) {
-    return getCsharpTypeForFunctionTypeNode(node, sourceFile, input, diagnostics);
   }
   const contextualTargetType = input.facts.getContextualTargetTypeFact(node)?.targetType;
   if (contextualTargetType !== undefined) {
@@ -201,12 +157,9 @@ export function getCsharpTypeForTstsType(
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticNode: Node,
 ): CsharpTypeNode | undefined {
-  const typeRuntimeCarrier = input.facts.getRuntimeCarrierFact(type)?.carrier;
+  const typeRuntimeCarrier = getCsharpTypeFromRuntimeCarrier(type, input);
   if (typeRuntimeCarrier !== undefined) {
-    const csharpType = csharpTypeFromTargetTypeRef(typeRuntimeCarrier);
-    if (csharpType !== undefined) {
-      return csharpType;
-    }
+    return typeRuntimeCarrier;
   }
   const typeSymbol = type.symbol;
   const typeTargetBinding = input.facts.getTargetBindingFact(typeSymbol);
@@ -217,13 +170,6 @@ export function getCsharpTypeForTstsType(
     }
   }
   const typeReference = getTypeScriptTypeReferenceInfo(type);
-  const arrayElementType = getTypeScriptArrayElementType(type);
-  if (arrayElementType !== undefined) {
-    return {
-      kind: "array",
-      elementType: getCsharpTypeForTstsType(arrayElementType, sourceFile, input, diagnostics, diagnosticNode) ?? invalidType("array element type"),
-    };
-  }
   const typeReferenceTargetSymbol = typeReference?.targetSymbol;
   const sourceTypeName = getProjectSourceTypeName(typeReferenceTargetSymbol ?? typeSymbol, input);
   if (typeReference !== undefined && sourceTypeName !== undefined) {
@@ -237,9 +183,6 @@ export function getCsharpTypeForTstsType(
     diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "C# emission requires a provider target binding or a project-source class/interface declaration for type references."));
     return undefined;
   }
-  if ((type.flags & TypeFlagsTypeParameter) !== 0 && typeSymbol?.Name !== undefined && typeSymbol.Name.length > 0) {
-    return { kind: "named", name: sanitizeIdentifier(typeSymbol.Name) };
-  }
   const typeDeclaration = typeSymbol?.ValueDeclaration ?? typeSymbol?.Declarations?.find((candidate) => candidate !== undefined);
   if (
     isProjectSourceDeclaration(typeDeclaration, input) &&
@@ -247,54 +190,13 @@ export function getCsharpTypeForTstsType(
   ) {
     return { kind: "named", name: sanitizeIdentifier(typeSymbol!.Name) };
   }
-  if ((type.flags & TypeFlagsStringLike) !== 0) {
-    return predefined("string");
-  }
-  if ((type.flags & TypeFlagsBooleanLike) !== 0) {
-    return predefined("bool");
-  }
-  if ((type.flags & TypeFlagsBigIntLike) !== 0) {
-    return bigIntegerType();
-  }
-  if ((type.flags & TypeFlagsNumberLike) !== 0) {
-    return predefined("double");
-  }
-  if ((type.flags & TypeFlagsVoidLike) !== 0) {
-    return predefined("void");
-  }
   if ((type.flags & (TypeFlagsAny | TypeFlagsUnknown)) !== 0) {
     diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
     return undefined;
   }
-  if ((type.flags & TypeFlagsNever) !== 0) {
-    return predefined("void");
-  }
   const typeText = input.checker.typeToString(type, { sourceFile });
   diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, `C# emission requires a closed target type from TSTS or provider facts. TSTS type: ${typeText ?? "<unknown>"}.`));
   return undefined;
-}
-
-export function getCsharpTypeForSourcePrimitive(fact: SourcePrimitiveFact): CsharpTypeNode {
-  return csharpTypeFromSourcePrimitiveKind(fact.kind);
-}
-
-function getCsharpTypeForKeywordType(kind: number): CsharpTypeNode | undefined {
-  switch (kind) {
-    case KindStringKeyword:
-      return predefined("string");
-    case KindNumberKeyword:
-      return predefined("double");
-    case KindBooleanKeyword:
-      return predefined("bool");
-    case KindBigIntKeyword:
-      return bigIntegerType();
-    case KindVoidKeyword:
-      return predefined("void");
-    case KindNeverKeyword:
-      return predefined("void");
-    default:
-      return undefined;
-  }
 }
 
 export function invalidCsharpType(reason: string): CsharpTypeNode {
@@ -303,18 +205,6 @@ export function invalidCsharpType(reason: string): CsharpTypeNode {
 
 function invalidType(reason: string): CsharpTypeNode {
   return invalidCsharpType(reason);
-}
-
-function bigIntegerType(): CsharpTypeNode {
-  return {
-    kind: "qualified",
-    left: {
-      kind: "qualified",
-      left: { kind: "named", name: "System" },
-      name: "Numerics",
-    },
-    name: "BigInteger",
-  };
 }
 
 export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boolean {
@@ -362,53 +252,6 @@ export function predefined(name: string): CsharpTypeNode {
   return { kind: "predefined", name };
 }
 
-function getCsharpTypeForFunctionTypeNode(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics?: TargetDiagnostic[],
-): CsharpTypeNode {
-  const functionType = AsFunctionTypeNode(node)!;
-  const typeParameters = functionType.TypeParameters?.Nodes ?? [];
-  if (typeParameters.some((typeParameter) => typeParameter !== undefined)) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Generic function types require target delegate facts before C# emission."));
-    return invalidType("generic function type");
-  }
-  const parameters = (functionType.Parameters?.Nodes ?? [])
-    .filter((parameter): parameter is Node => parameter !== undefined)
-    .map((parameter) => getCsharpTypeForFunctionTypeParameter(parameter, sourceFile, input, diagnostics));
-  if (parameters.some((parameter) => parameter.kind === "invalid")) {
-    return invalidType("function type parameter");
-  }
-  return {
-    kind: "function",
-    parameters,
-    returnType: getCsharpTypeForNode(functionType.Type, sourceFile, input, predefined("void"), diagnostics),
-  };
-}
-
-function getCsharpTypeForFunctionTypeParameter(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics?: TargetDiagnostic[],
-): CsharpTypeNode {
-  const parameter = AsParameterDeclaration(node)!;
-  if (parameter.DotDotDotToken !== undefined) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Rest parameters in function types require target delegate facts before C# emission."));
-    return invalidType("function type rest parameter");
-  }
-  if (parameter.QuestionToken !== undefined || parameter.Initializer !== undefined) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Optional/defaulted function-type parameters require target delegate facts before C# emission."));
-    return invalidType("function type optional parameter");
-  }
-  if (parameter.Type === undefined) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Function-type parameters must have closed TSTS types before C# emission."));
-    return invalidType("function type untyped parameter");
-  }
-  return getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics);
-}
-
 function getCsharpTypeForUnionTypeNode(
   node: Node,
   _sourceFile: SourceFile,
@@ -431,6 +274,11 @@ function getCsharpTypeForUnionTypeNode(
   }
   diagnostics?.push(unsupportedNodeDiagnostic(node, "Union type annotations require finalized TSTS/provider storage facts before C# emission."));
   return invalidType("union type");
+}
+
+function getCsharpTypeFromRuntimeCarrier(subject: Node | Type, input: TargetCompileInput): CsharpTypeNode | undefined {
+  const carrier = input.facts.getRuntimeCarrierFact(subject)?.carrier;
+  return carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
 }
 
 function getProjectSourceTypeName(symbol: Symbol | undefined, input: TargetCompileInput): string | undefined {

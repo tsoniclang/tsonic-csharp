@@ -17,7 +17,7 @@ test("provider-owned operator operands require selected target operator facts", 
   assert.deepEqual(ownership.reasons, ["operand type target binding"]);
 });
 
-test("closed primitive operator operands remain direct syntax", () => {
+test("plain primitive operator operands require provider-selected operation facts", () => {
   const operand = node(KindIdentifier);
   const input = fakeInput({
     typeAtLocation: { flags: TypeFlagsNumberLike },
@@ -26,7 +26,7 @@ test("closed primitive operator operands remain direct syntax", () => {
   const ownership = getProviderOperationOwnership(operand, {}, input);
 
   assert.equal(ownership.requiresTargetFact, false);
-  assert.equal(ownership.sourceOwned, true);
+  assert.equal(ownership.sourceOwned, false);
   assert.deepEqual(ownership.reasons, []);
 });
 
@@ -51,8 +51,9 @@ test("primitive member access still requires selected target member facts", () =
 
   const ownership = getSemanticOwnership(receiver, {}, input);
 
-  assert.equal(ownership.requiresTargetFact, true);
-  assert.deepEqual(ownership.reasons, ["builtin scalar target lowering"]);
+  assert.equal(ownership.requiresTargetFact, false);
+  assert.equal(ownership.sourceOwned, false);
+  assert.deepEqual(ownership.reasons, []);
 });
 
 test("provider-owned constructor callees require selected target constructor facts", () => {

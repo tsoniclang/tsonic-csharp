@@ -1,9 +1,52 @@
-import { AsNumericLiteral, KindNumericLiteral, TstsProviderContractVersion, acceptDecision, createSourceSemanticsExtension, deferDecision, getTypeScriptArrayElementType, isTypeScriptStringLikeType, sourcePrimitive, sourcePrimitiveFactKey } from "@tsonic/tsts";
+import {
+  AsArrayTypeNode,
+  AsFunctionTypeNode,
+  AsNumericLiteral,
+  AsParameterDeclaration,
+  AsTupleTypeNode,
+  KindAnyKeyword,
+  KindArrayType,
+  KindBigIntKeyword,
+  KindBooleanKeyword,
+  KindEnumDeclaration,
+  KindEnumMember,
+  KindFunctionType,
+  KindNeverKeyword,
+  KindNumberKeyword,
+  KindNumericLiteral,
+  KindStringKeyword,
+  KindTupleType,
+  KindUnknownKeyword,
+  KindVoidKeyword,
+  TstsProviderContractVersion,
+  TypeFlagsAny,
+  TypeFlagsBigIntLike,
+  TypeFlagsBooleanLike,
+  TypeFlagsEnumLike,
+  TypeFlagsNever,
+  TypeFlagsNumberLike,
+  TypeFlagsStringLike,
+  TypeFlagsTypeParameter,
+  TypeFlagsUnknown,
+  TypeFlagsVoidLike,
+  acceptDecision,
+  createSourceSemanticsExtension,
+  deferDecision,
+  getTypeScriptArrayElementType,
+  getTypeScriptTypeReferenceInfo,
+  isTypeScriptStringLikeType,
+  runtimeCarrierFactKey,
+  sourcePrimitive,
+  sourcePrimitiveFactKey,
+  targetBindingFactKey,
+} from "@tsonic/tsts";
 import type {
   CompilerExtension,
   ExtensionDecisionContext,
   ExtensionDiagnostic,
+  ExtensionEvidence,
   ExtensionFactSubject,
+  ExtensionFactResolverContext,
   Node,
   ProviderDeclarationModel,
   ProviderExportDeclaration,
@@ -15,6 +58,7 @@ import type {
   ProviderTypeExpression,
   ResolveOperationResult,
   ResolveOperatorRequest,
+  RuntimeCarrierFact,
   SourceCallMarkerDeclaration,
   SourcePrimitiveDeclaration,
   SourcePrimitiveFact,
@@ -26,6 +70,7 @@ import type {
   TargetIterationFact,
   TargetOperationFact,
   TargetSemanticProvider,
+  TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
 import type { TargetExtensionContext } from "@tsonic/target-api";
@@ -86,6 +131,8 @@ export function createCsharpSurfaceOperationsExtension(_context: TargetExtension
     initialize(context): void {
       const provider = createCsharpSurfaceOperationsProvider();
       context.registerTargetSemanticProvider(provider);
+      context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) =>
+        resolveCsharpRuntimeCarrier(subject, resolverContext));
     },
   };
 }
@@ -172,7 +219,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (request.target !== undefined && request.target !== "csharp") {
         return deferDecision;
       }
-      const operation = resolveSourcePrimitiveOperator(request, context);
+      const operation = resolveCsharpOperator(request, context);
       return operation === undefined ? deferDecision : acceptDecision(operation);
     },
   };
@@ -185,6 +232,248 @@ function sourcePrimitiveInt32(): SourcePrimitiveFact {
     signed: true,
     width: 32,
   };
+}
+
+function resolveCsharpRuntimeCarrier(
+  subject: ExtensionFactSubject,
+  context: ExtensionFactResolverContext,
+): { readonly value: RuntimeCarrierFact; readonly evidence?: readonly ExtensionEvidence[] } | undefined {
+  const sourcePrimitiveFact = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
+  if (sourcePrimitiveFact !== undefined) {
+    return {
+      value: {
+        carrier: {
+          kind: "source-primitive",
+          name: sourcePrimitiveFact.kind,
+        },
+      },
+      evidence: [{ message: `C# carrier from source primitive '${sourcePrimitiveFact.kind}'.` }],
+    };
+  }
+
+  const directTargetBinding = context.facts.get(subject, targetBindingFactKey);
+  if (directTargetBinding !== undefined) {
+    return runtimeCarrierFromTargetBinding(directTargetBinding.id);
+  }
+
+  if (isNodeSubject(subject)) {
+    const nodeCarrier = resolveCsharpRuntimeCarrierForTypeNode(subject, context);
+    if (nodeCarrier !== undefined) {
+      return {
+        value: { carrier: nodeCarrier },
+        evidence: [{ message: "C# carrier from TypeScript type syntax." }],
+      };
+    }
+  }
+
+  if (isTypeSubject(subject)) {
+    const typeCarrier = resolveCsharpRuntimeCarrierForTstsType(subject, context);
+    if (typeCarrier !== undefined) {
+      return {
+        value: { carrier: typeCarrier },
+        evidence: [{ message: "C# carrier from TSTS semantic type." }],
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function runtimeCarrierFromTargetBinding(id: string): { readonly value: RuntimeCarrierFact; readonly evidence?: readonly ExtensionEvidence[] } {
+  return {
+    value: {
+      carrier: {
+        kind: "target-named",
+        id,
+      },
+    },
+    evidence: [{ message: `C# carrier from target binding '${id}'.` }],
+  };
+}
+
+function resolveCsharpRuntimeCarrierForTypeNode(
+  node: Node,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  switch (node.Kind) {
+    case KindStringKeyword:
+      return csharpNamed("System.String");
+    case KindNumberKeyword:
+      return csharpNamed("System.Double");
+    case KindBooleanKeyword:
+      return csharpNamed("System.Boolean");
+    case KindBigIntKeyword:
+      return csharpNamed("System.Numerics.BigInteger");
+    case KindVoidKeyword:
+    case KindNeverKeyword:
+      return csharpNamed("System.Void");
+    case KindAnyKeyword:
+    case KindUnknownKeyword:
+      return undefined;
+    case KindArrayType: {
+      const elementType = AsArrayTypeNode(node)?.ElementType;
+      const elementCarrier = elementType === undefined
+        ? undefined
+        : context.factResolver.resolve(elementType, runtimeCarrierFactKey)?.carrier;
+      return elementCarrier === undefined
+        ? undefined
+        : { kind: "array", element: elementCarrier };
+    }
+    case KindTupleType: {
+      const elements = AsTupleTypeNode(node)?.Elements?.Nodes ?? [];
+      const elementCarriers = elements
+        .filter((element): element is Node => element !== undefined)
+        .map((element) => context.factResolver.resolve(element, runtimeCarrierFactKey)?.carrier);
+      return elementCarriers.some((element) => element === undefined)
+        ? undefined
+        : { kind: "tuple", elements: elementCarriers as readonly TargetTypeRef[] };
+    }
+    case KindFunctionType:
+      return resolveCsharpFunctionTypeCarrier(node, context);
+    default:
+      return undefined;
+  }
+}
+
+function resolveCsharpFunctionTypeCarrier(
+  node: Node,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const functionType = AsFunctionTypeNode(node);
+  if (functionType === undefined || (functionType.TypeParameters?.Nodes ?? []).some((typeParameter) => typeParameter !== undefined)) {
+    return undefined;
+  }
+  const parameters = functionType.Parameters?.Nodes ?? [];
+  const parameterTypes: TargetTypeRef[] = [];
+  for (const parameter of parameters) {
+    const declaration = parameter === undefined ? undefined : AsParameterDeclaration(parameter);
+    if (declaration === undefined || declaration.DotDotDotToken !== undefined || declaration.QuestionToken !== undefined || declaration.Initializer !== undefined || declaration.Type === undefined) {
+      return undefined;
+    }
+    const carrier = context.factResolver.resolve(declaration.Type, runtimeCarrierFactKey)?.carrier;
+    if (carrier === undefined) {
+      return undefined;
+    }
+    parameterTypes.push(carrier);
+  }
+  const returnCarrier = functionType.Type === undefined
+    ? csharpNamed("System.Void")
+    : context.factResolver.resolve(functionType.Type, runtimeCarrierFactKey)?.carrier;
+  if (returnCarrier === undefined) {
+    return undefined;
+  }
+  if (isVoidTargetType(returnCarrier)) {
+    return {
+      kind: "target-named",
+      id: `System.Action\`${parameterTypes.length}`,
+      typeArguments: parameterTypes,
+    };
+  }
+  return {
+    kind: "target-named",
+    id: `System.Func\`${parameterTypes.length + 1}`,
+    typeArguments: [...parameterTypes, returnCarrier],
+  };
+}
+
+function resolveCsharpRuntimeCarrierForTstsType(
+  type: Type,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const targetBinding = context.facts.get(type.symbol, targetBindingFactKey);
+  if (targetBinding !== undefined) {
+    return {
+      kind: "target-named",
+      id: targetBinding.id,
+    };
+  }
+  const arrayElementType = getTypeScriptArrayElementType(type);
+  if (arrayElementType !== undefined) {
+    const elementCarrier = context.factResolver.resolve(arrayElementType, runtimeCarrierFactKey)?.carrier;
+    return elementCarrier === undefined
+      ? undefined
+      : { kind: "array", element: elementCarrier };
+  }
+  const typeReference = getTypeScriptTypeReferenceInfo(type);
+  if (typeReference !== undefined) {
+    const referenceBinding = context.facts.get(typeReference.targetSymbol, targetBindingFactKey);
+    if (referenceBinding !== undefined) {
+      const typeArguments = typeReference.typeArguments
+        .map((argument) => context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier);
+      if (typeArguments.some((argument) => argument === undefined)) {
+        return undefined;
+      }
+      return {
+        kind: "target-named",
+        id: referenceBinding.id,
+        typeArguments: typeArguments as readonly TargetTypeRef[],
+      };
+    }
+  }
+  if ((type.flags & (TypeFlagsAny | TypeFlagsUnknown)) !== 0) {
+    return undefined;
+  }
+  if ((type.flags & TypeFlagsTypeParameter) !== 0 && type.symbol?.Name !== undefined && type.symbol.Name.length > 0) {
+    return {
+      kind: "type-parameter",
+      name: type.symbol.Name,
+    };
+  }
+  if (isSourceEnumType(type)) {
+    return undefined;
+  }
+  if ((type.flags & TypeFlagsStringLike) !== 0) {
+    return csharpNamed("System.String");
+  }
+  if ((type.flags & TypeFlagsBooleanLike) !== 0) {
+    return csharpNamed("System.Boolean");
+  }
+  if ((type.flags & TypeFlagsBigIntLike) !== 0) {
+    return csharpNamed("System.Numerics.BigInteger");
+  }
+  if ((type.flags & TypeFlagsNumberLike) !== 0) {
+    return csharpNamed("System.Double");
+  }
+  if ((type.flags & (TypeFlagsVoidLike | TypeFlagsNever)) !== 0) {
+    return csharpNamed("System.Void");
+  }
+  return undefined;
+}
+
+function csharpNamed(id: string): TargetTypeRef {
+  return {
+    kind: "target-named",
+    id,
+  };
+}
+
+function isVoidTargetType(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && type.id === "System.Void";
+}
+
+function isNodeSubject(subject: ExtensionFactSubject): subject is Node {
+  return typeof subject === "object" &&
+    subject !== null &&
+    typeof (subject as { readonly Kind?: unknown }).Kind === "number";
+}
+
+function isTypeSubject(subject: ExtensionFactSubject): subject is Type {
+  return typeof subject === "object" &&
+    subject !== null &&
+    typeof (subject as { readonly flags?: unknown }).flags === "number";
+}
+
+function isSourceEnumType(type: Type): boolean {
+  const declaration = type.symbol?.ValueDeclaration ?? type.symbol?.Declarations?.find((candidate) => candidate !== undefined);
+  return declaration?.Kind === KindEnumDeclaration || declaration?.Kind === KindEnumMember;
+}
+
+function resolveCsharpOperator(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  return resolveSourcePrimitiveOperator(request, context) ??
+    resolveBuiltinTypeOperator(request);
 }
 
 function resolveSourcePrimitiveOperator(
@@ -228,6 +517,192 @@ function resolveSourcePrimitiveOperator(
   };
 }
 
+type BuiltinOperatorKind = "string" | "number" | "boolean" | "bigint" | "enum" | "type-parameter";
+
+function resolveBuiltinTypeOperator(
+  request: ResolveOperatorRequest,
+): ResolveOperationResult | undefined {
+  const semanticOperator = normalizeSourcePrimitiveOperator(request.operator, request.right);
+  const targetOperation = csharpOperatorToken(semanticOperator);
+  if (targetOperation === undefined) {
+    return undefined;
+  }
+  const left = getBuiltinOperatorKind(request.leftType);
+  const right = getBuiltinOperatorKind(request.rightType);
+  const leftLiteral = isIntegerNumericLiteral(request.left);
+  const rightLiteral = isIntegerNumericLiteral(request.right);
+  if (left === "type-parameter" || right === "type-parameter") {
+    return undefined;
+  }
+  const allowed = isBuiltinOperatorAllowed(semanticOperator, left, right, leftLiteral, rightLiteral);
+  if (!allowed) {
+    return undefined;
+  }
+  const resultType = getBuiltinOperatorResultSubject(semanticOperator, request, left, right);
+  return {
+    operation: {
+      operationId: `tsonic.csharp.builtin.${left ?? "none"}.${semanticOperator}.${right ?? "none"}`,
+      operationKind: "operator",
+      targetOperation,
+      ...(resultType !== undefined ? { resultType } : {}),
+    } satisfies TargetOperationFact,
+    ...(resultType !== undefined ? { resultType } : {}),
+  };
+}
+
+function getBuiltinOperatorKind(subject: ExtensionFactSubject | undefined): BuiltinOperatorKind | undefined {
+  if (subject === undefined || !isTypeSubject(subject)) {
+    return undefined;
+  }
+  if ((subject.flags & TypeFlagsTypeParameter) !== 0) {
+    return "type-parameter";
+  }
+  if ((subject.flags & TypeFlagsEnumLike) !== 0 || isSourceEnumType(subject)) {
+    return "enum";
+  }
+  if ((subject.flags & TypeFlagsStringLike) !== 0) {
+    return "string";
+  }
+  if ((subject.flags & TypeFlagsBooleanLike) !== 0) {
+    return "boolean";
+  }
+  if ((subject.flags & TypeFlagsBigIntLike) !== 0) {
+    return "bigint";
+  }
+  if ((subject.flags & TypeFlagsNumberLike) !== 0) {
+    return "number";
+  }
+  return undefined;
+}
+
+function isBuiltinOperatorAllowed(
+  operator: string,
+  left: BuiltinOperatorKind | undefined,
+  right: BuiltinOperatorKind | undefined,
+  leftLiteral: boolean,
+  rightLiteral: boolean,
+): boolean {
+  switch (operator) {
+    case "!":
+      return left === "boolean";
+    case "u+":
+    case "u-":
+    case "++":
+    case "--":
+      return left === "number" || left === "bigint";
+    case "&&":
+    case "||":
+      return left === "boolean" && right === "boolean";
+    case "==":
+    case "!=":
+    case "===":
+    case "!==":
+      return left !== undefined && right !== undefined && left === right && left !== "type-parameter";
+    case "??":
+      return left !== undefined && right !== undefined && left === right && left !== "type-parameter";
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+      return (left === "number" && right === "number") || (left === "bigint" && right === "bigint");
+    case "+":
+    case "+=":
+      return (left === "number" && right === "number") ||
+        (left === "bigint" && right === "bigint") ||
+        isStringConcatBuiltin(left, right);
+    case "-":
+    case "-=":
+    case "*":
+    case "*=":
+    case "/":
+    case "/=":
+    case "%":
+    case "%=":
+      return (left === "number" && right === "number") || (left === "bigint" && right === "bigint");
+    case "&":
+    case "&=":
+    case "|":
+    case "|=":
+    case "^":
+    case "^=":
+      return (left === "bigint" && right === "bigint") ||
+        (left === "enum" && (right === "enum" || rightLiteral)) ||
+        (right === "enum" && leftLiteral);
+    case "<<":
+    case "<<=":
+    case ">>":
+    case ">>=":
+    case ">>>":
+    case ">>>=":
+      return (left === "bigint" && right === "bigint") ||
+        (left === "enum" && rightLiteral);
+    default:
+      return false;
+  }
+}
+
+function isStringConcatBuiltin(left: BuiltinOperatorKind | undefined, right: BuiltinOperatorKind | undefined): boolean {
+  return (left === "string" || right === "string") &&
+    (left === "string" || left === "number" || left === "boolean" || left === "bigint") &&
+    (right === "string" || right === "number" || right === "boolean" || right === "bigint");
+}
+
+function getBuiltinOperatorResultSubject(
+  operator: string,
+  request: ResolveOperatorRequest,
+  left: BuiltinOperatorKind | undefined,
+  right: BuiltinOperatorKind | undefined,
+): ExtensionFactSubject | undefined {
+  switch (operator) {
+    case "!":
+    case "&&":
+    case "||":
+    case "==":
+    case "!=":
+    case "===":
+    case "!==":
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+      return { carrier: csharpNamed("System.Boolean") } satisfies RuntimeCarrierFact;
+    case "??":
+      return request.leftType;
+    case "+":
+    case "+=":
+      return isStringConcatBuiltin(left, right)
+        ? ({ carrier: csharpNamed("System.String") } satisfies RuntimeCarrierFact)
+        : request.leftType;
+    case "u+":
+    case "u-":
+    case "++":
+    case "--":
+    case "-":
+    case "-=":
+    case "*":
+    case "*=":
+    case "/":
+    case "/=":
+    case "%":
+    case "%=":
+    case "&":
+    case "&=":
+    case "|":
+    case "|=":
+    case "^":
+    case "^=":
+    case "<<":
+    case "<<=":
+    case ">>":
+    case ">>=":
+    case ">>>":
+    case ">>>=":
+      return request.leftType;
+    default:
+      return undefined;
+  }
+}
+
 function normalizeSourcePrimitiveOperator(operator: string, right: ExtensionFactSubject | undefined): string {
   if (right === undefined && (operator === "+" || operator === "-")) {
     return `u${operator}`;
@@ -267,6 +742,8 @@ function getSourcePrimitiveOperatorResult(
     case "!=":
     case "!==":
       return canCompareSourcePrimitives(left, right) ? sourcePrimitiveBool() : undefined;
+    case "??":
+      return left !== undefined && right !== undefined && left.kind === right.kind ? sourcePrimitiveSubject(left) : undefined;
     case "<":
     case "<=":
     case ">":
@@ -311,6 +788,8 @@ function csharpOperatorToken(operator: string): string | undefined {
       return "==";
     case "!==":
       return "!=";
+    case "??":
+      return "??";
     case "+":
     case "+=":
     case "-":

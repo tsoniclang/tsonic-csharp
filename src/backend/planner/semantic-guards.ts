@@ -21,11 +21,6 @@ import {
   GetSourceFileOfNode,
   KindVariableDeclaration,
   SourceFile_FileName,
-  TypeFlagsBigIntLike,
-  TypeFlagsBooleanLike,
-  TypeFlagsEnumLike,
-  TypeFlagsNumberLike,
-  TypeFlagsStringLike,
   TypeFlagsTypeParameter,
   providerVirtualDeclarationFactKey,
 } from "@tsonic/tsts";
@@ -41,14 +36,6 @@ export interface SemanticOwnership {
 
 export interface OperationSemanticOwnership extends SemanticOwnership {
   readonly sourcePrimitive: SourcePrimitiveFact | undefined;
-  readonly typeFlags: {
-    readonly stringLike: boolean;
-    readonly numberLike: boolean;
-    readonly booleanLike: boolean;
-    readonly bigintLike: boolean;
-    readonly enumLike: boolean;
-    readonly typeParameter: boolean;
-  };
 }
 
 export function getSemanticOwnership(
@@ -75,14 +62,14 @@ export function getSemanticOwnership(
   const symbol = getQueryableSymbol(node, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "symbol");
   const type = input.checker.getTypeAtLocation(node, { sourceFile });
-  appendTargetFactReasons(reasons, input, type, "type");
-  appendTargetFactReasons(reasons, input, type?.symbol, "type symbol");
-  if (hasBuiltinLoweredScalarType(type)) {
-    reasons.push("builtin scalar target lowering");
+  const sourceOwned = isDirectSourceShapeType(type, input);
+  if (!sourceOwned) {
+    appendTargetFactReasons(reasons, input, type, "type");
+    appendTargetFactReasons(reasons, input, type?.symbol, "type symbol");
   }
   return {
     requiresTargetFact: reasons.length > 0,
-    sourceOwned: isDirectSourceShapeType(type, input),
+    sourceOwned,
     reasons,
   };
 }
@@ -121,7 +108,6 @@ export function getProviderOperationOwnership(
       sourceOwned: false,
       reasons: ["missing operation operand"],
       sourcePrimitive: undefined,
-      typeFlags: emptyOperationTypeFlags(),
     };
   }
   if (node.Kind === KindTypeLiteral) {
@@ -130,7 +116,6 @@ export function getProviderOperationOwnership(
       sourceOwned: false,
       reasons: ["structural type literal"],
       sourcePrimitive: undefined,
-      typeFlags: emptyOperationTypeFlags(),
     };
   }
   if (
@@ -144,7 +129,6 @@ export function getProviderOperationOwnership(
       sourceOwned: false,
       reasons: ["non-queryable binding syntax"],
       sourcePrimitive: undefined,
-      typeFlags: emptyOperationTypeFlags(),
     };
   }
   const reasons: string[] = [];
@@ -154,17 +138,16 @@ export function getProviderOperationOwnership(
   const type = input.checker.getTypeAtLocation(node, { sourceFile });
   appendProviderOperationFactReasons(reasons, input, type, "operand type");
   appendProviderOperationFactReasons(reasons, input, type?.symbol, "operand type symbol");
-  const typeFlags = operationTypeFlags(type);
   const sourcePrimitive = getSourcePrimitiveFact(input, node, symbol, type);
-  if (typeFlags.typeParameter) {
+  const typeParameter = isTypeParameterType(type);
+  if (typeParameter) {
     reasons.push("operand type parameter");
   }
   return {
     requiresTargetFact: reasons.length > 0,
-    sourceOwned: !typeFlags.typeParameter && (sourcePrimitive !== undefined || hasBuiltinLoweredScalarType(type) || isDirectSourceShapeType(type, input)),
+    sourceOwned: !typeParameter && (sourcePrimitive !== undefined || isDirectSourceShapeType(type, input)),
     reasons,
     sourcePrimitive,
-    typeFlags,
   };
 }
 
@@ -275,36 +258,6 @@ function appendProviderOperationFactReasons(
   if (input.facts.getFunctionPointerFact(subject) !== undefined) {
     reasons.push(`${label} function pointer`);
   }
-}
-
-function hasBuiltinLoweredScalarType(type: Type | undefined): boolean {
-  return type !== undefined &&
-    (type.flags & (TypeFlagsStringLike | TypeFlagsNumberLike | TypeFlagsBooleanLike | TypeFlagsBigIntLike)) !== 0;
-}
-
-function emptyOperationTypeFlags(): OperationSemanticOwnership["typeFlags"] {
-  return {
-    stringLike: false,
-    numberLike: false,
-    booleanLike: false,
-    bigintLike: false,
-    enumLike: false,
-    typeParameter: false,
-  };
-}
-
-function operationTypeFlags(type: Type | undefined): OperationSemanticOwnership["typeFlags"] {
-  if (type === undefined) {
-    return emptyOperationTypeFlags();
-  }
-  return {
-    stringLike: (type.flags & TypeFlagsStringLike) !== 0,
-    numberLike: (type.flags & TypeFlagsNumberLike) !== 0,
-    booleanLike: (type.flags & TypeFlagsBooleanLike) !== 0,
-    bigintLike: (type.flags & TypeFlagsBigIntLike) !== 0,
-    enumLike: (type.flags & TypeFlagsEnumLike) !== 0,
-    typeParameter: (type.flags & TypeFlagsTypeParameter) !== 0,
-  };
 }
 
 function getSourcePrimitiveFact(

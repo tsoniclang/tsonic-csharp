@@ -62,6 +62,12 @@ export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode
         ? undefined
         : { kind: "array", elementType, ...(type.rank !== undefined ? { rank: type.rank } : {}) };
     }
+    case "tuple": {
+      const elements = type.elements.map(csharpTypeFromTargetTypeRef);
+      return elements.some((element) => element === undefined)
+        ? undefined
+        : { kind: "tuple", elements: elements as readonly CsharpTypeNode[] };
+    }
     default:
       return undefined;
   }
@@ -84,6 +90,14 @@ function csharpTypeFromTargetNamedId(id: string, typeArguments: readonly (Csharp
   }
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
+  }
+  const genericPredefined = getGenericPredefinedTypeName(id);
+  if (genericPredefined !== undefined) {
+    return {
+      kind: "named",
+      name: genericPredefined,
+      typeArguments: typeArguments as readonly CsharpTypeNode[],
+    };
   }
   const parts = id.split(".").filter((part) => part.length > 0);
   if (parts.length === 0) {
@@ -110,4 +124,16 @@ function csharpTypeFromTargetNamedId(id: string, typeArguments: readonly (Csharp
 function stripMetadataArity(name: string): string {
   const tick = name.indexOf("`");
   return tick < 0 ? name : name.slice(0, tick);
+}
+
+function getGenericPredefinedTypeName(id: string): string | undefined {
+  const stripped = stripMetadataArity(id);
+  switch (stripped) {
+    case "System.Func":
+      return "Func";
+    case "System.Action":
+      return "Action";
+    default:
+      return undefined;
+  }
 }
