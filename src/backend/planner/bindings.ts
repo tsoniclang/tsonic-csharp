@@ -13,7 +13,7 @@ import {
 } from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpExpression, CsharpStatement } from "../ast/csharp-ast.js";
+import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
@@ -27,6 +27,7 @@ export interface DestructuringPlannerState {
   nextCatchIndex: number;
   nextControlLabelIndex: number;
   controlLabels: ControlLabelTarget[];
+  currentReturnType?: CsharpTypeNode;
 }
 
 export function createDestructuringPlannerState(): DestructuringPlannerState {

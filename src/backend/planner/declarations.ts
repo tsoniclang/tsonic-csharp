@@ -186,13 +186,15 @@ export function planFunctionDeclaration(
   const name = planIdentifierName(declaration.name, "__anonymous", diagnostics, "Function name");
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const returnType = getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics);
+  state.currentReturnType = returnType;
   return {
     kind: "method",
     name,
     modifiers: ["public", "static"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
-    returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
+    returnType,
     parameters: parameters.parameters,
     body: {
       statements: [
@@ -270,13 +272,15 @@ function planMethodDeclaration(
   const declaration = AsMethodDeclaration(node)!;
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const returnType = getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics);
+  state.currentReturnType = returnType;
   return {
     kind: "method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
     modifiers: planClassMemberModifiers(node, declaration.name),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
-    returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
+    returnType,
     parameters: parameters.parameters,
     body: {
       statements: [
@@ -401,6 +405,8 @@ function mergeGetterAccessor(
 ): CsharpPropertyDeclaration {
   const declaration = AsGetAccessorDeclaration(node)!;
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, existing?.type ?? predefined("object"), diagnostics);
+  const state = createDestructuringPlannerState();
+  state.currentReturnType = type;
   return {
     kind: "property",
     name,
@@ -408,7 +414,7 @@ function mergeGetterAccessor(
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     getter: {
-      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
+      statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
     },
     ...(existing?.setter === undefined ? {} : { setter: existing.setter }),
   };

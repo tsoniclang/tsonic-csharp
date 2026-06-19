@@ -66,7 +66,7 @@ import {
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { isErasedAttributeExpressionStatement } from "./attributes.js";
-import { planExpression } from "./expressions.js";
+import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
 import { planIdentifierName } from "./names.js";
@@ -108,7 +108,11 @@ export function planStatements(
       return [{
         kind: "return",
         ...(statement.Expression !== undefined
-          ? { expression: planExpression(statement.Expression, sourceFile, input, diagnostics) }
+          ? {
+              expression: state.currentReturnType === undefined
+                ? planExpression(statement.Expression, sourceFile, input, diagnostics)
+                : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, state.currentReturnType),
+            }
           : {}),
       }];
     }
