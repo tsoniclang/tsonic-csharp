@@ -20,6 +20,7 @@ import {
   KindIndexSignature,
   KindMethodDeclaration,
   KindMethodSignature,
+  KindPrivateIdentifier,
   KindPropertyDeclaration,
   KindPropertySignature,
   KindSetAccessor,
@@ -218,7 +219,7 @@ function planMethodDeclaration(
   return {
     kind: "method",
     name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
-    modifiers: planClassMemberModifiers(node),
+    modifiers: planClassMemberModifiers(node, declaration.name),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], diagnostics),
     returnType: getCsharpTypeForNode(declaration.Type, sourceFile, input, predefined("void"), diagnostics),
     parameters: planParameters(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
@@ -272,7 +273,7 @@ function planPropertyDeclaration(
   return {
     kind: "field",
     name: planIdentifierName(declaration.name, "field", diagnostics, "Property name"),
-    modifiers: planClassMemberModifiers(node),
+    modifiers: planClassMemberModifiers(node, declaration.name),
     type,
     ...(declaration.Initializer !== undefined
       ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type) }
@@ -320,7 +321,7 @@ function mergeGetterAccessor(
   return {
     kind: "property",
     name,
-    modifiers: existing?.modifiers ?? planClassMemberModifiers(node),
+    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name),
     type,
     getter: {
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
@@ -357,7 +358,7 @@ function mergeSetterAccessor(
   return {
     kind: "property",
     name,
-    modifiers: existing?.modifiers ?? planClassMemberModifiers(node),
+    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name),
     type,
     ...(existing?.getter === undefined ? {} : { getter: existing.getter }),
     setter: {
@@ -388,8 +389,9 @@ function planSetAccessorStatements(
   ];
 }
 
-function planClassMemberModifiers(node: Node): readonly ("public" | "static")[] {
+function planClassMemberModifiers(node: Node, name: Node | undefined): readonly ("public" | "private" | "static")[] {
+  const access = name?.Kind === KindPrivateIdentifier ? "private" : "public";
   return HasSyntacticModifier(node, ModifierFlagsStatic)
-    ? ["public", "static"]
-    : ["public"];
+    ? [access, "static"]
+    : [access];
 }

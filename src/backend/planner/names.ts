@@ -1,6 +1,8 @@
 import {
   AsIdentifier,
+  AsPrivateIdentifier,
   KindIdentifier,
+  KindPrivateIdentifier,
   KindString,
 } from "@tsonic/tsts";
 import type { Node } from "@tsonic/tsts";
@@ -18,6 +20,9 @@ export function planIdentifierName(
   }
   if (node.Kind === KindIdentifier) {
     return sanitizeIdentifier(AsIdentifier(node)!.Text);
+  }
+  if (node.Kind === KindPrivateIdentifier) {
+    return sanitizeIdentifier(AsPrivateIdentifier(node)!.Text);
   }
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_NAME",
