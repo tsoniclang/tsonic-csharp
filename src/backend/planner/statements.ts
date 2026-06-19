@@ -146,10 +146,8 @@ export function planStatements(
         diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
         return [];
       }
-      return [{
-        kind: "throw",
-        expression: planExpression(statement.Expression, sourceFile, input, diagnostics),
-      }];
+      diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require finalized TSTS/provider exception-carrier facts before C# emission."));
+      return [];
     }
     case KindDebuggerStatement:
       return [expressionStatement({
