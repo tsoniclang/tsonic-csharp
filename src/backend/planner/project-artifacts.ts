@@ -8,6 +8,7 @@ export function projectArtifact(
 ): TargetArtifact {
   void sourceArtifacts;
   const properties = csharpProjectProperties(input, options);
+  const itemGroups = csharpProjectItemGroups(input);
   return {
     kind: "project",
     path: `${readAssemblyName(input)}.csproj`,
@@ -16,6 +17,7 @@ export function projectArtifact(
       "  <PropertyGroup>",
       ...properties.map(([name, value]) => `    <${name}>${escapeXml(value)}</${name}>`),
       "  </PropertyGroup>",
+      ...itemGroups,
       "</Project>",
       "",
     ].join("\n"),
@@ -63,6 +65,106 @@ function csharpProjectProperties(
   return [...properties.entries()];
 }
 
+function csharpProjectItemGroups(input: TargetCompileInput): readonly string[] {
+  const references = readReferencesOption(input);
+  if (references.length === 0) {
+    return [];
+  }
+  return [
+    "  <ItemGroup>",
+    ...references.map(formatReferenceItem),
+    "  </ItemGroup>",
+  ];
+}
+
+type CsharpProjectReference =
+  | { readonly kind: "project"; readonly include: string }
+  | { readonly kind: "package"; readonly include: string; readonly version?: string; readonly privateAssets?: string; readonly includeAssets?: string }
+  | { readonly kind: "framework"; readonly include: string }
+  | { readonly kind: "assembly"; readonly include: string; readonly hintPath?: string };
+
+function readReferencesOption(input: TargetCompileInput): readonly CsharpProjectReference[] {
+  const raw = input.target.options?.references;
+  if (raw === undefined) {
+    return [];
+  }
+  if (!isRecord(raw)) {
+    throw new Error("C# target option 'references' must be an object.");
+  }
+  rejectUnknownKeys(raw, "references", ["projects", "packages", "frameworks", "assemblies"]);
+  return rejectDuplicateReferences([
+    ...readStringArrayProperty(raw, "projects").map((include) => ({ kind: "project", include }) satisfies CsharpProjectReference),
+    ...readPackageReferences(raw),
+    ...readStringArrayProperty(raw, "frameworks").map((include) => ({ kind: "framework", include }) satisfies CsharpProjectReference),
+    ...readAssemblyReferences(raw),
+  ]);
+}
+
+function readPackageReferences(raw: Readonly<Record<string, unknown>>): readonly CsharpProjectReference[] {
+  return readObjectArrayProperty(raw, "packages").map((entry, index) => {
+    rejectUnknownKeys(entry, `references.packages[${index}]`, ["include", "version", "privateAssets", "includeAssets"]);
+    return {
+      kind: "package",
+      include: readRequiredString(entry, "include", `references.packages[${index}]`),
+      version: readOptionalString(entry, "version", `references.packages[${index}]`),
+      privateAssets: readOptionalString(entry, "privateAssets", `references.packages[${index}]`),
+      includeAssets: readOptionalString(entry, "includeAssets", `references.packages[${index}]`),
+    };
+  });
+}
+
+function readAssemblyReferences(raw: Readonly<Record<string, unknown>>): readonly CsharpProjectReference[] {
+  return readObjectArrayProperty(raw, "assemblies").map((entry, index) => {
+    rejectUnknownKeys(entry, `references.assemblies[${index}]`, ["include", "hintPath"]);
+    return {
+      kind: "assembly",
+      include: readRequiredString(entry, "include", `references.assemblies[${index}]`),
+      hintPath: readOptionalString(entry, "hintPath", `references.assemblies[${index}]`),
+    };
+  });
+}
+
+function formatReferenceItem(reference: CsharpProjectReference): string {
+  switch (reference.kind) {
+    case "project":
+      return `    <ProjectReference Include="${escapeXml(reference.include)}" />`;
+    case "package":
+      return formatXmlItem("PackageReference", {
+        Include: reference.include,
+        Version: reference.version,
+        PrivateAssets: reference.privateAssets,
+        IncludeAssets: reference.includeAssets,
+      });
+    case "framework":
+      return `    <FrameworkReference Include="${escapeXml(reference.include)}" />`;
+    case "assembly":
+      return formatXmlItem("Reference", {
+        Include: reference.include,
+        HintPath: reference.hintPath,
+      });
+  }
+}
+
+function formatXmlItem(name: string, attributes: Readonly<Record<string, string | undefined>>): string {
+  const renderedAttributes = Object.entries(attributes)
+    .filter((entry): entry is [string, string] => entry[1] !== undefined)
+    .map(([key, value]) => `${key}="${escapeXml(value)}"`)
+    .join(" ");
+  return `    <${name} ${renderedAttributes} />`;
+}
+
+function rejectDuplicateReferences(references: readonly CsharpProjectReference[]): readonly CsharpProjectReference[] {
+  const seen = new Set<string>();
+  for (const reference of references) {
+    const key = `${reference.kind}:${reference.include}`;
+    if (seen.has(key)) {
+      throw new Error(`C# target option 'references' contains duplicate ${reference.kind} reference '${reference.include}'.`);
+    }
+    seen.add(key);
+  }
+  return references;
+}
+
 function readAssemblyName(input: TargetCompileInput): string {
   return formatAssemblyName(readOptionalStringOption(input, "assemblyName") ?? "TsonicGenerated");
 }
@@ -91,6 +193,66 @@ function readOptionalBooleanOption(input: TargetCompileInput, key: string): bool
     throw new Error(`C# target option '${key}' must be a boolean.`);
   }
   return value;
+}
+
+function readStringArrayProperty(raw: Readonly<Record<string, unknown>>, key: string): readonly string[] {
+  const value = raw[key];
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`C# target option 'references.${key}' must be an array.`);
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "string" || entry.length === 0) {
+      throw new Error(`C# target option 'references.${key}[${index}]' must be a non-empty string.`);
+    }
+    return entry;
+  });
+}
+
+function readObjectArrayProperty(raw: Readonly<Record<string, unknown>>, key: string): readonly Readonly<Record<string, unknown>>[] {
+  const value = raw[key];
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`C# target option 'references.${key}' must be an array.`);
+  }
+  return value.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new Error(`C# target option 'references.${key}[${index}]' must be an object.`);
+    }
+    return entry;
+  });
+}
+
+function readRequiredString(raw: Readonly<Record<string, unknown>>, key: string, path: string): string {
+  const value = raw[key];
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`C# target option '${path}.${key}' must be a non-empty string.`);
+  }
+  return value;
+}
+
+function readOptionalString(raw: Readonly<Record<string, unknown>>, key: string, path: string): string | undefined {
+  const value = raw[key];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`C# target option '${path}.${key}' must be a non-empty string.`);
+  }
+  return value;
+}
+
+function rejectUnknownKeys(raw: Readonly<Record<string, unknown>>, path: string, allowed: readonly string[]): void {
+  const allowedKeys = new Set(allowed);
+  for (const key of Object.keys(raw)) {
+    if (!allowedKeys.has(key)) {
+      throw new Error(`C# target option '${path}.${key}' is not supported.`);
+    }
+  }
 }
 
 function escapeXml(value: string): string {
