@@ -798,6 +798,11 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
           { name: "startIndex", type: intType, passingMode: "by-value" },
         ], intType),
       ];
+    case "lastIndexOf":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "position", type: intType, passingMode: "by-value", optional: true },
+      ], intType)];
     case "startsWith":
       return [stringInstanceTargetMethod(sourceName, "StartsWith", [{ name: "value", type: stringType, passingMode: "by-value" }], boolType)];
     case "endsWith":
@@ -811,6 +816,10 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
     case "trimStart":
       return [stringInstanceTargetMethod(sourceName, "TrimStart", noArgs, stringType)];
     case "trimEnd":
+      return [stringInstanceTargetMethod(sourceName, "TrimEnd", noArgs, stringType)];
+    case "trimLeft":
+      return [stringInstanceTargetMethod(sourceName, "TrimStart", noArgs, stringType)];
+    case "trimRight":
       return [stringInstanceTargetMethod(sourceName, "TrimEnd", noArgs, stringType)];
     case "concat":
       return [stringConcatTargetMethod(sourceName, stringType)];
