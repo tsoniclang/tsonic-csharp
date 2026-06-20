@@ -1,5 +1,6 @@
 import {
   AsExpressionWithTypeArguments,
+  AsTypeReferenceNode,
   KindArrayBindingPattern,
   KindAnyKeyword,
   KindClassDeclaration,
@@ -10,6 +11,7 @@ import {
   KindObjectKeyword,
   KindObjectBindingPattern,
   KindPropertyAccessExpression,
+  KindTypeReference,
   KindTypeLiteral,
   KindUnionType,
   KindUnknownKeyword,
@@ -106,6 +108,16 @@ export function getCsharpTypeForNode(
   if (node === undefined) {
     return errorType;
   }
+  if (node.Kind === KindTypeReference) {
+    const typeReferenceType = getCsharpTypeFromTypeReferenceSyntax(node, sourceFile, input, diagnostics);
+    if (typeReferenceType !== undefined) {
+      return typeReferenceType;
+    }
+  }
+  const selectedTargetCallType = getCsharpTypeFromSelectedTargetCall(node, input, diagnostics);
+  if (selectedTargetCallType !== undefined) {
+    return selectedTargetCallType;
+  }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (nodeCarrierType !== undefined) {
     return nodeCarrierType;
@@ -160,6 +172,59 @@ export function getCsharpTypeForNode(
   const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
   return invalidType("unsupported semantic type");
+}
+
+function getCsharpTypeFromSelectedTargetCall(
+  node: Node,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  const returnType = input.facts.getSelectedTargetCall(node)?.member.returnType;
+  if (returnType === undefined) {
+    return undefined;
+  }
+  const csharpType = csharpTypeFromTargetTypeRef(returnType);
+  if (csharpType === undefined) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Selected target call requires a renderable return type before C# type emission."));
+    return invalidType("selected target call return type");
+  }
+  return csharpType;
+}
+
+function getCsharpTypeFromTypeReferenceSyntax(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  const reference = AsTypeReferenceNode(node);
+  const typeName = reference?.TypeName;
+  if (typeName === undefined) {
+    return undefined;
+  }
+  const targetBinding = input.semantics.getTargetBindingForReference(typeName, { sourceFile }) ??
+    input.semantics.getTargetBindingForReference(node, { sourceFile });
+  if (targetBinding === undefined) {
+    return undefined;
+  }
+  const typeArguments = (reference?.TypeArguments?.Nodes ?? [])
+    .filter((argument): argument is Node => argument !== undefined)
+    .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("missing type argument"), diagnostics));
+  if ((targetBinding.typeParameters ?? []).length !== typeArguments.length) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider target type reference has mismatched type-argument arity before C# emission."));
+    return invalidType("target type reference arity");
+  }
+  const csharpType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: targetBinding.id });
+  if (csharpType === undefined) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider target type reference requires a renderable target identity before C# emission."));
+    return invalidType("target type reference");
+  }
+  if (typeArguments.length === 0) {
+    return csharpType;
+  }
+  return csharpType.kind === "named" || csharpType.kind === "qualified"
+    ? { ...csharpType, typeArguments }
+    : csharpType;
 }
 
 export function invalidCsharpType(reason: string): CsharpTypeNode {

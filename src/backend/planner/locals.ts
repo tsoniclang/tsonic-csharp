@@ -15,7 +15,8 @@ export function planLocalDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
-  const type = getCsharpTypeForNode(variable.Type ?? variable.name, sourceFile, input, undefined, diagnostics);
+  const typeSubject = variable.Type ?? variable.Initializer ?? variable.name;
+  const type = getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   return {
     name: planIdentifierName(variable.name, "local", diagnostics, "Local binding name"),
     type,
