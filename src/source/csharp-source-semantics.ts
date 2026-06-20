@@ -1,27 +1,39 @@
 import {
+  AsArrayLiteralExpression,
   AsArrayTypeNode,
+  AsArrowFunction,
+  AsBindingElement,
+  AsFunctionExpression,
   AsFunctionTypeNode,
   AsInterfaceDeclaration,
   AsLiteralTypeNode,
   AsMethodSignatureDeclaration,
+  AsNewExpression,
   AsNumericLiteral,
   AsParameterDeclaration,
   AsPropertyAccessExpression,
+  AsExpressionWithTypeArguments,
+  AsPropertyDeclaration,
   AsPropertySignatureDeclaration,
   AsTupleTypeNode,
   AsTypeParameterDeclaration,
   AsTypeReferenceNode,
   AsUnionTypeNode,
+  AsVariableDeclaration,
   GetSourceFileOfNode,
   KindAnyKeyword,
+  KindArrowFunction,
+  KindArrayLiteralExpression,
   KindArrayType,
   KindBigIntKeyword,
   KindBooleanKeyword,
   KindBindingElement,
   KindCatchClause,
   KindClassDeclaration,
+  KindCallExpression,
   KindEnumDeclaration,
   KindEnumMember,
+  KindFunctionExpression,
   KindFunctionType,
   KindGetAccessor,
   KindIdentifier,
@@ -81,6 +93,7 @@ import {
   objectShapeFactKey,
   pointerFactKey,
   runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
   sourcePrimitive,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
@@ -105,6 +118,7 @@ import type {
   ProviderTypeExpression,
   ResolveCallRequest,
   ResolveCallResult,
+  ResolveElementAccessRequest,
   ResolveOperationResult,
   ResolveOperatorRequest,
   ResolvePropertyAccessRequest,
@@ -136,6 +150,7 @@ export const neutralTypesModule = "@tsonic/core/types.js";
 export const csharpTypesModule = "@tsonic/csharp/types.js";
 export const neutralLangModule = "@tsonic/core/lang.js";
 export const csharpLangModule = "@tsonic/csharp/lang.js";
+export const dotnetCollectionsModule = "@tsonic/dotnet/System.Collections.Generic.js";
 
 type AttributeBuilderTypeName =
   | "AttributeBuilder"
@@ -149,6 +164,7 @@ const attributeArgumentTypeName = "__TsonicCsharpAttributeArgument";
 interface TargetBindingAccess {
   readonly binding: TargetBindingFact;
   readonly staticAccess: boolean;
+  readonly substitutions?: ReadonlyMap<string, TargetTypeRef>;
 }
 
 export function createCsharpSourceSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
@@ -221,8 +237,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       }
       if (
         request.propertyName === "length" &&
-        isTypeScriptStringLikeType(request.receiverType as Type | undefined) &&
-        isStandardInterfaceMemberSymbol([request.propertySymbol, request.resolvedPropertySymbol], "length", ["String"])
+        isTypeScriptStringLikeType(request.receiverType as Type | undefined)
       ) {
         const resultType = sourcePrimitiveInt32();
         return acceptDecision({
@@ -237,8 +252,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       }
       if (
         request.propertyName === "length" &&
-        getTypeScriptArrayElementType(request.receiverType as Type | undefined) !== undefined &&
-        isStandardInterfaceMemberSymbol([request.propertySymbol, request.resolvedPropertySymbol], "length", ["Array", "ReadonlyArray"])
+        getTypeScriptArrayElementType(request.receiverType as Type | undefined) !== undefined
       ) {
         const resultType = sourcePrimitiveInt32();
         return acceptDecision({
@@ -280,18 +294,19 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         });
       }
       const elementType = getTypeScriptArrayElementType(effectiveReceiverType);
-      if (elementType === undefined) {
-        return deferDecision;
-      }
-      return acceptDecision({
-        operation: {
-          operationId: "System.Array.GetItem",
-          operationKind: "indexer",
-          targetOperation: "[]",
+      if (elementType !== undefined) {
+        return acceptDecision({
+          operation: {
+            operationId: "System.Array.GetItem",
+            operationKind: "indexer",
+            targetOperation: "[]",
+            resultType: elementType,
+          } satisfies TargetOperationFact,
           resultType: elementType,
-        } satisfies TargetOperationFact,
-        resultType: elementType,
-      });
+        });
+      }
+      const providerElementAccess = resolveProviderTargetElementAccess(request, context);
+      return providerElementAccess === undefined ? deferDecision : acceptDecision(providerElementAccess);
     },
     resolveIteration(request, context) {
       if (request.target !== undefined && request.target !== "csharp") {
@@ -468,11 +483,14 @@ function resolveFirstRuntimeCarrier(
 
 function isCsharpDelegateCarrier(type: TargetTypeRef | undefined): type is Extract<TargetTypeRef, { readonly kind: "target-named" }> {
   return type?.kind === "target-named" &&
-    (type.id.startsWith("System.Func`") || type.id.startsWith("System.Action`"));
+    (type.id.startsWith("System.Func`") || type.id.startsWith("System.Action`") || type.id === "System.Predicate`1");
 }
 
 function getDelegateParameterTypes(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): readonly TargetTypeRef[] | undefined {
   const typeArguments = type.typeArguments ?? [];
+  if (type.id === "System.Predicate`1") {
+    return typeArguments.length === 1 ? typeArguments : undefined;
+  }
   if (type.id.startsWith("System.Action`")) {
     return typeArguments;
   }
@@ -483,6 +501,9 @@ function getDelegateParameterTypes(type: Extract<TargetTypeRef, { readonly kind:
 }
 
 function getDelegateReturnType(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): TargetTypeRef | undefined {
+  if (type.id === "System.Predicate`1") {
+    return csharpNamed("System.Boolean");
+  }
   if (type.id.startsWith("System.Action`")) {
     return undefined;
   }
@@ -526,13 +547,175 @@ function resolveCsharpBuiltinMethodCall(
       } satisfies RuntimeCarrierFact,
     };
   }
+  const mathMethodCall = resolveMathStaticMethodCall(sourceName, request, context);
+  if (mathMethodCall !== undefined) {
+    return mathMethodCall;
+  }
+  const stringStaticMethodCall = resolveStringStaticMethodCall(sourceName, request, context);
+  if (stringStaticMethodCall !== undefined) {
+    return stringStaticMethodCall;
+  }
   if (
     sourceName === "join" &&
     isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], "join", ["Array", "ReadonlyArray"])
   ) {
     return resolveArrayJoinMethodCall(sourceName, request, context);
   }
-  return undefined;
+  const arrayMethodCall = resolveArrayInstanceMethodCall(sourceName, request, context);
+  if (arrayMethodCall !== undefined) {
+    return arrayMethodCall;
+  }
+  return resolveStringInstanceMethodCall(sourceName, request, context);
+}
+
+function resolveStringStaticMethodCall(
+  sourceName: string,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (!isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], sourceName, ["StringConstructor"])) {
+    return undefined;
+  }
+  const members = stringStaticTargetMembers(sourceName)
+    .filter((member) => targetMemberAcceptsCall(member, request, context));
+  if (members.length !== 1) {
+    return undefined;
+  }
+  const member = members[0]!;
+  return {
+    selectedSignature: { member },
+    returnType: {
+      carrier: member.returnType!,
+    } satisfies RuntimeCarrierFact,
+  };
+}
+
+function stringStaticTargetMembers(sourceName: string): readonly TargetMember[] {
+  const intType = sourcePrimitiveInt32Ref();
+  const stringType = csharpNamed("System.String");
+  switch (sourceName) {
+    case "fromCharCode":
+    case "fromCodePoint":
+      return [jsStringStaticFactoryTargetMethod(sourceName, [
+        { name: "codes", type: intType, passingMode: "by-value", paramsArray: true },
+      ], stringType)];
+    default:
+      return [];
+  }
+}
+
+function jsStringStaticFactoryTargetMethod(
+  sourceName: string,
+  parameters: readonly TargetMember["parameters"][number][],
+  returnType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: `Tsonic.CSharp.Js.String.${sourceName}(params System.Int32[])`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("Tsonic.CSharp.Js.String"),
+    parameters,
+    returnType,
+  };
+}
+
+function resolveMathStaticMethodCall(
+  sourceName: string,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (!isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], sourceName, ["Math"])) {
+    return undefined;
+  }
+  const members = mathStaticTargetMembers(sourceName)
+    .filter((member) => targetMemberAcceptsCall(member, request, context));
+  if (members.length !== 1) {
+    return undefined;
+  }
+  const member = members[0]!;
+  return {
+    selectedSignature: { member },
+    returnType: {
+      carrier: member.returnType!,
+    } satisfies RuntimeCarrierFact,
+  };
+}
+
+function mathStaticTargetMembers(sourceName: string): readonly TargetMember[] {
+  switch (sourceName) {
+    case "abs":
+      return [mathStaticTargetMethod(sourceName, "Abs", 1)];
+    case "floor":
+      return [mathStaticTargetMethod(sourceName, "Floor", 1)];
+    case "ceil":
+      return [mathStaticTargetMethod(sourceName, "Ceiling", 1)];
+    case "trunc":
+      return [mathStaticTargetMethod(sourceName, "Truncate", 1)];
+    case "round":
+      return [mathStaticTargetMethod(sourceName, "Round", 1)];
+    case "sqrt":
+      return [mathStaticTargetMethod(sourceName, "Sqrt", 1)];
+    case "sin":
+      return [mathStaticTargetMethod(sourceName, "Sin", 1)];
+    case "cos":
+      return [mathStaticTargetMethod(sourceName, "Cos", 1)];
+    case "tan":
+      return [mathStaticTargetMethod(sourceName, "Tan", 1)];
+    case "asin":
+      return [mathStaticTargetMethod(sourceName, "Asin", 1)];
+    case "acos":
+      return [mathStaticTargetMethod(sourceName, "Acos", 1)];
+    case "atan":
+      return [mathStaticTargetMethod(sourceName, "Atan", 1)];
+    case "sinh":
+      return [mathStaticTargetMethod(sourceName, "Sinh", 1)];
+    case "cosh":
+      return [mathStaticTargetMethod(sourceName, "Cosh", 1)];
+    case "tanh":
+      return [mathStaticTargetMethod(sourceName, "Tanh", 1)];
+    case "exp":
+      return [mathStaticTargetMethod(sourceName, "Exp", 1)];
+    case "log":
+      return [mathStaticTargetMethod(sourceName, "Log", 1)];
+    case "log10":
+      return [mathStaticTargetMethod(sourceName, "Log10", 1)];
+    case "log2":
+      return [mathStaticTargetMethod(sourceName, "Log2", 1)];
+    case "pow":
+      return [mathStaticTargetMethod(sourceName, "Pow", 2)];
+    case "atan2":
+      return [mathStaticTargetMethod(sourceName, "Atan2", 2)];
+    case "max":
+      return [mathStaticTargetMethod(sourceName, "Max", 2)];
+    case "min":
+      return [mathStaticTargetMethod(sourceName, "Min", 2)];
+    default:
+      return [];
+  }
+}
+
+function mathStaticTargetMethod(
+  sourceName: string,
+  targetName: string,
+  arity: 1 | 2,
+): TargetMember {
+  const numberType = csharpNamed("System.Double");
+  return {
+    id: `System.Math.${targetName}/${arity}`,
+    sourceName,
+    targetName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("System.Math"),
+    parameters: Array.from({ length: arity }, (_, index) => ({
+      name: index === 0 ? "x" : "y",
+      type: numberType,
+      passingMode: "by-value" as const,
+    })),
+    returnType: numberType,
+  };
 }
 
 function isStandardInterfaceMemberSymbol(
@@ -554,7 +737,7 @@ function isStandardInterfaceMemberSymbol(
 
 function isStandardInterfaceMemberDeclaration(declaration: Node, interfaceNames: readonly string[]): boolean {
   const sourceFile = GetSourceFileOfNode(declaration);
-  if (sourceFile === undefined || !sourceFile.IsDeclarationFile || !SourceFile_FileName(sourceFile).endsWith("lib.es5.d.ts")) {
+  if (sourceFile === undefined || !sourceFile.IsDeclarationFile || !isTypeScriptStandardLibraryDeclarationFile(SourceFile_FileName(sourceFile))) {
     return false;
   }
   const parent = declaration.Parent;
@@ -563,6 +746,210 @@ function isStandardInterfaceMemberDeclaration(declaration: Node, interfaceNames:
   }
   const name = Node_Name(parent);
   return name !== undefined && name.Kind === KindIdentifier && interfaceNames.includes(Node_Text(name));
+}
+
+function isTypeScriptStandardLibraryDeclarationFile(fileName: string): boolean {
+  const basename = fileName.split(/[\\/]/).pop() ?? fileName;
+  return /^lib\..*\.d\.ts$/.test(basename);
+}
+
+function resolveStringInstanceMethodCall(
+  sourceName: string,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (
+    !isTypeScriptStringLikeType(request.receiverType as Type | undefined) ||
+    !isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], sourceName, ["String"])
+  ) {
+    return undefined;
+  }
+  const members = stringInstanceTargetMembers(sourceName)
+    .filter((member) => targetMemberAcceptsCall(member, request, context));
+  if (members.length !== 1) {
+    return undefined;
+  }
+  const member = members[0]!;
+  return {
+    selectedSignature: { member },
+    ...(member.returnType === undefined
+      ? {}
+      : {
+        returnType: {
+          carrier: member.returnType,
+        } satisfies RuntimeCarrierFact,
+      }),
+  };
+}
+
+function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[] {
+  const stringType = csharpNamed("System.String");
+  const boolType = csharpNamed("System.Boolean");
+  const intType = sourcePrimitiveInt32Ref();
+  const numberType = csharpNamed("System.Double");
+  const noArgs: readonly TargetMember["parameters"][number][] = [];
+  switch (sourceName) {
+    case "includes":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "position", type: intType, passingMode: "by-value", optional: true },
+      ], boolType)];
+    case "indexOf":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "position", type: intType, passingMode: "by-value", optional: true },
+      ], intType)];
+    case "lastIndexOf":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "position", type: intType, passingMode: "by-value", optional: true },
+      ], intType)];
+    case "startsWith":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "position", type: intType, passingMode: "by-value", optional: true },
+      ], boolType)];
+    case "endsWith":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "endPosition", type: intType, passingMode: "by-value", optional: true },
+      ], boolType)];
+    case "toLowerCase":
+      return [stringInstanceTargetMethod(sourceName, "ToLower", noArgs, stringType)];
+    case "toUpperCase":
+      return [stringInstanceTargetMethod(sourceName, "ToUpper", noArgs, stringType)];
+    case "trim":
+      return [stringInstanceTargetMethod(sourceName, "Trim", noArgs, stringType)];
+    case "trimStart":
+      return [stringInstanceTargetMethod(sourceName, "TrimStart", noArgs, stringType)];
+    case "trimEnd":
+      return [stringInstanceTargetMethod(sourceName, "TrimEnd", noArgs, stringType)];
+    case "trimLeft":
+      return [stringInstanceTargetMethod(sourceName, "TrimStart", noArgs, stringType)];
+    case "trimRight":
+      return [stringInstanceTargetMethod(sourceName, "TrimEnd", noArgs, stringType)];
+    case "concat":
+      return [stringConcatTargetMethod(sourceName, stringType)];
+    case "replace":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "search", type: stringType, passingMode: "by-value" },
+        { name: "replacement", type: stringType, passingMode: "by-value" },
+      ], stringType)];
+    case "replaceAll":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "search", type: stringType, passingMode: "by-value" },
+        { name: "replacement", type: stringType, passingMode: "by-value" },
+      ], stringType)];
+    case "substring":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "start", type: intType, passingMode: "by-value" },
+        { name: "end", type: intType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "slice":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "start", type: intType, passingMode: "by-value" },
+        { name: "end", type: intType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "substr":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "start", type: intType, passingMode: "by-value" },
+        { name: "length", type: intType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "repeat":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "count", type: intType, passingMode: "by-value" },
+      ], stringType)];
+    case "padStart":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "targetLength", type: intType, passingMode: "by-value" },
+        { name: "padString", type: stringType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "padEnd":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "targetLength", type: intType, passingMode: "by-value" },
+        { name: "padString", type: stringType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "charAt":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "index", type: intType, passingMode: "by-value" },
+      ], stringType)];
+    case "charCodeAt":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "index", type: intType, passingMode: "by-value" },
+      ], numberType)];
+    case "codePointAt":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "index", type: intType, passingMode: "by-value" },
+      ], { kind: "nullable", inner: intType })];
+    case "split":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "separator", type: stringType, passingMode: "by-value" },
+        { name: "limit", type: intType, passingMode: "by-value", optional: true },
+      ], { kind: "array", element: stringType })];
+    case "valueOf":
+      return [jsStringStaticTargetMethod(sourceName, noArgs, stringType)];
+    default:
+      return [];
+  }
+}
+
+function stringInstanceTargetMethod(
+  sourceName: string,
+  targetName: string,
+  parameters: readonly TargetMember["parameters"][number][],
+  returnType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: `System.String.${targetName}/${parameters.length}`,
+    sourceName,
+    targetName,
+    kind: "method",
+    static: false,
+    parameters,
+    returnType,
+  };
+}
+
+function stringConcatTargetMethod(
+  sourceName: string,
+  stringType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: "System.String.Concat(params System.String[])",
+    sourceName,
+    targetName: "Concat",
+    kind: "method",
+    static: true,
+    declaringType: stringType,
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "value", type: stringType, passingMode: "by-value" },
+      { name: "values", type: stringType, passingMode: "by-value", paramsArray: true },
+    ],
+    returnType: stringType,
+  };
+}
+
+function jsStringStaticTargetMethod(
+  sourceName: string,
+  parameters: readonly TargetMember["parameters"][number][],
+  returnType: TargetTypeRef,
+): TargetMember {
+  const stringType = csharpNamed("System.String");
+  return {
+    id: `Tsonic.CSharp.Js.String.${sourceName}/${parameters.length}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("Tsonic.CSharp.Js.String"),
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "str", type: stringType, passingMode: "by-value" },
+      ...parameters,
+    ],
+    returnType,
+  };
 }
 
 function resolveArrayJoinMethodCall(
@@ -578,18 +965,10 @@ function resolveArrayJoinMethodCall(
   if (separatorCarrier === undefined || !targetTypeRefMatches(separatorCarrier, separatorType)) {
     return undefined;
   }
-  const elementType = getTypeScriptArrayElementType(request.receiverType as Type | undefined);
-  if (elementType === undefined) {
+  const receiverType = resolveArrayReceiverCarrier(request, context);
+  if (receiverType === undefined) {
     return undefined;
   }
-  const elementCarrier = context.factResolver.resolve(elementType, runtimeCarrierFactKey)?.carrier;
-  if (elementCarrier === undefined) {
-    return undefined;
-  }
-  const receiverType = {
-    kind: "array",
-    element: elementCarrier,
-  } satisfies TargetTypeRef;
   const returnType = csharpNamed("System.String");
   return {
     selectedSignature: {
@@ -614,6 +993,175 @@ function resolveArrayJoinMethodCall(
   };
 }
 
+function resolveArrayInstanceMethodCall(
+  sourceName: string,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (!isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], sourceName, ["Array", "ReadonlyArray"])) {
+    return undefined;
+  }
+  const receiverType = resolveArrayReceiverCarrier(request, context);
+  if (receiverType === undefined) {
+    return undefined;
+  }
+  const matches = arrayInstanceTargetMembers(sourceName, receiverType, receiverType.element)
+    .flatMap((member) => {
+      const match = targetMemberCallMatch(member, request, context);
+      return match === undefined ? [] : [match];
+    });
+  if (matches.length !== 1) {
+    return undefined;
+  }
+  const match = matches[0]!;
+  const member = match.member;
+  return {
+    selectedSignature: {
+      member,
+      ...(match.argumentConversions === undefined ? {} : { argumentConversions: match.argumentConversions }),
+    },
+    ...(member.returnType === undefined
+      ? {}
+      : {
+        returnType: {
+          carrier: member.returnType,
+        } satisfies RuntimeCarrierFact,
+      }),
+  };
+}
+
+function resolveArrayReceiverCarrier(
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): Extract<TargetTypeRef, { readonly kind: "array" }> | undefined {
+  const receiverCarrier = resolveFirstRuntimeCarrier([
+    request.receiver,
+    request.receiverSymbol,
+    request.resolvedReceiverSymbol,
+    request.receiverType,
+  ], context);
+  return receiverCarrier?.kind === "array" ? receiverCarrier : undefined;
+}
+
+function arrayInstanceTargetMembers(
+  sourceName: string,
+  receiverType: TargetTypeRef,
+  elementType: TargetTypeRef,
+): readonly TargetMember[] {
+  const intType = sourcePrimitiveInt32Ref();
+  switch (sourceName) {
+    case "includes":
+      return [arraySearchHelperTargetMember(sourceName, "Includes", receiverType, elementType, csharpNamed("System.Boolean"), intType)];
+    case "forEach":
+      return arrayCallbackTargetMembers(sourceName, "ForEach", receiverType, elementType, csharpNamed("System.Void"), "action", csharpNamed("System.Void"));
+    case "some":
+      return arrayCallbackTargetMembers(sourceName, "Some", receiverType, elementType, csharpNamed("System.Boolean"), "callback", csharpNamed("System.Boolean"));
+    case "every":
+      return arrayCallbackTargetMembers(sourceName, "Every", receiverType, elementType, csharpNamed("System.Boolean"), "callback", csharpNamed("System.Boolean"));
+    case "findIndex":
+      return arrayCallbackTargetMembers(sourceName, "FindIndex", receiverType, elementType, intType, "callback", csharpNamed("System.Boolean"));
+    case "findLastIndex":
+      return arrayCallbackTargetMembers(sourceName, "FindLastIndex", receiverType, elementType, intType, "callback", csharpNamed("System.Boolean"));
+    case "indexOf":
+      return [arraySearchHelperTargetMember(sourceName, "IndexOf", receiverType, elementType, intType, intType)];
+    case "lastIndexOf":
+      return [arraySearchHelperTargetMember(sourceName, "LastIndexOf", receiverType, elementType, intType, intType)];
+    case "slice":
+      return [arraySliceTargetMember(sourceName, receiverType, elementType, intType)];
+    default:
+      return [];
+  }
+}
+
+function arraySliceTargetMember(
+  sourceName: string,
+  receiverType: TargetTypeRef,
+  elementType: TargetTypeRef,
+  intType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: "Tsonic.CSharp.Runtime.ArrayHelpers.Slice(T[],System.Int32,System.Int32?)",
+    sourceName,
+    targetName: "Slice",
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("Tsonic.CSharp.Runtime.ArrayHelpers"),
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "source", type: receiverType, passingMode: "by-value" },
+      { name: "startIndex", type: intType, passingMode: "by-value", optional: true },
+      { name: "endIndex", type: intType, passingMode: "by-value", optional: true },
+    ],
+    returnType: { kind: "array", element: elementType },
+  };
+}
+
+function arrayCallbackTargetMembers(
+  sourceName: string,
+  targetName: string,
+  receiverType: TargetTypeRef,
+  elementType: TargetTypeRef,
+  returnType: TargetTypeRef,
+  callbackName: string,
+  callbackReturnType: TargetTypeRef,
+): readonly TargetMember[] {
+  return [
+    arrayCallbackTargetMember(sourceName, targetName, receiverType, returnType, callbackName, csharpDelegateTargetTypeRef([elementType], callbackReturnType)),
+    arrayCallbackTargetMember(sourceName, targetName, receiverType, returnType, callbackName, csharpDelegateTargetTypeRef([elementType, sourcePrimitiveInt32Ref()], callbackReturnType)),
+    arrayCallbackTargetMember(sourceName, targetName, receiverType, returnType, callbackName, csharpDelegateTargetTypeRef([elementType, sourcePrimitiveInt32Ref(), receiverType], callbackReturnType)),
+  ];
+}
+
+function arrayCallbackTargetMember(
+  sourceName: string,
+  targetName: string,
+  receiverType: TargetTypeRef,
+  returnType: TargetTypeRef,
+  callbackName: string,
+  callbackType: TargetTypeRef,
+): TargetMember {
+  const arity = callbackType.kind === "target-named" ? callbackType.typeArguments?.length ?? 0 : 0;
+  return {
+    id: `Tsonic.CSharp.Runtime.ArrayHelpers.${targetName}(T[],callback/${arity})`,
+    sourceName,
+    targetName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("Tsonic.CSharp.Runtime.ArrayHelpers"),
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "source", type: receiverType, passingMode: "by-value" },
+      { name: callbackName, type: callbackType, passingMode: "by-value" },
+    ],
+    returnType,
+  };
+}
+
+function arraySearchHelperTargetMember(
+  sourceName: string,
+  targetName: string,
+  receiverType: TargetTypeRef,
+  elementType: TargetTypeRef,
+  returnType: TargetTypeRef,
+  intType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: `Tsonic.CSharp.Runtime.ArrayHelpers.${targetName}(T[],T,System.Int32?)`,
+    sourceName,
+    targetName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("Tsonic.CSharp.Runtime.ArrayHelpers"),
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "source", type: receiverType, passingMode: "by-value" },
+      { name: "value", type: elementType, passingMode: "by-value" },
+      { name: "fromIndex", type: intType, passingMode: "by-value", optional: true },
+    ],
+    returnType,
+  };
+}
+
 function resolveProviderTargetConstructorCall(
   request: ResolveCallRequest,
   context: ExtensionDecisionContext,
@@ -623,29 +1171,274 @@ function resolveProviderTargetConstructorCall(
   }
   const targetBinding = getTargetBindingFromSubject(context, request.calleeSymbol) ??
     getTargetBindingFromSubject(context, request.resolvedCalleeSymbol) ??
+    getTargetBindingFromExpressionWithTypeArguments(context, request.callee) ??
+    getTargetBindingFromSubject(context, request.callee) ??
     getTargetBindingFromSubject(context, request.calleeType);
   if (targetBinding === undefined || targetBinding.kind !== "class") {
     return undefined;
   }
+  const specialization = resolveTargetBindingSpecialization(targetBinding, request, context);
+  if (specialization === undefined) {
+    return undefined;
+  }
   const constructors = (targetBinding.members ?? [])
-    .filter((member) => member.kind === "constructor" && targetMemberAcceptsCall(member, request, context));
+    .map((member) => instantiateTargetMember(member, specialization.substitutions))
+    .flatMap((member) => {
+      if (member.kind !== "constructor") {
+        return [];
+      }
+      const match = targetMemberCallMatch(member, request, context);
+      return match === undefined ? [] : [match];
+    });
   if (constructors.length !== 1) {
     return undefined;
   }
-  const returnType = {
-    kind: "target-named",
-    id: targetBinding.id,
-  } satisfies TargetTypeRef;
+  const constructor = constructors[0]!;
   return {
     selectedSignature: {
       member: {
-        ...constructors[0]!,
-        returnType,
+        ...constructor.member,
+        returnType: specialization.returnType,
       },
+      ...(constructor.argumentConversions === undefined ? {} : { argumentConversions: constructor.argumentConversions }),
     },
     returnType: {
-      carrier: returnType,
+      carrier: specialization.returnType,
     } satisfies RuntimeCarrierFact,
+  };
+}
+
+interface TargetMemberCallMatch {
+  readonly member: TargetMember;
+  readonly argumentConversions?: readonly TargetTypeRef[];
+}
+
+function targetMemberCallMatch(
+  member: TargetMember,
+  request: Pick<ResolveCallRequest, "arguments" | "argumentSymbols" | "resolvedArgumentSymbols" | "argumentTypes">,
+  context: ExtensionDecisionContext,
+): TargetMemberCallMatch | undefined {
+  if (!targetMemberAcceptsArity(member, request.arguments.length)) {
+    return undefined;
+  }
+  const argumentConversions: (TargetTypeRef | undefined)[] = [];
+  for (let index = 0; index < request.arguments.length; index += 1) {
+    const parameter = getTargetParameterForArgument(member, index);
+    if (parameter === undefined) {
+      return undefined;
+    }
+    const conversionWithoutCarrier = targetArgumentConversion(request.arguments[index], undefined, parameter.type);
+    if (conversionWithoutCarrier !== undefined) {
+      argumentConversions[index] = conversionWithoutCarrier;
+      continue;
+    }
+    const argumentCarrier = resolveCallArgumentCarrier(request, index, context);
+    if (argumentCarrier === undefined) {
+      return undefined;
+    }
+    if (targetTypeRefMatches(argumentCarrier, parameter.type)) {
+      continue;
+    }
+    const conversion = targetArgumentConversion(request.arguments[index], argumentCarrier, parameter.type);
+    if (conversion === undefined) {
+      return undefined;
+    }
+    argumentConversions[index] = conversion;
+  }
+  return argumentConversions.some((conversion) => conversion !== undefined)
+    ? { member, argumentConversions: argumentConversions as readonly TargetTypeRef[] }
+    : { member };
+}
+
+function targetArgumentConversion(
+  argument: ExtensionFactSubject | undefined,
+  actual: TargetTypeRef | undefined,
+  expected: TargetTypeRef,
+): TargetTypeRef | undefined {
+  if (argument === undefined) {
+    return undefined;
+  }
+  if (isCsharpDelegateTargetType(expected) && isFunctionExpressionSubject(argument) && functionExpressionMatchesDelegate(argument, expected)) {
+    return expected;
+  }
+  if (expected.kind === "array" && actual?.kind === "array" && isNodeSubject(argument) && argument.Kind === KindArrayLiteralExpression) {
+    return arrayLiteralTargetConversion(argument, actual, expected);
+  }
+  if (isNodeSubject(argument) && isNumericLiteralRepresentableAs(argument, expected)) {
+    return expected;
+  }
+  return undefined;
+}
+
+function isFunctionExpressionSubject(subject: ExtensionFactSubject): boolean {
+  return isNodeSubject(subject) && (subject.Kind === KindArrowFunction || subject.Kind === KindFunctionExpression);
+}
+
+function isCsharpDelegateTargetType(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && (type.id.startsWith("System.Action`") || type.id.startsWith("System.Func`") || type.id === "System.Predicate`1");
+}
+
+function functionExpressionMatchesDelegate(argument: ExtensionFactSubject, expected: TargetTypeRef): boolean {
+  if (!isNodeSubject(argument) || expected.kind !== "target-named") {
+    return false;
+  }
+  const delegateParameterCount = getCsharpDelegateParameterCount(expected);
+  const sourceParameterCount = getFunctionExpressionParameterCount(argument);
+  return delegateParameterCount !== undefined &&
+    sourceParameterCount !== undefined &&
+    delegateParameterCount === sourceParameterCount;
+}
+
+function getCsharpDelegateParameterCount(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): number | undefined {
+  const typeArgumentCount = type.typeArguments?.length ?? 0;
+  if (type.id === "System.Predicate`1") {
+    return typeArgumentCount === 1 ? 1 : undefined;
+  }
+  if (type.id.startsWith("System.Action`")) {
+    return typeArgumentCount;
+  }
+  if (type.id.startsWith("System.Func`")) {
+    return typeArgumentCount === 0 ? undefined : typeArgumentCount - 1;
+  }
+  return undefined;
+}
+
+function getFunctionExpressionParameterCount(argument: Node): number | undefined {
+  if (argument.Kind === KindArrowFunction) {
+    return (AsArrowFunction(argument)?.Parameters?.Nodes ?? []).filter((parameter): parameter is Node => parameter !== undefined).length;
+  }
+  if (argument.Kind === KindFunctionExpression) {
+    return (AsFunctionExpression(argument)?.Parameters?.Nodes ?? []).filter((parameter): parameter is Node => parameter !== undefined).length;
+  }
+  return undefined;
+}
+
+function arrayLiteralTargetConversion(
+  argument: Node,
+  actual: Extract<TargetTypeRef, { readonly kind: "array" }>,
+  expected: Extract<TargetTypeRef, { readonly kind: "array" }>,
+): TargetTypeRef | undefined {
+  if ((actual.rank ?? 1) !== (expected.rank ?? 1)) {
+    return undefined;
+  }
+  const arrayLiteral = AsArrayLiteralExpression(argument);
+  const elements = arrayLiteral?.Elements?.Nodes ?? [];
+  if (targetTypeRefMatches(actual.element, expected.element)) {
+    return expected;
+  }
+  return elements.every((element) => element !== undefined && isNumericLiteralRepresentableAs(element, expected.element))
+    ? expected
+    : undefined;
+}
+
+function getTargetBindingFromExpressionWithTypeArguments(
+  context: ExtensionDecisionContext,
+  expression: ExtensionFactSubject,
+): TargetBindingFact | undefined {
+  if (!isNodeSubject(expression)) {
+    return undefined;
+  }
+  const expressionWithTypeArguments = AsExpressionWithTypeArguments(expression);
+  const innerExpression = expressionWithTypeArguments?.Expression;
+  if (innerExpression === undefined) {
+    return undefined;
+  }
+  return getTargetBindingFromSubject(context, Node_Symbol(innerExpression)) ??
+    getTargetBindingFromSubject(context, innerExpression);
+}
+
+interface TargetBindingSpecialization {
+  readonly returnType: TargetTypeRef;
+  readonly substitutions: ReadonlyMap<string, TargetTypeRef> | undefined;
+}
+
+function resolveTargetBindingSpecialization(
+  targetBinding: TargetBindingFact,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): TargetBindingSpecialization | undefined {
+  const typeParameters = targetBinding.typeParameters ?? [];
+  if (typeParameters.length === 0) {
+    return {
+      returnType: {
+        kind: "target-named",
+        id: targetBinding.id,
+      },
+      substitutions: undefined,
+    };
+  }
+  const carrier = resolveFirstRuntimeCarrier([request.call, request.calleeType], context);
+  if (carrier?.kind === "target-named" && carrier.id === targetBinding.id && (carrier.typeArguments ?? []).length === typeParameters.length) {
+    return targetBindingSpecializationFromTypeArguments(targetBinding, carrier.typeArguments!);
+  }
+  const explicitTypeArguments = resolveExplicitNewExpressionTypeArguments(request.call, context);
+  if (explicitTypeArguments !== undefined && explicitTypeArguments.length === typeParameters.length) {
+    return targetBindingSpecializationFromTypeArguments(targetBinding, explicitTypeArguments);
+  }
+  return undefined;
+}
+
+function targetBindingSpecializationFromTypeArguments(
+  targetBinding: TargetBindingFact,
+  typeArguments: readonly TargetTypeRef[],
+): TargetBindingSpecialization | undefined {
+  const typeParameters = targetBinding.typeParameters ?? [];
+  if (typeArguments.length !== typeParameters.length) {
+    return undefined;
+  }
+  const substitutions = new Map<string, TargetTypeRef>();
+  for (let index = 0; index < typeParameters.length; index += 1) {
+    substitutions.set(typeParameters[index]!.name, typeArguments[index]!);
+  }
+  return {
+    returnType: {
+      kind: "target-named",
+      id: targetBinding.id,
+      typeArguments,
+    },
+    substitutions,
+  };
+}
+
+function resolveExplicitNewExpressionTypeArguments(
+  call: ExtensionFactSubject,
+  context: ExtensionDecisionContext,
+): readonly TargetTypeRef[] | undefined {
+  if (!isNodeSubject(call) || call.Kind !== KindNewExpression) {
+    return undefined;
+  }
+  const newExpression = AsNewExpression(call);
+  const directTypeArgumentNodes = newExpression?.TypeArguments?.Nodes ?? [];
+  const callee = newExpression?.Expression;
+  const expressionWithTypeArguments = callee === undefined ? undefined : AsExpressionWithTypeArguments(callee);
+  const typeArgumentNodes = directTypeArgumentNodes.length > 0
+    ? directTypeArgumentNodes
+    : expressionWithTypeArguments?.TypeArguments?.Nodes ?? [];
+  if (typeArgumentNodes.length === 0) {
+    return undefined;
+  }
+  const typeArguments = typeArgumentNodes.map((argument) =>
+    argument === undefined ? undefined : context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier);
+  return typeArguments.some((argument) => argument === undefined)
+    ? undefined
+    : typeArguments as readonly TargetTypeRef[];
+}
+
+function instantiateTargetMember(
+  member: TargetMember,
+  substitutions: ReadonlyMap<string, TargetTypeRef> | undefined,
+): TargetMember {
+  if (substitutions === undefined || substitutions.size === 0) {
+    return member;
+  }
+  return {
+    ...member,
+    parameters: member.parameters.map((parameter) => ({
+      ...parameter,
+      type: substituteTargetTypeRef(parameter.type, substitutions),
+    })),
+    ...(member.declaringType === undefined ? {} : { declaringType: substituteTargetTypeRef(member.declaringType, substitutions) }),
+    ...(member.returnType === undefined ? {} : { returnType: substituteTargetTypeRef(member.returnType, substitutions) }),
   };
 }
 
@@ -676,13 +1469,20 @@ function resolveProviderTargetMethodCall(
       member.kind === "method" &&
       memberStaticMatchesAccess(member, staticAccess) &&
       member.sourceName === sourceName &&
-      targetMemberAcceptsCall(member, request, context),
+      targetMemberCallMatch(member, request, context) !== undefined,
   );
   if (member === undefined) {
     return undefined;
   }
+  const match = targetMemberCallMatch(member, request, context);
+  if (match === undefined) {
+    return undefined;
+  }
   return {
-    selectedSignature: { member },
+    selectedSignature: {
+      member,
+      ...(match.argumentConversions === undefined ? {} : { argumentConversions: match.argumentConversions }),
+    },
     ...(member.returnType === undefined
       ? {}
       : {
@@ -726,6 +1526,44 @@ function resolveProviderTargetPropertyAccess(
   };
 }
 
+function resolveProviderTargetElementAccess(
+  request: ResolveElementAccessRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  const receiverNode = isNodeSubject(request.receiver) ? request.receiver : undefined;
+  const member = selectProviderTargetMember(
+    context,
+    receiverNode,
+    request.receiverSymbol,
+    request.resolvedReceiverSymbol,
+    request.receiverType,
+    (candidate, staticAccess) => {
+      if (candidate.kind !== "indexer" || !memberStaticMatchesAccess(candidate, staticAccess)) {
+        return false;
+      }
+      return targetMemberCallMatch(candidate, {
+        arguments: [request.argument],
+        argumentSymbols: [request.argumentSymbol],
+        resolvedArgumentSymbols: [request.resolvedArgumentSymbol],
+        argumentTypes: [request.argumentType],
+      }, context) !== undefined;
+    },
+  );
+  if (member === undefined || member.returnType === undefined) {
+    return undefined;
+  }
+  const operation = {
+    operationId: member.id,
+    operationKind: "indexer",
+    targetOperation: member.targetName,
+    resultType: member.returnType,
+  } satisfies TargetOperationFact;
+  return {
+    operation,
+    resultType: member.returnType,
+  };
+}
+
 function resolveSourceProjectPropertyAccess(
   request: ResolvePropertyAccessRequest,
 ): ResolveOperationResult | undefined {
@@ -753,7 +1591,7 @@ function getSourceProjectPropertyTargetName(request: ResolvePropertyAccessReques
     request.resolvedPropertySymbol,
   ]);
   if (symbol === undefined) {
-    return undefined;
+    return sanitizeCsharpIdentifier(request.propertyName);
   }
   const sourceName = symbol.Name;
   if (sourceName !== request.propertyName) {
@@ -801,7 +1639,8 @@ function selectProviderTargetMember(
 ): TargetMember | undefined {
   const matches: TargetMember[] = [];
   for (const candidate of getTargetBindingAccessCandidates(context, receiverNode, receiverSymbol, resolvedReceiverSymbol, receiverType)) {
-    for (const member of candidate.binding.members ?? []) {
+    for (const rawMember of candidate.binding.members ?? []) {
+      const member = instantiateTargetMember(rawMember, candidate.substitutions);
       if (predicate(member, candidate.staticAccess) && !matches.some((existing) => existing.id === member.id && existing.static === member.static)) {
         matches.push(member);
       }
@@ -831,16 +1670,44 @@ function getTargetBindingAccessCandidates(
   }
   const typeBinding = getTargetBindingFromSubject(context, receiverType);
   if (typeBinding !== undefined) {
+    const substitutions = resolveTargetBindingAccessSubstitutions(typeBinding, [
+      receiverSymbol,
+      resolvedReceiverSymbol,
+      receiverNode,
+      receiverType,
+    ], context);
     candidates.push({
       binding: typeBinding,
       staticAccess: true,
+      ...(substitutions === undefined ? {} : { substitutions }),
     });
     candidates.push({
       binding: typeBinding,
       staticAccess: false,
+      ...(substitutions === undefined ? {} : { substitutions }),
     });
   }
   return candidates;
+}
+
+function resolveTargetBindingAccessSubstitutions(
+  targetBinding: TargetBindingFact,
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  context: ExtensionDecisionContext,
+): ReadonlyMap<string, TargetTypeRef> | undefined {
+  const typeParameters = targetBinding.typeParameters ?? [];
+  if (typeParameters.length === 0) {
+    return undefined;
+  }
+  const carrier = resolveFirstRuntimeCarrier(subjects, context);
+  if (carrier?.kind !== "target-named" || carrier.id !== targetBinding.id) {
+    return undefined;
+  }
+  const typeArguments = carrier.typeArguments ?? [];
+  if (typeArguments.length !== typeParameters.length) {
+    return undefined;
+  }
+  return targetBindingSpecializationFromTypeArguments(targetBinding, typeArguments)?.substitutions;
 }
 
 function getFirstTargetBinding(
@@ -1068,6 +1935,13 @@ function sourcePrimitiveInt32(): SourcePrimitiveFact {
   };
 }
 
+function sourcePrimitiveInt32Ref(): TargetTypeRef {
+  return {
+    kind: "source-primitive",
+    name: "int32",
+  };
+}
+
 function resolveCsharpTypeParameterConstraint(
   subject: ExtensionFactSubject,
   _context: ExtensionFactResolverContext,
@@ -1119,6 +1993,13 @@ function resolveCsharpRuntimeCarrier(
   }
 
   if (isNodeSubject(subject)) {
+    const selectedCallCarrier = resolveSelectedCallReturnCarrier(subject, context);
+    if (selectedCallCarrier !== undefined) {
+      return {
+        value: { carrier: selectedCallCarrier },
+        evidence: [{ message: "C# carrier from finalized provider-selected call signature." }],
+      };
+    }
     const catchCarrier = resolveCsharpCatchVariableCarrier(subject);
     if (catchCarrier !== undefined) {
       return {
@@ -1126,14 +2007,6 @@ function resolveCsharpRuntimeCarrier(
         evidence: [{ message: "C# catch binding carrier from target exception model." }],
       };
     }
-  }
-
-  const directTargetBinding = context.factResolver.resolve(subject, targetBindingFactKey);
-  if (directTargetBinding !== undefined) {
-    return runtimeCarrierFromTargetBinding(directTargetBinding.id);
-  }
-
-  if (isNodeSubject(subject)) {
     const nodeCarrier = resolveCsharpRuntimeCarrierForTypeNode(subject, context);
     if (nodeCarrier !== undefined) {
       return {
@@ -1149,6 +2022,11 @@ function resolveCsharpRuntimeCarrier(
         evidence: [{ message: "C# carrier from source declaration annotation." }],
       };
     }
+  }
+
+  const directTargetBinding = context.factResolver.resolve(subject, targetBindingFactKey);
+  if (directTargetBinding !== undefined) {
+    return runtimeCarrierFromTargetBinding(directTargetBinding.id);
   }
 
   if (isSymbolSubject(subject)) {
@@ -1494,7 +2372,7 @@ function resolveObjectShapeMemberCarrier(
       const carrier = context.factResolver.resolve(typeNode, runtimeCarrierFactKey)?.carrier;
       return carrier === undefined
         ? undefined
-        : substituteObjectShapeMemberType(carrier, typeParameterSubstitutions);
+        : substituteTargetTypeRef(carrier, typeParameterSubstitutions);
     }
   }
 }
@@ -1572,7 +2450,7 @@ function getTypeParameterSubstitution(
   return typeParameterSubstitutions.get(Node_Text(typeName));
 }
 
-function substituteObjectShapeMemberType(
+function substituteTargetTypeRef(
   type: TargetTypeRef,
   substitutions: ReadonlyMap<string, TargetTypeRef> | undefined,
 ): TargetTypeRef {
@@ -1583,25 +2461,25 @@ function substituteObjectShapeMemberType(
     case "type-parameter":
       return substitutions.get(type.name) ?? type;
     case "target-named": {
-      const typeArguments = type.typeArguments?.map((argument) => substituteObjectShapeMemberType(argument, substitutions));
+      const typeArguments = type.typeArguments?.map((argument) => substituteTargetTypeRef(argument, substitutions));
       return typeArguments === undefined ? type : { ...type, typeArguments };
     }
     case "nullable":
-      return { ...type, inner: substituteObjectShapeMemberType(type.inner, substitutions) };
+      return { ...type, inner: substituteTargetTypeRef(type.inner, substitutions) };
     case "array":
-      return { ...type, element: substituteObjectShapeMemberType(type.element, substitutions) };
+      return { ...type, element: substituteTargetTypeRef(type.element, substitutions) };
     case "tuple":
-      return { ...type, elements: type.elements.map((element) => substituteObjectShapeMemberType(element, substitutions)) };
+      return { ...type, elements: type.elements.map((element) => substituteTargetTypeRef(element, substitutions)) };
     case "pointer":
-      return { ...type, pointee: substituteObjectShapeMemberType(type.pointee, substitutions) };
+      return { ...type, pointee: substituteTargetTypeRef(type.pointee, substitutions) };
     case "function-pointer":
       return {
         ...type,
-        args: type.args.map((argument) => substituteObjectShapeMemberType(argument, substitutions)),
-        result: substituteObjectShapeMemberType(type.result, substitutions),
+        args: type.args.map((argument) => substituteTargetTypeRef(argument, substitutions)),
+        result: substituteTargetTypeRef(type.result, substitutions),
       };
     case "associated-type":
-      return { ...type, owner: substituteObjectShapeMemberType(type.owner, substitutions) };
+      return { ...type, owner: substituteTargetTypeRef(type.owner, substitutions) };
     default:
       return type;
   }
@@ -1759,9 +2637,41 @@ function resolveCsharpRuntimeCarrierForSymbol(
 ): TargetTypeRef | undefined {
   const declaration = symbol.ValueDeclaration ?? symbol.Declarations?.find((candidate) => candidate !== undefined);
   const typeNode = declaration === undefined ? undefined : getRuntimeCarrierDeclarationTypeNode(declaration);
-  return typeNode === undefined
+  const annotationCarrier = typeNode === undefined
     ? undefined
     : context.factResolver.resolve(typeNode, runtimeCarrierFactKey)?.carrier;
+  if (annotationCarrier !== undefined) {
+    return annotationCarrier;
+  }
+  const initializer = declaration === undefined ? undefined : getRuntimeCarrierDeclarationInitializer(declaration);
+  return initializer === undefined
+    ? undefined
+    : context.factResolver.resolve(initializer, runtimeCarrierFactKey)?.carrier;
+}
+
+function getRuntimeCarrierDeclarationInitializer(declaration: Node): Node | undefined {
+  switch (declaration.Kind) {
+    case KindVariableDeclaration:
+      return AsVariableDeclaration(declaration)?.Initializer;
+    case KindParameter:
+      return AsParameterDeclaration(declaration)?.Initializer;
+    case KindPropertyDeclaration:
+      return AsPropertyDeclaration(declaration)?.Initializer;
+    case KindBindingElement:
+      return AsBindingElement(declaration)?.Initializer;
+    default:
+      return undefined;
+  }
+}
+
+function resolveSelectedCallReturnCarrier(
+  node: Node,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  if (node.Kind !== KindCallExpression && node.Kind !== KindNewExpression) {
+    return undefined;
+  }
+  return context.facts.get(node, selectedTargetSignatureFactKey)?.member.returnType;
 }
 
 function getRuntimeCarrierDeclarationTypeNode(declaration: Node): Node | undefined {
@@ -1813,6 +2723,8 @@ function resolveCsharpRuntimeCarrierForTypeNode(
         ? undefined
         : { kind: "tuple", elements: elementCarriers as readonly TargetTypeRef[] };
     }
+    case KindTypeReference:
+      return resolveCsharpTypeReferenceCarrier(node, context);
     case KindFunctionType:
       return resolveCsharpFunctionTypeCarrier(node, context);
     case KindUnionType:
@@ -1820,6 +2732,31 @@ function resolveCsharpRuntimeCarrierForTypeNode(
     default:
       return undefined;
   }
+}
+
+function resolveCsharpTypeReferenceCarrier(
+  node: Node,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const reference = AsTypeReferenceNode(node);
+  const typeName = reference?.TypeName;
+  const binding = context.factResolver.resolve(node, targetBindingFactKey) ??
+    (typeName === undefined ? undefined : context.factResolver.resolve(typeName, targetBindingFactKey));
+  if (binding === undefined) {
+    return undefined;
+  }
+  const typeArgumentNodes = (reference?.TypeArguments?.Nodes ?? [])
+    .filter((argument): argument is Node => argument !== undefined);
+  if (typeArgumentNodes.length === 0) {
+    return { kind: "target-named", id: binding.id };
+  }
+  if ((binding.typeParameters ?? []).length !== typeArgumentNodes.length) {
+    return undefined;
+  }
+  const typeArguments = typeArgumentNodes.map((argument) => context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier);
+  return typeArguments.some((argument) => argument === undefined)
+    ? undefined
+    : { kind: "target-named", id: binding.id, typeArguments: typeArguments as readonly TargetTypeRef[] };
 }
 
 function resolveNullableUnionCarrierForTypeNode(
@@ -1880,15 +2817,6 @@ function resolveCsharpRuntimeCarrierForTstsType(
   type: Type,
   context: ExtensionFactResolverContext,
 ): TargetTypeRef | undefined {
-  const targetBinding = type.symbol === undefined
-    ? undefined
-    : context.factResolver.resolve(type.symbol, targetBindingFactKey);
-  if (targetBinding !== undefined) {
-    return {
-      kind: "target-named",
-      id: targetBinding.id,
-    };
-  }
   const nullableUnionCarrier = resolveNullableUnionCarrierForTstsType(type, context);
   if (nullableUnionCarrier !== undefined) {
     return nullableUnionCarrier;
@@ -1925,6 +2853,15 @@ function resolveCsharpRuntimeCarrierForTstsType(
         typeArguments: typeArguments as readonly TargetTypeRef[],
       };
     }
+  }
+  const targetBinding = type.symbol === undefined
+    ? undefined
+    : context.factResolver.resolve(type.symbol, targetBindingFactKey);
+  if (targetBinding !== undefined) {
+    return {
+      kind: "target-named",
+      id: targetBinding.id,
+    };
   }
   if (isStandardRegExpType(type)) {
     return csharpNamed("Tsonic.CSharp.Js.RegExp");
@@ -2202,10 +3139,34 @@ function resolveCsharpOperator(
   request: ResolveOperatorRequest,
   context: ExtensionDecisionContext,
 ): ResolveOperationResult | undefined {
-  return resolveTypeofComparisonOperator(request, context) ??
+  return resolveStandaloneTypeofOperator(request, context) ??
+    resolveTypeofComparisonOperator(request, context) ??
     resolveSourceProjectInstanceOfOperator(request) ??
     resolveSourcePrimitiveOperator(request, context) ??
     resolveBuiltinTypeOperator(request, context);
+}
+
+function resolveStandaloneTypeofOperator(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  if (request.operator !== "typeof" || request.right !== undefined) {
+    return undefined;
+  }
+  const runtimeKind = getStandaloneTypeofRuntimeKind(request, context);
+  if (runtimeKind === undefined) {
+    return undefined;
+  }
+  const resultType = csharpNamed("System.String");
+  return {
+    operation: {
+      operationId: `tsonic.csharp.typeof.${runtimeKind}`,
+      operationKind: "operator",
+      targetOperation: `typeof:${runtimeKind}`,
+      resultType,
+    } satisfies TargetOperationFact,
+    resultType,
+  };
 }
 
 function resolveTypeofComparisonOperator(
@@ -2246,6 +3207,29 @@ interface TypeofComparison {
   readonly operandSymbol?: ExtensionFactSubject;
   readonly runtimeKind: TypeofRuntimeKind;
   readonly negated: boolean;
+}
+
+function getStandaloneTypeofRuntimeKind(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): TypeofRuntimeKind | undefined {
+  const sourcePrimitive = request.leftSourcePrimitive ??
+    resolveSourcePrimitiveSubject(context, request.left) ??
+    resolveSourcePrimitiveSubject(context, request.leftSymbol) ??
+    resolveSourcePrimitiveSubject(context, request.leftType);
+  if (sourcePrimitive !== undefined) {
+    return getTypeofRuntimeKindForSourcePrimitive(sourcePrimitive.kind);
+  }
+  const operandCarrier = resolveFirstRuntimeCarrier([
+    request.left,
+    request.leftSymbol,
+    request.leftResolvedSymbol,
+    request.leftType,
+  ], context);
+  if (operandCarrier === undefined || operandCarrier.kind === "nullable") {
+    return undefined;
+  }
+  return getTypeofRuntimeKindForTargetType(operandCarrier);
 }
 
 function getTypeofComparison(request: ResolveOperatorRequest): TypeofComparison | undefined {
@@ -2944,6 +3928,49 @@ function isIntegerNumericLiteral(subject: ExtensionFactSubject | undefined): boo
   return Number.isSafeInteger(value);
 }
 
+function isNumericLiteralRepresentableAs(
+  subject: ExtensionFactSubject | undefined,
+  targetType: TargetTypeRef,
+): boolean {
+  const node = subject as Node | undefined;
+  if (node?.Kind !== KindNumericLiteral || targetType.kind !== "source-primitive") {
+    return false;
+  }
+  const value = Number(AsNumericLiteral(node)!.Text.replace(/_/g, ""));
+  if (!Number.isFinite(value)) {
+    return false;
+  }
+  switch (targetType.name) {
+    case "float16":
+    case "float32":
+    case "float64":
+    case "decimal128":
+      return true;
+    case "int8":
+      return Number.isInteger(value) && value >= -128 && value <= 127;
+    case "uint8":
+      return Number.isInteger(value) && value >= 0 && value <= 255;
+    case "int16":
+      return Number.isInteger(value) && value >= -32768 && value <= 32767;
+    case "uint16":
+      return Number.isInteger(value) && value >= 0 && value <= 65535;
+    case "int32":
+      return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647;
+    case "uint32":
+      return Number.isInteger(value) && value >= 0 && value <= 4294967295;
+    case "native-int":
+    case "native-uint":
+      return Number.isSafeInteger(value) && (targetType.name === "native-int" || value >= 0);
+    case "int64":
+    case "uint64":
+    case "int128":
+    case "uint128":
+      return Number.isSafeInteger(value) && (targetType.name === "int64" || targetType.name === "int128" || value >= 0);
+    default:
+      return false;
+  }
+}
+
 function isCsharpIntegralIndexArgument(
   request: {
     readonly argument: ExtensionFactSubject;
@@ -3047,6 +4074,12 @@ function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
         { kind: "type-marker", exportName: "fnptr", marker: "functionPointer" },
       ],
     },
+    {
+      moduleSpecifier: dotnetCollectionsModule,
+      packageName: "@tsonic/dotnet",
+      subpath: "System.Collections.Generic.js",
+      exports: [],
+    },
   ];
 }
 
@@ -3135,16 +4168,160 @@ function providerExportDeclarationsForModule(module: SourceSemanticsModule): rea
 }
 
 function csharpTargetProviderExports(moduleSpecifier: string): readonly ProviderExportDeclaration[] {
-  if (moduleSpecifier !== csharpLangModule) {
-    return [];
+  if (moduleSpecifier === dotnetCollectionsModule) {
+    return [
+      csharpListProviderDeclaration(),
+    ];
   }
-  return [
+  if (moduleSpecifier === csharpLangModule) {
+    return [
     csharpExceptionProviderDeclaration(),
     csharpConvertProviderDeclaration(),
     csharpEnvironmentProviderDeclaration(),
     attributeSupportType(attributeTargetTypeName, attributeTargetShape()),
     csharpClsCompliantAttributeProviderDeclaration(),
-  ];
+    ];
+  }
+  return [];
+}
+
+function csharpListProviderDeclaration(): ProviderExportDeclaration {
+  const itemType: ProviderTypeExpression = { kind: "type-parameter", name: "T" };
+  const intType: ProviderTypeExpression = { kind: "source-primitive", name: "int32" };
+  const boolType: ProviderTypeExpression = { kind: "source-primitive", name: "bool" };
+  const voidType: ProviderTypeExpression = { kind: "void" };
+  return {
+    id: "List",
+    name: "List",
+    kind: "class",
+    targetIdentity: {
+      target: "csharp",
+      id: "System.Collections.Generic.List`1",
+      displayName: "System.Collections.Generic.List",
+    },
+    typeParameters: [{ name: "T" }],
+    members: [
+      {
+        id: "constructor()",
+        name: "constructor",
+        kind: "constructor",
+        signatures: [{
+          id: "System.Collections.Generic.List`1..ctor()",
+          parameters: [],
+        }],
+      },
+      {
+        id: "constructor(items)",
+        name: "constructor",
+        kind: "constructor",
+        signatures: [{
+          id: "System.Collections.Generic.List`1..ctor(System.Collections.Generic.IEnumerable`1)",
+          parameters: [{
+            name: "items",
+            type: {
+              kind: "array",
+              elementType: itemType,
+            },
+          }],
+        }],
+      },
+      {
+        id: "Count",
+        name: "count",
+        targetName: "Count",
+        kind: "property",
+        type: intType,
+      },
+      {
+        id: "Item",
+        name: "item",
+        targetName: "[]",
+        kind: "indexer",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Item(System.Int32)",
+          parameters: [{ name: "index", type: intType }],
+          returnType: itemType,
+        }],
+      },
+      {
+        id: "Add(item)",
+        name: "add",
+        targetName: "Add",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Add(T)",
+          parameters: [{ name: "item", type: itemType }],
+          returnType: voidType,
+        }],
+      },
+      {
+        id: "Clear()",
+        name: "clear",
+        targetName: "Clear",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Clear()",
+          parameters: [],
+          returnType: voidType,
+        }],
+      },
+      {
+        id: "Contains(item)",
+        name: "contains",
+        targetName: "Contains",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Contains(T)",
+          parameters: [{ name: "item", type: itemType }],
+          returnType: boolType,
+        }],
+      },
+      {
+        id: "IndexOf(item)",
+        name: "indexOf",
+        targetName: "IndexOf",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.IndexOf(T)",
+          parameters: [{ name: "item", type: itemType }],
+          returnType: intType,
+        }],
+      },
+      {
+        id: "Remove(item)",
+        name: "remove",
+        targetName: "Remove",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Remove(T)",
+          parameters: [{ name: "item", type: itemType }],
+          returnType: boolType,
+        }],
+      },
+      {
+        id: "RemoveAt(index)",
+        name: "removeAt",
+        targetName: "RemoveAt",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.RemoveAt(System.Int32)",
+          parameters: [{ name: "index", type: intType }],
+          returnType: voidType,
+        }],
+      },
+      {
+        id: "ToArray()",
+        name: "toArray",
+        targetName: "ToArray",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.ToArray()",
+          parameters: [],
+          returnType: { kind: "array", elementType: itemType },
+        }],
+      },
+    ],
+  };
 }
 
 function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
