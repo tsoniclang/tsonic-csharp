@@ -1,5 +1,6 @@
 import {
   AsBlock,
+  AsBinaryExpression,
   AsCallExpression,
   AsClassDeclaration,
   AsClassStaticBlockDeclaration,
@@ -9,11 +10,14 @@ import {
   AsExpressionStatement,
   AsFunctionDeclaration,
   AsGetAccessorDeclaration,
+  AsIdentifier,
   AsInterfaceDeclaration,
   AsIndexSignatureDeclaration,
   AsMethodDeclaration,
   AsMethodSignatureDeclaration,
   AsParameterDeclaration,
+  AsParenthesizedExpression,
+  AsPrefixUnaryExpression,
   AsPropertyDeclaration,
   AsPropertySignatureDeclaration,
   AsSetAccessorDeclaration,
@@ -22,10 +26,15 @@ import {
   KindClassStaticBlockDeclaration,
   KindExpressionStatement,
   KindEnumMember,
+  KindIdentifier,
+  KindNumericLiteral,
+  KindParenthesizedExpression,
+  KindPrefixUnaryExpression,
   KindGetAccessor,
   KindIndexSignature,
   KindMethodDeclaration,
   KindMethodSignature,
+  KindNeverKeyword,
   KindArrayBindingPattern,
   KindObjectBindingPattern,
   KindPrivateIdentifier,
@@ -37,6 +46,7 @@ import {
   HasSourceKind,
   ModifierFlagsStatic,
   Node_Name,
+  SourceTokenKind,
   SourceKind,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -46,6 +56,7 @@ import type {
   CsharpConstructorDeclaration,
   CsharpEnumDeclaration,
   CsharpEnumMember,
+  CsharpExpression,
   CsharpFieldDeclaration,
   CsharpInterfaceDeclaration,
   CsharpInterfaceIndexerDeclaration,
@@ -59,20 +70,20 @@ import type {
   CsharpTypeMember,
 } from "../roslyn/syntax.js";
 import { planAttributesForSubject } from "./attributes.js";
-import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
+import { getCsharpTypeForNode, invalidCsharpType, predefined } from "./csharp-types.js";
 import {
   createDestructuringPlannerState,
   planParameterBindingPrelude,
 } from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planCallArgument, planExpressionWithExpectedType } from "./expressions.js";
-import { planExpression } from "./expressions.js";
 import { planClassHeritage, planInterfaceHeritage } from "./heritage.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers, isAsyncNode } from "./modifiers.js";
 import { planIdentifierName } from "./names.js";
 import { planParameters, planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements, planStatements } from "./statements.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import { getTargetTypeRefForType } from "./runtime-carriers.js";
 import { planTypeParameters } from "./type-parameters.js";
 
 export function planClassDeclaration(
@@ -224,6 +235,9 @@ function planEnumMember(
 ): CsharpEnumMember {
   const member = AsEnumMember(node)!;
   const enumValue = input.semantics.getEnumMemberConstant(node, { sourceFile });
+  const enumExpressionValue = member.Initializer === undefined
+    ? undefined
+    : planEnumConstantExpression(member.Initializer, sourceFile, input, diagnostics);
   if (
     member.Initializer !== undefined &&
     (enumValue === undefined || typeof enumValue.value !== "number" || !Number.isInteger(enumValue.value))
@@ -232,9 +246,91 @@ function planEnumMember(
   }
   return {
     kind: "EnumMemberDeclaration",
-    name: planIdentifierName(Node_Name(node), "AnonymousMember", input, diagnostics, "Enum member name"),
-    ...(member.Initializer === undefined ? {} : { value: planExpression(member.Initializer, sourceFile, input, diagnostics) }),
+    name: planIdentifierName(member.name ?? Node_Name(node), "AnonymousMember", input, diagnostics, "Enum member name"),
+    ...(member.Initializer === undefined
+      ? {}
+      : enumExpressionValue !== undefined
+        ? { value: enumExpressionValue }
+        : enumValue?.value === undefined ? {} : { value: { kind: "LiteralExpression", value: enumValue.value } }),
   };
+}
+
+function planEnumConstantExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  switch (input.ast.kindName(node)) {
+    case KindNumericLiteral:
+      return { kind: "LiteralExpression", value: Number(input.ast.text(node)) };
+    case KindIdentifier:
+      return { kind: "IdentifierName", name: planIdentifierName(AsIdentifier(node), "EnumConstant", input, diagnostics, "Enum constant reference") };
+    case KindParenthesizedExpression: {
+      const expression = AsParenthesizedExpression(node)?.Expression;
+      const planned = expression === undefined ? undefined : planEnumConstantExpression(expression, sourceFile, input, diagnostics);
+      return planned === undefined ? undefined : { kind: "ParenthesizedExpression", expression: planned };
+    }
+    case KindPrefixUnaryExpression: {
+      const expression = AsPrefixUnaryExpression(node);
+      const operand = expression?.Operand === undefined ? undefined : planEnumConstantExpression(expression.Operand, sourceFile, input, diagnostics);
+      const operatorToken = (expression as { readonly Operator?: unknown; readonly OperatorToken?: unknown } | undefined)?.Operator ??
+        (expression as { readonly OperatorToken?: unknown } | undefined)?.OperatorToken;
+      const operator = getEnumConstantPrefixOperator(SourceTokenKind(input.ast, operatorToken));
+      return operand === undefined || operator === undefined ? undefined : { kind: "PrefixUnaryExpression", operator, operand };
+    }
+    case "KindBinaryExpression": {
+      const expression = AsBinaryExpression(node);
+      const left = expression?.Left === undefined ? undefined : planEnumConstantExpression(expression.Left, sourceFile, input, diagnostics);
+      const right = expression?.Right === undefined ? undefined : planEnumConstantExpression(expression.Right, sourceFile, input, diagnostics);
+      const operator = getEnumConstantBinaryOperator(SourceTokenKind(input.ast, expression?.OperatorToken?.Kind));
+      return left === undefined || right === undefined || operator === undefined
+        ? undefined
+        : { kind: "BinaryExpression", left, operator, right };
+    }
+    default:
+      return undefined;
+  }
+}
+
+function getEnumConstantPrefixOperator(tokenKind: string | undefined): string | undefined {
+  switch (tokenKind) {
+    case "KindPlusToken":
+      return "+";
+    case "KindMinusToken":
+      return "-";
+    case "KindTildeToken":
+      return "~";
+    default:
+      return undefined;
+  }
+}
+
+function getEnumConstantBinaryOperator(tokenKind: string | undefined): string | undefined {
+  switch (tokenKind) {
+    case "KindLessThanLessThanToken":
+      return "<<";
+    case "KindGreaterThanGreaterThanToken":
+      return ">>";
+    case "KindBarToken":
+      return "|";
+    case "KindAmpersandToken":
+      return "&";
+    case "KindCaretToken":
+      return "^";
+    case "KindPlusToken":
+      return "+";
+    case "KindMinusToken":
+      return "-";
+    case "KindAsteriskToken":
+      return "*";
+    case "KindSlashToken":
+      return "/";
+    case "KindPercentToken":
+      return "%";
+    default:
+      return undefined;
+  }
 }
 
 export function planFunctionDeclaration(
@@ -387,7 +483,8 @@ function getExplicitReturnType(
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> {
   if (typeNode === undefined) {
-    const returnCarrier = input.semantics.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile });
+    const returnCarrier = getInferredReturnTypeCarrier(declarationNode, sourceFile, input) ??
+      input.semantics.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile });
     if (returnCarrier === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(declarationNode, `C# ${context} emission requires a return type, but TSTS did not return an inferred signature return type.`));
       return invalidCsharpType(`${context} return type`);
@@ -395,7 +492,33 @@ function getExplicitReturnType(
     const inferred = csharpTypeFromTargetTypeRef(returnCarrier);
     return inferred ?? invalidCsharpType(`${context} return type`);
   }
+  if (HasSourceKind(input.ast, typeNode, KindNeverKeyword)) {
+    return predefined("void");
+  }
   return getCsharpTypeForNode(typeNode, sourceFile, input, invalidCsharpType(`${context} return type`), diagnostics);
+}
+
+function getInferredReturnTypeCarrier(
+  declarationNode: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+) {
+  const name = input.ast.name(declarationNode);
+  const symbol = input.semantics.getSymbolAtLocation(name ?? declarationNode, { sourceFile });
+  const candidateTypes = [
+    input.semantics.getTypeOfSymbol(symbol, { sourceFile }),
+    name === undefined ? undefined : input.semantics.getTypeAtLocation(name, { sourceFile }),
+    input.semantics.getTypeAtLocation(declarationNode, { sourceFile }),
+  ];
+  for (const declarationType of candidateTypes) {
+    const signature = input.types.getCallSignatures(declarationType, { sourceFile })[0];
+    const returnType = input.types.getReturnTypeOfSignature(signature, { sourceFile });
+    const carrier = getTargetTypeRefForType(input, returnType, sourceFile);
+    if (carrier !== undefined) {
+      return carrier;
+    }
+  }
+  return undefined;
 }
 
 function planInterfacePropertyDeclaration(

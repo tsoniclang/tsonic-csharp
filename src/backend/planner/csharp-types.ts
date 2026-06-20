@@ -2,6 +2,7 @@ import {
   AsExpressionWithTypeArguments,
   AsNewExpression,
   AsTypeReferenceNode,
+  IsTypeSyntaxNode,
   KindArrayBindingPattern,
   KindArrayType,
   KindAnyKeyword,
@@ -19,13 +20,14 @@ import {
   KindUnionType,
   KindUnknownKeyword,
 } from "./source-ast.js";
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
+import { getTargetTypeRefForNode, getTargetTypeRefForType } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 export function expressionToCsharpType(
@@ -134,15 +136,26 @@ export function getCsharpTypeForNode(
       return typeReferenceType;
     }
   }
+  const selectedTargetCallType = getCsharpTypeFromSelectedTargetCall(node, input, diagnostics);
+  if (selectedTargetCallType !== undefined) {
+    return selectedTargetCallType;
+  }
   if (input.ast.kindName(node) === KindNewExpression) {
     const newExpressionType = getCsharpTypeFromNewExpressionSyntax(node, sourceFile, input, diagnostics);
     if (newExpressionType !== undefined) {
       return newExpressionType;
     }
   }
-  const selectedTargetCallType = getCsharpTypeFromSelectedTargetCall(node, input, diagnostics);
-  if (selectedTargetCallType !== undefined) {
-    return selectedTargetCallType;
+  if (input.ast.kindName(node) === KindTypeLiteral) {
+    const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
+    const objectShapeType = objectShape === undefined
+      ? undefined
+      : csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, node);
+    if (objectShapeType !== undefined) {
+      return objectShapeType;
+    }
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
+    return invalidType("structural object type");
   }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (nodeCarrierType !== undefined) {
@@ -155,17 +168,6 @@ export function getCsharpTypeForNode(
   if (input.ast.kindName(node) === KindObjectKeyword) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; TypeScript object is a broad structural carrier and cannot be emitted without provider facts."));
     return invalidType("object keyword type");
-  }
-  if (input.ast.kindName(node) === KindTypeLiteral) {
-    const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
-    const objectShapeType = objectShape === undefined
-      ? undefined
-      : csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, node);
-    if (objectShapeType !== undefined) {
-      return objectShapeType;
-    }
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
-    return invalidType("structural object type");
   }
   if (input.ast.kindName(node) === KindUnionType) {
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
@@ -181,7 +183,7 @@ export function getCsharpTypeForNode(
       return csharpType;
     }
   }
-  const nodeRuntimeCarrier = input.semantics.getRuntimeCarrierForNode(node, { sourceFile });
+  const nodeRuntimeCarrier = getTargetTypeRefForNode(input, node, sourceFile);
   if (nodeRuntimeCarrier !== undefined) {
     const csharpType = csharpTypeFromTargetTypeRef(nodeRuntimeCarrier);
     if (csharpType !== undefined) {
@@ -197,7 +199,7 @@ export function getCsharpTypeForNode(
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned target type reference requires a renderable target identity before C# emission."));
     return invalidType("provider target binding");
   }
-  const sourceType = input.semantics.getTypeAtLocation(node, { sourceFile });
+  const sourceType = getSemanticTypeForNode(input, node, sourceFile);
   if (sourceTypeHasProviderEvidence(sourceType, input)) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned semantic type requires finalized provider runtime-carrier or target-binding facts before C# emission."));
     return invalidType("provider semantic type");
@@ -240,6 +242,10 @@ function getCsharpTypeFromTstsSourceType(
   if (input.types.isBigIntLike(type)) {
     return csharpTypeFromTargetTypeRef({ kind: "target-named", id: "System.Numerics.BigInteger" });
   }
+  const targetRef = getTargetTypeRefForType(input, type, sourceFile);
+  if (targetRef !== undefined) {
+    return csharpTypeFromTargetTypeRef(targetRef);
+  }
   if (input.types.isTuple(type)) {
     const elements = input.types.getTupleElementTypes(type, { sourceFile })
       .map((element) => getCsharpTypeFromTstsSourceType(element, sourceFile, input, diagnostics, diagnosticNode));
@@ -248,7 +254,9 @@ function getCsharpTypeFromTstsSourceType(
       : { kind: "TupleType", elements: elements as readonly CsharpTypeNode[] };
   }
   if (input.types.isArrayLike(type, { sourceFile })) {
-    const elementType = input.types.getTypeArguments(type, { sourceFile })[0];
+    const elementType = input.types.isTypeReference(type)
+      ? input.types.getTypeArguments(type, { sourceFile })[0]
+      : undefined;
     const element = getCsharpTypeFromTstsSourceType(elementType, sourceFile, input, diagnostics, diagnosticNode);
     return element === undefined ? undefined : { kind: "ArrayType", elementType: element };
   }
@@ -295,17 +303,28 @@ function getCsharpTypeFromTypeReferenceSyntax(
   if (typeName === undefined) {
     return undefined;
   }
-  const targetBinding = input.semantics.getTargetBindingForReference(typeName, { sourceFile }) ??
-    input.semantics.getTargetBindingForReference(node, { sourceFile });
-  const carrier = input.semantics.getRuntimeCarrierForNode(typeName, { sourceFile }) ??
-    input.semantics.getRuntimeCarrierForNode(node, { sourceFile });
+  const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
+  const carrier = getTargetTypeRefForNode(input, node, sourceFile) ??
+    getTargetTypeRefForType(input, input.semantics.getTypeFromTypeNode(node, { sourceFile }), sourceFile);
   const typeArgumentNodes = (reference?.TypeArguments?.Nodes ?? [])
     .filter((argument): argument is Node => argument !== undefined);
-  if (carrier !== undefined && (typeArgumentNodes.length === 0 || (carrier.kind === "target-named" && (carrier.typeArguments ?? []).length > 0))) {
+  if (carrier !== undefined && (typeArgumentNodes.length === 0 || hasTargetTypeArguments(carrier))) {
     const csharpType = csharpTypeFromTargetTypeRef(carrier);
     if (csharpType !== undefined) {
       return csharpType;
     }
+  }
+  const projectSourceName = getProjectSourceReferenceTypeName(
+    input.semantics.getProjectSourceReferenceForNode(typeName, { sourceFile }),
+    input,
+  );
+  if (projectSourceName !== undefined) {
+    const typeArguments = typeArgumentNodes.map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("missing type argument"), diagnostics));
+    return {
+      kind: "IdentifierName",
+      name: sanitizeIdentifier(projectSourceName),
+      ...(typeArguments.length > 0 ? { typeArguments } : {}),
+    };
   }
   if (targetBinding === undefined) {
     return undefined;
@@ -326,6 +345,17 @@ function getCsharpTypeFromTypeReferenceSyntax(
   return csharpType.kind === "IdentifierName" || csharpType.kind === "QualifiedName"
     ? { ...csharpType, typeArguments }
     : csharpType;
+}
+
+function hasTargetTypeArguments(type: TargetTypeRef): boolean {
+  if (type.kind === "target-named") {
+    return (type.typeArguments ?? []).length > 0;
+  }
+  if (type.kind !== "target-specific" || typeof type.value !== "object" || type.value === null) {
+    return false;
+  }
+  const value = type.value as { readonly typeArguments?: unknown };
+  return Array.isArray(value.typeArguments) && value.typeArguments.length > 0;
 }
 
 function getCsharpTypeFromNewExpressionSyntax(
@@ -425,7 +455,7 @@ function getCsharpTypeForUnionTypeNode(
       return carrier;
     }
   }
-  const semanticRuntimeCarrier = input.semantics.getRuntimeCarrierForNode(node, { sourceFile });
+  const semanticRuntimeCarrier = getTargetTypeRefForNode(input, node, sourceFile);
   if (semanticRuntimeCarrier !== undefined) {
     const carrier = csharpTypeFromTargetTypeRef(semanticRuntimeCarrier);
     if (carrier !== undefined) {
@@ -437,6 +467,20 @@ function getCsharpTypeForUnionTypeNode(
 }
 
 function getCsharpTypeFromRuntimeCarrier(subject: Node, input: TargetCompileInput): CsharpTypeNode | undefined {
-  const carrier = input.facts.getRuntimeCarrierFact(subject)?.carrier;
+  const sourceFile = input.ast.getSourceFile(subject);
+  if (sourceFile === undefined) {
+    return undefined;
+  }
+  const carrier = getTargetTypeRefForNode(input, subject, sourceFile);
   return carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+}
+
+function getSemanticTypeForNode(
+  input: TargetCompileInput,
+  node: Node,
+  sourceFile: SourceFile,
+): Type | undefined {
+  return IsTypeSyntaxNode(input.ast, node)
+    ? input.semantics.getTypeFromTypeNode(node, { sourceFile })
+    : input.semantics.getTypeAtLocation(node, { sourceFile });
 }

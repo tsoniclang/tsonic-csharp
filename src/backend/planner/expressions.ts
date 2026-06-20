@@ -34,6 +34,7 @@ import {
   KindAsExpression,
   KindBlock,
   KindCallExpression,
+  KindClassDeclaration,
   KindArrayLiteralExpression,
   KindAwaitExpression,
   KindConditionalExpression,
@@ -74,20 +75,23 @@ import {
   SourceFile_FileName,
   HasSyntacticModifier,
   HasSourceKind,
+  IsTypeSyntaxNode,
   ModifierFlagsAsync,
   SourceKind,
   SourceTokenKind,
 } from "./source-ast.js";
-import type { ArgumentPassingFact, Node, SourceFile, TargetMember, TargetOperationFact, TargetTypeRef } from "@tsonic/tsts";
+import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
+import { canonicalIdentityFactKey } from "@tsonic/tsts";
+import type { ArgumentPassingFact, Node, SourceFile, Symbol, TargetMember, TargetOperationFact, TargetTypeRef, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../roslyn/syntax.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
-import { expressionToCsharpType, getCsharpTypeForNode, sameCsharpType } from "./csharp-types.js";
+import { expressionToCsharpType, getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
-import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
+import { getRuntimeCarrierForExpression, getTargetTypeRefForNode, getTargetTypeRefForType } from "./runtime-carriers.js";
 import {
   getCallableSemanticOwnership,
   getProviderOperationOwnership,
@@ -100,7 +104,8 @@ import { planBlockStatements } from "./statements.js";
 import { sourceFileClassName } from "./source-paths.js";
 import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
-import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
+import { csharpLangModule, csharpTypesModule } from "../../source/csharp-source-semantics.js";
+import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../source/csharp-facts.js";
 
 type TargetConversion = NonNullable<ReturnType<TargetCompileInput["facts"]["getTargetConversionFact"]>>;
 
@@ -237,17 +242,31 @@ function planExpressionCore(
       }
       if (selectedTargetCall === undefined) {
         const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
-        if (ownership.requiresTargetFact || !ownership.sourceOwned) {
-          pushMissingTargetFactDiagnostic(diagnostics, node, "C# construction emission requires a source-owned constructor or a selected target constructor fact.", ownership);
+        const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
+        const sourceConstructible = isProjectSourceClassReference(expression.Expression, sourceFile, input) ||
+          isSourceOwnedProjectConstructibleObjectSubject(expression.Expression, sourceFile, input) ||
+          isProjectSourceTypeRef(expressionCarrier);
+        if (!sourceConstructible) {
+          pushMissingTargetFactDiagnostic(diagnostics, node, "C# construction emission requires a source-owned constructor or a selected target constructor fact.", {
+            requiresTargetFact: true,
+            sourceOwned: false,
+            reasons: ownership.sourceOwned && ownership.reasons.length === 0 ? ["non-project constructor"] : ownership.reasons,
+          });
           return invalidExpression("missing target constructor fact");
         }
       }
       const member = selectedTargetCall === undefined
         ? undefined
         : instantiateSelectedTargetMember(node, expression.Expression, selectedTargetCall.member, sourceFile, input);
-      const selectedConstructorType = selectedTargetCall?.member.returnType === undefined
+      const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
+      const selectedConstructorTypeRef = member?.returnType ??
+        expressionCarrier ??
+        member?.declaringType ??
+        selectedTargetCall?.member.returnType ??
+        selectedTargetCall?.member.declaringType;
+      const selectedConstructorType = selectedConstructorTypeRef === undefined
         ? undefined
-        : csharpTypeFromTargetTypeRef(member?.returnType ?? selectedTargetCall.member.returnType);
+        : csharpTypeFromTargetTypeRef(selectedConstructorTypeRef);
       return {
         kind: "ObjectCreationExpression",
         type: selectedConstructorType ?? getCsharpTypeForNode(node, sourceFile, input, undefined, diagnostics),
@@ -318,6 +337,26 @@ function planExpressionCore(
       return invalidExpression("unsupported expression");
     }
   }
+}
+
+function isProjectSourceTypeRef(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-specific" &&
+    type.target === "csharp" &&
+    type.name === "project-source-type";
+}
+
+function isProjectSourceClassReference(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
+  if (node === undefined) {
+    return false;
+  }
+  const reference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile });
+  if (reference === undefined || input.facts.getTargetBindingFact(reference.symbol) !== undefined) {
+    return false;
+  }
+  const fileName = input.ast.getFileName(reference.sourceFile);
+  return !reference.sourceFile.IsDeclarationFile &&
+    !fileName.startsWith("tsts-provider://") &&
+    input.ast.kindName(reference.declaration) === KindClassDeclaration;
 }
 
 function applyTargetConversionFact(
@@ -437,9 +476,21 @@ function planIdentifierExpression(
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return invalidExpression("declaration identifier expression");
   }
-  const directTargetBinding = input.facts.getTargetBindingFact(input.semantics.getSymbolAtLocation(identifier, { sourceFile })) ??
-    input.facts.getTargetBindingFact(input.semantics.getResolvedSymbol(identifier, { sourceFile }));
-  if (directTargetBinding !== undefined) {
+  const referenceTargetBinding = input.semantics.getTargetBindingForReference(identifier, { sourceFile });
+  if (referenceTargetBinding !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
+    return invalidExpression("provider-owned identifier expression");
+  }
+  const directSymbol = input.semantics.getSymbolAtLocation(identifier, { sourceFile });
+  const resolvedSymbol = input.semantics.getResolvedSymbol(identifier, { sourceFile });
+  const directTargetBinding = input.facts.getTargetBindingFact(directSymbol) ??
+    input.facts.getTargetBindingFact(resolvedSymbol);
+  if (
+    directTargetBinding !== undefined ||
+    isProviderOwnedImportIdentity(directSymbol, input) ||
+    isProviderOwnedImportIdentity(resolvedSymbol, input) ||
+    isProviderVirtualDeclarationIdentifier(identifier, sourceFile, input)
+  ) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return invalidExpression("provider-owned identifier expression");
   }
@@ -448,6 +499,53 @@ function planIdentifierExpression(
     return sourceModuleMemberReference;
   }
   return { kind: "IdentifierName", name: sanitizeIdentifier(sourceName) };
+}
+
+function isProviderVirtualDeclarationIdentifier(
+  identifier: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  const symbols = [
+    input.semantics.getSymbolAtLocation(identifier, { sourceFile }),
+    input.semantics.getResolvedSymbol(identifier, { sourceFile }),
+  ];
+  return symbols.some((symbol) => {
+    if (symbol === undefined) {
+      return false;
+    }
+    if (input.facts.getTargetBindingFact(symbol) !== undefined) {
+      return true;
+    }
+    const declarations = getSymbolDeclarations(symbol);
+    return declarations.some((declaration) =>
+      input.facts.getFact(declaration, providerVirtualDeclarationFactKey) !== undefined ||
+      isProviderVirtualSourceFile(input.ast.getSourceFile(declaration)));
+  });
+}
+
+function isProviderOwnedImportIdentity(subject: object | undefined, input: TargetCompileInput): boolean {
+  const identity = input.facts.getFact(subject, canonicalIdentityFactKey);
+  if (identity === undefined || identity.importKind === "type") {
+    return false;
+  }
+  const moduleId = identity.subpath ?? identity.id;
+  return moduleId === csharpLangModule ||
+    moduleId === csharpTypesModule ||
+    moduleId.startsWith("@tsonic/csharp/") ||
+    moduleId.startsWith("@tsonic/dotnet/");
+}
+
+function getSymbolDeclarations(symbol: unknown): readonly Node[] {
+  return (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
+    ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined
+      ? []
+      : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
+}
+
+function isProviderVirtualSourceFile(sourceFile: SourceFile | undefined): boolean {
+  return sourceFile !== undefined &&
+    (sourceFile.IsDeclarationFile || SourceFile_FileName(sourceFile).startsWith("tsts-provider://"));
 }
 
 function planSelectedTargetReceiverExpression(
@@ -473,7 +571,10 @@ function isExternalDeclarationReference(
 ): boolean {
   return reference !== undefined &&
     reference.sourceFile !== sourceFile &&
-    (reference.sourceFile.IsDeclarationFile || SourceFile_FileName(reference.sourceFile).startsWith("tsts-provider://"));
+    (reference.sourceFile.IsDeclarationFile ||
+      SourceFile_FileName(reference.sourceFile).startsWith("tsts-provider://") ||
+      SourceFile_FileName(reference.sourceFile).includes("/node_modules/") ||
+      SourceFile_FileName(reference.sourceFile).endsWith(".d.ts"));
 }
 
 function isModuleStaticValueDeclaration(declaration: Node, input: TargetCompileInput): boolean {
@@ -684,12 +785,16 @@ function instantiateSelectedTargetMember(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): TargetMember {
+  const explicitTypeArgumentMap = getExplicitSelectedTargetTypeArgumentMap(operationNode, sourceFile, input);
+  if (explicitTypeArgumentMap.size > 0) {
+    return substituteTargetMemberTypeParameters(member, explicitTypeArgumentMap);
+  }
   const propertyAccess = HasSourceKind(input.ast, callee, KindPropertyAccessExpression)
     ? AsPropertyAccessExpression(callee)
     : undefined;
   const typeSubject = propertyAccess?.Expression ?? operationNode;
   const bindingSubject = propertyAccess?.Expression ?? callee ?? operationNode;
-  const carrier = input.semantics.getRuntimeCarrierForNode(typeSubject, { sourceFile });
+  const carrier = getTargetTypeRefForNode(input, typeSubject, sourceFile);
   if (carrier?.kind !== "target-named" || (carrier.typeArguments ?? []).length === 0) {
     return member;
   }
@@ -710,6 +815,46 @@ function instantiateSelectedTargetMember(
     return member;
   }
   return substituteTargetMemberTypeParameters(member, typeArgumentMap);
+}
+
+function getExplicitSelectedTargetTypeArgumentMap(
+  operationNode: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): ReadonlyMap<string, TargetTypeRef> {
+  const newExpression = HasSourceKind(input.ast, operationNode, KindNewExpression)
+    ? AsNewExpression(operationNode)
+    : undefined;
+  if (newExpression?.Expression === undefined) {
+    return new Map();
+  }
+  const binding = input.semantics.getTargetBindingForReference(newExpression.Expression, { sourceFile });
+  const typeParameters = binding?.typeParameters ?? [];
+  if (typeParameters.length === 0) {
+    return new Map();
+  }
+  const typeArguments = (newExpression.TypeArguments?.Nodes ?? [])
+    .filter((argument): argument is Node => argument !== undefined)
+    .map((argument) => getTargetTypeRefForNode(input, argument, sourceFile));
+  if (typeArguments.length === 0 || typeArguments.some((argument) => argument === undefined)) {
+    return new Map();
+  }
+  return buildTargetTypeArgumentMap(typeParameters, typeArguments as readonly TargetTypeRef[]);
+}
+
+function buildTargetTypeArgumentMap(
+  typeParameters: readonly { readonly name: string }[],
+  typeArguments: readonly TargetTypeRef[],
+): ReadonlyMap<string, TargetTypeRef> {
+  const typeArgumentMap = new Map<string, TargetTypeRef>();
+  for (let index = 0; index < typeParameters.length; index += 1) {
+    const parameter = typeParameters[index];
+    const argument = typeArguments[index];
+    if (parameter !== undefined && argument !== undefined) {
+      typeArgumentMap.set(parameter.name, argument);
+    }
+  }
+  return typeArgumentMap;
 }
 
 function substituteTargetMemberTypeParameters(
@@ -822,7 +967,7 @@ function planArrowFunctionExpression(
   expectedType?: CsharpTypeNode,
 ): CsharpExpression {
   const expression = AsArrowFunction(node)!;
-  diagnoseMissingLambdaTargetContext(node, input, diagnostics, expectedType);
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
   if (HasSourceKind(input.ast, expression.Body, KindBlock)) {
     return {
       kind: "LambdaExpression",
@@ -850,7 +995,7 @@ function planFunctionExpression(
   expectedType?: CsharpTypeNode,
 ): CsharpExpression {
   const expression = AsFunctionExpression(node)!;
-  diagnoseMissingLambdaTargetContext(node, input, diagnostics, expectedType);
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
@@ -893,6 +1038,7 @@ function planLambdaParameters(
 
 function diagnoseMissingLambdaTargetContext(
   node: Node,
+  sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
@@ -900,7 +1046,8 @@ function diagnoseMissingLambdaTargetContext(
   if (expectedType !== undefined && isCsharpDelegateType(expectedType)) {
     return;
   }
-  if (input.facts.getContextualTargetTypeFact(node)?.targetType !== undefined) {
+  const contextualType = getContextualTargetCsharpType(node, sourceFile, input);
+  if (contextualType !== undefined && isCsharpDelegateType(contextualType)) {
     return;
   }
   diagnostics.push(unsupportedNodeDiagnostic(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."));
@@ -943,16 +1090,16 @@ function planCallArgumentExpression(
   if (conversion?.operation !== undefined) {
     return planExpression(node, sourceFile, input, diagnostics);
   }
+  if (expectedType !== undefined) {
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType);
+  }
   if (conversion?.convertedType !== undefined) {
-    const expectedType = csharpTypeFromTargetTypeRef(conversion.convertedType);
-    if (expectedType === undefined) {
+    const convertedType = csharpTypeFromTargetTypeRef(conversion.convertedType);
+    if (convertedType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion requires a renderable target type before C# emission."));
       return invalidExpression("target argument conversion type");
     }
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType);
-  }
-  if (expectedType !== undefined) {
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType);
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, convertedType);
   }
   return planExpression(node, sourceFile, input, diagnostics);
 }
@@ -1060,23 +1207,25 @@ function planObjectLiteralExpressionWithExpectedType(
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,
 ): CsharpExpression {
+  if (isSourceOwnedObjectInitializerType(expectedType, expectedTypeSubject, sourceFile, input)) {
+    const memberShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input) ??
+      getSourceOwnedObjectInitializerMemberShape(expectedTypeSubject, sourceFile, input);
+    const literal = AsObjectLiteralExpression(node)!;
+    const assignments = mergeObjectInitializerAssignments((literal.Properties?.Nodes ?? [])
+      .filter((property): property is Node => property !== undefined)
+      .flatMap((property) => planObjectLiteralAssignment(property, memberShape, sourceFile, input, diagnostics)));
+    return {
+      kind: "ObjectCreationExpression",
+      type: expectedType,
+      assignments,
+    };
+  }
   const objectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input);
   if (objectShape !== undefined) {
     return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape);
   }
-  if (!isSourceOwnedObjectInitializerType(expectedType, expectedTypeSubject, sourceFile, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires a source-owned expected type or finalized TSTS/provider object-shape facts before C# emission."));
-    return invalidExpression("object literal without finalized object-shape facts");
-  }
-  const literal = AsObjectLiteralExpression(node)!;
-  const assignments = mergeObjectInitializerAssignments((literal.Properties?.Nodes ?? [])
-    .filter((property): property is Node => property !== undefined)
-    .flatMap((property) => planObjectLiteralAssignment(property, sourceFile, input, diagnostics)));
-  return {
-    kind: "ObjectCreationExpression",
-    type: expectedType,
-    assignments,
-  };
+  diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires a source-owned expected type or finalized TSTS/provider object-shape facts before C# emission."));
+  return invalidExpression("object literal without finalized object-shape facts");
 }
 
 function getExpectedObjectShapeFact(
@@ -1259,7 +1408,7 @@ function planObjectLiteralMethodAsLambda(
   expectedType: CsharpTypeNode,
 ): CsharpExpression {
   const method = AsMethodDeclaration(methodNode);
-  diagnoseMissingLambdaTargetContext(methodNode, input, diagnostics, expectedType);
+  diagnoseMissingLambdaTargetContext(methodNode, sourceFile, input, diagnostics, expectedType);
   if (method === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method-declaration AST node."));
     return invalidExpression("object literal method without method declaration");
@@ -1304,6 +1453,7 @@ function isSourceOwnedObjectInitializerType(
 
 function planObjectLiteralAssignment(
   property: Node,
+  memberShape: CsharpObjectShapeFact | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -1318,10 +1468,13 @@ function planObjectLiteralAssignment(
         }
         return [];
       }
+      const memberType = getObjectLiteralMemberType(memberShape, name);
       return [{
         kind: "AssignmentExpression",
         name,
-        expression: planExpression(propertyAssignment.Initializer, sourceFile, input, diagnostics),
+        expression: memberType === undefined
+          ? planExpression(propertyAssignment.Initializer, sourceFile, input, diagnostics)
+          : planExpressionWithExpectedType(propertyAssignment.Initializer, sourceFile, input, diagnostics, memberType),
       }];
     }
     case KindShorthandPropertyAssignment: {
@@ -1335,14 +1488,17 @@ function planObjectLiteralAssignment(
       if (name === undefined || nameNode === undefined) {
         return [];
       }
+      const memberType = getObjectLiteralMemberType(memberShape, name);
       return [{
         kind: "AssignmentExpression",
         name,
-        expression: planExpression(nameNode, sourceFile, input, diagnostics),
+        expression: memberType === undefined
+          ? planExpression(nameNode, sourceFile, input, diagnostics)
+          : planExpressionWithExpectedType(nameNode, sourceFile, input, diagnostics, memberType),
       }];
     }
     case KindMethodDeclaration: {
-      const assignment = planSourceOwnedMethodMemberAssignment(property, sourceFile, input, diagnostics);
+      const assignment = planSourceOwnedMethodMemberAssignment(property, memberShape, sourceFile, input, diagnostics);
       return assignment === undefined ? [] : [assignment];
     }
     case KindSpreadAssignment:
@@ -1352,6 +1508,91 @@ function planObjectLiteralAssignment(
       diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal member is outside the current C# planning surface."));
       return [];
   }
+}
+
+function getObjectLiteralMemberType(memberShape: CsharpObjectShapeFact | undefined, sourceName: string): CsharpTypeNode | undefined {
+  const member = memberShape?.members.find((candidate) => candidate.sourceName === sourceName);
+  return member === undefined ? undefined : csharpTypeFromTargetTypeRef(member.type);
+}
+
+function getSourceOwnedObjectInitializerMemberShape(
+  expectedTypeSubject: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpObjectShapeFact | undefined {
+  if (expectedTypeSubject === undefined) {
+    return undefined;
+  }
+  const type = IsTypeSyntaxNode(input.ast, expectedTypeSubject)
+    ? input.semantics.getTypeFromTypeNode(expectedTypeSubject, { sourceFile })
+    : input.semantics.getTypeAtLocation(expectedTypeSubject, { sourceFile });
+  if (type === undefined || input.types.isAny(type) || input.types.isUnknown(type)) {
+    return undefined;
+  }
+  const targetType = getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile);
+  if (targetType === undefined) {
+    return undefined;
+  }
+  const properties = input.types.getProperties(type, { sourceFile })
+    .filter((property): property is Symbol => property !== undefined);
+  if (properties.length === 0) {
+    return undefined;
+  }
+  const members = properties
+    .map((property) => getSourceOwnedObjectInitializerMember(type, property, sourceFile, input))
+    .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
+  return members.length === properties.length
+    ? { targetType, members }
+    : undefined;
+}
+
+function getSourceOwnedObjectInitializerMember(
+  ownerType: Type,
+  property: Symbol,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpObjectShapeMemberFact | undefined {
+  const sourceName = property.Name;
+  if (sourceName.length === 0) {
+    return undefined;
+  }
+  const propertyType = input.types.getPropertyType(ownerType, sourceName, { sourceFile });
+  const signatures = input.types.getCallSignatures(propertyType, { sourceFile });
+  const memberKind = signatures.length > 0 ? "method" : "property";
+  const type = memberKind === "method"
+    ? getFunctionTargetTypeRefFromSignature(signatures[0], sourceFile, input)
+    : getTargetTypeRefForType(input, propertyType, sourceFile);
+  return type === undefined
+    ? undefined
+    : {
+        sourceName,
+        targetName: sanitizeIdentifier(sourceName),
+        memberKind,
+        type,
+      };
+}
+
+function getFunctionTargetTypeRefFromSignature(
+  signature: Parameters<TargetCompileInput["types"]["getReturnTypeOfSignature"]>[0],
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): TargetTypeRef | undefined {
+  if (signature === undefined) {
+    return undefined;
+  }
+  const parameters = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
+    .map((parameter) => getTargetTypeRefForType(input, input.semantics.getTypeOfSymbol(parameter, { sourceFile }), sourceFile));
+  if (parameters.some((parameter) => parameter === undefined)) {
+    return undefined;
+  }
+  const returnType = getTargetTypeRefForType(input, input.types.getReturnTypeOfSignature(signature, { sourceFile }), sourceFile);
+  return returnType === undefined || isVoidTargetType(returnType)
+    ? { kind: "target-named", id: `System.Action\`${parameters.length}`, typeArguments: parameters as readonly TargetTypeRef[] }
+    : { kind: "target-named", id: `System.Func\`${parameters.length + 1}`, typeArguments: [...(parameters as readonly TargetTypeRef[]), returnType] };
+}
+
+function isVoidTargetType(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && type.id === "System.Void";
 }
 
 function mergeObjectInitializerAssignments(assignments: readonly CsharpObjectInitializerAssignment[]): readonly CsharpObjectInitializerAssignment[] {
@@ -1368,6 +1609,7 @@ function objectShapeMemberTypesMatch(left: CsharpObjectShapeFact["members"][numb
 
 function planSourceOwnedMethodMemberAssignment(
   methodNode: Node,
+  memberShape: CsharpObjectShapeFact | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -1376,7 +1618,8 @@ function planSourceOwnedMethodMemberAssignment(
   if (name === undefined) {
     return undefined;
   }
-  const memberType = getContextualTargetCsharpType(methodNode, input);
+  const memberType = getObjectLiteralMemberType(memberShape, name) ??
+    getContextualTargetCsharpType(methodNode, sourceFile, input);
   if (memberType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Source-owned object literal method requires a contextual target delegate fact from TSTS before C# emission."));
     return undefined;
@@ -1394,10 +1637,56 @@ function planSourceOwnedMethodMemberAssignment(
 
 function getContextualTargetCsharpType(
   node: Node,
+  sourceFile: SourceFile,
   input: TargetCompileInput,
 ): CsharpTypeNode | undefined {
-  const targetType = input.facts.getContextualTargetTypeFact(node)?.targetType;
+  const fact = input.facts.getContextualTargetTypeFact(node);
+  const targetType = fact?.targetType ?? getContextualTargetRefFromSubject(fact?.type, sourceFile, input);
   return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+}
+
+function getContextualTargetRefFromSubject(
+  subject: unknown,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): TargetTypeRef | undefined {
+  const targetRef = asTargetTypeRef(subject);
+  if (targetRef !== undefined) {
+    return targetRef;
+  }
+  const type = asSemanticType(subject);
+  if (type !== undefined) {
+    return getTargetTypeRefForType(input, type, sourceFile);
+  }
+  return isNode(subject)
+    ? getTargetTypeRefForNode(input, subject, sourceFile)
+    : undefined;
+}
+
+function asSemanticType(subject: unknown): Type | undefined {
+  return typeof subject === "object" && subject !== null && "flags" in subject ? subject as Type : undefined;
+}
+
+function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
+  if (typeof subject !== "object" || subject === null) {
+    return undefined;
+  }
+  switch ((subject as { readonly kind?: unknown }).kind) {
+    case "source-primitive":
+    case "target-named":
+    case "type-parameter":
+    case "array":
+    case "tuple":
+    case "pointer":
+    case "function-pointer":
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
+    case "target-specific":
+      return subject as TargetTypeRef;
+    default:
+      return undefined;
+  }
 }
 
 function getSourceOwnedObjectInitializerMemberName(
@@ -1405,7 +1694,7 @@ function getSourceOwnedObjectInitializerMemberName(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
-  const nameNode = Node_Name(property);
+  const nameNode = input.ast.name(property) ?? Node_Name(property);
   if (nameNode === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(property, "Source-owned object initializers require a property name."));
     return undefined;
@@ -1431,7 +1720,7 @@ function getObjectLiteralPropertySourceName(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
-  const nameNode = Node_Name(property);
+  const nameNode = input.ast.name(property) ?? Node_Name(property);
   if (nameNode === undefined || (!HasSourceKind(input.ast, nameNode, KindIdentifier) && !HasSourceKind(input.ast, nameNode, KindStringLiteral))) {
     diagnostics.push(unsupportedNodeDiagnostic(nameNode ?? property, "Object-shape object initializers require identifier or string-literal property names."));
     return undefined;
@@ -1629,7 +1918,7 @@ function createArraySpreadChunks(
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       continue;
     }
-    const spreadCarrier = input.semantics.getRuntimeCarrierForNode(expression, { sourceFile });
+    const spreadCarrier = getTargetTypeRefForNode(input, expression, sourceFile);
     const spreadType = spreadCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(spreadCarrier);
     if (spreadType === undefined || !sameCsharpType(spreadType, expectedArrayType)) {
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a finalized provider array carrier matching the target array element type before C# emission."));
@@ -1678,6 +1967,8 @@ function tryPlanBinaryExpression(
     return invalidExpression("selected target operator");
   }
   const expression = AsBinaryExpression(node)!;
+  const left = getBinaryLeft(expression);
+  const right = getBinaryRight(expression);
   const typeTest = tryPlanTypeTestExpression(expression, selectedOperator, sourceFile, input, diagnostics);
   if (typeTest !== undefined) {
     return typeTest;
@@ -1688,18 +1979,33 @@ function tryPlanBinaryExpression(
   }
   const operator = selectedOperator?.targetOperation ?? getSourceOwnedBinaryOperator(expression, sourceFile, input);
   if (operator === undefined) {
-    const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
-    const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
+    const leftOwnership = getProviderOperationOwnership(left, sourceFile, input);
+    const rightOwnership = getProviderOperationOwnership(right, sourceFile, input);
     const ownership = combineOwnership(leftOwnership, rightOwnership);
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a selected provider operator fact.", ownership);
     return invalidExpression("missing target operator fact");
   }
   return {
     kind: "BinaryExpression",
-    left: planExpression(expression.Left!, sourceFile, input, diagnostics),
+    left: planExpression(left!, sourceFile, input, diagnostics),
     operator,
-    right: planExpression(expression.Right!, sourceFile, input, diagnostics),
+    right: planExpression(right!, sourceFile, input, diagnostics),
   };
+}
+
+function getBinaryLeft(expression: NonNullable<ReturnType<typeof AsBinaryExpression>>): Node | undefined {
+  return expression.Left ?? (expression as { readonly left?: Node }).left;
+}
+
+function getBinaryRight(expression: NonNullable<ReturnType<typeof AsBinaryExpression>>): Node | undefined {
+  return expression.Right ?? (expression as { readonly right?: Node }).right;
+}
+
+function getBinaryOperatorToken(expression: NonNullable<ReturnType<typeof AsBinaryExpression>>): unknown {
+  return expression.OperatorToken?.Kind ??
+    (expression as { readonly operatorToken?: { readonly Kind?: unknown } | unknown }).operatorToken ??
+    (expression as { readonly Operator?: unknown; readonly operator?: unknown }).Operator ??
+    (expression as { readonly operator?: unknown }).operator;
 }
 
 function planTypeofExpression(
@@ -1752,14 +2058,16 @@ function tryPlanTypeTestExpression(
   if (selectedOperator?.operationKind !== "operator" || selectedOperator.targetOperation !== "is") {
     return undefined;
   }
-  if (expression.Left === undefined || expression.Right === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(expression.Left!, "Provider selected a type-test operation, but the expression is missing an operand."));
+  const left = getBinaryLeft(expression);
+  const right = getBinaryRight(expression);
+  if (left === undefined || right === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(expression, "Provider selected a type-test operation, but the expression is missing an operand."));
     return invalidExpression("selected type-test without operands");
   }
   return {
     kind: "IsPatternExpression",
-    expression: planExpression(expression.Left, sourceFile, input, diagnostics),
-    type: expressionToCsharpType(expression.Right, sourceFile, input, diagnostics),
+    expression: planExpression(left, sourceFile, input, diagnostics),
+    type: expressionToCsharpType(right, sourceFile, input, diagnostics),
   };
 }
 
@@ -1771,27 +2079,55 @@ function tryPlanTypeofComparisonExpression(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   if (selectedOperator?.operationKind !== "operator" ||
-    (selectedOperator.targetOperation !== "typeof-is" && selectedOperator.targetOperation !== "typeof-is-not")) {
+    (!selectedOperator.targetOperation.startsWith("typeof-is:") && !selectedOperator.targetOperation.startsWith("typeof-is-not:"))) {
     return undefined;
   }
   const operand = getTypeofComparisonOperand(expression, _input);
   if (operand === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(expression.Left!, "Provider selected a typeof comparison operation, but the compared expression is not a typeof expression."));
+    diagnostics.push(unsupportedNodeDiagnostic(expression, "Provider selected a typeof comparison operation, but the compared expression is not a typeof expression."));
     return invalidExpression("selected typeof comparison without typeof operand");
   }
-  diagnostics.push(unsupportedNodeDiagnostic(operand, "Provider selected a typeof comparison operation, but the public TSTS observation API did not provide the target type required for C# emission."));
-  return invalidExpression("selected typeof comparison without target type");
+  const targetKind = selectedOperator.targetOperation.slice(selectedOperator.targetOperation.indexOf(":") + 1);
+  const targetType = getTypeofComparisonTargetType(targetKind);
+  if (targetType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(operand, `Provider selected unsupported typeof comparison target '${targetKind}'.`));
+    return invalidExpression("selected typeof comparison target");
+  }
+  const test: CsharpExpression = {
+    kind: "IsPatternExpression",
+    expression: planExpression(operand, _sourceFile, _input, diagnostics),
+    type: targetType,
+    ...(selectedOperator.targetOperation.startsWith("typeof-is-not:") ? { negated: true } : {}),
+  };
+  return test;
+}
+
+function getTypeofComparisonTargetType(kind: string): CsharpTypeNode | undefined {
+  switch (kind) {
+    case "string":
+      return predefined("string");
+    case "number":
+      return predefined("double");
+    case "boolean":
+      return predefined("bool");
+    case "bigint":
+      return csharpTypeFromTargetTypeRef({ kind: "target-named", id: "System.Numerics.BigInteger" });
+    default:
+      return undefined;
+  }
 }
 
 function getTypeofComparisonOperand(
   expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
   input: TargetCompileInput,
 ): Node | undefined {
-  if (HasSourceKind(input.ast, expression.Left, KindTypeOfExpression)) {
-    return Node_Expression(expression.Left);
+  const left = getBinaryLeft(expression);
+  const right = getBinaryRight(expression);
+  if (HasSourceKind(input.ast, left, KindTypeOfExpression)) {
+    return Node_Expression(left);
   }
-  if (HasSourceKind(input.ast, expression.Right, KindTypeOfExpression)) {
-    return Node_Expression(expression.Right);
+  if (HasSourceKind(input.ast, right, KindTypeOfExpression)) {
+    return Node_Expression(right);
   }
   return undefined;
 }
@@ -1839,14 +2175,27 @@ function getSourceOwnedBinaryOperator(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): string | undefined {
+  const tokenKind = SourceTokenKind(input.ast, getBinaryOperatorToken(expression));
+  const targetAssignment = getTargetOwnedAssignmentOperator(tokenKind, expression, sourceFile, input);
+  if (targetAssignment !== undefined) {
+    return targetAssignment;
+  }
+  const targetNullish = getTargetOwnedNullishOperator(tokenKind, expression, sourceFile, input);
+  if (targetNullish !== undefined) {
+    return targetNullish;
+  }
+  const targetEquality = getTargetOwnedEqualityOperator(tokenKind, expression, sourceFile, input);
+  if (targetEquality !== undefined) {
+    return targetEquality;
+  }
   const ownership = combineOwnership(
-    getProviderOperationOwnership(expression.Left, sourceFile, input),
-    getProviderOperationOwnership(expression.Right, sourceFile, input),
+    getProviderOperationOwnership(getBinaryLeft(expression), sourceFile, input),
+    getProviderOperationOwnership(getBinaryRight(expression), sourceFile, input),
   );
   if (!ownership.sourceOwned) {
     return undefined;
   }
-  switch (SourceTokenKind(input.ast, expression.OperatorToken?.Kind)) {
+  switch (tokenKind) {
     case "KindEqualsToken":
       return "=";
     case "KindPlusToken":
@@ -1890,6 +2239,70 @@ function getSourceOwnedBinaryOperator(
     default:
       return undefined;
   }
+}
+
+function getTargetOwnedAssignmentOperator(
+  tokenKind: string,
+  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): string | undefined {
+  if (tokenKind !== "KindEqualsToken") {
+    return undefined;
+  }
+  const leftNode = getBinaryLeft(expression);
+  const rightNode = getBinaryRight(expression);
+  const left = getTargetTypeRefForNode(input, leftNode, sourceFile);
+  const right = getTargetTypeRefForNode(input, rightNode, sourceFile);
+  if (left === undefined) {
+    return undefined;
+  }
+  if (isNullLiteral(rightNode, input)) {
+    return "=";
+  }
+  if (right === undefined) {
+    return undefined;
+  }
+  return targetTypeRefsMatch(left, right)
+    ? "="
+    : undefined;
+}
+
+function getTargetOwnedNullishOperator(
+  tokenKind: string,
+  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): string | undefined {
+  if (tokenKind !== "KindQuestionQuestionToken") {
+    return undefined;
+  }
+  const left = getTargetTypeRefForNode(input, getBinaryLeft(expression), sourceFile);
+  const right = getTargetTypeRefForNode(input, getBinaryRight(expression), sourceFile);
+  return left !== undefined && right !== undefined ? "??" : undefined;
+}
+
+function getTargetOwnedEqualityOperator(
+  tokenKind: string,
+  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): string | undefined {
+  const equality = tokenKind === "KindEqualsEqualsToken" || tokenKind === "KindEqualsEqualsEqualsToken";
+  const inequality = tokenKind === "KindExclamationEqualsToken" || tokenKind === "KindExclamationEqualsEqualsToken";
+  if (!equality && !inequality) {
+    return undefined;
+  }
+  const left = getTargetTypeRefForNode(input, getBinaryLeft(expression), sourceFile);
+  const right = getTargetTypeRefForNode(input, getBinaryRight(expression), sourceFile);
+  if (left === undefined || right === undefined || !targetTypeRefsMatch(left, right) || !isProjectSourceTypeRef(left)) {
+    return undefined;
+  }
+  return equality ? "==" : "!=";
+}
+
+function isNullLiteral(node: Node | undefined, input: TargetCompileInput): boolean {
+  return HasSourceKind(input.ast, node, KindNullKeyword);
 }
 
 function isNode(value: unknown): value is Node {

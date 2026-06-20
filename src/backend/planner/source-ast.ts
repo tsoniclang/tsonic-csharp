@@ -108,6 +108,7 @@ export const KindLabeledStatement: any = "KindLabeledStatement";
 export const KindMethodDeclaration: any = "KindMethodDeclaration";
 export const KindMethodSignature: any = "KindMethodSignature";
 export const KindNewExpression: any = "KindNewExpression";
+export const KindNeverKeyword: any = "KindNeverKeyword";
 export const KindNoSubstitutionTemplateLiteral: any = "KindNoSubstitutionTemplateLiteral";
 export const KindNonNullExpression: any = "KindNonNullExpression";
 export const KindNullKeyword: any = "KindNullKeyword";
@@ -185,6 +186,62 @@ export function HasSourceKind(ast: AstReader, node: Node | undefined, expected: 
   return ast.kindName(node) === expected;
 }
 
+export function IsTypeSyntaxNode(ast: AstReader, node: Node): boolean {
+  const kind = ast.kindName(node);
+  if (
+    kind === "KindAnyKeyword" ||
+    kind === "KindUnknownKeyword" ||
+    kind === "KindBooleanKeyword" ||
+    kind === "KindNumberKeyword" ||
+    kind === "KindStringKeyword" ||
+    kind === "KindBigIntKeyword" ||
+    kind === "KindVoidKeyword" ||
+    kind === "KindNeverKeyword" ||
+    kind === "KindObjectKeyword" ||
+    kind === "KindSymbolKeyword" ||
+    kind === "KindTypeReference" ||
+    kind === "KindUnionType" ||
+    kind === "KindIntersectionType" ||
+    kind === "KindArrayType" ||
+    kind === "KindTupleType" ||
+    kind === "KindTypeLiteral" ||
+    kind === "KindFunctionType" ||
+    kind === "KindConstructorType" ||
+    kind === "KindLiteralType" ||
+    kind === "KindIndexedAccessType" ||
+    kind === "KindConditionalType" ||
+    kind === "KindInferType" ||
+    kind === "KindMappedType" ||
+    kind === "KindOptionalType" ||
+    kind === "KindRestType" ||
+    kind === "KindParenthesizedType" ||
+    kind === "KindTemplateLiteralType" ||
+    kind === "KindImportType" ||
+    kind === "KindThisType"
+  ) {
+    return true;
+  }
+  return ast.is.IsKeywordTypeNode(node) ||
+    ast.is.IsTypeReferenceNode(node) ||
+    ast.is.IsUnionTypeNode(node) ||
+    ast.is.IsIntersectionTypeNode(node) ||
+    ast.is.IsConditionalTypeNode(node) ||
+    ast.is.IsInferTypeNode(node) ||
+    ast.is.IsArrayTypeNode(node) ||
+    ast.is.IsIndexedAccessTypeNode(node) ||
+    ast.is.IsLiteralTypeNode(node) ||
+    ast.is.IsThisTypeNode(node) ||
+    ast.is.IsMappedTypeNode(node) ||
+    ast.is.IsTupleTypeNode(node) ||
+    ast.is.IsOptionalTypeNode(node) ||
+    ast.is.IsRestTypeNode(node) ||
+    ast.is.IsParenthesizedTypeNode(node) ||
+    ast.is.IsFunctionTypeNode(node) ||
+    ast.is.IsConstructorTypeNode(node) ||
+    ast.is.IsTemplateLiteralTypeNode(node) ||
+    ast.is.IsImportTypeNode(node);
+}
+
 export function KindString(kind: unknown): string {
   return String(kind);
 }
@@ -205,6 +262,12 @@ const sourceTokenKindNames = new Map<number, string>([
   [44, "KindPercentToken"],
   [45, "KindPlusPlusToken"],
   [46, "KindMinusMinusToken"],
+  [47, "KindLessThanLessThanToken"],
+  [48, "KindGreaterThanGreaterThanToken"],
+  [49, "KindGreaterThanGreaterThanGreaterThanToken"],
+  [50, "KindAmpersandToken"],
+  [51, "KindBarToken"],
+  [52, "KindCaretToken"],
   [53, "KindExclamationToken"],
   [55, "KindAmpersandAmpersandToken"],
   [56, "KindBarBarToken"],
@@ -219,20 +282,26 @@ const sourceTokenKindNames = new Map<number, string>([
 ]);
 
 export function HasSyntacticModifier(node: Node, flag: number): boolean {
-  const modifierFlags = Number((node as { readonly ModifierFlags?: unknown }).ModifierFlags ?? 0);
+  const modifierFlags = Number(
+    (node as { readonly ModifierFlags?: unknown }).ModifierFlags ??
+      (node as { readonly modifiers?: { readonly ModifierFlags?: unknown } }).modifiers?.ModifierFlags ??
+      0,
+  );
   return (modifierFlags & flag) !== 0;
 }
 
 export function Node_Text(node: Node | undefined): string {
-  return String((node as { readonly Text?: unknown } | undefined)?.Text ?? "");
+  const text = (node as { readonly Text?: unknown; readonly text?: unknown } | undefined)?.Text ??
+    (node as { readonly text?: unknown } | undefined)?.text;
+  return typeof text === "function" ? "" : String(text ?? "");
 }
 
 export function Node_Name(node: Node | undefined): Node | undefined {
-  return (node as { readonly Name?: Node } | undefined)?.Name;
+  return nodeField(node, "Name", "name");
 }
 
 export function Node_Expression(node: Node | undefined): Node | undefined {
-  return (node as { readonly Expression?: Node } | undefined)?.Expression;
+  return nodeField(node, "Expression", "expression");
 }
 
 export function Node_Symbol(node: Node | undefined): object | undefined {
@@ -242,6 +311,22 @@ export function Node_Symbol(node: Node | undefined): object | undefined {
 export function SourceFile_FileName(sourceFile: SourceFile): string {
   const fileName = (sourceFile as { readonly FileName?: unknown }).FileName;
   return typeof fileName === "function" ? String(fileName()) : String(fileName ?? "");
+}
+
+function nodeField(node: Node | undefined, upperName: string, lowerName: string): Node | undefined {
+  const upperValue = (node as Record<string, unknown> | undefined)?.[upperName];
+  if (isAstNode(upperValue)) {
+    return upperValue;
+  }
+  const lowerValue = (node as Record<string, unknown> | undefined)?.[lowerName];
+  return isAstNode(lowerValue) ? lowerValue : undefined;
+}
+
+function isAstNode(value: unknown): value is Node {
+  const kind = (value as { readonly Kind?: unknown } | undefined)?.Kind;
+  return typeof value === "object" &&
+    value !== null &&
+    (typeof kind === "number" || typeof kind === "string");
 }
 
 export const AsArrayLiteralExpression = cast;

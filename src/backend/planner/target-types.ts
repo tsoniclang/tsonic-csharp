@@ -80,9 +80,36 @@ export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode
         ? undefined
         : { kind: "FunctionPointerType", parameters: parameters as readonly CsharpTypeNode[], returnType };
     }
+    case "target-specific":
+      return csharpTypeFromTargetSpecificRef(type);
     default:
       return undefined;
   }
+}
+
+function csharpTypeFromTargetSpecificRef(type: Extract<TargetTypeRef, { readonly kind: "target-specific" }>): CsharpTypeNode | undefined {
+  if (type.target !== "csharp" || type.name !== "project-source-type") {
+    return undefined;
+  }
+  if (typeof type.value === "string") {
+    return { kind: "IdentifierName", name: sanitizeIdentifier(type.value) };
+  }
+  if (typeof type.value !== "object" || type.value === null) {
+    return undefined;
+  }
+  const value = type.value as { readonly name?: unknown; readonly typeArguments?: unknown };
+  if (typeof value.name !== "string" || value.name.length === 0) {
+    return undefined;
+  }
+  const rawArguments = Array.isArray(value.typeArguments) ? value.typeArguments : [];
+  const typeArguments = rawArguments.map((argument) => csharpTypeFromTargetTypeRef(argument as TargetTypeRef));
+  return typeArguments.some((argument) => argument === undefined)
+    ? undefined
+    : {
+        kind: "IdentifierName",
+        name: sanitizeIdentifier(value.name),
+        ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly CsharpTypeNode[] } : {}),
+      };
 }
 
 export function targetTypeRefsMatch(left: TargetTypeRef, right: TargetTypeRef): boolean {
