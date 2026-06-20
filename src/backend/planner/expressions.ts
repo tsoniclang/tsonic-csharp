@@ -146,6 +146,8 @@ function planExpressionCore(
       return { kind: "literal", value: false };
     case KindNullKeyword:
       return { kind: "literal", value: null };
+    case KindTypeOfExpression:
+      return planTypeofExpression(node, sourceFile, input, diagnostics);
     case KindThisKeyword:
       return { kind: "identifier", name: "this" };
     case KindSuperKeyword:
@@ -1624,6 +1626,46 @@ function tryPlanBinaryExpression(
     operator,
     right: planExpression(expression.Right!, sourceFile, input, diagnostics),
   };
+}
+
+function planTypeofExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const selectedOperator = input.facts.getSelectedTargetOperator(node);
+  if (selectedOperator === undefined) {
+    const operand = Node_Expression(node);
+    const ownership = getProviderOperationOwnership(operand, sourceFile, input);
+    pushMissingTargetFactDiagnostic(diagnostics, node, "C# typeof expression emission requires a selected provider typeof operator fact.", ownership);
+    return invalidExpression("missing target typeof operator fact");
+  }
+  if (selectedOperator.operationKind !== "operator") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `Typeof expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
+    return invalidExpression("selected target typeof operator");
+  }
+  const runtimeKind = getStandaloneTypeofRuntimeKind(selectedOperator.targetOperation);
+  if (runtimeKind === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `Typeof expression expected a provider typeof operator fact, but provider selected '${selectedOperator.targetOperation}'.`));
+    return invalidExpression("selected target non-typeof operator");
+  }
+  return { kind: "literal", value: runtimeKind };
+}
+
+function getStandaloneTypeofRuntimeKind(targetOperation: string): "string" | "number" | "boolean" | "bigint" | undefined {
+  switch (targetOperation) {
+    case "typeof:string":
+      return "string";
+    case "typeof:number":
+      return "number";
+    case "typeof:boolean":
+      return "boolean";
+    case "typeof:bigint":
+      return "bigint";
+    default:
+      return undefined;
+  }
 }
 
 function tryPlanTypeTestExpression(

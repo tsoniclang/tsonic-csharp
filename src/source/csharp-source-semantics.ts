@@ -3105,10 +3105,34 @@ function resolveCsharpOperator(
   request: ResolveOperatorRequest,
   context: ExtensionDecisionContext,
 ): ResolveOperationResult | undefined {
-  return resolveTypeofComparisonOperator(request, context) ??
+  return resolveStandaloneTypeofOperator(request, context) ??
+    resolveTypeofComparisonOperator(request, context) ??
     resolveSourceProjectInstanceOfOperator(request) ??
     resolveSourcePrimitiveOperator(request, context) ??
     resolveBuiltinTypeOperator(request, context);
+}
+
+function resolveStandaloneTypeofOperator(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  if (request.operator !== "typeof" || request.right !== undefined) {
+    return undefined;
+  }
+  const runtimeKind = getStandaloneTypeofRuntimeKind(request, context);
+  if (runtimeKind === undefined) {
+    return undefined;
+  }
+  const resultType = csharpNamed("System.String");
+  return {
+    operation: {
+      operationId: `tsonic.csharp.typeof.${runtimeKind}`,
+      operationKind: "operator",
+      targetOperation: `typeof:${runtimeKind}`,
+      resultType,
+    } satisfies TargetOperationFact,
+    resultType,
+  };
 }
 
 function resolveTypeofComparisonOperator(
@@ -3149,6 +3173,29 @@ interface TypeofComparison {
   readonly operandSymbol?: ExtensionFactSubject;
   readonly runtimeKind: TypeofRuntimeKind;
   readonly negated: boolean;
+}
+
+function getStandaloneTypeofRuntimeKind(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): TypeofRuntimeKind | undefined {
+  const sourcePrimitive = request.leftSourcePrimitive ??
+    resolveSourcePrimitiveSubject(context, request.left) ??
+    resolveSourcePrimitiveSubject(context, request.leftSymbol) ??
+    resolveSourcePrimitiveSubject(context, request.leftType);
+  if (sourcePrimitive !== undefined) {
+    return getTypeofRuntimeKindForSourcePrimitive(sourcePrimitive.kind);
+  }
+  const operandCarrier = resolveFirstRuntimeCarrier([
+    request.left,
+    request.leftSymbol,
+    request.leftResolvedSymbol,
+    request.leftType,
+  ], context);
+  if (operandCarrier === undefined || operandCarrier.kind === "nullable") {
+    return undefined;
+  }
+  return getTypeofRuntimeKindForTargetType(operandCarrier);
 }
 
 function getTypeofComparison(request: ResolveOperatorRequest): TypeofComparison | undefined {
