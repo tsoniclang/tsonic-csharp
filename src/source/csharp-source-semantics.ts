@@ -823,6 +823,11 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
       return [stringInstanceTargetMethod(sourceName, "TrimEnd", noArgs, stringType)];
     case "concat":
       return [stringConcatTargetMethod(sourceName, stringType)];
+    case "replace":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "search", type: stringType, passingMode: "by-value" },
+        { name: "replacement", type: stringType, passingMode: "by-value" },
+      ], stringType)];
     case "substring":
       return [jsStringStaticTargetMethod(sourceName, [
         { name: "start", type: intType, passingMode: "by-value" },
