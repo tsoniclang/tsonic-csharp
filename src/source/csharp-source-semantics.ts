@@ -828,6 +828,11 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
         { name: "search", type: stringType, passingMode: "by-value" },
         { name: "replacement", type: stringType, passingMode: "by-value" },
       ], stringType)];
+    case "replaceAll":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "search", type: stringType, passingMode: "by-value" },
+        { name: "replacement", type: stringType, passingMode: "by-value" },
+      ], stringType)];
     case "substring":
       return [jsStringStaticTargetMethod(sourceName, [
         { name: "start", type: intType, passingMode: "by-value" },
