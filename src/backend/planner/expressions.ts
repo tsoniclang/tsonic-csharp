@@ -965,6 +965,8 @@ function planObjectLiteralAssignment(
         expression: planExpression(nameNode, sourceFile, input, diagnostics),
       };
     }
+    case KindMethodDeclaration:
+      return planSourceOwnedMethodMemberAssignment(property, sourceFile, input, diagnostics);
     case KindSpreadAssignment:
       diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal spread requires finalized provider object-spread semantics before C# emission."));
       return undefined;
@@ -972,6 +974,39 @@ function planObjectLiteralAssignment(
       diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal member is outside the current C# planning surface."));
       return undefined;
   }
+}
+
+function planSourceOwnedMethodMemberAssignment(
+  methodNode: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): { readonly name: string; readonly expression: CsharpExpression } | undefined {
+  const name = getSourceOwnedObjectInitializerMemberName(methodNode, diagnostics);
+  if (name === undefined) {
+    return undefined;
+  }
+  const memberType = getContextualTargetCsharpType(methodNode, input);
+  if (memberType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Source-owned object literal method requires a contextual target delegate fact from TSTS before C# emission."));
+    return undefined;
+  }
+  if (!isCsharpDelegateType(memberType)) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Source-owned object literal method requires a contextual delegate target type before C# emission."));
+    return undefined;
+  }
+  return {
+    name,
+    expression: planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType),
+  };
+}
+
+function getContextualTargetCsharpType(
+  node: Node,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const targetType = input.facts.getContextualTargetTypeFact(node)?.targetType;
+  return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
 }
 
 function getSourceOwnedObjectInitializerMemberName(
