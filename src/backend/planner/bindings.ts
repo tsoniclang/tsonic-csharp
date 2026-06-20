@@ -13,11 +13,11 @@ import {
 import type { Node, ObjectShapeFact, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement, CsharpTypeNode } from "../ast/csharp-ast.js";
+import { runtimeArrayHelperCall } from "./array-helpers.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { systemLinqEnumerableCall } from "./linq.js";
 import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { getSemanticOwnership, isSourceOwnedProjectShapeSubject, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
@@ -269,12 +269,10 @@ function planArrayRestBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a renderable provider array carrier type before C# emission."));
     return [];
   }
-  const projected = systemLinqEnumerableCall("ToArray", [{
-    expression: systemLinqEnumerableCall("Skip", [
-      { expression: sourceExpression },
-      { expression: { kind: "literal", value: index } },
-    ]),
-  }]);
+  const projected = runtimeArrayHelperCall("Slice", [
+    { expression: sourceExpression },
+    { expression: { kind: "literal", value: index } },
+  ]);
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
 

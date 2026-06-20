@@ -1,6 +1,6 @@
 import type { CsharpArgument, CsharpExpression } from "../ast/csharp-ast.js";
 
-export function systemLinqEnumerableCall(name: string, args: readonly CsharpArgument[]): CsharpExpression {
+export function runtimeArrayHelperCall(name: string, args: readonly CsharpArgument[]): CsharpExpression {
   return {
     kind: "call",
     callee: {
@@ -11,10 +11,14 @@ export function systemLinqEnumerableCall(name: string, args: readonly CsharpArgu
           kind: "qualified",
           left: {
             kind: "qualified",
-            left: { kind: "named", name: "System" },
-            name: "Linq",
+            left: {
+              kind: "qualified",
+              left: { kind: "named", name: "Tsonic" },
+              name: "CSharp",
+            },
+            name: "Runtime",
           },
-          name: "Enumerable",
+          name: "ArrayHelpers",
         },
       },
       name,

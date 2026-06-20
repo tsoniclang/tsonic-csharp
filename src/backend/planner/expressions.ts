@@ -79,12 +79,12 @@ import {
 import type { ArgumentPassingFact, Node, ObjectShapeFact, SourceFile, TargetMember, TargetOperationFact } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../ast/csharp-ast.js";
+import { runtimeArrayHelperCall } from "./array-helpers.js";
 import { expressionToCsharpType, getCsharpTypeForNode, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
-import { systemLinqEnumerableCall } from "./linq.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import {
   getCallableSemanticOwnership,
@@ -1506,15 +1506,7 @@ function planArraySpreadLiteralExpression(
   if (chunks.length === 1 && chunks[0]?.fromSpread !== true) {
     return chunks[0]!.expression;
   }
-  const first = chunks[0]!.expression;
-  const concatenated = chunks.slice(1).reduce(
-    (left, chunk) => systemLinqEnumerableCall("Concat", [
-      { expression: left },
-      { expression: chunk.expression },
-    ]),
-    first,
-  );
-  return systemLinqEnumerableCall("ToArray", [{ expression: concatenated }]);
+  return runtimeArrayHelperCall("Concat", chunks.map((chunk) => ({ expression: chunk.expression })));
 }
 
 function createArraySpreadChunks(
