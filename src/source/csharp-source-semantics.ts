@@ -1,6 +1,8 @@
 import {
   AsArrayLiteralExpression,
   AsArrayTypeNode,
+  AsArrowFunction,
+  AsFunctionExpression,
   AsFunctionTypeNode,
   AsInterfaceDeclaration,
   AsLiteralTypeNode,
@@ -475,11 +477,14 @@ function resolveFirstRuntimeCarrier(
 
 function isCsharpDelegateCarrier(type: TargetTypeRef | undefined): type is Extract<TargetTypeRef, { readonly kind: "target-named" }> {
   return type?.kind === "target-named" &&
-    (type.id.startsWith("System.Func`") || type.id.startsWith("System.Action`"));
+    (type.id.startsWith("System.Func`") || type.id.startsWith("System.Action`") || type.id === "System.Predicate`1");
 }
 
 function getDelegateParameterTypes(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): readonly TargetTypeRef[] | undefined {
   const typeArguments = type.typeArguments ?? [];
+  if (type.id === "System.Predicate`1") {
+    return typeArguments.length === 1 ? typeArguments : undefined;
+  }
   if (type.id.startsWith("System.Action`")) {
     return typeArguments;
   }
@@ -490,6 +495,9 @@ function getDelegateParameterTypes(type: Extract<TargetTypeRef, { readonly kind:
 }
 
 function getDelegateReturnType(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): TargetTypeRef | undefined {
+  if (type.id === "System.Predicate`1") {
+    return csharpNamed("System.Boolean");
+  }
   if (type.id.startsWith("System.Action`")) {
     return undefined;
   }
@@ -895,6 +903,10 @@ function arrayInstanceTargetMembers(
       return [arrayPredicateTargetMember(sourceName, "Any", receiverType, elementType)];
     case "every":
       return [arrayPredicateTargetMember(sourceName, "All", receiverType, elementType)];
+    case "findIndex":
+      return [arrayFindIndexTargetMember(sourceName, "FindIndex", receiverType, elementType, intType)];
+    case "findLastIndex":
+      return [arrayFindIndexTargetMember(sourceName, "FindLastIndex", receiverType, elementType, intType)];
     case "indexOf":
       return arraySearchTargetMembers(sourceName, "IndexOf", receiverType, elementType, intType);
     case "lastIndexOf":
@@ -923,6 +935,29 @@ function arrayPredicateTargetMember(
       { name: "predicate", type: csharpDelegateTargetTypeRef([elementType], csharpNamed("System.Boolean")), passingMode: "by-value" },
     ],
     returnType: csharpNamed("System.Boolean"),
+  };
+}
+
+function arrayFindIndexTargetMember(
+  sourceName: string,
+  targetName: string,
+  receiverType: TargetTypeRef,
+  elementType: TargetTypeRef,
+  intType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: `System.Array.${targetName}(T[],Predicate<T>)`,
+    sourceName,
+    targetName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("System.Array"),
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "array", type: receiverType, passingMode: "by-value" },
+      { name: "match", type: csharpPredicateTargetTypeRef(elementType), passingMode: "by-value" },
+    ],
+    returnType: intType,
   };
 }
 
@@ -1062,7 +1097,7 @@ function targetArgumentConversion(
   if (argument === undefined) {
     return undefined;
   }
-  if (isCsharpDelegateTargetType(expected) && isFunctionExpressionSubject(argument)) {
+  if (isCsharpDelegateTargetType(expected) && isFunctionExpressionSubject(argument) && functionExpressionMatchesDelegate(argument, expected)) {
     return expected;
   }
   if (expected.kind === "array" && actual?.kind === "array" && isNodeSubject(argument) && argument.Kind === KindArrayLiteralExpression) {
@@ -1079,7 +1114,42 @@ function isFunctionExpressionSubject(subject: ExtensionFactSubject): boolean {
 }
 
 function isCsharpDelegateTargetType(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" && (type.id.startsWith("System.Action`") || type.id.startsWith("System.Func`"));
+  return type.kind === "target-named" && (type.id.startsWith("System.Action`") || type.id.startsWith("System.Func`") || type.id === "System.Predicate`1");
+}
+
+function functionExpressionMatchesDelegate(argument: ExtensionFactSubject, expected: TargetTypeRef): boolean {
+  if (!isNodeSubject(argument) || expected.kind !== "target-named") {
+    return false;
+  }
+  const delegateParameterCount = getCsharpDelegateParameterCount(expected);
+  const sourceParameterCount = getFunctionExpressionParameterCount(argument);
+  return delegateParameterCount !== undefined &&
+    sourceParameterCount !== undefined &&
+    delegateParameterCount === sourceParameterCount;
+}
+
+function getCsharpDelegateParameterCount(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): number | undefined {
+  const typeArgumentCount = type.typeArguments?.length ?? 0;
+  if (type.id === "System.Predicate`1") {
+    return typeArgumentCount === 1 ? 1 : undefined;
+  }
+  if (type.id.startsWith("System.Action`")) {
+    return typeArgumentCount;
+  }
+  if (type.id.startsWith("System.Func`")) {
+    return typeArgumentCount === 0 ? undefined : typeArgumentCount - 1;
+  }
+  return undefined;
+}
+
+function getFunctionExpressionParameterCount(argument: Node): number | undefined {
+  if (argument.Kind === KindArrowFunction) {
+    return (AsArrowFunction(argument)?.Parameters?.Nodes ?? []).filter((parameter): parameter is Node => parameter !== undefined).length;
+  }
+  if (argument.Kind === KindFunctionExpression) {
+    return (AsFunctionExpression(argument)?.Parameters?.Nodes ?? []).filter((parameter): parameter is Node => parameter !== undefined).length;
+  }
+  return undefined;
 }
 
 function arrayLiteralTargetConversion(
@@ -2783,6 +2853,14 @@ function csharpDelegateTargetTypeRef(
     kind: "target-named",
     id: `System.Func\`${parameterTypes.length + 1}`,
     typeArguments: [...parameterTypes, returnType],
+  };
+}
+
+function csharpPredicateTargetTypeRef(elementType: TargetTypeRef): TargetTypeRef {
+  return {
+    kind: "target-named",
+    id: "System.Predicate`1",
+    typeArguments: [elementType],
   };
 }
 

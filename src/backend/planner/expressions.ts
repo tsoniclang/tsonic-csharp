@@ -831,7 +831,7 @@ function diagnoseMissingLambdaTargetContext(
 }
 
 function isCsharpDelegateType(type: CsharpTypeNode): boolean {
-  return type.kind === "named" && (type.name === "Func" || type.name === "Action");
+  return type.kind === "named" && (type.name === "Func" || type.name === "Action" || type.name === "Predicate");
 }
 
 export function planCallArgument(

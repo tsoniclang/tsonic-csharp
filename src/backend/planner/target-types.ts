@@ -233,6 +233,8 @@ function getGenericPredefinedTypeName(id: string): string | undefined {
       return "Func";
     case "System.Action":
       return "Action";
+    case "System.Predicate":
+      return "Predicate";
     default:
       return undefined;
   }
