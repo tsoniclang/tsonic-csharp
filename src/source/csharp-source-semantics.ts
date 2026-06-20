@@ -2201,7 +2201,7 @@ function resolveCsharpOperator(
   return resolveTypeofComparisonOperator(request, context) ??
     resolveSourceProjectInstanceOfOperator(request) ??
     resolveSourcePrimitiveOperator(request, context) ??
-    resolveBuiltinTypeOperator(request);
+    resolveBuiltinTypeOperator(request, context);
 }
 
 function resolveTypeofComparisonOperator(
@@ -2452,10 +2452,11 @@ type BuiltinOperatorKind = "string" | "number" | "boolean" | "bigint" | "enum" |
 
 function resolveBuiltinTypeOperator(
   request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
 ): ResolveOperationResult | undefined {
   const semanticOperator = normalizeSourcePrimitiveOperator(request.operator, request.right);
   const nullishCoalesce = semanticOperator === "??"
-    ? resolveNullishCoalesceOperator(request)
+    ? resolveNullishCoalesceOperator(request, context)
     : undefined;
   if (nullishCoalesce !== undefined) {
     return nullishCoalesce;
@@ -2487,26 +2488,63 @@ function resolveBuiltinTypeOperator(
   };
 }
 
-function resolveNullishCoalesceOperator(request: ResolveOperatorRequest): ResolveOperationResult | undefined {
+function resolveNullishCoalesceOperator(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
   const leftType = request.leftType !== undefined && isTypeSubject(request.leftType) ? request.leftType : undefined;
   const rightType = request.rightType !== undefined && isTypeSubject(request.rightType) ? request.rightType : undefined;
   const leftInnerType = getSingleNonNullishUnionType(leftType);
-  if (leftInnerType === undefined || rightType === undefined) {
+  if (leftInnerType !== undefined && rightType !== undefined) {
+    const leftKind = getBuiltinOperatorKind(leftInnerType);
+    const rightKind = getBuiltinOperatorKind(rightType);
+    if (leftKind !== undefined && rightKind !== undefined && leftKind === rightKind && leftKind !== "type-parameter") {
+      return {
+        operation: {
+          operationId: `tsonic.csharp.builtin.${leftKind}.??.${rightKind}`,
+          operationKind: "operator",
+          targetOperation: "??",
+          resultType: leftInnerType,
+        } satisfies TargetOperationFact,
+        resultType: leftInnerType,
+      };
+    }
+  }
+  return resolveNullishCoalesceOperatorFromCarriers(request, context);
+}
+
+function resolveNullishCoalesceOperatorFromCarriers(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  const leftCarrier = resolveFirstRuntimeCarrier([
+    request.left,
+    request.leftSymbol,
+    request.leftResolvedSymbol,
+    request.leftType,
+  ], context);
+  const rightCarrier = resolveFirstRuntimeCarrier([
+    request.right,
+    request.rightSymbol,
+    request.rightResolvedSymbol,
+    request.rightType,
+  ], context);
+  if (leftCarrier?.kind !== "nullable" || rightCarrier === undefined || !targetTypeRefMatches(leftCarrier.inner, rightCarrier)) {
     return undefined;
   }
-  const leftKind = getBuiltinOperatorKind(leftInnerType);
-  const rightKind = getBuiltinOperatorKind(rightType);
-  if (leftKind === undefined || rightKind === undefined || leftKind !== rightKind || leftKind === "type-parameter") {
+  const carrierKey = targetTypeRefKey(leftCarrier.inner);
+  if (carrierKey === undefined) {
     return undefined;
   }
+  const resultType = request.rightType ?? request.right;
   return {
     operation: {
-      operationId: `tsonic.csharp.builtin.${leftKind}.??.${rightKind}`,
+      operationId: `tsonic.csharp.carrier.${carrierKey}.??.${carrierKey}`,
       operationKind: "operator",
       targetOperation: "??",
-      resultType: leftInnerType,
+      ...(resultType === undefined ? {} : { resultType }),
     } satisfies TargetOperationFact,
-    resultType: leftInnerType,
+    ...(resultType === undefined ? {} : { resultType }),
   };
 }
 
