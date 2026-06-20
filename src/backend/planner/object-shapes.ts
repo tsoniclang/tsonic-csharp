@@ -1,6 +1,6 @@
-import type { ObjectShapeFact } from "@tsonic/tsts";
+import type { ObjectShapeFact, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpClassDeclaration, CsharpTypeDeclaration, CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpClassDeclaration, CsharpExpression, CsharpParameter, CsharpTypeDeclaration, CsharpTypeMember, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
@@ -37,6 +37,20 @@ export function csharpTypeFromObjectShapeFact(
   return targetType;
 }
 
+export function objectShapeStorageMemberName(objectShape: ObjectShapeFact, member: ObjectShapeFact["members"][number]): string {
+  if (member.memberKind !== "method") {
+    return member.targetName;
+  }
+  const memberIndex = objectShape.members.indexOf(member);
+  const baseName = `__tsonic_shape_method_${memberIndex < 0 ? "x" : memberIndex}_${member.targetName}`;
+  const reservedNames = new Set(objectShape.members.map((candidate) => candidate.targetName));
+  let candidate = baseName;
+  while (reservedNames.has(candidate)) {
+    candidate = `_${candidate}`;
+  }
+  return candidate;
+}
+
 function registerObjectShapeDeclaration(
   input: TargetCompileInput,
   name: string,
@@ -53,30 +67,33 @@ function registerObjectShapeDeclaration(
     return;
   }
   const implementsInterface = interfaces.length > 0;
-  const members = fact.members.map((member) => {
+  const members = fact.members.flatMap((member) => {
     const type = csharpTypeFromTargetTypeRef(member.type);
     if (type === undefined) {
       if (diagnostics !== undefined && diagnosticSubject !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, `Object-shape member '${member.sourceName}' must carry a renderable target carrier type before C# emission.`));
       }
-      return undefined;
+      return [undefined];
+    }
+    if (member.memberKind === "method") {
+      return renderObjectShapeMethodMember(fact, member, type, diagnostics, diagnosticSubject);
     }
     if (implementsInterface) {
-      return {
+      return [{
         kind: "property" as const,
         name: member.targetName,
         modifiers: ["public"] as const,
         type,
         autoGetter: true,
         autoSetter: true,
-      };
+      }];
     }
-    return {
+    return [{
       kind: "field" as const,
       name: member.targetName,
       modifiers: ["public"] as const,
       type,
-    };
+    }];
   });
   if (members.some((member) => member === undefined)) {
     return;
@@ -88,6 +105,81 @@ function registerObjectShapeDeclaration(
     ...(interfaces.length === 0 ? {} : { interfaces }),
     members: members as CsharpClassDeclaration["members"],
   });
+}
+
+function renderObjectShapeMethodMember(
+  objectShape: ObjectShapeFact,
+  member: ObjectShapeFact["members"][number],
+  delegateType: CsharpTypeNode,
+  diagnostics: TargetDiagnostic[] | undefined,
+  diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
+): readonly (CsharpTypeMember | undefined)[] {
+  const signature = csharpDelegateSignatureFromTargetTypeRef(member.type);
+  if (signature === undefined) {
+    if (diagnostics !== undefined && diagnosticSubject !== undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, `Object-shape method '${member.sourceName}' must carry a Func/Action delegate target type before C# emission.`));
+    }
+    return [undefined];
+  }
+  const backingName = objectShapeStorageMemberName(objectShape, member);
+  const parameters: CsharpParameter[] = signature.parameters.map((type, index) => ({
+    name: `arg${index}`,
+    type,
+  }));
+  const call: CsharpExpression = {
+    kind: "call",
+    callee: {
+      kind: "identifier",
+      name: backingName,
+    },
+    arguments: parameters.map((parameter) => ({
+      expression: {
+        kind: "identifier",
+        name: parameter.name,
+      },
+    })),
+  };
+  return [{
+    kind: "field",
+    name: backingName,
+    modifiers: ["public"],
+    type: delegateType,
+  }, {
+    kind: "method",
+    name: member.targetName,
+    modifiers: ["public"],
+    returnType: signature.returnType ?? { kind: "predefined", name: "void" },
+    parameters,
+    body: {
+      statements: signature.returnType === undefined
+        ? [{ kind: "expression", expression: call }]
+        : [{ kind: "return", expression: call }],
+    },
+  }];
+}
+
+function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): { readonly parameters: readonly CsharpTypeNode[]; readonly returnType?: CsharpTypeNode } | undefined {
+  if (type.kind !== "target-named") {
+    return undefined;
+  }
+  const typeArguments = type.typeArguments ?? [];
+  if (type.id.startsWith("System.Action`") || type.id === "System.Action") {
+    const parameters = typeArguments.map(csharpTypeFromTargetTypeRef);
+    return parameters.some((parameter) => parameter === undefined)
+      ? undefined
+      : { parameters: parameters as readonly CsharpTypeNode[] };
+  }
+  if (!type.id.startsWith("System.Func`")) {
+    return undefined;
+  }
+  if (typeArguments.length === 0) {
+    return undefined;
+  }
+  const parameters = typeArguments.slice(0, -1).map(csharpTypeFromTargetTypeRef);
+  const returnType = csharpTypeFromTargetTypeRef(typeArguments[typeArguments.length - 1]!);
+  return parameters.some((parameter) => parameter === undefined) || returnType === undefined
+    ? undefined
+    : { parameters: parameters as readonly CsharpTypeNode[], returnType };
 }
 
 function renderObjectShapeInterfaces(

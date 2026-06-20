@@ -1154,6 +1154,7 @@ function resolveCsharpObjectShapeMembers(
     shaped.push({
       sourceName: name.sourceName,
       targetName: name.targetName,
+      memberKind: member.Kind === KindMethodSignature ? "method" : "property",
       type: carrier,
     });
   }

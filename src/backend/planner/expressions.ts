@@ -78,7 +78,7 @@ import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js"
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
-import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
+import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import {
   getCallableSemanticOwnership,
@@ -812,7 +812,7 @@ function planObjectShapeLiteralAssignment(
         return undefined;
       }
       return {
-        name: member.targetName,
+        name: objectShapeStorageMemberName(objectShape, member),
         expression: planExpressionWithExpectedType(propertyAssignment.Initializer, sourceFile, input, diagnostics, memberType),
       };
     }
@@ -835,7 +835,7 @@ function planObjectShapeLiteralAssignment(
         return undefined;
       }
       return {
-        name: member.targetName,
+        name: objectShapeStorageMemberName(objectShape, member),
         expression: planExpressionWithExpectedType(nameNode, sourceFile, input, diagnostics, memberType),
       };
     }
@@ -873,7 +873,7 @@ function planObjectShapeMethodMemberAssignment(
     return undefined;
   }
   return {
-    name: member.targetName,
+    name: objectShapeStorageMemberName(objectShape, member),
     expression: planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType),
   };
 }
