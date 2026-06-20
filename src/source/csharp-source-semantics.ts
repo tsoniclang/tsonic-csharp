@@ -39,6 +39,7 @@ import {
   KindSetAccessor,
   KindTupleType,
   KindTypeLiteral,
+  KindTypeParameter,
   KindTypeReference,
   KindUnknownKeyword,
   KindVariableDeclaration,
@@ -77,6 +78,7 @@ import {
   sourcePrimitive,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
+  targetTypeParameterConstraintFactKey,
 } from "@tsonic/tsts";
 import type {
   CompilerExtension,
@@ -118,6 +120,7 @@ import type {
   TargetMember,
   TargetOperationFact,
   TargetSemanticProvider,
+  TargetTypeParameterConstraintFact,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -172,6 +175,8 @@ export function createCsharpTargetSemanticsExtension(_context: TargetExtensionCo
         resolveCsharpRuntimeCarrier(subject, resolverContext));
       context.factResolver.register(objectShapeFactKey, (subject, resolverContext) =>
         resolveCsharpObjectShape(subject, resolverContext));
+      context.factResolver.register(targetTypeParameterConstraintFactKey, (subject, resolverContext) =>
+        resolveCsharpTypeParameterConstraint(subject, resolverContext));
     },
   };
 }
@@ -998,6 +1003,31 @@ function sourcePrimitiveInt32(): SourcePrimitiveFact {
     runtimeBase: "number",
     signed: true,
     width: 32,
+  };
+}
+
+function resolveCsharpTypeParameterConstraint(
+  subject: ExtensionFactSubject,
+  _context: ExtensionFactResolverContext,
+): { readonly value: TargetTypeParameterConstraintFact; readonly evidence?: readonly ExtensionEvidence[] } | undefined {
+  if (!isNodeSubject(subject) || subject.Kind !== KindTypeParameter) {
+    return undefined;
+  }
+  const declaration = AsTypeParameterDeclaration(subject);
+  if (declaration?.Constraint?.Kind !== KindNumberKeyword) {
+    return undefined;
+  }
+  return {
+    value: {
+      constraints: [
+        {
+          kind: "target-specific",
+          target: "csharp",
+          name: "generic-math-number",
+        },
+      ],
+    },
+    evidence: [{ message: "C# generic math constraint from TypeScript number constraint." }],
   };
 }
 
