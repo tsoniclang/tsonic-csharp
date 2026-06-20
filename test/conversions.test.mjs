@@ -37,7 +37,7 @@ test("planner leaves provider-proven identity conversions unwrapped", () => {
   assert.equal(printCsharpExpression(expression), "true");
 });
 
-test("planner diagnoses unsupported target conversion operations instead of guessing", () => {
+test("planner diagnoses unsupported target conversion operations instead of inventing target semantics", () => {
   const value = trueKeyword();
   const diagnostics = [];
   const expression = planExpression(value, {}, fakeInput({

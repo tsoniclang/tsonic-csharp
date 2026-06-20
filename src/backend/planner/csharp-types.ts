@@ -100,11 +100,11 @@ export function getCsharpTypeForNode(
   node: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-  fallback: CsharpTypeNode = invalidType("missing C# type"),
+  errorType: CsharpTypeNode = invalidType("missing C# type"),
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
   if (node === undefined) {
-    return fallback;
+    return errorType;
   }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (nodeCarrierType !== undefined) {

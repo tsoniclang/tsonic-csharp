@@ -11,7 +11,7 @@ import { sanitizeIdentifier } from "./identifiers.js";
 
 export function planIdentifierName(
   node: Node | undefined,
-  fallback: string,
+  errorName: string,
   diagnostics: TargetDiagnostic[],
   description: string,
 ): string {
@@ -22,7 +22,7 @@ export function planIdentifierName(
       source: "tsonic-csharp",
       message: `${description} must be present for direct C# source emission; backend name synthesis is not allowed without finalized TSTS/provider facts.`,
     });
-    return fallback;
+    return errorName;
   }
   if (node.Kind === KindIdentifier) {
     return sanitizeIdentifier(AsIdentifier(node)!.Text);
@@ -36,5 +36,5 @@ export function planIdentifierName(
     source: "tsonic-csharp",
     message: `${description} must be an identifier for direct C# source emission. Node kind: ${KindString(node.Kind)}.`,
   });
-  return fallback;
+  return errorName;
 }

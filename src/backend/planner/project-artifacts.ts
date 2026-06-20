@@ -169,8 +169,8 @@ function readAssemblyName(input: TargetCompileInput): string {
   return formatAssemblyName(readOptionalStringOption(input, "assemblyName") ?? "TsonicGenerated");
 }
 
-function readStringOption(input: TargetCompileInput, key: string, fallback: string): string {
-  return readOptionalStringOption(input, key) ?? fallback;
+function readStringOption(input: TargetCompileInput, key: string, defaultValue: string): string {
+  return readOptionalStringOption(input, key) ?? defaultValue;
 }
 
 function readOptionalStringOption(input: TargetCompileInput, key: string): string | undefined {
