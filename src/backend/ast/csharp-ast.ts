@@ -157,7 +157,7 @@ export interface CsharpAttribute {
   readonly arguments?: readonly CsharpArgument[];
 }
 
-export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "async";
+export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "async" | "unsafe";
 
 export type CsharpTypeNode =
   | { readonly kind: "predefined"; readonly name: string }
@@ -167,6 +167,8 @@ export type CsharpTypeNode =
   | { readonly kind: "array"; readonly elementType: CsharpTypeNode; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly CsharpTypeNode[] }
   | { readonly kind: "function"; readonly parameters: readonly CsharpTypeNode[]; readonly returnType: CsharpTypeNode }
+  | { readonly kind: "pointer"; readonly pointee: CsharpTypeNode }
+  | { readonly kind: "functionPointer"; readonly parameters: readonly CsharpTypeNode[]; readonly returnType: CsharpTypeNode }
   | { readonly kind: "nullable"; readonly inner: CsharpTypeNode };
 
 export interface CsharpBlock {

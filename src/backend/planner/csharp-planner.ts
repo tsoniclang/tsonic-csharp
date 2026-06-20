@@ -46,6 +46,7 @@ import { beginObjectShapePlanning, takeObjectShapeDeclarations } from "./object-
 import { projectArtifact, readNamespace } from "./project-artifacts.js";
 import { sourceFileArtifactPath, sourceFileClassName } from "./source-paths.js";
 import { planStatements } from "./statements.js";
+import { compilationUnitRequiresUnsafe, markCompilationUnitUnsafe } from "./unsafe.js";
 import { planValueTypeDeclaration } from "./value-types.js";
 
 export interface CsharpPlanningResult {
@@ -57,6 +58,7 @@ interface PlannedCsharpSourceFile {
   readonly fileName: string;
   readonly moduleClassName: string;
   readonly unit: CsharpCompilationUnit;
+  readonly requiresUnsafe: boolean;
 }
 
 export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningResult {
@@ -81,7 +83,9 @@ export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningRe
     text: printCsharpCompilationUnit(source.unit),
   }));
   const artifacts: TargetArtifact[] = [];
-  artifacts.push(projectArtifact(input, sourceArtifacts));
+  artifacts.push(projectArtifact(input, sourceArtifacts, {
+    allowUnsafeBlocks: plannedSources.some((source) => source.requiresUnsafe),
+  }));
   artifacts.push(...sourceArtifacts);
   return {
     artifacts,
@@ -186,10 +190,12 @@ function planSourceFile(
       members: [...shapeDeclarations, ...namespaceMembers],
     }],
   };
+  const requiresUnsafe = compilationUnitRequiresUnsafe(unit);
   return {
     fileName,
     moduleClassName,
-    unit,
+    unit: requiresUnsafe ? markCompilationUnitUnsafe(unit) : unit,
+    requiresUnsafe,
   };
 }
 

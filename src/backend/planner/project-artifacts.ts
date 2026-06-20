@@ -1,9 +1,13 @@
 import type { TargetArtifact, TargetCompileInput, TargetSourceFile } from "@tsonic/target-api";
 import { sanitizeIdentifier } from "./identifiers.js";
 
-export function projectArtifact(input: TargetCompileInput, sourceArtifacts: readonly TargetSourceFile[]): TargetArtifact {
+export function projectArtifact(
+  input: TargetCompileInput,
+  sourceArtifacts: readonly TargetSourceFile[],
+  options: { readonly allowUnsafeBlocks?: boolean } = {},
+): TargetArtifact {
   void sourceArtifacts;
-  const properties = csharpProjectProperties(input);
+  const properties = csharpProjectProperties(input, options);
   return {
     kind: "project",
     path: `${readAssemblyName(input)}.csproj`,
@@ -22,11 +26,17 @@ export function readNamespace(input: TargetCompileInput): string {
   return formatNamespace(readOptionalStringOption(input, "namespace") ?? "Tsonic.Generated");
 }
 
-function csharpProjectProperties(input: TargetCompileInput): readonly (readonly [string, string])[] {
+function csharpProjectProperties(
+  input: TargetCompileInput,
+  options: { readonly allowUnsafeBlocks?: boolean },
+): readonly (readonly [string, string])[] {
   const properties = new Map<string, string>();
   properties.set("TargetFramework", readStringOption(input, "targetFramework", "net10.0"));
   properties.set("Nullable", readStringOption(input, "nullable", "enable"));
   properties.set("ImplicitUsings", readStringOption(input, "implicitUsings", "disable"));
+  if (options.allowUnsafeBlocks === true) {
+    properties.set("AllowUnsafeBlocks", "true");
+  }
   const outputType = readOptionalStringOption(input, "outputType");
   if (outputType !== undefined) {
     properties.set("OutputType", outputType);

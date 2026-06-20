@@ -252,6 +252,10 @@ export function printCsharpType(type: CsharpTypeNode): string {
       return `(${type.elements.map(printCsharpType).join(", ")})`;
     case "function":
       return printCsharpFunctionType(type.parameters, type.returnType);
+    case "pointer":
+      return `${printCsharpType(type.pointee)}*`;
+    case "functionPointer":
+      return `delegate*<${[...type.parameters, type.returnType].map(printCsharpType).join(", ")}>`;
     case "nullable":
       return `${printCsharpType(type.inner)}?`;
   }

@@ -59,6 +59,7 @@ import {
   acceptDecision,
   createSourceSemanticsExtension,
   deferDecision,
+  functionPointerFactKey,
   getSingleTypeScriptCallSignatureInfo,
   getTypeScriptArrayElementType,
   getTypeScriptUnionTypes,
@@ -71,6 +72,7 @@ import {
   Node_Text,
   Node_Type,
   objectShapeFactKey,
+  pointerFactKey,
   runtimeCarrierFactKey,
   sourcePrimitive,
   sourcePrimitiveFactKey,
@@ -83,6 +85,7 @@ import type {
   ExtensionEvidence,
   ExtensionFactSubject,
   ExtensionFactResolverContext,
+  FunctionPointerFact,
   Node,
   ProviderDeclarationModel,
   ProviderExportDeclaration,
@@ -99,6 +102,7 @@ import type {
   ResolvePropertyAccessRequest,
   ObjectShapeFact,
   ObjectShapeMemberFact,
+  PointerFact,
   RuntimeCarrierFact,
   SourceCallMarkerDeclaration,
   SourcePrimitiveDeclaration,
@@ -1014,6 +1018,14 @@ function resolveCsharpRuntimeCarrier(
     };
   }
 
+  const pointerCarrier = resolveCsharpPointerCarrier(subject, context);
+  if (pointerCarrier !== undefined) {
+    return {
+      value: { carrier: pointerCarrier },
+      evidence: [{ message: "C# carrier from source pointer/function-pointer fact." }],
+    };
+  }
+
   if (isNodeSubject(subject)) {
     const catchCarrier = resolveCsharpCatchVariableCarrier(subject);
     if (catchCarrier !== undefined) {
@@ -1068,6 +1080,57 @@ function resolveCsharpRuntimeCarrier(
   }
 
   return undefined;
+}
+
+function resolveCsharpPointerCarrier(
+  subject: ExtensionFactSubject,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const pointer = context.facts.get(subject, pointerFactKey);
+  if (pointer !== undefined) {
+    return pointerFactToTargetTypeRef(pointer, context);
+  }
+  const functionPointer = context.facts.get(subject, functionPointerFactKey);
+  return functionPointer === undefined
+    ? undefined
+    : functionPointerFactToTargetTypeRef(functionPointer, context);
+}
+
+function pointerFactToTargetTypeRef(
+  pointer: PointerFact,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const pointee = context.factResolver.resolve(pointer.pointee, runtimeCarrierFactKey)?.carrier;
+  return pointee === undefined
+    ? undefined
+    : { kind: "pointer", pointee, mutability: targetPointerMutability(pointer.mutability) };
+}
+
+function targetPointerMutability(mutability: PointerFact["mutability"]): Extract<TargetTypeRef, { readonly kind: "pointer" }>["mutability"] {
+  switch (mutability) {
+    case "readonly":
+      return "const";
+    case "readwrite":
+      return "mut";
+    case "target-defined":
+      return "target-defined";
+  }
+}
+
+function functionPointerFactToTargetTypeRef(
+  pointer: FunctionPointerFact,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const args = pointer.parameters.map((parameter) => context.factResolver.resolve(parameter, runtimeCarrierFactKey)?.carrier);
+  const result = context.factResolver.resolve(pointer.result, runtimeCarrierFactKey)?.carrier;
+  return result === undefined || args.some((argument) => argument === undefined)
+    ? undefined
+    : {
+      kind: "function-pointer",
+      args: args as readonly TargetTypeRef[],
+      result,
+      abi: pointer.abi,
+    };
 }
 
 function runtimeCarrierFromTargetBinding(id: string): { readonly value: RuntimeCarrierFact; readonly evidence?: readonly ExtensionEvidence[] } {
@@ -3132,9 +3195,15 @@ function typeMarkerToProviderDeclaration(declaration: SourceTypeMarkerDeclaratio
     id: declaration.exportName,
     name: declaration.exportName,
     kind: "type",
-    typeParameters: [{ name: "T" }],
+    typeParameters: sourceTypeMarkerParameters(declaration.marker),
     type: sourceMarkerOpaqueType(declaration.marker),
   };
+}
+
+function sourceTypeMarkerParameters(marker: SourceTypeMarkerDeclaration["marker"]): readonly { readonly name: string }[] {
+  return marker === "functionPointer"
+    ? [{ name: "Args" }, { name: "Result" }]
+    : [{ name: "T" }];
 }
 
 function attributeTargetShape(): ProviderTypeExpression {

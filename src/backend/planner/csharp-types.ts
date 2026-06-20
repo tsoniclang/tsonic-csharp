@@ -206,6 +206,13 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
         left.parameters.length === right.parameters.length &&
         left.parameters.every((parameter, index) => sameCsharpType(parameter, right.parameters[index]!)) &&
         sameCsharpType(left.returnType, right.returnType);
+    case "pointer":
+      return right.kind === "pointer" && sameCsharpType(left.pointee, right.pointee);
+    case "functionPointer":
+      return right.kind === "functionPointer" &&
+        left.parameters.length === right.parameters.length &&
+        left.parameters.every((parameter, index) => sameCsharpType(parameter, right.parameters[index]!)) &&
+        sameCsharpType(left.returnType, right.returnType);
     case "nullable":
       return right.kind === "nullable" && sameCsharpType(left.inner, right.inner);
   }

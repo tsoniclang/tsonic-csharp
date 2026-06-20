@@ -74,8 +74,44 @@ export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode
         ? undefined
         : { kind: "tuple", elements: elements as readonly CsharpTypeNode[] };
     }
+    case "pointer": {
+      const pointee = csharpTypeFromTargetTypeRef(type.pointee);
+      return pointee === undefined
+        ? undefined
+        : { kind: "pointer", pointee };
+    }
+    case "function-pointer": {
+      const parameters = type.args.map(csharpTypeFromTargetTypeRef);
+      const returnType = csharpTypeFromTargetTypeRef(type.result);
+      return returnType === undefined || parameters.some((parameter) => parameter === undefined)
+        ? undefined
+        : { kind: "functionPointer", parameters: parameters as readonly CsharpTypeNode[], returnType };
+    }
     default:
       return undefined;
+  }
+}
+
+export function csharpTypeRequiresUnsafe(type: CsharpTypeNode): boolean {
+  switch (type.kind) {
+    case "pointer":
+    case "functionPointer":
+      return true;
+    case "array":
+      return csharpTypeRequiresUnsafe(type.elementType);
+    case "tuple":
+      return type.elements.some(csharpTypeRequiresUnsafe);
+    case "function":
+      return type.parameters.some(csharpTypeRequiresUnsafe) || csharpTypeRequiresUnsafe(type.returnType);
+    case "nullable":
+      return csharpTypeRequiresUnsafe(type.inner);
+    case "named":
+    case "qualified":
+      return (type.typeArguments ?? []).some(csharpTypeRequiresUnsafe) ||
+        (type.kind === "qualified" && csharpTypeRequiresUnsafe(type.left));
+    case "predefined":
+    case "invalid":
+      return false;
   }
 }
 
