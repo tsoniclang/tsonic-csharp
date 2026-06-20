@@ -21,6 +21,7 @@ import {
   AsPrefixUnaryExpression,
   AsPropertyAssignment,
   AsPropertyAccessExpression,
+  AsRegularExpressionLiteral,
   AsShorthandPropertyAssignment,
   AsStringLiteral,
   AsSatisfiesExpression,
@@ -53,6 +54,7 @@ import {
   KindPrefixUnaryExpression,
   KindPropertyAssignment,
   KindPropertyAccessExpression,
+  KindRegularExpressionLiteral,
   KindShorthandPropertyAssignment,
   KindSpreadAssignment,
   KindStringLiteral,
@@ -132,6 +134,8 @@ function planExpressionCore(
       return { kind: "literal", value: AsNoSubstitutionTemplateLiteral(node)!.Text };
     case KindNumericLiteral:
       return { kind: "literal", value: Number(AsNumericLiteral(node)!.Text) };
+    case KindRegularExpressionLiteral:
+      return planRegularExpressionLiteral(node, sourceFile, input, diagnostics);
     case KindTrueKeyword:
       return { kind: "literal", value: true };
     case KindFalseKeyword:
@@ -1235,11 +1239,24 @@ function getSourceOwnedObjectInitializerMemberName(
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const nameNode = Node_Name(property);
-  if (nameNode === undefined || nameNode.Kind !== KindIdentifier) {
-    diagnostics.push(unsupportedNodeDiagnostic(nameNode ?? property, "Source-owned object initializers support identifier property names; other names require finalized provider object-shape facts."));
+  if (nameNode === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(property, "Source-owned object initializers require a property name."));
     return undefined;
   }
-  return sanitizeIdentifier(Node_Text(nameNode));
+  if (nameNode.Kind === KindIdentifier) {
+    return sanitizeIdentifier(Node_Text(nameNode));
+  }
+  if (nameNode.Kind === KindStringLiteral) {
+    const text = AsStringLiteral(nameNode)?.Text;
+    if (text !== undefined) {
+      const sanitized = sanitizeIdentifier(text);
+      if (sanitized === text || sanitized === `@${text}`) {
+        return sanitized;
+      }
+    }
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(nameNode, "Source-owned object initializers support identifier-compatible property names; other names require finalized provider object-shape facts."));
+  return undefined;
 }
 
 function getObjectLiteralPropertySourceName(
@@ -1286,6 +1303,66 @@ function getStringLiteralText(node: Node): string | undefined {
 
 function isCsharpCharType(type: CsharpTypeNode): boolean {
   return type.kind === "predefined" && type.name === "char";
+}
+
+function planRegularExpressionLiteral(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const carrier = getRuntimeCarrierForExpression(input, node, sourceFile);
+  if (carrier?.kind !== "target-named" || carrier.id !== "Tsonic.CSharp.Js.RegExp") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires a finalized provider runtime carrier for Tsonic.CSharp.Js.RegExp."));
+    return invalidExpression("regexp literal without provider carrier");
+  }
+  const literal = parseRegularExpressionLiteral(AsRegularExpressionLiteral(node)!.Text);
+  if (literal === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal text could not be split into pattern and flags by the C# backend."));
+    return invalidExpression("invalid regexp literal text");
+  }
+  return {
+    kind: "new",
+    type: csharpTypeFromTargetTypeRef(carrier) ?? { kind: "invalid", reason: "regexp carrier" },
+    arguments: [
+      { expression: { kind: "literal", value: literal.pattern } },
+      { expression: { kind: "literal", value: literal.flags } },
+    ],
+  };
+}
+
+function parseRegularExpressionLiteral(text: string): { readonly pattern: string; readonly flags: string } | undefined {
+  if (!text.startsWith("/")) {
+    return undefined;
+  }
+  let escaped = false;
+  let inCharacterClass = false;
+  for (let index = 1; index < text.length; index += 1) {
+    const char = text[index]!;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === "[" && !inCharacterClass) {
+      inCharacterClass = true;
+      continue;
+    }
+    if (char === "]" && inCharacterClass) {
+      inCharacterClass = false;
+      continue;
+    }
+    if (char === "/" && !inCharacterClass) {
+      return {
+        pattern: text.slice(1, index),
+        flags: text.slice(index + 1),
+      };
+    }
+  }
+  return undefined;
 }
 
 function planTupleLiteralExpression(

@@ -2,6 +2,7 @@ import {
   AsArrayTypeNode,
   AsFunctionTypeNode,
   AsInterfaceDeclaration,
+  AsLiteralTypeNode,
   AsMethodSignatureDeclaration,
   AsNumericLiteral,
   AsParameterDeclaration,
@@ -10,6 +11,7 @@ import {
   AsTupleTypeNode,
   AsTypeParameterDeclaration,
   AsTypeReferenceNode,
+  AsUnionTypeNode,
   GetSourceFileOfNode,
   KindAnyKeyword,
   KindArrayType,
@@ -24,10 +26,12 @@ import {
   KindGetAccessor,
   KindIdentifier,
   KindInterfaceDeclaration,
+  KindLiteralType,
   KindMethodSignature,
   KindNeverKeyword,
   KindNewExpression,
   KindNoSubstitutionTemplateLiteral,
+  KindNullKeyword,
   KindNumberKeyword,
   KindNumericLiteral,
   KindParameter,
@@ -42,6 +46,8 @@ import {
   KindTypeParameter,
   KindTypeReference,
   KindUnknownKeyword,
+  KindUnionType,
+  KindUndefinedKeyword,
   KindVariableDeclaration,
   KindVoidKeyword,
   Node_Members,
@@ -173,6 +179,8 @@ export function createCsharpTargetSemanticsExtension(_context: TargetExtensionCo
       context.registerTargetSemanticProvider(provider);
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) =>
         resolveCsharpRuntimeCarrier(subject, resolverContext));
+      context.factResolver.register(targetBindingFactKey, (subject, resolverContext) =>
+        resolveCsharpTargetBinding(subject, resolverContext));
       context.factResolver.register(objectShapeFactKey, (subject, resolverContext) =>
         resolveCsharpObjectShape(subject, resolverContext));
       context.factResolver.register(targetTypeParameterConstraintFactKey, (subject, resolverContext) =>
@@ -211,7 +219,11 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (request.target !== undefined && request.target !== "csharp") {
         return deferDecision;
       }
-      if (request.propertyName === "length" && isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
+      if (
+        request.propertyName === "length" &&
+        isTypeScriptStringLikeType(request.receiverType as Type | undefined) &&
+        isStandardInterfaceMemberSymbol([request.propertySymbol, request.resolvedPropertySymbol], "length", ["String"])
+      ) {
         const resultType = sourcePrimitiveInt32();
         return acceptDecision({
           operation: {
@@ -223,7 +235,11 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
           resultType,
         });
       }
-      if (request.propertyName === "length" && getTypeScriptArrayElementType(request.receiverType as Type | undefined) !== undefined) {
+      if (
+        request.propertyName === "length" &&
+        getTypeScriptArrayElementType(request.receiverType as Type | undefined) !== undefined &&
+        isStandardInterfaceMemberSymbol([request.propertySymbol, request.resolvedPropertySymbol], "length", ["Array", "ReadonlyArray"])
+      ) {
         const resultType = sourcePrimitiveInt32();
         return acceptDecision({
           operation: {
@@ -247,7 +263,11 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (!isCsharpIntegralIndexArgument(request, context)) {
         return deferDecision;
       }
-      if (isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
+      const receiverType = request.receiverType !== undefined && isTypeSubject(request.receiverType)
+        ? request.receiverType
+        : undefined;
+      const effectiveReceiverType = getSingleNonNullishUnionType(receiverType) ?? receiverType;
+      if (isTypeScriptStringLikeType(effectiveReceiverType)) {
         const elementType = csharpNamed("System.String");
         return acceptDecision({
           operation: {
@@ -259,7 +279,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
           resultType: elementType,
         });
       }
-      const elementType = getTypeScriptArrayElementType(request.receiverType as Type | undefined);
+      const elementType = getTypeScriptArrayElementType(effectiveReceiverType);
       if (elementType === undefined) {
         return deferDecision;
       }
@@ -482,7 +502,12 @@ function resolveCsharpBuiltinMethodCall(
     return undefined;
   }
   const sourceName = Node_Text(name);
-  if (sourceName === "toString" && request.arguments.length === 0 && isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
+  if (
+    sourceName === "toString" &&
+    request.arguments.length === 0 &&
+    isTypeScriptStringLikeType(request.receiverType as Type | undefined) &&
+    isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], "toString", ["String"])
+  ) {
     const returnType = csharpNamed("System.String");
     return {
       selectedSignature: {
@@ -501,10 +526,43 @@ function resolveCsharpBuiltinMethodCall(
       } satisfies RuntimeCarrierFact,
     };
   }
-  if (sourceName === "join") {
+  if (
+    sourceName === "join" &&
+    isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], "join", ["Array", "ReadonlyArray"])
+  ) {
     return resolveArrayJoinMethodCall(sourceName, request, context);
   }
   return undefined;
+}
+
+function isStandardInterfaceMemberSymbol(
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  memberName: string,
+  interfaceNames: readonly string[],
+): boolean {
+  for (const subject of subjects) {
+    if (subject === undefined || !isSymbolSubject(subject) || subject.Name !== memberName) {
+      continue;
+    }
+    if ((subject.Declarations ?? []).some((declaration) =>
+      declaration !== undefined && isStandardInterfaceMemberDeclaration(declaration, interfaceNames))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isStandardInterfaceMemberDeclaration(declaration: Node, interfaceNames: readonly string[]): boolean {
+  const sourceFile = GetSourceFileOfNode(declaration);
+  if (sourceFile === undefined || !sourceFile.IsDeclarationFile || !SourceFile_FileName(sourceFile).endsWith("lib.es5.d.ts")) {
+    return false;
+  }
+  const parent = declaration.Parent;
+  if (parent === undefined || parent.Kind !== KindInterfaceDeclaration) {
+    return false;
+  }
+  const name = Node_Name(parent);
+  return name !== undefined && name.Kind === KindIdentifier && interfaceNames.includes(Node_Text(name));
 }
 
 function resolveArrayJoinMethodCall(
@@ -813,8 +871,12 @@ function getTargetBindingFromSubject(
   if (direct !== undefined) {
     return direct;
   }
-  return isTypeSubject(subject)
-    ? context.facts.get(subject.symbol, targetBindingFactKey)
+  const resolved = context.factResolver.resolve(subject, targetBindingFactKey);
+  if (resolved !== undefined) {
+    return resolved;
+  }
+  return isTypeSubject(subject) && subject.symbol !== undefined
+    ? context.factResolver.resolve(subject.symbol, targetBindingFactKey)
     : undefined;
 }
 
@@ -1066,7 +1128,7 @@ function resolveCsharpRuntimeCarrier(
     }
   }
 
-  const directTargetBinding = context.facts.get(subject, targetBindingFactKey);
+  const directTargetBinding = context.factResolver.resolve(subject, targetBindingFactKey);
   if (directTargetBinding !== undefined) {
     return runtimeCarrierFromTargetBinding(directTargetBinding.id);
   }
@@ -1172,6 +1234,66 @@ function runtimeCarrierFromTargetBinding(id: string): { readonly value: RuntimeC
       },
     },
     evidence: [{ message: `C# carrier from target binding '${id}'.` }],
+  };
+}
+
+function resolveCsharpTargetBinding(
+  subject: ExtensionFactSubject,
+  _context: ExtensionFactResolverContext,
+): { readonly value: TargetBindingFact; readonly evidence?: readonly ExtensionEvidence[] } | undefined {
+  if (isSymbolSubject(subject) && isStandardRegExpSymbol(subject)) {
+    return {
+      value: csharpRegExpTargetBinding(),
+      evidence: [{ message: "C# target binding from TypeScript standard RegExp symbol." }],
+    };
+  }
+  if (isTypeSubject(subject) && isStandardRegExpType(subject)) {
+    return {
+      value: csharpRegExpTargetBinding(),
+      evidence: [{ message: "C# target binding from TypeScript standard RegExp type." }],
+    };
+  }
+  return undefined;
+}
+
+function csharpRegExpTargetBinding(): TargetBindingFact {
+  const stringType = csharpNamed("System.String");
+  const boolType = csharpNamed("System.Boolean");
+  return {
+    id: "Tsonic.CSharp.Js.RegExp",
+    sourceName: "RegExp",
+    targetName: "Tsonic.CSharp.Js.RegExp",
+    target: "csharp",
+    kind: "class",
+    members: [
+      {
+        id: "Tsonic.CSharp.Js.RegExp..ctor(System.String)",
+        sourceName: "constructor",
+        targetName: "RegExp",
+        kind: "constructor",
+        parameters: [{ name: "pattern", type: stringType, passingMode: "by-value" }],
+        returnType: csharpNamed("Tsonic.CSharp.Js.RegExp"),
+      },
+      {
+        id: "Tsonic.CSharp.Js.RegExp..ctor(System.String,System.String)",
+        sourceName: "constructor",
+        targetName: "RegExp",
+        kind: "constructor",
+        parameters: [
+          { name: "pattern", type: stringType, passingMode: "by-value" },
+          { name: "flags", type: stringType, passingMode: "by-value" },
+        ],
+        returnType: csharpNamed("Tsonic.CSharp.Js.RegExp"),
+      },
+      {
+        id: "Tsonic.CSharp.Js.RegExp.test(System.String)",
+        sourceName: "test",
+        targetName: "test",
+        kind: "method",
+        parameters: [{ name: "input", type: stringType, passingMode: "by-value" }],
+        returnType: boolType,
+      },
+    ],
   };
 }
 
@@ -1693,9 +1815,35 @@ function resolveCsharpRuntimeCarrierForTypeNode(
     }
     case KindFunctionType:
       return resolveCsharpFunctionTypeCarrier(node, context);
+    case KindUnionType:
+      return resolveNullableUnionCarrierForTypeNode(node, context);
     default:
       return undefined;
   }
+}
+
+function resolveNullableUnionCarrierForTypeNode(
+  node: Node,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const union = AsUnionTypeNode(node);
+  const members = (union?.Types?.Nodes ?? []).filter((member): member is Node => member !== undefined);
+  const nonNullishMembers = members.filter((member) => !isNullishTypeNode(member));
+  if (nonNullishMembers.length !== 1 || nonNullishMembers.length === members.length) {
+    return undefined;
+  }
+  const inner = context.factResolver.resolve(nonNullishMembers[0]!, runtimeCarrierFactKey)?.carrier;
+  return inner === undefined ? undefined : nullableTargetType(inner);
+}
+
+function isNullishTypeNode(node: Node): boolean {
+  if (node.Kind === KindUndefinedKeyword) {
+    return true;
+  }
+  if (node.Kind !== KindLiteralType) {
+    return false;
+  }
+  return AsLiteralTypeNode(node)?.Literal?.Kind === KindNullKeyword;
 }
 
 function resolveCsharpFunctionTypeCarrier(
@@ -1732,7 +1880,9 @@ function resolveCsharpRuntimeCarrierForTstsType(
   type: Type,
   context: ExtensionFactResolverContext,
 ): TargetTypeRef | undefined {
-  const targetBinding = context.facts.get(type.symbol, targetBindingFactKey);
+  const targetBinding = type.symbol === undefined
+    ? undefined
+    : context.factResolver.resolve(type.symbol, targetBindingFactKey);
   if (targetBinding !== undefined) {
     return {
       kind: "target-named",
@@ -1760,7 +1910,9 @@ function resolveCsharpRuntimeCarrierForTstsType(
     if (promiseCarrier !== undefined) {
       return promiseCarrier;
     }
-    const referenceBinding = context.facts.get(typeReference.targetSymbol, targetBindingFactKey);
+    const referenceBinding = typeReference.targetSymbol === undefined
+      ? undefined
+      : context.factResolver.resolve(typeReference.targetSymbol, targetBindingFactKey);
     if (referenceBinding !== undefined) {
       const typeArguments = typeReference.typeArguments
         .map((argument) => context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier);
@@ -1773,6 +1925,9 @@ function resolveCsharpRuntimeCarrierForTstsType(
         typeArguments: typeArguments as readonly TargetTypeRef[],
       };
     }
+  }
+  if (isStandardRegExpType(type)) {
+    return csharpNamed("Tsonic.CSharp.Js.RegExp");
   }
   const sourceProjectCarrier = resolveCsharpSourceProjectTypeCarrier(type, context);
   if (sourceProjectCarrier !== undefined) {
@@ -1841,6 +1996,22 @@ function isStandardPromiseSymbol(symbol: Symbol | undefined): boolean {
     return sourceFile !== undefined &&
       sourceFile.IsDeclarationFile &&
       SourceFile_FileName(sourceFile).endsWith("lib.es2015.promise.d.ts");
+  });
+}
+
+function isStandardRegExpType(type: Type): boolean {
+  return isStandardRegExpSymbol(type.symbol);
+}
+
+function isStandardRegExpSymbol(symbol: Symbol | undefined): boolean {
+  if (symbol?.Name !== "RegExp") {
+    return false;
+  }
+  return (symbol.Declarations ?? []).some((declaration) => {
+    const sourceFile = declaration === undefined ? undefined : GetSourceFileOfNode(declaration);
+    return sourceFile !== undefined &&
+      sourceFile.IsDeclarationFile &&
+      SourceFile_FileName(sourceFile).endsWith("lib.es5.d.ts");
   });
 }
 
@@ -2034,7 +2205,7 @@ function resolveCsharpOperator(
   return resolveTypeofComparisonOperator(request, context) ??
     resolveSourceProjectInstanceOfOperator(request) ??
     resolveSourcePrimitiveOperator(request, context) ??
-    resolveBuiltinTypeOperator(request);
+    resolveBuiltinTypeOperator(request, context);
 }
 
 function resolveTypeofComparisonOperator(
@@ -2285,10 +2456,11 @@ type BuiltinOperatorKind = "string" | "number" | "boolean" | "bigint" | "enum" |
 
 function resolveBuiltinTypeOperator(
   request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
 ): ResolveOperationResult | undefined {
   const semanticOperator = normalizeSourcePrimitiveOperator(request.operator, request.right);
   const nullishCoalesce = semanticOperator === "??"
-    ? resolveNullishCoalesceOperator(request)
+    ? resolveNullishCoalesceOperator(request, context)
     : undefined;
   if (nullishCoalesce !== undefined) {
     return nullishCoalesce;
@@ -2320,26 +2492,63 @@ function resolveBuiltinTypeOperator(
   };
 }
 
-function resolveNullishCoalesceOperator(request: ResolveOperatorRequest): ResolveOperationResult | undefined {
+function resolveNullishCoalesceOperator(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
   const leftType = request.leftType !== undefined && isTypeSubject(request.leftType) ? request.leftType : undefined;
   const rightType = request.rightType !== undefined && isTypeSubject(request.rightType) ? request.rightType : undefined;
   const leftInnerType = getSingleNonNullishUnionType(leftType);
-  if (leftInnerType === undefined || rightType === undefined) {
+  if (leftInnerType !== undefined && rightType !== undefined) {
+    const leftKind = getBuiltinOperatorKind(leftInnerType);
+    const rightKind = getBuiltinOperatorKind(rightType);
+    if (leftKind !== undefined && rightKind !== undefined && leftKind === rightKind && leftKind !== "type-parameter") {
+      return {
+        operation: {
+          operationId: `tsonic.csharp.builtin.${leftKind}.??.${rightKind}`,
+          operationKind: "operator",
+          targetOperation: "??",
+          resultType: leftInnerType,
+        } satisfies TargetOperationFact,
+        resultType: leftInnerType,
+      };
+    }
+  }
+  return resolveNullishCoalesceOperatorFromCarriers(request, context);
+}
+
+function resolveNullishCoalesceOperatorFromCarriers(
+  request: ResolveOperatorRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  const leftCarrier = resolveFirstRuntimeCarrier([
+    request.left,
+    request.leftSymbol,
+    request.leftResolvedSymbol,
+    request.leftType,
+  ], context);
+  const rightCarrier = resolveFirstRuntimeCarrier([
+    request.right,
+    request.rightSymbol,
+    request.rightResolvedSymbol,
+    request.rightType,
+  ], context);
+  if (leftCarrier?.kind !== "nullable" || rightCarrier === undefined || !targetTypeRefMatches(leftCarrier.inner, rightCarrier)) {
     return undefined;
   }
-  const leftKind = getBuiltinOperatorKind(leftInnerType);
-  const rightKind = getBuiltinOperatorKind(rightType);
-  if (leftKind === undefined || rightKind === undefined || leftKind !== rightKind || leftKind === "type-parameter") {
+  const carrierKey = targetTypeRefKey(leftCarrier.inner);
+  if (carrierKey === undefined) {
     return undefined;
   }
+  const resultType = request.rightType ?? request.right;
   return {
     operation: {
-      operationId: `tsonic.csharp.builtin.${leftKind}.??.${rightKind}`,
+      operationId: `tsonic.csharp.carrier.${carrierKey}.??.${carrierKey}`,
       operationKind: "operator",
       targetOperation: "??",
-      resultType: leftInnerType,
+      ...(resultType === undefined ? {} : { resultType }),
     } satisfies TargetOperationFact,
-    resultType: leftInnerType,
+    ...(resultType === undefined ? {} : { resultType }),
   };
 }
 
