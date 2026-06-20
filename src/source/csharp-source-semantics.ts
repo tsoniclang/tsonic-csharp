@@ -213,7 +213,11 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (request.target !== undefined && request.target !== "csharp") {
         return deferDecision;
       }
-      if (request.propertyName === "length" && isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
+      if (
+        request.propertyName === "length" &&
+        isTypeScriptStringLikeType(request.receiverType as Type | undefined) &&
+        isStandardInterfaceMemberSymbol([request.propertySymbol, request.resolvedPropertySymbol], "length", ["String"])
+      ) {
         const resultType = sourcePrimitiveInt32();
         return acceptDecision({
           operation: {
@@ -225,7 +229,11 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
           resultType,
         });
       }
-      if (request.propertyName === "length" && getTypeScriptArrayElementType(request.receiverType as Type | undefined) !== undefined) {
+      if (
+        request.propertyName === "length" &&
+        getTypeScriptArrayElementType(request.receiverType as Type | undefined) !== undefined &&
+        isStandardInterfaceMemberSymbol([request.propertySymbol, request.resolvedPropertySymbol], "length", ["Array", "ReadonlyArray"])
+      ) {
         const resultType = sourcePrimitiveInt32();
         return acceptDecision({
           operation: {
