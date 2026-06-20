@@ -17,6 +17,7 @@ import {
   AsUnionTypeNode,
   GetSourceFileOfNode,
   KindAnyKeyword,
+  KindArrowFunction,
   KindArrayLiteralExpression,
   KindArrayType,
   KindBigIntKeyword,
@@ -26,6 +27,7 @@ import {
   KindClassDeclaration,
   KindEnumDeclaration,
   KindEnumMember,
+  KindFunctionExpression,
   KindFunctionType,
   KindGetAccessor,
   KindIdentifier,
@@ -735,14 +737,21 @@ function resolveArrayInstanceMethodCall(
   if (receiverType === undefined) {
     return undefined;
   }
-  const members = arrayInstanceTargetMembers(sourceName, receiverType, receiverType.element)
-    .filter((member) => targetMemberAcceptsCall(member, request, context));
-  if (members.length !== 1) {
+  const matches = arrayInstanceTargetMembers(sourceName, receiverType, receiverType.element)
+    .flatMap((member) => {
+      const match = targetMemberCallMatch(member, request, context);
+      return match === undefined ? [] : [match];
+    });
+  if (matches.length !== 1) {
     return undefined;
   }
-  const member = members[0]!;
+  const match = matches[0]!;
+  const member = match.member;
   return {
-    selectedSignature: { member },
+    selectedSignature: {
+      member,
+      ...(match.argumentConversions === undefined ? {} : { argumentConversions: match.argumentConversions }),
+    },
     ...(member.returnType === undefined
       ? {}
       : {
@@ -787,6 +796,21 @@ function arrayInstanceTargetMembers(
           { name: "value", type: elementType, passingMode: "by-value" },
         ],
         returnType: csharpNamed("System.Boolean"),
+      }];
+    case "forEach":
+      return [{
+        id: "System.Array.ForEach(T[],Action<T>)",
+        sourceName,
+        targetName: "ForEach",
+        kind: "method",
+        static: true,
+        declaringType: csharpNamed("System.Array"),
+        receiverArgumentIndex: 0,
+        parameters: [
+          { name: "array", type: receiverType, passingMode: "by-value" },
+          { name: "action", type: csharpDelegateTargetTypeRef([elementType], csharpNamed("System.Void")), passingMode: "by-value" },
+        ],
+        returnType: csharpNamed("System.Void"),
       }];
     case "indexOf":
       return arraySearchTargetMembers(sourceName, "IndexOf", receiverType, elementType, intType);
@@ -902,6 +926,11 @@ function targetMemberCallMatch(
     if (parameter === undefined) {
       return undefined;
     }
+    const conversionWithoutCarrier = targetArgumentConversion(request.arguments[index], undefined, parameter.type);
+    if (conversionWithoutCarrier !== undefined) {
+      argumentConversions[index] = conversionWithoutCarrier;
+      continue;
+    }
     const argumentCarrier = resolveCallArgumentCarrier(request, index, context);
     if (argumentCarrier === undefined) {
       return undefined;
@@ -922,19 +951,30 @@ function targetMemberCallMatch(
 
 function targetArgumentConversion(
   argument: ExtensionFactSubject | undefined,
-  actual: TargetTypeRef,
+  actual: TargetTypeRef | undefined,
   expected: TargetTypeRef,
 ): TargetTypeRef | undefined {
   if (argument === undefined) {
     return undefined;
   }
-  if (expected.kind === "array" && actual.kind === "array" && isNodeSubject(argument) && argument.Kind === KindArrayLiteralExpression) {
+  if (isCsharpDelegateTargetType(expected) && isFunctionExpressionSubject(argument)) {
+    return expected;
+  }
+  if (expected.kind === "array" && actual?.kind === "array" && isNodeSubject(argument) && argument.Kind === KindArrayLiteralExpression) {
     return arrayLiteralTargetConversion(argument, actual, expected);
   }
   if (isNodeSubject(argument) && isNumericLiteralRepresentableAs(argument, expected)) {
     return expected;
   }
   return undefined;
+}
+
+function isFunctionExpressionSubject(subject: ExtensionFactSubject): boolean {
+  return isNodeSubject(subject) && (subject.Kind === KindArrowFunction || subject.Kind === KindFunctionExpression);
+}
+
+function isCsharpDelegateTargetType(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && (type.id.startsWith("System.Action`") || type.id.startsWith("System.Func`"));
 }
 
 function arrayLiteralTargetConversion(
