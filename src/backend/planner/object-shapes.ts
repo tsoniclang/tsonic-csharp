@@ -1,8 +1,9 @@
-import type { ObjectShapeFact, TargetTypeRef } from "@tsonic/tsts";
+import type { TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpClassDeclaration, CsharpExpression, CsharpParameter, CsharpTypeDeclaration, CsharpTypeMember, CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpClassDeclaration, CsharpExpression, CsharpParameter, CsharpTypeDeclaration, CsharpTypeMember, CsharpTypeNode } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
 
 interface ObjectShapeRegistry {
   readonly declarations: Map<string, CsharpClassDeclaration>;
@@ -22,12 +23,12 @@ export function takeObjectShapeDeclarations(input: TargetCompileInput): readonly
 
 export function csharpTypeFromObjectShapeFact(
   input: TargetCompileInput,
-  fact: ObjectShapeFact,
+  fact: CsharpObjectShapeFact,
   diagnostics?: TargetDiagnostic[],
   diagnosticSubject?: Parameters<typeof unsupportedNodeDiagnostic>[0],
 ): CsharpTypeNode | undefined {
   const targetType = csharpTypeFromTargetTypeRef(fact.targetType);
-  if (targetType === undefined || targetType.kind !== "named") {
+  if (targetType === undefined || targetType.kind !== "IdentifierName") {
     if (diagnostics !== undefined && diagnosticSubject !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, "Object-shape fact must carry a renderable named target carrier type before C# emission."));
     }
@@ -37,7 +38,7 @@ export function csharpTypeFromObjectShapeFact(
   return targetType;
 }
 
-export function objectShapeStorageMemberName(objectShape: ObjectShapeFact, member: ObjectShapeFact["members"][number]): string {
+export function objectShapeStorageMemberName(objectShape: CsharpObjectShapeFact, member: CsharpObjectShapeFact["members"][number]): string {
   if (member.memberKind !== "method") {
     return member.targetName;
   }
@@ -57,7 +58,7 @@ export function objectShapeStorageMemberName(objectShape: ObjectShapeFact, membe
 function registerObjectShapeDeclaration(
   input: TargetCompileInput,
   name: string,
-  fact: ObjectShapeFact,
+  fact: CsharpObjectShapeFact,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): void {
@@ -83,7 +84,7 @@ function registerObjectShapeDeclaration(
     }
     if (implementsInterface) {
       return [{
-        kind: "property" as const,
+        kind: "PropertyDeclaration" as const,
         name: member.targetName,
         modifiers: ["public"] as const,
         type,
@@ -92,7 +93,7 @@ function registerObjectShapeDeclaration(
       }];
     }
     return [{
-      kind: "field" as const,
+      kind: "FieldDeclaration" as const,
       name: member.targetName,
       modifiers: ["public"] as const,
       type,
@@ -102,7 +103,7 @@ function registerObjectShapeDeclaration(
     return;
   }
   registry.declarations.set(name, {
-    kind: "class",
+    kind: "ClassDeclaration",
     name,
     modifiers: ["public"],
     ...(interfaces.length === 0 ? {} : { interfaces }),
@@ -111,8 +112,8 @@ function registerObjectShapeDeclaration(
 }
 
 function renderObjectShapeMethodMember(
-  objectShape: ObjectShapeFact,
-  member: ObjectShapeFact["members"][number],
+  objectShape: CsharpObjectShapeFact,
+  member: CsharpObjectShapeFact["members"][number],
   delegateType: CsharpTypeNode,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
@@ -130,33 +131,35 @@ function renderObjectShapeMethodMember(
     type,
   }));
   const call: CsharpExpression = {
-    kind: "call",
+    kind: "InvocationExpression",
     callee: {
-      kind: "identifier",
+      kind: "IdentifierName",
       name: backingName,
     },
     arguments: parameters.map((parameter) => ({
+      kind: "Argument",
       expression: {
-        kind: "identifier",
+        kind: "IdentifierName",
         name: parameter.name,
       },
     })),
   };
   return [{
-    kind: "field",
+    kind: "FieldDeclaration",
     name: backingName,
     modifiers: ["public"],
     type: delegateType,
   }, {
-    kind: "method",
+    kind: "MethodDeclaration",
     name: member.targetName,
     modifiers: ["public"],
-    returnType: signature.returnType ?? { kind: "predefined", name: "void" },
+    returnType: signature.returnType ?? { kind: "PredefinedType", name: "void" },
     parameters,
     body: {
+      kind: "Block",
       statements: signature.returnType === undefined
-        ? [{ kind: "expression", expression: call }]
-        : [{ kind: "return", expression: call }],
+        ? [{ kind: "ExpressionStatement", expression: call }]
+        : [{ kind: "ReturnStatement", expression: call }],
     },
   }];
 }
@@ -186,7 +189,7 @@ function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): { readon
 }
 
 function renderObjectShapeInterfaces(
-  fact: ObjectShapeFact,
+  fact: CsharpObjectShapeFact,
   diagnostics: TargetDiagnostic[] | undefined,
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): readonly CsharpTypeNode[] | undefined {

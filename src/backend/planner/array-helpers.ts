@@ -1,25 +1,22 @@
-import type { CsharpArgument, CsharpExpression } from "../ast/csharp-ast.js";
+import type { CsharpArgument, CsharpExpression } from "../roslyn/syntax.js";
 
 export function runtimeArrayHelperCall(name: string, args: readonly CsharpArgument[]): CsharpExpression {
   return {
-    kind: "call",
+    kind: "InvocationExpression",
     callee: {
-      kind: "member",
+      kind: "SimpleMemberAccessExpression",
       receiver: {
-        kind: "type",
-        type: {
-          kind: "qualified",
+        kind: "QualifiedName",
+        left: {
+          kind: "QualifiedName",
           left: {
-            kind: "qualified",
-            left: {
-              kind: "qualified",
-              left: { kind: "named", name: "Tsonic" },
-              name: "CSharp",
-            },
-            name: "Runtime",
+            kind: "QualifiedName",
+            left: { kind: "IdentifierName", name: "Tsonic" },
+            name: "CSharp",
           },
-          name: "ArrayHelpers",
+          name: "Runtime",
         },
+        name: "ArrayHelpers",
       },
       name,
     },

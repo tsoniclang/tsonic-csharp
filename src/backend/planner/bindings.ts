@@ -3,16 +3,17 @@ import {
   AsBindingPattern,
   AsParameterDeclaration,
   AsStringLiteral,
+  HasSourceKind,
   KindBindingElement,
   KindArrayBindingPattern,
   KindIdentifier,
   KindObjectBindingPattern,
   KindStringLiteral,
   Node_Text,
-} from "@tsonic/tsts";
-import type { Node, ObjectShapeFact, SourceFile, TargetTypeRef } from "@tsonic/tsts";
+} from "./source-ast.js";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement, CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement, CsharpTypeNode } from "../roslyn/syntax.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -22,6 +23,8 @@ import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./o
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { getSemanticOwnership, isSourceOwnedProjectShapeSubject, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
+import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
+import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
 
 export interface DestructuringPlannerState {
   nextTempIndex: number;
@@ -86,7 +89,7 @@ export function allocateCatchValue(state: DestructuringPlannerState): string {
 export function allocateControlLabel(
   state: DestructuringPlannerState,
   sourceName: string,
-  purpose: "break" | "continue",
+  purpose: "BreakStatement" | "ContinueStatement",
 ): string {
   const name = `__label${state.nextControlLabelIndex}_${sourceName}_${purpose}`;
   state.nextControlLabelIndex += 1;
@@ -101,10 +104,10 @@ export function planVariableBindingStatements(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] | undefined {
-  if (bindingName === undefined || bindingName.Kind === KindIdentifier) {
+  if (bindingName === undefined || HasSourceKind(input.ast, bindingName, KindIdentifier)) {
     return undefined;
   }
-  if (bindingName.Kind !== KindObjectBindingPattern && bindingName.Kind !== KindArrayBindingPattern) {
+  if (!HasSourceKind(input.ast, bindingName, KindObjectBindingPattern) && !HasSourceKind(input.ast, bindingName, KindArrayBindingPattern)) {
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Variable binding name is outside the current C# planning surface."));
     return [];
   }
@@ -113,11 +116,11 @@ export function planVariableBindingStatements(
     return [];
   }
   const sourceName = allocateDestructuringTemp(state);
-  const sourceExpression: CsharpExpression = { kind: "identifier", name: sourceName };
+  const sourceExpression: CsharpExpression = { kind: "IdentifierName", name: sourceName };
   const sourceType = getCsharpTypeForExpressionCarrier(initializer, sourceFile, input, diagnostics, bindingName, "Destructuring source expression");
   return [
     {
-      kind: "local",
+      kind: "LocalDeclarationStatement",
       name: sourceName,
       type: sourceType,
       initializer: planExpression(initializer, sourceFile, input, diagnostics),
@@ -134,17 +137,17 @@ export function planParameterBindingPrelude(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  if (bindingName === undefined || bindingName.Kind === KindIdentifier) {
+  if (bindingName === undefined || HasSourceKind(input.ast, bindingName, KindIdentifier)) {
     return [];
   }
-  if (bindingName.Kind !== KindObjectBindingPattern && bindingName.Kind !== KindArrayBindingPattern) {
+  if (!HasSourceKind(input.ast, bindingName, KindObjectBindingPattern) && !HasSourceKind(input.ast, bindingName, KindArrayBindingPattern)) {
     diagnostics.push(unsupportedNodeDiagnostic(bindingName, "Parameter binding name is outside the current C# planning surface."));
     return [];
   }
   const parameter = AsParameterDeclaration(getNodeParent(bindingName));
   return planBindingPatternFromExpression(
     bindingName,
-    { kind: "identifier", name: parameterName },
+    { kind: "IdentifierName", name: parameterName },
     parameter?.Type,
     sourceFile,
     input,
@@ -162,10 +165,10 @@ export function planBindingPatternFromExpression(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  if (patternNode.Kind === KindArrayBindingPattern) {
+  if (HasSourceKind(input.ast, patternNode, KindArrayBindingPattern)) {
     return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state);
   }
-  if (patternNode.Kind === KindObjectBindingPattern) {
+  if (HasSourceKind(input.ast, patternNode, KindObjectBindingPattern)) {
     return planObjectBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state);
   }
   diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Binding pattern is outside the current C# planning surface."));
@@ -226,9 +229,9 @@ function planArrayBindingElement(
     return [];
   }
   const projected: CsharpExpression = {
-    kind: "element",
+    kind: "ElementAccessExpression",
     receiver: sourceExpression,
-    argument: { kind: "literal", value: index },
+    argument: { kind: "LiteralExpression", value: index },
   };
   const projectedType = elementCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(elementCarrier);
   if (projectedType === undefined) {
@@ -270,8 +273,8 @@ function planArrayRestBindingElement(
     return [];
   }
   const projected = runtimeArrayHelperCall("Slice", [
-    { expression: sourceExpression },
-    { expression: { kind: "literal", value: index } },
+    { kind: "Argument", expression: sourceExpression },
+    { kind: "Argument", expression: { kind: "LiteralExpression", value: index } },
   ]);
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
@@ -287,17 +290,17 @@ function planArrayElementDefaultProjection(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   return {
-    kind: "conditional",
+    kind: "ConditionalExpression",
     condition: {
-      kind: "binary",
+      kind: "BinaryExpression",
       left: {
-        kind: "member",
+        kind: "SimpleMemberAccessExpression",
         receiver: sourceExpression,
         name: "Length",
       },
       operator: ">",
       right: {
-        kind: "literal",
+        kind: "LiteralExpression",
         value: index,
       },
     },
@@ -338,7 +341,7 @@ function planObjectBindingPattern(
 function planObjectShapeBindingPattern(
   patternNode: Node,
   sourceExpression: CsharpExpression,
-  objectShape: ObjectShapeFact,
+  objectShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -356,7 +359,7 @@ function planObjectShapeBindingPattern(
 function planObjectShapeBindingElement(
   elementNode: Node,
   sourceExpression: CsharpExpression,
-  objectShape: ObjectShapeFact,
+  objectShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -379,7 +382,7 @@ function planObjectShapeBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object binding element must have a target binding name."));
     return [];
   }
-  const sourceName = getObjectShapeBindingPropertySourceName(elementNode, diagnostics);
+  const sourceName = getObjectShapeBindingPropertySourceName(elementNode, input, diagnostics);
   const member = sourceName === undefined
     ? undefined
     : objectShape.members.find((candidate) => candidate.sourceName === sourceName);
@@ -393,7 +396,7 @@ function planObjectShapeBindingElement(
     return [];
   }
   const projected: CsharpExpression = {
-    kind: "member",
+    kind: "SimpleMemberAccessExpression",
     receiver: sourceExpression,
     name: member.targetName,
   };
@@ -403,7 +406,7 @@ function planObjectShapeBindingElement(
 function planObjectShapeRestBindingElement(
   elementNode: Node,
   sourceExpression: CsharpExpression,
-  sourceShape: ObjectShapeFact,
+  sourceShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -411,7 +414,7 @@ function planObjectShapeRestBindingElement(
 ): readonly CsharpStatement[] {
   const element = AsBindingElement(elementNode);
   const name = element?.name;
-  if (name === undefined || name.Kind !== KindIdentifier) {
+  if (name === undefined || !HasSourceKind(input.ast, name, KindIdentifier)) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires an identifier binding name."));
     return [];
   }
@@ -435,9 +438,10 @@ function planObjectShapeRestBindingElement(
       return undefined;
     }
     return {
+      kind: "AssignmentExpression",
       name: objectShapeStorageMemberName(restShape, restMember),
       expression: {
-        kind: "member",
+        kind: "SimpleMemberAccessExpression",
         receiver: sourceExpression,
         name: objectShapeStorageMemberName(sourceShape, sourceMember),
       } satisfies CsharpExpression,
@@ -447,7 +451,7 @@ function planObjectShapeRestBindingElement(
     return [];
   }
   return planBindingNameFromProjection(name, {
-    kind: "objectInitializer",
+    kind: "ObjectCreationExpression",
     type: restType,
     assignments: assignments as readonly CsharpObjectInitializerAssignment[],
   }, restType, elementNode, sourceFile, input, diagnostics, state);
@@ -479,12 +483,12 @@ function planObjectBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object binding element must have a target binding name."));
     return [];
   }
-  const propertyName = getDirectSourcePropertyName(elementNode, diagnostics);
+  const propertyName = getDirectSourcePropertyName(elementNode, input, diagnostics);
   if (propertyName === undefined) {
     return [];
   }
   const projected: CsharpExpression = {
-    kind: "member",
+    kind: "SimpleMemberAccessExpression",
     receiver: sourceExpression,
     name: propertyName,
   };
@@ -495,15 +499,8 @@ function getObjectShapeForBindingSource(
   sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): ObjectShapeFact | undefined {
-  if (sourceNode === undefined) {
-    return undefined;
-  }
-  const direct = input.facts.getObjectShapeFact(sourceNode);
-  if (direct !== undefined) {
-    return direct;
-  }
-  return input.semantics.getObjectShapeForNode(sourceNode, { sourceFile });
+): CsharpObjectShapeFact | undefined {
+  return getCsharpObjectShapeFactForNode(sourceNode, sourceFile, input);
 }
 
 function planBindingNameFromProjection(
@@ -516,21 +513,21 @@ function planBindingNameFromProjection(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  if (name.Kind === KindIdentifier) {
+  if (HasSourceKind(input.ast, name, KindIdentifier)) {
     return [{
-      kind: "local",
+      kind: "LocalDeclarationStatement",
       name: sanitizeIdentifier(Node_Text(name)),
       type: projectedType ?? getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
       initializer: projected,
     }];
   }
-  if (name.Kind === KindObjectBindingPattern || name.Kind === KindArrayBindingPattern) {
+  if (HasSourceKind(input.ast, name, KindObjectBindingPattern) || HasSourceKind(input.ast, name, KindArrayBindingPattern)) {
     const nestedName = allocateDestructuringTemp(state);
-    const nestedSource: CsharpExpression = { kind: "identifier", name: nestedName };
+    const nestedSource: CsharpExpression = { kind: "IdentifierName", name: nestedName };
     const nestedType = projectedType ?? getCsharpTypeForNode(projectionNode ?? name, sourceFile, input, invalidCsharpType("missing nested destructuring source type"), diagnostics);
     return [
       {
-        kind: "local",
+        kind: "LocalDeclarationStatement",
         name: nestedName,
         type: nestedType,
         initializer: projected,
@@ -568,6 +565,7 @@ function getCsharpTypeForExpressionCarrier(
 
 function getDirectSourcePropertyName(
   elementNode: Node,
+  input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const element = AsBindingElement(elementNode);
@@ -578,8 +576,8 @@ function getDirectSourcePropertyName(
   if (propertyName === undefined) {
     return undefined;
   }
-  if (propertyName.Kind !== KindIdentifier) {
-    if (propertyName.Kind === KindStringLiteral) {
+  if (!HasSourceKind(input.ast, propertyName, KindIdentifier)) {
+    if (HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
       const text = AsStringLiteral(propertyName)?.Text;
       if (text !== undefined && sanitizeIdentifier(text) === text) {
         return text;
@@ -593,6 +591,7 @@ function getDirectSourcePropertyName(
 
 function getObjectShapeBindingPropertySourceName(
   elementNode: Node,
+  input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const element = AsBindingElement(elementNode);
@@ -603,7 +602,7 @@ function getObjectShapeBindingPropertySourceName(
   if (propertyName === undefined) {
     return undefined;
   }
-  if (propertyName.Kind !== KindIdentifier && propertyName.Kind !== KindStringLiteral) {
+  if (!HasSourceKind(input.ast, propertyName, KindIdentifier) && !HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from object-shape facts supports only identifier or string-literal property names."));
     return undefined;
   }
@@ -615,7 +614,7 @@ function isSourceOwnedBindingElement(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {
-  if (sourceNode?.Kind !== KindBindingElement) {
+  if (!HasSourceKind(input.ast, sourceNode, KindBindingElement)) {
     return false;
   }
   return isSourceOwnedProjectShapeSubject(sourceNode, sourceFile, input);

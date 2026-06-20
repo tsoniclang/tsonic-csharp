@@ -31,7 +31,7 @@ export type {
   CsharpTypeMember,
   CsharpTypeNode,
   CsharpUsing,
-} from "./backend/ast/csharp-ast.js";
+} from "./backend/roslyn/syntax.js";
 export { printCsharpCompilationUnit, printCsharpExpression, printCsharpStatement, printCsharpType } from "./print/csharp-printer.js";
 export type {
   DotnetProviderDiagnostic,

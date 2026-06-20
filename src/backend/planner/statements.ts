@@ -46,9 +46,11 @@ import {
   KindVariableStatement,
   KindVoidExpression,
   KindWhileStatement,
+  HasSourceKind,
   Node_Text,
-} from "@tsonic/tsts";
-import type { Node, ObjectShapeFact, SourceFile, TargetIterationFact, TargetTypeRef } from "@tsonic/tsts";
+  SourceKind,
+} from "./source-ast.js";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpCatchClause,
@@ -58,7 +60,7 @@ import type {
   CsharpStatement,
   CsharpSwitchSection,
   CsharpTypeNode,
-} from "../ast/csharp-ast.js";
+} from "../roslyn/syntax.js";
 import { getCsharpTypeForNode, invalidCsharpType, predefined, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
@@ -76,6 +78,9 @@ import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
+import { csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
+import type { CsharpObjectShapeFact, CsharpTargetIterationFact } from "../../source/csharp-facts.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -99,31 +104,32 @@ export function planStatements(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState = createDestructuringPlannerState(),
 ): readonly CsharpStatement[] {
-  switch (node.Kind) {
+  switch (SourceKind(input.ast, node)) {
     case KindEmptyStatement:
       return [];
     case KindBlock:
       return [{
-        kind: "block",
+        kind: "Block",
         body: {
+          kind: "Block",
           statements: planBlockStatements(node, sourceFile, input, diagnostics, state),
         },
       }];
     case KindReturnStatement: {
       const statement = AsReturnStatement(node)!;
       if (
-        statement.Expression?.Kind === KindVoidExpression &&
+        HasSourceKind(input.ast, statement.Expression, KindVoidExpression) &&
         state.currentReturnType !== undefined &&
         isVoidCsharpType(state.currentReturnType)
       ) {
         const voidExpression = AsVoidExpression(statement.Expression)!;
         return [
           expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics))),
-          { kind: "return" },
+          { kind: "ReturnStatement" },
         ];
       }
       return [{
-        kind: "return",
+        kind: "ReturnStatement",
         ...(statement.Expression !== undefined
           ? {
               expression: state.currentReturnType === undefined
@@ -141,9 +147,9 @@ export function planStatements(
           diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled break target was not available from TSTS control-flow binding."));
           return [];
         }
-        return [{ kind: "goto", label: target.breakLabel }];
+        return [{ kind: "GotoStatement", label: target.breakLabel }];
       }
-      return [{ kind: "break" }];
+      return [{ kind: "BreakStatement" }];
     }
     case KindContinueStatement: {
       const statement = AsContinueStatement(node)!;
@@ -153,9 +159,9 @@ export function planStatements(
           diagnostics.push(unsupportedNodeDiagnostic(node, "Labeled continue target must be an iteration statement."));
           return [];
         }
-        return [{ kind: "goto", label: target.continueLabel }];
+        return [{ kind: "GotoStatement", label: target.continueLabel }];
       }
-      return [{ kind: "continue" }];
+      return [{ kind: "ContinueStatement" }];
     }
     case KindThrowStatement: {
       const statement = AsThrowStatement(node)!;
@@ -169,20 +175,20 @@ export function planStatements(
         return [];
       }
       return [{
-        kind: "throw",
+        kind: "ThrowStatement",
         expression: planExpression(statement.Expression, sourceFile, input, diagnostics),
       }];
     }
     case KindDebuggerStatement:
       return [expressionStatement({
-        kind: "call",
+        kind: "InvocationExpression",
         callee: {
-          kind: "member",
+          kind: "SimpleMemberAccessExpression",
           receiver: {
-            kind: "member",
+            kind: "SimpleMemberAccessExpression",
             receiver: {
-              kind: "member",
-              receiver: { kind: "identifier", name: "System" },
+              kind: "SimpleMemberAccessExpression",
+              receiver: { kind: "IdentifierName", name: "System" },
               name: "Diagnostics",
             },
             name: "Debugger",
@@ -203,7 +209,7 @@ export function planStatements(
       if (isErasedAttributeExpressionStatement(node, input)) {
         return [];
       }
-      if (AsExpressionStatement(node)!.Expression?.Kind === KindVoidExpression) {
+      if (HasSourceKind(input.ast, AsExpressionStatement(node)!.Expression, KindVoidExpression)) {
         const voidExpression = AsVoidExpression(AsExpressionStatement(node)!.Expression!)!;
         return [expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics)))];
       }
@@ -211,22 +217,24 @@ export function planStatements(
     case KindIfStatement: {
       const statement = AsIfStatement(node)!;
       return [{
-        kind: "if",
+        kind: "IfStatement",
         condition: planExpression(statement.Expression!, sourceFile, input, diagnostics),
         thenBody: {
+          kind: "Block",
           statements: planNestedStatementBody(statement.ThenStatement, sourceFile, input, diagnostics, state),
         },
         ...(statement.ElseStatement !== undefined
-          ? { elseBody: { statements: planNestedStatementBody(statement.ElseStatement, sourceFile, input, diagnostics, state) } }
+          ? { elseBody: { kind: "Block", statements: planNestedStatementBody(statement.ElseStatement, sourceFile, input, diagnostics, state) } }
           : {}),
       }];
     }
     case KindWhileStatement: {
       const statement = AsWhileStatement(node)!;
       return [{
-        kind: "while",
+        kind: "WhileStatement",
         condition: planExpression(statement.Expression!, sourceFile, input, diagnostics),
         body: {
+          kind: "Block",
           statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
         },
       }];
@@ -234,8 +242,9 @@ export function planStatements(
     case KindDoStatement: {
       const statement = AsDoStatement(node)!;
       return [{
-        kind: "do",
+        kind: "DoStatement",
         body: {
+          kind: "Block",
           statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
         },
         condition: planExpression(statement.Expression!, sourceFile, input, diagnostics),
@@ -247,7 +256,7 @@ export function planStatements(
         ? undefined
         : planForInitializer(statement.Initializer, sourceFile, input, diagnostics, state);
       const plannedFor: CsharpStatement = {
-        kind: "for",
+        kind: "ForStatement",
         ...(initializer?.initializer !== undefined
           ? { initializer: initializer.initializer }
           : {}),
@@ -258,15 +267,16 @@ export function planStatements(
           ? { incrementor: planExpression(statement.Incrementor, sourceFile, input, diagnostics) }
           : {}),
         body: {
+          kind: "Block",
           statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
         },
       };
       const initializerPrelude = initializer?.prelude ?? [];
       return initializerPrelude.length === 0
-        ? [plannedFor]
+          ? [plannedFor]
         : [{
-            kind: "block",
-            body: { statements: [...initializerPrelude, plannedFor] },
+            kind: "Block",
+            body: { kind: "Block", statements: [...initializerPrelude, plannedFor] },
           }];
     }
     case KindForInStatement:
@@ -307,7 +317,7 @@ function planForInStatement(
   if (binding === undefined) {
     return [];
   }
-  const selectedIteration = input.facts.getSelectedTargetIteration(statementNode);
+  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey);
   if (selectedIteration === undefined) {
     const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires finalized TSTS/provider enumeration facts before C# emission."));
@@ -344,31 +354,33 @@ function planForInStatement(
   const indexName = allocateForInIndex(state);
   const collectionName = `__forInTarget${indexName.slice("__forInIndex".length)}`;
   const plannedLoop: CsharpStatement = {
-    kind: "for",
+    kind: "ForStatement",
     initializer: {
-      kind: "locals",
+      kind: "VariableDeclaration",
       locals: [{
+        kind: "VariableDeclarator",
         name: indexName,
         type: predefined("int"),
-        initializer: { kind: "literal", value: 0 },
+        initializer: { kind: "LiteralExpression", value: 0 },
       }],
     },
     condition: {
-      kind: "binary",
-      left: { kind: "identifier", name: indexName },
+      kind: "BinaryExpression",
+      left: { kind: "IdentifierName", name: indexName },
       operator: "<",
       right: {
-        kind: "member",
-        receiver: { kind: "identifier", name: collectionName },
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: collectionName },
         name: "Length",
       },
     },
     incrementor: {
-      kind: "postfixUnary",
-      operand: { kind: "identifier", name: indexName },
+      kind: "PostfixUnaryExpression",
+      operand: { kind: "IdentifierName", name: indexName },
       operator: "++",
     },
     body: {
+      kind: "Block",
       statements: [
         planForInKeyBindingStatement(binding, keyType, indexName),
         ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
@@ -376,11 +388,12 @@ function planForInStatement(
     },
   };
   return [{
-    kind: "block",
+    kind: "Block",
     body: {
+      kind: "Block",
       statements: [
         {
-          kind: "local",
+          kind: "LocalDeclarationStatement",
           name: collectionName,
           type: collectionType,
           initializer: planExpression(statement.Expression, sourceFile, input, diagnostics),
@@ -395,7 +408,7 @@ function planObjectShapeForInStatement(
   statementNode: Node,
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   binding: PlannedForInBinding,
-  selectedIteration: TargetIterationFact,
+  selectedIteration: CsharpTargetIterationFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -433,36 +446,38 @@ function planObjectShapeForInStatement(
   const collectionName = `__forInTarget${suffix}`;
   const keysName = `__forInKeys${suffix}`;
   const keyExpression: CsharpExpression = {
-    kind: "element",
-    receiver: { kind: "identifier", name: keysName },
-    argument: { kind: "identifier", name: indexName },
+    kind: "ElementAccessExpression",
+    receiver: { kind: "IdentifierName", name: keysName },
+    argument: { kind: "IdentifierName", name: indexName },
   };
   const plannedLoop: CsharpStatement = {
-    kind: "for",
+    kind: "ForStatement",
     initializer: {
-      kind: "locals",
+      kind: "VariableDeclaration",
       locals: [{
+        kind: "VariableDeclarator",
         name: indexName,
         type: predefined("int"),
-        initializer: { kind: "literal", value: 0 },
+        initializer: { kind: "LiteralExpression", value: 0 },
       }],
     },
     condition: {
-      kind: "binary",
-      left: { kind: "identifier", name: indexName },
+      kind: "BinaryExpression",
+      left: { kind: "IdentifierName", name: indexName },
       operator: "<",
       right: {
-        kind: "member",
-        receiver: { kind: "identifier", name: keysName },
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: keysName },
         name: "Length",
       },
     },
     incrementor: {
-      kind: "postfixUnary",
-      operand: { kind: "identifier", name: indexName },
+      kind: "PostfixUnaryExpression",
+      operand: { kind: "IdentifierName", name: indexName },
       operator: "++",
     },
     body: {
+      kind: "Block",
       statements: [
         planForInKeyBindingStatementFromExpression(binding, keyType, keyExpression),
         ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
@@ -470,23 +485,24 @@ function planObjectShapeForInStatement(
     },
   };
   return [{
-    kind: "block",
+    kind: "Block",
     body: {
+      kind: "Block",
       statements: [
         {
-          kind: "local",
+          kind: "LocalDeclarationStatement",
           name: collectionName,
           type: collectionType,
           initializer: planExpression(statement.Expression, sourceFile, input, diagnostics),
         },
         {
-          kind: "local",
+          kind: "LocalDeclarationStatement",
           name: keysName,
-          type: { kind: "array", elementType: predefined("string") },
+          type: { kind: "ArrayType", elementType: predefined("string") },
           initializer: {
-            kind: "array",
+            kind: "ArrayCreationExpression",
             elementType: predefined("string"),
-            elements: objectShape.members.map((member) => ({ kind: "literal", value: member.sourceName }) satisfies CsharpExpression),
+            elements: objectShape.members.map((member) => ({ kind: "LiteralExpression", value: member.sourceName }) satisfies CsharpExpression),
           },
         },
         plannedLoop,
@@ -499,12 +515,8 @@ function getObjectShapeForForInExpression(
   expression: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): ObjectShapeFact | undefined {
-  const direct = input.facts.getObjectShapeFact(expression);
-  if (direct !== undefined) {
-    return direct;
-  }
-  return input.semantics.getObjectShapeForNode(expression, { sourceFile });
+): CsharpObjectShapeFact | undefined {
+  return getCsharpObjectShapeFactForNode(expression, sourceFile, input);
 }
 
 function getCsharpTypeForForInCollection(
@@ -523,7 +535,7 @@ function getCsharpTypeForForInCollection(
 }
 
 interface PlannedForInBinding {
-  readonly kind: "local" | "assignment";
+  readonly kind: "LocalDeclarationStatement" | "assignment";
   readonly name: string;
   readonly node: Node;
   readonly currentType?: ReturnType<typeof getCsharpTypeForNode>;
@@ -544,7 +556,7 @@ function planForInBinding(
     });
     return undefined;
   }
-  if (initializer.Kind === KindVariableDeclarationList) {
+  if (HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
     const declarations = AsVariableDeclarationList(initializer)!.Declarations?.Nodes ?? [];
     const concreteDeclarations = declarations.filter((declaration): declaration is Node => declaration !== undefined);
     const first = concreteDeclarations[0];
@@ -557,22 +569,22 @@ function planForInBinding(
       diagnostics.push(unsupportedNodeDiagnostic(first, "For-in variable declaration cannot have an initializer."));
       return undefined;
     }
-    if (variable.name === undefined || variable.name.Kind !== KindIdentifier) {
+    if (variable.name === undefined || !HasSourceKind(input.ast, variable.name, KindIdentifier)) {
       diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? first, "For-in C# key binding must be an identifier; binding patterns require finalized object-key destructuring facts."));
       return undefined;
     }
     return {
-      kind: "local",
+      kind: "LocalDeclarationStatement",
       name: sanitizeIdentifier(Node_Text(variable.name)),
       node: first,
       currentType: getCsharpTypeForNode(variable.name, sourceFile, input, undefined, diagnostics),
     };
   }
-  if (initializer.Kind === KindIdentifier) {
+  if (HasSourceKind(input.ast, initializer, KindIdentifier)) {
     const identifier = AsIdentifier(initializer)!;
     return {
       kind: "assignment",
-      name: sanitizeIdentifier(identifier.Text),
+      name: sanitizeIdentifier(Node_Text(identifier)),
       node: initializer,
       currentType: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
     };
@@ -582,7 +594,7 @@ function planForInBinding(
 }
 
 function getForInKeyType(
-  selectedIteration: TargetIterationFact,
+  selectedIteration: CsharpTargetIterationFact,
   diagnosticNode: Node,
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> | undefined {
@@ -597,7 +609,7 @@ function getForInKeyType(
   return keyType;
 }
 
-function targetTypeRefFromFactSubject(subject: TargetIterationFact["elementType"]): TargetTypeRef | undefined {
+function targetTypeRefFromFactSubject(subject: CsharpTargetIterationFact["elementType"]): TargetTypeRef | undefined {
   if (subject === undefined || typeof subject !== "object" || subject === null) {
     return undefined;
   }
@@ -606,9 +618,14 @@ function targetTypeRefFromFactSubject(subject: TargetIterationFact["elementType"
     case "source-primitive":
     case "target-named":
     case "type-parameter":
-    case "nullable":
     case "array":
     case "tuple":
+    case "pointer":
+    case "function-pointer":
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
+    case "target-specific":
       return subject as TargetTypeRef;
     default:
       return undefined;
@@ -628,17 +645,17 @@ function planForInKeyBindingStatementFromExpression(
   keyType: ReturnType<typeof getCsharpTypeForNode>,
   keyExpression: CsharpExpression,
 ): CsharpStatement {
-  if (binding.kind === "local") {
+  if (binding.kind === "LocalDeclarationStatement") {
     return {
-      kind: "local",
+      kind: "LocalDeclarationStatement",
       name: binding.name,
       type: keyType,
       initializer: keyExpression,
     };
   }
   return expressionStatement({
-    kind: "binary",
-    left: { kind: "identifier", name: binding.name },
+    kind: "BinaryExpression",
+    left: { kind: "IdentifierName", name: binding.name },
     operator: "=",
     right: keyExpression,
   });
@@ -646,20 +663,21 @@ function planForInKeyBindingStatementFromExpression(
 
 function forInKeyExpression(indexName: string): CsharpExpression {
   return {
-    kind: "call",
+    kind: "InvocationExpression",
     callee: {
-      kind: "member",
-      receiver: { kind: "identifier", name: indexName },
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: indexName },
       name: "ToString",
     },
     arguments: [{
+      kind: "Argument",
       expression: {
-        kind: "member",
+        kind: "SimpleMemberAccessExpression",
         receiver: {
-          kind: "member",
+          kind: "SimpleMemberAccessExpression",
           receiver: {
-            kind: "member",
-            receiver: { kind: "identifier", name: "System" },
+            kind: "SimpleMemberAccessExpression",
+            receiver: { kind: "IdentifierName", name: "System" },
             name: "Globalization",
           },
           name: "CultureInfo",
@@ -678,7 +696,8 @@ function planForOfStatement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  const selectedIteration = input.facts.getSelectedTargetIteration(statementNode);
+  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey) ??
+    getSourceOwnedForOfIterationFact(statement.Expression, sourceFile, input);
   if (selectedIteration === undefined) {
     const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of emission requires finalized TSTS/provider iteration facts."));
@@ -691,22 +710,42 @@ function planForOfStatement(
   if (selectedIteration.iterationKind === "sync" && selectedIteration.targetOperation === "string-code-points") {
     return planStringCodePointForOfStatement(statementNode, statement, binding, sourceFile, input, diagnostics, state);
   }
-  if (selectedIteration.iterationKind !== "sync" || selectedIteration.targetOperation !== "foreach") {
+  if (selectedIteration.iterationKind !== "sync" || selectedIteration.targetOperation !== "ForEachStatement") {
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-of emission does not support target iteration operation '${selectedIteration.targetOperation}' with kind '${selectedIteration.iterationKind}'.`));
     return [];
   }
   return [{
-    kind: "foreach",
+    kind: "ForEachStatement",
     itemType: binding.type,
     itemName: binding.name,
     collection: planForOfCollectionExpression(statement.Expression, binding.type, sourceFile, input, diagnostics),
     body: {
+      kind: "Block",
       statements: [
         ...binding.prelude,
         ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
       ],
     },
   }];
+}
+
+function getSourceOwnedForOfIterationFact(
+  expression: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTargetIterationFact | undefined {
+  if (expression === undefined) {
+    return undefined;
+  }
+  const type = input.semantics.getTypeAtLocation(expression, { sourceFile });
+  if (type === undefined || input.types.isStringLike(type) || !input.types.isArrayLike(type, { sourceFile })) {
+    return undefined;
+  }
+  return {
+    operationId: "source.array.foreach",
+    iterationKind: "sync",
+    targetOperation: "ForEachStatement",
+  };
 }
 
 function planForOfCollectionExpression(
@@ -723,15 +762,15 @@ function planForOfCollectionExpression(
       source: "tsonic-csharp",
       message: "For-of requires a collection expression.",
     });
-    return { kind: "invalid", reason: "missing for-of collection" };
+    return { kind: "InvalidExpression", reason: "missing for-of collection" };
   }
-  if (expression.Kind === KindArrayLiteralExpression) {
+  if (HasSourceKind(input.ast, expression, KindArrayLiteralExpression)) {
     return planExpressionWithExpectedType(
       expression,
         sourceFile,
         input,
         diagnostics,
-        { kind: "array", elementType },
+        { kind: "ArrayType", elementType },
         undefined,
       );
   }
@@ -764,53 +803,58 @@ function planStringCodePointForOfStatement(
   const loopIndex = allocateForOfLoop(state);
   const collectionName = `__forOfString${loopIndex}`;
   const indexName = `__forOfIndex${loopIndex}`;
-  const bindingIdentifier = { kind: "identifier", name: binding.name } satisfies CsharpExpression;
-  const collectionIdentifier = { kind: "identifier", name: collectionName } satisfies CsharpExpression;
-  const indexIdentifier = { kind: "identifier", name: indexName } satisfies CsharpExpression;
+  const bindingIdentifier = { kind: "IdentifierName", name: binding.name } satisfies CsharpExpression;
+  const collectionIdentifier = { kind: "IdentifierName", name: collectionName } satisfies CsharpExpression;
+  const indexIdentifier = { kind: "IdentifierName", name: indexName } satisfies CsharpExpression;
   return [{
-    kind: "block",
+    kind: "Block",
     body: {
+      kind: "Block",
       statements: [
         {
-          kind: "local",
+          kind: "LocalDeclarationStatement",
           name: collectionName,
           type: stringType,
           initializer: planExpression(statement.Expression, sourceFile, input, diagnostics),
         },
         {
-          kind: "for",
+          kind: "ForStatement",
           initializer: {
-            kind: "locals",
+            kind: "VariableDeclaration",
             locals: [{
+              kind: "VariableDeclarator",
               name: indexName,
               type: predefined("int"),
-              initializer: { kind: "literal", value: 0 },
+              initializer: { kind: "LiteralExpression", value: 0 },
             }],
           },
           condition: lessThan(indexIdentifier, member(collectionIdentifier, "Length")),
           body: {
+            kind: "Block",
             statements: [
               {
-                kind: "local",
+                kind: "LocalDeclarationStatement",
                 name: binding.name,
                 type: stringType,
               },
               {
-                kind: "if",
+                kind: "IfStatement",
                 condition: stringHasSurrogatePairAt(collectionIdentifier, indexIdentifier),
                 thenBody: {
+                  kind: "Block",
                   statements: [
                     assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, 2)),
                     assign(indexIdentifier, add(indexIdentifier, literal(2))),
                   ],
                 },
                 elseBody: {
+                  kind: "Block",
                   statements: [
                     assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, 1)),
                     {
-                      kind: "expression",
+                      kind: "ExpressionStatement",
                       expression: {
-                        kind: "postfixUnary",
+                        kind: "PostfixUnaryExpression",
                         operand: indexIdentifier,
                         operator: "++",
                       },
@@ -840,35 +884,32 @@ function stringHasSurrogatePairAt(collection: CsharpExpression, index: CsharpExp
 
 function substring(collection: CsharpExpression, start: CsharpExpression, length: number): CsharpExpression {
   return {
-    kind: "call",
+    kind: "InvocationExpression",
     callee: member(collection, "Substring"),
     arguments: [
-      { expression: start },
-      { expression: literal(length) },
+      { kind: "Argument", expression: start },
+      { kind: "Argument", expression: literal(length) },
     ],
   };
 }
 
 function callStatic(type: CsharpTypeNode, name: string, args: readonly CsharpExpression[]): CsharpExpression {
   return {
-    kind: "call",
+    kind: "InvocationExpression",
     callee: {
-      kind: "member",
-      receiver: {
-        kind: "type",
-        type,
-      },
+      kind: "SimpleMemberAccessExpression",
+      receiver: type,
       name,
     },
-    arguments: args.map((expression) => ({ expression })),
+    arguments: args.map((expression) => ({ kind: "Argument", expression })),
   };
 }
 
 function assign(left: CsharpExpression, right: CsharpExpression): CsharpStatement {
   return {
-    kind: "expression",
+    kind: "ExpressionStatement",
     expression: {
-      kind: "binary",
+      kind: "BinaryExpression",
       left,
       operator: "=",
       right,
@@ -878,7 +919,7 @@ function assign(left: CsharpExpression, right: CsharpExpression): CsharpStatemen
 
 function and(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
   return {
-    kind: "binary",
+    kind: "BinaryExpression",
     left,
     operator: "&&",
     right,
@@ -887,7 +928,7 @@ function and(left: CsharpExpression, right: CsharpExpression): CsharpExpression 
 
 function lessThan(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
   return {
-    kind: "binary",
+    kind: "BinaryExpression",
     left,
     operator: "<",
     right,
@@ -896,7 +937,7 @@ function lessThan(left: CsharpExpression, right: CsharpExpression): CsharpExpres
 
 function add(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
   return {
-    kind: "binary",
+    kind: "BinaryExpression",
     left,
     operator: "+",
     right,
@@ -905,7 +946,7 @@ function add(left: CsharpExpression, right: CsharpExpression): CsharpExpression 
 
 function member(receiver: CsharpExpression, name: string): CsharpExpression {
   return {
-    kind: "member",
+    kind: "SimpleMemberAccessExpression",
     receiver,
     name,
   };
@@ -913,7 +954,7 @@ function member(receiver: CsharpExpression, name: string): CsharpExpression {
 
 function element(receiver: CsharpExpression, argument: CsharpExpression): CsharpExpression {
   return {
-    kind: "element",
+    kind: "ElementAccessExpression",
     receiver,
     argument,
   };
@@ -921,7 +962,7 @@ function element(receiver: CsharpExpression, argument: CsharpExpression): Csharp
 
 function literal(value: number): CsharpExpression {
   return {
-    kind: "literal",
+    kind: "LiteralExpression",
     value,
   };
 }
@@ -932,7 +973,7 @@ interface PlannedForOfBinding extends CsharpLocalDeclaration {
 
 function planForOfBinding(
   initializer: Node | undefined,
-  selectedIteration: TargetIterationFact,
+  selectedIteration: CsharpTargetIterationFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -947,7 +988,7 @@ function planForOfBinding(
     });
     return undefined;
   }
-  if (initializer.Kind === KindVariableDeclarationList) {
+  if (HasSourceKind(input.ast, initializer, KindVariableDeclarationList)) {
     const declarations = AsVariableDeclarationList(initializer)!.Declarations?.Nodes ?? [];
     const first = declarations.find((declaration): declaration is Node => declaration !== undefined);
     if (first === undefined || declarations.filter((declaration) => declaration !== undefined).length !== 1) {
@@ -958,7 +999,8 @@ function planForOfBinding(
     if (variable.Initializer !== undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(first, "For-of variable declaration cannot have an initializer."));
     }
-    if (variable.name?.Kind === KindObjectBindingPattern || variable.name?.Kind === KindArrayBindingPattern) {
+    const variableName = variable.name;
+    if (variableName !== undefined && (HasSourceKind(input.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.ast, variableName, KindArrayBindingPattern))) {
       const itemName = allocateForOfItem(state);
       const itemType = variable.Type === undefined
         ? getForOfElementType(selectedIteration, first, diagnostics)
@@ -967,11 +1009,12 @@ function planForOfBinding(
         return undefined;
       }
       return {
+        kind: "VariableDeclarator",
         name: itemName,
         type: itemType,
         prelude: planBindingPatternFromExpression(
-          variable.name,
-          { kind: "identifier", name: itemName },
+          variableName,
+          { kind: "IdentifierName", name: itemName },
           first,
           sourceFile,
           input,
@@ -985,10 +1028,11 @@ function planForOfBinding(
       prelude: [],
     };
   }
-  if (initializer.Kind === KindIdentifier) {
+  if (HasSourceKind(input.ast, initializer, KindIdentifier)) {
     const identifier = AsIdentifier(initializer)!;
     return {
-      name: sanitizeIdentifier(identifier.Text),
+      name: sanitizeIdentifier(Node_Text(identifier)),
+      kind: "VariableDeclarator",
       type: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
       prelude: [],
     };
@@ -998,7 +1042,7 @@ function planForOfBinding(
 }
 
 function getForOfElementType(
-  selectedIteration: TargetIterationFact,
+  selectedIteration: CsharpTargetIterationFact,
   diagnosticNode: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
@@ -1025,8 +1069,8 @@ function planSingleStatement(
     return statements[0]!;
   }
   return {
-    kind: "block",
-    body: { statements },
+    kind: "Block",
+    body: { kind: "Block", statements },
   };
 }
 
@@ -1040,9 +1084,9 @@ function planLabeledStatement(
   const sourceName = sanitizeIdentifier(Node_Text(statement.Label!));
   const target = {
     sourceName,
-    breakLabel: allocateControlLabel(state, sourceName, "break"),
-    ...(isIterationStatement(statement.Statement)
-      ? { continueLabel: allocateControlLabel(state, sourceName, "continue") }
+    breakLabel: allocateControlLabel(state, sourceName, "BreakStatement"),
+    ...(isIterationStatement(statement.Statement, input)
+      ? { continueLabel: allocateControlLabel(state, sourceName, "ContinueStatement") }
       : {}),
   };
   state.controlLabels.push(target);
@@ -1052,11 +1096,12 @@ function planLabeledStatement(
     ? planned
     : attachContinueLabel(planned, target.continueLabel);
   return {
-    kind: "block",
+    kind: "Block",
     body: {
+      kind: "Block",
       statements: [
         {
-          kind: "label",
+          kind: "LabeledStatement",
           name: sourceName,
           statement: loweredStatement,
         },
@@ -1080,36 +1125,38 @@ function findControlLabel(
   return undefined;
 }
 
-function isIterationStatement(node: Node | undefined): boolean {
-  return node?.Kind === KindWhileStatement ||
-    node?.Kind === KindDoStatement ||
-    node?.Kind === KindForStatement ||
-    node?.Kind === KindForInStatement ||
-    node?.Kind === KindForOfStatement;
+function isIterationStatement(node: Node | undefined, input: TargetCompileInput): boolean {
+  return HasSourceKind(input.ast, node, KindWhileStatement) ||
+    HasSourceKind(input.ast, node, KindDoStatement) ||
+    HasSourceKind(input.ast, node, KindForStatement) ||
+    HasSourceKind(input.ast, node, KindForInStatement) ||
+    HasSourceKind(input.ast, node, KindForOfStatement);
 }
 
 function attachContinueLabel(statement: CsharpStatement, label: string): CsharpStatement {
   switch (statement.kind) {
-    case "while":
-    case "do":
-    case "for":
-    case "foreach":
+    case "WhileStatement":
+    case "DoStatement":
+    case "ForStatement":
+    case "ForEachStatement":
       return {
         ...statement,
         body: {
+          kind: "Block",
           statements: [
             ...statement.body.statements,
             controlLabelStatement(label),
           ],
         },
       };
-    case "block": {
+    case "Block": {
       const lastIndex = statement.body.statements.length - 1;
       const last = statement.body.statements[lastIndex];
       if (last !== undefined) {
         return {
-          kind: "block",
+          kind: "Block",
           body: {
+            kind: "Block",
             statements: statement.body.statements.map((child, index) =>
               index === lastIndex ? attachContinueLabel(child, label) : child),
           },
@@ -1124,11 +1171,11 @@ function attachContinueLabel(statement: CsharpStatement, label: string): CsharpS
 
 function controlLabelStatement(label: string): CsharpStatement {
   return {
-    kind: "label",
+    kind: "LabeledStatement",
     name: label,
     statement: {
-      kind: "block",
-      body: { statements: [] },
+      kind: "Block",
+      body: { kind: "Block", statements: [] },
     },
   };
 }
@@ -1142,7 +1189,7 @@ function planSwitchStatement(
 ): CsharpStatement {
   const statement = AsSwitchStatement(node)!;
   return {
-    kind: "switch",
+    kind: "SwitchStatement",
     expression: planExpression(statement.Expression!, sourceFile, input, diagnostics),
     sections: planSwitchSections(statement.CaseBlock, sourceFile, input, diagnostics, state),
   };
@@ -1170,7 +1217,7 @@ function planSwitchSections(
         ...section,
         statements: [
           ...section.statements,
-          { kind: "goto-switch" as const, label: next.label },
+          { kind: "GotoSwitchStatement" as const, label: next.label },
         ],
       };
     }
@@ -1179,7 +1226,7 @@ function planSwitchSections(
         ...section,
         statements: [
           ...section.statements,
-          { kind: "break" as const },
+          { kind: "BreakStatement" as const },
         ],
       };
     }
@@ -1196,9 +1243,10 @@ function planSwitchSection(
 ): CsharpSwitchSection {
   const clause = AsCaseOrDefaultClause(clauseNode)!;
   return {
-    label: clauseNode.Kind === KindDefaultClause
-      ? { kind: "default" }
-      : { kind: "case", expression: planExpression(clause.Expression!, sourceFile, input, diagnostics) },
+    kind: "SwitchSection",
+    label: HasSourceKind(input.ast, clauseNode, KindDefaultClause)
+      ? { kind: "DefaultSwitchLabel" }
+      : { kind: "CaseSwitchLabel", expression: planExpression(clause.Expression!, sourceFile, input, diagnostics) },
     statements: (clause.Statements?.Nodes ?? [])
       .filter((statement): statement is Node => statement !== undefined)
       .flatMap((statement) => planStatements(statement, sourceFile, input, diagnostics, state)),
@@ -1207,14 +1255,14 @@ function planSwitchSection(
 
 function statementTerminatesSwitchSection(statement: CsharpStatement): boolean {
   switch (statement.kind) {
-    case "break":
-    case "continue":
-    case "goto":
-    case "goto-switch":
-    case "return":
-    case "throw":
+    case "BreakStatement":
+    case "ContinueStatement":
+    case "GotoStatement":
+    case "GotoSwitchStatement":
+    case "ReturnStatement":
+    case "ThrowStatement":
       return true;
-    case "block": {
+    case "Block": {
       const last = statement.body.statements[statement.body.statements.length - 1];
       return last !== undefined && statementTerminatesSwitchSection(last);
     }
@@ -1232,15 +1280,16 @@ function planTryStatement(
 ): CsharpStatement {
   const statement = AsTryStatement(node)!;
   return {
-    kind: "try",
+    kind: "TryStatement",
     tryBody: {
+      kind: "Block",
       statements: planBlockStatements(statement.TryBlock, sourceFile, input, diagnostics, state),
     },
     ...(statement.CatchClause !== undefined
       ? { catchClause: planCatchClause(statement.CatchClause, sourceFile, input, diagnostics, state) }
       : {}),
     ...(statement.FinallyBlock !== undefined
-      ? { finallyBody: { statements: planBlockStatements(statement.FinallyBlock, sourceFile, input, diagnostics, state) } }
+      ? { finallyBody: { kind: "Block", statements: planBlockStatements(statement.FinallyBlock, sourceFile, input, diagnostics, state) } }
       : {}),
   };
 }
@@ -1255,10 +1304,13 @@ function planCatchClause(
   const clause = AsCatchClause(node)!;
   if (clause.VariableDeclaration !== undefined) {
     const variable = AsVariableDeclaration(clause.VariableDeclaration)!;
-    if (variable.name?.Kind === KindObjectBindingPattern || variable.name?.Kind === KindArrayBindingPattern) {
-      diagnostics.push(unsupportedNodeDiagnostic(variable.name, "Catch destructuring requires a closed thrown-value carrier; unknown catch values cannot trickle into C#."));
+    const variableName = variable.name;
+    if (variableName !== undefined && (HasSourceKind(input.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.ast, variableName, KindArrayBindingPattern))) {
+      diagnostics.push(unsupportedNodeDiagnostic(variableName, "Catch destructuring requires a closed thrown-value carrier; unknown catch values cannot trickle into C#."));
       return {
+        kind: "CatchClause",
         body: {
+          kind: "Block",
           statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
         },
       };
@@ -1269,21 +1321,27 @@ function planCatchClause(
     if (!isCsharpExceptionCarrier(carrier) || variableType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission."));
       return {
+        kind: "CatchClause",
         body: {
+          kind: "Block",
           statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
         },
       };
     }
     return {
+      kind: "CatchClause",
       variableType,
       variableName: variable.name === undefined ? undefined : sanitizeIdentifier(Node_Text(variable.name)),
       body: {
+        kind: "Block",
         statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
       },
     };
   }
   return {
+    kind: "CatchClause",
     body: {
+      kind: "Block",
       statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
     },
   };
@@ -1301,12 +1359,12 @@ function planForInitializer(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): PlannedForInitializer {
-  if (node.Kind === KindVariableDeclarationList) {
+  if (HasSourceKind(input.ast, node, KindVariableDeclarationList)) {
     const declarations = AsVariableDeclarationList(node)!.Declarations?.Nodes ?? [];
     const concreteDeclarations = declarations.filter((declaration): declaration is Node => declaration !== undefined);
     if (concreteDeclarations.some((declaration) => {
       const variable = AsVariableDeclaration(declaration)!;
-      return variable.name?.Kind === KindObjectBindingPattern || variable.name?.Kind === KindArrayBindingPattern;
+      return HasSourceKind(input.ast, variable.name, KindObjectBindingPattern) || HasSourceKind(input.ast, variable.name, KindArrayBindingPattern);
     })) {
       return {
         prelude: concreteDeclarations.flatMap((declaration) =>
@@ -1319,12 +1377,17 @@ function planForInitializer(
     const first = locals[0];
     if (first !== undefined && locals.some((local) => !sameCsharpType(local.type, first.type))) {
       return {
-        prelude: locals.map((local) => ({ kind: "local", ...local })),
+        prelude: locals.map((local) => ({
+          kind: "LocalDeclarationStatement",
+          name: local.name,
+          type: local.type,
+          ...(local.initializer === undefined ? {} : { initializer: local.initializer }),
+        })),
       };
     }
     return {
       initializer: {
-        kind: "locals",
+        kind: "VariableDeclaration",
         locals,
       },
       prelude: [],
@@ -1332,7 +1395,7 @@ function planForInitializer(
   }
   return {
     initializer: {
-      kind: "expression",
+      kind: "Expression",
       expression: planExpression(node, sourceFile, input, diagnostics),
     },
     prelude: [],
@@ -1349,7 +1412,7 @@ function planNestedStatementBody(
   if (node === undefined) {
     return [];
   }
-  if (node.Kind === KindBlock) {
+  if (HasSourceKind(input.ast, node, KindBlock)) {
     return planBlockStatements(node, sourceFile, input, diagnostics, state);
   }
   return planStatements(node, sourceFile, input, diagnostics, state);
@@ -1357,7 +1420,7 @@ function planNestedStatementBody(
 
 function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
-    kind: "expression",
+    kind: "ExpressionStatement",
     expression,
   };
 }
@@ -1367,15 +1430,15 @@ function isCsharpExceptionCarrier(carrier: TargetTypeRef | undefined): boolean {
 }
 
 function isVoidCsharpType(type: CsharpTypeNode): boolean {
-  return type.kind === "predefined" && type.name === "void";
+  return type.kind === "PredefinedType" && type.name === "void";
 }
 
 function planDiscardedExpression(expression: CsharpExpression): CsharpExpression {
   return isValidCsharpExpressionStatement(expression)
     ? expression
     : {
-        kind: "binary",
-        left: { kind: "identifier", name: "_" },
+        kind: "BinaryExpression",
+        left: { kind: "IdentifierName", name: "_" },
         operator: "=",
         right: expression,
       };
@@ -1383,14 +1446,14 @@ function planDiscardedExpression(expression: CsharpExpression): CsharpExpression
 
 function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean {
   switch (expression.kind) {
-    case "call":
-    case "new":
-    case "objectInitializer":
-    case "postfixUnary":
+    case "InvocationExpression":
+    case "ObjectCreationExpression":
+    case "ObjectCreationExpression":
+    case "PostfixUnaryExpression":
       return true;
-    case "prefixUnary":
+    case "PrefixUnaryExpression":
       return expression.operator === "++" || expression.operator === "--";
-    case "binary":
+    case "BinaryExpression":
       return isAssignmentOperator(expression.operator);
     default:
       return false;

@@ -25,7 +25,7 @@ import {
   KindVariableStatement,
   KindWhileStatement,
   SourceFile_FileName,
-} from "@tsonic/tsts";
+} from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetArtifact, TargetCompileInput, TargetDiagnostic, TargetSourceFile } from "@tsonic/target-api";
 import type {
@@ -33,7 +33,7 @@ import type {
   CsharpStatement,
   CsharpTypeDeclaration,
   CsharpTypeMember,
-} from "../ast/csharp-ast.js";
+} from "../roslyn/syntax.js";
 import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
 import { isErasedAttributeExpressionStatement } from "./attributes.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
@@ -114,7 +114,7 @@ function planSourceFile(
     if (isErasedAttributeExpressionStatement(statement, input)) {
       continue;
     }
-    switch (statement.Kind) {
+    switch (input.ast.kindName(statement)) {
       case KindImportDeclaration:
       case KindTypeAliasDeclaration:
       case KindExportDeclaration:
@@ -162,17 +162,17 @@ function planSourceFile(
   }
   if (topLevelStatements.length > 0) {
     members.unshift({
-      kind: "method",
+      kind: "MethodDeclaration",
       name: "Main",
       modifiers: ["public", "static"],
       returnType: predefined("void"),
       parameters: [],
-      body: { statements: topLevelStatements },
+      body: { kind: "Block", statements: topLevelStatements },
     });
   }
   if (members.length > 0) {
     namespaceMembers.unshift({
-      kind: "class",
+      kind: "ClassDeclaration",
       name: moduleClassName,
       modifiers: ["public", "static"],
       members,
@@ -183,9 +183,10 @@ function planSourceFile(
     return undefined;
   }
   const unit: CsharpCompilationUnit = {
-    usings: [{ namespace: "System" }],
+    kind: "CompilationUnit",
+    usings: [{ kind: "UsingDirective", namespace: "System" }],
     members: [{
-      kind: "namespace",
+      kind: "NamespaceDeclaration",
       name: readNamespace(input),
       members: [...shapeDeclarations, ...namespaceMembers],
     }],
@@ -215,7 +216,7 @@ function planExportAssignment(
     return undefined;
   }
   return {
-    kind: "field",
+    kind: "FieldDeclaration",
     name: sanitizeIdentifier("default"),
     modifiers: ["public", "static", "readonly"],
     type: getCsharpTypeForNode(assignment.Expression, sourceFile, input, undefined, diagnostics),
@@ -244,14 +245,14 @@ function planTopLevelVariableStatement(
     if (declaration === undefined) {
       continue;
     }
-    const valueType = input.facts.getValueTypeFact(declaration);
+    const valueType = input.facts.getStructFact(declaration);
     if (valueType !== undefined) {
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
     }
     const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics);
     moduleMembers.push({
-      kind: "field",
+      kind: "FieldDeclaration",
       name: field.name,
       type: field.type,
       modifiers: isConst ? ["public", "static", "readonly"] : ["public", "static"],

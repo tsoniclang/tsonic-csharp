@@ -1,17 +1,20 @@
 import {
   AsIdentifier,
   AsPrivateIdentifier,
+  HasSourceKind,
   KindIdentifier,
   KindPrivateIdentifier,
   KindString,
-} from "@tsonic/tsts";
+  Node_Text,
+} from "./source-ast.js";
 import type { Node } from "@tsonic/tsts";
-import type { TargetDiagnostic } from "@tsonic/target-api";
+import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { sanitizeIdentifier } from "./identifiers.js";
 
 export function planIdentifierName(
   node: Node | undefined,
   errorName: string,
+  input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   description: string,
 ): string {
@@ -24,11 +27,11 @@ export function planIdentifierName(
     });
     return errorName;
   }
-  if (node.Kind === KindIdentifier) {
-    return sanitizeIdentifier(AsIdentifier(node)!.Text);
+  if (HasSourceKind(input.ast, node, KindIdentifier)) {
+    return sanitizeIdentifier(Node_Text(AsIdentifier(node)));
   }
-  if (node.Kind === KindPrivateIdentifier) {
-    return sanitizeIdentifier(AsPrivateIdentifier(node)!.Text);
+  if (HasSourceKind(input.ast, node, KindPrivateIdentifier)) {
+    return sanitizeIdentifier(Node_Text(AsPrivateIdentifier(node)));
   }
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_NAME",

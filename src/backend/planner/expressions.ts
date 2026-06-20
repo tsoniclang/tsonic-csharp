@@ -38,7 +38,6 @@ import {
   KindAwaitExpression,
   KindConditionalExpression,
   KindElementAccessExpression,
-  KindEqualsToken,
   KindExportAssignment,
   KindFalseKeyword,
   KindFunctionDeclaration,
@@ -74,11 +73,14 @@ import {
   Node_Text,
   SourceFile_FileName,
   HasSyntacticModifier,
+  HasSourceKind,
   ModifierFlagsAsync,
-} from "@tsonic/tsts";
-import type { ArgumentPassingFact, Node, ObjectShapeFact, SourceFile, TargetMember, TargetOperationFact } from "@tsonic/tsts";
+  SourceKind,
+  SourceTokenKind,
+} from "./source-ast.js";
+import type { ArgumentPassingFact, Node, SourceFile, TargetMember, TargetOperationFact, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../roslyn/syntax.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
 import { expressionToCsharpType, getCsharpTypeForNode, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -97,6 +99,8 @@ import type { OperationSemanticOwnership } from "./semantic-guards.js";
 import { planBlockStatements } from "./statements.js";
 import { sourceFileClassName } from "./source-paths.js";
 import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
+import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
+import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
 
 type TargetConversion = NonNullable<ReturnType<TargetCompileInput["facts"]["getTargetConversionFact"]>>;
 
@@ -119,7 +123,7 @@ function planExpressionCore(
   const defaultValue = input.facts.getDefaultValueFact(node);
   if (defaultValue !== undefined) {
     return {
-      kind: "default",
+      kind: "DefaultExpression",
       type: isNode(defaultValue.type)
         ? getCsharpTypeForNode(defaultValue.type, sourceFile, input, undefined, diagnostics)
         : unsupportedFactExpressionType(node, diagnostics),
@@ -129,29 +133,29 @@ function planExpressionCore(
   if (argumentPassing !== undefined && argumentPassing.targetExpression !== node && isNode(argumentPassing.targetExpression)) {
     return planExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics);
   }
-  switch (node.Kind) {
+  switch (SourceKind(input.ast, node)) {
     case KindIdentifier:
       return planIdentifierExpression(node, sourceFile, input, diagnostics);
     case KindStringLiteral:
-      return { kind: "literal", value: AsStringLiteral(node)!.Text };
+      return { kind: "LiteralExpression", value: Node_Text(AsStringLiteral(node)) };
     case KindNoSubstitutionTemplateLiteral:
-      return { kind: "literal", value: AsNoSubstitutionTemplateLiteral(node)!.Text };
+      return { kind: "LiteralExpression", value: Node_Text(AsNoSubstitutionTemplateLiteral(node)) };
     case KindNumericLiteral:
-      return { kind: "literal", value: Number(AsNumericLiteral(node)!.Text) };
+      return { kind: "LiteralExpression", value: Number(Node_Text(AsNumericLiteral(node))) };
     case KindRegularExpressionLiteral:
       return planRegularExpressionLiteral(node, sourceFile, input, diagnostics);
     case KindTrueKeyword:
-      return { kind: "literal", value: true };
+      return { kind: "LiteralExpression", value: true };
     case KindFalseKeyword:
-      return { kind: "literal", value: false };
+      return { kind: "LiteralExpression", value: false };
     case KindNullKeyword:
-      return { kind: "literal", value: null };
+      return { kind: "LiteralExpression", value: null };
     case KindTypeOfExpression:
       return planTypeofExpression(node, sourceFile, input, diagnostics);
     case KindThisKeyword:
-      return { kind: "identifier", name: "this" };
+      return { kind: "IdentifierName", name: "this" };
     case KindSuperKeyword:
-      return { kind: "identifier", name: "base" };
+      return { kind: "IdentifierName", name: "base" };
     case KindAsExpression:
       return planExpression(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics);
     case KindSatisfiesExpression:
@@ -163,7 +167,7 @@ function planExpressionCore(
     case KindParenthesizedExpression: {
       const expression = AsParenthesizedExpression(node)!;
       return {
-        kind: "parenthesized",
+        kind: "ParenthesizedExpression",
         expression: planExpression(expression.Expression!, sourceFile, input, diagnostics),
       };
     }
@@ -187,20 +191,20 @@ function planExpressionCore(
       if (selectedElementAccess?.targetOperation === "string-code-unit") {
         const receiver = planExpression(expression.Expression!, sourceFile, input, diagnostics);
         return {
-          kind: "call",
+          kind: "InvocationExpression",
           callee: {
-            kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
+            kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
             receiver,
             name: "Substring",
           },
           arguments: [
-            { expression: planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics) },
-            { expression: { kind: "literal", value: 1 } },
+            { kind: "Argument", expression: planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics) },
+            { kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } },
           ],
         };
       }
       return {
-        kind: expression.QuestionDotToken === undefined ? "element" : "optionalElement",
+        kind: expression.QuestionDotToken === undefined ? "ElementAccessExpression" : "ConditionalElementAccessExpression",
         receiver: selectedElementAccess === undefined
           ? planExpression(expression.Expression!, sourceFile, input, diagnostics)
           : planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics),
@@ -218,7 +222,7 @@ function planExpressionCore(
         return invalidExpression("await without expression");
       }
       return {
-        kind: "await",
+        kind: "AwaitExpression",
         expression: planExpression(expression.Expression, sourceFile, input, diagnostics),
       };
     }
@@ -238,21 +242,26 @@ function planExpressionCore(
           return invalidExpression("missing target constructor fact");
         }
       }
+      const member = selectedTargetCall === undefined
+        ? undefined
+        : instantiateSelectedTargetMember(node, expression.Expression, selectedTargetCall.member, sourceFile, input);
       const selectedConstructorType = selectedTargetCall?.member.returnType === undefined
         ? undefined
-        : csharpTypeFromTargetTypeRef(selectedTargetCall.member.returnType);
+        : csharpTypeFromTargetTypeRef(member?.returnType ?? selectedTargetCall.member.returnType);
       return {
-        kind: "new",
-        type: selectedConstructorType ?? expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics),
-        arguments: (expression.Arguments?.Nodes ?? [])
-          .filter((argument): argument is Node => argument !== undefined)
-          .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
+        kind: "ObjectCreationExpression",
+        type: selectedConstructorType ?? getCsharpTypeForNode(node, sourceFile, input, undefined, diagnostics),
+        arguments: member === undefined
+          ? (expression.Arguments?.Nodes ?? [])
+            .filter((argument): argument is Node => argument !== undefined)
+            .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics))
+          : planSelectedTargetCallArguments(expression.Expression, expression, member, sourceFile, input, diagnostics),
       };
     }
     case KindConditionalExpression: {
       const expression = AsConditionalExpression(node)!;
       return {
-        kind: "conditional",
+        kind: "ConditionalExpression",
         condition: planExpression(expression.Condition!, sourceFile, input, diagnostics),
         whenTrue: planExpression(expression.WhenTrue!, sourceFile, input, diagnostics),
         whenFalse: planExpression(expression.WhenFalse!, sourceFile, input, diagnostics),
@@ -263,7 +272,7 @@ function planExpressionCore(
       const selectedOperator = input.facts.getSelectedTargetOperator(node);
       const operator = selectedOperator?.operationKind === "operator"
         ? selectedOperator.targetOperation
-        : undefined;
+        : getSourceOwnedUnaryOperator(getUnaryOperatorKind(expression), expression.Operand, sourceFile, input);
       if (operator === undefined) {
         const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
         pushMissingTargetFactDiagnostic(diagnostics, node, "C# prefix unary operator emission requires a selected provider operator fact.", ownership);
@@ -274,7 +283,7 @@ function planExpressionCore(
         return invalidExpression("selected target prefix operator");
       }
       return {
-        kind: "prefixUnary",
+        kind: "PrefixUnaryExpression",
         operator,
         operand: planExpression(expression.Operand!, sourceFile, input, diagnostics),
       };
@@ -284,7 +293,7 @@ function planExpressionCore(
       const selectedOperator = input.facts.getSelectedTargetOperator(node);
       const operator = selectedOperator?.operationKind === "operator"
         ? selectedOperator.targetOperation
-        : undefined;
+        : getSourceOwnedUnaryOperator(getUnaryOperatorKind(expression), expression.Operand, sourceFile, input);
       if (operator === undefined) {
         const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
         pushMissingTargetFactDiagnostic(diagnostics, node, "C# postfix unary operator emission requires a selected provider operator fact.", ownership);
@@ -295,7 +304,7 @@ function planExpressionCore(
         return invalidExpression("selected target postfix operator");
       }
       return {
-        kind: "postfixUnary",
+        kind: "PostfixUnaryExpression",
         operand: planExpression(expression.Operand!, sourceFile, input, diagnostics),
         operator,
       };
@@ -356,9 +365,9 @@ function planTargetConversionMethodCall(
     return invalidExpression("target conversion method");
   }
   return {
-    kind: "call",
+    kind: "InvocationExpression",
     callee,
-    arguments: [{ expression }],
+    arguments: [{ kind: "Argument", expression }],
   };
 }
 
@@ -367,12 +376,8 @@ function targetConversionStaticMethodCallee(
   diagnostics: TargetDiagnostic[],
   node: Node,
 ): CsharpExpression | undefined {
-  if (operation.static === false) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Instance target conversion methods require an explicit provider rendering contract before C# emission."));
-    return undefined;
-  }
   const qualified = splitQualifiedTargetOperation(operation.targetOperation);
-  const declaringTypeRef = operation.declaringType ?? (qualified === undefined ? undefined : { kind: "target-named" as const, id: qualified.declaringTypeId });
+  const declaringTypeRef = qualified === undefined ? undefined : { kind: "target-named" as const, id: qualified.declaringTypeId };
   const methodName = qualified?.memberName ?? operation.targetOperation;
   const declaringType = declaringTypeRef === undefined ? undefined : csharpTypeFromTargetTypeRef(declaringTypeRef);
   if (declaringType === undefined || methodName === undefined) {
@@ -380,11 +385,8 @@ function targetConversionStaticMethodCallee(
     return undefined;
   }
   return {
-    kind: "member",
-    receiver: {
-      kind: "type",
-      type: declaringType,
-    },
+    kind: "SimpleMemberAccessExpression",
+    receiver: declaringType,
     name: methodName,
   };
 }
@@ -406,21 +408,21 @@ function planTargetConversionConstructor(
   expression: CsharpExpression,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
-  const targetTypeRef = conversion.operation?.targetType ?? conversion.convertedType;
+  const targetTypeRef = conversion.convertedType;
   const targetType = targetTypeRef === undefined ? undefined : csharpTypeFromTargetTypeRef(targetTypeRef);
   if (targetType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Target conversion constructor requires a renderable target type before C# emission."));
     return invalidExpression("target conversion constructor");
   }
   return {
-    kind: "new",
+    kind: "ObjectCreationExpression",
     type: targetType,
-    arguments: [{ expression }],
+    arguments: [{ kind: "Argument", expression }],
   };
 }
 
 function invalidExpression(reason: string): CsharpExpression {
-  return { kind: "invalid", reason };
+  return { kind: "InvalidExpression", reason };
 }
 
 function planIdentifierExpression(
@@ -429,22 +431,23 @@ function planIdentifierExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
-  const sourceName = AsIdentifier(identifier)!.Text;
-  const targetBinding = input.semantics.getTargetBindingForReference(identifier, { sourceFile });
-  if (targetBinding !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
-    return invalidExpression("provider-owned identifier expression");
-  }
+  const sourceName = Node_Text(AsIdentifier(identifier));
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
   if (isExternalDeclarationReference(sourceReference, sourceFile)) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return invalidExpression("declaration identifier expression");
   }
+  const directTargetBinding = input.facts.getTargetBindingFact(input.semantics.getSymbolAtLocation(identifier, { sourceFile })) ??
+    input.facts.getTargetBindingFact(input.semantics.getResolvedSymbol(identifier, { sourceFile }));
+  if (directTargetBinding !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
+    return invalidExpression("provider-owned identifier expression");
+  }
   const sourceModuleMemberReference = planProjectSourceModuleMemberReference(identifier, sourceFile, input, diagnostics);
   if (sourceModuleMemberReference !== undefined) {
     return sourceModuleMemberReference;
   }
-  return { kind: "identifier", name: sanitizeIdentifier(sourceName) };
+  return { kind: "IdentifierName", name: sanitizeIdentifier(sourceName) };
 }
 
 function planSelectedTargetReceiverExpression(
@@ -453,15 +456,15 @@ function planSelectedTargetReceiverExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
-  if (receiver.Kind !== KindIdentifier) {
+  if (!HasSourceKind(input.ast, receiver, KindIdentifier)) {
     return planExpression(receiver, sourceFile, input, diagnostics);
   }
-  const sourceName = AsIdentifier(receiver)!.Text;
+  const sourceName = Node_Text(AsIdentifier(receiver));
   if (isExternalDeclarationReference(input.semantics.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile)) {
     diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
     return invalidExpression("provider declaration receiver");
   }
-  return { kind: "identifier", name: sanitizeIdentifier(sourceName) };
+  return { kind: "IdentifierName", name: sanitizeIdentifier(sourceName) };
 }
 
 function isExternalDeclarationReference(
@@ -473,10 +476,10 @@ function isExternalDeclarationReference(
     (reference.sourceFile.IsDeclarationFile || SourceFile_FileName(reference.sourceFile).startsWith("tsts-provider://"));
 }
 
-function isModuleStaticValueDeclaration(declaration: Node): boolean {
-  return declaration.Kind === KindFunctionDeclaration ||
-    declaration.Kind === KindVariableDeclaration ||
-    declaration.Kind === KindExportAssignment;
+function isModuleStaticValueDeclaration(declaration: Node, input: TargetCompileInput): boolean {
+  return HasSourceKind(input.ast, declaration, KindFunctionDeclaration) ||
+    HasSourceKind(input.ast, declaration, KindVariableDeclaration) ||
+    HasSourceKind(input.ast, declaration, KindExportAssignment);
 }
 
 function planProjectSourceModuleMemberReference(
@@ -489,18 +492,15 @@ function planProjectSourceModuleMemberReference(
   if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
     return undefined;
   }
-  if (!isModuleStaticValueDeclaration(sourceReference.declaration)) {
+  if (!isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Cross-file source reference requires a top-level function or variable declaration resolved by TSTS."));
     return invalidExpression("cross-file source reference");
   }
   return {
-    kind: "member",
+    kind: "SimpleMemberAccessExpression",
     receiver: {
-      kind: "type",
-      type: {
-        kind: "named",
-        name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
-      },
+      kind: "IdentifierName",
+      name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
     },
     name: sanitizeIdentifier(sourceReference.symbol.Name),
   };
@@ -515,30 +515,12 @@ function planPropertyAccessExpression(
   const expression = AsPropertyAccessExpression(propertyAccess)!;
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   if (targetOperation !== undefined && targetOperation.operationKind === "property") {
-    if (targetOperation.static === true) {
-      const receiverType = targetOperation.declaringType === undefined
-        ? undefined
-        : csharpTypeFromTargetTypeRef(targetOperation.declaringType);
-      if (receiverType === undefined) {
-        diagnostics.push({
-          code: "CSHARP_UNSUPPORTED_AST",
-          category: "error",
-          source: "tsonic-csharp",
-          message: "Selected static target property requires a declaring target type fact before C# emission.",
-        });
-        return invalidExpression("selected target static property declaring type");
-      }
-      return {
-        kind: "member",
-        receiver: {
-          kind: "type",
-          type: receiverType,
-        },
-        name: targetOperation.targetOperation,
-      };
+    const staticMember = targetStaticMemberExpression(targetOperation, diagnostics, propertyAccess);
+    if (staticMember !== undefined) {
+      return staticMember;
     }
     return {
-      kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
+      kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
       receiver: planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics),
       name: targetOperation.targetOperation,
     };
@@ -559,9 +541,30 @@ function planPropertyAccessExpression(
     return invalidExpression("missing target property fact");
   }
   return {
-    kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
+    kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
     receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
     name: sanitizeIdentifier(sourceName),
+  };
+}
+
+function targetStaticMemberExpression(
+  operation: TargetOperationFact,
+  diagnostics: TargetDiagnostic[],
+  node: Node,
+): CsharpExpression | undefined {
+  const qualified = splitQualifiedTargetOperation(operation.targetOperation);
+  if (qualified === undefined) {
+    return undefined;
+  }
+  const declaringType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: qualified.declaringTypeId });
+  if (declaringType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Static target property requires a renderable declaring target type before C# emission."));
+    return invalidExpression("static target property");
+  }
+  return {
+    kind: "SimpleMemberAccessExpression",
+    receiver: declaringType,
+    name: qualified.memberName,
   };
 }
 
@@ -597,10 +600,11 @@ function planCallExpression(
   const expression = AsCallExpression(node)!;
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
   if (selectedTargetCall !== undefined) {
+    const member = instantiateSelectedTargetMember(node, expression.Expression, selectedTargetCall.member, sourceFile, input);
     return {
-      kind: "call",
-      callee: planSelectedTargetCallee(expression.Expression, selectedTargetCall.member, sourceFile, input, diagnostics),
-      arguments: planSelectedTargetCallArguments(expression, selectedTargetCall.member, sourceFile, input, diagnostics),
+      kind: "InvocationExpression",
+      callee: planSelectedTargetCallee(expression.Expression, member, sourceFile, input, diagnostics),
+      arguments: planSelectedTargetCallArguments(expression.Expression, expression, member, sourceFile, input, diagnostics),
     };
   }
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
@@ -609,7 +613,7 @@ function planCallExpression(
     return invalidExpression("missing target call fact");
   }
   return {
-    kind: "call",
+    kind: "InvocationExpression",
     callee: planExpression(expression.Expression!, sourceFile, input, diagnostics),
     arguments: (expression.Arguments?.Nodes ?? [])
       .filter((argument): argument is Node => argument !== undefined)
@@ -624,40 +628,32 @@ function planSelectedTargetCallee(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
-  if (callee?.Kind === KindPropertyAccessExpression) {
+  if (HasSourceKind(input.ast, callee, KindPropertyAccessExpression)) {
     const property = AsPropertyAccessExpression(callee)!;
     if (member.static === true) {
-      const receiverType = member.declaringType === undefined
-        ? undefined
-        : csharpTypeFromTargetTypeRef(member.declaringType);
-      if (receiverType === undefined) {
+      const declaringType = member.declaringType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.declaringType);
+      if (declaringType === undefined) {
         diagnostics.push({
           code: "CSHARP_UNSUPPORTED_AST",
           category: "error",
           source: "tsonic-csharp",
-          message: "Selected static target call requires a declaring target type fact before C# emission.",
+          message: "Selected static target call requires a provider-owned declaring target type fact before C# emission.",
         });
         return invalidExpression("selected target static call declaring type");
       }
-      if (receiverType.kind === "invalid") {
-        return invalidExpression("selected target static call receiver");
-      }
       return {
-        kind: "member",
-        receiver: {
-          kind: "type",
-          type: receiverType,
-        },
+        kind: "SimpleMemberAccessExpression",
+        receiver: declaringType,
         name: member.targetName,
       };
     }
     return {
-      kind: property.QuestionDotToken === undefined ? "member" : "optionalMember",
+      kind: property.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
       receiver: planSelectedTargetReceiverExpression(property.Expression!, sourceFile, input, diagnostics),
       name: member.targetName,
     };
   }
-  if (callee?.Kind === KindIdentifier) {
+  if (HasSourceKind(input.ast, callee, KindIdentifier)) {
     if (member.static === true) {
       diagnostics.push({
         code: "CSHARP_UNSUPPORTED_AST",
@@ -668,7 +664,7 @@ function planSelectedTargetCallee(
       return invalidExpression("selected static target call callee");
     }
     return {
-      kind: "identifier",
+      kind: "IdentifierName",
       name: member.targetName,
     };
   }
@@ -681,68 +677,141 @@ function planSelectedTargetCallee(
   return invalidExpression("selected target call callee");
 }
 
+function instantiateSelectedTargetMember(
+  operationNode: Node,
+  callee: Node | undefined,
+  member: TargetMember,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): TargetMember {
+  const propertyAccess = HasSourceKind(input.ast, callee, KindPropertyAccessExpression)
+    ? AsPropertyAccessExpression(callee)
+    : undefined;
+  const typeSubject = propertyAccess?.Expression ?? operationNode;
+  const bindingSubject = propertyAccess?.Expression ?? callee ?? operationNode;
+  const carrier = input.semantics.getRuntimeCarrierForNode(typeSubject, { sourceFile });
+  if (carrier?.kind !== "target-named" || (carrier.typeArguments ?? []).length === 0) {
+    return member;
+  }
+  const binding = input.semantics.getTargetBindingForReference(bindingSubject, { sourceFile });
+  const typeParameters = binding?.typeParameters ?? [];
+  if (typeParameters.length === 0) {
+    return member;
+  }
+  const typeArgumentMap = new Map<string, TargetTypeRef>();
+  for (let index = 0; index < typeParameters.length; index += 1) {
+    const parameter = typeParameters[index];
+    const argument = carrier.typeArguments?.[index];
+    if (parameter !== undefined && argument !== undefined) {
+      typeArgumentMap.set(parameter.name, argument);
+    }
+  }
+  if (typeArgumentMap.size === 0) {
+    return member;
+  }
+  return substituteTargetMemberTypeParameters(member, typeArgumentMap);
+}
+
+function substituteTargetMemberTypeParameters(
+  member: TargetMember,
+  typeArgumentMap: ReadonlyMap<string, TargetTypeRef>,
+): TargetMember {
+  return {
+    ...member,
+    ...(member.declaringType !== undefined ? { declaringType: substituteTargetTypeRef(member.declaringType, typeArgumentMap) } : {}),
+    parameters: member.parameters.map((parameter) => ({
+      ...parameter,
+      type: substituteTargetTypeRef(parameter.type, typeArgumentMap),
+    })),
+    ...(member.returnType !== undefined ? { returnType: substituteTargetTypeRef(member.returnType, typeArgumentMap) } : {}),
+  };
+}
+
+function substituteTargetTypeRef(type: TargetTypeRef, typeArgumentMap: ReadonlyMap<string, TargetTypeRef>): TargetTypeRef {
+  switch (type.kind) {
+    case "type-parameter":
+      return typeArgumentMap.get(type.name) ?? type;
+    case "target-named":
+      return {
+        ...type,
+        ...(type.typeArguments !== undefined
+          ? { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeArgumentMap)) }
+          : {}),
+      };
+    case "array":
+      return { ...type, element: substituteTargetTypeRef(type.element, typeArgumentMap) };
+    case "tuple":
+      return { ...type, elements: type.elements.map((element) => substituteTargetTypeRef(element, typeArgumentMap)) };
+    case "pointer":
+      return { ...type, pointee: substituteTargetTypeRef(type.pointee, typeArgumentMap) };
+    case "function-pointer":
+      return {
+        ...type,
+        args: type.args.map((argument) => substituteTargetTypeRef(argument, typeArgumentMap)),
+        result: substituteTargetTypeRef(type.result, typeArgumentMap),
+      };
+    case "associated-type":
+      return { ...type, owner: substituteTargetTypeRef(type.owner, typeArgumentMap) };
+    case "source-primitive":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
+      return type;
+  }
+}
+
 function planSelectedTargetCallArguments(
-  expression: ReturnType<typeof AsCallExpression>,
+  callee: Node | undefined,
+  expression: { readonly Arguments?: { readonly Nodes?: readonly (Node | undefined)[] } } | undefined,
   member: TargetMember,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpArgument[] {
+  const receiverArgument = planSelectedTargetReceiverArgument(callee, member, sourceFile, input, diagnostics);
+  const parameterOffset = receiverArgument === undefined ? 0 : 1;
   const argumentsList = (expression?.Arguments?.Nodes ?? [])
     .filter((argument): argument is Node => argument !== undefined)
-    .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics));
-  const receiverArgumentIndex = member.receiverArgumentIndex;
-  if (receiverArgumentIndex === undefined) {
-    return argumentsList;
+    .map((argument, index) => {
+      const parameter = member.parameters[index + parameterOffset];
+      const expectedType = parameter === undefined ? undefined : csharpTypeFromTargetTypeRef(parameter.type);
+      return planCallArgument(argument, sourceFile, input, diagnostics, expectedType);
+    });
+  return receiverArgument === undefined ? argumentsList : [receiverArgument, ...argumentsList];
+}
+
+function planSelectedTargetReceiverArgument(
+  callee: Node | undefined,
+  member: TargetMember,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpArgument | undefined {
+  if (member.receiverPassing !== "first-argument") {
+    return undefined;
   }
-  if (expression?.Expression?.Kind !== KindPropertyAccessExpression) {
+  if (!HasSourceKind(input.ast, callee, KindPropertyAccessExpression)) {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_AST",
       category: "error",
       source: "tsonic-csharp",
-      message: "Selected target call receiver argument requires a property-access source callee before C# emission.",
+      message: "Selected target helper call requires a property-access receiver for first-argument receiver passing.",
     });
-    return argumentsList;
+    return undefined;
   }
-  if (!Number.isInteger(receiverArgumentIndex) || receiverArgumentIndex < 0 || receiverArgumentIndex > argumentsList.length) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_AST",
-      category: "error",
-      source: "tsonic-csharp",
-      message: "Selected target call receiver argument index is outside the source argument range before C# emission.",
-    });
-    return argumentsList;
-  }
-  const receiverParameter = member.parameters[receiverArgumentIndex];
-  if (receiverParameter === undefined) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_AST",
-      category: "error",
-      source: "tsonic-csharp",
-      message: "Selected target call receiver argument index has no matching target parameter before C# emission.",
-    });
-    return argumentsList;
-  }
-  const receiver = AsPropertyAccessExpression(expression.Expression)?.Expression;
+  const receiver = AsPropertyAccessExpression(callee)?.Expression;
   if (receiver === undefined) {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_AST",
       category: "error",
       source: "tsonic-csharp",
-      message: "Selected target call receiver argument requires a concrete receiver expression before C# emission.",
+      message: "Selected target helper call requires a receiver expression.",
     });
-    return argumentsList;
+    return undefined;
   }
-  const receiverPassing = getCsharpArgumentPassing(receiverParameter.passingMode);
-  const receiverArgument = {
-    expression: planExpression(receiver, sourceFile, input, diagnostics),
-    ...(receiverPassing === undefined ? {} : { passing: receiverPassing }),
-  } satisfies CsharpArgument;
-  return [
-    ...argumentsList.slice(0, receiverArgumentIndex),
-    receiverArgument,
-    ...argumentsList.slice(receiverArgumentIndex),
-  ];
+  const parameter = member.parameters[0];
+  const expectedType = parameter === undefined ? undefined : csharpTypeFromTargetTypeRef(parameter.type);
+  return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType);
 }
 
 function planArrowFunctionExpression(
@@ -754,18 +823,19 @@ function planArrowFunctionExpression(
 ): CsharpExpression {
   const expression = AsArrowFunction(node)!;
   diagnoseMissingLambdaTargetContext(node, input, diagnostics, expectedType);
-  if (expression.Body?.Kind === KindBlock) {
+  if (HasSourceKind(input.ast, expression.Body, KindBlock)) {
     return {
-      kind: "lambda",
+      kind: "LambdaExpression",
       ...(isAsyncExpression(node) ? { async: true } : {}),
       parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
       body: {
+        kind: "Block",
         statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics),
       },
     };
   }
   return {
-    kind: "lambda",
+    kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
     parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: planExpression(expression.Body!, sourceFile, input, diagnostics),
@@ -782,10 +852,11 @@ function planFunctionExpression(
   const expression = AsFunctionExpression(node)!;
   diagnoseMissingLambdaTargetContext(node, input, diagnostics, expectedType);
   return {
-    kind: "lambda",
+    kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
     parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: {
+      kind: "Block",
       statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics),
     },
   };
@@ -809,11 +880,12 @@ function planLambdaParameters(
       if (parameter.DotDotDotToken !== undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(parameterNode, "Rest parameters in lambdas require target delegate facts before C# emission."));
       }
-      if (parameter.name?.Kind !== KindIdentifier) {
+      if (!HasSourceKind(input.ast, parameter.name, KindIdentifier)) {
         diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode, "Lambda parameter binding is outside the current C# planning surface."));
       }
       return {
-        name: parameter.name?.Kind === KindIdentifier ? sanitizeIdentifier(Node_Text(parameter.name)) : "arg",
+        kind: "Parameter",
+        name: HasSourceKind(input.ast, parameter.name, KindIdentifier) ? sanitizeIdentifier(Node_Text(parameter.name)) : "arg",
         ...(parameter.Type === undefined ? {} : { type: getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics) }),
       };
     });
@@ -835,7 +907,7 @@ function diagnoseMissingLambdaTargetContext(
 }
 
 function isCsharpDelegateType(type: CsharpTypeNode): boolean {
-  return type.kind === "named" && (type.name === "Func" || type.name === "Action" || type.name === "Predicate");
+  return type.kind === "IdentifierName" && (type.name === "Func" || type.name === "Action" || type.name === "Predicate");
 }
 
 export function planCallArgument(
@@ -843,17 +915,19 @@ export function planCallArgument(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  expectedType?: CsharpTypeNode,
 ): CsharpArgument {
   const argumentPassing = input.facts.getArgumentPassingFact(node);
   if (argumentPassing === undefined) {
-    return { expression: planCallArgumentExpression(node, sourceFile, input, diagnostics) };
+    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, expectedType) };
   }
   if (!isNode(argumentPassing.targetExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
-    return { expression: planCallArgumentExpression(node, sourceFile, input, diagnostics) };
+    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, expectedType) };
   }
   return {
-    expression: planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics),
+    kind: "Argument",
+    expression: planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, expectedType),
     passing: getCsharpArgumentPassing(argumentPassing.mode),
   };
 }
@@ -863,6 +937,7 @@ function planCallArgumentExpression(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  expectedType?: CsharpTypeNode,
 ): CsharpExpression {
   const conversion = input.facts.getTargetConversionFact(node);
   if (conversion?.operation !== undefined) {
@@ -876,6 +951,9 @@ function planCallArgumentExpression(
     }
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType);
   }
+  if (expectedType !== undefined) {
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType);
+  }
   return planExpression(node, sourceFile, input, diagnostics);
 }
 
@@ -887,7 +965,7 @@ function planTemplateExpression(
 ): CsharpExpression {
   const expression = AsTemplateExpression(node)!;
   const parts: CsharpInterpolatedStringPart[] = [
-    { kind: "text", text: Node_Text(expression.Head) },
+    { kind: "InterpolatedStringText", text: Node_Text(expression.Head) },
   ];
   for (const spanNode of expression.TemplateSpans?.Nodes ?? []) {
     if (spanNode === undefined) {
@@ -895,12 +973,12 @@ function planTemplateExpression(
     }
     const span = AsTemplateSpan(spanNode)!;
     parts.push({
-      kind: "expression",
+      kind: "Interpolation",
       expression: planExpression(span.Expression!, sourceFile, input, diagnostics),
     });
-    parts.push({ kind: "text", text: Node_Text(span.Literal) });
+    parts.push({ kind: "InterpolatedStringText", text: Node_Text(span.Literal) });
   }
-  return { kind: "interpolatedString", parts };
+  return { kind: "InterpolatedStringExpression", parts };
 }
 
 function getCsharpArgumentPassing(mode: ArgumentPassingFact["mode"]): CsharpArgument["passing"] {
@@ -924,48 +1002,48 @@ export function planExpressionWithExpectedType(
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
 ): CsharpExpression {
-  const expectedTypeLiteral = planExpectedTypeLiteral(node, expectedType, diagnostics);
+  const expectedTypeLiteral = planExpectedTypeLiteral(node, input, expectedType, diagnostics);
   if (expectedTypeLiteral !== undefined) {
     return expectedTypeLiteral;
   }
-  if (node.Kind === KindAsExpression) {
+  if (HasSourceKind(input.ast, node, KindAsExpression)) {
     return planExpressionWithExpectedType(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
-  if (node.Kind === KindSatisfiesExpression) {
+  if (HasSourceKind(input.ast, node, KindSatisfiesExpression)) {
     return planExpressionWithExpectedType(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
-  if (node.Kind === KindNonNullExpression) {
+  if (HasSourceKind(input.ast, node, KindNonNullExpression)) {
     return planExpressionWithExpectedType(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
-  if (node.Kind === KindTypeAssertionExpression) {
+  if (HasSourceKind(input.ast, node, KindTypeAssertionExpression)) {
     return planExpressionWithExpectedType(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
-  if (node.Kind === KindParenthesizedExpression) {
+  if (HasSourceKind(input.ast, node, KindParenthesizedExpression)) {
     const expression = AsParenthesizedExpression(node)!;
     return {
-      kind: "parenthesized",
+      kind: "ParenthesizedExpression",
       expression: planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
     };
   }
-  if (node.Kind === KindArrowFunction) {
+  if (HasSourceKind(input.ast, node, KindArrowFunction)) {
     return planArrowFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
   }
-  if (node.Kind === KindFunctionExpression) {
+  if (HasSourceKind(input.ast, node, KindFunctionExpression)) {
     return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
   }
-  if (node.Kind === KindObjectLiteralExpression) {
+  if (HasSourceKind(input.ast, node, KindObjectLiteralExpression)) {
     return planObjectLiteralExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
-  if (node.Kind === KindArrayLiteralExpression && expectedType.kind === "tuple") {
+  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics);
   }
-  if (node.Kind === KindArrayLiteralExpression && expectedType.kind === "array") {
+  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
     return planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType);
   }
-  if (node.Kind === KindConditionalExpression) {
+  if (HasSourceKind(input.ast, node, KindConditionalExpression)) {
     const expression = AsConditionalExpression(node)!;
     return {
-      kind: "conditional",
+      kind: "ConditionalExpression",
       condition: planExpression(expression.Condition!, sourceFile, input, diagnostics),
       whenTrue: planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
       whenFalse: planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
@@ -995,7 +1073,7 @@ function planObjectLiteralExpressionWithExpectedType(
     .filter((property): property is Node => property !== undefined)
     .flatMap((property) => planObjectLiteralAssignment(property, sourceFile, input, diagnostics)));
   return {
-    kind: "objectInitializer",
+    kind: "ObjectCreationExpression",
     type: expectedType,
     assignments,
   };
@@ -1005,15 +1083,8 @@ function getExpectedObjectShapeFact(
   expectedTypeSubject: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): ObjectShapeFact | undefined {
-  if (expectedTypeSubject === undefined) {
-    return undefined;
-  }
-  const direct = input.facts.getObjectShapeFact(expectedTypeSubject);
-  if (direct !== undefined) {
-    return direct;
-  }
-  return input.semantics.getObjectShapeForNode(expectedTypeSubject, { sourceFile });
+): CsharpObjectShapeFact | undefined {
+  return getCsharpObjectShapeFactForNode(expectedTypeSubject, sourceFile, input);
 }
 
 function planObjectLiteralExpressionWithObjectShape(
@@ -1021,7 +1092,7 @@ function planObjectLiteralExpressionWithObjectShape(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-  objectShape: ObjectShapeFact,
+  objectShape: CsharpObjectShapeFact,
 ): CsharpExpression {
   const type = csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, node);
   if (type === undefined) {
@@ -1032,7 +1103,7 @@ function planObjectLiteralExpressionWithObjectShape(
     .filter((property): property is Node => property !== undefined)
     .flatMap((property) => planObjectShapeLiteralAssignment(property, objectShape, sourceFile, input, diagnostics)));
   return {
-    kind: "objectInitializer",
+    kind: "ObjectCreationExpression",
     type,
     assignments,
   };
@@ -1040,15 +1111,15 @@ function planObjectLiteralExpressionWithObjectShape(
 
 function planObjectShapeLiteralAssignment(
   property: Node,
-  objectShape: ObjectShapeFact,
+  objectShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpObjectInitializerAssignment[] {
-  switch (property.Kind) {
+  switch (SourceKind(input.ast, property)) {
     case KindPropertyAssignment: {
       const propertyAssignment = AsPropertyAssignment(property)!;
-      const sourceName = getObjectLiteralPropertySourceName(property, diagnostics);
+      const sourceName = getObjectLiteralPropertySourceName(property, input, diagnostics);
       const member = sourceName === undefined ? undefined : findObjectShapeMember(objectShape, sourceName);
       if (propertyAssignment.Initializer === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal property assignment must have an initializer."));
@@ -1064,6 +1135,7 @@ function planObjectShapeLiteralAssignment(
         return [];
       }
       return [{
+        kind: "AssignmentExpression",
         name: objectShapeStorageMemberName(objectShape, member),
         expression: planExpressionWithExpectedType(propertyAssignment.Initializer, sourceFile, input, diagnostics, memberType),
       }];
@@ -1074,7 +1146,7 @@ function planObjectShapeLiteralAssignment(
         diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal shorthand defaults require finalized default-value semantics before C# emission."));
         return [];
       }
-      const sourceName = getObjectLiteralPropertySourceName(property, diagnostics);
+      const sourceName = getObjectLiteralPropertySourceName(property, input, diagnostics);
       const member = sourceName === undefined ? undefined : findObjectShapeMember(objectShape, sourceName);
       const nameNode = Node_Name(property);
       if (member === undefined || nameNode === undefined) {
@@ -1087,6 +1159,7 @@ function planObjectShapeLiteralAssignment(
         return [];
       }
       return [{
+        kind: "AssignmentExpression",
         name: objectShapeStorageMemberName(objectShape, member),
         expression: planExpressionWithExpectedType(nameNode, sourceFile, input, diagnostics, memberType),
       }];
@@ -1105,7 +1178,7 @@ function planObjectShapeLiteralAssignment(
 
 function planObjectShapeSpreadAssignments(
   spreadNode: Node,
-  targetShape: ObjectShapeFact,
+  targetShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -1116,11 +1189,11 @@ function planObjectShapeSpreadAssignments(
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires a source expression."));
     return [];
   }
-  if (expression.Kind !== KindIdentifier) {
+  if (!HasSourceKind(input.ast, expression, KindIdentifier)) {
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires a single-evaluation provider lowering for non-identifier spread expressions before C# emission."));
     return [];
   }
-  const sourceShape = input.semantics.getObjectShapeForNode(expression, { sourceFile });
+  const sourceShape = getExpectedObjectShapeFact(expression, sourceFile, input);
   if (sourceShape === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires finalized provider object-shape facts for the spread expression before C# emission."));
     return [];
@@ -1137,9 +1210,10 @@ function planObjectShapeSpreadAssignments(
       return [];
     }
     assignments.push({
+      kind: "AssignmentExpression",
       name: objectShapeStorageMemberName(targetShape, targetMember),
       expression: {
-        kind: "member",
+        kind: "SimpleMemberAccessExpression",
         receiver: planExpression(expression, sourceFile, input, diagnostics),
         name: objectShapeStorageMemberName(sourceShape, sourceMember),
       },
@@ -1150,12 +1224,12 @@ function planObjectShapeSpreadAssignments(
 
 function planObjectShapeMethodMemberAssignment(
   methodNode: Node,
-  objectShape: ObjectShapeFact,
+  objectShape: CsharpObjectShapeFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): { readonly name: string; readonly expression: CsharpExpression } | undefined {
-  const sourceName = getObjectLiteralPropertySourceName(methodNode, diagnostics);
+): CsharpObjectInitializerAssignment | undefined {
+  const sourceName = getObjectLiteralPropertySourceName(methodNode, input, diagnostics);
   const member = sourceName === undefined ? undefined : findObjectShapeMember(objectShape, sourceName);
   if (member === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
@@ -1171,6 +1245,7 @@ function planObjectShapeMethodMemberAssignment(
     return undefined;
   }
   return {
+    kind: "AssignmentExpression",
     name: objectShapeStorageMemberName(objectShape, member),
     expression: planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType),
   };
@@ -1198,16 +1273,17 @@ function planObjectLiteralMethodAsLambda(
     return invalidExpression("object literal method without body");
   }
   return {
-    kind: "lambda",
+    kind: "LambdaExpression",
     ...(isAsyncExpression(methodNode) ? { async: true } : {}),
     parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
     body: {
+      kind: "Block",
       statements: planBlockStatements(method.Body, sourceFile, input, diagnostics),
     },
   };
 }
 
-function findObjectShapeMember(objectShape: ObjectShapeFact, sourceName: string): ObjectShapeFact["members"][number] | undefined {
+function findObjectShapeMember(objectShape: CsharpObjectShapeFact, sourceName: string): CsharpObjectShapeFact["members"][number] | undefined {
   return objectShape.members.find((member) => member.sourceName === sourceName);
 }
 
@@ -1217,7 +1293,7 @@ function isSourceOwnedObjectInitializerType(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {
-  if (type.kind !== "named") {
+  if (type.kind !== "IdentifierName") {
     return false;
   }
   if (expectedTypeSubject === undefined) {
@@ -1232,10 +1308,10 @@ function planObjectLiteralAssignment(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpObjectInitializerAssignment[] {
-  switch (property.Kind) {
+  switch (SourceKind(input.ast, property)) {
     case KindPropertyAssignment: {
       const propertyAssignment = AsPropertyAssignment(property)!;
-      const name = getSourceOwnedObjectInitializerMemberName(property, diagnostics);
+      const name = getSourceOwnedObjectInitializerMemberName(property, input, diagnostics);
       if (name === undefined || propertyAssignment.Initializer === undefined) {
         if (propertyAssignment.Initializer === undefined) {
           diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal property assignment must have an initializer."));
@@ -1243,6 +1319,7 @@ function planObjectLiteralAssignment(
         return [];
       }
       return [{
+        kind: "AssignmentExpression",
         name,
         expression: planExpression(propertyAssignment.Initializer, sourceFile, input, diagnostics),
       }];
@@ -1254,11 +1331,12 @@ function planObjectLiteralAssignment(
         return [];
       }
       const nameNode = Node_Name(property);
-      const name = getSourceOwnedObjectInitializerMemberName(property, diagnostics);
+      const name = getSourceOwnedObjectInitializerMemberName(property, input, diagnostics);
       if (name === undefined || nameNode === undefined) {
         return [];
       }
       return [{
+        kind: "AssignmentExpression",
         name,
         expression: planExpression(nameNode, sourceFile, input, diagnostics),
       }];
@@ -1284,7 +1362,7 @@ function mergeObjectInitializerAssignments(assignments: readonly CsharpObjectIni
   return [...merged.values()];
 }
 
-function objectShapeMemberTypesMatch(left: ObjectShapeFact["members"][number], right: ObjectShapeFact["members"][number]): boolean {
+function objectShapeMemberTypesMatch(left: CsharpObjectShapeFact["members"][number], right: CsharpObjectShapeFact["members"][number]): boolean {
   return targetTypeRefsMatch(left.type, right.type);
 }
 
@@ -1293,8 +1371,8 @@ function planSourceOwnedMethodMemberAssignment(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): { readonly name: string; readonly expression: CsharpExpression } | undefined {
-  const name = getSourceOwnedObjectInitializerMemberName(methodNode, diagnostics);
+): CsharpObjectInitializerAssignment | undefined {
+  const name = getSourceOwnedObjectInitializerMemberName(methodNode, input, diagnostics);
   if (name === undefined) {
     return undefined;
   }
@@ -1308,6 +1386,7 @@ function planSourceOwnedMethodMemberAssignment(
     return undefined;
   }
   return {
+    kind: "AssignmentExpression",
     name,
     expression: planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType),
   };
@@ -1323,6 +1402,7 @@ function getContextualTargetCsharpType(
 
 function getSourceOwnedObjectInitializerMemberName(
   property: Node,
+  input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const nameNode = Node_Name(property);
@@ -1330,10 +1410,10 @@ function getSourceOwnedObjectInitializerMemberName(
     diagnostics.push(unsupportedNodeDiagnostic(property, "Source-owned object initializers require a property name."));
     return undefined;
   }
-  if (nameNode.Kind === KindIdentifier) {
+  if (HasSourceKind(input.ast, nameNode, KindIdentifier)) {
     return sanitizeIdentifier(Node_Text(nameNode));
   }
-  if (nameNode.Kind === KindStringLiteral) {
+  if (HasSourceKind(input.ast, nameNode, KindStringLiteral)) {
     const text = AsStringLiteral(nameNode)?.Text;
     if (text !== undefined) {
       const sanitized = sanitizeIdentifier(text);
@@ -1348,10 +1428,11 @@ function getSourceOwnedObjectInitializerMemberName(
 
 function getObjectLiteralPropertySourceName(
   property: Node,
+  input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const nameNode = Node_Name(property);
-  if (nameNode === undefined || (nameNode.Kind !== KindIdentifier && nameNode.Kind !== KindStringLiteral)) {
+  if (nameNode === undefined || (!HasSourceKind(input.ast, nameNode, KindIdentifier) && !HasSourceKind(input.ast, nameNode, KindStringLiteral))) {
     diagnostics.push(unsupportedNodeDiagnostic(nameNode ?? property, "Object-shape object initializers require identifier or string-literal property names."));
     return undefined;
   }
@@ -1360,13 +1441,14 @@ function getObjectLiteralPropertySourceName(
 
 function planExpectedTypeLiteral(
   node: Node,
+  input: TargetCompileInput,
   expectedType: CsharpTypeNode,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   if (!isCsharpCharType(expectedType)) {
     return undefined;
   }
-  const text = getStringLiteralText(node);
+  const text = getStringLiteralText(node, input);
   if (text === undefined) {
     return undefined;
   }
@@ -1374,22 +1456,22 @@ function planExpectedTypeLiteral(
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# char literals require exactly one UTF-16 code unit from TSTS/source primitive typing."));
     return invalidExpression("invalid char literal");
   }
-  return { kind: "charLiteral", value: text };
+  return { kind: "CharacterLiteralExpression", value: text };
 }
 
-function getStringLiteralText(node: Node): string | undefined {
-  switch (node.Kind) {
+function getStringLiteralText(node: Node, input: TargetCompileInput): string | undefined {
+  switch (SourceKind(input.ast, node)) {
     case KindStringLiteral:
-      return AsStringLiteral(node)!.Text;
+      return Node_Text(AsStringLiteral(node));
     case KindNoSubstitutionTemplateLiteral:
-      return AsNoSubstitutionTemplateLiteral(node)!.Text;
+      return Node_Text(AsNoSubstitutionTemplateLiteral(node));
     default:
       return undefined;
   }
 }
 
 function isCsharpCharType(type: CsharpTypeNode): boolean {
-  return type.kind === "predefined" && type.name === "char";
+  return type.kind === "PredefinedType" && type.name === "char";
 }
 
 function planRegularExpressionLiteral(
@@ -1403,17 +1485,17 @@ function planRegularExpressionLiteral(
     diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires a finalized provider runtime carrier for Tsonic.CSharp.Js.RegExp."));
     return invalidExpression("regexp literal without provider carrier");
   }
-  const literal = parseRegularExpressionLiteral(AsRegularExpressionLiteral(node)!.Text);
+  const literal = parseRegularExpressionLiteral(Node_Text(AsRegularExpressionLiteral(node)));
   if (literal === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal text could not be split into pattern and flags by the C# backend."));
     return invalidExpression("invalid regexp literal text");
   }
   return {
-    kind: "new",
-    type: csharpTypeFromTargetTypeRef(carrier) ?? { kind: "invalid", reason: "regexp carrier" },
+    kind: "ObjectCreationExpression",
+    type: csharpTypeFromTargetTypeRef(carrier) ?? { kind: "InvalidType", reason: "regexp carrier" },
     arguments: [
-      { expression: { kind: "literal", value: literal.pattern } },
-      { expression: { kind: "literal", value: literal.flags } },
+      { kind: "Argument", expression: { kind: "LiteralExpression", value: literal.pattern } },
+      { kind: "Argument", expression: { kind: "LiteralExpression", value: literal.flags } },
     ],
   };
 }
@@ -1460,7 +1542,7 @@ function planTupleLiteralExpression(
 ): CsharpExpression {
   const literal = AsArrayLiteralExpression(node)!;
   return {
-    kind: "tuple",
+    kind: "TupleExpression",
     elements: (literal.Elements?.Nodes ?? [])
       .filter((element): element is Node => element !== undefined)
       .map((element) => planExpression(element, sourceFile, input, diagnostics)),
@@ -1475,11 +1557,11 @@ function planArrayLiteralExpression(
   elementType: CsharpTypeNode,
 ): CsharpExpression {
   const literal = AsArrayLiteralExpression(node)!;
-  if ((literal.Elements?.Nodes ?? []).some((element) => element?.Kind === KindSpreadElement)) {
+  if ((literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindSpreadElement))) {
     return planArraySpreadLiteralExpression(node, sourceFile, input, diagnostics, elementType);
   }
   return {
-    kind: "array",
+    kind: "ArrayCreationExpression",
     elementType,
     elements: (literal.Elements?.Nodes ?? [])
       .filter((element): element is Node => element !== undefined)
@@ -1494,11 +1576,11 @@ function planArraySpreadLiteralExpression(
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
 ): CsharpExpression {
-  const expectedArrayType = { kind: "array", elementType } satisfies CsharpTypeNode;
+  const expectedArrayType = { kind: "ArrayType", elementType } satisfies CsharpTypeNode;
   const chunks = createArraySpreadChunks(node, sourceFile, input, diagnostics, elementType, expectedArrayType);
   if (chunks.length === 0) {
     return {
-      kind: "array",
+      kind: "ArrayCreationExpression",
       elementType,
       elements: [],
     };
@@ -1506,7 +1588,7 @@ function planArraySpreadLiteralExpression(
   if (chunks.length === 1 && chunks[0]?.fromSpread !== true) {
     return chunks[0]!.expression;
   }
-  return runtimeArrayHelperCall("Concat", chunks.map((chunk) => ({ expression: chunk.expression })));
+  return runtimeArrayHelperCall("Concat", chunks.map((chunk) => ({ kind: "Argument", expression: chunk.expression })));
 }
 
 function createArraySpreadChunks(
@@ -1526,7 +1608,7 @@ function createArraySpreadChunks(
     }
     chunks.push({
       expression: {
-        kind: "array",
+        kind: "ArrayCreationExpression",
         elementType,
         elements: pendingElements,
       },
@@ -1537,7 +1619,7 @@ function createArraySpreadChunks(
     if (element === undefined) {
       continue;
     }
-    if (element.Kind !== KindSpreadElement) {
+    if (!HasSourceKind(input.ast, element, KindSpreadElement)) {
       pendingElements.push(planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType));
       continue;
     }
@@ -1604,7 +1686,7 @@ function tryPlanBinaryExpression(
   if (typeofComparison !== undefined) {
     return typeofComparison;
   }
-  const operator = selectedOperator?.targetOperation ?? getSimpleAssignmentOperator(expression);
+  const operator = selectedOperator?.targetOperation ?? getSourceOwnedBinaryOperator(expression, sourceFile, input);
   if (operator === undefined) {
     const leftOwnership = getProviderOperationOwnership(expression.Left, sourceFile, input);
     const rightOwnership = getProviderOperationOwnership(expression.Right, sourceFile, input);
@@ -1613,7 +1695,7 @@ function tryPlanBinaryExpression(
     return invalidExpression("missing target operator fact");
   }
   return {
-    kind: "binary",
+    kind: "BinaryExpression",
     left: planExpression(expression.Left!, sourceFile, input, diagnostics),
     operator,
     right: planExpression(expression.Right!, sourceFile, input, diagnostics),
@@ -1642,7 +1724,7 @@ function planTypeofExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, `Typeof expression expected a provider typeof operator fact, but provider selected '${selectedOperator.targetOperation}'.`));
     return invalidExpression("selected target non-typeof operator");
   }
-  return { kind: "literal", value: runtimeKind };
+  return { kind: "LiteralExpression", value: runtimeKind };
 }
 
 function getStandaloneTypeofRuntimeKind(targetOperation: string): "string" | "number" | "boolean" | "bigint" | undefined {
@@ -1675,7 +1757,7 @@ function tryPlanTypeTestExpression(
     return invalidExpression("selected type-test without operands");
   }
   return {
-    kind: "isType",
+    kind: "IsPatternExpression",
     expression: planExpression(expression.Left, sourceFile, input, diagnostics),
     type: expressionToCsharpType(expression.Right, sourceFile, input, diagnostics),
   };
@@ -1684,41 +1766,31 @@ function tryPlanTypeTestExpression(
 function tryPlanTypeofComparisonExpression(
   expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
   selectedOperator: ReturnType<TargetCompileInput["facts"]["getSelectedTargetOperator"]>,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
+  _sourceFile: SourceFile,
+  _input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   if (selectedOperator?.operationKind !== "operator" ||
     (selectedOperator.targetOperation !== "typeof-is" && selectedOperator.targetOperation !== "typeof-is-not")) {
     return undefined;
   }
-  const operand = getTypeofComparisonOperand(expression);
+  const operand = getTypeofComparisonOperand(expression, _input);
   if (operand === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(expression.Left!, "Provider selected a typeof comparison operation, but the compared expression is not a typeof expression."));
     return invalidExpression("selected typeof comparison without typeof operand");
   }
-  const targetType = selectedOperator.targetType === undefined
-    ? undefined
-    : csharpTypeFromTargetTypeRef(selectedOperator.targetType);
-  if (targetType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(operand, "Provider selected a typeof comparison operation without a renderable target type."));
-    return invalidExpression("selected typeof comparison without target type");
-  }
-  return {
-    kind: "isType",
-    expression: planExpression(operand, sourceFile, input, diagnostics),
-    type: targetType,
-    ...(selectedOperator.targetOperation === "typeof-is-not" ? { negated: true } : {}),
-  };
+  diagnostics.push(unsupportedNodeDiagnostic(operand, "Provider selected a typeof comparison operation, but the public TSTS observation API did not provide the target type required for C# emission."));
+  return invalidExpression("selected typeof comparison without target type");
 }
 
 function getTypeofComparisonOperand(
   expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
+  input: TargetCompileInput,
 ): Node | undefined {
-  if (expression.Left?.Kind === KindTypeOfExpression) {
+  if (HasSourceKind(input.ast, expression.Left, KindTypeOfExpression)) {
     return Node_Expression(expression.Left);
   }
-  if (expression.Right?.Kind === KindTypeOfExpression) {
+  if (HasSourceKind(input.ast, expression.Right, KindTypeOfExpression)) {
     return Node_Expression(expression.Right);
   }
   return undefined;
@@ -1733,8 +1805,91 @@ function combineOwnership(left: OperationSemanticOwnership, right: OperationSema
   };
 }
 
-function getSimpleAssignmentOperator(expression: NonNullable<ReturnType<typeof AsBinaryExpression>>): string | undefined {
-  return expression.OperatorToken?.Kind === KindEqualsToken ? "=" : undefined;
+function getSourceOwnedUnaryOperator(
+  operatorKind: unknown,
+  operand: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): string | undefined {
+  if (!getProviderOperationOwnership(operand, sourceFile, input).sourceOwned) {
+    return undefined;
+  }
+  switch (SourceTokenKind(input.ast, operatorKind)) {
+    case "KindPlusPlusToken":
+      return "++";
+    case "KindMinusMinusToken":
+      return "--";
+    case "KindPlusToken":
+      return "+";
+    case "KindMinusToken":
+      return "-";
+    case "KindExclamationToken":
+      return "!";
+    default:
+      return undefined;
+  }
+}
+
+function getUnaryOperatorKind(expression: { readonly Operator?: unknown; readonly OperatorToken?: Node | undefined }): unknown {
+  return expression.Operator ?? expression.OperatorToken?.Kind;
+}
+
+function getSourceOwnedBinaryOperator(
+  expression: NonNullable<ReturnType<typeof AsBinaryExpression>>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): string | undefined {
+  const ownership = combineOwnership(
+    getProviderOperationOwnership(expression.Left, sourceFile, input),
+    getProviderOperationOwnership(expression.Right, sourceFile, input),
+  );
+  if (!ownership.sourceOwned) {
+    return undefined;
+  }
+  switch (SourceTokenKind(input.ast, expression.OperatorToken?.Kind)) {
+    case "KindEqualsToken":
+      return "=";
+    case "KindPlusToken":
+      return "+";
+    case "KindMinusToken":
+      return "-";
+    case "KindAsteriskToken":
+      return "*";
+    case "KindSlashToken":
+      return "/";
+    case "KindPercentToken":
+      return "%";
+    case "KindLessThanToken":
+      return "<";
+    case "KindLessThanEqualsToken":
+      return "<=";
+    case "KindGreaterThanToken":
+      return ">";
+    case "KindGreaterThanEqualsToken":
+      return ">=";
+    case "KindEqualsEqualsToken":
+    case "KindEqualsEqualsEqualsToken":
+      return "==";
+    case "KindExclamationEqualsToken":
+    case "KindExclamationEqualsEqualsToken":
+      return "!=";
+    case "KindAmpersandAmpersandToken":
+      return "&&";
+    case "KindBarBarToken":
+      return "||";
+    case "KindPlusEqualsToken":
+      return "+=";
+    case "KindMinusEqualsToken":
+      return "-=";
+    case "KindAsteriskEqualsToken":
+      return "*=";
+    case "KindSlashEqualsToken":
+      return "/=";
+    case "KindPercentEqualsToken":
+      return "%=";
+    default:
+      return undefined;
+  }
 }
 
 function isNode(value: unknown): value is Node {
@@ -1745,5 +1900,5 @@ function isNode(value: unknown): value is Node {
 
 function unsupportedFactExpressionType(node: Node, diagnostics: TargetDiagnostic[]): CsharpTypeNode {
   diagnostics.push(unsupportedNodeDiagnostic(node, "Source fact type subject must be an AST type node before C# expression emission."));
-  return { kind: "invalid", reason: "source fact expression type" };
+  return { kind: "InvalidType", reason: "source fact expression type" };
 }

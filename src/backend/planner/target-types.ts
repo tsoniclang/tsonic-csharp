@@ -1,11 +1,10 @@
 import type { SourcePrimitiveKind, TargetTypeRef } from "@tsonic/tsts";
-import type { CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 
 const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
   ["bool", "bool"],
-  ["char16", "char"],
-  ["char32", "System.Text.Rune"],
+  ["char", "char"],
   ["int8", "sbyte"],
   ["uint8", "byte"],
   ["int16", "short"],
@@ -19,7 +18,7 @@ const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
   ["float16", "Half"],
   ["float32", "float"],
   ["float64", "double"],
-  ["decimal128", "decimal"],
+  ["decimal", "decimal"],
   ["int128", "Int128"],
   ["uint128", "UInt128"],
 ]);
@@ -55,37 +54,31 @@ export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode
     case "target-named":
       return csharpTypeFromTargetNamedId(type.id, (type.typeArguments ?? []).map(csharpTypeFromTargetTypeRef));
     case "type-parameter":
-      return { kind: "named", name: sanitizeIdentifier(type.name) };
-    case "nullable": {
-      const inner = csharpTypeFromTargetTypeRef(type.inner);
-      return inner === undefined
-        ? undefined
-        : { kind: "nullable", inner };
-    }
+      return { kind: "IdentifierName", name: sanitizeIdentifier(type.name) };
     case "array": {
       const elementType = csharpTypeFromTargetTypeRef(type.element);
       return elementType === undefined
         ? undefined
-        : { kind: "array", elementType, ...(type.rank !== undefined ? { rank: type.rank } : {}) };
+        : { kind: "ArrayType", elementType, ...(type.rank !== undefined ? { rank: type.rank } : {}) };
     }
     case "tuple": {
       const elements = type.elements.map(csharpTypeFromTargetTypeRef);
       return elements.some((element) => element === undefined)
         ? undefined
-        : { kind: "tuple", elements: elements as readonly CsharpTypeNode[] };
+        : { kind: "TupleType", elements: elements as readonly CsharpTypeNode[] };
     }
     case "pointer": {
       const pointee = csharpTypeFromTargetTypeRef(type.pointee);
       return pointee === undefined
         ? undefined
-        : { kind: "pointer", pointee };
+        : { kind: "PointerType", pointee };
     }
     case "function-pointer": {
       const parameters = type.args.map(csharpTypeFromTargetTypeRef);
       const returnType = csharpTypeFromTargetTypeRef(type.result);
       return returnType === undefined || parameters.some((parameter) => parameter === undefined)
         ? undefined
-        : { kind: "functionPointer", parameters: parameters as readonly CsharpTypeNode[], returnType };
+        : { kind: "FunctionPointerType", parameters: parameters as readonly CsharpTypeNode[], returnType };
     }
     default:
       return undefined;
@@ -105,8 +98,6 @@ export function targetTypeRefsMatch(left: TargetTypeRef, right: TargetTypeRef): 
         targetTypeRefListsMatch(left.typeArguments ?? [], right.typeArguments ?? []);
     case "type-parameter":
       return right.kind === "type-parameter" && left.name === right.name;
-    case "nullable":
-      return right.kind === "nullable" && targetTypeRefsMatch(left.inner, right.inner);
     case "array":
       return right.kind === "array" &&
         (left.rank ?? 1) === (right.rank ?? 1) &&
@@ -152,30 +143,28 @@ function stringListsMatch(left: readonly string[], right: readonly string[]): bo
 
 export function csharpTypeRequiresUnsafe(type: CsharpTypeNode): boolean {
   switch (type.kind) {
-    case "pointer":
-    case "functionPointer":
+    case "PointerType":
+    case "FunctionPointerType":
       return true;
-    case "array":
+    case "ArrayType":
       return csharpTypeRequiresUnsafe(type.elementType);
-    case "tuple":
+    case "TupleType":
       return type.elements.some(csharpTypeRequiresUnsafe);
-    case "function":
-      return type.parameters.some(csharpTypeRequiresUnsafe) || csharpTypeRequiresUnsafe(type.returnType);
-    case "nullable":
+    case "NullableType":
       return csharpTypeRequiresUnsafe(type.inner);
-    case "named":
-    case "qualified":
+    case "IdentifierName":
+    case "QualifiedName":
       return (type.typeArguments ?? []).some(csharpTypeRequiresUnsafe) ||
-        (type.kind === "qualified" && csharpTypeRequiresUnsafe(type.left));
-    case "predefined":
-    case "invalid":
+        (type.kind === "QualifiedName" && csharpTypeRequiresUnsafe(type.left));
+    case "PredefinedType":
+    case "InvalidType":
       return false;
   }
 }
 
 export function csharpTypeFromSourcePrimitiveKind(kind: SourcePrimitiveKind): CsharpTypeNode {
   return {
-    kind: "predefined",
+    kind: "PredefinedType",
     name: primitiveTargetNames.get(kind)!,
   };
 }
@@ -184,17 +173,23 @@ function csharpTypeFromTargetNamedId(id: string, typeArguments: readonly (Csharp
   const predefined = predefinedTargetIds.get(id);
   if (predefined !== undefined && typeArguments.length === 0) {
     return {
-      kind: "predefined",
+      kind: "PredefinedType",
       name: predefined,
     };
   }
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
+  if (stripMetadataArity(id) === "System.Nullable" && typeArguments.length === 1) {
+    return {
+      kind: "NullableType",
+      inner: typeArguments[0]!,
+    };
+  }
   const genericPredefined = getGenericPredefinedTypeName(id);
   if (genericPredefined !== undefined) {
     return {
-      kind: "named",
+      kind: "IdentifierName",
       name: genericPredefined,
       typeArguments: typeArguments as readonly CsharpTypeNode[],
     };
@@ -206,17 +201,17 @@ function csharpTypeFromTargetNamedId(id: string, typeArguments: readonly (Csharp
   const renderedParts = parts.map(stripMetadataArity).map(sanitizeIdentifier);
   const last = renderedParts[renderedParts.length - 1]!;
   const args = typeArguments as readonly CsharpTypeNode[];
-  let current: CsharpTypeNode = { kind: "named", name: renderedParts[0]! };
+  let current: CsharpTypeNode = { kind: "IdentifierName", name: renderedParts[0]! };
   for (let index = 1; index < renderedParts.length; index += 1) {
     current = {
-      kind: "qualified",
+      kind: "QualifiedName",
       left: current,
       name: renderedParts[index]!,
       ...(index === renderedParts.length - 1 && args.length > 0 ? { typeArguments: args } : {}),
     };
   }
   if (renderedParts.length === 1 && args.length > 0) {
-    current = { kind: "named", name: last, typeArguments: args };
+    current = { kind: "IdentifierName", name: last, typeArguments: args };
   }
   return current;
 }

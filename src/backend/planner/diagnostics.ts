@@ -1,4 +1,4 @@
-import { KindString } from "@tsonic/tsts";
+import { KindString } from "./source-ast.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api";
 

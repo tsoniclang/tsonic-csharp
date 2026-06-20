@@ -18,7 +18,7 @@ import type {
   CsharpTypeMember,
   CsharpTypeNode,
   CsharpTypeParameter,
-} from "../ast/csharp-ast.js";
+} from "../roslyn/syntax.js";
 import { csharpTypeRequiresUnsafe } from "./target-types.js";
 
 export function compilationUnitRequiresUnsafe(unit: CsharpCompilationUnit): boolean {
@@ -33,7 +33,7 @@ export function markCompilationUnitUnsafe(unit: CsharpCompilationUnit): CsharpCo
 }
 
 function markMemberUnsafe(member: CsharpMember): CsharpMember {
-  if (member.kind === "namespace") {
+  if (member.kind === "NamespaceDeclaration") {
     return {
       ...member,
       members: member.members.map(markTypeDeclarationUnsafe),
@@ -43,7 +43,7 @@ function markMemberUnsafe(member: CsharpMember): CsharpMember {
 }
 
 function markTypeDeclarationUnsafe(declaration: CsharpTypeDeclaration): CsharpTypeDeclaration {
-  if (declaration.kind === "enum") {
+  if (declaration.kind === "EnumDeclaration") {
     return declaration;
   }
   return {
@@ -62,43 +62,43 @@ function withUnsafeModifier(modifiers: readonly CsharpModifier[]): readonly Csha
 }
 
 function memberRequiresUnsafe(member: CsharpMember): boolean {
-  return member.kind === "namespace"
+  return member.kind === "NamespaceDeclaration"
     ? member.members.some(typeDeclarationRequiresUnsafe)
     : typeDeclarationRequiresUnsafe(member);
 }
 
 function typeDeclarationRequiresUnsafe(declaration: CsharpTypeDeclaration): boolean {
   switch (declaration.kind) {
-    case "class":
+    case "ClassDeclaration":
       return optionalTypeRequiresUnsafe(declaration.baseType) ||
         (declaration.interfaces ?? []).some(csharpTypeRequiresUnsafe) ||
         typeParametersRequireUnsafe(declaration.typeParameters) ||
         declaration.members.some(typeMemberRequiresUnsafe);
-    case "struct":
+    case "StructDeclaration":
       return (declaration.interfaces ?? []).some(csharpTypeRequiresUnsafe) ||
         typeParametersRequireUnsafe(declaration.typeParameters) ||
         declaration.members.some(typeMemberRequiresUnsafe);
-    case "interface":
+    case "InterfaceDeclaration":
       return (declaration.interfaces ?? []).some(csharpTypeRequiresUnsafe) ||
         typeParametersRequireUnsafe(declaration.typeParameters) ||
         declaration.members.some(interfaceMemberRequiresUnsafe);
-    case "enum":
+    case "EnumDeclaration":
       return declaration.members.some((member) => optionalExpressionRequiresUnsafe(member.value));
   }
 }
 
 function typeMemberRequiresUnsafe(member: CsharpTypeMember): boolean {
   switch (member.kind) {
-    case "constructor":
+    case "ConstructorDeclaration":
       return constructorRequiresUnsafe(member);
-    case "method":
+    case "MethodDeclaration":
       return csharpTypeRequiresUnsafe(member.returnType) ||
         typeParametersRequireUnsafe(member.typeParameters) ||
         member.parameters.some(parameterRequiresUnsafe) ||
         blockRequiresUnsafe(member.body);
-    case "field":
+    case "FieldDeclaration":
       return csharpTypeRequiresUnsafe(member.type) || optionalExpressionRequiresUnsafe(member.initializer);
-    case "property":
+    case "PropertyDeclaration":
       return csharpTypeRequiresUnsafe(member.type) ||
         optionalBlockRequiresUnsafe(member.getter) ||
         optionalBlockRequiresUnsafe(member.setter);
@@ -113,13 +113,13 @@ function constructorRequiresUnsafe(member: CsharpConstructorDeclaration): boolea
 
 function interfaceMemberRequiresUnsafe(member: CsharpInterfaceMember): boolean {
   switch (member.kind) {
-    case "interface-method":
+    case "MethodDeclaration":
       return csharpTypeRequiresUnsafe(member.returnType) ||
         typeParametersRequireUnsafe(member.typeParameters) ||
         member.parameters.some(parameterRequiresUnsafe);
-    case "interface-property":
+    case "PropertyDeclaration":
       return csharpTypeRequiresUnsafe(member.type);
-    case "interface-indexer":
+    case "IndexerDeclaration":
       return csharpTypeRequiresUnsafe(member.keyType) || csharpTypeRequiresUnsafe(member.valueType);
   }
 }
@@ -150,46 +150,46 @@ function blockRequiresUnsafe(block: CsharpBlock): boolean {
 
 function statementRequiresUnsafe(statement: CsharpStatement): boolean {
   switch (statement.kind) {
-    case "return":
+    case "ReturnStatement":
       return optionalExpressionRequiresUnsafe(statement.expression);
-    case "expression":
+    case "ExpressionStatement":
       return expressionRequiresUnsafe(statement.expression);
-    case "local":
+    case "LocalDeclarationStatement":
       return csharpTypeRequiresUnsafe(statement.type) || optionalExpressionRequiresUnsafe(statement.initializer);
-    case "block":
+    case "Block":
       return blockRequiresUnsafe(statement.body);
-    case "throw":
+    case "ThrowStatement":
       return expressionRequiresUnsafe(statement.expression);
-    case "label":
+    case "LabeledStatement":
       return statementRequiresUnsafe(statement.statement);
-    case "switch":
+    case "SwitchStatement":
       return expressionRequiresUnsafe(statement.expression) || statement.sections.some(switchSectionRequiresUnsafe);
-    case "try":
+    case "TryStatement":
       return blockRequiresUnsafe(statement.tryBody) ||
         optionalCatchRequiresUnsafe(statement.catchClause) ||
         optionalBlockRequiresUnsafe(statement.finallyBody);
-    case "foreach":
+    case "ForEachStatement":
       return csharpTypeRequiresUnsafe(statement.itemType) ||
         expressionRequiresUnsafe(statement.collection) ||
         blockRequiresUnsafe(statement.body);
-    case "if":
+    case "IfStatement":
       return expressionRequiresUnsafe(statement.condition) ||
         blockRequiresUnsafe(statement.thenBody) ||
         optionalBlockRequiresUnsafe(statement.elseBody);
-    case "while":
+    case "WhileStatement":
       return expressionRequiresUnsafe(statement.condition) || blockRequiresUnsafe(statement.body);
-    case "do":
+    case "DoStatement":
       return blockRequiresUnsafe(statement.body) || expressionRequiresUnsafe(statement.condition);
-    case "for":
+    case "ForStatement":
       return optionalForInitializerRequiresUnsafe(statement.initializer) ||
         optionalExpressionRequiresUnsafe(statement.condition) ||
         optionalExpressionRequiresUnsafe(statement.incrementor) ||
         blockRequiresUnsafe(statement.body);
-    case "goto-switch":
+    case "GotoSwitchStatement":
       return switchLabelRequiresUnsafe(statement.label);
-    case "break":
-    case "continue":
-    case "goto":
+    case "BreakStatement":
+    case "ContinueStatement":
+    case "GotoStatement":
       return false;
   }
 }
@@ -199,7 +199,7 @@ function switchSectionRequiresUnsafe(section: CsharpSwitchSection): boolean {
 }
 
 function switchLabelRequiresUnsafe(label: CsharpSwitchLabel): boolean {
-  return label.kind === "case" && expressionRequiresUnsafe(label.expression);
+  return label.kind === "CaseSwitchLabel" && expressionRequiresUnsafe(label.expression);
 }
 
 function optionalCatchRequiresUnsafe(catchClause: CsharpCatchClause | undefined): boolean {
@@ -211,7 +211,7 @@ function optionalForInitializerRequiresUnsafe(initializer: CsharpForInitializer 
   if (initializer === undefined) {
     return false;
   }
-  return initializer.kind === "expression"
+  return initializer.kind === "Expression"
     ? expressionRequiresUnsafe(initializer.expression)
     : initializer.locals.some((local) => csharpTypeRequiresUnsafe(local.type) || optionalExpressionRequiresUnsafe(local.initializer));
 }
@@ -222,53 +222,59 @@ function optionalExpressionRequiresUnsafe(expression: CsharpExpression | undefin
 
 function expressionRequiresUnsafe(expression: CsharpExpression): boolean {
   switch (expression.kind) {
-    case "type":
-      return csharpTypeRequiresUnsafe(expression.type);
-    case "parenthesized":
-    case "await":
+    case "ArrayType":
+    case "FunctionPointerType":
+    case "IdentifierName":
+    case "InvalidType":
+    case "NullableType":
+    case "PointerType":
+    case "PredefinedType":
+    case "QualifiedName":
+    case "TupleType":
+      return csharpTypeRequiresUnsafe(expression);
+    case "ParenthesizedExpression":
+    case "AwaitExpression":
       return expressionRequiresUnsafe(expression.expression);
-    case "call":
+    case "InvocationExpression":
       return expressionRequiresUnsafe(expression.callee) || expression.arguments.some(argumentRequiresUnsafe);
-    case "new":
-      return csharpTypeRequiresUnsafe(expression.type) || expression.arguments.some(argumentRequiresUnsafe);
-    case "objectInitializer":
+    case "ObjectCreationExpression":
       return csharpTypeRequiresUnsafe(expression.type) ||
-        expression.assignments.some((assignment) => expressionRequiresUnsafe(assignment.expression));
-    case "member":
-    case "optionalMember":
+        (expression.arguments ?? []).some(argumentRequiresUnsafe) ||
+        (expression.assignments ?? []).some((assignment) => expressionRequiresUnsafe(assignment.expression));
+    case "SimpleMemberAccessExpression":
+    case "ConditionalAccessExpression":
       return expressionRequiresUnsafe(expression.receiver);
-    case "element":
-    case "optionalElement":
+    case "ElementAccessExpression":
+    case "ConditionalElementAccessExpression":
       return expressionRequiresUnsafe(expression.receiver) || expressionRequiresUnsafe(expression.argument);
-    case "binary":
+    case "BinaryExpression":
       return expressionRequiresUnsafe(expression.left) || expressionRequiresUnsafe(expression.right);
-    case "isType":
+    case "IsPatternExpression":
       return expressionRequiresUnsafe(expression.expression) || csharpTypeRequiresUnsafe(expression.type);
-    case "prefixUnary":
+    case "PrefixUnaryExpression":
       return expressionRequiresUnsafe(expression.operand);
-    case "postfixUnary":
+    case "PostfixUnaryExpression":
       return expressionRequiresUnsafe(expression.operand);
-    case "conditional":
+    case "ConditionalExpression":
       return expressionRequiresUnsafe(expression.condition) ||
         expressionRequiresUnsafe(expression.whenTrue) ||
         expressionRequiresUnsafe(expression.whenFalse);
-    case "array":
+    case "ArrayCreationExpression":
       return optionalTypeRequiresUnsafe(expression.elementType) || expression.elements.some(expressionRequiresUnsafe);
-    case "tuple":
+    case "TupleExpression":
       return expression.elements.some(expressionRequiresUnsafe);
-    case "default":
+    case "DefaultExpression":
       return csharpTypeRequiresUnsafe(expression.type);
-    case "lambda":
+    case "LambdaExpression":
       return expression.parameters.some(lambdaParameterRequiresUnsafe) ||
         (Array.isArray((expression.body as { readonly statements?: unknown }).statements)
           ? blockRequiresUnsafe(expression.body as CsharpBlock)
           : expressionRequiresUnsafe(expression.body as CsharpExpression));
-    case "interpolatedString":
-      return expression.parts.some((part) => part.kind === "expression" && expressionRequiresUnsafe(part.expression));
-    case "identifier":
-    case "invalid":
-    case "literal":
-    case "charLiteral":
+    case "InterpolatedStringExpression":
+      return expression.parts.some((part) => part.kind === "Interpolation" && expressionRequiresUnsafe(part.expression));
+    case "InvalidExpression":
+    case "LiteralExpression":
+    case "CharacterLiteralExpression":
       return false;
   }
 }
