@@ -757,6 +757,50 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
       return [stringInstanceTargetMethod(sourceName, "TrimEnd", noArgs, stringType)];
     case "concat":
       return [stringConcatTargetMethod(sourceName, stringType)];
+    case "substring":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "start", type: intType, passingMode: "by-value" },
+        { name: "end", type: intType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "slice":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "start", type: intType, passingMode: "by-value" },
+        { name: "end", type: intType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "substr":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "start", type: intType, passingMode: "by-value" },
+        { name: "length", type: intType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "repeat":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "count", type: intType, passingMode: "by-value" },
+      ], stringType)];
+    case "padStart":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "targetLength", type: intType, passingMode: "by-value" },
+        { name: "padString", type: stringType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "padEnd":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "targetLength", type: intType, passingMode: "by-value" },
+        { name: "padString", type: stringType, passingMode: "by-value", optional: true },
+      ], stringType)];
+    case "charAt":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "index", type: intType, passingMode: "by-value" },
+      ], stringType)];
+    case "charCodeAt":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "index", type: intType, passingMode: "by-value" },
+      ], intType)];
+    case "split":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "separator", type: stringType, passingMode: "by-value" },
+        { name: "limit", type: intType, passingMode: "by-value", optional: true },
+      ], { kind: "array", element: stringType })];
+    case "valueOf":
+      return [jsStringStaticTargetMethod(sourceName, noArgs, stringType)];
     default:
       return [];
   }
@@ -796,6 +840,28 @@ function stringConcatTargetMethod(
       { name: "values", type: stringType, passingMode: "by-value", paramsArray: true },
     ],
     returnType: stringType,
+  };
+}
+
+function jsStringStaticTargetMethod(
+  sourceName: string,
+  parameters: readonly TargetMember["parameters"][number][],
+  returnType: TargetTypeRef,
+): TargetMember {
+  const stringType = csharpNamed("System.String");
+  return {
+    id: `Tsonic.CSharp.Js.String.${sourceName}/${parameters.length}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("Tsonic.CSharp.Js.String"),
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "str", type: stringType, passingMode: "by-value" },
+      ...parameters,
+    ],
+    returnType,
   };
 }
 
