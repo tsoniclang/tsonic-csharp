@@ -551,6 +551,10 @@ function resolveCsharpBuiltinMethodCall(
   if (mathMethodCall !== undefined) {
     return mathMethodCall;
   }
+  const stringStaticMethodCall = resolveStringStaticMethodCall(sourceName, request, context);
+  if (stringStaticMethodCall !== undefined) {
+    return stringStaticMethodCall;
+  }
   if (
     sourceName === "join" &&
     isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], "join", ["Array", "ReadonlyArray"])
@@ -562,6 +566,59 @@ function resolveCsharpBuiltinMethodCall(
     return arrayMethodCall;
   }
   return resolveStringInstanceMethodCall(sourceName, request, context);
+}
+
+function resolveStringStaticMethodCall(
+  sourceName: string,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (!isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], sourceName, ["StringConstructor"])) {
+    return undefined;
+  }
+  const members = stringStaticTargetMembers(sourceName)
+    .filter((member) => targetMemberAcceptsCall(member, request, context));
+  if (members.length !== 1) {
+    return undefined;
+  }
+  const member = members[0]!;
+  return {
+    selectedSignature: { member },
+    returnType: {
+      carrier: member.returnType!,
+    } satisfies RuntimeCarrierFact,
+  };
+}
+
+function stringStaticTargetMembers(sourceName: string): readonly TargetMember[] {
+  const intType = sourcePrimitiveInt32Ref();
+  const stringType = csharpNamed("System.String");
+  switch (sourceName) {
+    case "fromCharCode":
+    case "fromCodePoint":
+      return [jsStringStaticFactoryTargetMethod(sourceName, [
+        { name: "codes", type: intType, passingMode: "by-value", paramsArray: true },
+      ], stringType)];
+    default:
+      return [];
+  }
+}
+
+function jsStringStaticFactoryTargetMethod(
+  sourceName: string,
+  parameters: readonly TargetMember["parameters"][number][],
+  returnType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: `Tsonic.CSharp.Js.String.${sourceName}(params System.Int32[])`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("Tsonic.CSharp.Js.String"),
+    parameters,
+    returnType,
+  };
 }
 
 function resolveMathStaticMethodCall(
