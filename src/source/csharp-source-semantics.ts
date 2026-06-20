@@ -532,7 +532,7 @@ function resolveCsharpBuiltinMethodCall(
   ) {
     return resolveArrayJoinMethodCall(sourceName, request, context);
   }
-  return undefined;
+  return resolveStringInstanceMethodCall(sourceName, request, context);
 }
 
 function isStandardInterfaceMemberSymbol(
@@ -554,7 +554,7 @@ function isStandardInterfaceMemberSymbol(
 
 function isStandardInterfaceMemberDeclaration(declaration: Node, interfaceNames: readonly string[]): boolean {
   const sourceFile = GetSourceFileOfNode(declaration);
-  if (sourceFile === undefined || !sourceFile.IsDeclarationFile || !SourceFile_FileName(sourceFile).endsWith("lib.es5.d.ts")) {
+  if (sourceFile === undefined || !sourceFile.IsDeclarationFile || !isTypeScriptStandardLibraryDeclarationFile(SourceFile_FileName(sourceFile))) {
     return false;
   }
   const parent = declaration.Parent;
@@ -563,6 +563,88 @@ function isStandardInterfaceMemberDeclaration(declaration: Node, interfaceNames:
   }
   const name = Node_Name(parent);
   return name !== undefined && name.Kind === KindIdentifier && interfaceNames.includes(Node_Text(name));
+}
+
+function isTypeScriptStandardLibraryDeclarationFile(fileName: string): boolean {
+  const basename = fileName.split(/[\\/]/).pop() ?? fileName;
+  return /^lib\..*\.d\.ts$/.test(basename);
+}
+
+function resolveStringInstanceMethodCall(
+  sourceName: string,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (
+    !isTypeScriptStringLikeType(request.receiverType as Type | undefined) ||
+    !isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], sourceName, ["String"])
+  ) {
+    return undefined;
+  }
+  const members = stringInstanceTargetMembers(sourceName)
+    .filter((member) => targetMemberAcceptsCall(member, request, context));
+  if (members.length !== 1) {
+    return undefined;
+  }
+  const member = members[0]!;
+  return {
+    selectedSignature: { member },
+    ...(member.returnType === undefined
+      ? {}
+      : {
+        returnType: {
+          carrier: member.returnType,
+        } satisfies RuntimeCarrierFact,
+      }),
+  };
+}
+
+function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[] {
+  const stringType = csharpNamed("System.String");
+  const boolType = csharpNamed("System.Boolean");
+  const intType = sourcePrimitiveInt32Ref();
+  const noArgs: readonly TargetMember["parameters"][number][] = [];
+  switch (sourceName) {
+    case "includes":
+      return [stringInstanceTargetMethod(sourceName, "Contains", [{ name: "value", type: stringType, passingMode: "by-value" }], boolType)];
+    case "indexOf":
+      return [
+        stringInstanceTargetMethod(sourceName, "IndexOf", [{ name: "value", type: stringType, passingMode: "by-value" }], intType),
+        stringInstanceTargetMethod(sourceName, "IndexOf", [
+          { name: "value", type: stringType, passingMode: "by-value" },
+          { name: "startIndex", type: intType, passingMode: "by-value" },
+        ], intType),
+      ];
+    case "startsWith":
+      return [stringInstanceTargetMethod(sourceName, "StartsWith", [{ name: "value", type: stringType, passingMode: "by-value" }], boolType)];
+    case "endsWith":
+      return [stringInstanceTargetMethod(sourceName, "EndsWith", [{ name: "value", type: stringType, passingMode: "by-value" }], boolType)];
+    case "toLowerCase":
+      return [stringInstanceTargetMethod(sourceName, "ToLower", noArgs, stringType)];
+    case "toUpperCase":
+      return [stringInstanceTargetMethod(sourceName, "ToUpper", noArgs, stringType)];
+    case "trim":
+      return [stringInstanceTargetMethod(sourceName, "Trim", noArgs, stringType)];
+    default:
+      return [];
+  }
+}
+
+function stringInstanceTargetMethod(
+  sourceName: string,
+  targetName: string,
+  parameters: readonly TargetMember["parameters"][number][],
+  returnType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: `System.String.${targetName}/${parameters.length}`,
+    sourceName,
+    targetName,
+    kind: "method",
+    static: false,
+    parameters,
+    returnType,
+  };
 }
 
 function resolveArrayJoinMethodCall(
@@ -1065,6 +1147,13 @@ function sourcePrimitiveInt32(): SourcePrimitiveFact {
     runtimeBase: "number",
     signed: true,
     width: 32,
+  };
+}
+
+function sourcePrimitiveInt32Ref(): TargetTypeRef {
+  return {
+    kind: "source-primitive",
+    name: "int32",
   };
 }
 
