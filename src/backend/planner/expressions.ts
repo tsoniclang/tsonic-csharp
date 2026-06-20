@@ -682,6 +682,16 @@ function planSelectedTargetCallArguments(
     });
     return argumentsList;
   }
+  const receiverParameter = member.parameters[receiverArgumentIndex];
+  if (receiverParameter === undefined) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_AST",
+      category: "error",
+      source: "tsonic-csharp",
+      message: "Selected target call receiver argument index has no matching target parameter before C# emission.",
+    });
+    return argumentsList;
+  }
   const receiver = AsPropertyAccessExpression(expression.Expression)?.Expression;
   if (receiver === undefined) {
     diagnostics.push({
@@ -692,8 +702,10 @@ function planSelectedTargetCallArguments(
     });
     return argumentsList;
   }
+  const receiverPassing = getCsharpArgumentPassing(receiverParameter.passingMode);
   const receiverArgument = {
     expression: planExpression(receiver, sourceFile, input, diagnostics),
+    ...(receiverPassing === undefined ? {} : { passing: receiverPassing }),
   } satisfies CsharpArgument;
   return [
     ...argumentsList.slice(0, receiverArgumentIndex),
