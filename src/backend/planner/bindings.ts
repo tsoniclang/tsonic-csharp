@@ -17,7 +17,7 @@ import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
+import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { getSemanticOwnership, isSourceOwnedProjectShapeSubject, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
@@ -330,7 +330,7 @@ function planObjectShapeBindingElement(
   const projected: CsharpExpression = {
     kind: "member",
     receiver: sourceExpression,
-    name: objectShapeStorageMemberName(objectShape, member),
+    name: member.targetName,
   };
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
