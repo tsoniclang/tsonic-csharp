@@ -1,8 +1,9 @@
 export { createCsharpTargetPack, csharpTargetId } from "./descriptor/csharp-target-pack.js";
 export {
+  csharpLangModule,
   csharpTypesModule,
-  createCsharpCoreVirtualModulesExtension,
   createCsharpSourceSemanticsExtension,
+  createCsharpTargetSemanticsExtension,
   neutralLangModule,
   neutralTypesModule,
 } from "./source/csharp-source-semantics.js";
@@ -13,11 +14,17 @@ export type {
   CsharpCompilationUnit,
   CsharpExpression,
   CsharpFieldDeclaration,
+  CsharpInterfaceDeclaration,
+  CsharpInterfaceIndexerDeclaration,
+  CsharpInterfaceMember,
+  CsharpInterfaceMethodDeclaration,
+  CsharpInterfacePropertyDeclaration,
   CsharpMember,
   CsharpMethodDeclaration,
   CsharpModifier,
   CsharpNamespace,
   CsharpParameter,
+  CsharpPropertyDeclaration,
   CsharpStatement,
   CsharpStructDeclaration,
   CsharpTypeDeclaration,

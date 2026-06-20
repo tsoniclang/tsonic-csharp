@@ -1,0 +1,181 @@
+import type { SourcePrimitiveKind, TargetTypeRef } from "@tsonic/tsts";
+import type { CsharpTypeNode } from "../ast/csharp-ast.js";
+import { sanitizeIdentifier } from "./identifiers.js";
+
+const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
+  ["bool", "bool"],
+  ["char16", "char"],
+  ["char32", "System.Text.Rune"],
+  ["int8", "sbyte"],
+  ["uint8", "byte"],
+  ["int16", "short"],
+  ["uint16", "ushort"],
+  ["int32", "int"],
+  ["uint32", "uint"],
+  ["int64", "long"],
+  ["uint64", "ulong"],
+  ["native-int", "nint"],
+  ["native-uint", "nuint"],
+  ["float16", "Half"],
+  ["float32", "float"],
+  ["float64", "double"],
+  ["decimal128", "decimal"],
+  ["int128", "Int128"],
+  ["uint128", "UInt128"],
+]);
+
+const predefinedTargetIds = new Map<string, string>([
+  ["System.Boolean", "bool"],
+  ["System.Char", "char"],
+  ["System.SByte", "sbyte"],
+  ["System.Byte", "byte"],
+  ["System.Int16", "short"],
+  ["System.UInt16", "ushort"],
+  ["System.Int32", "int"],
+  ["System.UInt32", "uint"],
+  ["System.Int64", "long"],
+  ["System.UInt64", "ulong"],
+  ["System.IntPtr", "nint"],
+  ["System.UIntPtr", "nuint"],
+  ["System.Half", "Half"],
+  ["System.Single", "float"],
+  ["System.Double", "double"],
+  ["System.Decimal", "decimal"],
+  ["System.Int128", "Int128"],
+  ["System.UInt128", "UInt128"],
+  ["System.String", "string"],
+  ["System.Object", "object"],
+  ["System.Void", "void"],
+]);
+
+export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
+  switch (type.kind) {
+    case "source-primitive":
+      return csharpTypeFromSourcePrimitiveKind(type.name);
+    case "target-named":
+      return csharpTypeFromTargetNamedId(type.id, (type.typeArguments ?? []).map(csharpTypeFromTargetTypeRef));
+    case "type-parameter":
+      return { kind: "named", name: sanitizeIdentifier(type.name) };
+    case "nullable": {
+      const inner = csharpTypeFromTargetTypeRef(type.inner);
+      return inner === undefined
+        ? undefined
+        : { kind: "nullable", inner };
+    }
+    case "array": {
+      const elementType = csharpTypeFromTargetTypeRef(type.element);
+      return elementType === undefined
+        ? undefined
+        : { kind: "array", elementType, ...(type.rank !== undefined ? { rank: type.rank } : {}) };
+    }
+    case "tuple": {
+      const elements = type.elements.map(csharpTypeFromTargetTypeRef);
+      return elements.some((element) => element === undefined)
+        ? undefined
+        : { kind: "tuple", elements: elements as readonly CsharpTypeNode[] };
+    }
+    case "pointer": {
+      const pointee = csharpTypeFromTargetTypeRef(type.pointee);
+      return pointee === undefined
+        ? undefined
+        : { kind: "pointer", pointee };
+    }
+    case "function-pointer": {
+      const parameters = type.args.map(csharpTypeFromTargetTypeRef);
+      const returnType = csharpTypeFromTargetTypeRef(type.result);
+      return returnType === undefined || parameters.some((parameter) => parameter === undefined)
+        ? undefined
+        : { kind: "functionPointer", parameters: parameters as readonly CsharpTypeNode[], returnType };
+    }
+    default:
+      return undefined;
+  }
+}
+
+export function csharpTypeRequiresUnsafe(type: CsharpTypeNode): boolean {
+  switch (type.kind) {
+    case "pointer":
+    case "functionPointer":
+      return true;
+    case "array":
+      return csharpTypeRequiresUnsafe(type.elementType);
+    case "tuple":
+      return type.elements.some(csharpTypeRequiresUnsafe);
+    case "function":
+      return type.parameters.some(csharpTypeRequiresUnsafe) || csharpTypeRequiresUnsafe(type.returnType);
+    case "nullable":
+      return csharpTypeRequiresUnsafe(type.inner);
+    case "named":
+    case "qualified":
+      return (type.typeArguments ?? []).some(csharpTypeRequiresUnsafe) ||
+        (type.kind === "qualified" && csharpTypeRequiresUnsafe(type.left));
+    case "predefined":
+    case "invalid":
+      return false;
+  }
+}
+
+export function csharpTypeFromSourcePrimitiveKind(kind: SourcePrimitiveKind): CsharpTypeNode {
+  return {
+    kind: "predefined",
+    name: primitiveTargetNames.get(kind)!,
+  };
+}
+
+function csharpTypeFromTargetNamedId(id: string, typeArguments: readonly (CsharpTypeNode | undefined)[]): CsharpTypeNode | undefined {
+  const predefined = predefinedTargetIds.get(id);
+  if (predefined !== undefined && typeArguments.length === 0) {
+    return {
+      kind: "predefined",
+      name: predefined,
+    };
+  }
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  const genericPredefined = getGenericPredefinedTypeName(id);
+  if (genericPredefined !== undefined) {
+    return {
+      kind: "named",
+      name: genericPredefined,
+      typeArguments: typeArguments as readonly CsharpTypeNode[],
+    };
+  }
+  const parts = id.split(".").filter((part) => part.length > 0);
+  if (parts.length === 0) {
+    return undefined;
+  }
+  const renderedParts = parts.map(stripMetadataArity).map(sanitizeIdentifier);
+  const last = renderedParts[renderedParts.length - 1]!;
+  const args = typeArguments as readonly CsharpTypeNode[];
+  let current: CsharpTypeNode = { kind: "named", name: renderedParts[0]! };
+  for (let index = 1; index < renderedParts.length; index += 1) {
+    current = {
+      kind: "qualified",
+      left: current,
+      name: renderedParts[index]!,
+      ...(index === renderedParts.length - 1 && args.length > 0 ? { typeArguments: args } : {}),
+    };
+  }
+  if (renderedParts.length === 1 && args.length > 0) {
+    current = { kind: "named", name: last, typeArguments: args };
+  }
+  return current;
+}
+
+function stripMetadataArity(name: string): string {
+  const tick = name.indexOf("`");
+  return tick < 0 ? name : name.slice(0, tick);
+}
+
+function getGenericPredefinedTypeName(id: string): string | undefined {
+  const stripped = stripMetadataArity(id);
+  switch (stripped) {
+    case "System.Func":
+      return "Func";
+    case "System.Action":
+      return "Action";
+    default:
+      return undefined;
+  }
+}
