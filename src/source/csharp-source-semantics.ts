@@ -786,6 +786,7 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
   const stringType = csharpNamed("System.String");
   const boolType = csharpNamed("System.Boolean");
   const intType = sourcePrimitiveInt32Ref();
+  const numberType = csharpNamed("System.Double");
   const noArgs: readonly TargetMember["parameters"][number][] = [];
   switch (sourceName) {
     case "includes":
@@ -875,7 +876,7 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
     case "charCodeAt":
       return [jsStringStaticTargetMethod(sourceName, [
         { name: "index", type: intType, passingMode: "by-value" },
-      ], intType)];
+      ], numberType)];
     case "codePointAt":
       return [jsStringStaticTargetMethod(sourceName, [
         { name: "index", type: intType, passingMode: "by-value" },
