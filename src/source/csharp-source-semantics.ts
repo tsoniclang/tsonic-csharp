@@ -629,6 +629,12 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
       return [stringInstanceTargetMethod(sourceName, "ToUpper", noArgs, stringType)];
     case "trim":
       return [stringInstanceTargetMethod(sourceName, "Trim", noArgs, stringType)];
+    case "trimStart":
+      return [stringInstanceTargetMethod(sourceName, "TrimStart", noArgs, stringType)];
+    case "trimEnd":
+      return [stringInstanceTargetMethod(sourceName, "TrimEnd", noArgs, stringType)];
+    case "concat":
+      return [stringConcatTargetMethod(sourceName, stringType)];
     default:
       return [];
   }
@@ -648,6 +654,26 @@ function stringInstanceTargetMethod(
     static: false,
     parameters,
     returnType,
+  };
+}
+
+function stringConcatTargetMethod(
+  sourceName: string,
+  stringType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: "System.String.Concat(params System.String[])",
+    sourceName,
+    targetName: "Concat",
+    kind: "method",
+    static: true,
+    declaringType: stringType,
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "value", type: stringType, passingMode: "by-value" },
+      { name: "values", type: stringType, passingMode: "by-value", paramsArray: true },
+    ],
+    returnType: stringType,
   };
 }
 
