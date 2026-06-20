@@ -24,6 +24,7 @@ import {
   AsRegularExpressionLiteral,
   AsShorthandPropertyAssignment,
   AsSpreadAssignment,
+  AsSpreadElement,
   AsStringLiteral,
   AsSatisfiesExpression,
   AsTemplateExpression,
@@ -58,6 +59,7 @@ import {
   KindRegularExpressionLiteral,
   KindShorthandPropertyAssignment,
   KindSpreadAssignment,
+  KindSpreadElement,
   KindStringLiteral,
   KindSatisfiesExpression,
   KindSuperKeyword,
@@ -77,7 +79,7 @@ import {
 import type { ArgumentPassingFact, Node, ObjectShapeFact, SourceFile, TargetMember, TargetOperationFact, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../ast/csharp-ast.js";
-import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
+import { expressionToCsharpType, getCsharpTypeForNode, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
@@ -1503,12 +1505,121 @@ function planArrayLiteralExpression(
   elementType: CsharpTypeNode,
 ): CsharpExpression {
   const literal = AsArrayLiteralExpression(node)!;
+  if ((literal.Elements?.Nodes ?? []).some((element) => element?.Kind === KindSpreadElement)) {
+    return planArraySpreadLiteralExpression(node, sourceFile, input, diagnostics, elementType);
+  }
   return {
     kind: "array",
     elementType,
     elements: (literal.Elements?.Nodes ?? [])
       .filter((element): element is Node => element !== undefined)
       .map((element) => planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType)),
+  };
+}
+
+function planArraySpreadLiteralExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  elementType: CsharpTypeNode,
+): CsharpExpression {
+  const expectedArrayType = { kind: "array", elementType } satisfies CsharpTypeNode;
+  const chunks = createArraySpreadChunks(node, sourceFile, input, diagnostics, elementType, expectedArrayType);
+  if (chunks.length === 0) {
+    return {
+      kind: "array",
+      elementType,
+      elements: [],
+    };
+  }
+  if (chunks.length === 1 && chunks[0]?.fromSpread !== true) {
+    return chunks[0]!.expression;
+  }
+  const first = chunks[0]!.expression;
+  const concatenated = chunks.slice(1).reduce(
+    (left, chunk) => systemLinqEnumerableCall("Concat", [
+      { expression: left },
+      { expression: chunk.expression },
+    ]),
+    first,
+  );
+  return systemLinqEnumerableCall("ToArray", [{ expression: concatenated }]);
+}
+
+function createArraySpreadChunks(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  elementType: CsharpTypeNode,
+  expectedArrayType: CsharpTypeNode,
+): readonly { readonly expression: CsharpExpression; readonly fromSpread?: boolean }[] {
+  const literal = AsArrayLiteralExpression(node)!;
+  const chunks: { readonly expression: CsharpExpression; readonly fromSpread?: boolean }[] = [];
+  let pendingElements: CsharpExpression[] = [];
+  const flushPending = () => {
+    if (pendingElements.length === 0) {
+      return;
+    }
+    chunks.push({
+      expression: {
+        kind: "array",
+        elementType,
+        elements: pendingElements,
+      },
+    });
+    pendingElements = [];
+  };
+  for (const element of literal.Elements?.Nodes ?? []) {
+    if (element === undefined) {
+      continue;
+    }
+    if (element.Kind !== KindSpreadElement) {
+      pendingElements.push(planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType));
+      continue;
+    }
+    flushPending();
+    const expression = AsSpreadElement(element)?.Expression;
+    if (expression === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
+      continue;
+    }
+    const spreadCarrier = input.semantics.getRuntimeCarrierForNode(expression, { sourceFile });
+    const spreadType = spreadCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(spreadCarrier);
+    if (spreadType === undefined || !sameCsharpType(spreadType, expectedArrayType)) {
+      diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a finalized provider array carrier matching the target array element type before C# emission."));
+      continue;
+    }
+    chunks.push({
+      expression: planExpression(expression, sourceFile, input, diagnostics),
+      fromSpread: true,
+    });
+  }
+  flushPending();
+  return chunks;
+}
+
+function systemLinqEnumerableCall(name: string, args: readonly CsharpArgument[]): CsharpExpression {
+  return {
+    kind: "call",
+    callee: {
+      kind: "member",
+      receiver: {
+        kind: "type",
+        type: {
+          kind: "qualified",
+          left: {
+            kind: "qualified",
+            left: { kind: "named", name: "System" },
+            name: "Linq",
+          },
+          name: "Enumerable",
+        },
+      },
+      name,
+    },
+    arguments: args,
   };
 }
 
