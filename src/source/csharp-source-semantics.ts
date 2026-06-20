@@ -794,6 +794,10 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
       return [jsStringStaticTargetMethod(sourceName, [
         { name: "index", type: intType, passingMode: "by-value" },
       ], intType)];
+    case "codePointAt":
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "index", type: intType, passingMode: "by-value" },
+      ], { kind: "nullable", inner: intType })];
     case "split":
       return [jsStringStaticTargetMethod(sourceName, [
         { name: "separator", type: stringType, passingMode: "by-value" },
