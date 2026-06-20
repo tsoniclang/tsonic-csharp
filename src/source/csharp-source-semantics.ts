@@ -533,6 +533,10 @@ function resolveCsharpBuiltinMethodCall(
       } satisfies RuntimeCarrierFact,
     };
   }
+  const mathMethodCall = resolveMathStaticMethodCall(sourceName, request, context);
+  if (mathMethodCall !== undefined) {
+    return mathMethodCall;
+  }
   if (
     sourceName === "join" &&
     isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], "join", ["Array", "ReadonlyArray"])
@@ -544,6 +548,81 @@ function resolveCsharpBuiltinMethodCall(
     return arrayMethodCall;
   }
   return resolveStringInstanceMethodCall(sourceName, request, context);
+}
+
+function resolveMathStaticMethodCall(
+  sourceName: string,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (!isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], sourceName, ["Math"])) {
+    return undefined;
+  }
+  const members = mathStaticTargetMembers(sourceName)
+    .filter((member) => targetMemberAcceptsCall(member, request, context));
+  if (members.length !== 1) {
+    return undefined;
+  }
+  const member = members[0]!;
+  return {
+    selectedSignature: { member },
+    returnType: {
+      carrier: member.returnType!,
+    } satisfies RuntimeCarrierFact,
+  };
+}
+
+function mathStaticTargetMembers(sourceName: string): readonly TargetMember[] {
+  switch (sourceName) {
+    case "abs":
+      return [mathStaticTargetMethod(sourceName, "Abs", 1)];
+    case "floor":
+      return [mathStaticTargetMethod(sourceName, "Floor", 1)];
+    case "ceil":
+      return [mathStaticTargetMethod(sourceName, "Ceiling", 1)];
+    case "trunc":
+      return [mathStaticTargetMethod(sourceName, "Truncate", 1)];
+    case "round":
+      return [mathStaticTargetMethod(sourceName, "Round", 1)];
+    case "sqrt":
+      return [mathStaticTargetMethod(sourceName, "Sqrt", 1)];
+    case "sin":
+      return [mathStaticTargetMethod(sourceName, "Sin", 1)];
+    case "cos":
+      return [mathStaticTargetMethod(sourceName, "Cos", 1)];
+    case "tan":
+      return [mathStaticTargetMethod(sourceName, "Tan", 1)];
+    case "pow":
+      return [mathStaticTargetMethod(sourceName, "Pow", 2)];
+    case "max":
+      return [mathStaticTargetMethod(sourceName, "Max", 2)];
+    case "min":
+      return [mathStaticTargetMethod(sourceName, "Min", 2)];
+    default:
+      return [];
+  }
+}
+
+function mathStaticTargetMethod(
+  sourceName: string,
+  targetName: string,
+  arity: 1 | 2,
+): TargetMember {
+  const numberType = csharpNamed("System.Double");
+  return {
+    id: `System.Math.${targetName}/${arity}`,
+    sourceName,
+    targetName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("System.Math"),
+    parameters: Array.from({ length: arity }, (_, index) => ({
+      name: index === 0 ? "x" : "y",
+      type: numberType,
+      passingMode: "by-value" as const,
+    })),
+    returnType: numberType,
+  };
 }
 
 function isStandardInterfaceMemberSymbol(
