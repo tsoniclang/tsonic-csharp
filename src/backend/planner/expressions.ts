@@ -435,6 +435,23 @@ function planIdentifierExpression(
   return { kind: "identifier", name: sanitizeIdentifier(sourceName) };
 }
 
+function planSelectedTargetReceiverExpression(
+  receiver: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  if (receiver.Kind !== KindIdentifier) {
+    return planExpression(receiver, sourceFile, input, diagnostics);
+  }
+  const sourceName = AsIdentifier(receiver)!.Text;
+  if (isExternalDeclarationReference(input.semantics.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile)) {
+    diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
+    return invalidExpression("provider declaration receiver");
+  }
+  return { kind: "identifier", name: sanitizeIdentifier(sourceName) };
+}
+
 function isExternalDeclarationReference(
   reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
   sourceFile: SourceFile,
@@ -510,7 +527,7 @@ function planPropertyAccessExpression(
     }
     return {
       kind: expression.QuestionDotToken === undefined ? "member" : "optionalMember",
-      receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
+      receiver: planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics),
       name: targetOperation.targetOperation,
     };
   }
@@ -624,7 +641,7 @@ function planSelectedTargetCallee(
     }
     return {
       kind: property.QuestionDotToken === undefined ? "member" : "optionalMember",
-      receiver: planExpression(property.Expression!, sourceFile, input, diagnostics),
+      receiver: planSelectedTargetReceiverExpression(property.Expression!, sourceFile, input, diagnostics),
       name: member.targetName,
     };
   }
