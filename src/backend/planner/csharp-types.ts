@@ -1,13 +1,16 @@
 import {
   AsExpressionWithTypeArguments,
+  AsNewExpression,
   AsTypeReferenceNode,
   KindArrayBindingPattern,
+  KindArrayType,
   KindAnyKeyword,
   KindClassDeclaration,
   KindEnumDeclaration,
   KindExpressionWithTypeArguments,
   KindIdentifier,
   KindInterfaceDeclaration,
+  KindNewExpression,
   KindObjectKeyword,
   KindObjectBindingPattern,
   KindPropertyAccessExpression,
@@ -15,12 +18,13 @@ import {
   KindTypeLiteral,
   KindUnionType,
   KindUnknownKeyword,
-} from "@tsonic/tsts";
-import type { Node, SourceFile } from "@tsonic/tsts";
+} from "./source-ast.js";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
+import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
@@ -33,7 +37,7 @@ export function expressionToCsharpType(
   if (node === undefined) {
     return invalidType("missing type expression");
   }
-  switch (node.Kind) {
+  switch (input.ast.kindName(node)) {
     case KindIdentifier:
     case KindPropertyAccessExpression:
       return getCsharpTypeForExpressionReference(node, sourceFile, input, diagnostics);
@@ -47,8 +51,8 @@ export function expressionToCsharpType(
         return rendered;
       }
       switch (rendered.kind) {
-        case "named":
-        case "qualified":
+        case "IdentifierName":
+        case "QualifiedName":
           return { ...rendered, typeArguments };
         default:
           return rendered;
@@ -67,9 +71,10 @@ function getCsharpTypeForExpressionReference(
 ): CsharpTypeNode {
   const sourceReferenceName = getProjectSourceReferenceTypeName(
     input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }),
+    input,
   );
   if (sourceReferenceName !== undefined) {
-    return { kind: "named", name: sanitizeIdentifier(sourceReferenceName) };
+    return { kind: "IdentifierName", name: sanitizeIdentifier(sourceReferenceName) };
   }
   const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding !== undefined) {
@@ -84,14 +89,22 @@ function getCsharpTypeForExpressionReference(
 
 function getProjectSourceReferenceTypeName(
   reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  input: TargetCompileInput,
 ): string | undefined {
   if (reference === undefined) {
     return undefined;
   }
+  if (input.facts.getTargetBindingFact(reference.symbol) !== undefined) {
+    return undefined;
+  }
+  const referenceFileName = input.ast.getFileName(reference.sourceFile);
+  if (reference.sourceFile.IsDeclarationFile || referenceFileName.startsWith("tsts-provider://")) {
+    return undefined;
+  }
   if (
-    reference.declaration.Kind !== KindClassDeclaration &&
-    reference.declaration.Kind !== KindInterfaceDeclaration &&
-    reference.declaration.Kind !== KindEnumDeclaration
+    input.ast.kindName(reference.declaration) !== KindClassDeclaration &&
+    input.ast.kindName(reference.declaration) !== KindInterfaceDeclaration &&
+    input.ast.kindName(reference.declaration) !== KindEnumDeclaration
   ) {
     return undefined;
   }
@@ -108,10 +121,23 @@ export function getCsharpTypeForNode(
   if (node === undefined) {
     return errorType;
   }
-  if (node.Kind === KindTypeReference) {
+  if (input.ast.kindName(node) === KindArrayType) {
+    const element = (node as { readonly ElementType?: Node }).ElementType;
+    return {
+      kind: "ArrayType",
+      elementType: getCsharpTypeForNode(element, sourceFile, input, invalidType("missing array element type"), diagnostics),
+    };
+  }
+  if (input.ast.kindName(node) === KindTypeReference) {
     const typeReferenceType = getCsharpTypeFromTypeReferenceSyntax(node, sourceFile, input, diagnostics);
     if (typeReferenceType !== undefined) {
       return typeReferenceType;
+    }
+  }
+  if (input.ast.kindName(node) === KindNewExpression) {
+    const newExpressionType = getCsharpTypeFromNewExpressionSyntax(node, sourceFile, input, diagnostics);
+    if (newExpressionType !== undefined) {
+      return newExpressionType;
     }
   }
   const selectedTargetCallType = getCsharpTypeFromSelectedTargetCall(node, input, diagnostics);
@@ -122,16 +148,16 @@ export function getCsharpTypeForNode(
   if (nodeCarrierType !== undefined) {
     return nodeCarrierType;
   }
-  if (node.Kind === KindAnyKeyword || node.Kind === KindUnknownKeyword) {
+  if (input.ast.kindName(node) === KindAnyKeyword || input.ast.kindName(node) === KindUnknownKeyword) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
     return invalidType("any or unknown type");
   }
-  if (node.Kind === KindObjectKeyword) {
+  if (input.ast.kindName(node) === KindObjectKeyword) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; TypeScript object is a broad structural carrier and cannot be emitted without provider facts."));
     return invalidType("object keyword type");
   }
-  if (node.Kind === KindTypeLiteral) {
-    const objectShape = input.facts.getObjectShapeFact(node);
+  if (input.ast.kindName(node) === KindTypeLiteral) {
+    const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
     const objectShapeType = objectShape === undefined
       ? undefined
       : csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, node);
@@ -141,10 +167,10 @@ export function getCsharpTypeForNode(
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
     return invalidType("structural object type");
   }
-  if (node.Kind === KindUnionType) {
+  if (input.ast.kindName(node) === KindUnionType) {
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
   }
-  if (node.Kind === KindObjectBindingPattern || node.Kind === KindArrayBindingPattern) {
+  if (input.ast.kindName(node) === KindObjectBindingPattern || input.ast.kindName(node) === KindArrayBindingPattern) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));
     return invalidType("binding pattern type");
   }
@@ -168,10 +194,77 @@ export function getCsharpTypeForNode(
     if (csharpType !== undefined) {
       return csharpType;
     }
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned target type reference requires a renderable target identity before C# emission."));
+    return invalidType("provider target binding");
+  }
+  const sourceType = input.semantics.getTypeAtLocation(node, { sourceFile });
+  if (sourceTypeHasProviderEvidence(sourceType, input)) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned semantic type requires finalized provider runtime-carrier or target-binding facts before C# emission."));
+    return invalidType("provider semantic type");
+  }
+  const sourceOwnedType = getCsharpTypeFromTstsSourceType(sourceType, sourceFile, input, diagnostics, node);
+  if (sourceOwnedType !== undefined) {
+    return sourceOwnedType;
   }
   const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
   return invalidType("unsupported semantic type");
+}
+
+function getCsharpTypeFromTstsSourceType(
+  type: Type | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[] | undefined,
+  diagnosticNode: Node,
+): CsharpTypeNode | undefined {
+  if (type === undefined) {
+    return undefined;
+  }
+  if (input.types.isAny(type) || input.types.isUnknown(type)) {
+    diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
+    return invalidType("any or unknown semantic type");
+  }
+  if (input.types.isVoidLike(type)) {
+    return predefined("void");
+  }
+  if (input.types.isBooleanLike(type)) {
+    return predefined("bool");
+  }
+  if (input.types.isNumberLike(type)) {
+    return predefined("double");
+  }
+  if (input.types.isStringLike(type)) {
+    return predefined("string");
+  }
+  if (input.types.isBigIntLike(type)) {
+    return csharpTypeFromTargetTypeRef({ kind: "target-named", id: "System.Numerics.BigInteger" });
+  }
+  if (input.types.isTuple(type)) {
+    const elements = input.types.getTupleElementTypes(type, { sourceFile })
+      .map((element) => getCsharpTypeFromTstsSourceType(element, sourceFile, input, diagnostics, diagnosticNode));
+    return elements.some((element) => element === undefined)
+      ? undefined
+      : { kind: "TupleType", elements: elements as readonly CsharpTypeNode[] };
+  }
+  if (input.types.isArrayLike(type, { sourceFile })) {
+    const elementType = input.types.getTypeArguments(type, { sourceFile })[0];
+    const element = getCsharpTypeFromTstsSourceType(elementType, sourceFile, input, diagnostics, diagnosticNode);
+    return element === undefined ? undefined : { kind: "ArrayType", elementType: element };
+  }
+  return undefined;
+}
+
+function sourceTypeHasProviderEvidence(
+  type: Type | undefined,
+  input: TargetCompileInput,
+): boolean {
+  return type !== undefined && (
+    input.facts.getRuntimeCarrierFact(type) !== undefined ||
+    input.facts.getRuntimeCarrierFact(type.symbol) !== undefined ||
+    input.facts.getTargetBindingFact(type) !== undefined ||
+    input.facts.getTargetBindingFact(type.symbol) !== undefined
+  );
 }
 
 function getCsharpTypeFromSelectedTargetCall(
@@ -204,12 +297,20 @@ function getCsharpTypeFromTypeReferenceSyntax(
   }
   const targetBinding = input.semantics.getTargetBindingForReference(typeName, { sourceFile }) ??
     input.semantics.getTargetBindingForReference(node, { sourceFile });
+  const carrier = input.semantics.getRuntimeCarrierForNode(typeName, { sourceFile }) ??
+    input.semantics.getRuntimeCarrierForNode(node, { sourceFile });
+  const typeArgumentNodes = (reference?.TypeArguments?.Nodes ?? [])
+    .filter((argument): argument is Node => argument !== undefined);
+  if (carrier !== undefined && (typeArgumentNodes.length === 0 || (carrier.kind === "target-named" && (carrier.typeArguments ?? []).length > 0))) {
+    const csharpType = csharpTypeFromTargetTypeRef(carrier);
+    if (csharpType !== undefined) {
+      return csharpType;
+    }
+  }
   if (targetBinding === undefined) {
     return undefined;
   }
-  const typeArguments = (reference?.TypeArguments?.Nodes ?? [])
-    .filter((argument): argument is Node => argument !== undefined)
-    .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("missing type argument"), diagnostics));
+  const typeArguments = typeArgumentNodes.map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("missing type argument"), diagnostics));
   if ((targetBinding.typeParameters ?? []).length !== typeArguments.length) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider target type reference has mismatched type-argument arity before C# emission."));
     return invalidType("target type reference arity");
@@ -222,13 +323,35 @@ function getCsharpTypeFromTypeReferenceSyntax(
   if (typeArguments.length === 0) {
     return csharpType;
   }
-  return csharpType.kind === "named" || csharpType.kind === "qualified"
+  return csharpType.kind === "IdentifierName" || csharpType.kind === "QualifiedName"
     ? { ...csharpType, typeArguments }
     : csharpType;
 }
 
+function getCsharpTypeFromNewExpressionSyntax(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  const expression = AsNewExpression(node);
+  if (expression?.Expression === undefined) {
+    return undefined;
+  }
+  const baseType = expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics);
+  const typeArguments = (expression.TypeArguments?.Nodes ?? [])
+    .filter((argument): argument is Node => argument !== undefined)
+    .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("missing constructor type argument"), diagnostics));
+  if (typeArguments.length === 0) {
+    return baseType;
+  }
+  return baseType.kind === "IdentifierName" || baseType.kind === "QualifiedName"
+    ? { ...baseType, typeArguments }
+    : baseType;
+}
+
 export function invalidCsharpType(reason: string): CsharpTypeNode {
-  return { kind: "invalid", reason };
+  return { kind: "InvalidType", reason };
 }
 
 function invalidType(reason: string): CsharpTypeNode {
@@ -240,51 +363,46 @@ export function sameCsharpType(left: CsharpTypeNode, right: CsharpTypeNode): boo
     return false;
   }
   switch (left.kind) {
-    case "predefined":
-      return right.kind === "predefined" && left.name === right.name;
-    case "invalid":
-      return right.kind === "invalid" && left.reason === right.reason;
-    case "named": {
-      if (right.kind !== "named" || left.name !== right.name) {
+    case "PredefinedType":
+      return right.kind === "PredefinedType" && left.name === right.name;
+    case "InvalidType":
+      return right.kind === "InvalidType" && left.reason === right.reason;
+    case "IdentifierName": {
+      if (right.kind !== "IdentifierName" || left.name !== right.name) {
         return false;
       }
       const leftArgs = left.typeArguments ?? [];
       const rightArgs = right.typeArguments ?? [];
       return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => sameCsharpType(arg, rightArgs[index]!));
     }
-    case "qualified": {
-      if (right.kind !== "qualified" || left.name !== right.name || !sameCsharpType(left.left, right.left)) {
+    case "QualifiedName": {
+      if (right.kind !== "QualifiedName" || left.name !== right.name || !sameCsharpType(left.left, right.left)) {
         return false;
       }
       const leftArgs = left.typeArguments ?? [];
       const rightArgs = right.typeArguments ?? [];
       return leftArgs.length === rightArgs.length && leftArgs.every((arg, index) => sameCsharpType(arg, rightArgs[index]!));
     }
-    case "array":
-      return right.kind === "array" && (left.rank ?? 1) === (right.rank ?? 1) && sameCsharpType(left.elementType, right.elementType);
-    case "tuple":
-      return right.kind === "tuple" &&
+    case "ArrayType":
+      return right.kind === "ArrayType" && (left.rank ?? 1) === (right.rank ?? 1) && sameCsharpType(left.elementType, right.elementType);
+    case "TupleType":
+      return right.kind === "TupleType" &&
         left.elements.length === right.elements.length &&
         left.elements.every((element, index) => sameCsharpType(element, right.elements[index]!));
-    case "function":
-      return right.kind === "function" &&
+    case "PointerType":
+      return right.kind === "PointerType" && sameCsharpType(left.pointee, right.pointee);
+    case "FunctionPointerType":
+      return right.kind === "FunctionPointerType" &&
         left.parameters.length === right.parameters.length &&
         left.parameters.every((parameter, index) => sameCsharpType(parameter, right.parameters[index]!)) &&
         sameCsharpType(left.returnType, right.returnType);
-    case "pointer":
-      return right.kind === "pointer" && sameCsharpType(left.pointee, right.pointee);
-    case "functionPointer":
-      return right.kind === "functionPointer" &&
-        left.parameters.length === right.parameters.length &&
-        left.parameters.every((parameter, index) => sameCsharpType(parameter, right.parameters[index]!)) &&
-        sameCsharpType(left.returnType, right.returnType);
-    case "nullable":
-      return right.kind === "nullable" && sameCsharpType(left.inner, right.inner);
+    case "NullableType":
+      return right.kind === "NullableType" && sameCsharpType(left.inner, right.inner);
   }
 }
 
 export function predefined(name: string): CsharpTypeNode {
-  return { kind: "predefined", name };
+  return { kind: "PredefinedType", name };
 }
 
 function getCsharpTypeForUnionTypeNode(

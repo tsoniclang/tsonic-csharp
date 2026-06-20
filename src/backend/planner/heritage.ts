@@ -2,10 +2,11 @@ import {
   AsHeritageClause,
   KindExtendsKeyword,
   KindImplementsKeyword,
-} from "@tsonic/tsts";
+  SourceTokenKind,
+} from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import { expressionToCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 
@@ -28,7 +29,7 @@ export function planClassHeritage(
     }
     const clause = AsHeritageClause(node)!;
     const types = clause.Types?.Nodes ?? [];
-    switch (clause.Token) {
+    switch (SourceTokenKind(input.ast, clause.Token)) {
       case KindExtendsKeyword:
         if (types.length > 1) {
           diagnostics.push(unsupportedNodeDiagnostic(node, "Classes can extend only one C# base type."));
@@ -68,7 +69,7 @@ export function planInterfaceHeritage(
       continue;
     }
     const clause = AsHeritageClause(node)!;
-    switch (clause.Token) {
+    switch (SourceTokenKind(input.ast, clause.Token)) {
       case KindExtendsKeyword:
         interfaces.push(...planHeritageTypes(clause.Types?.Nodes ?? [], sourceFile, input, diagnostics));
         break;

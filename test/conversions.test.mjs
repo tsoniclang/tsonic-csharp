@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { KindTrueKeyword } from "@tsonic/tsts";
 import { planExpression } from "../dist/backend/planner/expressions.js";
+import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
@@ -52,12 +52,12 @@ test("planner diagnoses unsupported target conversion operations instead of inve
     },
   }), diagnostics);
 
-  assert.equal(expression.kind, "invalid");
+  assert.equal(expression.kind, "InvalidExpression");
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Target conversion operation 'operator' is not renderable/);
 });
 
-test("planner rejects instance conversion methods without a provider rendering contract", () => {
+test("planner rejects unqualified target conversion methods without a provider rendering contract", () => {
   const value = trueKeyword();
   const diagnostics = [];
   const expression = planExpression(value, {}, fakeInput({
@@ -65,17 +65,16 @@ test("planner rejects instance conversion methods without a provider rendering c
     conversion: {
       convertedType: { kind: "target-named", id: "System.Byte" },
       operation: {
-        operationId: "Example.Value.ToByte",
+        operationId: "ToByte",
         operationKind: "method",
-        targetOperation: "Example.Value.ToByte",
-        static: false,
+        targetOperation: "ToByte",
       },
     },
   }), diagnostics);
 
-  assert.equal(expression.kind, "invalid");
+  assert.equal(expression.kind, "InvalidExpression");
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Instance target conversion methods require an explicit provider rendering contract/);
+  assert.match(diagnostics[0].message, /Target conversion method requires a declaring target type and method name/);
 });
 
 function trueKeyword() {
@@ -86,6 +85,7 @@ function trueKeyword() {
 
 function fakeInput(options = {}) {
   return {
+    ast: fakeAst,
     facts: {
       getDefaultValueFact: () => undefined,
       getArgumentPassingFact: () => undefined,
@@ -106,6 +106,8 @@ function fakeInput(options = {}) {
       getSourceMarkerFact: () => undefined,
       getPointerFact: () => undefined,
       getFunctionPointerFact: () => undefined,
+      getStructFact: () => undefined,
+      getAttributeFact: () => undefined,
     },
     semantics: {
       getTargetBindingForReference: () => undefined,
@@ -118,3 +120,8 @@ function fakeInput(options = {}) {
     },
   };
 }
+
+const fakeAst = {
+  kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
+  kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
+};

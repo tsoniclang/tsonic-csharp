@@ -1,7 +1,7 @@
-import { AsVariableDeclaration } from "@tsonic/tsts";
-import type { Node, SourceFile, ValueTypeFact } from "@tsonic/tsts";
+import { AsVariableDeclaration } from "./source-ast.js";
+import type { Node, SourceFile, StructFact } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpFieldDeclaration, CsharpStructDeclaration, CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpFieldDeclaration, CsharpStructDeclaration, CsharpTypeNode } from "../roslyn/syntax.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -9,19 +9,19 @@ import { planIdentifierName } from "./names.js";
 
 export function planValueTypeDeclaration(
   declarationNode: Node,
-  valueType: ValueTypeFact,
+  valueType: StructFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpStructDeclaration {
   const declaration = AsVariableDeclaration(declarationNode)!;
   return {
-    kind: "struct",
-    name: planIdentifierName(declaration.name, "AnonymousValueType", diagnostics, "Value type name"),
+    kind: "StructDeclaration",
+    name: planIdentifierName(declaration.name, "AnonymousValueType", input, diagnostics, "Value type name"),
     modifiers: ["public"],
     attributes: planAttributesForSubject(declarationNode, sourceFile, input, diagnostics),
     members: (valueType.fields ?? []).map((field): CsharpFieldDeclaration => ({
-      kind: "field",
+      kind: "FieldDeclaration",
       name: field.name,
       modifiers: field.readonly === true ? ["public", "readonly"] : ["public"],
       type: isNode(field.type)

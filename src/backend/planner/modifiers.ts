@@ -9,7 +9,7 @@ import {
   ModifierFlagsProtected,
   ModifierFlagsPublic,
   ModifierFlagsReadonly,
-} from "@tsonic/tsts";
+} from "./source-ast.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";

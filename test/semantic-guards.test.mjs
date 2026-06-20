@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { KindIdentifier, KindPropertyAccessExpression, KindVariableDeclaration } from "@tsonic/tsts";
 import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership } from "../dist/backend/planner/semantic-guards.js";
+import { KindIdentifier, KindPropertyAccessExpression, KindVariableDeclaration } from "../dist/backend/planner/source-ast.js";
 
 test("provider-owned operator operands require selected target operator facts", () => {
   const operand = node(KindIdentifier);
@@ -139,7 +139,16 @@ function node(kind) {
 
 function fakeInput(options = {}) {
   return {
+    ast: fakeAst,
     sourceFiles: [],
+    types: {
+      isAny: () => false,
+      isUnknown: () => false,
+      isNumberLike: (type) => type === options.numberLikeType,
+      isStringLike: (type) => type === options.stringLikeType,
+      isBooleanLike: (type) => type === options.booleanLikeType,
+      isBigIntLike: (type) => type === options.bigIntLikeType,
+    },
     facts: {
       getSelectedTargetCall: () => options.selectedTargetCall,
       getTargetBindingFact: (subject) => subject !== undefined && subject === options.targetBindingSubject
@@ -161,9 +170,12 @@ function fakeInput(options = {}) {
       getDefaultValueFact: () => undefined,
       getPointerFact: () => undefined,
       getFunctionPointerFact: () => undefined,
+      getStructFact: () => undefined,
+      getAttributeFact: () => undefined,
     },
     semantics: {
       getSymbolAtLocation: (node) => options.symbolsByNode?.get(node) ?? options.symbolAtLocation,
+      getTypeAtLocation: () => options.typeAtLocation,
       getResolvedSymbol: () => undefined,
       getRuntimeCarrierForNode: () => {
         if (options.runtimeCarrierSubject !== undefined && options.runtimeCarrierSubject === options.typeAtLocation) {
@@ -188,3 +200,8 @@ function fakeInput(options = {}) {
     },
   };
 }
+
+const fakeAst = {
+  kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
+  kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
+};

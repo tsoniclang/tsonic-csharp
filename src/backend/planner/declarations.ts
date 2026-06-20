@@ -34,9 +34,11 @@ import {
   KindSetAccessor,
   KindSuperKeyword,
   HasSyntacticModifier,
+  HasSourceKind,
   ModifierFlagsStatic,
   Node_Name,
-} from "@tsonic/tsts";
+  SourceKind,
+} from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
@@ -55,7 +57,7 @@ import type {
   CsharpPropertyDeclaration,
   CsharpStatement,
   CsharpTypeMember,
-} from "../ast/csharp-ast.js";
+} from "../roslyn/syntax.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import {
@@ -81,10 +83,10 @@ export function planClassDeclaration(
 ): CsharpClassDeclaration {
   const declaration = AsClassDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "class declaration", diagnostics);
-  const className = planIdentifierName(declaration.name, "AnonymousClass", diagnostics, "Class name");
+  const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
   const heritage = planClassHeritage(declaration.HeritageClauses?.Nodes ?? [], sourceFile, input, diagnostics);
   return {
-    kind: "class",
+    kind: "ClassDeclaration",
     name: className,
     modifiers: ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
@@ -108,7 +110,7 @@ function planClassMembers(
     if (member === undefined) {
       continue;
     }
-    switch (member.Kind) {
+    switch (SourceKind(input.ast, member)) {
       case KindConstructor:
         planned.push(planConstructorDeclaration(member, className, sourceFile, input, diagnostics));
         break;
@@ -142,11 +144,12 @@ function planClassStaticBlockDeclaration(
 ): CsharpConstructorDeclaration {
   const declaration = AsClassStaticBlockDeclaration(node)!;
   return {
-    kind: "constructor",
+    kind: "ConstructorDeclaration",
     name: className,
     modifiers: ["static"],
     parameters: [],
     body: {
+      kind: "Block",
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics),
     },
   };
@@ -162,8 +165,8 @@ export function planInterfaceDeclaration(
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface declaration", diagnostics);
   const interfaces = planInterfaceHeritage(declaration.HeritageClauses?.Nodes ?? [], sourceFile, input, diagnostics);
   return {
-    kind: "interface",
-    name: planIdentifierName(declaration.name, "AnonymousInterface", diagnostics, "Interface name"),
+    kind: "InterfaceDeclaration",
+    name: planIdentifierName(declaration.name, "AnonymousInterface", input, diagnostics, "Interface name"),
     modifiers: ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
@@ -172,7 +175,7 @@ export function planInterfaceDeclaration(
       if (member === undefined) {
         return [];
       }
-      switch (member.Kind) {
+      switch (SourceKind(input.ast, member)) {
         case KindMethodSignature:
           return [planInterfaceMethodDeclaration(member, sourceFile, input, diagnostics)];
         case KindPropertySignature:
@@ -196,15 +199,15 @@ export function planEnumDeclaration(
   const declaration = AsEnumDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "enum declaration", diagnostics);
   return {
-    kind: "enum",
-    name: planIdentifierName(declaration.name, "AnonymousEnum", diagnostics, "Enum name"),
+    kind: "EnumDeclaration",
+    name: planIdentifierName(declaration.name, "AnonymousEnum", input, diagnostics, "Enum name"),
     modifiers: ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     members: (declaration.Members?.Nodes ?? []).flatMap((member): CsharpEnumMember[] => {
       if (member === undefined) {
         return [];
       }
-      if (member.Kind !== KindEnumMember) {
+      if (!HasSourceKind(input.ast, member, KindEnumMember)) {
         diagnostics.push(unsupportedNodeDiagnostic(member, "Enum member is outside the current C# planning surface."));
         return [];
       }
@@ -228,7 +231,8 @@ function planEnumMember(
     diagnostics.push(unsupportedNodeDiagnostic(member.Initializer!, "C# enum member initializers must be integer constants evaluated by TSTS; string or provider-owned enum carriers require finalized target facts."));
   }
   return {
-    name: planIdentifierName(Node_Name(node), "AnonymousMember", diagnostics, "Enum member name"),
+    kind: "EnumMemberDeclaration",
+    name: planIdentifierName(Node_Name(node), "AnonymousMember", input, diagnostics, "Enum member name"),
     ...(member.Initializer === undefined ? {} : { value: planExpression(member.Initializer, sourceFile, input, diagnostics) }),
   };
 }
@@ -241,14 +245,14 @@ export function planFunctionDeclaration(
 ): CsharpMethodDeclaration {
   const declaration = AsFunctionDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "function declaration", diagnostics);
-  const name = planIdentifierName(declaration.name, "__anonymous", diagnostics, "Function name");
+  const name = planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
   state.currentReturnType = returnType;
   state.currentReturnTypeSubject = declaration.Type;
   return {
-    kind: "method",
+    kind: "MethodDeclaration",
     name,
     modifiers: isAsyncNode(node) ? ["public", "static", "async"] : ["public", "static"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
@@ -256,6 +260,7 @@ export function planFunctionDeclaration(
     returnType,
     parameters: parameters.parameters,
     body: {
+      kind: "Block",
       statements: [
         ...parameters.prelude,
         ...planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
@@ -274,14 +279,14 @@ function planConstructorDeclaration(
   const declaration = AsConstructorDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "constructor declaration", diagnostics);
   const bodyStatements = AsBlock(declaration.Body)?.Statements?.Nodes ?? [];
-  const leadingSuperCall = getLeadingSuperCall(bodyStatements);
+  const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
   const state = createDestructuringPlannerState();
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   if (leadingSuperCall !== undefined && parameters.prelude.length > 0 && (leadingSuperCall.Arguments?.Nodes ?? []).length > 0) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Constructor base arguments cannot reference destructured parameter locals until base-argument rewriting is finalized."));
   }
   return {
-    kind: "constructor",
+    kind: "ConstructorDeclaration",
     name: className,
     modifiers: ["public"],
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
@@ -294,6 +299,7 @@ function planConstructorDeclaration(
             .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
         }),
     body: {
+      kind: "Block",
       statements: leadingSuperCall === undefined
         ? [
             ...parameters.prelude,
@@ -310,17 +316,17 @@ function planConstructorDeclaration(
   };
 }
 
-function getLeadingSuperCall(statements: readonly (Node | undefined)[]): NonNullable<ReturnType<typeof AsCallExpression>> | undefined {
+function getLeadingSuperCall(statements: readonly (Node | undefined)[], input: TargetCompileInput): NonNullable<ReturnType<typeof AsCallExpression>> | undefined {
   const first = statements[0];
-  if (first?.Kind !== KindExpressionStatement) {
+  if (!HasSourceKind(input.ast, first, KindExpressionStatement)) {
     return undefined;
   }
   const expression = AsExpressionStatement(first)!.Expression;
-  if (expression?.Kind !== KindCallExpression) {
+  if (!HasSourceKind(input.ast, expression, KindCallExpression)) {
     return undefined;
   }
   const call = AsCallExpression(expression)!;
-  return call.Expression?.Kind === KindSuperKeyword ? call : undefined;
+  return HasSourceKind(input.ast, call.Expression, KindSuperKeyword) ? call : undefined;
 }
 
 function planMethodDeclaration(
@@ -337,14 +343,15 @@ function planMethodDeclaration(
   state.currentReturnType = returnType;
   state.currentReturnTypeSubject = declaration.Type;
   return {
-    kind: "method",
-    name: planIdentifierName(declaration.name, "method", diagnostics, "Method name"),
-    modifiers: planMethodModifiers(node, declaration.name),
+    kind: "MethodDeclaration",
+    name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Method name"),
+    modifiers: planMethodModifiers(node, declaration.name, input),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType,
     parameters: parameters.parameters,
     body: {
+      kind: "Block",
       statements: [
         ...parameters.prelude,
         ...planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
@@ -362,8 +369,8 @@ function planInterfaceMethodDeclaration(
   const declaration = AsMethodSignatureDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface method declaration", diagnostics);
   return {
-    kind: "interface-method",
-    name: planIdentifierName(declaration.name, "method", diagnostics, "Interface method name"),
+    kind: "MethodDeclaration",
+    name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Interface method name"),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType: getExplicitReturnType(declaration.Type, node, "interface method declaration", sourceFile, input, diagnostics),
@@ -403,8 +410,8 @@ function planInterfacePropertyDeclaration(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Interface property initializers have no direct C# interface equivalent."));
   }
   return {
-    kind: "interface-property",
-    name: planIdentifierName(declaration.name, "property", diagnostics, "Interface property name"),
+    kind: "PropertyDeclaration",
+    name: planIdentifierName(declaration.name, "PropertyDeclaration", input, diagnostics, "Interface property name"),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type: getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("interface property type"), diagnostics),
   };
@@ -425,9 +432,9 @@ function planInterfaceIndexerDeclaration(
   }
   const parameterDeclaration = parameterNode === undefined ? undefined : AsParameterDeclaration(parameterNode);
   return {
-    kind: "interface-indexer",
+    kind: "IndexerDeclaration",
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
-    keyName: planIdentifierName(parameterDeclaration?.name, "key", diagnostics, "Interface indexer key name"),
+    keyName: planIdentifierName(parameterDeclaration?.name, "key", input, diagnostics, "Interface indexer key name"),
     keyType: getCsharpTypeForNode(parameterDeclaration?.Type ?? parameterDeclaration?.name, sourceFile, input, undefined, diagnostics),
     valueType: getCsharpTypeForNode(declaration.Type, sourceFile, input, undefined, diagnostics),
   };
@@ -443,9 +450,9 @@ function planPropertyDeclaration(
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "property declaration", diagnostics);
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("property type"), diagnostics);
   return {
-    kind: "field",
-    name: planIdentifierName(declaration.name, "field", diagnostics, "Property name"),
-    modifiers: planClassMemberModifiers(node, declaration.name),
+    kind: "FieldDeclaration",
+    name: planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Property name"),
+    modifiers: planClassMemberModifiers(node, declaration.name, input),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     ...(declaration.Initializer !== undefined
@@ -463,12 +470,12 @@ function mergeAccessorProperty(
   diagnostics: TargetDiagnostic[],
 ): void {
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "accessor declaration", diagnostics);
-  const accessor = node.Kind === KindGetAccessor
+  const accessor = HasSourceKind(input.ast, node, KindGetAccessor)
     ? AsGetAccessorDeclaration(node)!
     : AsSetAccessorDeclaration(node)!;
-  const name = planIdentifierName(accessor.name, "property", diagnostics, "Accessor name");
+  const name = planIdentifierName(accessor.name, "PropertyDeclaration", input, diagnostics, "Accessor name");
   const existing = accessorProperties.get(name);
-  const next = node.Kind === KindGetAccessor
+  const next = HasSourceKind(input.ast, node, KindGetAccessor)
     ? mergeGetterAccessor(existing, node, name, sourceFile, input, diagnostics)
     : mergeSetterAccessor(existing, node, name, sourceFile, input, diagnostics);
   accessorProperties.set(name, next);
@@ -495,12 +502,13 @@ function mergeGetterAccessor(
   const state = createDestructuringPlannerState();
   state.currentReturnType = type;
   return {
-    kind: "property",
+    kind: "PropertyDeclaration",
     name,
-    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name),
+    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name, input),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     getter: {
+      kind: "Block",
       statements: planBlockStatements(declaration.Body, sourceFile, input, diagnostics, state),
     },
     ...(existing?.setter === undefined ? {} : { setter: existing.setter }),
@@ -532,26 +540,28 @@ function mergeSetterAccessor(
     existing?.type ?? invalidCsharpType("set accessor type"),
     diagnostics,
   );
-  const parameterAlias = parameterDeclaration?.name?.Kind === KindObjectBindingPattern || parameterDeclaration?.name?.Kind === KindArrayBindingPattern
+  const parameterAlias = HasSourceKind(input.ast, parameterDeclaration?.name, KindObjectBindingPattern) || HasSourceKind(input.ast, parameterDeclaration?.name, KindArrayBindingPattern)
     ? undefined
     : parameterDeclaration === undefined
       ? undefined
       : {
-          name: planIdentifierName(parameterDeclaration.name, "value", diagnostics, "Set accessor parameter name"),
+          name: planIdentifierName(parameterDeclaration.name, "value", input, diagnostics, "Set accessor parameter name"),
           type,
         };
   const state = createDestructuringPlannerState();
-  const parameterPrelude = parameterDeclaration?.name?.Kind === KindObjectBindingPattern || parameterDeclaration?.name?.Kind === KindArrayBindingPattern
-    ? planParameterBindingPrelude(parameterDeclaration.name, "value", sourceFile, input, diagnostics, state)
+  const parameterName = parameterDeclaration?.name;
+  const parameterPrelude = HasSourceKind(input.ast, parameterName, KindObjectBindingPattern) || HasSourceKind(input.ast, parameterName, KindArrayBindingPattern)
+    ? planParameterBindingPrelude(parameterName, "value", sourceFile, input, diagnostics, state)
     : [];
   return {
-    kind: "property",
+    kind: "PropertyDeclaration",
     name,
-    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name),
+    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name, input),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     ...(existing?.getter === undefined ? {} : { getter: existing.getter }),
     setter: {
+      kind: "Block",
       statements: planSetAccessorStatements(declaration.Body, parameterAlias, parameterPrelude, sourceFile, input, diagnostics, state),
     },
   };
@@ -571,25 +581,25 @@ function planSetAccessorStatements(
     ...(parameter === undefined || parameter.name === "value"
       ? []
       : [{
-          kind: "local" as const,
+          kind: "LocalDeclarationStatement" as const,
           name: parameter.name,
           type: parameter.type,
-          initializer: { kind: "identifier" as const, name: "value" },
+          initializer: { kind: "IdentifierName" as const, name: "value" },
         }]),
     ...parameterPrelude,
     ...statements,
   ];
 }
 
-function planClassMemberModifiers(node: Node, name: Node | undefined): readonly ("public" | "private" | "static")[] {
-  const access = name?.Kind === KindPrivateIdentifier ? "private" : "public";
+function planClassMemberModifiers(node: Node, name: Node | undefined, input: TargetCompileInput): readonly ("public" | "private" | "static")[] {
+  const access = HasSourceKind(input.ast, name, KindPrivateIdentifier) ? "private" : "public";
   return HasSyntacticModifier(node, ModifierFlagsStatic)
     ? [access, "static"]
     : [access];
 }
 
-function planMethodModifiers(node: Node, name: Node | undefined): CsharpMethodDeclaration["modifiers"] {
-  const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name)];
+function planMethodModifiers(node: Node, name: Node | undefined, input: TargetCompileInput): CsharpMethodDeclaration["modifiers"] {
+  const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
   if (isAsyncNode(node)) {
     modifiers.push("async");
   }

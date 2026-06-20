@@ -2,8 +2,9 @@ import type {
   CsharpArgument,
   CsharpAttribute,
   CsharpCompilationUnit,
-  CsharpExpression,
+  CsharpConstructorDeclaration,
   CsharpEnumMember,
+  CsharpExpression,
   CsharpForInitializer,
   CsharpInterpolatedStringPart,
   CsharpInterfaceMember,
@@ -14,13 +15,12 @@ import type {
   CsharpParameter,
   CsharpPropertyDeclaration,
   CsharpStatement,
-  CsharpConstructorDeclaration,
   CsharpSwitchSection,
-  CsharpTypeParameter,
   CsharpTypeDeclaration,
   CsharpTypeMember,
   CsharpTypeNode,
-} from "../backend/ast/csharp-ast.js";
+  CsharpTypeParameter,
+} from "../backend/roslyn/syntax.js";
 
 export function printCsharpCompilationUnit(unit: CsharpCompilationUnit): string {
   const lines: string[] = [];
@@ -32,16 +32,16 @@ export function printCsharpCompilationUnit(unit: CsharpCompilationUnit): string 
   }
   for (const member of unit.members) {
     switch (member.kind) {
-      case "namespace":
+      case "NamespaceDeclaration":
         lines.push(`namespace ${member.name}`);
         lines.push("{");
         lines.push(...indentLines(member.members.flatMap((declaration) => printTypeDeclarationLines(declaration))));
         lines.push("}");
         break;
-      case "class":
-      case "struct":
-      case "interface":
-      case "enum":
+      case "ClassDeclaration":
+      case "StructDeclaration":
+      case "InterfaceDeclaration":
+      case "EnumDeclaration":
         lines.push(...printTypeDeclarationLines(member));
         break;
     }
@@ -51,7 +51,7 @@ export function printCsharpCompilationUnit(unit: CsharpCompilationUnit): string 
 
 function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[] {
   const modifiers = declaration.modifiers.length === 0 ? "" : `${declaration.modifiers.join(" ")} `;
-  if (declaration.kind === "enum") {
+  if (declaration.kind === "EnumDeclaration") {
     return [
       ...printCsharpAttributes(declaration.attributes),
       `${modifiers}enum ${declaration.name}`,
@@ -63,11 +63,11 @@ function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[]
   const typeParameters = printTypeParameters(declaration.typeParameters);
   const constraintLines = printTypeParameterConstraintLines(declaration.typeParameters);
   const bases = [
-    ...(declaration.kind === "class" && declaration.baseType !== undefined ? [declaration.baseType] : []),
+    ...(declaration.kind === "ClassDeclaration" && declaration.baseType !== undefined ? [declaration.baseType] : []),
     ...(declaration.interfaces ?? []),
   ];
   const baseList = bases.length === 0 ? "" : ` : ${bases.map(printCsharpType).join(", ")}`;
-  if (declaration.kind === "interface") {
+  if (declaration.kind === "InterfaceDeclaration") {
     return [
       ...printCsharpAttributes(declaration.attributes),
       `${modifiers}interface ${declaration.name}${typeParameters}${baseList}`,
@@ -77,9 +77,10 @@ function printTypeDeclarationLines(declaration: CsharpTypeDeclaration): string[]
       "}",
     ];
   }
+  const keyword = declaration.kind === "ClassDeclaration" ? "class" : "struct";
   return [
     ...printCsharpAttributes(declaration.attributes),
-    `${modifiers}${declaration.kind} ${declaration.name}${typeParameters}${baseList}`,
+    `${modifiers}${keyword} ${declaration.name}${typeParameters}${baseList}`,
     ...constraintLines,
     "{",
     ...indentLines(declaration.members.flatMap(printTypeMemberLines)),
@@ -95,7 +96,7 @@ function printEnumMemberLine(member: CsharpEnumMember, index: number, members: r
 
 function printInterfaceMemberLines(member: CsharpInterfaceMember): string[] {
   switch (member.kind) {
-    case "interface-method": {
+    case "MethodDeclaration": {
       const typeParameters = printTypeParameters(member.typeParameters);
       const constraints = printTypeParameterConstraintSuffix(member.typeParameters);
       const parameters = member.parameters.map(printCsharpParameter).join(", ");
@@ -104,12 +105,12 @@ function printInterfaceMemberLines(member: CsharpInterfaceMember): string[] {
         `${printCsharpType(member.returnType)} ${member.name}${typeParameters}(${parameters})${constraints};`,
       ];
     }
-    case "interface-property":
+    case "PropertyDeclaration":
       return [
         ...printCsharpAttributes(member.attributes),
         `${printCsharpType(member.type)} ${member.name} { get; }`,
       ];
-    case "interface-indexer":
+    case "IndexerDeclaration":
       return [
         ...printCsharpAttributes(member.attributes),
         `${printCsharpType(member.valueType)} this[${printCsharpType(member.keyType)} ${member.keyName}] { get; }`,
@@ -119,7 +120,7 @@ function printInterfaceMemberLines(member: CsharpInterfaceMember): string[] {
 
 function printTypeMemberLines(member: CsharpTypeMember): string[] {
   switch (member.kind) {
-    case "field": {
+    case "FieldDeclaration": {
       const modifiers = member.modifiers.length === 0 ? "" : `${member.modifiers.join(" ")} `;
       const initializer = member.initializer === undefined ? "" : ` = ${printCsharpExpression(member.initializer)}`;
       return [
@@ -127,11 +128,11 @@ function printTypeMemberLines(member: CsharpTypeMember): string[] {
         `${modifiers}${printCsharpType(member.type)} ${member.name}${initializer};`,
       ];
     }
-    case "constructor":
+    case "ConstructorDeclaration":
       return printConstructorLines(member);
-    case "method":
+    case "MethodDeclaration":
       return printMethodLines(member);
-    case "property":
+    case "PropertyDeclaration":
       return printPropertyLines(member);
   }
 }
@@ -172,22 +173,12 @@ function printPropertyLines(property: CsharpPropertyDeclaration): string[] {
   if (property.autoGetter === true) {
     accessors.push("get;");
   } else if (property.getter !== undefined) {
-    accessors.push(
-      "get",
-      "{",
-      ...indentLines(printCsharpStatements(property.getter.statements)),
-      "}",
-    );
+    accessors.push("get", "{", ...indentLines(printCsharpStatements(property.getter.statements)), "}");
   }
   if (property.autoSetter === true) {
     accessors.push("set;");
   } else if (property.setter !== undefined) {
-    accessors.push(
-      "set",
-      "{",
-      ...indentLines(printCsharpStatements(property.setter.statements)),
-      "}",
-    );
+    accessors.push("set", "{", ...indentLines(printCsharpStatements(property.setter.statements)), "}");
   }
   return [
     ...printCsharpAttributes(property.attributes),
@@ -214,8 +205,7 @@ function printTypeParameters(typeParameters: readonly CsharpTypeParameter[] | un
 }
 
 function printTypeParameterConstraintLines(typeParameters: readonly CsharpTypeParameter[] | undefined): string[] {
-  return (typeParameters ?? [])
-    .flatMap((typeParameter) => printTypeParameterConstraint(typeParameter));
+  return (typeParameters ?? []).flatMap((typeParameter) => printTypeParameterConstraint(typeParameter));
 }
 
 function printTypeParameterConstraintSuffix(typeParameters: readonly CsharpTypeParameter[] | undefined): string {
@@ -232,31 +222,29 @@ function printTypeParameterConstraint(typeParameter: CsharpTypeParameter): reado
 
 export function printCsharpType(type: CsharpTypeNode): string {
   switch (type.kind) {
-    case "predefined":
+    case "PredefinedType":
       return type.name;
-    case "invalid":
+    case "InvalidType":
       throw new Error(`Invalid C# type reached printer: ${type.reason}`);
-    case "named":
+    case "IdentifierName":
       return type.typeArguments === undefined || type.typeArguments.length === 0
         ? type.name
         : `${type.name}<${type.typeArguments.map(printCsharpType).join(", ")}>`;
-    case "qualified": {
+    case "QualifiedName": {
       const suffix = type.typeArguments === undefined || type.typeArguments.length === 0
         ? type.name
         : `${type.name}<${type.typeArguments.map(printCsharpType).join(", ")}>`;
       return `${printCsharpType(type.left)}.${suffix}`;
     }
-    case "array":
+    case "ArrayType":
       return `${printCsharpType(type.elementType)}${printArrayRankSuffix(type.rank)}`;
-    case "tuple":
+    case "TupleType":
       return `(${type.elements.map(printCsharpType).join(", ")})`;
-    case "function":
-      return printCsharpFunctionType(type.parameters, type.returnType);
-    case "pointer":
+    case "PointerType":
       return `${printCsharpType(type.pointee)}*`;
-    case "functionPointer":
+    case "FunctionPointerType":
       return `delegate*<${[...type.parameters, type.returnType].map(printCsharpType).join(", ")}>`;
-    case "nullable":
+    case "NullableType":
       return `${printCsharpType(type.inner)}?`;
   }
 }
@@ -270,43 +258,36 @@ function printArrayRankSuffix(rank: number | undefined): string {
 
 export function printCsharpStatement(statement: CsharpStatement): string {
   switch (statement.kind) {
-    case "return":
+    case "ReturnStatement":
       return statement.expression === undefined ? "return;" : `return ${printCsharpExpression(statement.expression)};`;
-    case "expression":
+    case "ExpressionStatement":
       return `${printCsharpExpression(statement.expression)};`;
-    case "local":
+    case "LocalDeclarationStatement":
       return `${printCsharpLocalDeclaration(statement)};`;
-    case "block":
-      return [
-        "{",
-        ...indentLines(printCsharpStatements(statement.body.statements)),
-        "}",
-      ].join("\n");
-    case "break":
+    case "Block":
+      return ["{", ...indentLines(printCsharpStatements(statement.body.statements)), "}"].join("\n");
+    case "BreakStatement":
       return "break;";
-    case "continue":
+    case "ContinueStatement":
       return "continue;";
-    case "goto":
+    case "GotoStatement":
       return `goto ${statement.label};`;
-    case "goto-switch":
-      return statement.label.kind === "default"
+    case "GotoSwitchStatement":
+      return statement.label.kind === "DefaultSwitchLabel"
         ? "goto default;"
         : `goto case ${printCsharpExpression(statement.label.expression)};`;
-    case "throw":
+    case "ThrowStatement":
       return `throw ${printCsharpExpression(statement.expression)};`;
-    case "label":
-      return [
-        `${statement.name}:`,
-        ...indentLines(printCsharpStatement(statement.statement).split("\n")),
-      ].join("\n");
-    case "switch":
+    case "LabeledStatement":
+      return [`${statement.name}:`, ...indentLines(printCsharpStatement(statement.statement).split("\n"))].join("\n");
+    case "SwitchStatement":
       return [
         `switch (${printCsharpExpression(statement.expression)})`,
         "{",
         ...indentLines(statement.sections.flatMap(printCsharpSwitchSection)),
         "}",
       ].join("\n");
-    case "try":
+    case "TryStatement":
       return [
         "try",
         "{",
@@ -317,28 +298,23 @@ export function printCsharpStatement(statement: CsharpStatement): string {
           : [
               statement.catchClause.variableName === undefined
                 ? "catch"
-                : `catch (${printCsharpType(statement.catchClause.variableType ?? { kind: "invalid", reason: "missing catch variable type" })} ${statement.catchClause.variableName})`,
+                : `catch (${printCsharpType(statement.catchClause.variableType ?? { kind: "InvalidType", reason: "missing catch variable type" })} ${statement.catchClause.variableName})`,
               "{",
               ...indentLines(printCsharpStatements(statement.catchClause.body.statements)),
               "}",
             ]),
         ...(statement.finallyBody === undefined
           ? []
-          : [
-              "finally",
-              "{",
-              ...indentLines(printCsharpStatements(statement.finallyBody.statements)),
-              "}",
-            ]),
+          : ["finally", "{", ...indentLines(printCsharpStatements(statement.finallyBody.statements)), "}"]),
       ].join("\n");
-    case "foreach":
+    case "ForEachStatement":
       return [
         `foreach (${printCsharpType(statement.itemType)} ${statement.itemName} in ${printCsharpExpression(statement.collection)})`,
         "{",
         ...indentLines(printCsharpStatements(statement.body.statements)),
         "}",
       ].join("\n");
-    case "if":
+    case "IfStatement":
       return [
         `if (${printCsharpExpression(statement.condition)})`,
         "{",
@@ -346,21 +322,16 @@ export function printCsharpStatement(statement: CsharpStatement): string {
         "}",
         ...(statement.elseBody === undefined
           ? []
-          : [
-              "else",
-              "{",
-              ...indentLines(printCsharpStatements(statement.elseBody.statements)),
-              "}",
-            ]),
+          : ["else", "{", ...indentLines(printCsharpStatements(statement.elseBody.statements)), "}"]),
       ].join("\n");
-    case "while":
+    case "WhileStatement":
       return [
         `while (${printCsharpExpression(statement.condition)})`,
         "{",
         ...indentLines(printCsharpStatements(statement.body.statements)),
         "}",
       ].join("\n");
-    case "do":
+    case "DoStatement":
       return [
         "do",
         "{",
@@ -368,7 +339,7 @@ export function printCsharpStatement(statement: CsharpStatement): string {
         "}",
         `while (${printCsharpExpression(statement.condition)});`,
       ].join("\n");
-    case "for":
+    case "ForStatement":
       return [
         `for (${printCsharpForInitializer(statement.initializer)}; ${statement.condition === undefined ? "" : printCsharpExpression(statement.condition)}; ${statement.incrementor === undefined ? "" : printCsharpExpression(statement.incrementor)})`,
         "{",
@@ -383,70 +354,83 @@ function printCsharpStatements(statements: readonly CsharpStatement[]): string[]
 }
 
 function printCsharpSwitchSection(section: CsharpSwitchSection): string[] {
-  const label = section.label.kind === "default"
+  const label = section.label.kind === "DefaultSwitchLabel"
     ? "default:"
     : `case ${printCsharpExpression(section.label.expression)}:`;
-  return [
-    label,
-    ...indentLines(printCsharpStatements(section.statements)),
-  ];
+  return [label, ...indentLines(printCsharpStatements(section.statements))];
 }
 
 export function printCsharpExpression(expression: CsharpExpression): string {
+  if (isCsharpTypeSyntax(expression)) {
+    return printCsharpType(expression);
+  }
   switch (expression.kind) {
-    case "identifier":
-      return expression.name;
-    case "invalid":
+    case "InvalidExpression":
       throw new Error(`Invalid C# expression reached printer: ${expression.reason}`);
-    case "type":
-      return printCsharpType(expression.type);
-    case "literal":
+    case "LiteralExpression":
       return printLiteral(expression.value);
-    case "charLiteral":
+    case "CharacterLiteralExpression":
       return printCharLiteral(expression.value);
-    case "interpolatedString":
+    case "InterpolatedStringExpression":
       return printInterpolatedString(expression.parts);
-    case "parenthesized":
+    case "ParenthesizedExpression":
       return `(${printCsharpExpression(expression.expression)})`;
-    case "member":
+    case "SimpleMemberAccessExpression":
       return `${printCsharpExpression(expression.receiver)}.${expression.name}`;
-    case "optionalMember":
+    case "ConditionalAccessExpression":
       return `${printCsharpExpression(expression.receiver)}?.${expression.name}`;
-    case "element":
+    case "ElementAccessExpression":
       return `${printCsharpExpression(expression.receiver)}[${printCsharpExpression(expression.argument)}]`;
-    case "optionalElement":
+    case "ConditionalElementAccessExpression":
       return `${printCsharpExpression(expression.receiver)}?[${printCsharpExpression(expression.argument)}]`;
-    case "call":
+    case "InvocationExpression":
       return `${printCsharpExpression(expression.callee)}(${expression.arguments.map(printCsharpArgument).join(", ")})`;
-    case "await":
+    case "AwaitExpression":
       return `await ${printCsharpExpression(expression.expression)}`;
-    case "new":
-      return `new ${printCsharpType(expression.type)}(${expression.arguments.map(printCsharpArgument).join(", ")})`;
-    case "objectInitializer":
-      return printCsharpObjectInitializer(expression.type, expression.assignments);
-    case "binary":
+    case "ObjectCreationExpression":
+      return expression.assignments === undefined
+        ? `new ${printCsharpType(expression.type)}(${(expression.arguments ?? []).map(printCsharpArgument).join(", ")})`
+        : printCsharpObjectInitializer(expression.type, expression.assignments);
+    case "BinaryExpression":
       return `${printCsharpExpression(expression.left)} ${expression.operator} ${printCsharpExpression(expression.right)}`;
-    case "isType":
+    case "IsPatternExpression":
       return `${printCsharpExpression(expression.expression)} is ${expression.negated === true ? "not " : ""}${printCsharpType(expression.type)}`;
-    case "prefixUnary":
+    case "PrefixUnaryExpression":
       return `${expression.operator}${printCsharpExpression(expression.operand)}`;
-    case "postfixUnary":
+    case "PostfixUnaryExpression":
       return `${printCsharpExpression(expression.operand)}${expression.operator}`;
-    case "conditional":
+    case "ConditionalExpression":
       return `${printCsharpExpression(expression.condition)} ? ${printCsharpExpression(expression.whenTrue)} : ${printCsharpExpression(expression.whenFalse)}`;
-    case "array": {
+    case "ArrayCreationExpression": {
       const elements = expression.elements.map(printCsharpExpression).join(", ");
       const initializer = elements.length === 0 ? "{ }" : `{ ${elements} }`;
       return expression.elementType === undefined
         ? `new[] ${initializer}`
         : `new ${printCsharpType(expression.elementType)}[] ${initializer}`;
     }
-    case "tuple":
+    case "TupleExpression":
       return `(${expression.elements.map(printCsharpExpression).join(", ")})`;
-    case "default":
+    case "DefaultExpression":
       return `default(${printCsharpType(expression.type)})`;
-    case "lambda":
+    case "LambdaExpression":
       return printCsharpLambda(expression);
+  }
+}
+
+function isCsharpTypeSyntax(expression: CsharpExpression): expression is CsharpTypeNode {
+  switch (expression.kind) {
+    case "ArrayType":
+    case "FunctionPointerType":
+    case "IdentifierName":
+    case "InvalidType":
+    case "NullableType":
+    case "PointerType":
+    case "PredefinedType":
+    case "QualifiedName":
+    case "TupleType":
+      return true;
+    default:
+      return false;
   }
 }
 
@@ -466,27 +450,13 @@ function printCsharpObjectInitializer(
   ].join("\n");
 }
 
-function printCsharpFunctionType(parameters: readonly CsharpTypeNode[], returnType: CsharpTypeNode): string {
-  if (returnType.kind === "predefined" && returnType.name === "void") {
-    return parameters.length === 0
-      ? "Action"
-      : `Action<${parameters.map(printCsharpType).join(", ")}>`;
-  }
-  return `Func<${[...parameters, returnType].map(printCsharpType).join(", ")}>`;
-}
-
 function printCsharpLambda(
-  lambda: Extract<CsharpExpression, { readonly kind: "lambda" }>,
+  lambda: Extract<CsharpExpression, { readonly kind: "LambdaExpression" }>,
 ): string {
   const parameters = printCsharpLambdaParameters(lambda.parameters);
   const asyncPrefix = lambda.async === true ? "async " : "";
   if ("statements" in lambda.body) {
-    return [
-      `${asyncPrefix}${parameters} =>`,
-      "{",
-      ...indentLines(printCsharpStatements(lambda.body.statements)),
-      "}",
-    ].join("\n");
+    return [`${asyncPrefix}${parameters} =>`, "{", ...indentLines(printCsharpStatements(lambda.body.statements)), "}"].join("\n");
   }
   return `${asyncPrefix}${parameters} => ${printCsharpExpression(lambda.body)}`;
 }
@@ -507,16 +477,16 @@ function printCsharpLambdaParameter(parameter: CsharpLambdaParameter): string {
 function printInterpolatedString(parts: readonly CsharpInterpolatedStringPart[]): string {
   const body = parts.map((part) => {
     switch (part.kind) {
-      case "text":
+      case "InterpolatedStringText":
         return escapeCsharpInterpolatedStringText(part.text);
-      case "expression":
+      case "Interpolation":
         return `{${printCsharpExpression(part.expression)}}`;
     }
   }).join("");
   return `$"${body}"`;
 }
 
-function printCsharpLocalDeclaration(local: CsharpLocalDeclaration): string {
+function printCsharpLocalDeclaration(local: Pick<CsharpLocalDeclaration, "name" | "type" | "initializer">): string {
   return local.initializer === undefined
     ? `${printCsharpType(local.type)} ${local.name}`
     : `${printCsharpType(local.type)} ${local.name} = ${printCsharpExpression(local.initializer)}`;
@@ -527,9 +497,9 @@ function printCsharpForInitializer(initializer: CsharpForInitializer | undefined
     return "";
   }
   switch (initializer.kind) {
-    case "expression":
+    case "Expression":
       return printCsharpExpression(initializer.expression);
-    case "locals": {
+    case "VariableDeclaration": {
       const first = initializer.locals[0];
       if (first === undefined) {
         return "";
