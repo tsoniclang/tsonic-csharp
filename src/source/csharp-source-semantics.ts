@@ -173,6 +173,8 @@ export function createCsharpTargetSemanticsExtension(_context: TargetExtensionCo
       context.registerTargetSemanticProvider(provider);
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) =>
         resolveCsharpRuntimeCarrier(subject, resolverContext));
+      context.factResolver.register(targetBindingFactKey, (subject, resolverContext) =>
+        resolveCsharpTargetBinding(subject, resolverContext));
       context.factResolver.register(objectShapeFactKey, (subject, resolverContext) =>
         resolveCsharpObjectShape(subject, resolverContext));
       context.factResolver.register(targetTypeParameterConstraintFactKey, (subject, resolverContext) =>
@@ -813,8 +815,12 @@ function getTargetBindingFromSubject(
   if (direct !== undefined) {
     return direct;
   }
-  return isTypeSubject(subject)
-    ? context.facts.get(subject.symbol, targetBindingFactKey)
+  const resolved = context.factResolver.resolve(subject, targetBindingFactKey);
+  if (resolved !== undefined) {
+    return resolved;
+  }
+  return isTypeSubject(subject) && subject.symbol !== undefined
+    ? context.factResolver.resolve(subject.symbol, targetBindingFactKey)
     : undefined;
 }
 
@@ -1066,7 +1072,7 @@ function resolveCsharpRuntimeCarrier(
     }
   }
 
-  const directTargetBinding = context.facts.get(subject, targetBindingFactKey);
+  const directTargetBinding = context.factResolver.resolve(subject, targetBindingFactKey);
   if (directTargetBinding !== undefined) {
     return runtimeCarrierFromTargetBinding(directTargetBinding.id);
   }
@@ -1172,6 +1178,66 @@ function runtimeCarrierFromTargetBinding(id: string): { readonly value: RuntimeC
       },
     },
     evidence: [{ message: `C# carrier from target binding '${id}'.` }],
+  };
+}
+
+function resolveCsharpTargetBinding(
+  subject: ExtensionFactSubject,
+  _context: ExtensionFactResolverContext,
+): { readonly value: TargetBindingFact; readonly evidence?: readonly ExtensionEvidence[] } | undefined {
+  if (isSymbolSubject(subject) && isStandardRegExpSymbol(subject)) {
+    return {
+      value: csharpRegExpTargetBinding(),
+      evidence: [{ message: "C# target binding from TypeScript standard RegExp symbol." }],
+    };
+  }
+  if (isTypeSubject(subject) && isStandardRegExpType(subject)) {
+    return {
+      value: csharpRegExpTargetBinding(),
+      evidence: [{ message: "C# target binding from TypeScript standard RegExp type." }],
+    };
+  }
+  return undefined;
+}
+
+function csharpRegExpTargetBinding(): TargetBindingFact {
+  const stringType = csharpNamed("System.String");
+  const boolType = csharpNamed("System.Boolean");
+  return {
+    id: "Tsonic.CSharp.Js.RegExp",
+    sourceName: "RegExp",
+    targetName: "Tsonic.CSharp.Js.RegExp",
+    target: "csharp",
+    kind: "class",
+    members: [
+      {
+        id: "Tsonic.CSharp.Js.RegExp..ctor(System.String)",
+        sourceName: "constructor",
+        targetName: "RegExp",
+        kind: "constructor",
+        parameters: [{ name: "pattern", type: stringType, passingMode: "by-value" }],
+        returnType: csharpNamed("Tsonic.CSharp.Js.RegExp"),
+      },
+      {
+        id: "Tsonic.CSharp.Js.RegExp..ctor(System.String,System.String)",
+        sourceName: "constructor",
+        targetName: "RegExp",
+        kind: "constructor",
+        parameters: [
+          { name: "pattern", type: stringType, passingMode: "by-value" },
+          { name: "flags", type: stringType, passingMode: "by-value" },
+        ],
+        returnType: csharpNamed("Tsonic.CSharp.Js.RegExp"),
+      },
+      {
+        id: "Tsonic.CSharp.Js.RegExp.test(System.String)",
+        sourceName: "test",
+        targetName: "test",
+        kind: "method",
+        parameters: [{ name: "input", type: stringType, passingMode: "by-value" }],
+        returnType: boolType,
+      },
+    ],
   };
 }
 
@@ -1732,7 +1798,9 @@ function resolveCsharpRuntimeCarrierForTstsType(
   type: Type,
   context: ExtensionFactResolverContext,
 ): TargetTypeRef | undefined {
-  const targetBinding = context.facts.get(type.symbol, targetBindingFactKey);
+  const targetBinding = type.symbol === undefined
+    ? undefined
+    : context.factResolver.resolve(type.symbol, targetBindingFactKey);
   if (targetBinding !== undefined) {
     return {
       kind: "target-named",
@@ -1760,7 +1828,9 @@ function resolveCsharpRuntimeCarrierForTstsType(
     if (promiseCarrier !== undefined) {
       return promiseCarrier;
     }
-    const referenceBinding = context.facts.get(typeReference.targetSymbol, targetBindingFactKey);
+    const referenceBinding = typeReference.targetSymbol === undefined
+      ? undefined
+      : context.factResolver.resolve(typeReference.targetSymbol, targetBindingFactKey);
     if (referenceBinding !== undefined) {
       const typeArguments = typeReference.typeArguments
         .map((argument) => context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier);
@@ -1773,6 +1843,9 @@ function resolveCsharpRuntimeCarrierForTstsType(
         typeArguments: typeArguments as readonly TargetTypeRef[],
       };
     }
+  }
+  if (isStandardRegExpType(type)) {
+    return csharpNamed("Tsonic.CSharp.Js.RegExp");
   }
   const sourceProjectCarrier = resolveCsharpSourceProjectTypeCarrier(type, context);
   if (sourceProjectCarrier !== undefined) {
@@ -1841,6 +1914,22 @@ function isStandardPromiseSymbol(symbol: Symbol | undefined): boolean {
     return sourceFile !== undefined &&
       sourceFile.IsDeclarationFile &&
       SourceFile_FileName(sourceFile).endsWith("lib.es2015.promise.d.ts");
+  });
+}
+
+function isStandardRegExpType(type: Type): boolean {
+  return isStandardRegExpSymbol(type.symbol);
+}
+
+function isStandardRegExpSymbol(symbol: Symbol | undefined): boolean {
+  if (symbol?.Name !== "RegExp") {
+    return false;
+  }
+  return (symbol.Declarations ?? []).some((declaration) => {
+    const sourceFile = declaration === undefined ? undefined : GetSourceFileOfNode(declaration);
+    return sourceFile !== undefined &&
+      sourceFile.IsDeclarationFile &&
+      SourceFile_FileName(sourceFile).endsWith("lib.es5.d.ts");
   });
 }
 
