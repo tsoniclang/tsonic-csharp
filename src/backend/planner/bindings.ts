@@ -13,7 +13,7 @@ import {
 import type { Node, ObjectShapeFact, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../ast/csharp-ast.js";
-import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
+import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
@@ -113,11 +113,12 @@ export function planVariableBindingStatements(
   }
   const sourceName = allocateDestructuringTemp(state);
   const sourceExpression: CsharpExpression = { kind: "identifier", name: sourceName };
+  const sourceType = getCsharpTypeForExpressionCarrier(initializer, sourceFile, input, diagnostics, bindingName, "Destructuring source expression");
   return [
     {
       kind: "local",
       name: sourceName,
-      type: predefined("var"),
+      type: sourceType,
       initializer: planExpression(initializer, sourceFile, input, diagnostics),
     },
     ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state),
@@ -402,18 +403,19 @@ function planBindingNameFromProjection(
     return [{
       kind: "local",
       name: sanitizeIdentifier(Node_Text(name)),
-      type: projectedType ?? getCsharpTypeForNode(name, sourceFile, input, predefined("var"), diagnostics),
+      type: projectedType ?? getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
       initializer: projected,
     }];
   }
   if (name.Kind === KindObjectBindingPattern || name.Kind === KindArrayBindingPattern) {
     const nestedName = allocateDestructuringTemp(state);
     const nestedSource: CsharpExpression = { kind: "identifier", name: nestedName };
+    const nestedType = projectedType ?? getCsharpTypeForNode(projectionNode ?? name, sourceFile, input, invalidCsharpType("missing nested destructuring source type"), diagnostics);
     return [
       {
         kind: "local",
         name: nestedName,
-        type: projectedType ?? predefined("var"),
+        type: nestedType,
         initializer: projected,
       },
       ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state),
@@ -421,6 +423,23 @@ function planBindingNameFromProjection(
   }
   diagnostics.push(unsupportedNodeDiagnostic(name, "Destructuring target binding name is outside the current C# planning surface."));
   return [];
+}
+
+function getCsharpTypeForExpressionCarrier(
+  expression: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  diagnosticNode: Node,
+  description: string,
+): CsharpTypeNode {
+  const carrier = getRuntimeCarrierForExpression(input, expression, sourceFile);
+  const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+  if (type !== undefined) {
+    return type;
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires a finalized runtime carrier fact before C# emission.`));
+  return invalidCsharpType("missing destructuring source carrier");
 }
 
 function getDirectSourcePropertyName(

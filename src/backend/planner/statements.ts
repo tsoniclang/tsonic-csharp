@@ -57,7 +57,7 @@ import type {
   CsharpSwitchSection,
   CsharpTypeNode,
 } from "../ast/csharp-ast.js";
-import { getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types.js";
+import { getCsharpTypeForNode, invalidCsharpType, predefined, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   allocateControlLabel,
@@ -320,6 +320,10 @@ function planForInStatement(
     });
     return [];
   }
+  const collectionType = getCsharpTypeForForInCollection(statement.Expression, sourceFile, input, diagnostics);
+  if (collectionType === undefined) {
+    return [];
+  }
   const indexName = allocateForInIndex(state);
   const collectionName = `__forInTarget${indexName.slice("__forInIndex".length)}`;
   const plannedLoop: CsharpStatement = {
@@ -361,7 +365,7 @@ function planForInStatement(
         {
           kind: "local",
           name: collectionName,
-          type: predefined("var"),
+          type: collectionType,
           initializer: planExpression(statement.Expression, sourceFile, input, diagnostics),
         },
         plannedLoop,
@@ -400,6 +404,11 @@ function planObjectShapeForInStatement(
   const objectShape = getObjectShapeForForInExpression(statement.Expression, sourceFile, input);
   if (objectShape === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires finalized object-shape facts on the iterable expression."));
+    return [];
+  }
+  const collectionType = csharpTypeFromTargetTypeRef(objectShape.targetType);
+  if (collectionType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires a renderable object-shape target type before C# emission."));
     return [];
   }
   const indexName = allocateForInIndex(state);
@@ -450,7 +459,7 @@ function planObjectShapeForInStatement(
         {
           kind: "local",
           name: collectionName,
-          type: predefined("var"),
+          type: collectionType,
           initializer: planExpression(statement.Expression, sourceFile, input, diagnostics),
         },
         {
@@ -479,6 +488,21 @@ function getObjectShapeForForInExpression(
     return direct;
   }
   return input.semantics.getObjectShapeForNode(expression, { sourceFile });
+}
+
+function getCsharpTypeForForInCollection(
+  expression: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  const carrier = getRuntimeCarrierForExpression(input, expression, sourceFile);
+  const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+  if (type !== undefined) {
+    return type;
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(expression, "For-in collection temp requires a finalized runtime carrier fact before C# emission."));
+  return undefined;
 }
 
 interface PlannedForInBinding {
@@ -637,14 +661,14 @@ function planForOfStatement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  const binding = planForOfBinding(statement.Initializer, sourceFile, input, diagnostics, state);
-  if (binding === undefined) {
-    return [];
-  }
   const selectedIteration = input.facts.getSelectedTargetIteration(statementNode);
   if (selectedIteration === undefined) {
     const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of emission requires finalized TSTS/provider iteration facts."));
+    return [];
+  }
+  const binding = planForOfBinding(statement.Initializer, selectedIteration, sourceFile, input, diagnostics, state);
+  if (binding === undefined) {
     return [];
   }
   if (selectedIteration.iterationKind === "sync" && selectedIteration.targetOperation === "string-code-points") {
@@ -891,6 +915,7 @@ interface PlannedForOfBinding extends CsharpLocalDeclaration {
 
 function planForOfBinding(
   initializer: Node | undefined,
+  selectedIteration: TargetIterationFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -918,11 +943,15 @@ function planForOfBinding(
     }
     if (variable.name?.Kind === KindObjectBindingPattern || variable.name?.Kind === KindArrayBindingPattern) {
       const itemName = allocateForOfItem(state);
+      const itemType = variable.Type === undefined
+        ? getForOfElementType(selectedIteration, first, diagnostics)
+        : getCsharpTypeForNode(variable.Type, sourceFile, input, invalidCsharpType("missing for-of destructuring item type"), diagnostics);
+      if (itemType === undefined) {
+        return undefined;
+      }
       return {
         name: itemName,
-        type: variable.Type === undefined
-          ? predefined("var")
-          : getCsharpTypeForNode(variable.Type, sourceFile, input, predefined("var"), diagnostics),
+        type: itemType,
         prelude: planBindingPatternFromExpression(
           variable.name,
           { kind: "identifier", name: itemName },
@@ -949,6 +978,22 @@ function planForOfBinding(
   }
   diagnostics.push(unsupportedNodeDiagnostic(initializer, "For-of initializer binding is outside the current C# planning surface."));
   return undefined;
+}
+
+function getForOfElementType(
+  selectedIteration: TargetIterationFact,
+  diagnosticNode: Node,
+  diagnostics: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  const targetElementType = selectedIteration.elementType === undefined
+    ? undefined
+    : targetTypeRefFromFactSubject(selectedIteration.elementType);
+  const elementType = targetElementType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetElementType);
+  if (elementType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of destructuring requires a provider iteration fact with a closed target element type."));
+    return undefined;
+  }
+  return elementType;
 }
 
 function planSingleStatement(
