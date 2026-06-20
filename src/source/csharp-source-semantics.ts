@@ -600,8 +600,30 @@ function mathStaticTargetMembers(sourceName: string): readonly TargetMember[] {
       return [mathStaticTargetMethod(sourceName, "Cos", 1)];
     case "tan":
       return [mathStaticTargetMethod(sourceName, "Tan", 1)];
+    case "asin":
+      return [mathStaticTargetMethod(sourceName, "Asin", 1)];
+    case "acos":
+      return [mathStaticTargetMethod(sourceName, "Acos", 1)];
+    case "atan":
+      return [mathStaticTargetMethod(sourceName, "Atan", 1)];
+    case "sinh":
+      return [mathStaticTargetMethod(sourceName, "Sinh", 1)];
+    case "cosh":
+      return [mathStaticTargetMethod(sourceName, "Cosh", 1)];
+    case "tanh":
+      return [mathStaticTargetMethod(sourceName, "Tanh", 1)];
+    case "exp":
+      return [mathStaticTargetMethod(sourceName, "Exp", 1)];
+    case "log":
+      return [mathStaticTargetMethod(sourceName, "Log", 1)];
+    case "log10":
+      return [mathStaticTargetMethod(sourceName, "Log10", 1)];
+    case "log2":
+      return [mathStaticTargetMethod(sourceName, "Log2", 1)];
     case "pow":
       return [mathStaticTargetMethod(sourceName, "Pow", 2)];
+    case "atan2":
+      return [mathStaticTargetMethod(sourceName, "Atan2", 2)];
     case "max":
       return [mathStaticTargetMethod(sourceName, "Max", 2)];
     case "min":
