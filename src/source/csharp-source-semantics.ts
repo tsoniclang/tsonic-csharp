@@ -1053,28 +1053,15 @@ function arrayInstanceTargetMembers(
     case "includes":
       return [arraySearchHelperTargetMember(sourceName, "Includes", receiverType, elementType, csharpNamed("System.Boolean"), intType)];
     case "forEach":
-      return [{
-        id: "System.Array.ForEach(T[],Action<T>)",
-        sourceName,
-        targetName: "ForEach",
-        kind: "method",
-        static: true,
-        declaringType: csharpNamed("System.Array"),
-        receiverArgumentIndex: 0,
-        parameters: [
-          { name: "array", type: receiverType, passingMode: "by-value" },
-          { name: "action", type: csharpDelegateTargetTypeRef([elementType], csharpNamed("System.Void")), passingMode: "by-value" },
-        ],
-        returnType: csharpNamed("System.Void"),
-      }];
+      return arrayCallbackTargetMembers(sourceName, "ForEach", receiverType, elementType, csharpNamed("System.Void"), "action", csharpNamed("System.Void"));
     case "some":
-      return [arrayPredicateTargetMember(sourceName, "Any", receiverType, elementType)];
+      return arrayCallbackTargetMembers(sourceName, "Some", receiverType, elementType, csharpNamed("System.Boolean"), "callback", csharpNamed("System.Boolean"));
     case "every":
-      return [arrayPredicateTargetMember(sourceName, "All", receiverType, elementType)];
+      return arrayCallbackTargetMembers(sourceName, "Every", receiverType, elementType, csharpNamed("System.Boolean"), "callback", csharpNamed("System.Boolean"));
     case "findIndex":
-      return [arrayFindIndexTargetMember(sourceName, "FindIndex", receiverType, elementType, intType)];
+      return arrayCallbackTargetMembers(sourceName, "FindIndex", receiverType, elementType, intType, "callback", csharpNamed("System.Boolean"));
     case "findLastIndex":
-      return [arrayFindIndexTargetMember(sourceName, "FindLastIndex", receiverType, elementType, intType)];
+      return arrayCallbackTargetMembers(sourceName, "FindLastIndex", receiverType, elementType, intType, "callback", csharpNamed("System.Boolean"));
     case "indexOf":
       return [arraySearchHelperTargetMember(sourceName, "IndexOf", receiverType, elementType, intType, intType)];
     case "lastIndexOf":
@@ -1109,48 +1096,44 @@ function arraySliceTargetMember(
   };
 }
 
-function arrayPredicateTargetMember(
+function arrayCallbackTargetMembers(
   sourceName: string,
   targetName: string,
   receiverType: TargetTypeRef,
   elementType: TargetTypeRef,
+  returnType: TargetTypeRef,
+  callbackName: string,
+  callbackReturnType: TargetTypeRef,
+): readonly TargetMember[] {
+  return [
+    arrayCallbackTargetMember(sourceName, targetName, receiverType, returnType, callbackName, csharpDelegateTargetTypeRef([elementType], callbackReturnType)),
+    arrayCallbackTargetMember(sourceName, targetName, receiverType, returnType, callbackName, csharpDelegateTargetTypeRef([elementType, sourcePrimitiveInt32Ref()], callbackReturnType)),
+    arrayCallbackTargetMember(sourceName, targetName, receiverType, returnType, callbackName, csharpDelegateTargetTypeRef([elementType, sourcePrimitiveInt32Ref(), receiverType], callbackReturnType)),
+  ];
+}
+
+function arrayCallbackTargetMember(
+  sourceName: string,
+  targetName: string,
+  receiverType: TargetTypeRef,
+  returnType: TargetTypeRef,
+  callbackName: string,
+  callbackType: TargetTypeRef,
 ): TargetMember {
+  const arity = callbackType.kind === "target-named" ? callbackType.typeArguments?.length ?? 0 : 0;
   return {
-    id: `System.Linq.Enumerable.${targetName}(T[],Func<T,bool>)`,
+    id: `Tsonic.CSharp.Runtime.ArrayHelpers.${targetName}(T[],callback/${arity})`,
     sourceName,
     targetName,
     kind: "method",
     static: true,
-    declaringType: csharpNamed("System.Linq.Enumerable"),
+    declaringType: csharpNamed("Tsonic.CSharp.Runtime.ArrayHelpers"),
     receiverArgumentIndex: 0,
     parameters: [
       { name: "source", type: receiverType, passingMode: "by-value" },
-      { name: "predicate", type: csharpDelegateTargetTypeRef([elementType], csharpNamed("System.Boolean")), passingMode: "by-value" },
+      { name: callbackName, type: callbackType, passingMode: "by-value" },
     ],
-    returnType: csharpNamed("System.Boolean"),
-  };
-}
-
-function arrayFindIndexTargetMember(
-  sourceName: string,
-  targetName: string,
-  receiverType: TargetTypeRef,
-  elementType: TargetTypeRef,
-  intType: TargetTypeRef,
-): TargetMember {
-  return {
-    id: `System.Array.${targetName}(T[],Predicate<T>)`,
-    sourceName,
-    targetName,
-    kind: "method",
-    static: true,
-    declaringType: csharpNamed("System.Array"),
-    receiverArgumentIndex: 0,
-    parameters: [
-      { name: "array", type: receiverType, passingMode: "by-value" },
-      { name: "match", type: csharpPredicateTargetTypeRef(elementType), passingMode: "by-value" },
-    ],
-    returnType: intType,
+    returnType,
   };
 }
 
@@ -3144,14 +3127,6 @@ function csharpDelegateTargetTypeRef(
     kind: "target-named",
     id: `System.Func\`${parameterTypes.length + 1}`,
     typeArguments: [...parameterTypes, returnType],
-  };
-}
-
-function csharpPredicateTargetTypeRef(elementType: TargetTypeRef): TargetTypeRef {
-  return {
-    kind: "target-named",
-    id: "System.Predicate`1",
-    typeArguments: [elementType],
   };
 }
 
