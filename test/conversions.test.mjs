@@ -57,6 +57,27 @@ test("planner diagnoses unsupported target conversion operations instead of gues
   assert.match(diagnostics[0].message, /Target conversion operation 'operator' is not renderable/);
 });
 
+test("planner rejects instance conversion methods without a provider rendering contract", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      convertedType: { kind: "target-named", id: "System.Byte" },
+      operation: {
+        operationId: "Example.Value.ToByte",
+        operationKind: "method",
+        targetOperation: "Example.Value.ToByte",
+        static: false,
+      },
+    },
+  }), diagnostics);
+
+  assert.equal(expression.kind, "invalid");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Instance target conversion methods require an explicit provider rendering contract/);
+});
+
 function trueKeyword() {
   return {
     Kind: KindTrueKeyword,

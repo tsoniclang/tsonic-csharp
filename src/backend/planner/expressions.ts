@@ -355,11 +355,13 @@ function targetConversionStaticMethodCallee(
   diagnostics: TargetDiagnostic[],
   node: Node,
 ): CsharpExpression | undefined {
+  if (operation.static === false) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Instance target conversion methods require an explicit provider rendering contract before C# emission."));
+    return undefined;
+  }
   const qualified = splitQualifiedTargetOperation(operation.targetOperation);
   const declaringTypeRef = operation.declaringType ?? (qualified === undefined ? undefined : { kind: "target-named" as const, id: qualified.declaringTypeId });
-  const methodName = operation.declaringType === undefined
-    ? qualified?.memberName
-    : operation.targetOperation;
+  const methodName = qualified?.memberName ?? operation.targetOperation;
   const declaringType = declaringTypeRef === undefined ? undefined : csharpTypeFromTargetTypeRef(declaringTypeRef);
   if (declaringType === undefined || methodName === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Target conversion method requires a declaring target type and method name before C# emission."));
