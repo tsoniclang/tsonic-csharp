@@ -740,6 +740,7 @@ function arrayInstanceTargetMembers(
   receiverType: TargetTypeRef,
   elementType: TargetTypeRef,
 ): readonly TargetMember[] {
+  const intType = sourcePrimitiveInt32Ref();
   switch (sourceName) {
     case "includes":
       return [{
@@ -757,23 +758,52 @@ function arrayInstanceTargetMembers(
         returnType: csharpNamed("System.Boolean"),
       }];
     case "indexOf":
-      return [{
-        id: "System.Array.IndexOf(T[],T)",
-        sourceName,
-        targetName: "IndexOf",
-        kind: "method",
-        static: true,
-        declaringType: csharpNamed("System.Array"),
-        receiverArgumentIndex: 0,
-        parameters: [
-          { name: "array", type: receiverType, passingMode: "by-value" },
-          { name: "value", type: elementType, passingMode: "by-value" },
-        ],
-        returnType: sourcePrimitiveInt32Ref(),
-      }];
+      return arraySearchTargetMembers(sourceName, "IndexOf", receiverType, elementType, intType);
+    case "lastIndexOf":
+      return arraySearchTargetMembers(sourceName, "LastIndexOf", receiverType, elementType, intType);
     default:
       return [];
   }
+}
+
+function arraySearchTargetMembers(
+  sourceName: string,
+  targetName: string,
+  receiverType: TargetTypeRef,
+  elementType: TargetTypeRef,
+  intType: TargetTypeRef,
+): readonly TargetMember[] {
+  return [
+    {
+      id: `System.Array.${targetName}(T[],T)`,
+      sourceName,
+      targetName,
+      kind: "method",
+      static: true,
+      declaringType: csharpNamed("System.Array"),
+      receiverArgumentIndex: 0,
+      parameters: [
+        { name: "array", type: receiverType, passingMode: "by-value" },
+        { name: "value", type: elementType, passingMode: "by-value" },
+      ],
+      returnType: intType,
+    },
+    {
+      id: `System.Array.${targetName}(T[],T,System.Int32)`,
+      sourceName,
+      targetName,
+      kind: "method",
+      static: true,
+      declaringType: csharpNamed("System.Array"),
+      receiverArgumentIndex: 0,
+      parameters: [
+        { name: "array", type: receiverType, passingMode: "by-value" },
+        { name: "value", type: elementType, passingMode: "by-value" },
+        { name: "startIndex", type: intType, passingMode: "by-value" },
+      ],
+      returnType: intType,
+    },
+  ];
 }
 
 function resolveProviderTargetConstructorCall(
