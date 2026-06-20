@@ -2,6 +2,7 @@ import {
   AsArrayTypeNode,
   AsFunctionTypeNode,
   AsInterfaceDeclaration,
+  AsLiteralTypeNode,
   AsMethodSignatureDeclaration,
   AsNumericLiteral,
   AsParameterDeclaration,
@@ -10,6 +11,7 @@ import {
   AsTupleTypeNode,
   AsTypeParameterDeclaration,
   AsTypeReferenceNode,
+  AsUnionTypeNode,
   GetSourceFileOfNode,
   KindAnyKeyword,
   KindArrayType,
@@ -24,10 +26,12 @@ import {
   KindGetAccessor,
   KindIdentifier,
   KindInterfaceDeclaration,
+  KindLiteralType,
   KindMethodSignature,
   KindNeverKeyword,
   KindNewExpression,
   KindNoSubstitutionTemplateLiteral,
+  KindNullKeyword,
   KindNumberKeyword,
   KindNumericLiteral,
   KindParameter,
@@ -42,6 +46,8 @@ import {
   KindTypeParameter,
   KindTypeReference,
   KindUnknownKeyword,
+  KindUnionType,
+  KindUndefinedKeyword,
   KindVariableDeclaration,
   KindVoidKeyword,
   Node_Members,
@@ -1805,9 +1811,35 @@ function resolveCsharpRuntimeCarrierForTypeNode(
     }
     case KindFunctionType:
       return resolveCsharpFunctionTypeCarrier(node, context);
+    case KindUnionType:
+      return resolveNullableUnionCarrierForTypeNode(node, context);
     default:
       return undefined;
   }
+}
+
+function resolveNullableUnionCarrierForTypeNode(
+  node: Node,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  const union = AsUnionTypeNode(node);
+  const members = (union?.Types?.Nodes ?? []).filter((member): member is Node => member !== undefined);
+  const nonNullishMembers = members.filter((member) => !isNullishTypeNode(member));
+  if (nonNullishMembers.length !== 1 || nonNullishMembers.length === members.length) {
+    return undefined;
+  }
+  const inner = context.factResolver.resolve(nonNullishMembers[0]!, runtimeCarrierFactKey)?.carrier;
+  return inner === undefined ? undefined : nullableTargetType(inner);
+}
+
+function isNullishTypeNode(node: Node): boolean {
+  if (node.Kind === KindUndefinedKeyword) {
+    return true;
+  }
+  if (node.Kind !== KindLiteralType) {
+    return false;
+  }
+  return AsLiteralTypeNode(node)?.Literal?.Kind === KindNullKeyword;
 }
 
 function resolveCsharpFunctionTypeCarrier(
