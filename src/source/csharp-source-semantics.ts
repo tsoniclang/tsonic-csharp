@@ -812,6 +812,10 @@ function arrayInstanceTargetMembers(
         ],
         returnType: csharpNamed("System.Void"),
       }];
+    case "some":
+      return [arrayPredicateTargetMember(sourceName, "Any", receiverType, elementType)];
+    case "every":
+      return [arrayPredicateTargetMember(sourceName, "All", receiverType, elementType)];
     case "indexOf":
       return arraySearchTargetMembers(sourceName, "IndexOf", receiverType, elementType, intType);
     case "lastIndexOf":
@@ -819,6 +823,28 @@ function arrayInstanceTargetMembers(
     default:
       return [];
   }
+}
+
+function arrayPredicateTargetMember(
+  sourceName: string,
+  targetName: string,
+  receiverType: TargetTypeRef,
+  elementType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: `System.Linq.Enumerable.${targetName}(T[],Func<T,bool>)`,
+    sourceName,
+    targetName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("System.Linq.Enumerable"),
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "source", type: receiverType, passingMode: "by-value" },
+      { name: "predicate", type: csharpDelegateTargetTypeRef([elementType], csharpNamed("System.Boolean")), passingMode: "by-value" },
+    ],
+    returnType: csharpNamed("System.Boolean"),
+  };
 }
 
 function arraySearchTargetMembers(
