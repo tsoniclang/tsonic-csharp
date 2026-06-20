@@ -247,7 +247,7 @@ export function printCsharpType(type: CsharpTypeNode): string {
       return `${printCsharpType(type.left)}.${suffix}`;
     }
     case "array":
-      return `${printCsharpType(type.elementType)}[]`;
+      return `${printCsharpType(type.elementType)}${printArrayRankSuffix(type.rank)}`;
     case "tuple":
       return `(${type.elements.map(printCsharpType).join(", ")})`;
     case "function":
@@ -259,6 +259,13 @@ export function printCsharpType(type: CsharpTypeNode): string {
     case "nullable":
       return `${printCsharpType(type.inner)}?`;
   }
+}
+
+function printArrayRankSuffix(rank: number | undefined): string {
+  if (rank === undefined || rank <= 1) {
+    return "[]";
+  }
+  return `[${",".repeat(rank - 1)}]`;
 }
 
 export function printCsharpStatement(statement: CsharpStatement): string {
