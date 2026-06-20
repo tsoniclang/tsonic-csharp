@@ -42,7 +42,10 @@ export function objectShapeStorageMemberName(objectShape: ObjectShapeFact, membe
     return member.targetName;
   }
   const memberIndex = objectShape.members.indexOf(member);
-  const baseName = `__tsonic_shape_method_${memberIndex < 0 ? "x" : memberIndex}_${member.targetName}`;
+  if (memberIndex < 0) {
+    throw new Error("Object-shape storage member must belong to its object-shape fact.");
+  }
+  const baseName = `__tsonic_shape_method_${memberIndex}_${member.targetName}`;
   const reservedNames = new Set(objectShape.members.map((candidate) => candidate.targetName));
   let candidate = baseName;
   while (reservedNames.has(candidate)) {

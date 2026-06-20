@@ -298,8 +298,30 @@ function planIdentifierExpression(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   const sourceName = AsIdentifier(identifier)!.Text;
-  return planProjectSourceModuleMemberReference(identifier, sourceFile, input, diagnostics) ??
-    { kind: "identifier", name: sanitizeIdentifier(sourceName) };
+  const targetBinding = input.semantics.getTargetBindingForReference(identifier, { sourceFile });
+  if (targetBinding !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
+    return invalidExpression("provider-owned identifier expression");
+  }
+  const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
+  if (isExternalDeclarationReference(sourceReference, sourceFile)) {
+    diagnostics.push(unsupportedNodeDiagnostic(identifier, `Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
+    return invalidExpression("declaration identifier expression");
+  }
+  const sourceModuleMemberReference = planProjectSourceModuleMemberReference(identifier, sourceFile, input, diagnostics);
+  if (sourceModuleMemberReference !== undefined) {
+    return sourceModuleMemberReference;
+  }
+  return { kind: "identifier", name: sanitizeIdentifier(sourceName) };
+}
+
+function isExternalDeclarationReference(
+  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  sourceFile: SourceFile,
+): boolean {
+  return reference !== undefined &&
+    reference.sourceFile !== sourceFile &&
+    (reference.sourceFile.IsDeclarationFile || SourceFile_FileName(reference.sourceFile).startsWith("tsts-provider://"));
 }
 
 function isModuleStaticValueDeclaration(declaration: Node): boolean {
