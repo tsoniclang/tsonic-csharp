@@ -789,24 +789,30 @@ function stringInstanceTargetMembers(sourceName: string): readonly TargetMember[
   const noArgs: readonly TargetMember["parameters"][number][] = [];
   switch (sourceName) {
     case "includes":
-      return [stringInstanceTargetMethod(sourceName, "Contains", [{ name: "value", type: stringType, passingMode: "by-value" }], boolType)];
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "position", type: intType, passingMode: "by-value", optional: true },
+      ], boolType)];
     case "indexOf":
-      return [
-        stringInstanceTargetMethod(sourceName, "IndexOf", [{ name: "value", type: stringType, passingMode: "by-value" }], intType),
-        stringInstanceTargetMethod(sourceName, "IndexOf", [
-          { name: "value", type: stringType, passingMode: "by-value" },
-          { name: "startIndex", type: intType, passingMode: "by-value" },
-        ], intType),
-      ];
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "position", type: intType, passingMode: "by-value", optional: true },
+      ], intType)];
     case "lastIndexOf":
       return [jsStringStaticTargetMethod(sourceName, [
         { name: "searchString", type: stringType, passingMode: "by-value" },
         { name: "position", type: intType, passingMode: "by-value", optional: true },
       ], intType)];
     case "startsWith":
-      return [stringInstanceTargetMethod(sourceName, "StartsWith", [{ name: "value", type: stringType, passingMode: "by-value" }], boolType)];
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "position", type: intType, passingMode: "by-value", optional: true },
+      ], boolType)];
     case "endsWith":
-      return [stringInstanceTargetMethod(sourceName, "EndsWith", [{ name: "value", type: stringType, passingMode: "by-value" }], boolType)];
+      return [jsStringStaticTargetMethod(sourceName, [
+        { name: "searchString", type: stringType, passingMode: "by-value" },
+        { name: "endPosition", type: intType, passingMode: "by-value", optional: true },
+      ], boolType)];
     case "toLowerCase":
       return [stringInstanceTargetMethod(sourceName, "ToLower", noArgs, stringType)];
     case "toUpperCase":
