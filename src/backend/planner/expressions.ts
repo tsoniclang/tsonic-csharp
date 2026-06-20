@@ -71,7 +71,7 @@ import {
   HasSyntacticModifier,
   ModifierFlagsAsync,
 } from "@tsonic/tsts";
-import type { ArgumentPassingFact, Node, ObjectShapeFact, SourceFile, TargetMember } from "@tsonic/tsts";
+import type { ArgumentPassingFact, Node, ObjectShapeFact, SourceFile, TargetMember, TargetOperationFact } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { expressionToCsharpType, getCsharpTypeForNode } from "./csharp-types.js";
@@ -92,7 +92,19 @@ import { planBlockStatements } from "./statements.js";
 import { sourceFileClassName } from "./source-paths.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
+type TargetConversion = NonNullable<ReturnType<TargetCompileInput["facts"]["getTargetConversionFact"]>>;
+
 export function planExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const expression = planExpressionCore(node, sourceFile, input, diagnostics);
+  return applyTargetConversionFact(node, input, diagnostics, expression);
+}
+
+function planExpressionCore(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
@@ -285,6 +297,112 @@ export function planExpression(
       return invalidExpression("unsupported expression");
     }
   }
+}
+
+function applyTargetConversionFact(
+  node: Node,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  expression: CsharpExpression,
+): CsharpExpression {
+  const conversion = input.facts.getTargetConversionFact(node);
+  if (conversion === undefined || conversion.operation === undefined) {
+    return expression;
+  }
+  return planTargetConversionOperation(node, conversion, expression, diagnostics);
+}
+
+function planTargetConversionOperation(
+  node: Node,
+  conversion: TargetConversion,
+  expression: CsharpExpression,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const operation = conversion.operation;
+  if (operation === undefined) {
+    return expression;
+  }
+  switch (operation.operationKind) {
+    case "method":
+      return planTargetConversionMethodCall(node, operation, expression, diagnostics);
+    case "constructor":
+      return planTargetConversionConstructor(node, conversion, expression, diagnostics);
+    default:
+      diagnostics.push(unsupportedNodeDiagnostic(node, `Target conversion operation '${operation.operationKind}' is not renderable by the C# backend.`));
+      return invalidExpression("unsupported target conversion operation");
+  }
+}
+
+function planTargetConversionMethodCall(
+  node: Node,
+  operation: TargetOperationFact,
+  expression: CsharpExpression,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const callee = targetConversionStaticMethodCallee(operation, diagnostics, node);
+  if (callee === undefined) {
+    return invalidExpression("target conversion method");
+  }
+  return {
+    kind: "call",
+    callee,
+    arguments: [{ expression }],
+  };
+}
+
+function targetConversionStaticMethodCallee(
+  operation: TargetOperationFact,
+  diagnostics: TargetDiagnostic[],
+  node: Node,
+): CsharpExpression | undefined {
+  const qualified = splitQualifiedTargetOperation(operation.targetOperation);
+  const declaringTypeRef = operation.declaringType ?? (qualified === undefined ? undefined : { kind: "target-named" as const, id: qualified.declaringTypeId });
+  const methodName = operation.declaringType === undefined
+    ? qualified?.memberName
+    : operation.targetOperation;
+  const declaringType = declaringTypeRef === undefined ? undefined : csharpTypeFromTargetTypeRef(declaringTypeRef);
+  if (declaringType === undefined || methodName === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Target conversion method requires a declaring target type and method name before C# emission."));
+    return undefined;
+  }
+  return {
+    kind: "member",
+    receiver: {
+      kind: "type",
+      type: declaringType,
+    },
+    name: methodName,
+  };
+}
+
+function splitQualifiedTargetOperation(targetOperation: string): { readonly declaringTypeId: string; readonly memberName: string } | undefined {
+  const separator = targetOperation.lastIndexOf(".");
+  if (separator <= 0 || separator === targetOperation.length - 1) {
+    return undefined;
+  }
+  return {
+    declaringTypeId: targetOperation.slice(0, separator),
+    memberName: targetOperation.slice(separator + 1),
+  };
+}
+
+function planTargetConversionConstructor(
+  node: Node,
+  conversion: TargetConversion,
+  expression: CsharpExpression,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const targetTypeRef = conversion.operation?.targetType ?? conversion.convertedType;
+  const targetType = targetTypeRef === undefined ? undefined : csharpTypeFromTargetTypeRef(targetTypeRef);
+  if (targetType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Target conversion constructor requires a renderable target type before C# emission."));
+    return invalidExpression("target conversion constructor");
+  }
+  return {
+    kind: "new",
+    type: targetType,
+    arguments: [{ expression }],
+  };
 }
 
 function invalidExpression(reason: string): CsharpExpression {
