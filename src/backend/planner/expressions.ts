@@ -76,7 +76,7 @@ import {
   HasSyntacticModifier,
   ModifierFlagsAsync,
 } from "@tsonic/tsts";
-import type { ArgumentPassingFact, Node, ObjectShapeFact, SourceFile, TargetMember, TargetOperationFact, TargetTypeRef } from "@tsonic/tsts";
+import type { ArgumentPassingFact, Node, ObjectShapeFact, SourceFile, TargetMember, TargetOperationFact } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { expressionToCsharpType, getCsharpTypeForNode, sameCsharpType } from "./csharp-types.js";
@@ -96,7 +96,7 @@ import {
 import type { OperationSemanticOwnership } from "./semantic-guards.js";
 import { planBlockStatements } from "./statements.js";
 import { sourceFileClassName } from "./source-paths.js";
-import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
 
 type TargetConversion = NonNullable<ReturnType<TargetCompileInput["facts"]["getTargetConversionFact"]>>;
 
@@ -1261,62 +1261,6 @@ function mergeObjectInitializerAssignments(assignments: readonly CsharpObjectIni
 
 function objectShapeMemberTypesMatch(left: ObjectShapeFact["members"][number], right: ObjectShapeFact["members"][number]): boolean {
   return targetTypeRefsMatch(left.type, right.type);
-}
-
-function targetTypeRefsMatch(left: TargetTypeRef, right: TargetTypeRef): boolean {
-  if (left.kind !== right.kind) {
-    return false;
-  }
-  switch (left.kind) {
-    case "source-primitive":
-      return right.kind === "source-primitive" && left.name === right.name;
-    case "target-named":
-      return right.kind === "target-named" &&
-        left.id === right.id &&
-        targetTypeRefListsMatch(left.typeArguments ?? [], right.typeArguments ?? []);
-    case "type-parameter":
-      return right.kind === "type-parameter" && left.name === right.name;
-    case "nullable":
-      return right.kind === "nullable" && targetTypeRefsMatch(left.inner, right.inner);
-    case "array":
-      return right.kind === "array" &&
-        (left.rank ?? 1) === (right.rank ?? 1) &&
-        targetTypeRefsMatch(left.element, right.element);
-    case "tuple":
-      return right.kind === "tuple" && targetTypeRefListsMatch(left.elements, right.elements);
-    case "pointer":
-      return right.kind === "pointer" &&
-        left.mutability === right.mutability &&
-        targetTypeRefsMatch(left.pointee, right.pointee);
-    case "function-pointer":
-      return right.kind === "function-pointer" &&
-        targetTypeRefListsMatch(left.args, right.args) &&
-        targetTypeRefsMatch(left.result, right.result) &&
-        stringListsMatch(left.abi ?? [], right.abi ?? []);
-    case "opaque":
-      return right.kind === "opaque" && left.id === right.id;
-    case "associated-type":
-      return right.kind === "associated-type" &&
-        left.name === right.name &&
-        targetTypeRefsMatch(left.owner, right.owner);
-    case "lifetime":
-      return right.kind === "lifetime" && left.name === right.name;
-    case "target-specific":
-      return right.kind === "target-specific" &&
-        left.target === right.target &&
-        left.name === right.name &&
-        Object.is(left.value, right.value);
-  }
-}
-
-function targetTypeRefListsMatch(left: readonly TargetTypeRef[], right: readonly TargetTypeRef[]): boolean {
-  return left.length === right.length &&
-    left.every((item, index) => targetTypeRefsMatch(item, right[index]!));
-}
-
-function stringListsMatch(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length &&
-    left.every((item, index) => item === right[index]);
 }
 
 function planSourceOwnedMethodMemberAssignment(

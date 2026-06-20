@@ -12,16 +12,16 @@ import {
 } from "@tsonic/tsts";
 import type { Node, ObjectShapeFact, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../ast/csharp-ast.js";
+import type { CsharpExpression, CsharpObjectInitializerAssignment, CsharpStatement, CsharpTypeNode } from "../ast/csharp-ast.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { systemLinqEnumerableCall } from "./linq.js";
-import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
+import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { getSemanticOwnership, isSourceOwnedProjectShapeSubject, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
-import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
 
 export interface DestructuringPlannerState {
   nextTempIndex: number;
@@ -370,8 +370,7 @@ function planObjectShapeBindingElement(
     return [];
   }
   if (element.DotDotDotToken !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires finalized provider object-spread semantics before C# emission."));
-    return [];
+    return planObjectShapeRestBindingElement(elementNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state);
   }
   if (element.Initializer !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Destructuring defaults require finalized undefined/default-value semantics before C# emission."));
@@ -401,6 +400,59 @@ function planObjectShapeBindingElement(
     name: member.targetName,
   };
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
+}
+
+function planObjectShapeRestBindingElement(
+  elementNode: Node,
+  sourceExpression: CsharpExpression,
+  sourceShape: ObjectShapeFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): readonly CsharpStatement[] {
+  const element = AsBindingElement(elementNode);
+  const name = element?.name;
+  if (name === undefined || name.Kind !== KindIdentifier) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires an identifier binding name."));
+    return [];
+  }
+  const restShape = getObjectShapeForBindingSource(name, sourceFile, input);
+  if (restShape === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires finalized provider object-shape facts for the rest binding."));
+    return [];
+  }
+  const restType = csharpTypeFromObjectShapeFact(input, restShape, diagnostics, elementNode);
+  if (restType === undefined) {
+    return [];
+  }
+  const assignments = restShape.members.map((restMember): CsharpObjectInitializerAssignment | undefined => {
+    const sourceMember = sourceShape.members.find((member) => member.sourceName === restMember.sourceName);
+    if (sourceMember === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring source shape does not provide rest member '${restMember.sourceName}'.`));
+      return undefined;
+    }
+    if (!targetTypeRefsMatch(sourceMember.type, restMember.type)) {
+      diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring member '${restMember.sourceName}' requires matching finalized source and rest member carriers.`));
+      return undefined;
+    }
+    return {
+      name: objectShapeStorageMemberName(restShape, restMember),
+      expression: {
+        kind: "member",
+        receiver: sourceExpression,
+        name: objectShapeStorageMemberName(sourceShape, sourceMember),
+      } satisfies CsharpExpression,
+    };
+  });
+  if (assignments.some((assignment) => assignment === undefined)) {
+    return [];
+  }
+  return planBindingNameFromProjection(name, {
+    kind: "objectInitializer",
+    type: restType,
+    assignments: assignments as readonly CsharpObjectInitializerAssignment[],
+  }, restType, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planObjectBindingElement(
@@ -504,6 +556,13 @@ function getCsharpTypeForExpressionCarrier(
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
   if (type !== undefined) {
     return type;
+  }
+  const objectShape = getObjectShapeForBindingSource(expression, sourceFile, input);
+  if (objectShape !== undefined) {
+    const objectShapeType = csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, diagnosticNode);
+    if (objectShapeType !== undefined) {
+      return objectShapeType;
+    }
   }
   diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires a finalized runtime carrier fact before C# emission.`));
   return invalidCsharpType("missing destructuring source carrier");
