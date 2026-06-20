@@ -1239,11 +1239,24 @@ function getSourceOwnedObjectInitializerMemberName(
   diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const nameNode = Node_Name(property);
-  if (nameNode === undefined || nameNode.Kind !== KindIdentifier) {
-    diagnostics.push(unsupportedNodeDiagnostic(nameNode ?? property, "Source-owned object initializers support identifier property names; other names require finalized provider object-shape facts."));
+  if (nameNode === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(property, "Source-owned object initializers require a property name."));
     return undefined;
   }
-  return sanitizeIdentifier(Node_Text(nameNode));
+  if (nameNode.Kind === KindIdentifier) {
+    return sanitizeIdentifier(Node_Text(nameNode));
+  }
+  if (nameNode.Kind === KindStringLiteral) {
+    const text = AsStringLiteral(nameNode)?.Text;
+    if (text !== undefined) {
+      const sanitized = sanitizeIdentifier(text);
+      if (sanitized === text || sanitized === `@${text}`) {
+        return sanitized;
+      }
+    }
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(nameNode, "Source-owned object initializers support identifier-compatible property names; other names require finalized provider object-shape facts."));
+  return undefined;
 }
 
 function getObjectLiteralPropertySourceName(
