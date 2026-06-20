@@ -19,6 +19,7 @@ import {
   AsVariableDeclaration,
   AsVariableDeclarationList,
   AsVariableStatement,
+  AsVoidExpression,
   AsWhileStatement,
   KindArrayBindingPattern,
   KindArrayLiteralExpression,
@@ -43,6 +44,7 @@ import {
   KindTryStatement,
   KindVariableDeclarationList,
   KindVariableStatement,
+  KindVoidExpression,
   KindWhileStatement,
   Node_Text,
 } from "@tsonic/tsts";
@@ -109,6 +111,17 @@ export function planStatements(
       }];
     case KindReturnStatement: {
       const statement = AsReturnStatement(node)!;
+      if (
+        statement.Expression?.Kind === KindVoidExpression &&
+        state.currentReturnType !== undefined &&
+        isVoidCsharpType(state.currentReturnType)
+      ) {
+        const voidExpression = AsVoidExpression(statement.Expression)!;
+        return [
+          expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics))),
+          { kind: "return" },
+        ];
+      }
       return [{
         kind: "return",
         ...(statement.Expression !== undefined
@@ -189,6 +202,10 @@ export function planStatements(
     case KindExpressionStatement:
       if (isErasedAttributeExpressionStatement(node, input)) {
         return [];
+      }
+      if (AsExpressionStatement(node)!.Expression?.Kind === KindVoidExpression) {
+        const voidExpression = AsVoidExpression(AsExpressionStatement(node)!.Expression!)!;
+        return [expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics)))];
       }
       return [expressionStatement(planDiscardedExpression(planExpression(AsExpressionStatement(node)!.Expression!, sourceFile, input, diagnostics)))];
     case KindIfStatement: {
@@ -1347,6 +1364,10 @@ function expressionStatement(expression: CsharpExpression): CsharpStatement {
 
 function isCsharpExceptionCarrier(carrier: TargetTypeRef | undefined): boolean {
   return carrier?.kind === "target-named" && carrier.id === "System.Exception";
+}
+
+function isVoidCsharpType(type: CsharpTypeNode): boolean {
+  return type.kind === "predefined" && type.name === "void";
 }
 
 function planDiscardedExpression(expression: CsharpExpression): CsharpExpression {
