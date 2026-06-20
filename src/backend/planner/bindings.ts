@@ -17,6 +17,7 @@ import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
+import { systemLinqEnumerableCall } from "./linq.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { getSemanticOwnership, isSourceOwnedProjectShapeSubject, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
@@ -197,7 +198,7 @@ function planArrayBindingPattern(
       return [];
     }
     const elementCarrier = sourceCarrier.kind === "array" ? sourceCarrier.element : sourceCarrier.elements[index];
-    return planArrayBindingElement(elementNode, sourceExpression, index, elementCarrier, sourceCarrier.kind === "array", sourceFile, input, diagnostics, state);
+    return planArrayBindingElement(elementNode, sourceExpression, index, elementCarrier, sourceCarrier, sourceFile, input, diagnostics, state);
   });
 }
 
@@ -206,7 +207,7 @@ function planArrayBindingElement(
   sourceExpression: CsharpExpression,
   index: number,
   elementCarrier: TargetTypeRef | undefined,
-  sourceMayBeShort: boolean,
+  sourceCarrier: Extract<TargetTypeRef, { readonly kind: "array" | "tuple" }>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -218,8 +219,7 @@ function planArrayBindingElement(
     return [];
   }
   if (element.DotDotDotToken !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires finalized provider slice/copy semantics before C# emission."));
-    return [];
+    return planArrayRestBindingElement(elementNode, element.name, sourceExpression, index, sourceCarrier, sourceFile, input, diagnostics, state);
   }
   const name = element.name;
   if (name === undefined) {
@@ -235,7 +235,7 @@ function planArrayBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array destructuring element requires a renderable provider element carrier type before C# emission."));
     return [];
   }
-  if (element.Initializer !== undefined && !sourceMayBeShort) {
+  if (element.Initializer !== undefined && sourceCarrier.kind !== "array") {
     diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Tuple destructuring defaults require finalized optional-element facts before C# emission."));
     return [];
   }
@@ -243,6 +243,39 @@ function planArrayBindingElement(
     ? projected
     : planArrayElementDefaultProjection(projected, sourceExpression, index, element.Initializer, projectedType, sourceFile, input, diagnostics);
   return planBindingNameFromProjection(name, projectedWithDefault, projectedType, elementNode, sourceFile, input, diagnostics, state);
+}
+
+function planArrayRestBindingElement(
+  elementNode: Node,
+  name: Node | undefined,
+  sourceExpression: CsharpExpression,
+  index: number,
+  sourceCarrier: Extract<TargetTypeRef, { readonly kind: "array" | "tuple" }>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): readonly CsharpStatement[] {
+  if (sourceCarrier.kind !== "array") {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Tuple rest destructuring requires finalized tuple slice facts before C# emission."));
+    return [];
+  }
+  if (name === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a target binding name."));
+    return [];
+  }
+  const projectedType = csharpTypeFromTargetTypeRef(sourceCarrier);
+  if (projectedType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a renderable provider array carrier type before C# emission."));
+    return [];
+  }
+  const projected = systemLinqEnumerableCall("ToArray", [{
+    expression: systemLinqEnumerableCall("Skip", [
+      { expression: sourceExpression },
+      { expression: { kind: "literal", value: index } },
+    ]),
+  }]);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
 }
 
 function planArrayElementDefaultProjection(

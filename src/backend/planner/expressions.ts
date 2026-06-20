@@ -84,6 +84,7 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
+import { systemLinqEnumerableCall } from "./linq.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import {
   getCallableSemanticOwnership,
@@ -1598,29 +1599,6 @@ function createArraySpreadChunks(
   }
   flushPending();
   return chunks;
-}
-
-function systemLinqEnumerableCall(name: string, args: readonly CsharpArgument[]): CsharpExpression {
-  return {
-    kind: "call",
-    callee: {
-      kind: "member",
-      receiver: {
-        kind: "type",
-        type: {
-          kind: "qualified",
-          left: {
-            kind: "qualified",
-            left: { kind: "named", name: "System" },
-            name: "Linq",
-          },
-          name: "Enumerable",
-        },
-      },
-      name,
-    },
-    arguments: args,
-  };
 }
 
 function planArrayLiteralExpressionFromFacts(
