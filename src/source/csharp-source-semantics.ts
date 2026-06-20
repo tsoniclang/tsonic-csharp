@@ -1005,9 +1005,34 @@ function arrayInstanceTargetMembers(
       return arraySearchTargetMembers(sourceName, "IndexOf", receiverType, elementType, intType);
     case "lastIndexOf":
       return arraySearchTargetMembers(sourceName, "LastIndexOf", receiverType, elementType, intType);
+    case "slice":
+      return [arraySliceTargetMember(sourceName, receiverType, elementType, intType)];
     default:
       return [];
   }
+}
+
+function arraySliceTargetMember(
+  sourceName: string,
+  receiverType: TargetTypeRef,
+  elementType: TargetTypeRef,
+  intType: TargetTypeRef,
+): TargetMember {
+  return {
+    id: "Tsonic.CSharp.Runtime.ArrayHelpers.Slice(T[],System.Int32,System.Int32?)",
+    sourceName,
+    targetName: "Slice",
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("Tsonic.CSharp.Runtime.ArrayHelpers"),
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "source", type: receiverType, passingMode: "by-value" },
+      { name: "startIndex", type: intType, passingMode: "by-value", optional: true },
+      { name: "endIndex", type: intType, passingMode: "by-value", optional: true },
+    ],
+    returnType: { kind: "array", element: elementType },
+  };
 }
 
 function arrayPredicateTargetMember(
