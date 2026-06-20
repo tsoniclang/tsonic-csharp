@@ -1051,20 +1051,7 @@ function arrayInstanceTargetMembers(
   const intType = sourcePrimitiveInt32Ref();
   switch (sourceName) {
     case "includes":
-      return [{
-        id: "System.Linq.Enumerable.Contains(T[],T)",
-        sourceName,
-        targetName: "Contains",
-        kind: "method",
-        static: true,
-        declaringType: csharpNamed("System.Linq.Enumerable"),
-        receiverArgumentIndex: 0,
-        parameters: [
-          { name: "source", type: receiverType, passingMode: "by-value" },
-          { name: "value", type: elementType, passingMode: "by-value" },
-        ],
-        returnType: csharpNamed("System.Boolean"),
-      }];
+      return [arraySearchHelperTargetMember(sourceName, "Includes", receiverType, elementType, csharpNamed("System.Boolean"), intType)];
     case "forEach":
       return [{
         id: "System.Array.ForEach(T[],Action<T>)",
@@ -1089,9 +1076,9 @@ function arrayInstanceTargetMembers(
     case "findLastIndex":
       return [arrayFindIndexTargetMember(sourceName, "FindLastIndex", receiverType, elementType, intType)];
     case "indexOf":
-      return arraySearchTargetMembers(sourceName, "IndexOf", receiverType, elementType, intType);
+      return [arraySearchHelperTargetMember(sourceName, "IndexOf", receiverType, elementType, intType, intType)];
     case "lastIndexOf":
-      return arraySearchTargetMembers(sourceName, "LastIndexOf", receiverType, elementType, intType);
+      return [arraySearchHelperTargetMember(sourceName, "LastIndexOf", receiverType, elementType, intType, intType)];
     case "slice":
       return [arraySliceTargetMember(sourceName, receiverType, elementType, intType)];
     default:
@@ -1167,44 +1154,29 @@ function arrayFindIndexTargetMember(
   };
 }
 
-function arraySearchTargetMembers(
+function arraySearchHelperTargetMember(
   sourceName: string,
   targetName: string,
   receiverType: TargetTypeRef,
   elementType: TargetTypeRef,
+  returnType: TargetTypeRef,
   intType: TargetTypeRef,
-): readonly TargetMember[] {
-  return [
-    {
-      id: `System.Array.${targetName}(T[],T)`,
-      sourceName,
-      targetName,
-      kind: "method",
-      static: true,
-      declaringType: csharpNamed("System.Array"),
-      receiverArgumentIndex: 0,
-      parameters: [
-        { name: "array", type: receiverType, passingMode: "by-value" },
-        { name: "value", type: elementType, passingMode: "by-value" },
-      ],
-      returnType: intType,
-    },
-    {
-      id: `System.Array.${targetName}(T[],T,System.Int32)`,
-      sourceName,
-      targetName,
-      kind: "method",
-      static: true,
-      declaringType: csharpNamed("System.Array"),
-      receiverArgumentIndex: 0,
-      parameters: [
-        { name: "array", type: receiverType, passingMode: "by-value" },
-        { name: "value", type: elementType, passingMode: "by-value" },
-        { name: "startIndex", type: intType, passingMode: "by-value" },
-      ],
-      returnType: intType,
-    },
-  ];
+): TargetMember {
+  return {
+    id: `Tsonic.CSharp.Runtime.ArrayHelpers.${targetName}(T[],T,System.Int32?)`,
+    sourceName,
+    targetName,
+    kind: "method",
+    static: true,
+    declaringType: csharpNamed("Tsonic.CSharp.Runtime.ArrayHelpers"),
+    receiverArgumentIndex: 0,
+    parameters: [
+      { name: "source", type: receiverType, passingMode: "by-value" },
+      { name: "value", type: elementType, passingMode: "by-value" },
+      { name: "fromIndex", type: intType, passingMode: "by-value", optional: true },
+    ],
+    returnType,
+  };
 }
 
 function resolveProviderTargetConstructorCall(
