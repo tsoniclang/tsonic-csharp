@@ -484,7 +484,12 @@ function resolveCsharpBuiltinMethodCall(
     return undefined;
   }
   const sourceName = Node_Text(name);
-  if (sourceName === "toString" && request.arguments.length === 0 && isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
+  if (
+    sourceName === "toString" &&
+    request.arguments.length === 0 &&
+    isTypeScriptStringLikeType(request.receiverType as Type | undefined) &&
+    isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], "toString", ["String"])
+  ) {
     const returnType = csharpNamed("System.String");
     return {
       selectedSignature: {
@@ -503,10 +508,43 @@ function resolveCsharpBuiltinMethodCall(
       } satisfies RuntimeCarrierFact,
     };
   }
-  if (sourceName === "join") {
+  if (
+    sourceName === "join" &&
+    isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], "join", ["Array", "ReadonlyArray"])
+  ) {
     return resolveArrayJoinMethodCall(sourceName, request, context);
   }
   return undefined;
+}
+
+function isStandardInterfaceMemberSymbol(
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  memberName: string,
+  interfaceNames: readonly string[],
+): boolean {
+  for (const subject of subjects) {
+    if (subject === undefined || !isSymbolSubject(subject) || subject.Name !== memberName) {
+      continue;
+    }
+    if ((subject.Declarations ?? []).some((declaration) =>
+      declaration !== undefined && isStandardInterfaceMemberDeclaration(declaration, interfaceNames))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isStandardInterfaceMemberDeclaration(declaration: Node, interfaceNames: readonly string[]): boolean {
+  const sourceFile = GetSourceFileOfNode(declaration);
+  if (sourceFile === undefined || !sourceFile.IsDeclarationFile || !SourceFile_FileName(sourceFile).endsWith("lib.es5.d.ts")) {
+    return false;
+  }
+  const parent = declaration.Parent;
+  if (parent === undefined || parent.Kind !== KindInterfaceDeclaration) {
+    return false;
+  }
+  const name = Node_Name(parent);
+  return name !== undefined && name.Kind === KindIdentifier && interfaceNames.includes(Node_Text(name));
 }
 
 function resolveArrayJoinMethodCall(
