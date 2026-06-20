@@ -263,7 +263,11 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (!isCsharpIntegralIndexArgument(request, context)) {
         return deferDecision;
       }
-      if (isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
+      const receiverType = request.receiverType !== undefined && isTypeSubject(request.receiverType)
+        ? request.receiverType
+        : undefined;
+      const effectiveReceiverType = getSingleNonNullishUnionType(receiverType) ?? receiverType;
+      if (isTypeScriptStringLikeType(effectiveReceiverType)) {
         const elementType = csharpNamed("System.String");
         return acceptDecision({
           operation: {
@@ -275,7 +279,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
           resultType: elementType,
         });
       }
-      const elementType = getTypeScriptArrayElementType(request.receiverType as Type | undefined);
+      const elementType = getTypeScriptArrayElementType(effectiveReceiverType);
       if (elementType === undefined) {
         return deferDecision;
       }
