@@ -532,6 +532,10 @@ function resolveCsharpBuiltinMethodCall(
   ) {
     return resolveArrayJoinMethodCall(sourceName, request, context);
   }
+  const arrayMethodCall = resolveArrayInstanceMethodCall(sourceName, request, context);
+  if (arrayMethodCall !== undefined) {
+    return arrayMethodCall;
+  }
   return resolveStringInstanceMethodCall(sourceName, request, context);
 }
 
@@ -660,18 +664,10 @@ function resolveArrayJoinMethodCall(
   if (separatorCarrier === undefined || !targetTypeRefMatches(separatorCarrier, separatorType)) {
     return undefined;
   }
-  const elementType = getTypeScriptArrayElementType(request.receiverType as Type | undefined);
-  if (elementType === undefined) {
+  const receiverType = resolveArrayReceiverCarrier(request, context);
+  if (receiverType === undefined) {
     return undefined;
   }
-  const elementCarrier = context.factResolver.resolve(elementType, runtimeCarrierFactKey)?.carrier;
-  if (elementCarrier === undefined) {
-    return undefined;
-  }
-  const receiverType = {
-    kind: "array",
-    element: elementCarrier,
-  } satisfies TargetTypeRef;
   const returnType = csharpNamed("System.String");
   return {
     selectedSignature: {
@@ -694,6 +690,90 @@ function resolveArrayJoinMethodCall(
       carrier: returnType,
     } satisfies RuntimeCarrierFact,
   };
+}
+
+function resolveArrayInstanceMethodCall(
+  sourceName: string,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (!isStandardInterfaceMemberSymbol([request.calleeSymbol, request.resolvedCalleeSymbol], sourceName, ["Array", "ReadonlyArray"])) {
+    return undefined;
+  }
+  const receiverType = resolveArrayReceiverCarrier(request, context);
+  if (receiverType === undefined) {
+    return undefined;
+  }
+  const members = arrayInstanceTargetMembers(sourceName, receiverType, receiverType.element)
+    .filter((member) => targetMemberAcceptsCall(member, request, context));
+  if (members.length !== 1) {
+    return undefined;
+  }
+  const member = members[0]!;
+  return {
+    selectedSignature: { member },
+    ...(member.returnType === undefined
+      ? {}
+      : {
+        returnType: {
+          carrier: member.returnType,
+        } satisfies RuntimeCarrierFact,
+      }),
+  };
+}
+
+function resolveArrayReceiverCarrier(
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): Extract<TargetTypeRef, { readonly kind: "array" }> | undefined {
+  const receiverCarrier = resolveFirstRuntimeCarrier([
+    request.receiver,
+    request.receiverSymbol,
+    request.resolvedReceiverSymbol,
+    request.receiverType,
+  ], context);
+  return receiverCarrier?.kind === "array" ? receiverCarrier : undefined;
+}
+
+function arrayInstanceTargetMembers(
+  sourceName: string,
+  receiverType: TargetTypeRef,
+  elementType: TargetTypeRef,
+): readonly TargetMember[] {
+  switch (sourceName) {
+    case "includes":
+      return [{
+        id: "System.Linq.Enumerable.Contains(T[],T)",
+        sourceName,
+        targetName: "Contains",
+        kind: "method",
+        static: true,
+        declaringType: csharpNamed("System.Linq.Enumerable"),
+        receiverArgumentIndex: 0,
+        parameters: [
+          { name: "source", type: receiverType, passingMode: "by-value" },
+          { name: "value", type: elementType, passingMode: "by-value" },
+        ],
+        returnType: csharpNamed("System.Boolean"),
+      }];
+    case "indexOf":
+      return [{
+        id: "System.Array.IndexOf(T[],T)",
+        sourceName,
+        targetName: "IndexOf",
+        kind: "method",
+        static: true,
+        declaringType: csharpNamed("System.Array"),
+        receiverArgumentIndex: 0,
+        parameters: [
+          { name: "array", type: receiverType, passingMode: "by-value" },
+          { name: "value", type: elementType, passingMode: "by-value" },
+        ],
+        returnType: sourcePrimitiveInt32Ref(),
+      }];
+    default:
+      return [];
+  }
 }
 
 function resolveProviderTargetConstructorCall(
