@@ -9,6 +9,7 @@ import {
   AsElementAccessExpression,
   AsFunctionExpression,
   AsIdentifier,
+  AsMethodDeclaration,
   AsNewExpression,
   AsNonNullExpression,
   AsNoSubstitutionTemplateLiteral,
@@ -40,6 +41,7 @@ import {
   KindFunctionDeclaration,
   KindFunctionExpression,
   KindIdentifier,
+  KindMethodDeclaration,
   KindNewExpression,
   KindNoSubstitutionTemplateLiteral,
   KindNonNullExpression,
@@ -837,6 +839,8 @@ function planObjectShapeLiteralAssignment(
         expression: planExpressionWithExpectedType(nameNode, sourceFile, input, diagnostics, memberType),
       };
     }
+    case KindMethodDeclaration:
+      return planObjectShapeMethodMemberAssignment(property, objectShape, sourceFile, input, diagnostics);
     case KindSpreadAssignment:
       diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal spread requires finalized provider object-spread semantics before C# emission."));
       return undefined;
@@ -844,6 +848,65 @@ function planObjectShapeLiteralAssignment(
       diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal member is outside the current C# planning surface."));
       return undefined;
   }
+}
+
+function planObjectShapeMethodMemberAssignment(
+  methodNode: Node,
+  objectShape: ObjectShapeFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): { readonly name: string; readonly expression: CsharpExpression } | undefined {
+  const sourceName = getObjectLiteralPropertySourceName(methodNode, diagnostics);
+  const member = sourceName === undefined ? undefined : findObjectShapeMember(objectShape, sourceName);
+  if (member === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
+    return undefined;
+  }
+  const memberType = csharpTypeFromTargetTypeRef(member.type);
+  if (memberType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a renderable delegate target type before C# emission.`));
+    return undefined;
+  }
+  if (!isCsharpDelegateType(memberType)) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a finalized delegate target type before C# emission.`));
+    return undefined;
+  }
+  return {
+    name: member.targetName,
+    expression: planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType),
+  };
+}
+
+function planObjectLiteralMethodAsLambda(
+  methodNode: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  expectedType: CsharpTypeNode,
+): CsharpExpression {
+  const method = AsMethodDeclaration(methodNode);
+  diagnoseMissingLambdaTargetContext(methodNode, input, diagnostics, expectedType);
+  if (method === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method-declaration AST node."));
+    return invalidExpression("object literal method without method declaration");
+  }
+  if ((method.TypeParameters?.Nodes ?? []).some((typeParameter) => typeParameter !== undefined)) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal generic methods require finalized target delegate facts before C# emission."));
+    return invalidExpression("generic object literal method");
+  }
+  if (method.Body === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method body."));
+    return invalidExpression("object literal method without body");
+  }
+  return {
+    kind: "lambda",
+    ...(isAsyncExpression(methodNode) ? { async: true } : {}),
+    parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    body: {
+      statements: planBlockStatements(method.Body, sourceFile, input, diagnostics),
+    },
+  };
 }
 
 function findObjectShapeMember(objectShape: ObjectShapeFact, sourceName: string): ObjectShapeFact["members"][number] | undefined {

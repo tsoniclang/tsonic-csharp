@@ -74,9 +74,14 @@ export function getCallableSemanticOwnership(
   appendTargetFactReasons(reasons, input, callee, "callee node");
   const symbol = getQueryableSymbol(callee, sourceFile, input);
   appendTargetFactReasons(reasons, input, symbol, "callee symbol");
+  appendPropertyAccessReceiverFactReasons(reasons, input, callee, sourceFile);
+  const requiresSelectedTargetFact = hasSelectedTargetFactEvidence(input, callee) ||
+    hasSelectedTargetFactEvidence(input, symbol) ||
+    propertyAccessReceiverRequiresSelectedTargetFact(input, callee, sourceFile);
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(callee, { sourceFile });
-  const sourceOwned = isSourceDeclaredCallableReference(sourceReference) ||
-    isSourceOwnedProjectShapeSubject(callee, sourceFile, input);
+  const sourceOwned = !requiresSelectedTargetFact &&
+    (isSourceDeclaredCallableReference(sourceReference) ||
+      isSourceOwnedProjectShapeSubject(callee, sourceFile, input));
   if (!sourceOwned) {
     appendSemanticNodeFactReasons(reasons, input, callee, sourceFile, "callee semantic node");
     appendTargetFactReasons(reasons, input, input.semantics.getResolvedSymbol(callee, { sourceFile }), "callee resolved symbol");
@@ -86,6 +91,49 @@ export function getCallableSemanticOwnership(
     sourceOwned,
     reasons,
   };
+}
+
+function appendPropertyAccessReceiverFactReasons(
+  reasons: string[],
+  input: TargetCompileInput,
+  callee: Node,
+  sourceFile: SourceFile,
+): void {
+  if (callee.Kind !== KindPropertyAccessExpression) {
+    return;
+  }
+  const receiver = (callee as { readonly Expression?: Node }).Expression;
+  if (receiver === undefined) {
+    return;
+  }
+  appendTargetFactReasons(reasons, input, receiver, "callee receiver node");
+  appendTargetFactReasons(reasons, input, getQueryableSymbol(receiver, sourceFile, input), "callee receiver symbol");
+  appendSemanticNodeFactReasons(reasons, input, receiver, sourceFile, "callee receiver semantic node");
+}
+
+function propertyAccessReceiverRequiresSelectedTargetFact(
+  input: TargetCompileInput,
+  callee: Node,
+  sourceFile: SourceFile,
+): boolean {
+  if (callee.Kind !== KindPropertyAccessExpression) {
+    return false;
+  }
+  const receiver = (callee as { readonly Expression?: Node }).Expression;
+  return receiver !== undefined &&
+    (hasSelectedTargetFactEvidence(input, receiver) ||
+      hasSelectedTargetFactEvidence(input, getQueryableSymbol(receiver, sourceFile, input)) ||
+      input.semantics.getTargetBindingForReference(receiver, { sourceFile }) !== undefined);
+}
+
+function hasSelectedTargetFactEvidence(
+  input: TargetCompileInput,
+  subject: ExtensionFactSubject | undefined,
+): boolean {
+  return subject !== undefined &&
+    (input.facts.getTargetBindingFact(subject) !== undefined ||
+      input.facts.getFact(subject, providerVirtualDeclarationFactKey) !== undefined ||
+      input.facts.getTargetConversionFact(subject) !== undefined);
 }
 
 export function getProviderOperationOwnership(

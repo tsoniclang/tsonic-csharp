@@ -2,6 +2,7 @@ import {
   AsArrayTypeNode,
   AsFunctionTypeNode,
   AsInterfaceDeclaration,
+  AsMethodSignatureDeclaration,
   AsNumericLiteral,
   AsParameterDeclaration,
   AsPropertyAccessExpression,
@@ -23,6 +24,7 @@ import {
   KindGetAccessor,
   KindIdentifier,
   KindInterfaceDeclaration,
+  KindMethodSignature,
   KindNeverKeyword,
   KindNewExpression,
   KindNoSubstitutionTemplateLiteral,
@@ -1136,16 +1138,16 @@ function resolveCsharpObjectShapeMembers(
   const members = Node_Members(typeLiteral) ?? [];
   const shaped: ObjectShapeMemberFact[] = [];
   for (const member of members) {
-    if (member?.Kind !== KindPropertySignature) {
+    if (member === undefined || (member.Kind !== KindPropertySignature && member.Kind !== KindMethodSignature)) {
       return undefined;
     }
-    const signature = AsPropertySignatureDeclaration(member);
     const name = getCsharpObjectShapePropertyName(member);
-    const typeNode = signature?.Type;
-    if (name === undefined || typeNode === undefined) {
+    if (name === undefined) {
       return undefined;
     }
-    const carrier = resolveObjectShapeMemberCarrier(typeNode, context, typeParameterSubstitutions);
+    const carrier = member.Kind === KindPropertySignature
+      ? resolveObjectShapePropertyMemberCarrier(member, context, typeParameterSubstitutions)
+      : resolveObjectShapeMethodMemberCarrier(member, context, typeParameterSubstitutions);
     if (carrier === undefined) {
       return undefined;
     }
@@ -1156,6 +1158,17 @@ function resolveCsharpObjectShapeMembers(
     });
   }
   return shaped;
+}
+
+function resolveObjectShapePropertyMemberCarrier(
+  member: Node,
+  context: ExtensionFactResolverContext,
+  typeParameterSubstitutions: ReadonlyMap<string, TargetTypeRef> | undefined,
+): TargetTypeRef | undefined {
+  const signature = AsPropertySignatureDeclaration(member);
+  return signature?.Type === undefined
+    ? undefined
+    : resolveObjectShapeMemberCarrier(signature.Type, context, typeParameterSubstitutions);
 }
 
 function resolveObjectShapeMemberCarrier(
@@ -1224,18 +1237,36 @@ function resolveObjectShapeFunctionMemberCarrier(
   if (returnCarrier === undefined) {
     return undefined;
   }
-  if (isVoidTargetType(returnCarrier)) {
-    return {
-      kind: "target-named",
-      id: `System.Action\`${parameterCarriers.length}`,
-      typeArguments: parameterCarriers,
-    };
+  return csharpDelegateTargetTypeRef(parameterCarriers, returnCarrier);
+}
+
+function resolveObjectShapeMethodMemberCarrier(
+  methodNode: Node,
+  context: ExtensionFactResolverContext,
+  typeParameterSubstitutions: ReadonlyMap<string, TargetTypeRef> | undefined,
+): TargetTypeRef | undefined {
+  const method = AsMethodSignatureDeclaration(methodNode);
+  if (method === undefined || (method.TypeParameters?.Nodes ?? []).some((typeParameter) => typeParameter !== undefined)) {
+    return undefined;
   }
-  return {
-    kind: "target-named",
-    id: `System.Func\`${parameterCarriers.length + 1}`,
-    typeArguments: [...parameterCarriers, returnCarrier],
-  };
+  const parameterCarriers: TargetTypeRef[] = [];
+  for (const parameterNode of method.Parameters?.Nodes ?? []) {
+    const parameter = parameterNode === undefined ? undefined : AsParameterDeclaration(parameterNode);
+    if (parameter === undefined || parameter.DotDotDotToken !== undefined || parameter.QuestionToken !== undefined || parameter.Initializer !== undefined || parameter.Type === undefined) {
+      return undefined;
+    }
+    const parameterCarrier = resolveObjectShapeMemberCarrier(parameter.Type, context, typeParameterSubstitutions);
+    if (parameterCarrier === undefined) {
+      return undefined;
+    }
+    parameterCarriers.push(parameterCarrier);
+  }
+  const returnCarrier = method.Type === undefined
+    ? csharpNamed("System.Void")
+    : resolveObjectShapeMemberCarrier(method.Type, context, typeParameterSubstitutions);
+  return returnCarrier === undefined
+    ? undefined
+    : csharpDelegateTargetTypeRef(parameterCarriers, returnCarrier);
 }
 
 function getTypeParameterSubstitution(
@@ -1527,18 +1558,7 @@ function resolveCsharpFunctionTypeCarrier(
   if (returnCarrier === undefined) {
     return undefined;
   }
-  if (isVoidTargetType(returnCarrier)) {
-    return {
-      kind: "target-named",
-      id: `System.Action\`${parameterTypes.length}`,
-      typeArguments: parameterTypes,
-    };
-  }
-  return {
-    kind: "target-named",
-    id: `System.Func\`${parameterTypes.length + 1}`,
-    typeArguments: [...parameterTypes, returnCarrier],
-  };
+  return csharpDelegateTargetTypeRef(parameterTypes, returnCarrier);
 }
 
 function resolveCsharpRuntimeCarrierForTstsType(
@@ -1814,17 +1834,24 @@ function resolveCsharpRuntimeCarrierForCallSignature(
   if (returnType === undefined) {
     return undefined;
   }
+  return csharpDelegateTargetTypeRef(parameterTypes as readonly TargetTypeRef[], returnType);
+}
+
+function csharpDelegateTargetTypeRef(
+  parameterTypes: readonly TargetTypeRef[],
+  returnType: TargetTypeRef,
+): TargetTypeRef {
   if (isVoidTargetType(returnType)) {
     return {
       kind: "target-named",
       id: `System.Action\`${parameterTypes.length}`,
-      typeArguments: parameterTypes as readonly TargetTypeRef[],
+      typeArguments: parameterTypes,
     };
   }
   return {
     kind: "target-named",
     id: `System.Func\`${parameterTypes.length + 1}`,
-    typeArguments: [...(parameterTypes as readonly TargetTypeRef[]), returnType],
+    typeArguments: [...parameterTypes, returnType],
   };
 }
 

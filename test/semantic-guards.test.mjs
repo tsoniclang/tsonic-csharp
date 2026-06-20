@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { KindIdentifier } from "@tsonic/tsts";
+import { KindIdentifier, KindPropertyAccessExpression, KindVariableDeclaration } from "@tsonic/tsts";
 import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership } from "../dist/backend/planner/semantic-guards.js";
 
 test("provider-owned operator operands require selected target operator facts", () => {
@@ -90,6 +90,49 @@ test("provider-owned constructor callees require selected target constructor fac
   assert.deepEqual(ownership.reasons, ["callee symbol target binding"]);
 });
 
+test("provider-owned property-access callees require selected target call facts", () => {
+  const receiver = node(KindIdentifier);
+  const targetSymbol = { Name: "ProviderBox" };
+  const callee = { Kind: KindPropertyAccessExpression, Expression: receiver };
+  const input = fakeInput({
+    symbolsByNode: new Map([[receiver, targetSymbol]]),
+    targetBindingSubject: targetSymbol,
+    projectSourceShape: true,
+  });
+
+  const ownership = getCallableSemanticOwnership(callee, {}, input);
+
+  assert.equal(ownership.requiresTargetFact, true);
+  assert.equal(ownership.sourceOwned, false);
+  assert.deepEqual(ownership.reasons, ["callee receiver symbol target binding"]);
+});
+
+test("source-declared callable references stay source-owned with runtime-carrier facts", () => {
+  const callee = node(KindIdentifier);
+  const sourceSymbol = { Name: "handler" };
+  const sourceDeclaration = node(KindVariableDeclaration);
+  const input = fakeInput({
+    sourceReferenceByNode: new Map([[callee, { symbol: sourceSymbol, declaration: sourceDeclaration }]]),
+    runtimeCarrierSubject: callee,
+    runtimeCarrier: {
+      carrier: {
+        kind: "target-named",
+        id: "System.Func`2",
+        typeArguments: [
+          { kind: "source-primitive", name: "int32" },
+          { kind: "source-primitive", name: "int32" },
+        ],
+      },
+    },
+  });
+
+  const ownership = getCallableSemanticOwnership(callee, {}, input);
+
+  assert.equal(ownership.requiresTargetFact, false);
+  assert.equal(ownership.sourceOwned, true);
+  assert.deepEqual(ownership.reasons, ["callee node runtime carrier"]);
+});
+
 function node(kind) {
   return { Kind: kind };
 }
@@ -120,7 +163,7 @@ function fakeInput(options = {}) {
       getFunctionPointerFact: () => undefined,
     },
     semantics: {
-      getSymbolAtLocation: () => options.symbolAtLocation,
+      getSymbolAtLocation: (node) => options.symbolsByNode?.get(node) ?? options.symbolAtLocation,
       getResolvedSymbol: () => undefined,
       getRuntimeCarrierForNode: () => {
         if (options.runtimeCarrierSubject !== undefined && options.runtimeCarrierSubject === options.typeAtLocation) {
@@ -138,7 +181,7 @@ function fakeInput(options = {}) {
       isProjectSourceShapeForNode: () => options.projectSourceShape === true,
       isProjectSourceConstructibleObjectForNode: () => options.projectSourceConstructibleObject === true,
       getProjectSourceDeclarationForNode: () => undefined,
-      getProjectSourceReferenceForNode: () => undefined,
+      getProjectSourceReferenceForNode: (node) => options.sourceReferenceByNode?.get(node),
       getEnumMemberConstant: () => undefined,
       getReturnTypeCarrierFromDeclaration: () => undefined,
       describeTypeAtLocation: () => undefined,
