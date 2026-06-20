@@ -451,9 +451,7 @@ function planCallExpression(
     return {
       kind: "call",
       callee: planSelectedTargetCallee(expression.Expression, selectedTargetCall.member, sourceFile, input, diagnostics),
-      arguments: (expression.Arguments?.Nodes ?? [])
-        .filter((argument): argument is Node => argument !== undefined)
-        .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
+      arguments: planSelectedTargetCallArguments(expression, selectedTargetCall.member, sourceFile, input, diagnostics),
     };
   }
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
@@ -532,6 +530,58 @@ function planSelectedTargetCallee(
     message: "Selected target call requires an identifier or property-access callee before C# emission.",
   });
   return invalidExpression("selected target call callee");
+}
+
+function planSelectedTargetCallArguments(
+  expression: ReturnType<typeof AsCallExpression>,
+  member: TargetMember,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpArgument[] {
+  const argumentsList = (expression?.Arguments?.Nodes ?? [])
+    .filter((argument): argument is Node => argument !== undefined)
+    .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics));
+  const receiverArgumentIndex = member.receiverArgumentIndex;
+  if (receiverArgumentIndex === undefined) {
+    return argumentsList;
+  }
+  if (expression?.Expression?.Kind !== KindPropertyAccessExpression) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_AST",
+      category: "error",
+      source: "tsonic-csharp",
+      message: "Selected target call receiver argument requires a property-access source callee before C# emission.",
+    });
+    return argumentsList;
+  }
+  if (!Number.isInteger(receiverArgumentIndex) || receiverArgumentIndex < 0 || receiverArgumentIndex > argumentsList.length) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_AST",
+      category: "error",
+      source: "tsonic-csharp",
+      message: "Selected target call receiver argument index is outside the source argument range before C# emission.",
+    });
+    return argumentsList;
+  }
+  const receiver = AsPropertyAccessExpression(expression.Expression)?.Expression;
+  if (receiver === undefined) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_AST",
+      category: "error",
+      source: "tsonic-csharp",
+      message: "Selected target call receiver argument requires a concrete receiver expression before C# emission.",
+    });
+    return argumentsList;
+  }
+  const receiverArgument = {
+    expression: planExpression(receiver, sourceFile, input, diagnostics),
+  } satisfies CsharpArgument;
+  return [
+    ...argumentsList.slice(0, receiverArgumentIndex),
+    receiverArgument,
+    ...argumentsList.slice(receiverArgumentIndex),
+  ];
 }
 
 function planArrowFunctionExpression(

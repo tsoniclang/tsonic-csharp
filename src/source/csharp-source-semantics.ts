@@ -193,7 +193,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         context,
       );
       const providerConstructorCall = resolveProviderTargetConstructorCall(request, context);
-      const builtinMethodCall = resolveCsharpBuiltinMethodCall(request);
+      const builtinMethodCall = resolveCsharpBuiltinMethodCall(request, context);
       const providerMethodCall = resolveProviderTargetMethodCall(request, context);
       const call = delegateCall ?? providerConstructorCall ?? builtinMethodCall ?? providerMethodCall;
       return call === undefined ? deferDecision : acceptDecision(call);
@@ -460,17 +460,20 @@ function getDelegateReturnType(type: Extract<TargetTypeRef, { readonly kind: "ta
   return type.typeArguments?.[type.typeArguments.length - 1];
 }
 
-function resolveCsharpBuiltinMethodCall(request: ResolveCallRequest): ResolveCallResult | undefined {
+function resolveCsharpBuiltinMethodCall(
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
   if (!isNodeSubject(request.callee) || request.callee.Kind !== KindPropertyAccessExpression) {
     return undefined;
   }
   const propertyAccess = AsPropertyAccessExpression(request.callee);
   const name = propertyAccess?.name;
-  if (name === undefined || request.arguments.length !== 0) {
+  if (name === undefined) {
     return undefined;
   }
   const sourceName = Node_Text(name);
-  if (sourceName === "toString" && isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
+  if (sourceName === "toString" && request.arguments.length === 0 && isTypeScriptStringLikeType(request.receiverType as Type | undefined)) {
     const returnType = csharpNamed("System.String");
     return {
       selectedSignature: {
@@ -489,7 +492,59 @@ function resolveCsharpBuiltinMethodCall(request: ResolveCallRequest): ResolveCal
       } satisfies RuntimeCarrierFact,
     };
   }
+  if (sourceName === "join") {
+    return resolveArrayJoinMethodCall(sourceName, request, context);
+  }
   return undefined;
+}
+
+function resolveArrayJoinMethodCall(
+  sourceName: string,
+  request: ResolveCallRequest,
+  context: ExtensionDecisionContext,
+): ResolveCallResult | undefined {
+  if (request.arguments.length !== 1) {
+    return undefined;
+  }
+  const separatorType = csharpNamed("System.String");
+  const separatorCarrier = resolveCallArgumentCarrier(request, 0, context);
+  if (separatorCarrier === undefined || !targetTypeRefMatches(separatorCarrier, separatorType)) {
+    return undefined;
+  }
+  const elementType = getTypeScriptArrayElementType(request.receiverType as Type | undefined);
+  if (elementType === undefined) {
+    return undefined;
+  }
+  const elementCarrier = context.factResolver.resolve(elementType, runtimeCarrierFactKey)?.carrier;
+  if (elementCarrier === undefined) {
+    return undefined;
+  }
+  const receiverType = {
+    kind: "array",
+    element: elementCarrier,
+  } satisfies TargetTypeRef;
+  const returnType = csharpNamed("System.String");
+  return {
+    selectedSignature: {
+      member: {
+        id: "System.String.Join(System.String,T[])",
+        sourceName,
+        targetName: "Join",
+        kind: "method",
+        static: true,
+        declaringType: returnType,
+        parameters: [
+          { name: "separator", type: separatorType, passingMode: "by-value" },
+          { name: "values", type: receiverType, passingMode: "by-value" },
+        ],
+        receiverArgumentIndex: 1,
+        returnType,
+      },
+    },
+    returnType: {
+      carrier: returnType,
+    } satisfies RuntimeCarrierFact,
+  };
 }
 
 function resolveProviderTargetConstructorCall(
@@ -755,7 +810,10 @@ function getTargetBindingFromSubject(
 }
 
 function targetMemberAcceptsArity(member: TargetMember, argumentCount: number): boolean {
-  const parameters = member.parameters;
+  const parameters = getSourceVisibleParameters(member);
+  if (parameters === undefined) {
+    return false;
+  }
   const required = parameters.filter((parameter) => parameter.optional !== true && parameter.paramsArray !== true).length;
   if (parameters.some((parameter) => parameter.paramsArray === true)) {
     return argumentCount >= required;
@@ -802,12 +860,27 @@ function resolveCallArgumentCarrier(
 }
 
 function getTargetParameterForArgument(member: TargetMember, index: number): TargetMember["parameters"][number] | undefined {
-  const direct = member.parameters[index];
+  const parameters = getSourceVisibleParameters(member);
+  if (parameters === undefined) {
+    return undefined;
+  }
+  const direct = parameters[index];
   if (direct !== undefined) {
     return direct;
   }
-  const last = member.parameters[member.parameters.length - 1];
+  const last = parameters[parameters.length - 1];
   return last?.paramsArray === true ? last : undefined;
+}
+
+function getSourceVisibleParameters(member: TargetMember): readonly TargetMember["parameters"][number][] | undefined {
+  const receiverArgumentIndex = member.receiverArgumentIndex;
+  if (receiverArgumentIndex === undefined) {
+    return member.parameters;
+  }
+  if (!Number.isInteger(receiverArgumentIndex) || receiverArgumentIndex < 0 || receiverArgumentIndex >= member.parameters.length) {
+    return undefined;
+  }
+  return member.parameters.filter((_, index) => index !== receiverArgumentIndex);
 }
 
 function targetTypeRefMatches(actual: TargetTypeRef, expected: TargetTypeRef): boolean {
