@@ -2,6 +2,7 @@ import {
   AsArrayLiteralExpression,
   AsArrayTypeNode,
   AsArrowFunction,
+  AsBindingElement,
   AsFunctionExpression,
   AsFunctionTypeNode,
   AsInterfaceDeclaration,
@@ -12,11 +13,13 @@ import {
   AsParameterDeclaration,
   AsPropertyAccessExpression,
   AsExpressionWithTypeArguments,
+  AsPropertyDeclaration,
   AsPropertySignatureDeclaration,
   AsTupleTypeNode,
   AsTypeParameterDeclaration,
   AsTypeReferenceNode,
   AsUnionTypeNode,
+  AsVariableDeclaration,
   GetSourceFileOfNode,
   KindAnyKeyword,
   KindArrowFunction,
@@ -27,6 +30,7 @@ import {
   KindBindingElement,
   KindCatchClause,
   KindClassDeclaration,
+  KindCallExpression,
   KindEnumDeclaration,
   KindEnumMember,
   KindFunctionExpression,
@@ -89,6 +93,7 @@ import {
   objectShapeFactKey,
   pointerFactKey,
   runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
   sourcePrimitive,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
@@ -113,6 +118,7 @@ import type {
   ProviderTypeExpression,
   ResolveCallRequest,
   ResolveCallResult,
+  ResolveElementAccessRequest,
   ResolveOperationResult,
   ResolveOperatorRequest,
   ResolvePropertyAccessRequest,
@@ -158,6 +164,7 @@ const attributeArgumentTypeName = "__TsonicCsharpAttributeArgument";
 interface TargetBindingAccess {
   readonly binding: TargetBindingFact;
   readonly staticAccess: boolean;
+  readonly substitutions?: ReadonlyMap<string, TargetTypeRef>;
 }
 
 export function createCsharpSourceSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
@@ -230,8 +237,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       }
       if (
         request.propertyName === "length" &&
-        isTypeScriptStringLikeType(request.receiverType as Type | undefined) &&
-        isStandardInterfaceMemberSymbol([request.propertySymbol, request.resolvedPropertySymbol], "length", ["String"])
+        isTypeScriptStringLikeType(request.receiverType as Type | undefined)
       ) {
         const resultType = sourcePrimitiveInt32();
         return acceptDecision({
@@ -246,8 +252,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       }
       if (
         request.propertyName === "length" &&
-        getTypeScriptArrayElementType(request.receiverType as Type | undefined) !== undefined &&
-        isStandardInterfaceMemberSymbol([request.propertySymbol, request.resolvedPropertySymbol], "length", ["Array", "ReadonlyArray"])
+        getTypeScriptArrayElementType(request.receiverType as Type | undefined) !== undefined
       ) {
         const resultType = sourcePrimitiveInt32();
         return acceptDecision({
@@ -289,18 +294,19 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
         });
       }
       const elementType = getTypeScriptArrayElementType(effectiveReceiverType);
-      if (elementType === undefined) {
-        return deferDecision;
-      }
-      return acceptDecision({
-        operation: {
-          operationId: "System.Array.GetItem",
-          operationKind: "indexer",
-          targetOperation: "[]",
+      if (elementType !== undefined) {
+        return acceptDecision({
+          operation: {
+            operationId: "System.Array.GetItem",
+            operationKind: "indexer",
+            targetOperation: "[]",
+            resultType: elementType,
+          } satisfies TargetOperationFact,
           resultType: elementType,
-        } satisfies TargetOperationFact,
-        resultType: elementType,
-      });
+        });
+      }
+      const providerElementAccess = resolveProviderTargetElementAccess(request, context);
+      return providerElementAccess === undefined ? deferDecision : acceptDecision(providerElementAccess);
     },
     resolveIteration(request, context) {
       if (request.target !== undefined && request.target !== "csharp") {
@@ -1330,13 +1336,20 @@ function resolveProviderTargetMethodCall(
       member.kind === "method" &&
       memberStaticMatchesAccess(member, staticAccess) &&
       member.sourceName === sourceName &&
-      targetMemberAcceptsCall(member, request, context),
+      targetMemberCallMatch(member, request, context) !== undefined,
   );
   if (member === undefined) {
     return undefined;
   }
+  const match = targetMemberCallMatch(member, request, context);
+  if (match === undefined) {
+    return undefined;
+  }
   return {
-    selectedSignature: { member },
+    selectedSignature: {
+      member,
+      ...(match.argumentConversions === undefined ? {} : { argumentConversions: match.argumentConversions }),
+    },
     ...(member.returnType === undefined
       ? {}
       : {
@@ -1380,6 +1393,44 @@ function resolveProviderTargetPropertyAccess(
   };
 }
 
+function resolveProviderTargetElementAccess(
+  request: ResolveElementAccessRequest,
+  context: ExtensionDecisionContext,
+): ResolveOperationResult | undefined {
+  const receiverNode = isNodeSubject(request.receiver) ? request.receiver : undefined;
+  const member = selectProviderTargetMember(
+    context,
+    receiverNode,
+    request.receiverSymbol,
+    request.resolvedReceiverSymbol,
+    request.receiverType,
+    (candidate, staticAccess) => {
+      if (candidate.kind !== "indexer" || !memberStaticMatchesAccess(candidate, staticAccess)) {
+        return false;
+      }
+      return targetMemberCallMatch(candidate, {
+        arguments: [request.argument],
+        argumentSymbols: [request.argumentSymbol],
+        resolvedArgumentSymbols: [request.resolvedArgumentSymbol],
+        argumentTypes: [request.argumentType],
+      }, context) !== undefined;
+    },
+  );
+  if (member === undefined || member.returnType === undefined) {
+    return undefined;
+  }
+  const operation = {
+    operationId: member.id,
+    operationKind: "indexer",
+    targetOperation: member.targetName,
+    resultType: member.returnType,
+  } satisfies TargetOperationFact;
+  return {
+    operation,
+    resultType: member.returnType,
+  };
+}
+
 function resolveSourceProjectPropertyAccess(
   request: ResolvePropertyAccessRequest,
 ): ResolveOperationResult | undefined {
@@ -1407,7 +1458,7 @@ function getSourceProjectPropertyTargetName(request: ResolvePropertyAccessReques
     request.resolvedPropertySymbol,
   ]);
   if (symbol === undefined) {
-    return undefined;
+    return sanitizeCsharpIdentifier(request.propertyName);
   }
   const sourceName = symbol.Name;
   if (sourceName !== request.propertyName) {
@@ -1455,7 +1506,8 @@ function selectProviderTargetMember(
 ): TargetMember | undefined {
   const matches: TargetMember[] = [];
   for (const candidate of getTargetBindingAccessCandidates(context, receiverNode, receiverSymbol, resolvedReceiverSymbol, receiverType)) {
-    for (const member of candidate.binding.members ?? []) {
+    for (const rawMember of candidate.binding.members ?? []) {
+      const member = instantiateTargetMember(rawMember, candidate.substitutions);
       if (predicate(member, candidate.staticAccess) && !matches.some((existing) => existing.id === member.id && existing.static === member.static)) {
         matches.push(member);
       }
@@ -1485,16 +1537,44 @@ function getTargetBindingAccessCandidates(
   }
   const typeBinding = getTargetBindingFromSubject(context, receiverType);
   if (typeBinding !== undefined) {
+    const substitutions = resolveTargetBindingAccessSubstitutions(typeBinding, [
+      receiverSymbol,
+      resolvedReceiverSymbol,
+      receiverNode,
+      receiverType,
+    ], context);
     candidates.push({
       binding: typeBinding,
       staticAccess: true,
+      ...(substitutions === undefined ? {} : { substitutions }),
     });
     candidates.push({
       binding: typeBinding,
       staticAccess: false,
+      ...(substitutions === undefined ? {} : { substitutions }),
     });
   }
   return candidates;
+}
+
+function resolveTargetBindingAccessSubstitutions(
+  targetBinding: TargetBindingFact,
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  context: ExtensionDecisionContext,
+): ReadonlyMap<string, TargetTypeRef> | undefined {
+  const typeParameters = targetBinding.typeParameters ?? [];
+  if (typeParameters.length === 0) {
+    return undefined;
+  }
+  const carrier = resolveFirstRuntimeCarrier(subjects, context);
+  if (carrier?.kind !== "target-named" || carrier.id !== targetBinding.id) {
+    return undefined;
+  }
+  const typeArguments = carrier.typeArguments ?? [];
+  if (typeArguments.length !== typeParameters.length) {
+    return undefined;
+  }
+  return targetBindingSpecializationFromTypeArguments(targetBinding, typeArguments)?.substitutions;
 }
 
 function getFirstTargetBinding(
@@ -1780,6 +1860,13 @@ function resolveCsharpRuntimeCarrier(
   }
 
   if (isNodeSubject(subject)) {
+    const selectedCallCarrier = resolveSelectedCallReturnCarrier(subject, context);
+    if (selectedCallCarrier !== undefined) {
+      return {
+        value: { carrier: selectedCallCarrier },
+        evidence: [{ message: "C# carrier from finalized provider-selected call signature." }],
+      };
+    }
     const catchCarrier = resolveCsharpCatchVariableCarrier(subject);
     if (catchCarrier !== undefined) {
       return {
@@ -2417,9 +2504,41 @@ function resolveCsharpRuntimeCarrierForSymbol(
 ): TargetTypeRef | undefined {
   const declaration = symbol.ValueDeclaration ?? symbol.Declarations?.find((candidate) => candidate !== undefined);
   const typeNode = declaration === undefined ? undefined : getRuntimeCarrierDeclarationTypeNode(declaration);
-  return typeNode === undefined
+  const annotationCarrier = typeNode === undefined
     ? undefined
     : context.factResolver.resolve(typeNode, runtimeCarrierFactKey)?.carrier;
+  if (annotationCarrier !== undefined) {
+    return annotationCarrier;
+  }
+  const initializer = declaration === undefined ? undefined : getRuntimeCarrierDeclarationInitializer(declaration);
+  return initializer === undefined
+    ? undefined
+    : context.factResolver.resolve(initializer, runtimeCarrierFactKey)?.carrier;
+}
+
+function getRuntimeCarrierDeclarationInitializer(declaration: Node): Node | undefined {
+  switch (declaration.Kind) {
+    case KindVariableDeclaration:
+      return AsVariableDeclaration(declaration)?.Initializer;
+    case KindParameter:
+      return AsParameterDeclaration(declaration)?.Initializer;
+    case KindPropertyDeclaration:
+      return AsPropertyDeclaration(declaration)?.Initializer;
+    case KindBindingElement:
+      return AsBindingElement(declaration)?.Initializer;
+    default:
+      return undefined;
+  }
+}
+
+function resolveSelectedCallReturnCarrier(
+  node: Node,
+  context: ExtensionFactResolverContext,
+): TargetTypeRef | undefined {
+  if (node.Kind !== KindCallExpression && node.Kind !== KindNewExpression) {
+    return undefined;
+  }
+  return context.facts.get(node, selectedTargetSignatureFactKey)?.member.returnType;
 }
 
 function getRuntimeCarrierDeclarationTypeNode(declaration: Node): Node | undefined {
@@ -3896,6 +4015,9 @@ function csharpTargetProviderExports(moduleSpecifier: string): readonly Provider
 
 function csharpListProviderDeclaration(): ProviderExportDeclaration {
   const itemType: ProviderTypeExpression = { kind: "type-parameter", name: "T" };
+  const intType: ProviderTypeExpression = { kind: "source-primitive", name: "int32" };
+  const boolType: ProviderTypeExpression = { kind: "source-primitive", name: "bool" };
+  const voidType: ProviderTypeExpression = { kind: "void" };
   return {
     id: "List",
     name: "List",
@@ -3936,7 +4058,95 @@ function csharpListProviderDeclaration(): ProviderExportDeclaration {
         name: "count",
         targetName: "Count",
         kind: "property",
-        type: { kind: "source-primitive", name: "int32" },
+        type: intType,
+      },
+      {
+        id: "Item",
+        name: "item",
+        targetName: "[]",
+        kind: "indexer",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Item(System.Int32)",
+          parameters: [{ name: "index", type: intType }],
+          returnType: itemType,
+        }],
+      },
+      {
+        id: "Add(item)",
+        name: "add",
+        targetName: "Add",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Add(T)",
+          parameters: [{ name: "item", type: itemType }],
+          returnType: voidType,
+        }],
+      },
+      {
+        id: "Clear()",
+        name: "clear",
+        targetName: "Clear",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Clear()",
+          parameters: [],
+          returnType: voidType,
+        }],
+      },
+      {
+        id: "Contains(item)",
+        name: "contains",
+        targetName: "Contains",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Contains(T)",
+          parameters: [{ name: "item", type: itemType }],
+          returnType: boolType,
+        }],
+      },
+      {
+        id: "IndexOf(item)",
+        name: "indexOf",
+        targetName: "IndexOf",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.IndexOf(T)",
+          parameters: [{ name: "item", type: itemType }],
+          returnType: intType,
+        }],
+      },
+      {
+        id: "Remove(item)",
+        name: "remove",
+        targetName: "Remove",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.Remove(T)",
+          parameters: [{ name: "item", type: itemType }],
+          returnType: boolType,
+        }],
+      },
+      {
+        id: "RemoveAt(index)",
+        name: "removeAt",
+        targetName: "RemoveAt",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.RemoveAt(System.Int32)",
+          parameters: [{ name: "index", type: intType }],
+          returnType: voidType,
+        }],
+      },
+      {
+        id: "ToArray()",
+        name: "toArray",
+        targetName: "ToArray",
+        kind: "method",
+        signatures: [{
+          id: "System.Collections.Generic.List`1.ToArray()",
+          parameters: [],
+          returnType: { kind: "array", elementType: itemType },
+        }],
       },
     ],
   };

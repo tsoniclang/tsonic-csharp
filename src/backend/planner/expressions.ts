@@ -199,7 +199,9 @@ function planExpressionCore(
       }
       return {
         kind: expression.QuestionDotToken === undefined ? "element" : "optionalElement",
-        receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
+        receiver: selectedElementAccess === undefined
+          ? planExpression(expression.Expression!, sourceFile, input, diagnostics)
+          : planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics),
         argument: planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics),
       };
     }
