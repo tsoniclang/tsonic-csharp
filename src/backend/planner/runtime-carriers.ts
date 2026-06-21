@@ -85,57 +85,6 @@ export function getTargetTypeRefForType(
   if (declaredSourceType !== undefined) {
     return declaredSourceType;
   }
-  if (input.types.isUnion?.(type) === true) {
-    const nullable = getNullableUnionTargetTypeRef(input, type, sourceFile, seen);
-    if (nullable !== undefined) {
-      return nullable;
-    }
-    return undefined;
-  }
-  if (input.types.isBooleanLike(type)) {
-    return { kind: "source-primitive", name: "bool" };
-  }
-  if (input.types.isNumberLike(type)) {
-    return { kind: "source-primitive", name: "float64" };
-  }
-  if (input.types.isStringLike(type)) {
-    return { kind: "target-named", id: "System.String" };
-  }
-  if (input.types.isBigIntLike(type)) {
-    return { kind: "target-named", id: "System.Numerics.BigInteger" };
-  }
-  if (input.types.isVoidLike?.(type) === true) {
-    return { kind: "target-named", id: "System.Void" };
-  }
-  if (isSourceLibraryType(input, type, "Promise", sourceFile)) {
-    const nextSeen = new Set(seen).add(type);
-    const result = getTargetTypeRefForType(input, getFirstTypeArgument(input, type, sourceFile), sourceFile, nextSeen);
-    return result === undefined || isVoidTargetType(result)
-      ? { kind: "target-named", id: "System.Threading.Tasks.Task" }
-      : { kind: "target-named", id: "System.Threading.Tasks.Task`1", typeArguments: [result] };
-  }
-  if (input.types.isTuple?.(type) === true) {
-    const nextSeen = new Set(seen).add(type);
-    const elements = input.types.getTupleElementTypes(type, { sourceFile })
-      .map((element) => getTargetTypeRefForType(input, element, sourceFile, nextSeen));
-    return elements.some((element) => element === undefined)
-      ? undefined
-      : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
-  }
-  if (isSourceLibraryType(input, type, "Array", sourceFile) || isSourceLibraryType(input, type, "ReadonlyArray", sourceFile)) {
-    const nextSeen = new Set(seen).add(type);
-    const element = getTargetTypeRefForType(input, getFirstTypeArgument(input, type, sourceFile), sourceFile, nextSeen);
-    return element === undefined ? undefined : { kind: "array", element };
-  }
-  if (input.types.isArrayLike?.(type, { sourceFile }) === true) {
-    const nextSeen = new Set(seen).add(type);
-    const element = getTargetTypeRefForType(input, getFirstTypeArgument(input, type, sourceFile), sourceFile, nextSeen);
-    return element === undefined ? undefined : { kind: "array", element };
-  }
-  const callable = getCallableTargetTypeRefForSemanticType(input, type, sourceFile, seen);
-  if (callable !== undefined) {
-    return callable;
-  }
   return getTargetTypeRefForProjectSourceType(input, type, sourceFile);
 }
 
@@ -166,70 +115,15 @@ function getProjectSourceDeclaredTargetTypeRef(
   const typeArguments = input.types.isTypeReference(type)
     ? input.types.getTypeArguments(type, { sourceFile })
       .map((argument) => getTargetTypeRefForType(input, argument, sourceFile, new Set(seen).add(type)))
-      .filter((argument): argument is TargetTypeRef => argument !== undefined)
     : [];
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
   return {
     kind: "target-named",
     id: symbolName,
-    ...(typeArguments.length > 0 ? { typeArguments } : {}),
+    ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly TargetTypeRef[] } : {}),
   };
-}
-
-function getCallableTargetTypeRefForSemanticType(
-  input: TargetCompileInput,
-  type: Type,
-  sourceFile: SourceFile,
-  seen: ReadonlySet<Type>,
-): TargetTypeRef | undefined {
-  const signatures = input.types.getCallSignatures(type, { sourceFile });
-  if (signatures.length !== 1) {
-    return undefined;
-  }
-  const nextSeen = new Set(seen).add(type);
-  const signature = signatures[0]!;
-  const parameters = (signature as { readonly parameters?: readonly ExtensionFactSubject[] }).parameters ?? [];
-  const parameterTypes = parameters.map((parameter) =>
-    getTargetTypeRefForType(input, input.semantics.getTypeOfSymbol(parameter, { sourceFile }), sourceFile, nextSeen));
-  if (parameterTypes.some((parameter) => parameter === undefined)) {
-    return undefined;
-  }
-  const returnType = getTargetTypeRefForType(input, input.types.getReturnTypeOfSignature(signature, { sourceFile }), sourceFile, nextSeen);
-  return returnType === undefined || isVoidTargetType(returnType)
-    ? { kind: "target-named", id: `System.Action\`${parameterTypes.length}`, typeArguments: parameterTypes as readonly TargetTypeRef[] }
-    : { kind: "target-named", id: `System.Func\`${parameterTypes.length + 1}`, typeArguments: [...(parameterTypes as readonly TargetTypeRef[]), returnType] };
-}
-
-function getNullableUnionTargetTypeRef(
-  input: TargetCompileInput,
-  type: Type,
-  sourceFile: SourceFile,
-  seen: ReadonlySet<Type>,
-): TargetTypeRef | undefined {
-  const unionTypes = input.types.getUnionOrIntersectionTypes?.(type) ?? [];
-  const nonNullish = unionTypes.filter((candidate) => input.types.isNullish?.(candidate) !== true);
-  if (nonNullish.length !== 1 || nonNullish.length === unionTypes.length) {
-    return undefined;
-  }
-  const inner = getTargetTypeRefForType(input, nonNullish[0], sourceFile, new Set(seen).add(type));
-  return inner === undefined
-    ? undefined
-    : { kind: "target-named", id: "System.Nullable`1", typeArguments: [inner] };
-}
-
-function getFirstTypeArgument(
-  input: TargetCompileInput,
-  type: Type,
-  sourceFile: SourceFile,
-): Type | undefined {
-  const typeArgument = input.types.isTypeReference?.(type) === true
-    ? input.types.getTypeArguments(type, { sourceFile })[0]
-    : undefined;
-  if (typeArgument !== undefined) {
-    return typeArgument;
-  }
-  return input.types.getIndexInfos(type, { sourceFile })
-    .map((info) => (info as { readonly valueType?: unknown }).valueType)
-    .find((value): value is Type => isType(value));
 }
 
 function getTargetTypeRefFromDirectFacts(
@@ -321,10 +215,6 @@ function getTypeParameterName(input: TargetCompileInput, type: Type): string | u
   return undefined;
 }
 
-function isVoidTargetType(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" && type.id === "System.Void";
-}
-
 function getNodeField(node: Node | undefined, field: string): unknown {
   if (node === undefined) {
     return undefined;
@@ -361,26 +251,6 @@ function asNode(value: unknown): Node | undefined {
     : undefined;
 }
 
-function isType(value: unknown): value is Type {
-  return typeof value === "object" && value !== null && "flags" in value;
-}
-
-function isSourceLibraryType(
-  input: TargetCompileInput,
-  type: Type,
-  name: string,
-  sourceFile: SourceFile,
-): boolean {
-  const target = input.types.isTypeReference?.(type) === true ? input.types.getTypeReferenceTarget(type) : type;
-  const declarations = (target?.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    [];
-  return declarations.some((declaration) =>
-    input.ast.text(input.ast.name(declaration)) === name &&
-    input.ast.getFileName(input.ast.getSourceFile(declaration)).startsWith("bundled:///libs/")) ||
-    (input.types.isArrayLike?.(type, { sourceFile }) === true && (name === "Array" || name === "ReadonlyArray"));
-}
-
 function getTargetTypeRefForProjectSourceType(
   input: TargetCompileInput,
   type: Type,
@@ -406,15 +276,17 @@ function getTargetTypeRefForProjectSourceType(
   const typeArguments = input.types.isTypeReference?.(type) === true
     ? input.types.getTypeArguments(type, { sourceFile })
       .map((argument) => getTargetTypeRefForType(input, argument, sourceFile))
-      .filter((argument): argument is TargetTypeRef => argument !== undefined)
     : [];
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
   return {
     kind: "target-specific",
     target: "csharp",
     name: "project-source-type",
     value: {
       name,
-      ...(typeArguments.length > 0 ? { typeArguments } : {}),
+      ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly TargetTypeRef[] } : {}),
     },
   };
 }

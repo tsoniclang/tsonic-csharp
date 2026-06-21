@@ -186,7 +186,6 @@ export function getProviderOperationOwnership(
   }
   const sourceOwned = !typeParameter && (
     carrier?.kind === "source-primitive" ||
-    isSourceOwnedBuiltinOperationSubject(node, sourceFile, input) ||
     isSourceOwnedProjectShapeSubject(node, sourceFile, input)
   );
   if (!sourceOwned) {
@@ -357,22 +356,6 @@ export function isSourceOwnedProjectShapeSubject(node: Node | undefined, sourceF
     return true;
   }
   return input.semantics.isProjectSourceShapeForNode(node, { sourceFile });
-}
-
-function isSourceOwnedBuiltinOperationSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
-  if (node === undefined) {
-    return false;
-  }
-  const type = input.semantics.getTypeAtLocation(node, { sourceFile });
-  return type !== undefined &&
-    !input.types.isAny(type) &&
-    !input.types.isUnknown(type) &&
-    (
-      input.types.isNumberLike(type) ||
-      input.types.isStringLike(type) ||
-      input.types.isBooleanLike(type) ||
-      input.types.isBigIntLike(type)
-    );
 }
 
 export function isSourceOwnedProjectConstructibleObjectSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {

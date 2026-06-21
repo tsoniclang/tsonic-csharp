@@ -71,14 +71,12 @@ import {
   SourceFile_FileName,
   HasSyntacticModifier,
   HasSourceKind,
-  IsTypeSyntaxNode,
   ModifierFlagsAsync,
   SourceKind,
   SourceTokenKind,
 } from "./source-ast.js";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { canonicalIdentityFactKey } from "@tsonic/tsts";
-import type { ArgumentPassingFact, Node, SourceFile, Symbol, TargetMember, TargetOperationFact, TargetTypeRef, Type } from "@tsonic/tsts";
+import type { ArgumentPassingFact, Node, SourceFile, TargetMember, TargetOperationFact, TargetTypeRef, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
@@ -111,8 +109,7 @@ import {
   applyTargetConversionFact,
   splitQualifiedTargetOperation,
 } from "./target-conversions.js";
-import { csharpLangModule, csharpTypesModule } from "../../source/csharp-source-semantics.js";
-import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../source/csharp-facts.js";
+import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
 
 export function planExpression(
   node: Node,
@@ -390,8 +387,6 @@ function planIdentifierExpression(
     input.facts.getTargetBindingFact(resolvedSymbol);
   if (
     directTargetBinding !== undefined ||
-    isProviderOwnedImportIdentity(directSymbol, input) ||
-    isProviderOwnedImportIdentity(resolvedSymbol, input) ||
     isProviderVirtualDeclarationIdentifier(identifier, sourceFile, input)
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
@@ -425,19 +420,6 @@ function isProviderVirtualDeclarationIdentifier(
       input.facts.getFact(declaration, providerVirtualDeclarationFactKey) !== undefined ||
       isProviderVirtualSourceFile(input.ast.getSourceFile(declaration)));
   });
-}
-
-function isProviderOwnedImportIdentity(subject: object | undefined, input: TargetCompileInput): boolean {
-  const identity = input.facts.getFact(subject, canonicalIdentityFactKey);
-  if (identity === undefined || identity.importKind === "type") {
-    return false;
-  }
-  const moduleId = identity.subpath ?? identity.id;
-  return moduleId === csharpLangModule ||
-    moduleId === csharpTypesModule ||
-    moduleId.startsWith("@tsonic/csharp/") ||
-    moduleId.startsWith("@tsonic/dotnet/") ||
-    moduleId.startsWith("node:");
 }
 
 function getSymbolDeclarations(symbol: unknown): readonly Node[] {
@@ -1016,29 +998,13 @@ function planObjectLiteralExpressionWithExpectedType(
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,
 ): CsharpExpression {
-  if (isSourceOwnedObjectInitializerType(expectedType, expectedTypeSubject, sourceFile, input)) {
-    const memberShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input) ??
-      getSourceOwnedObjectInitializerMemberShape(expectedTypeSubject, sourceFile, input);
-    const literal = AsObjectLiteralExpression(node)!;
-    const assignments = mergeObjectInitializerAssignments((literal.Properties?.Nodes ?? [])
-      .filter((property): property is Node => property !== undefined)
-      .flatMap((property) => planObjectLiteralAssignment(property, memberShape, sourceFile, input, diagnostics)));
-    return {
-      kind: "ObjectCreationExpression",
-      type: expectedType,
-      assignments,
-    };
-  }
-  if (expectedTypeForbidsObjectShapeFallback(expectedTypeSubject, sourceFile, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires a source-owned expected type or finalized TSTS/provider object-shape facts before C# emission."));
-    return invalidExpression("object literal without finalized object-shape facts");
-  }
   const objectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input) ??
     getExpectedObjectShapeFact(node, sourceFile, input);
   if (objectShape !== undefined) {
     return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape);
   }
-  diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires a source-owned expected type or finalized TSTS/provider object-shape facts before C# emission."));
+  void expectedType;
+  diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires finalized TSTS/provider object-shape facts before C# emission."));
   return invalidExpression("object literal without finalized object-shape facts");
 }
 
@@ -1250,181 +1216,6 @@ function findObjectShapeMember(objectShape: CsharpObjectShapeFact, sourceName: s
   return objectShape.members.find((member) => member.sourceName === sourceName);
 }
 
-function isSourceOwnedObjectInitializerType(
-  type: CsharpTypeNode,
-  expectedTypeSubject: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): boolean {
-  if (type.kind !== "IdentifierName") {
-    return false;
-  }
-  if (expectedTypeSubject === undefined) {
-    return false;
-  }
-  return isSourceOwnedProjectConstructibleObjectSubject(expectedTypeSubject, sourceFile, input);
-}
-
-function expectedTypeForbidsObjectShapeFallback(
-  expectedTypeSubject: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): boolean {
-  if (expectedTypeSubject === undefined) {
-    return false;
-  }
-  if (input.semantics.getTargetBindingForReference(expectedTypeSubject, { sourceFile }) !== undefined) {
-    return true;
-  }
-  const declaration = input.semantics.getProjectSourceDeclarationForNode(expectedTypeSubject, { sourceFile });
-  return HasSourceKind(input.ast, declaration, KindClassDeclaration) &&
-    !isSourceOwnedProjectConstructibleObjectSubject(expectedTypeSubject, sourceFile, input);
-}
-
-function planObjectLiteralAssignment(
-  property: Node,
-  memberShape: CsharpObjectShapeFact | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): readonly CsharpObjectInitializerAssignment[] {
-  switch (SourceKind(input.ast, property)) {
-    case KindPropertyAssignment: {
-      const propertyAssignment = AsPropertyAssignment(property)!;
-      const name = getSourceOwnedObjectInitializerMemberName(property, input, diagnostics);
-      if (name === undefined || propertyAssignment.Initializer === undefined) {
-        if (propertyAssignment.Initializer === undefined) {
-          diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal property assignment must have an initializer."));
-        }
-        return [];
-      }
-      const memberType = getObjectLiteralMemberType(memberShape, name);
-      return [{
-        kind: "AssignmentExpression",
-        name,
-        expression: memberType === undefined
-          ? planExpression(propertyAssignment.Initializer, sourceFile, input, diagnostics)
-          : planExpressionWithExpectedType(propertyAssignment.Initializer, sourceFile, input, diagnostics, memberType),
-      }];
-    }
-    case KindShorthandPropertyAssignment: {
-      const shorthand = AsShorthandPropertyAssignment(property)!;
-      if (shorthand.ObjectAssignmentInitializer !== undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal shorthand defaults require finalized default-value semantics before C# emission."));
-        return [];
-      }
-      const nameNode = Node_Name(property);
-      const name = getSourceOwnedObjectInitializerMemberName(property, input, diagnostics);
-      if (name === undefined || nameNode === undefined) {
-        return [];
-      }
-      const memberType = getObjectLiteralMemberType(memberShape, name);
-      return [{
-        kind: "AssignmentExpression",
-        name,
-        expression: memberType === undefined
-          ? planExpression(nameNode, sourceFile, input, diagnostics)
-          : planExpressionWithExpectedType(nameNode, sourceFile, input, diagnostics, memberType),
-      }];
-    }
-    case KindMethodDeclaration: {
-      const assignment = planSourceOwnedMethodMemberAssignment(property, memberShape, sourceFile, input, diagnostics);
-      return assignment === undefined ? [] : [assignment];
-    }
-    case KindSpreadAssignment:
-      diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal spread requires finalized provider object-spread semantics before C# emission."));
-      return [];
-    default:
-      diagnostics.push(unsupportedNodeDiagnostic(property, "Object literal member is outside the current C# planning surface."));
-      return [];
-  }
-}
-
-function getObjectLiteralMemberType(memberShape: CsharpObjectShapeFact | undefined, sourceName: string): CsharpTypeNode | undefined {
-  const member = memberShape?.members.find((candidate) => candidate.sourceName === sourceName);
-  return member === undefined ? undefined : csharpTypeFromTargetTypeRef(member.type);
-}
-
-function getSourceOwnedObjectInitializerMemberShape(
-  expectedTypeSubject: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): CsharpObjectShapeFact | undefined {
-  if (expectedTypeSubject === undefined) {
-    return undefined;
-  }
-  const type = IsTypeSyntaxNode(input.ast, expectedTypeSubject)
-    ? input.semantics.getTypeFromTypeNode(expectedTypeSubject, { sourceFile })
-    : input.semantics.getTypeAtLocation(expectedTypeSubject, { sourceFile });
-  if (type === undefined || input.types.isAny(type) || input.types.isUnknown(type)) {
-    return undefined;
-  }
-  const targetType = getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile);
-  if (targetType === undefined) {
-    return undefined;
-  }
-  const properties = input.types.getProperties(type, { sourceFile })
-    .filter((property): property is Symbol => property !== undefined);
-  if (properties.length === 0) {
-    return undefined;
-  }
-  const members = properties
-    .map((property) => getSourceOwnedObjectInitializerMember(type, property, sourceFile, input))
-    .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
-  return members.length === properties.length
-    ? { targetType, members }
-    : undefined;
-}
-
-function getSourceOwnedObjectInitializerMember(
-  ownerType: Type,
-  property: Symbol,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): CsharpObjectShapeMemberFact | undefined {
-  const sourceName = property.Name;
-  if (sourceName.length === 0) {
-    return undefined;
-  }
-  const propertyType = input.types.getPropertyType(ownerType, sourceName, { sourceFile });
-  const signatures = input.types.getCallSignatures(propertyType, { sourceFile });
-  const memberKind = signatures.length > 0 ? "method" : "property";
-  const type = memberKind === "method"
-    ? getFunctionTargetTypeRefFromSignature(signatures[0], sourceFile, input)
-    : getTargetTypeRefForType(input, propertyType, sourceFile);
-  return type === undefined
-    ? undefined
-    : {
-        sourceName,
-        targetName: sanitizeIdentifier(sourceName),
-        memberKind,
-        type,
-      };
-}
-
-function getFunctionTargetTypeRefFromSignature(
-  signature: Parameters<TargetCompileInput["types"]["getReturnTypeOfSignature"]>[0],
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): TargetTypeRef | undefined {
-  if (signature === undefined) {
-    return undefined;
-  }
-  const parameters = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
-    .map((parameter) => getTargetTypeRefForType(input, input.semantics.getTypeOfSymbol(parameter, { sourceFile }), sourceFile));
-  if (parameters.some((parameter) => parameter === undefined)) {
-    return undefined;
-  }
-  const returnType = getTargetTypeRefForType(input, input.types.getReturnTypeOfSignature(signature, { sourceFile }), sourceFile);
-  return returnType === undefined || isVoidTargetType(returnType)
-    ? { kind: "target-named", id: `System.Action\`${parameters.length}`, typeArguments: parameters as readonly TargetTypeRef[] }
-    : { kind: "target-named", id: `System.Func\`${parameters.length + 1}`, typeArguments: [...(parameters as readonly TargetTypeRef[]), returnType] };
-}
-
-function isVoidTargetType(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" && type.id === "System.Void";
-}
-
 function mergeObjectInitializerAssignments(assignments: readonly CsharpObjectInitializerAssignment[]): readonly CsharpObjectInitializerAssignment[] {
   const merged = new Map<string, CsharpObjectInitializerAssignment>();
   for (const assignment of assignments) {
@@ -1435,34 +1226,6 @@ function mergeObjectInitializerAssignments(assignments: readonly CsharpObjectIni
 
 function objectShapeMemberTypesMatch(left: CsharpObjectShapeFact["members"][number], right: CsharpObjectShapeFact["members"][number]): boolean {
   return targetTypeRefsMatch(left.type, right.type);
-}
-
-function planSourceOwnedMethodMemberAssignment(
-  methodNode: Node,
-  memberShape: CsharpObjectShapeFact | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): CsharpObjectInitializerAssignment | undefined {
-  const name = getSourceOwnedObjectInitializerMemberName(methodNode, input, diagnostics);
-  if (name === undefined) {
-    return undefined;
-  }
-  const memberType = getObjectLiteralMemberType(memberShape, name) ??
-    getContextualTargetCsharpType(methodNode, sourceFile, input);
-  if (memberType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Source-owned object literal method requires a contextual target delegate fact from TSTS before C# emission."));
-    return undefined;
-  }
-  if (!isCsharpDelegateType(memberType)) {
-    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Source-owned object literal method requires a contextual delegate target type before C# emission."));
-    return undefined;
-  }
-  return {
-    kind: "AssignmentExpression",
-    name,
-    expression: planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType),
-  };
 }
 
 function getContextualTargetCsharpType(
@@ -1517,32 +1280,6 @@ function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
     default:
       return undefined;
   }
-}
-
-function getSourceOwnedObjectInitializerMemberName(
-  property: Node,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): string | undefined {
-  const nameNode = input.ast.name(property) ?? Node_Name(property);
-  if (nameNode === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(property, "Source-owned object initializers require a property name."));
-    return undefined;
-  }
-  if (HasSourceKind(input.ast, nameNode, KindIdentifier)) {
-    return sanitizeIdentifier(Node_Text(nameNode));
-  }
-  if (HasSourceKind(input.ast, nameNode, KindStringLiteral)) {
-    const text = AsStringLiteral(nameNode)?.Text;
-    if (text !== undefined) {
-      const sanitized = sanitizeIdentifier(text);
-      if (sanitized === text || sanitized === `@${text}`) {
-        return sanitized;
-      }
-    }
-  }
-  diagnostics.push(unsupportedNodeDiagnostic(nameNode, "Source-owned object initializers support identifier-compatible property names; other names require finalized provider object-shape facts."));
-  return undefined;
 }
 
 function getObjectLiteralPropertySourceName(

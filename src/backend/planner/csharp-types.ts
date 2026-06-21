@@ -209,35 +209,9 @@ function getCsharpTypeFromTstsSourceType(
   if (input.types.isUnion(type)) {
     return undefined;
   }
-  if (input.types.isBooleanLike(type)) {
-    return predefined("bool");
-  }
-  if (input.types.isNumberLike(type)) {
-    return predefined("double");
-  }
-  if (input.types.isStringLike(type)) {
-    return predefined("string");
-  }
-  if (input.types.isBigIntLike(type)) {
-    return csharpTypeFromTargetTypeRef({ kind: "target-named", id: "System.Numerics.BigInteger" });
-  }
   const targetRef = getTargetTypeRefForType(input, type, sourceFile);
   if (targetRef !== undefined) {
     return csharpTypeFromTargetTypeRef(targetRef);
-  }
-  if (input.types.isTuple(type)) {
-    const elements = input.types.getTupleElementTypes(type, { sourceFile })
-      .map((element) => getCsharpTypeFromTstsSourceType(element, sourceFile, input, diagnostics, diagnosticNode));
-    return elements.some((element) => element === undefined)
-      ? undefined
-      : { kind: "TupleType", elements: elements as readonly CsharpTypeNode[] };
-  }
-  if (input.types.isArrayLike(type, { sourceFile })) {
-    const elementType = input.types.isTypeReference(type)
-      ? input.types.getTypeArguments(type, { sourceFile })[0]
-      : undefined;
-    const element = getCsharpTypeFromTstsSourceType(elementType, sourceFile, input, diagnostics, diagnosticNode);
-    return element === undefined ? undefined : { kind: "ArrayType", elementType: element };
   }
   return undefined;
 }

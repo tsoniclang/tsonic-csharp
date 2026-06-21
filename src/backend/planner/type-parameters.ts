@@ -1,4 +1,4 @@
-import { AsTypeParameterDeclaration, IsTypeSyntaxNode } from "./source-ast.js";
+import { AsTypeParameterDeclaration } from "./source-ast.js";
 import type { Node, SourceFile, TargetConstraint } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
 import type { TargetDiagnostic } from "@tsonic/target-api";
@@ -59,10 +59,6 @@ function planTypeParameterConstraints(
   if (declaration.Constraint === undefined) {
     return [];
   }
-  const semanticConstraint = getSemanticPrimitiveConstraint(typeParameterName, declaration.Constraint, sourceFile, input, diagnostics);
-  if (semanticConstraint !== undefined) {
-    return [semanticConstraint];
-  }
   const constraint = getCsharpTypeForNode(declaration.Constraint, sourceFile, input, undefined, diagnostics);
   if (constraint.kind === "IdentifierName" || constraint.kind === "QualifiedName") {
     return [constraint];
@@ -74,26 +70,6 @@ function planTypeParameterConstraints(
     ));
   }
   return [];
-}
-
-function getSemanticPrimitiveConstraint(
-  typeParameterName: string,
-  constraintNode: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): CsharpTypeNode | undefined {
-  const type = IsTypeSyntaxNode(input.ast, constraintNode)
-    ? input.semantics.getTypeFromTypeNode(constraintNode, { sourceFile })
-    : input.semantics.getTypeAtLocation(constraintNode, { sourceFile });
-  if (type !== undefined && (input.types.isNumberLike(type) || input.types.isBigIntLike(type))) {
-    return csharpTypeFromTargetTypeParameterConstraint(typeParameterName, {
-      kind: "target-specific",
-      target: "csharp",
-      name: "generic-math-number",
-    }, constraintNode, diagnostics);
-  }
-  return undefined;
 }
 
 function csharpTypeFromTargetTypeParameterConstraint(
