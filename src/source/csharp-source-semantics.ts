@@ -90,7 +90,6 @@ import {
   csharpProviderVersion,
   csharpTargetId,
   csharpTypesModule,
-  dotnetCollectionsModule,
   neutralLangModule,
   neutralTypesModule,
 } from "./csharp-source-semantics/identity.js";
@@ -101,11 +100,15 @@ import {
 import {
   createCsharpJsSurfaceMappers,
 } from "./csharp-source-semantics/surfaces/js/index.js";
+import {
+  createCsharpDotnetSystemTypeDataProvider,
+  createDotnetTargetBindingProvider,
+  findCsharpDotnetProviderExportByTargetId,
+} from "../providers/dotnet/index.js";
 
 export {
   csharpLangModule,
   csharpTypesModule,
-  dotnetCollectionsModule,
   neutralLangModule,
   neutralTypesModule,
 } from "./csharp-source-semantics/identity.js";
@@ -144,6 +147,9 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
     },
     initialize(context): void {
       context.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
+      context.registerTargetBindingProvider(createDotnetTargetBindingProvider({
+        provider: createCsharpDotnetSystemTypeDataProvider(),
+      }));
       const provider = createCsharpOperationsProvider(selectedSurfaceIds);
       context.registerTargetSemanticProvider(provider);
       context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext) => {
@@ -1444,17 +1450,7 @@ function getKnownTargetBindingForTypeRef(type: TargetTypeRef | undefined): Targe
 }
 
 function findCsharpTargetProviderDeclaration(targetId: string): ProviderExportDeclaration | undefined {
-  for (const moduleSpecifier of [csharpLangModule, dotnetCollectionsModule]) {
-    const declaration = csharpTargetProviderExports(moduleSpecifier)
-      .find((candidate) =>
-        candidate.targetIdentity?.target === csharpTargetId &&
-        candidate.targetIdentity.id === targetId
-      );
-    if (declaration !== undefined) {
-      return declaration;
-    }
-  }
-  return undefined;
+  return findCsharpDotnetProviderExportByTargetId(targetId);
 }
 
 function providerDeclarationToTargetBinding(declaration: ProviderExportDeclaration): TargetBindingFact | undefined {
@@ -3740,12 +3736,6 @@ function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
         { kind: "type-marker", exportName: "fnptr", marker: "fnptr" },
       ],
     },
-    {
-      moduleSpecifier: dotnetCollectionsModule,
-      packageName: "@tsonic/dotnet",
-      subpath: "System.Collections.Generic.js",
-      exports: [],
-    },
   ];
 }
 
@@ -3810,7 +3800,6 @@ function providerExportDeclarationsForModule(module: SourceSemanticsModule): rea
   return [
     ...sourceSemanticsHelperDeclarations(module.moduleSpecifier),
     ...module.exports.map(providerExportDeclarationForSourceSemantics),
-    ...csharpTargetProviderExports(module.moduleSpecifier),
   ];
 }
 
@@ -3911,21 +3900,6 @@ function providerCallMarkerDeclaration(exportName: string, marker: SourceCallMar
   }
 }
 
-function csharpTargetProviderExports(moduleSpecifier: string): readonly ProviderExportDeclaration[] {
-  if (moduleSpecifier === dotnetCollectionsModule) {
-    return [csharpListProviderDeclaration()];
-  }
-  if (moduleSpecifier === csharpLangModule) {
-    return [
-      csharpExceptionProviderDeclaration(),
-      csharpConvertProviderDeclaration(),
-      csharpEnvironmentProviderDeclaration(),
-      csharpClsCompliantAttributeProviderDeclaration(),
-    ];
-  }
-  return [];
-}
-
 function attributeBuilderDeclaration(): ProviderExportDeclaration {
   const ownerType: ProviderTypeExpression = { kind: "type-parameter", name: "TOwner" };
   const memberBuilder: ProviderTypeExpression = {
@@ -3987,146 +3961,6 @@ function attributeMemberBuilderDeclaration(): ProviderExportDeclaration {
   };
 }
 
-function csharpListProviderDeclaration(): ProviderExportDeclaration {
-  const itemType: ProviderTypeExpression = { kind: "type-parameter", name: "T" };
-  const intType = providerTypeForPrimitive("int32");
-  const boolType = providerTypeForPrimitive("bool");
-  return {
-    id: "List",
-    name: "List",
-    kind: "class",
-    targetIdentity: {
-      target: csharpTargetId,
-      id: "System.Collections.Generic.List`1",
-      displayName: "System.Collections.Generic.List",
-    },
-    typeParameters: [{ name: "T" }],
-    members: [
-      constructorMember("System.Collections.Generic.List`1..ctor()", []),
-      constructorMember("System.Collections.Generic.List`1..ctor(System.Collections.Generic.IEnumerable`1)", [
-        { name: "items", type: { kind: "array", elementType: itemType } },
-      ]),
-      propertyMember("Count", "count", intType),
-      indexerMember("System.Collections.Generic.List`1.Item(System.Int32)", "item", [{ name: "index", type: intType }], itemType),
-      methodMember("System.Collections.Generic.List`1.Add(T)", "add", [{ name: "item", type: itemType }], { kind: "void" }),
-      methodMember("System.Collections.Generic.List`1.Clear()", "clear", [], { kind: "void" }),
-      methodMember("System.Collections.Generic.List`1.Contains(T)", "contains", [{ name: "item", type: itemType }], boolType),
-      methodMember("System.Collections.Generic.List`1.IndexOf(T)", "indexOf", [{ name: "item", type: itemType }], intType),
-      methodMember("System.Collections.Generic.List`1.Remove(T)", "remove", [{ name: "item", type: itemType }], boolType),
-      methodMember("System.Collections.Generic.List`1.RemoveAt(System.Int32)", "removeAt", [{ name: "index", type: intType }], { kind: "void" }),
-      methodMember("System.Collections.Generic.List`1.ToArray()", "toArray", [], { kind: "array", elementType: itemType }),
-    ],
-  };
-}
-
-function csharpExceptionProviderDeclaration(): ProviderExportDeclaration {
-  const stringType = providerCsharpStringType();
-  return {
-    id: "Exception",
-    name: "Exception",
-    kind: "class",
-    targetIdentity: {
-      target: csharpTargetId,
-      id: "System.Exception",
-      displayName: "System.Exception",
-    },
-    members: [
-      constructorMember("System.Exception..ctor(System.String)", [{ name: "message", type: stringType }]),
-      propertyMember("Message", "message", stringType),
-      methodMember("System.Exception.ToString()", "toString", [], stringType),
-    ],
-  };
-}
-
-function csharpConvertProviderDeclaration(): ProviderExportDeclaration {
-  const doubleType = providerTypeForPrimitive("float64");
-  return {
-    id: "Convert",
-    name: "Convert",
-    kind: "class",
-    targetIdentity: {
-      target: csharpTargetId,
-      id: "System.Convert",
-      displayName: "System.Convert",
-    },
-    members: [
-      staticMethodMember("System.Convert.ToByte(System.Double)", "toByte", [{ name: "value", type: doubleType }], providerTypeForPrimitive("uint8")),
-      staticMethodMember("System.Convert.ToInt32(System.Double)", "toInt32", [{ name: "value", type: doubleType }], providerTypeForPrimitive("int32")),
-      staticMethodMember("System.Convert.ToString(System.Double)", "toString", [{ name: "value", type: doubleType }], providerCsharpStringType()),
-    ],
-  };
-}
-
-function csharpEnvironmentProviderDeclaration(): ProviderExportDeclaration {
-  return {
-    id: "Environment",
-    name: "Environment",
-    kind: "class",
-    targetIdentity: {
-      target: csharpTargetId,
-      id: "System.Environment",
-      displayName: "System.Environment",
-    },
-    members: [
-      staticPropertyMember("System.Environment.NewLine", "newLine", providerCsharpStringType()),
-      staticMethodMember("System.Environment.Exit(System.Int32)", "exit", [{ name: "exitCode", type: providerTypeForPrimitive("int32") }], { kind: "void" }),
-    ],
-  };
-}
-
-function csharpClsCompliantAttributeProviderDeclaration(): ProviderExportDeclaration {
-  return {
-    id: "CLSCompliantAttribute",
-    name: "CLSCompliantAttribute",
-    kind: "class",
-    targetIdentity: {
-      target: csharpTargetId,
-      id: "System.CLSCompliantAttribute",
-      displayName: "System.CLSCompliantAttribute",
-    },
-    members: [
-      constructorMember("System.CLSCompliantAttribute..ctor(System.Boolean)", [{ name: "isCompliant", type: providerTypeForPrimitive("bool") }]),
-    ],
-  };
-}
-
-function constructorMember(id: string, parameters: readonly ProviderParameterDeclaration[]) {
-  return {
-    id,
-    name: "constructor",
-    kind: "constructor" as const,
-    signatures: [{ id, parameters }],
-  };
-}
-
-function propertyMember(id: string, sourceName: string, type: ProviderTypeExpression) {
-  return {
-    id,
-    name: sourceName,
-    kind: "property" as const,
-    type,
-  };
-}
-
-function staticPropertyMember(id: string, sourceName: string, type: ProviderTypeExpression) {
-  return {
-    id,
-    name: sourceName,
-    kind: "property" as const,
-    static: true,
-    type,
-  };
-}
-
-function indexerMember(id: string, sourceName: string, parameters: readonly ProviderParameterDeclaration[], returnType: ProviderTypeExpression) {
-  return {
-    id,
-    name: sourceName,
-    kind: "indexer" as const,
-    signatures: [{ id, parameters, returnType }],
-  };
-}
-
 function methodMember(
   id: string,
   sourceName: string,
@@ -4148,16 +3982,6 @@ function methodMember(
   };
 }
 
-function staticMethodMember(id: string, sourceName: string, parameters: readonly ProviderParameterDeclaration[], returnType: ProviderTypeExpression) {
-  return {
-    id,
-    name: sourceName,
-    kind: "method" as const,
-    static: true,
-    signatures: [{ id, name: targetMemberNameFromId(id), parameters, returnType }],
-  };
-}
-
 function targetMemberNameFromId(id: string): string {
   const paren = id.indexOf("(");
   const qualifiedName = paren === -1 ? id : id.slice(0, paren);
@@ -4167,16 +3991,6 @@ function targetMemberNameFromId(id: string): string {
 
 function providerTypeForPrimitive(kind: SourcePrimitiveKind): ProviderTypeExpression {
   return { kind: "source-primitive", name: kind };
-}
-
-function providerCsharpStringType(): ProviderTypeExpression {
-  return {
-    kind: "target-named",
-    target: csharpTargetId,
-    id: "System.String",
-    displayName: "string",
-    sourceShape: { kind: "string" },
-  };
 }
 
 function emptySourceModule(moduleSpecifier: string): SourceSemanticsModule {

@@ -111,14 +111,14 @@ function collectAttributeApplicationFacts(input: TargetCompileInput): readonly A
 function attributeApplicationTargetsSubject(
   attribute: AttributeFact,
   subject: Node,
-  fallbackSourceFile: SourceFile,
+  contextSourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {
   const applicationTarget = isNode(attribute.applicationTarget) ? attribute.applicationTarget : undefined;
   if (applicationTarget === undefined) {
     return false;
   }
-  const applicationSourceFile = input.ast.getSourceFile(applicationTarget) ?? fallbackSourceFile;
+  const applicationSourceFile = input.ast.getSourceFile(applicationTarget) ?? contextSourceFile;
   const selectedDeclaration = input.semantics.getProjectSourceReferenceForNode(applicationTarget, { sourceFile: applicationSourceFile })?.declaration ??
     input.semantics.getProjectSourceDeclarationForNode(applicationTarget, { sourceFile: applicationSourceFile });
   if (attribute.applicationParameterName === undefined) {

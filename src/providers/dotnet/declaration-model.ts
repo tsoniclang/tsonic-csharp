@@ -40,7 +40,7 @@ export function dotnetExportToProviderExport(declaration: DotnetExportDeclaratio
         name: declaration.sourceName,
         kind: "function",
         targetIdentity: dotnetTargetIdentity(declaration.metadataName, declaration.sourceName),
-        signatures: declaration.signatures.map(dotnetSignatureToProviderSignature),
+        signatures: declaration.signatures.map((signature) => dotnetSignatureToProviderSignature(signature)),
       };
     case "value":
       return {
@@ -94,7 +94,7 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
         name: declaration.sourceName,
         kind: "method",
         static: true,
-        signatures: declaration.signatures.map(dotnetSignatureToProviderSignature),
+        signatures: declaration.signatures.map((signature) => dotnetSignatureToProviderSignature(signature)),
       };
     case "value":
       return {
@@ -122,14 +122,19 @@ function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): Provider
     kind: dotnetMemberKindToProviderKind(member.kind),
     ...(member.static !== undefined ? { static: member.static } : {}),
     ...(member.type !== undefined ? { type: dotnetTypeRefToProviderType(member.type) } : {}),
-    ...(member.signatures !== undefined ? { signatures: member.signatures.map(dotnetSignatureToProviderSignature) } : {}),
+    ...(member.signatures !== undefined
+      ? { signatures: member.signatures.map((signature) => dotnetSignatureToProviderSignature(signature, member.targetName)) }
+      : {}),
   };
 }
 
-function dotnetSignatureToProviderSignature(signature: DotnetSignatureDeclaration): ProviderSignatureDeclaration {
+function dotnetSignatureToProviderSignature(
+  signature: DotnetSignatureDeclaration,
+  memberTargetName?: string,
+): ProviderSignatureDeclaration {
   return {
     id: signature.id,
-    ...(signature.targetName !== undefined ? { name: signature.targetName } : {}),
+    ...(signature.targetName !== undefined || memberTargetName !== undefined ? { name: signature.targetName ?? memberTargetName } : {}),
     parameters: signature.parameters.map(dotnetParameterToProviderParameter),
     ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToProviderType(signature.returnType) } : {}),
     ...(signature.typeParameters !== undefined ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToProviderTypeParameterStrict) } : {}),
