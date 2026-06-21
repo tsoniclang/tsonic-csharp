@@ -172,4 +172,7 @@ test(".NET reflection provider classifies unsupported type families without sile
   assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Action`1"));
   assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Func`2"));
   assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Environment.SpecialFolder"));
+
+  assert.equal(provider.findTargetBindingByTargetId("System.Action`1")?.kind, "delegate");
+  assert.equal(provider.findTargetBindingByTargetId("System.Func`2")?.kind, "delegate");
 });
