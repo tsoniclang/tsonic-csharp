@@ -29,17 +29,18 @@ export function providerDeclarationToTargetBinding(declaration: ProviderExportDe
   if (kind === undefined) {
     return undefined;
   }
+  const typeParameters = declaration.typeParameters?.map(providerTypeParameterToTargetTypeParameter) ?? [];
   return {
     id: declaration.targetIdentity.id,
     sourceName: declaration.name,
     targetName: declaration.targetIdentity.displayName ?? declaration.targetIdentity.id,
     target: csharpTargetId,
     kind,
-    ...(declaration.typeParameters !== undefined && declaration.typeParameters.length > 0
-      ? { typeParameters: declaration.typeParameters.map(providerTypeParameterToTargetTypeParameter) }
+    ...(typeParameters.length > 0
+      ? { typeParameters }
       : {}),
     ...(declaration.members !== undefined
-      ? { members: declaration.members.flatMap((member) => providerMemberToTargetMembers(member, declaration.targetIdentity!.id)) }
+      ? { members: declaration.members.flatMap((member) => providerMemberToTargetMembers(member, declaration.targetIdentity!.id, typeParameters)) }
       : {}),
   };
 }
@@ -84,7 +85,7 @@ function providerTypeExpressionToTargetConstraints(type: ProviderTypeExpression)
   }];
 }
 
-function providerMemberToTargetMembers(member: ProviderMemberDeclaration, declaringTypeId: string): readonly TargetMember[] {
+function providerMemberToTargetMembers(member: ProviderMemberDeclaration, declaringTypeId: string, declaringTypeParameters: readonly TargetTypeParameter[]): readonly TargetMember[] {
   switch (member.kind) {
     case "property":
     case "field":
@@ -97,14 +98,15 @@ function providerMemberToTargetMembers(member: ProviderMemberDeclaration, declar
             kind: member.kind,
             parameters: [],
             returnType: providerTypeExpressionToTargetTypeRef(member.type),
-            declaringType: csharpTargetNamedType(declaringTypeId),
+            declaringType: declaringTargetTypeRef(declaringTypeId, declaringTypeParameters),
+            ...(declaringTypeParameters.length > 0 ? { typeParameters: declaringTypeParameters } : {}),
             ...(member.static === true ? { static: true } : {}),
           }];
     case "method":
     case "constructor":
     case "indexer":
       return (member.signatures ?? []).flatMap((signature) => {
-        const targetMember = providerSignatureToTargetMember(member, signature, declaringTypeId);
+        const targetMember = providerSignatureToTargetMember(member, signature, declaringTypeId, declaringTypeParameters);
         return targetMember === undefined ? [] : [targetMember];
       });
   }
@@ -114,25 +116,35 @@ function providerSignatureToTargetMember(
   member: ProviderMemberDeclaration,
   signature: ProviderSignatureDeclaration,
   declaringTypeId: string,
+  declaringTypeParameters: readonly TargetTypeParameter[],
 ): TargetMember | undefined {
   const kind = member.kind;
   const targetName = targetMemberNameFromProviderSignature(member, signature);
   if (targetName === undefined) {
     return undefined;
   }
+  const signatureTypeParameters = signature.typeParameters?.map(providerTypeParameterToTargetTypeParameter) ?? [];
+  const typeParameters = [...declaringTypeParameters, ...signatureTypeParameters];
   return {
     id: signature.id,
     sourceName: member.name,
     targetName,
     kind,
-    declaringType: csharpTargetNamedType(declaringTypeId),
+    declaringType: declaringTargetTypeRef(declaringTypeId, declaringTypeParameters),
     ...(member.static === true ? { static: true } : {}),
     parameters: signature.parameters.map(providerParameterToTargetParameter),
     ...(signature.returnType !== undefined ? { returnType: providerTypeExpressionToTargetTypeRef(signature.returnType) } : {}),
-    ...(signature.typeParameters !== undefined && signature.typeParameters.length > 0
-      ? { typeParameters: signature.typeParameters.map(providerTypeParameterToTargetTypeParameter) }
+    ...(typeParameters.length > 0
+      ? { typeParameters }
       : {}),
   };
+}
+
+function declaringTargetTypeRef(declaringTypeId: string, declaringTypeParameters: readonly TargetTypeParameter[]): TargetTypeRef {
+  return csharpTargetNamedType(
+    declaringTypeId,
+    declaringTypeParameters.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
+  );
 }
 
 function providerParameterToTargetParameter(parameter: ProviderParameterDeclaration): TargetParameter {

@@ -70,9 +70,6 @@ function collectUnresolvedTargetTypeRefsFromMember(member: TargetMember): readon
         add(type.name);
         return;
       case "target-named":
-        if (getTargetNamedTypeArity(type.id) !== (type.typeArguments ?? []).length) {
-          add(type.id);
-        }
         for (const argument of type.typeArguments ?? []) {
           visit(argument);
         }
@@ -143,15 +140,6 @@ function substituteTargetMemberTypeParameters(
     })),
     ...(member.returnType !== undefined ? { returnType: substituteTargetTypeRef(member.returnType, typeArgumentMap) } : {}),
   };
-}
-
-function getTargetNamedTypeArity(id: string): number {
-  const tick = id.lastIndexOf("`");
-  if (tick < 0) {
-    return 0;
-  }
-  const parsed = Number.parseInt(id.slice(tick + 1), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function substituteTargetTypeRef(type: TargetTypeRef, typeArgumentMap: ReadonlyMap<string, TargetTypeRef>): TargetTypeRef {
