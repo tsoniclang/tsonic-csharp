@@ -104,7 +104,7 @@ export {
 } from "./csharp-source-semantics/identity.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
-const checkedOperationNodeFallbackQuery = { allowSemanticTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
+const checkedOperationSyntaxFactQuery = { allowSemanticTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
 
 interface TargetTypeRefResolutionOptions {
   readonly allowRuntimeCarrier?: boolean;
@@ -806,7 +806,7 @@ function mapCsharpCheckedCall(
     request.calleeReceiverSymbol,
   ]) ?? getKnownTargetBindingForTypeRef(
     getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
-      getTargetTypeRefForSubject(request.calleeReceiver, context, checkedOperationNodeFallbackQuery),
+      getTargetTypeRefForSubject(request.calleeReceiver, context, checkedOperationSyntaxFactQuery),
   );
   if (binding === undefined) {
     return deferObservation;
@@ -891,7 +891,7 @@ function mapCsharpCheckedPropertyAccess(
     request.receiverSymbol,
   ]) ?? getKnownTargetBindingForTypeRef(
     getTargetTypeRefForSubject(request.receiverType, context) ??
-      getTargetTypeRefForSubject(request.receiver, context, checkedOperationNodeFallbackQuery),
+      getTargetTypeRefForSubject(request.receiver, context, checkedOperationSyntaxFactQuery),
   );
   if (binding === undefined) {
     const arrayOperation = mapCsharpNativeArrayCheckedPropertyAccess(request, context);
@@ -949,7 +949,7 @@ function mapCsharpCheckedElementAccess(
     request.receiver,
   ]) ?? getKnownTargetBindingForTypeRef(
     getTargetTypeRefForSubject(request.receiverType, context) ??
-      getTargetTypeRefForSubject(request.receiver, context, checkedOperationNodeFallbackQuery),
+      getTargetTypeRefForSubject(request.receiver, context, checkedOperationSyntaxFactQuery),
   );
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId) ?? deferObservation;
@@ -1102,7 +1102,7 @@ function getCsharpOperatorResultTypeRefForOperator(
 }
 
 function getCheckedOperatorOperandQuery(operator: string): TargetTypeRefResolutionOptions {
-  return operator === "??" ? {} : checkedOperationNodeFallbackQuery;
+  return operator === "??" ? {} : checkedOperationSyntaxFactQuery;
 }
 
 function getLiteralTargetTypeRefForKnownOperatorOperand(
