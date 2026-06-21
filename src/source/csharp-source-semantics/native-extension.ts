@@ -62,7 +62,8 @@ import {
   getRecordedCsharpObjectShapeFactForSubject as resolveRecordedCsharpObjectShapeFactForSubject,
   getSemanticTypeDeclarationShape as resolveSemanticTypeDeclarationShape,
   getTargetTypeRefForSyntaxNode as resolveTargetTypeRefForSyntaxNode,
-  recordCsharpSourceFileFacts,
+  recordCsharpObjectShapeFactsBeforeFinalization,
+  recordCsharpTypeParameterConstraintFacts,
 } from "./object-shape-facts.js";
 import type {
   CsharpObjectShapeSemanticsHost,
@@ -148,9 +149,10 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       });
       context.registerTargetSemanticProvider(provider);
       context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext) => {
-        recordCsharpSourceFileFacts(request, context.facts, lifecycleContext.compiler?.ast);
+        recordCsharpTypeParameterConstraintFacts(request, context.facts, lifecycleContext.compiler?.ast);
       });
       context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
+        recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, objectShapeSemanticsHost);
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, checkedOperatorLifecycleHost);
