@@ -1,8 +1,6 @@
 import {
   functionPointerFactKey,
   pointerFactKey,
-  providerVirtualDeclarationFactKey,
-  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
   sourcePrimitiveFactKey,
   targetOperationFactKey,
@@ -14,21 +12,13 @@ import type {
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
-import type {
-  CsharpObjectShapeFact,
-} from "../csharp-facts.js";
 import {
   asNodeSubject,
-  getNodeField,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
   resolveTargetBinding,
 } from "./provider-bindings.js";
-import {
-  getSymbolDeclarations,
-  getSymbolForDeclarationLookup,
-} from "./symbol-utils.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
@@ -57,23 +47,21 @@ import {
   getTypeParameterName,
   resolveTargetTypeArgumentsForTypeWithResolver,
 } from "./target-type-semantic-resolution.js";
+import type {
+  CsharpTargetTypeResolutionHost,
+} from "./target-type-resolution-host.js";
+import {
+  getCatchVariableTargetTypeRef,
+  getProviderVirtualDeclarationTargetTypeRef,
+  getProviderVirtualDeclarationTargetTypeRefFromDeclarations,
+  getTargetTypeRefFromDeclarationAnnotation,
+  resolveRuntimeCarrier,
+} from "./target-type-resolution-facts.js";
 
-export interface CsharpSemanticTypeDeclarationShape {
-  readonly kind: "class" | "interface" | "enum";
-  readonly name: string;
-  readonly targetType: TargetTypeRef;
-}
-
-export interface CsharpTargetTypeResolutionHost {
-  readonly getCsharpObjectShapeFactForSubject: (
-    subject: ExtensionFactSubject | undefined,
-    context: ExtensionObservationContext,
-  ) => CsharpObjectShapeFact | undefined;
-  readonly getSemanticTypeDeclarationShape: (
-    type: Type,
-    context: ExtensionObservationContext,
-  ) => CsharpSemanticTypeDeclarationShape | undefined;
-}
+export type {
+  CsharpSemanticTypeDeclarationShape,
+  CsharpTargetTypeResolutionHost,
+} from "./target-type-resolution-host.js";
 
 const recursiveTargetTypeResolver: CsharpRecursiveTargetTypeResolver = {
   resolveSubject: resolveTargetTypeRefForSubject,
@@ -162,7 +150,7 @@ export function resolveTargetTypeRefForSubject(
   if (syntaxType !== undefined) {
     return syntaxType;
   }
-  const declarationType = getTargetTypeRefFromDeclarationAnnotation(subject, context, options, host);
+  const declarationType = getTargetTypeRefFromDeclarationAnnotation(subject, context, options, host, resolveTargetTypeRefForSubject);
   if (declarationType !== undefined) {
     return declarationType;
   }
@@ -265,82 +253,6 @@ export function resolveTargetTypeRefForType(
   const tuple = getTupleTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (tuple !== undefined) {
     return tuple;
-  }
-  return undefined;
-}
-
-function getCatchVariableTargetTypeRef(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-): TargetTypeRef | undefined {
-  const ast = context.compiler?.ast;
-  const checker = context.compiler?.checker;
-  const node = asNodeSubject(subject);
-  if (ast === undefined || checker === undefined || node === undefined || !ast.is.IsIdentifier(node)) {
-    return undefined;
-  }
-  const symbol = checker.getSymbolAtLocation(node) ?? checker.getResolvedSymbol(node);
-  const declarations = getSymbolDeclarations(symbol);
-  return declarations.some((declaration) => {
-      const parent = asNodeSubject(getNodeField(declaration, "Parent"));
-      return parent !== undefined && ast.is.IsCatchClause(parent);
-    })
-    ? csharpTargetNamedType("System.Exception")
-    : undefined;
-}
-
-function resolveRuntimeCarrier(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-): TargetTypeRef | undefined {
-  return subject === undefined ? undefined : context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier;
-}
-
-function getProviderVirtualDeclarationTargetTypeRef(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-): TargetTypeRef | undefined {
-  const targetIdentity = subject === undefined
-    ? undefined
-    : context.factResolver.resolve(subject, providerVirtualDeclarationFactKey)?.targetIdentity;
-  return targetIdentity?.kind === "target-named" ? targetIdentity : undefined;
-}
-
-function getProviderVirtualDeclarationTargetTypeRefFromDeclarations(
-  type: Type,
-  context: ExtensionObservationContext,
-): TargetTypeRef | undefined {
-  for (const declaration of getSymbolDeclarations(type.symbol)) {
-    const target = getProviderVirtualDeclarationTargetTypeRef(declaration, context);
-    if (target !== undefined) {
-      return target;
-    }
-  }
-  return undefined;
-}
-
-function getTargetTypeRefFromDeclarationAnnotation(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions,
-  host: CsharpTargetTypeResolutionHost,
-): TargetTypeRef | undefined {
-  const ast = context.compiler?.ast;
-  const node = asNodeSubject(subject);
-  const checker = context.compiler?.checker;
-  if (node === undefined || checker === undefined || ast === undefined) {
-    return undefined;
-  }
-  const symbol = getSymbolForDeclarationLookup(ast, checker, node, ast.getSourceFile(node));
-  const declarations = getSymbolDeclarations(symbol);
-  for (const declaration of declarations) {
-    const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
-    if (typeNode !== undefined && typeNode !== node) {
-      const result = resolveTargetTypeRefForSubject(typeNode, context, options, host);
-      if (result !== undefined) {
-        return result;
-      }
-    }
   }
   return undefined;
 }
