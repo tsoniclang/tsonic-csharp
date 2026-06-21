@@ -9,6 +9,10 @@ import {
   asNodeSubject,
   getNodeField,
 } from "./ast-utils.js";
+import {
+  parseBigIntLiteral,
+  parseFiniteNumberLiteral,
+} from "../source-literal-values.js";
 
 export function isLiteralRepresentableAsTargetType(
   expected: TargetTypeRef,
@@ -116,20 +120,6 @@ function getBigIntLiteralValue(
   }
   const value = parseBigIntLiteral(ast.text(operand));
   return value === undefined ? undefined : operator === "KindMinusToken" ? -value : value;
-}
-
-function parseFiniteNumberLiteral(text: string): number | undefined {
-  const value = Number(text.split("_").join(""));
-  return Number.isFinite(value) ? value : undefined;
-}
-
-function parseBigIntLiteral(text: string): bigint | undefined {
-  const normalized = text.split("_").join("").replace(/n$/u, "");
-  try {
-    return BigInt(normalized);
-  } catch {
-    return undefined;
-  }
 }
 
 function getPrefixUnaryOperatorKindName(

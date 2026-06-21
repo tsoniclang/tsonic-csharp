@@ -26,6 +26,9 @@ import { planAttributesForSubject } from "./attributes.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { planIdentifierName } from "./names.js";
+import {
+  parseFiniteNumberLiteral,
+} from "../../source/source-literal-values.js";
 
 export function planEnumDeclaration(
   node: Node,
@@ -88,8 +91,14 @@ function planEnumConstantExpression(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   switch (SourceKind(input.ast, node)) {
-    case KindNumericLiteral:
-      return { kind: "LiteralExpression", value: Number(input.ast.text(node)) };
+    case KindNumericLiteral: {
+      const value = parseFiniteNumberLiteral(input.ast.text(node));
+      if (value === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "C# enum numeric literal initializer requires parseable finite source literal text from TSTS."));
+        return undefined;
+      }
+      return { kind: "LiteralExpression", value };
+    }
     case KindIdentifier:
       return { kind: "IdentifierName", name: planIdentifierName(AsIdentifier(node), "EnumConstant", input, diagnostics, "Enum constant reference") };
     case KindParenthesizedExpression: {

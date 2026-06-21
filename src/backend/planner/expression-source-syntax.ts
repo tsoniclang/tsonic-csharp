@@ -35,6 +35,9 @@ import { invalidExpression } from "./invalid-expression.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
+import {
+  parseFiniteNumberLiteral,
+} from "../../source/source-literal-values.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -48,8 +51,14 @@ export function tryPlanSourceSyntaxExpression(
       return { kind: "LiteralExpression", value: Node_Text(AsStringLiteral(node)) };
     case KindNoSubstitutionTemplateLiteral:
       return { kind: "LiteralExpression", value: Node_Text(AsNoSubstitutionTemplateLiteral(node)) };
-    case KindNumericLiteral:
-      return { kind: "LiteralExpression", value: Number(Node_Text(AsNumericLiteral(node))) };
+    case KindNumericLiteral: {
+      const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
+      if (value === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
+        return invalidExpression("invalid numeric literal");
+      }
+      return { kind: "LiteralExpression", value };
+    }
     case KindTrueKeyword:
       return { kind: "LiteralExpression", value: true };
     case KindFalseKeyword:
