@@ -50,6 +50,7 @@ function getSourceFileOutputRegistry(
   }
   const byFileName = new Map<string, SourceFileOutputIdentity>();
   const byClassName = new Map<string, string>();
+  const byArtifactPath = new Map<string, string>();
   for (const sourceFile of input.sourceFiles) {
     if (sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, sourceFile)) {
       continue;
@@ -59,9 +60,8 @@ function getSourceFileOutputRegistry(
     if (relativeName === undefined) {
       continue;
     }
-    const suffix = hashString(relativeName);
-    const className = `TsonicModule_${suffix}`;
-    const artifactPath = `src/modules/${className}.cs`;
+    const className = sourceFileModuleClassName(relativeName);
+    const artifactPath = sourceFileModuleArtifactPath(relativeName, className);
     const existingFileName = byClassName.get(className);
     if (existingFileName !== undefined && existingFileName !== fileName) {
       diagnostics?.push({
@@ -72,7 +72,18 @@ function getSourceFileOutputRegistry(
       });
       continue;
     }
+    const existingArtifactFileName = byArtifactPath.get(artifactPath);
+    if (existingArtifactFileName !== undefined && existingArtifactFileName !== fileName) {
+      diagnostics?.push({
+        code: "CSHARP_SOURCE_ARTIFACT_COLLISION",
+        category: "error",
+        source: "tsonic-csharp",
+        message: `Source files '${existingArtifactFileName}' and '${fileName}' produced the same C# artifact path '${artifactPath}'.`,
+      });
+      continue;
+    }
     byClassName.set(className, fileName);
+    byArtifactPath.set(artifactPath, fileName);
     byFileName.set(fileName, { fileName, className, artifactPath });
   }
   outputIdentityRegistries.set(input, byFileName);
@@ -103,11 +114,24 @@ function normalizePath(value: string): string {
   return value.split("\\").join("/");
 }
 
-function hashString(value: string): string {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
+function sourceFileModuleArtifactPath(relativeName: string, className: string): string {
+  const parts = relativeName.split("/");
+  parts[parts.length - 1] = `${className}.cs`;
+  return `src/${parts.join("/")}`;
+}
+
+function sourceFileModuleClassName(relativeName: string): string {
+  return sanitizePascalIdentifier(stripFinalExtension(relativeName).split("/").join("_"), "Module");
+}
+
+function stripFinalExtension(value: string): string {
+  const lastDot = value.lastIndexOf(".");
+  return lastDot < 0 ? value : value.slice(0, lastDot);
+}
+
+function sanitizePascalIdentifier(value: string, fallback: string): string {
+  const parts = value.split(/[^A-Za-z0-9_]+/).filter((part) => part.length > 0);
+  const candidate = parts.map((part) => `${part[0]!.toUpperCase()}${part.slice(1)}`).join("");
+  const prefixed = /^[A-Za-z_]/.test(candidate) ? candidate : `_${candidate}`;
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(prefixed) ? prefixed : fallback;
 }

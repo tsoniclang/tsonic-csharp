@@ -18,7 +18,7 @@ export function getRuntimeCarrierSubjectType(
   node: Node,
 ): Type | undefined {
   return isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)
-    ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
+    ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
     : compiler.checker.getTypeAtLocation(node, { sourceFile });
 }
 
@@ -27,6 +27,9 @@ export function getRuntimeCarrierSubjectSymbol(
   sourceFile: SourceFile,
   node: Node,
 ): Symbol | undefined {
+  if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)) {
+    return undefined;
+  }
   return getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile);
 }
 

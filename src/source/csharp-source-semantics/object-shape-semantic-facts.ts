@@ -145,7 +145,7 @@ function getSemanticTypeForObjectShapeSubject(
   }
   try {
     return isTypeSyntaxNode(compiler.ast, node)
-      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
+      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
       : compiler.checker.getTypeAtLocation(node, { sourceFile });
   } catch {
     return undefined;

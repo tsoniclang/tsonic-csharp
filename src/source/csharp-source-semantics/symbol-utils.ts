@@ -40,7 +40,7 @@ export function getSymbolForDeclarationLookup(
   node: Node,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
 ): Symbol | undefined {
-  if (!isSymbolLookupNode(ast, node)) {
+  if (!isSymbolLookupNode(ast, node) || isTypeOnlySymbolLookupPosition(ast, node)) {
     return undefined;
   }
   const symbol = checker.getSymbolAtLocation(node, { sourceFile });
@@ -52,6 +52,30 @@ export function getSymbolForDeclarationLookup(
   } catch {
     return undefined;
   }
+}
+
+function isTypeOnlySymbolLookupPosition(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  if (isTypeSyntaxNode(ast, node)) {
+    return true;
+  }
+  let current: Node | undefined = node;
+  for (let parent = asNodeSubject(getNodeField(current, "Parent")); parent !== undefined; parent = asNodeSubject(getNodeField(parent, "Parent"))) {
+    if (ast.is.IsTypeReferenceNode(parent) ||
+      ast.is.IsTypeParameterDeclaration(parent) ||
+      ast.is.IsTypeAliasDeclaration(parent) ||
+      ast.is.IsInterfaceDeclaration(parent) ||
+      ast.is.IsImportTypeNode(parent)) {
+      return true;
+    }
+    if (!ast.is.IsQualifiedName(parent)) {
+      return false;
+    }
+    current = parent;
+  }
+  return false;
 }
 
 export function getAliasedSymbolIfAvailable(
@@ -80,7 +104,6 @@ function isSymbolLookupNode(
   return ast.is.IsIdentifier(node) ||
     ast.is.IsPrivateIdentifier(node) ||
     ast.is.IsQualifiedName(node) ||
-    ast.is.IsTypeReferenceNode(node) ||
     ast.is.IsPropertyAccessExpression(node) ||
     ast.is.IsVariableDeclaration(node) ||
     ast.is.IsParameterDeclaration(node) ||
@@ -98,6 +121,5 @@ function isResolvedSymbolLookupNode(
   return ast.is.IsIdentifier(node) ||
     ast.is.IsPrivateIdentifier(node) ||
     ast.is.IsQualifiedName(node) ||
-    ast.is.IsTypeReferenceNode(node) ||
     ast.is.IsPropertyAccessExpression(node);
 }

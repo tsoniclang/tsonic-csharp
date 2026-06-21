@@ -136,6 +136,7 @@ function getSemanticSubjects(
     subjects.push(declarationType);
   }
   const symbol = node === undefined || sourceFile === undefined
+    || isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)
     ? undefined
     : getSafeObjectShapeSymbol(node, sourceFile, context);
   if (symbol !== undefined) {
@@ -197,7 +198,7 @@ function getTypeSubject(
   }
   try {
     return isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)
-      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
+      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
       : compiler.checker.getTypeAtLocation(node, { sourceFile });
   } catch {
     return undefined;

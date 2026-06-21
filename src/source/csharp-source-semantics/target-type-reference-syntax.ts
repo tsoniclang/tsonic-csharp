@@ -1,19 +1,18 @@
 import {
   sourcePrimitiveFactKey,
+  targetBindingFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
+  TargetBindingFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
   getNodeField,
 } from "./ast-utils.js";
-import {
-  resolveTargetBindingForReference,
-} from "./provider-bindings.js";
 import {
   getSymbolDeclarations,
 } from "./symbol-utils.js";
@@ -54,7 +53,6 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     node,
     typeName,
     type?.symbol,
-    checker.getSymbolAtLocation(typeName),
   ];
   for (const candidate of candidateSubjects) {
     if (candidate === undefined) {
@@ -74,7 +72,10 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
       return csharpSourcePrimitiveTargetType(primitive.kind);
     }
   }
-  const binding = resolveTargetBindingForReference(node, context);
+  const binding = resolveTargetBindingFact(context, node) ??
+    resolveTargetBindingFact(context, typeName) ??
+    resolveTargetBindingFact(context, type) ??
+    resolveTargetBindingFact(context, type?.symbol);
   if (binding !== undefined) {
     const typeArguments = ast.typeArguments(node).map((argument) => resolver.resolveSubject(argument, context, options, host));
     if (typeArguments.some((argument) => argument === undefined)) {
@@ -87,6 +88,13 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return aliasedType;
   }
   return undefined;
+}
+
+function resolveTargetBindingFact(
+  context: ExtensionObservationContext,
+  subject: ExtensionFactSubject | undefined,
+): TargetBindingFact | undefined {
+  return subject === undefined ? undefined : context.factResolver.resolve(subject, targetBindingFactKey);
 }
 
 function getTargetTypeRefFromTypeAliasDeclarations(
