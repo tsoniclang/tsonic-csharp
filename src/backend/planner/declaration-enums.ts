@@ -100,9 +100,7 @@ function planEnumConstantExpression(
     case KindPrefixUnaryExpression: {
       const expression = AsPrefixUnaryExpression(node);
       const operand = expression?.Operand === undefined ? undefined : planEnumConstantExpression(expression.Operand, sourceFile, input, diagnostics);
-      const operatorToken = (expression as { readonly Operator?: unknown; readonly OperatorToken?: unknown } | undefined)?.Operator ??
-        (expression as { readonly OperatorToken?: unknown } | undefined)?.OperatorToken;
-      const operator = getEnumConstantPrefixOperator(SourceTokenKind(input.ast, operatorToken));
+      const operator = getEnumConstantPrefixOperator(SourceTokenKind(input.ast, expression?.OperatorToken?.Kind));
       return operand === undefined || operator === undefined ? undefined : { kind: "PrefixUnaryExpression", operator, operand };
     }
     case "KindBinaryExpression": {

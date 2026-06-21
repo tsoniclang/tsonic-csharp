@@ -118,8 +118,7 @@ export function getNodeField(node: Node | undefined, field: string): unknown {
 
 export function getNodeNameText(node: Node): string {
   const name = asNodeSubject(getNodeField(node, "Name") ?? getNodeField(node, "name"));
-  const text = (name as { readonly Text?: unknown; readonly text?: unknown } | undefined)?.Text ??
-    (name as { readonly text?: unknown } | undefined)?.text;
+  const text = (name as { readonly Text?: unknown } | undefined)?.Text;
   return typeof text === "function" || text === undefined ? "" : String(text);
 }
 

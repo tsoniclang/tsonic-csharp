@@ -22,8 +22,7 @@ export function HasSyntacticModifier(node: Node, flag: number): boolean {
 }
 
 export function Node_Text(node: Node | undefined): string {
-  const text = (node as { readonly Text?: unknown; readonly text?: unknown } | undefined)?.Text ??
-    (node as { readonly text?: unknown } | undefined)?.text;
+  const text = (node as { readonly Text?: unknown } | undefined)?.Text;
   return typeof text === "function" ? "" : String(text ?? "");
 }
 
