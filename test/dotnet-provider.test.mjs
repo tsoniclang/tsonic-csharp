@@ -133,3 +133,25 @@ test(".NET reflection provider exposes delegates with source shells and target d
   assert.equal(targetBinding?.csharpType.kind, "target-named");
   assert.equal(targetBinding?.csharpType.kind === "target-named" ? targetBinding.csharpType.id : undefined, "System.Predicate`1");
 });
+
+test(".NET reflection provider classifies unsupported type families without silently dropping them", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  assert.equal("exports" in systemModule, true);
+
+  const unsupportedFamilies = new Map(systemModule.unsupportedExports?.map((declaration) => [declaration.sourceName, declaration]) ?? []);
+  const action = unsupportedFamilies.get("Action");
+  const func = unsupportedFamilies.get("Func");
+
+  assert.ok(action);
+  assert.equal(action.kind, "unsupported-type-family");
+  assert.ok(action.metadataNames.includes("System.Action"));
+  assert.ok(action.metadataNames.includes("System.Action`1"));
+  assert.match(action.reason, /provider type-family declaration model/);
+
+  assert.ok(func);
+  assert.equal(func.kind, "unsupported-type-family");
+  assert.ok(func.metadataNames.includes("System.Func`1"));
+  assert.ok(func.metadataNames.includes("System.Func`2"));
+  assert.match(func.reason, /provider type-family declaration model/);
+});

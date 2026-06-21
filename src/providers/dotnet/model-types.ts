@@ -23,6 +23,14 @@ export interface DotnetModuleModel {
   readonly namespaceName: string;
   readonly assembly?: DotnetAssemblyReference;
   readonly exports: readonly DotnetExportDeclaration[];
+  readonly unsupportedExports?: readonly DotnetUnsupportedExportDeclaration[];
+}
+
+export interface DotnetUnsupportedExportDeclaration {
+  readonly kind: "unsupported-type-family";
+  readonly sourceName: string;
+  readonly reason: string;
+  readonly metadataNames: readonly string[];
 }
 
 export type DotnetExportDeclaration =

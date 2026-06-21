@@ -85,16 +85,22 @@ sealed class ReflectionProvider
 
     public object GetModule()
     {
-        var exportTypes = LoadTypes()
+        var sourceGroups = LoadTypes()
             .Where(type => type.Namespace == request.NamespaceName)
             .Where(type => type.IsPublic || type.IsNestedPublic)
             .Where(type => !type.IsSpecialName)
             .GroupBy(MetadataName, StringComparer.Ordinal)
             .Select(group => group.First())
             .GroupBy(SourceTypeName, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .ToArray();
+        var exportTypes = sourceGroups
             .Where(group => group.Count() == 1)
             .Select(group => group.First())
-            .OrderBy(type => SourceTypeName(type), StringComparer.Ordinal)
+            .ToArray();
+        var unsupportedExports = sourceGroups
+            .Where(group => group.Count() > 1)
+            .Select(ToUnsupportedExport)
             .ToArray();
 
         providerReferenceNames = exportTypes.Select(SourceTypeName).ToHashSet(StringComparer.Ordinal);
@@ -110,6 +116,7 @@ sealed class ReflectionProvider
             moduleSpecifier = request.ModuleSpecifier,
             namespaceName = request.NamespaceName,
             exports,
+            unsupportedExports = unsupportedExports.Length == 0 ? null : unsupportedExports,
         };
     }
 
@@ -220,6 +227,17 @@ sealed class ReflectionProvider
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,
             sourceShape,
             members = members.Length == 0 ? null : members,
+        };
+    }
+
+    static object ToUnsupportedExport(IGrouping<string, Type> group)
+    {
+        return new
+        {
+            kind = "unsupported-type-family",
+            sourceName = group.Key,
+            reason = "Multiple CLR metadata types share this source name. This requires a provider type-family declaration model before it can be exposed safely.",
+            metadataNames = group.Select(MetadataName).OrderBy(name => name, StringComparer.Ordinal).ToArray(),
         };
     }
 

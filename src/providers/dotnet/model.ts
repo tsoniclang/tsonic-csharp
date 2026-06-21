@@ -14,6 +14,7 @@ export type {
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedExportDeclaration,
   DotnetValueDeclaration,
 } from "./model-types.js";
 export {
