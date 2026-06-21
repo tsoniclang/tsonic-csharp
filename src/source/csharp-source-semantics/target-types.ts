@@ -200,6 +200,17 @@ export function getCsharpNullableElementTargetType(type: TargetTypeRef | undefin
   return typeArguments.length === 1 ? typeArguments[0] : undefined;
 }
 
+export function getCsharpArrayLiteralElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  if (
+    type?.kind !== "target-named" ||
+    !knownCsharpArrayLiteralAssignableTargetIds.has(type.id) ||
+    (type as CsharpTargetNamedTypeRef).csharpRender === undefined
+  ) {
+    return undefined;
+  }
+  return type.typeArguments?.[0];
+}
+
 export function csharpQualifiedTypeRenderShape(namespaceName: string, name: string): CsharpTargetTypeRenderShape {
   return {
     kind: "named",
@@ -319,3 +330,12 @@ function knownCsharpSpecialType(id: string): { readonly csharpSpecialType: Cshar
       return {};
   }
 }
+
+const knownCsharpArrayLiteralAssignableTargetIds = new Set<string>([
+  "System.Collections.Generic.IEnumerable`1",
+  "System.Collections.Generic.IReadOnlyCollection`1",
+  "System.Collections.Generic.IReadOnlyList`1",
+  "System.Collections.Generic.ICollection`1",
+  "System.Collections.Generic.IList`1",
+  "System.Collections.Generic.List`1",
+]);

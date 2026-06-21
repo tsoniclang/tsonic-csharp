@@ -11,7 +11,10 @@ import {
   unwrapNullableTargetType,
 } from "../dist/source/csharp-source-semantics/target-rules.js";
 import { getTypeofRuntimeKind } from "../dist/source/csharp-source-semantics/typeof-operators.js";
-import { csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpTargetNamedType,
+  getCsharpArrayLiteralElementTargetType,
+} from "../dist/source/csharp-source-semantics/target-types.js";
 import {
   csharpJsRegExpTargetType,
   isCsharpJsRegExpRuntimeCarrier,
@@ -40,6 +43,23 @@ test("special C# target types require explicit metadata", () => {
   assert.equal(isVoidTargetType(csharpTargetNamedType("System.Void")), true);
   assert.equal(unwrapNullableTargetType(rawNullable), rawNullable);
   assert.deepEqual(unwrapNullableTargetType(csharpTargetNamedType("System.Nullable`1", [intType])), intType);
+});
+
+test("collection literal acceptance requires explicit C# target metadata", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const rawEnumerable = {
+    kind: "target-named",
+    id: "System.Collections.Generic.IEnumerable`1",
+    typeArguments: [intType],
+  };
+  const enrichedEnumerable = csharpTargetNamedType("System.Collections.Generic.IEnumerable`1", [intType], {
+    kind: "named",
+    namespace: ["System", "Collections", "Generic"],
+    name: "IEnumerable",
+  });
+
+  assert.equal(getCsharpArrayLiteralElementTargetType(rawEnumerable), undefined);
+  assert.deepEqual(getCsharpArrayLiteralElementTargetType(enrichedEnumerable), intType);
 });
 
 test("JS RegExp runtime carrier requires explicit JS surface metadata", () => {

@@ -23,6 +23,9 @@ import type {
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import {
+  getCsharpArrayLiteralElementTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
+import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
@@ -200,18 +203,5 @@ function getExpectedArgumentRenderType(
 }
 
 function getEnumerableCollectionElementType(type: TargetTypeRef): TargetTypeRef | undefined {
-  if (
-    type.kind === "target-named" &&
-    (
-      type.id === "System.Collections.Generic.IEnumerable`1" ||
-      type.id === "System.Collections.Generic.IReadOnlyCollection`1" ||
-      type.id === "System.Collections.Generic.IReadOnlyList`1" ||
-      type.id === "System.Collections.Generic.ICollection`1" ||
-      type.id === "System.Collections.Generic.IList`1" ||
-      type.id === "System.Collections.Generic.List`1"
-    )
-  ) {
-    return type.typeArguments?.[0];
-  }
-  return undefined;
+  return getCsharpArrayLiteralElementTargetType(type);
 }

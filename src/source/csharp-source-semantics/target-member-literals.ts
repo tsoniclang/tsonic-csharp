@@ -16,6 +16,9 @@ import {
 import {
   isCsharpStringType,
 } from "./target-rules.js";
+import {
+  getCsharpArrayLiteralElementTargetType,
+} from "./target-types.js";
 
 export function isLiteralRepresentableAsTargetType(
   expected: TargetTypeRef,
@@ -82,20 +85,7 @@ function getTargetElementTypeForArrayLiteral(expected: TargetTypeRef): TargetTyp
   if (expected.kind === "array") {
     return expected.element;
   }
-  if (
-    expected.kind === "target-named" &&
-    (
-      expected.id === "System.Collections.Generic.IEnumerable`1" ||
-      expected.id === "System.Collections.Generic.IReadOnlyCollection`1" ||
-      expected.id === "System.Collections.Generic.IReadOnlyList`1" ||
-      expected.id === "System.Collections.Generic.ICollection`1" ||
-      expected.id === "System.Collections.Generic.IList`1" ||
-      expected.id === "System.Collections.Generic.List`1"
-    )
-  ) {
-    return expected.typeArguments?.[0];
-  }
-  return undefined;
+  return getCsharpArrayLiteralElementTargetType(expected);
 }
 
 function getNumericLiteralValue(
