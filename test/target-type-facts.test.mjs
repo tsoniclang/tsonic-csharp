@@ -5,11 +5,19 @@ import { KindIdentifier } from "../dist/backend/planner/source-ast.js";
 import { isCsharpThrowableCarrier } from "../dist/backend/planner/statement-output.js";
 import { printCsharpType } from "../dist/print/csharp-printer.js";
 import { csharpTargetTypeParameterConstraintFactKey } from "../dist/source/csharp-facts.js";
+import { getTypeofRuntimeKind } from "../dist/source/csharp-source-semantics/typeof-operators.js";
 import { csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("throwable carriers require explicit C# target capability metadata", () => {
   assert.equal(isCsharpThrowableCarrier({ kind: "target-named", id: "System.Exception" }), false);
   assert.equal(isCsharpThrowableCarrier(csharpTargetNamedType("System.Exception")), true);
+});
+
+test("typeof runtime mapping requires explicit C# target metadata", () => {
+  assert.equal(getTypeofRuntimeKind({ kind: "target-named", id: "System.String" }, { allowNullableUnwrap: false }), undefined);
+  assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.String"), { allowNullableUnwrap: false }), "string");
+  assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.Boolean"), { allowNullableUnwrap: false }), "boolean");
+  assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.Numerics.BigInteger"), { allowNullableUnwrap: false }), "bigint");
 });
 
 test("type parameter constraints render finalized C# type facts", () => {

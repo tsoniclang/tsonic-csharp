@@ -5,6 +5,9 @@ import type {
   TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTypeofRuntimeKind,
+} from "../csharp-facts.js";
 
 export type CsharpTargetTypeRenderShape =
   | { readonly kind: "predefined"; readonly name: string }
@@ -14,6 +17,7 @@ export type CsharpTargetTypeRenderShape =
 export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "target-named" }> & {
   readonly csharpRender?: CsharpTargetTypeRenderShape;
   readonly csharpThrowable?: true;
+  readonly csharpTypeofRuntimeKind?: CsharpTypeofRuntimeKind;
 };
 
 export type CsharpTargetBindingFact = TargetBindingFact & {
@@ -102,6 +106,7 @@ export function csharpTargetNamedType(
     ...(typeArguments !== undefined && typeArguments.length > 0 ? { typeArguments } : {}),
     ...(renderShape !== undefined ? { csharpRender: renderShape } : {}),
     ...(knownCsharpThrowableTypeIds.has(id) ? { csharpThrowable: true } : {}),
+    ...knownCsharpTypeofRuntimeKind(id),
   } satisfies CsharpTargetNamedTypeRef;
 }
 
@@ -167,6 +172,12 @@ export function csharpSourcePrimitiveTargetType(kind: SourcePrimitiveKind): Targ
 
 export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpThrowable === true;
+}
+
+export function getCsharpTypeofRuntimeKindForTargetType(type: TargetTypeRef | undefined): CsharpTypeofRuntimeKind | undefined {
+  return type?.kind === "target-named"
+    ? (type as CsharpTargetNamedTypeRef).csharpTypeofRuntimeKind
+    : undefined;
 }
 
 export function csharpQualifiedTypeRenderShape(namespaceName: string, name: string): CsharpTargetTypeRenderShape {
@@ -270,3 +281,16 @@ const genericRenderShapes = new Map<string, CsharpTargetTypeRenderShape>([
 const knownCsharpThrowableTypeIds = new Set<string>([
   "System.Exception",
 ]);
+
+function knownCsharpTypeofRuntimeKind(id: string): { readonly csharpTypeofRuntimeKind: CsharpTypeofRuntimeKind } | {} {
+  switch (id) {
+    case "System.String":
+      return { csharpTypeofRuntimeKind: "string" };
+    case "System.Boolean":
+      return { csharpTypeofRuntimeKind: "boolean" };
+    case "System.Numerics.BigInteger":
+      return { csharpTypeofRuntimeKind: "bigint" };
+    default:
+      return {};
+  }
+}

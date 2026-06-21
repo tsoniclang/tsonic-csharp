@@ -17,6 +17,7 @@ import {
 import {
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
+  getCsharpTypeofRuntimeKindForTargetType,
 } from "./target-types.js";
 import {
   sourcePrimitiveRuntimeKind,
@@ -71,18 +72,7 @@ export function getTypeofRuntimeKind(
   if (type?.kind === "source-primitive") {
     return sourcePrimitiveRuntimeKind(type.name);
   }
-  if (type?.kind === "target-named") {
-    if (type.id === "System.String") {
-      return "string";
-    }
-    if (type.id === "System.Boolean") {
-      return "boolean";
-    }
-    if (type.id === "System.Numerics.BigInteger") {
-      return "bigint";
-    }
-  }
-  return undefined;
+  return getCsharpTypeofRuntimeKindForTargetType(type);
 }
 
 function getTypeofLiteralComparisonKind(
