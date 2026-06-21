@@ -13,7 +13,12 @@ import {
   asNodeSubject,
   asSemanticType,
 } from "../../../fact-subjects.js";
-export { targetOperation } from "../../operations.js";
+export {
+  csharpTargetIntrinsicOperatorOperation,
+  csharpTargetMemberOperation,
+  recordCsharpTargetOperation,
+  targetOperation,
+} from "../../operations.js";
 export {
   asNodeSubject,
   asSemanticType as asType,

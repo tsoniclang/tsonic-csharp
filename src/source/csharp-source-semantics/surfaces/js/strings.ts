@@ -14,11 +14,13 @@ import type {
 import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
   CsharpTargetOperatorOperation,
-} from "../../../csharp-operation-tags.js";
+} from "../../../csharp-facts.js";
 import {
   csharpJsCheckedTypeQuery,
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
+  csharpTargetIntrinsicOperatorOperation,
+  recordCsharpTargetOperation,
   targetMethod,
   targetOperation,
   targetParameter,
@@ -37,6 +39,7 @@ export function mapCsharpJsStringElementAccess(
   if (!host.isIntegralTargetTypeRef(indexType) && !host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
     return rejectObservation(host.csharpProviderDiagnostic("tsonic.csharp.js-surface-operations", "CSHARP_NON_INTEGRAL_STRING_INDEX", 9100112, "C# JS surface string element access requires an integral provider-backed index type."));
   }
+  recordCsharpTargetOperation(context, request.expression, csharpTargetIntrinsicOperatorOperation("tsonic.csharp.js.string.codeUnit", CsharpTargetOperatorOperation.jsStringCodeUnit, csharpTargetNamedType("System.String")), [{ message: "C# JS surface string code-unit operation recorded from checked TypeScript element access." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation("tsonic.csharp.js.string.codeUnit", "indexer", CsharpTargetOperatorOperation.jsStringCodeUnit, {
       resultType: csharpTargetNamedType("System.String"),

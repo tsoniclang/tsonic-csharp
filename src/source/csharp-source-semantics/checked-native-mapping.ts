@@ -23,7 +23,9 @@ import {
   getCsharpConversionOperation,
 } from "./target-rules.js";
 import {
+  csharpTargetMemberOperation,
   targetOperation,
+  recordCsharpTargetOperation,
 } from "./operations.js";
 import {
   asTargetParameter,
@@ -100,6 +102,12 @@ export function mapCsharpCheckedConversion(
     }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
   }
   const operation = getCsharpConversionOperation(source, target);
+  if (operation !== undefined) {
+    recordCsharpTargetOperation(context, request.source, csharpTargetMemberOperation(operation.operationId, "method", operation.targetOperation, {
+      static: true,
+      declaringType: { kind: "target-named", id: "System.Convert" },
+    }), [{ message: "C# target conversion static member recorded from selected target conversion." }]);
+  }
   return acceptObservation<CheckedConversionMappingResult>({
     convertedType: target,
     ...(operation !== undefined ? { operation } : {}),

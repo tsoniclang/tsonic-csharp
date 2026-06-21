@@ -15,9 +15,11 @@ import {
 } from "./identity.js";
 import {
   CsharpTargetOperatorOperation,
-  csharpTypeofRuntimeOperation,
-} from "../csharp-operation-tags.js";
+} from "../csharp-facts.js";
 import {
+  csharpTargetIntrinsicOperatorOperation,
+  csharpTargetTypeofRuntimeOperation,
+  recordCsharpTargetOperation,
   targetOperation,
 } from "./operations.js";
 import {
@@ -57,8 +59,9 @@ export function mapCsharpCheckedOperator(
   }
   const typeofComparison = getTypeofComparisonOperation(request, context);
   if (typeofComparison !== undefined) {
+    recordCsharpTargetOperation(context, request.expression, typeofComparison.csharpOperation, [{ message: "C# typeof comparison operation recorded from checked TSTS operator result." }]);
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: typeofComparison,
+      operation: typeofComparison.operation,
     }, [{ message: "C# typeof comparison selected from checked TSTS operator result." }]);
   }
   if (request.operator === "typeof") {
@@ -68,11 +71,14 @@ export function mapCsharpCheckedOperator(
     if (runtimeKind === undefined) {
       return deferObservation;
     }
+    const operationId = `tsonic.csharp.typeof.${runtimeKind}`;
+    recordCsharpTargetOperation(context, request.expression, csharpTargetTypeofRuntimeOperation(operationId, runtimeKind), [{ message: "C# typeof runtime operation recorded from checked TSTS operand type." }]);
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(`tsonic.csharp.typeof.${runtimeKind}`, "operator", csharpTypeofRuntimeOperation(runtimeKind)),
+      operation: targetOperation(operationId, "operator", "typeof"),
     }, [{ message: "C# typeof runtime kind selected from checked TSTS operand type." }]);
   }
   if (request.operator === "instanceof") {
+    recordCsharpTargetOperation(context, request.expression, csharpTargetIntrinsicOperatorOperation("tsonic.csharp.instanceof", CsharpTargetOperatorOperation.typeTest), [{ message: "C# type-test operation recorded from checked TSTS instanceof expression." }]);
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation("tsonic.csharp.instanceof", "operator", CsharpTargetOperatorOperation.typeTest),
     }, [{ message: "C# type-test operation selected from checked TSTS instanceof expression." }]);

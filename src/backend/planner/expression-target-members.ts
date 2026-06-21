@@ -34,7 +34,11 @@ import {
 } from "./expression-selected-target-members.js";
 import {
   CsharpTargetOperatorOperation,
-} from "../../source/csharp-operation-tags.js";
+  csharpTargetOperationFactKey,
+} from "../../source/csharp-facts.js";
+import {
+  getRequiredCsharpTargetOperation,
+} from "./csharp-target-operations.js";
 
 export {
   planSelectedTargetCallArguments,
@@ -54,14 +58,22 @@ export function planPropertyAccessExpression(
   }
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   if (targetOperation !== undefined && targetOperation.operationKind === "property") {
-    const staticMember = targetStaticMemberExpression(targetOperation, diagnostics, propertyAccess);
+    const csharpOperation = getRequiredCsharpTargetOperation(input, propertyAccess, targetOperation, diagnostics, "C# property access emission");
+    if (csharpOperation === undefined) {
+      return invalidExpression("missing C# target property operation fact");
+    }
+    const staticMember = targetStaticMemberExpression(csharpOperation, diagnostics, propertyAccess);
     if (staticMember !== undefined) {
       return staticMember;
+    }
+    if (csharpOperation.kind !== "member" || csharpOperation.operationKind !== "property") {
+      diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, "C# property access emission requires a finalized C# member property operation fact."));
+      return invalidExpression("selected target property operation");
     }
     return {
       kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
       receiver: planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression),
-      name: targetOperation.targetOperation,
+      name: csharpOperation.memberName,
     };
   }
   if (targetOperation !== undefined) {
@@ -94,7 +106,14 @@ export function planElementAccessExpression(
     return invalidExpression("missing target element access fact");
   }
   const selectedElementAccess = input.facts.getSelectedTargetElementAccess(elementAccess);
-  if (selectedElementAccess?.targetOperation === CsharpTargetOperatorOperation.jsStringCodeUnit) {
+  const csharpOperation = selectedElementAccess === undefined
+    ? undefined
+    : input.facts.getFact(elementAccess, csharpTargetOperationFactKey);
+  if (selectedElementAccess !== undefined && csharpOperation?.operationId !== selectedElementAccess.operationId) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "C# element access emission received mismatched or missing finalized C# target operation facts."));
+    return invalidExpression("selected target element access operation");
+  }
+  if (csharpOperation?.kind === "intrinsic-operator" && csharpOperation.operator === CsharpTargetOperatorOperation.jsStringCodeUnit) {
     const receiver = planExpression(expression.Expression!, sourceFile, input, diagnostics);
     return {
       kind: "InvocationExpression",

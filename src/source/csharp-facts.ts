@@ -1,6 +1,15 @@
 import { defineExtensionFactKey } from "@tsonic/tsts";
 import type { ExtensionEvidence, ExtensionFactSubject, TargetConstraint, TargetTypeRef } from "@tsonic/tsts";
 
+export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint";
+
+export const CsharpTargetOperatorOperation = {
+  typeTest: "type-test",
+  jsStringCodeUnit: "js-string-code-unit",
+} as const;
+
+export type CsharpTargetOperatorOperation = typeof CsharpTargetOperatorOperation[keyof typeof CsharpTargetOperatorOperation];
+
 export interface CsharpObjectShapeMemberFact {
   readonly sourceName: string;
   readonly targetName: string;
@@ -38,6 +47,44 @@ export interface CsharpTargetIterationFact {
   readonly evidence?: readonly ExtensionEvidence[];
 }
 
+export type CsharpTargetOperationFact =
+  | CsharpTargetMemberOperationFact
+  | CsharpTargetIntrinsicOperatorOperationFact
+  | CsharpTargetTypeofRuntimeOperationFact
+  | CsharpTargetTypeofComparisonOperationFact;
+
+export interface CsharpTargetMemberOperationFact {
+  readonly kind: "member";
+  readonly operationId: string;
+  readonly operationKind: "property" | "method" | "indexer" | "constructor" | "operator";
+  readonly memberName: string;
+  readonly static?: boolean;
+  readonly declaringType?: TargetTypeRef;
+  readonly resultType?: TargetTypeRef;
+}
+
+export interface CsharpTargetIntrinsicOperatorOperationFact {
+  readonly kind: "intrinsic-operator";
+  readonly operationId: string;
+  readonly operator: CsharpTargetOperatorOperation;
+  readonly resultType?: TargetTypeRef;
+}
+
+export interface CsharpTargetTypeofRuntimeOperationFact {
+  readonly kind: "typeof-runtime";
+  readonly operationId: string;
+  readonly runtimeKind: CsharpTypeofRuntimeKind;
+  readonly resultType?: TargetTypeRef;
+}
+
+export interface CsharpTargetTypeofComparisonOperationFact {
+  readonly kind: "typeof-comparison";
+  readonly operationId: string;
+  readonly runtimeKind: CsharpTypeofRuntimeKind;
+  readonly negated: boolean;
+  readonly resultType?: TargetTypeRef;
+}
+
 export const csharpObjectShapeFactKey = defineExtensionFactKey<CsharpObjectShapeFact>({
   extensionId: "tsonic.csharp",
   name: "objectShape",
@@ -63,6 +110,40 @@ export const csharpTargetIterationFactKey = defineExtensionFactKey<CsharpTargetI
     && left.targetOperation === right.targetOperation
     && left.elementType === right.elementType,
 });
+
+export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
+  extensionId: "tsonic.csharp",
+  name: "targetOperation",
+  equals: csharpTargetOperationFactEquals,
+});
+
+function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right: CsharpTargetOperationFact): boolean {
+  if (left.kind !== right.kind || left.operationId !== right.operationId) {
+    return false;
+  }
+  switch (left.kind) {
+    case "member":
+      return right.kind === "member"
+        && left.operationKind === right.operationKind
+        && left.memberName === right.memberName
+        && left.static === right.static
+        && targetTypeRefEquals(left.declaringType, right.declaringType)
+        && targetTypeRefEquals(left.resultType, right.resultType);
+    case "intrinsic-operator":
+      return right.kind === "intrinsic-operator"
+        && left.operator === right.operator
+        && targetTypeRefEquals(left.resultType, right.resultType);
+    case "typeof-runtime":
+      return right.kind === "typeof-runtime"
+        && left.runtimeKind === right.runtimeKind
+        && targetTypeRefEquals(left.resultType, right.resultType);
+    case "typeof-comparison":
+      return right.kind === "typeof-comparison"
+        && left.runtimeKind === right.runtimeKind
+        && left.negated === right.negated
+        && targetTypeRefEquals(left.resultType, right.resultType);
+  }
+}
 
 function objectShapeMemberArrayEquals(left: readonly CsharpObjectShapeMemberFact[] | undefined, right: readonly CsharpObjectShapeMemberFact[] | undefined): boolean {
   if (left === right) {

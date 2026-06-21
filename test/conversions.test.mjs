@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
-import { csharpStaticMemberOperation } from "../dist/source/csharp-operation-tags.js";
+import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
   const value = trueKeyword();
@@ -15,8 +15,17 @@ test("planner renders target conversion method facts as C# AST calls", () => {
       operation: {
         operationId: "System.Convert.ToByte",
         operationKind: "method",
-        targetOperation: csharpStaticMemberOperation("System.Convert", "ToByte"),
+        targetOperation: "ToByte",
       },
+    },
+    csharpOperationSubject: value,
+    csharpOperation: {
+      kind: "member",
+      operationId: "System.Convert.ToByte",
+      operationKind: "method",
+      memberName: "ToByte",
+      static: true,
+      declaringType: { kind: "target-named", id: "System.Convert" },
     },
   }), diagnostics);
 
@@ -58,7 +67,7 @@ test("planner diagnoses unsupported target conversion operations instead of inve
   assert.match(diagnostics[0].message, /Target conversion operation 'operator' is not renderable/);
 });
 
-test("planner rejects unqualified target conversion methods without a provider rendering contract", () => {
+test("planner rejects conversion methods without a finalized C# operation fact", () => {
   const value = trueKeyword();
   const diagnostics = [];
   const expression = planExpression(value, {}, fakeInput({
@@ -75,7 +84,7 @@ test("planner rejects unqualified target conversion methods without a provider r
 
   assert.equal(expression.kind, "InvalidExpression");
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Target conversion method requires a declaring target type and method name/);
+  assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
 });
 
 function trueKeyword() {
@@ -100,7 +109,7 @@ function fakeInput(options = {}) {
       getObjectShapeFact: () => undefined,
       getTargetBindingFact: () => undefined,
       getSourcePrimitiveFact: () => undefined,
-      getFact: () => undefined,
+      getFact: (subject, key) => subject === options.csharpOperationSubject && key === csharpTargetOperationFactKey ? options.csharpOperation : undefined,
       getTargetIterationFact: () => undefined,
       getValueTypeFact: () => undefined,
       getFieldFact: () => undefined,

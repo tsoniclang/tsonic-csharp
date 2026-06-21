@@ -2,9 +2,6 @@ import type {
   SourcePrimitiveKind,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import {
-  csharpStaticMemberOperation,
-} from "../csharp-operation-tags.js";
 import { targetOperation } from "./operations.js";
 
 export function sourcePrimitiveRuntimeKind(kind: SourcePrimitiveKind): "string" | "number" | "boolean" | "bigint" {
@@ -111,7 +108,7 @@ export function getCsharpConversionOperation(source: TargetTypeRef | undefined, 
     const methodName = sourcePrimitiveConversionMethod(target.name);
     return methodName === undefined
       ? undefined
-      : targetOperation(`System.Convert.${methodName}`, "method", csharpStaticMemberOperation("System.Convert", methodName));
+      : targetOperation(`System.Convert.${methodName}`, "method", methodName);
   }
   return undefined;
 }

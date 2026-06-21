@@ -5,8 +5,9 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
-  getCsharpStaticMemberOperation,
-} from "../../source/csharp-operation-tags.js";
+  csharpStaticMemberExpression,
+  getRequiredCsharpTargetOperation,
+} from "./csharp-target-operations.js";
 
 type TargetConversion = NonNullable<ReturnType<TargetCompileInput["facts"]["getTargetConversionFact"]>>;
 
@@ -20,11 +21,12 @@ export function applyTargetConversionFact(
   if (conversion === undefined || conversion.operation === undefined) {
     return expression;
   }
-  return planTargetConversionOperation(node, conversion, expression, diagnostics);
+  return planTargetConversionOperation(node, input, conversion, expression, diagnostics);
 }
 
 function planTargetConversionOperation(
   node: Node,
+  input: TargetCompileInput,
   conversion: TargetConversion,
   expression: CsharpExpression,
   diagnostics: TargetDiagnostic[],
@@ -35,7 +37,7 @@ function planTargetConversionOperation(
   }
   switch (operation.operationKind) {
     case "method":
-      return planTargetConversionMethodCall(node, operation, expression, diagnostics);
+      return planTargetConversionMethodCall(node, input, operation, expression, diagnostics);
     case "constructor":
       return planTargetConversionConstructor(node, conversion, expression, diagnostics);
     default:
@@ -46,11 +48,12 @@ function planTargetConversionOperation(
 
 function planTargetConversionMethodCall(
   node: Node,
+  input: TargetCompileInput,
   operation: TargetOperationFact,
   expression: CsharpExpression,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
-  const callee = targetConversionStaticMethodCallee(operation, diagnostics, node);
+  const callee = targetConversionStaticMethodCallee(input, operation, diagnostics, node);
   if (callee === undefined) {
     return invalidExpression("target conversion method");
   }
@@ -62,23 +65,16 @@ function planTargetConversionMethodCall(
 }
 
 function targetConversionStaticMethodCallee(
+  input: TargetCompileInput,
   operation: TargetOperationFact,
   diagnostics: TargetDiagnostic[],
   node: Node,
 ): CsharpExpression | undefined {
-  const staticMember = getCsharpStaticMemberOperation(operation.targetOperation);
-  const declaringTypeRef = staticMember === undefined ? undefined : { kind: "target-named" as const, id: staticMember.declaringTypeId };
-  const methodName = staticMember?.memberName;
-  const declaringType = declaringTypeRef === undefined ? undefined : csharpTypeFromTargetTypeRef(declaringTypeRef);
-  if (declaringType === undefined || methodName === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Target conversion method requires a declaring target type and method name before C# emission."));
+  const csharpOperation = getRequiredCsharpTargetOperation(input, node, operation, diagnostics, "C# target conversion method emission");
+  if (csharpOperation === undefined) {
     return undefined;
   }
-  return {
-    kind: "SimpleMemberAccessExpression",
-    receiver: declaringType,
-    name: methodName,
-  };
+  return csharpStaticMemberExpression(csharpOperation, diagnostics, node, "C# target conversion method");
 }
 
 function planTargetConversionConstructor(

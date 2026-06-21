@@ -27,6 +27,9 @@ import {
   selectSingleTargetMember,
 } from "./members.js";
 import {
+  recordCsharpTargetOperation,
+} from "../../operations.js";
+import {
   createCsharpNodejsSurfaceBindingProvider,
 } from "./provider.js";
 
@@ -79,8 +82,9 @@ export function createCsharpNodejsSurfaceMappers(extensionId: string): CsharpNod
       if (operation === undefined) {
         return deferObservation;
       }
+      recordCsharpTargetOperation(context, request.expression, operation.csharpOperation, [{ message: `C# NodeJS surface static property operation recorded from checked provider module '${declaration.moduleSpecifier}'.` }]);
       return acceptObservation<CheckedOperationMappingResult>({
-        operation,
+        operation: operation.operation,
       }, [{ message: `C# NodeJS surface target property selected from checked provider module '${declaration.moduleSpecifier}'.` }]);
     },
   };

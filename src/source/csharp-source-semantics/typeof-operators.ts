@@ -8,12 +8,12 @@ import {
   asNodeSubject,
 } from "./ast-utils.js";
 import {
+  csharpTargetTypeofComparisonOperation,
   targetOperation,
 } from "./operations.js";
 import {
-  csharpTypeofComparisonOperation,
   type CsharpTypeofRuntimeKind,
-} from "../csharp-operation-tags.js";
+} from "../csharp-facts.js";
 import {
   sourcePrimitiveRuntimeKind,
   unwrapNullableTargetType,
@@ -22,7 +22,7 @@ import {
 export function getTypeofComparisonOperation(
   request: CheckedOperatorMappingRequest,
   context: ExtensionObservationContext,
-) {
+): { readonly operation: ReturnType<typeof targetOperation>; readonly csharpOperation: ReturnType<typeof csharpTargetTypeofComparisonOperation> } | undefined {
   if (request.operator !== "===" && request.operator !== "==" && request.operator !== "!==" && request.operator !== "!=") {
     return undefined;
   }
@@ -32,11 +32,11 @@ export function getTypeofComparisonOperation(
     return undefined;
   }
   const negated = request.operator === "!==" || request.operator === "!=";
-  return targetOperation(
-    `tsonic.csharp.typeof.${negated ? "not-" : ""}${rightKind}`,
-    "operator",
-    csharpTypeofComparisonOperation(rightKind, negated),
-  );
+  const operationId = `tsonic.csharp.typeof.${negated ? "not-" : ""}${rightKind}`;
+  return {
+    operation: targetOperation(operationId, "operator", "typeof-comparison"),
+    csharpOperation: csharpTargetTypeofComparisonOperation(operationId, rightKind, negated),
+  };
 }
 
 export function getTypeofRuntimeKind(

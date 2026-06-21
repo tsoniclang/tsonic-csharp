@@ -10,6 +10,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpObjectShapeFactKey,
+  csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
 import type {
   CsharpObjectShapeFact,
@@ -24,6 +25,7 @@ import {
   getObjectShapeTargetName,
 } from "./object-shape-identity.js";
 import {
+  csharpTargetMemberOperation,
   targetOperation,
 } from "./operations.js";
 import {
@@ -116,12 +118,16 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
       if (objectShape === undefined || member === undefined) {
         return;
       }
+      const operationId = `tsonic.csharp.objectShape.${propertyName}`;
       lifecycleContext.host.facts.set(node, targetOperationFactKey, targetOperation(
-        `tsonic.csharp.objectShape.${propertyName}`,
+        operationId,
         member.memberKind === "method" ? "method" : "property",
         member.targetName,
         { resultType: member.type },
       ), [{ message: "C# object-shape property access selected from finalized structural shape fact." }]);
+      lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, csharpTargetMemberOperation(operationId, member.memberKind === "method" ? "method" : "property", member.targetName, {
+        resultType: member.type,
+      }), [{ message: "C# object-shape member operation recorded from finalized structural shape fact." }]);
     });
   }
 }

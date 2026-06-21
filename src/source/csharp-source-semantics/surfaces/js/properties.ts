@@ -15,8 +15,11 @@ import type {
   SourceLibraryMember,
 } from "./source-library.js";
 import {
+  csharpSourcePrimitiveTargetType,
+  csharpTargetMemberOperation,
   getSourceLibraryMember,
   getSourceLibraryMemberFromReceiver,
+  recordCsharpTargetOperation,
 } from "./source-library.js";
 import {
   getStringLengthOperation,
@@ -28,7 +31,7 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
-  return mapCsharpSourceLibraryPropertyOperation(sourceMember, host);
+  return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host);
 }
 
 export function mapCsharpReceiverSourceLibraryCheckedPropertyAccess(
@@ -38,10 +41,12 @@ export function mapCsharpReceiverSourceLibraryCheckedPropertyAccess(
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const sourceMember = getSourceLibraryMemberFromReceiver(request.receiverType, request.propertyName, context, host) ??
     getSourceLibraryMemberFromReceiver(request.receiver, request.propertyName, context, host);
-  return mapCsharpSourceLibraryPropertyOperation(sourceMember, host);
+  return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host);
 }
 
 function mapCsharpSourceLibraryPropertyOperation(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   sourceMember: SourceLibraryMember | undefined,
   _host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
@@ -52,6 +57,9 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (operation === undefined) {
     return undefined;
   }
+  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operation.operationId, "property", "Length", {
+    resultType: csharpSourcePrimitiveTargetType("int32"),
+  }), [{ message: `C# JS surface length property operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation,
   }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);

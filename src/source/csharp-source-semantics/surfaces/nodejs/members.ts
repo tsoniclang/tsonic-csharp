@@ -2,9 +2,13 @@ import type {
   TargetMember,
   TargetOperationFact,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetOperationFact,
+} from "../../../csharp-facts.js";
 import {
-  csharpStaticMemberOperation,
-} from "../../../csharp-operation-tags.js";
+  csharpTargetOperationFromMember,
+  targetOperationFromMember,
+} from "../../operations.js";
 import {
   getNodeCryptoTargetMembers,
   nodeCryptoModuleSpecifier,
@@ -57,15 +61,13 @@ export function getNodejsCallTargetMembers(moduleSpecifier: string, exportName: 
 export function getCsharpNodejsStaticPropertyOperation(
   moduleSpecifier: string,
   exportName: string,
-): TargetOperationFact | undefined {
+): { readonly operation: TargetOperationFact; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
   const member = selectSingleTargetMember(getNodejsPropertyTargetMembers(moduleSpecifier, exportName));
   return member === undefined
     ? undefined
     : {
-        operationId: member.id,
-        operationKind: "property",
-        targetOperation: getStaticTargetOperation(member),
-        ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
+        operation: targetOperationFromMember(member),
+        csharpOperation: csharpTargetOperationFromMember(member),
       };
 }
 
@@ -84,10 +86,4 @@ function getNodejsPropertyTargetMembers(moduleSpecifier: string, exportName: str
     default:
       return [];
   }
-}
-
-function getStaticTargetOperation(member: TargetMember): string {
-  return member.declaringType?.kind === "target-named"
-    ? csharpStaticMemberOperation(member.declaringType.id, member.targetName)
-    : member.targetName;
 }

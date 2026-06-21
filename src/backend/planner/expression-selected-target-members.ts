@@ -10,7 +10,6 @@ import type {
   Node,
   SourceFile,
   TargetMember,
-  TargetOperationFact,
 } from "@tsonic/tsts";
 import type {
   TargetCompileInput,
@@ -32,9 +31,12 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import type {
+  CsharpTargetOperationFact,
+} from "../../source/csharp-facts.js";
 import {
-  getCsharpStaticMemberOperation,
-} from "../../source/csharp-operation-tags.js";
+  csharpStaticMemberExpression,
+} from "./csharp-target-operations.js";
 import {
   isExternalDeclarationReference,
 } from "./expression-source-references.js";
@@ -83,24 +85,11 @@ export function planSelectedTargetReceiverExpression(
 }
 
 export function targetStaticMemberExpression(
-  operation: TargetOperationFact,
+  operation: CsharpTargetOperationFact,
   diagnostics: TargetDiagnostic[],
   node: Node,
 ): CsharpExpression | undefined {
-  const staticMember = getCsharpStaticMemberOperation(operation.targetOperation);
-  if (staticMember === undefined) {
-    return undefined;
-  }
-  const declaringType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: staticMember.declaringTypeId });
-  if (declaringType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Static target property requires a renderable declaring target type before C# emission."));
-    return invalidExpression("static target property");
-  }
-  return {
-    kind: "SimpleMemberAccessExpression",
-    receiver: declaringType,
-    name: staticMember.memberName,
-  };
+  return csharpStaticMemberExpression(operation, diagnostics, node, "Static target property");
 }
 
 export function planSelectedTargetCallee(

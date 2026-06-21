@@ -18,6 +18,9 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
+  csharpTargetMemberOperation,
+  csharpTargetOperationFromMember,
+  recordCsharpTargetOperation,
   targetOperation,
   targetOperationFromMember,
 } from "./operations.js";
@@ -79,6 +82,7 @@ export function mapCsharpCheckedPropertyAccess(
   if (member === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_PROPERTY_NOT_FOUND", 9100102, `C# provider could not map checked property '${request.propertyName}' on target '${binding.id}'.`));
   }
+  recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: "C# target member property operation recorded from checked TSTS provider declaration." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(member),
   }, [{ message: "C# target property/member access selected from checked TSTS provider declaration." }]);
@@ -109,6 +113,7 @@ export function mapCsharpCheckedElementAccess(
   if (member === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, `C# provider could not map checked element access on target '${binding.id}' to a unique indexer.`));
   }
+  recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: "C# target indexer operation recorded from checked TSTS provider declaration." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(member),
   }, [{ message: "C# target indexer access selected from checked TSTS provider declaration." }]);
@@ -131,9 +136,13 @@ function mapCsharpObjectShapeCheckedPropertyAccess(
   if (member === undefined) {
     return undefined;
   }
+  const operationId = `tsonic.csharp.objectShape.${request.propertyName}`;
+  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, member.memberKind === "method" ? "method" : "property", member.targetName, {
+    resultType: member.type,
+  }), [{ message: "C# object-shape member operation recorded from finalized structural shape fact." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(
-      `tsonic.csharp.objectShape.${request.propertyName}`,
+      operationId,
       member.memberKind === "method" ? "method" : "property",
       member.targetName,
       { resultType: member.type },
@@ -156,6 +165,9 @@ function mapCsharpNativeArrayCheckedPropertyAccess(
   if (receiverType?.kind !== "array") {
     return undefined;
   }
+  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.array.length", "property", "Length", {
+    resultType: csharpSourcePrimitiveTargetType("int32"),
+  }), [{ message: "C# native array length operation recorded from checked TypeScript array property access." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation("tsonic.csharp.array.length", "property", "Length", {
       resultType: csharpSourcePrimitiveTargetType("int32"),
@@ -180,6 +192,9 @@ function mapCsharpNativeArrayCheckedElementAccess(
   if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100109, "C# native array element access requires an integral TSTS/provider-backed index type."));
   }
+  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.array.indexer", "indexer", "Item", {
+    resultType: receiverType.element,
+  }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation("tsonic.csharp.array.indexer", "indexer", "System.Array.Item", {
       resultType: receiverType.element,
