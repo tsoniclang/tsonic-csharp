@@ -57,6 +57,7 @@ export interface CsharpOperationsProviderHost {
     context: ExtensionObservationContext,
     options?: TargetTypeRefResolutionOptions,
   ) => TargetTypeRef | undefined;
+  readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
   readonly getCsharpObjectShapeFactForSubject: (
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,
@@ -143,7 +144,7 @@ export function createCsharpJsSurfaceHost(
   extensionId: string,
   host: Pick<
     CsharpOperationsProviderHost,
-    "getTargetTypeRefForSubject" | "getCsharpObjectShapeFactForSubject" | "mapRuntimeCarrier"
+    "getTargetTypeRefForSubject" | "getBaseTargetTypeRef" | "getCsharpObjectShapeFactForSubject" | "mapRuntimeCarrier"
   >,
 ) {
   return {
@@ -162,7 +163,9 @@ export function createCsharpJsSurfaceHost(
       },
       context: ExtensionObservationContext,
     ) =>
-      selectTargetMember(candidates, request, context, host.getTargetTypeRefForSubject),
+      selectTargetMember(candidates, request, context, host.getTargetTypeRefForSubject, {
+        getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+      }),
     getCsharpObjectShapeFactForSubject: host.getCsharpObjectShapeFactForSubject,
     csharpProviderDiagnostic,
   };

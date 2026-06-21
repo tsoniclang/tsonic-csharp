@@ -59,6 +59,9 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
     declaration.displayName === undefined ? undefined : dotnetDisplayNameRenderShape(declaration.displayName),
   );
+  const baseType = declaration.baseType === undefined
+    ? undefined
+    : dotnetTypeRefToTargetTypeRef(declaration.baseType);
   const binding = {
     id: declaration.metadataName,
     sourceName: declaration.sourceName,
@@ -66,6 +69,7 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     target: "csharp",
     kind: dotnetTypeKindToTargetBindingKind(declaration.typeKind),
     csharpType: declaredCsharpType,
+    ...(baseType !== undefined ? { csharpBaseType: baseType } : {}),
     ...(declaration.typeParameters !== undefined && declaration.typeParameters.length > 0
       ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),

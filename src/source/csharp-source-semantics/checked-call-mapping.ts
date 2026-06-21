@@ -93,6 +93,7 @@ export function mapCsharpCheckedCall(
       request,
       context,
       host.getTargetTypeRefForSubject,
+      { getBaseTargetTypeRef: host.getBaseTargetTypeRef },
     );
   if (member === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_FOUND", 9100100, `C# provider could not map checked call '${request.calleePropertyName ?? "<anonymous>"}' on target '${binding.id}'.`));
@@ -141,5 +142,7 @@ function findTargetConstructorForCall(
     .filter((member): member is TargetMember => member !== undefined);
   return selectTargetMember(candidates, {
     arguments: request.arguments,
-  }, context, host.getTargetTypeRefForSubject);
+  }, context, host.getTargetTypeRefForSubject, {
+    getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+  });
 }

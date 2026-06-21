@@ -9,6 +9,9 @@ import {
   selectTargetMember,
 } from "./target-member-arguments.js";
 import type {
+  TargetMemberSelectionOptions,
+} from "./target-member-arguments.js";
+import type {
   TargetTypeRefResolver,
 } from "./target-type-ref-resolution.js";
 
@@ -18,6 +21,9 @@ export {
 export {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-literals.js";
+export type {
+  TargetMemberSelectionOptions,
+} from "./target-member-arguments.js";
 export type {
   TargetTypeRefResolutionOptions,
   TargetTypeRefResolver,
@@ -29,12 +35,13 @@ export function findTargetMemberForCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   resolveTargetTypeRef: TargetTypeRefResolver,
+  options: TargetMemberSelectionOptions = {},
 ): TargetMember | undefined {
   const candidates = getTargetMemberCandidatesForCall(binding, declaration, request);
   return selectTargetMember(candidates, {
     arguments: request.arguments,
     receiver: request.calleeReceiver,
-  }, context, resolveTargetTypeRef);
+  }, context, resolveTargetTypeRef, options);
 }
 
 export function findTargetMember(

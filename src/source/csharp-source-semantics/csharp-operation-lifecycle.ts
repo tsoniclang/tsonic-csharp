@@ -147,7 +147,9 @@ function getSelectedTargetSignatureFromFinalizedProviderOperation(
     arguments: compiler.ast.arguments(node).filter((argument): argument is Node => argument !== undefined),
     receiver,
   }, context, (subject, observationContext, options = {}) =>
-    resolveTargetTypeRefForSubject(subject, observationContext, options, host));
+    resolveTargetTypeRefForSubject(subject, observationContext, options, host), {
+    getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+  });
   return member === undefined ? undefined : { member };
 }
 
@@ -195,7 +197,9 @@ function getSelectedTargetSignatureFromFinalizedProviderConstruction(
   const member = selectTargetMember(candidates, {
     arguments: compiler.ast.arguments(node).filter((argument): argument is Node => argument !== undefined),
   }, context, (subject, observationContext, options = {}) =>
-    resolveTargetTypeRefForSubject(subject, observationContext, options, host));
+    resolveTargetTypeRefForSubject(subject, observationContext, options, host), {
+    getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+  });
   return member === undefined
     ? undefined
     : {

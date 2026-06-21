@@ -10,6 +10,7 @@ import {
 } from "./target-member-literals.js";
 import {
   targetTypeRefEquals,
+  targetTypeRefKey,
 } from "./target-ref-utils.js";
 import type {
   TargetTypeRefResolver,
@@ -20,14 +21,19 @@ export interface TargetMemberSelectionRequest {
   readonly receiver?: ExtensionFactSubject;
 }
 
+export interface TargetMemberSelectionOptions {
+  readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
+}
+
 export function selectTargetMember(
   candidates: readonly TargetMember[],
   request: TargetMemberSelectionRequest,
   context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
+  options: TargetMemberSelectionOptions = {},
 ): TargetMember | undefined {
   const matching = candidates.flatMap((member) => {
-    const match = targetMemberMatch(member, request, context, resolveTargetTypeRef);
+    const match = targetMemberMatch(member, request, context, resolveTargetTypeRef, options);
     return match === undefined ? [] : [match];
   });
   const bestScore = Math.min(...matching.map((match) => match.score));
@@ -40,6 +46,7 @@ function targetMemberMatch(
   request: TargetMemberSelectionRequest,
   context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
+  options: TargetMemberSelectionOptions,
 ): { readonly member: TargetMember; readonly score: number } | undefined {
   const arguments_ = getTargetArgumentSubjectsForMember(member, request);
   if (arguments_ === undefined) {
@@ -57,7 +64,7 @@ function targetMemberMatch(
       return undefined;
     }
     const argumentType = resolveTargetTypeRef(argument, context);
-    if (!targetTypeAcceptsArgument(getExpectedTargetTypeForArgument(parameter), argumentType, argument, context, typeParameterBindings)) {
+    if (!targetTypeAcceptsArgument(getExpectedTargetTypeForArgument(parameter), argumentType, argument, context, typeParameterBindings, options)) {
       return undefined;
     }
   }
@@ -124,8 +131,9 @@ function targetTypeAcceptsArgument(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
   typeParameterBindings: Map<string, TargetTypeRef>,
+  options: TargetMemberSelectionOptions,
 ): boolean {
-  if (actual !== undefined && targetTypeMatchesExpected(expected, actual, typeParameterBindings)) {
+  if (actual !== undefined && targetTypeMatchesExpected(expected, actual, typeParameterBindings, options)) {
     return true;
   }
   if (isLiteralRepresentableAsTargetType(expected, subject, context)) {
@@ -141,6 +149,8 @@ function targetTypeMatchesExpected(
   expected: TargetTypeRef,
   actual: TargetTypeRef,
   typeParameterBindings: Map<string, TargetTypeRef>,
+  options: TargetMemberSelectionOptions,
+  seenActualTypes: ReadonlySet<string> = new Set(),
 ): boolean {
   if (expected.kind === "type-parameter") {
     return bindTargetTypeParameter(expected.name, actual, typeParameterBindings);
@@ -149,12 +159,12 @@ function targetTypeMatchesExpected(
     return true;
   }
   if (expected.kind === "array" && actual.kind === "array" && (expected.rank ?? 1) === (actual.rank ?? 1)) {
-    return targetTypeMatchesExpected(expected.element, actual.element, typeParameterBindings);
+    return targetTypeMatchesExpected(expected.element, actual.element, typeParameterBindings, options, seenActualTypes);
   }
   if (expected.kind === "tuple" && actual.kind === "tuple" && expected.elements.length === actual.elements.length) {
     return expected.elements.every((element, index) => {
       const actualElement = actual.elements[index];
-      return actualElement !== undefined && targetTypeMatchesExpected(element, actualElement, typeParameterBindings);
+      return actualElement !== undefined && targetTypeMatchesExpected(element, actualElement, typeParameterBindings, options, seenActualTypes);
     });
   }
   if (expected.kind === "target-named" && actual.kind === "target-named" && expected.id === actual.id) {
@@ -165,17 +175,26 @@ function targetTypeMatchesExpected(
     }
     return expectedArgs.every((argument, index) => {
       const actualArgument = actualArgs[index];
-      return actualArgument !== undefined && targetTypeMatchesExpected(argument, actualArgument, typeParameterBindings);
+      return actualArgument !== undefined && targetTypeMatchesExpected(argument, actualArgument, typeParameterBindings, options, seenActualTypes);
     });
   }
+  if (expected.kind === "target-named" && actual.kind === "target-named") {
+    const actualKey = targetTypeRefKey(actual);
+    if (!seenActualTypes.has(actualKey)) {
+      const baseType = options.getBaseTargetTypeRef?.(actual);
+      if (baseType !== undefined) {
+        return targetTypeMatchesExpected(expected, baseType, typeParameterBindings, options, new Set([...seenActualTypes, actualKey]));
+      }
+    }
+  }
   if (expected.kind === "pointer" && actual.kind === "pointer") {
-    return targetTypeMatchesExpected(expected.pointee, actual.pointee, typeParameterBindings);
+    return targetTypeMatchesExpected(expected.pointee, actual.pointee, typeParameterBindings, options, seenActualTypes);
   }
   if (expected.kind === "function-pointer" && actual.kind === "function-pointer" && expected.args.length === actual.args.length) {
-    return targetTypeMatchesExpected(expected.result, actual.result, typeParameterBindings) &&
+    return targetTypeMatchesExpected(expected.result, actual.result, typeParameterBindings, options, seenActualTypes) &&
       expected.args.every((argument, index) => {
         const actualArgument = actual.args[index];
-        return actualArgument !== undefined && targetTypeMatchesExpected(argument, actualArgument, typeParameterBindings);
+        return actualArgument !== undefined && targetTypeMatchesExpected(argument, actualArgument, typeParameterBindings, options, seenActualTypes);
       });
   }
   return false;

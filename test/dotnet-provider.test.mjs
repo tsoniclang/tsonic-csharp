@@ -244,8 +244,10 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
     name: "Stream",
   });
   const sourceMemoryStream = declarationModel.exports.find((declaration) => declaration.name === "MemoryStream");
-  assert.ok(sourceMemoryStream);
-  assert.equal("extends" in sourceMemoryStream, false);
+  assert.deepEqual(sourceMemoryStream?.extends, [{
+    kind: "provider-ref",
+    name: "Stream",
+  }]);
 });
 
 test(".NET provider source declarations omit target-only generic constraints", () => {

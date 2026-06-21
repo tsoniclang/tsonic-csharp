@@ -23,6 +23,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
 
 export type CsharpTargetBindingFact = TargetBindingFact & {
   readonly csharpType?: TargetTypeRef;
+  readonly csharpBaseType?: TargetTypeRef;
   readonly csharpRender?: CsharpTargetTypeRenderShape;
 };
 
@@ -138,6 +139,59 @@ export function csharpTargetTypeFromBinding(
   return providerRenderShape === undefined
     ? undefined
     : csharpTargetNamedType(binding.id, typeArguments, providerRenderShape);
+}
+
+export function csharpBaseTargetTypeFromBinding(
+  binding: TargetBindingFact,
+  typeArguments: readonly TargetTypeRef[] = [],
+): TargetTypeRef | undefined {
+  const baseType = (binding as CsharpTargetBindingFact).csharpBaseType;
+  if (baseType === undefined) {
+    return undefined;
+  }
+  return substituteTargetTypeParameters(
+    baseType,
+    new Map((binding.typeParameters ?? [])
+      .map((parameter, index) => {
+        const typeArgument = typeArguments[index];
+        return typeArgument === undefined ? undefined : [parameter.name, typeArgument] as const;
+      })
+      .filter((entry): entry is readonly [string, TargetTypeRef] => entry !== undefined)),
+  );
+}
+
+function substituteTargetTypeParameters(
+  type: TargetTypeRef,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): TargetTypeRef {
+  switch (type.kind) {
+    case "type-parameter":
+      return substitutions.get(type.name) ?? type;
+    case "target-named":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }),
+      };
+    case "array":
+      return { ...type, element: substituteTargetTypeParameters(type.element, substitutions) };
+    case "tuple":
+      return { ...type, elements: type.elements.map((element) => substituteTargetTypeParameters(element, substitutions)) };
+    case "pointer":
+      return { ...type, pointee: substituteTargetTypeParameters(type.pointee, substitutions) };
+    case "function-pointer":
+      return {
+        ...type,
+        args: type.args.map((argument) => substituteTargetTypeParameters(argument, substitutions)),
+        result: substituteTargetTypeParameters(type.result, substitutions),
+      };
+    case "associated-type":
+      return { ...type, owner: substituteTargetTypeParameters(type.owner, substitutions) };
+    case "source-primitive":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
+      return type;
+  }
 }
 
 export function csharpRenderShapeForTargetNamedType(

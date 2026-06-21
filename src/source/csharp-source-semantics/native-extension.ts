@@ -29,6 +29,7 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
+  csharpBaseTargetTypeFromBinding,
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
 import type {
@@ -95,6 +96,15 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
   let objectShapeSemanticsHost: CsharpObjectShapeSemanticsHost;
   const targetTypeResolutionHost = {
     getCsharpTargetBindingByTargetId: (targetId: string) => dotnetProvider.findTargetBindingByTargetId(targetId),
+    getBaseTargetTypeRef: (type: TargetTypeRef) => {
+      if (type.kind !== "target-named") {
+        return undefined;
+      }
+      const binding = dotnetProvider.findTargetBindingByTargetId(type.id);
+      return binding === undefined
+        ? undefined
+        : csharpBaseTargetTypeFromBinding(binding, type.typeArguments ?? []);
+    },
     getCsharpObjectShapeFactForSubject,
     getSemanticTypeDeclarationShape,
   } satisfies CsharpTargetTypeResolutionHost;
@@ -179,6 +189,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       } satisfies CsharpRuntimeCarrierSemanticsHost;
       const provider = createCsharpOperationsProvider(selectedSurfaceIds, {
         getCsharpTargetBindingByTargetId: targetTypeResolutionHost.getCsharpTargetBindingByTargetId,
+        getBaseTargetTypeRef: targetTypeResolutionHost.getBaseTargetTypeRef,
         getTargetTypeRefForSubject,
         getCsharpObjectShapeFactForSubject,
         mapRuntimeCarrier: (request, observationContext) => mapCsharpRuntimeCarrier(request, observationContext, runtimeCarrierHost),
