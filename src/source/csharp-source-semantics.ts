@@ -3293,12 +3293,8 @@ function getSymbolForDeclarationLookup(
   if (!isSymbolLookupNode(ast, node)) {
     return undefined;
   }
-  try {
-    return checker.getSymbolAtLocation(node, { sourceFile }) ??
-      checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return checker.getSymbolAtLocation(node, { sourceFile }) ??
+    checker.getResolvedSymbol(node, { sourceFile });
 }
 
 function isSymbolLookupNode(
@@ -3328,11 +3324,7 @@ function getAliasedSymbolIfAvailable(
   if (symbol === undefined) {
     return undefined;
   }
-  try {
-    return checker.getAliasedSymbol(symbol as Symbol, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return checker.getAliasedSymbol(symbol as Symbol, { sourceFile });
 }
 
 function getSymbolDeclarations(symbol: ExtensionFactSubject | undefined): readonly Node[] {
