@@ -11,8 +11,6 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
-  SourceFile,
-  Symbol,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -35,9 +33,6 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
 } from "./target-types.js";
-import {
-  isVoidTargetType,
-} from "./target-rules.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -53,6 +48,15 @@ import {
 import type {
   CsharpRecursiveTargetTypeResolver,
 } from "./target-type-syntax-resolution.js";
+import {
+  getCallableTargetTypeRefForSemanticType,
+  getNullableUnionTargetTypeRef,
+  getSourceArrayTargetTypeRef,
+  getSourcePromiseTargetTypeRef,
+  getTupleTargetTypeRef,
+  getTypeParameterName,
+  resolveTargetTypeArgumentsForTypeWithResolver,
+} from "./target-type-semantic-resolution.js";
 
 export interface CsharpSemanticTypeDeclarationShape {
   readonly kind: "class" | "interface" | "enum";
@@ -201,15 +205,13 @@ export function resolveTargetTypeRefForType(
   if (types === undefined) {
     return undefined;
   }
-  const sourceArray = getSourceArrayTargetTypeRef(type, context, options, host);
+  const sourceArray = getSourceArrayTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (sourceArray !== undefined) {
     return sourceArray;
   }
-  if (isSourceLibraryType(type, context, "Promise")) {
-    const result = resolveTargetTypeRefForType(getFirstTypeArgument(type, context, options), context, options, host);
-    return result === undefined || isVoidTargetType(result)
-      ? csharpTargetNamedType("System.Threading.Tasks.Task")
-      : csharpTargetNamedType("System.Threading.Tasks.Task`1", [result]);
+  const sourcePromise = getSourcePromiseTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
+  if (sourcePromise !== undefined) {
+    return sourcePromise;
   }
   const binding = resolveTargetBinding(type.symbol, context);
   if (binding !== undefined) {
@@ -234,7 +236,7 @@ export function resolveTargetTypeRefForType(
     return { kind: "type-parameter", name: typeParameterName };
   }
   if (types.isUnion(type)) {
-    const nullable = getNullableUnionTargetTypeRef(type, context, options, host);
+    const nullable = getNullableUnionTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
     if (nullable !== undefined) {
       return nullable;
     }
@@ -256,37 +258,15 @@ export function resolveTargetTypeRefForType(
   if (types.isBigIntLike(type)) {
     return csharpTargetNamedType("System.Numerics.BigInteger");
   }
-  const callable = getCallableTargetTypeRefForSemanticType(type, context, options, host);
+  const callable = getCallableTargetTypeRefForSemanticType(type, context, options, host, recursiveTargetTypeResolver);
   if (callable !== undefined) {
     return callable;
   }
-  if (types.isTuple(type)) {
-    const elements = types.getTupleElementTypes(type, typeShapeOptions(options))
-      .map((element) => resolveTargetTypeRefForType(element, context, options, host));
-    return elements.some((element) => element === undefined)
-      ? undefined
-      : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
+  const tuple = getTupleTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
+  if (tuple !== undefined) {
+    return tuple;
   }
   return undefined;
-}
-
-function getSourceArrayTargetTypeRef(
-  type: Type,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions,
-  host: CsharpTargetTypeResolutionHost,
-): TargetTypeRef | undefined {
-  const types = context.compiler?.types;
-  if (types === undefined || !types.isArrayLike(type, typeShapeOptions(options))) {
-    return undefined;
-  }
-  const sourceArrayType = isSourceLibraryType(type, context, "Array") ||
-    isSourceLibraryType(type, context, "ReadonlyArray");
-  if (!sourceArrayType) {
-    return undefined;
-  }
-  const element = resolveTargetTypeRefForType(getFirstTypeArgument(type, context, options), context, options, host);
-  return element === undefined ? undefined : { kind: "array", element };
 }
 
 function getCatchVariableTargetTypeRef(
@@ -307,75 +287,6 @@ function getCatchVariableTargetTypeRef(
     })
     ? csharpTargetNamedType("System.Exception")
     : undefined;
-}
-
-function getCallableTargetTypeRefForSemanticType(
-  type: Type,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions,
-  host: CsharpTargetTypeResolutionHost,
-): TargetTypeRef | undefined {
-  const checker = context.compiler?.checker;
-  const types = context.compiler?.types;
-  if (checker === undefined || types === undefined) {
-    return undefined;
-  }
-  const signatures = types.getCallSignatures(type);
-  if (signatures.length !== 1) {
-    return undefined;
-  }
-  const signature = signatures[0]!;
-  const parameters = (signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [];
-  const parameterTypes = parameters.map((parameter) => resolveTargetTypeRefForType(checker.getTypeOfSymbol(parameter), context, options, host));
-  if (parameterTypes.some((parameter) => parameter === undefined)) {
-    return undefined;
-  }
-  const returnType = resolveTargetTypeRefForType(types.getReturnTypeOfSignature(signature), context, options, host);
-  if (returnType === undefined || isVoidTargetType(returnType)) {
-    return csharpTargetNamedType(`System.Action\`${parameterTypes.length}`, parameterTypes as readonly TargetTypeRef[]);
-  }
-  return csharpTargetNamedType(`System.Func\`${parameterTypes.length + 1}`, [...(parameterTypes as readonly TargetTypeRef[]), returnType]);
-}
-
-function getNullableUnionTargetTypeRef(
-  type: Type,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions,
-  host: CsharpTargetTypeResolutionHost,
-): TargetTypeRef | undefined {
-  const types = context.compiler?.types;
-  if (types === undefined) {
-    return undefined;
-  }
-  const unionTypes = types.getUnionOrIntersectionTypes(type);
-  const nonNullish = unionTypes.filter((candidate) => !types.isNullish(candidate));
-  if (nonNullish.length !== 1 || nonNullish.length === unionTypes.length) {
-    return undefined;
-  }
-  const inner = resolveTargetTypeRefForType(nonNullish[0], context, options, host);
-  return inner === undefined
-    ? undefined
-    : csharpTargetNamedType("System.Nullable`1", [inner]);
-}
-
-function getFirstTypeArgument(
-  type: Type,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions = {},
-): Type | undefined {
-  const types = context.compiler?.types;
-  if (types === undefined) {
-    return undefined;
-  }
-  const typeArgument = types.isTypeReference(type)
-    ? types.getTypeArguments(type, typeShapeOptions(options))[0]
-    : undefined;
-  if (typeArgument !== undefined) {
-    return typeArgument;
-  }
-  return types.getIndexInfos(type)
-    .map((info) => (info as { readonly valueType?: unknown }).valueType)
-    .find((value): value is Type => asType(value) !== undefined);
 }
 
 function resolveRuntimeCarrier(
@@ -455,45 +366,11 @@ export function resolveTargetTypeArgumentsForType(
   options: TargetTypeRefResolutionOptions,
   host: CsharpTargetTypeResolutionHost,
 ): readonly TargetTypeRef[] {
-  const types = context.compiler?.types;
-  if (types === undefined || !types.isTypeReference(type)) {
-    return [];
-  }
-  return types.getTypeArguments(type, typeShapeOptions(options))
-    .map((argument) => resolveTargetTypeRefForType(argument, context, options, host))
-    .filter((argument): argument is TargetTypeRef => argument !== undefined);
-}
-
-function typeShapeOptions(options: TargetTypeRefResolutionOptions): { readonly sourceFile: SourceFile } | undefined {
-  return options.sourceFile === undefined ? undefined : { sourceFile: options.sourceFile };
-}
-
-function getTypeParameterName(type: Type, context: ExtensionObservationContext): string | undefined {
-  const ast = context.compiler?.ast;
-  const declarations = (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ?? [];
-  if (ast === undefined) {
-    return undefined;
-  }
-  for (const declaration of declarations) {
-    if (ast.is.IsTypeParameterDeclaration(declaration)) {
-      const name = ast.text(ast.name(declaration));
-      return name.length === 0 ? undefined : name;
-    }
-  }
-  return undefined;
-}
-
-function isSourceLibraryType(type: Type, context: ExtensionObservationContext, name: string): boolean {
-  const ast = context.compiler?.ast;
-  const types = context.compiler?.types;
-  if (ast === undefined || types === undefined) {
-    return false;
-  }
-  const target = types.isTypeReference(type) ? types.getTypeReferenceTarget(type) : type;
-  const declarations = (target?.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    [];
-  return declarations.some((declaration) =>
-    ast.text(ast.name(declaration)) === name &&
-    ast.getFileName(ast.getSourceFile(declaration)).startsWith("bundled:///libs/"));
+  return resolveTargetTypeArgumentsForTypeWithResolver(
+    type,
+    context,
+    options,
+    host,
+    recursiveTargetTypeResolver,
+  );
 }
