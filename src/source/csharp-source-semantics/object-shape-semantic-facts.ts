@@ -59,6 +59,9 @@ export function getSemanticTypeDeclarationShape(
       continue;
     }
     const targetTypeArguments = host.getTargetTypeArgumentsForType(type, context, {});
+    if (targetTypeArguments === undefined) {
+      return undefined;
+    }
     const targetType = csharpTargetNamedType(name, targetTypeArguments);
     if (kind === "KindClassDeclaration") {
       return { kind: "class", name, targetType };

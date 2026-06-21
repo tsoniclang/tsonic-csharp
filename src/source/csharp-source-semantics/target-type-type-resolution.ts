@@ -41,7 +41,7 @@ export type CsharpTargetTypeArgumentsResolver = (
   context: ExtensionObservationContext,
   options: TargetTypeRefResolutionOptions,
   host: CsharpTargetTypeResolutionHost,
-) => readonly TargetTypeRef[];
+) => readonly TargetTypeRef[] | undefined;
 
 export function resolveTargetTypeRefForTypeCore(
   type: Type | undefined,
@@ -81,6 +81,9 @@ export function resolveTargetTypeRefForTypeCore(
   const binding = resolveTargetBinding(type.symbol, context);
   if (binding !== undefined) {
     const targetTypeArguments = resolveTargetTypeArgumentsForType(type, context, options, host);
+    if (targetTypeArguments === undefined || !targetTypeArgumentArityMatches(binding.typeParameters?.length ?? 0, targetTypeArguments.length)) {
+      return undefined;
+    }
     return {
       kind: "target-named",
       id: binding.id,
@@ -91,6 +94,9 @@ export function resolveTargetTypeRefForTypeCore(
     getProviderVirtualDeclarationTargetTypeRefFromDeclarations(type, context);
   if (providerVirtualTarget !== undefined) {
     const targetTypeArguments = resolveTargetTypeArgumentsForType(type, context, options, host);
+    if (targetTypeArguments === undefined) {
+      return undefined;
+    }
     return {
       ...providerVirtualTarget,
       ...(targetTypeArguments.length > 0 ? { typeArguments: targetTypeArguments } : {}),
@@ -132,4 +138,8 @@ export function resolveTargetTypeRefForTypeCore(
     return tuple;
   }
   return undefined;
+}
+
+function targetTypeArgumentArityMatches(typeParameterCount: number, typeArgumentCount: number): boolean {
+  return typeParameterCount === typeArgumentCount;
 }

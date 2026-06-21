@@ -95,7 +95,7 @@ export function resolveTargetTypeArgumentsForType(
   context: ExtensionObservationContext,
   options: TargetTypeRefResolutionOptions,
   host: CsharpTargetTypeResolutionHost,
-): readonly TargetTypeRef[] {
+): readonly TargetTypeRef[] | undefined {
   return resolveTargetTypeArgumentsForTypeWithResolver(
     type,
     context,

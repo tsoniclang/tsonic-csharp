@@ -156,14 +156,16 @@ export function resolveTargetTypeArgumentsForTypeWithResolver(
   options: TargetTypeRefResolutionOptions,
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
-): readonly TargetTypeRef[] {
+): readonly TargetTypeRef[] | undefined {
   const types = context.compiler?.types;
   if (types === undefined || !types.isTypeReference(type)) {
     return [];
   }
-  return types.getTypeArguments(type, typeShapeOptions(options))
-    .map((argument) => resolver.resolveType(argument, context, options, host))
-    .filter((argument): argument is TargetTypeRef => argument !== undefined);
+  const resolved = types.getTypeArguments(type, typeShapeOptions(options))
+    .map((argument) => resolver.resolveType(argument, context, options, host));
+  return resolved.some((argument) => argument === undefined)
+    ? undefined
+    : resolved as readonly TargetTypeRef[];
 }
 
 export function typeShapeOptions(options: TargetTypeRefResolutionOptions): { readonly sourceFile: SourceFile } | undefined {

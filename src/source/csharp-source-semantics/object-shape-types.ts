@@ -29,5 +29,5 @@ export interface CsharpObjectShapeSemanticsHost {
     type: Type,
     context: ExtensionObservationContext,
     options: TargetTypeRefResolutionOptions,
-  ) => readonly TargetTypeRef[];
+  ) => readonly TargetTypeRef[] | undefined;
 }
