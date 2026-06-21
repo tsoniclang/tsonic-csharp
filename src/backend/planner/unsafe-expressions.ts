@@ -83,6 +83,7 @@ export function expressionRequiresUnsafe(
       );
     case "InvalidExpression":
     case "LiteralExpression":
+    case "NumericLiteralExpression":
     case "CharacterLiteralExpression":
       return false;
   }

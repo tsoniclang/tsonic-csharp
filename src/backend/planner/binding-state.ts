@@ -1,6 +1,7 @@
-import { tryCsharpIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier, tryCsharpIdentifier } from "./identifiers.js";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
-import type { AstReader, Node } from "@tsonic/tsts";
+import type { AstReader, Node, SourceFile } from "@tsonic/tsts";
+import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import {
   asNodeSubject,
 } from "../../source/fact-subjects.js";
@@ -17,6 +18,9 @@ export interface DestructuringPlannerState {
   nextCatchIndex: number;
   nextControlLabelIndex: number;
   usedNames: Set<string>;
+  localBoundNames: Set<string>;
+  localNameCounts: Map<string, number>;
+  localBindingNames: WeakMap<object, string>;
   controlLabels: ControlLabelTarget[];
   currentReturnType?: CsharpTypeNode;
   currentReturnTypeSubject?: Node;
@@ -50,8 +54,59 @@ export function createDestructuringPlannerState(root?: Node, ast?: AstReader): D
     nextCatchIndex: 0,
     nextControlLabelIndex: 0,
     usedNames,
+    localBoundNames: new Set(),
+    localNameCounts: new Map(),
+    localBindingNames: new WeakMap(),
     controlLabels: [],
   };
+}
+
+export function declareCsharpLocalBindingName(
+  node: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+  description: string,
+  fallbackName: string,
+): string {
+  if (node === undefined || input.ast.kindName(node) !== KindIdentifier) {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_NAME",
+      category: "error",
+      source: "tsonic-csharp",
+      message: `${description} must be an identifier for C# local binding emission.`,
+    });
+    return fallbackName;
+  }
+  const key = localBindingKey(node, sourceFile, input);
+  const existing = key === undefined ? undefined : state.localBindingNames.get(key);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const sourceName = Node_Text(node);
+  const baseName = requireCsharpIdentifier(sourceName, diagnostics, description);
+  const count = state.localNameCounts.get(baseName) ?? 0;
+  const plannedName = count === 0 && !state.localBoundNames.has(baseName)
+    ? baseName
+    : allocateShadowedLocalName(baseName, state, count);
+  state.localNameCounts.set(baseName, count + 1);
+  state.localBoundNames.add(plannedName);
+  state.usedNames.add(plannedName);
+  if (key !== undefined) {
+    state.localBindingNames.set(key, plannedName);
+  }
+  return plannedName;
+}
+
+export function getCsharpLocalBindingName(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  state: DestructuringPlannerState | undefined,
+): string | undefined {
+  const key = state === undefined ? undefined : localBindingKey(node, sourceFile, input);
+  return key === undefined ? undefined : state!.localBindingNames.get(key);
 }
 
 export function allocateSyntheticParameter(state: DestructuringPlannerState): string {
@@ -107,6 +162,34 @@ function allocateSyntheticName(
       return name;
     }
   }
+}
+
+function allocateShadowedLocalName(
+  baseName: string,
+  state: DestructuringPlannerState,
+  initialIndex: number,
+): string {
+  const unescaped = baseName.startsWith("@") ? baseName.slice(1) : baseName;
+  for (let index = initialIndex; ; index += 1) {
+    const candidate = tryCsharpIdentifier(`${unescaped}_${index}`);
+    if (candidate !== undefined && !state.localBoundNames.has(candidate) && !state.usedNames.has(candidate)) {
+      return candidate;
+    }
+  }
+}
+
+function localBindingKey(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): object | undefined {
+  const symbol = input.semantics.getSymbolAtLocation(node, { sourceFile }) ??
+    input.semantics.getResolvedSymbol(node, { sourceFile });
+  return asObjectKey(symbol) ?? asObjectKey(node);
+}
+
+function asObjectKey(value: unknown): object | undefined {
+  return typeof value === "object" && value !== null ? value : undefined;
 }
 
 function collectReservedSourceNames(value: unknown, names: Set<string>, seen: WeakSet<object>, ast: AstReader | undefined): void {

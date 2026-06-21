@@ -35,7 +35,7 @@ export function planIfStatement(
   const statement = AsIfStatement(node)!;
   return [{
     kind: "IfStatement",
-    condition: planExpression(statement.Expression!, sourceFile, input, diagnostics),
+    condition: planExpression(statement.Expression!, sourceFile, input, diagnostics, state),
     thenBody: {
       kind: "Block",
       statements: planNestedStatementBody(statement.ThenStatement, sourceFile, input, diagnostics, state),
@@ -57,7 +57,7 @@ export function planWhileStatement(
   const statement = AsWhileStatement(node)!;
   return [{
     kind: "WhileStatement",
-    condition: planExpression(statement.Expression!, sourceFile, input, diagnostics),
+    condition: planExpression(statement.Expression!, sourceFile, input, diagnostics, state),
     body: {
       kind: "Block",
       statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
@@ -80,6 +80,6 @@ export function planDoStatement(
       kind: "Block",
       statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
     },
-    condition: planExpression(statement.Expression!, sourceFile, input, diagnostics),
+    condition: planExpression(statement.Expression!, sourceFile, input, diagnostics, state),
   }];
 }

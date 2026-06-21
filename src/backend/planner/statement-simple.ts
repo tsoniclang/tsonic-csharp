@@ -61,7 +61,7 @@ export function planReturnStatement(
   ) {
     const voidExpression = AsVoidExpression(statement.Expression)!;
     return [
-      expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics))),
+      expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state))),
       { kind: "ReturnStatement" },
     ];
   }
@@ -70,8 +70,8 @@ export function planReturnStatement(
     ...(statement.Expression !== undefined
       ? {
           expression: state.currentReturnType === undefined
-            ? planExpression(statement.Expression, sourceFile, input, diagnostics)
-            : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, state.currentReturnType, state.currentReturnTypeSubject),
+            ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
+            : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, state.currentReturnType, state.currentReturnTypeSubject, state),
         }
       : {}),
   }];
@@ -116,6 +116,7 @@ export function planThrowStatement(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state?: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   const statement = AsThrowStatement(node)!;
   if (statement.Expression === undefined) {
@@ -129,7 +130,7 @@ export function planThrowStatement(
   }
   return [{
     kind: "ThrowStatement",
-    expression: planExpression(statement.Expression, sourceFile, input, diagnostics),
+    expression: planExpression(statement.Expression, sourceFile, input, diagnostics, state),
   }];
 }
 
@@ -158,13 +159,14 @@ export function planExpressionStatement(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state?: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
   if (isErasedAttributeExpressionStatement(node, input)) {
     return [];
   }
   if (HasSourceKind(input.ast, AsExpressionStatement(node)!.Expression, KindVoidExpression)) {
     const voidExpression = AsVoidExpression(AsExpressionStatement(node)!.Expression!)!;
-    return [expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics)))];
+    return [expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state)))];
   }
-  return [expressionStatement(planDiscardedExpression(planExpression(AsExpressionStatement(node)!.Expression!, sourceFile, input, diagnostics)))];
+  return [expressionStatement(planDiscardedExpression(planExpression(AsExpressionStatement(node)!.Expression!, sourceFile, input, diagnostics, state)))];
 }

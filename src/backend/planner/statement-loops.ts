@@ -171,7 +171,7 @@ function planForOfBinding(
         ),
       };
     }
-    const planned = planLocalDeclaration(first, sourceFile, input, diagnostics);
+    const planned = planLocalDeclaration(first, sourceFile, input, diagnostics, state);
     const inferredItemType = variable.Type === undefined
       ? getForOfElementType(selectedIteration, first, diagnostics)
       : undefined;

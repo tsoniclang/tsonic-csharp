@@ -37,6 +37,9 @@ import {
 import {
   getCatchVariableTargetTypeRef,
 } from "./target-type-resolution-facts.js";
+import {
+  csharpTargetId,
+} from "./identity.js";
 
 export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
   lifecycleContext: CsharpLifecycleObservationContext,
@@ -190,6 +193,7 @@ function recordCsharpRuntimeCarrierSyntaxFact(
     }
   }
   const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, selectedSurfaceIds, host) ??
+    getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, selectedSurfaceIds, host) ??
     getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host);
   if (carrier === undefined) {
     return;
@@ -197,6 +201,41 @@ function recordCsharpRuntimeCarrierSyntaxFact(
   const fact = { carrier };
   const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+}
+
+function getCallableExpressionRuntimeCarrierTargetTypeRef(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node,
+  selectedSurfaceIds: ReadonlySet<string>,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): TargetTypeRef | undefined {
+  const compiler = lifecycleContext.compiler;
+  const sourceFile = compiler?.ast.getSourceFile(node);
+  if (
+    compiler === undefined ||
+    sourceFile === undefined ||
+    !isCallableExpressionNode(compiler.ast, node)
+  ) {
+    return undefined;
+  }
+  const type = getRuntimeCarrierSubjectType(compiler, sourceFile, node);
+  if (type === undefined) {
+    return undefined;
+  }
+  const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
+    type,
+    sourceTypeReference: node,
+    target: csharpTargetId,
+  }, selectedSurfaceIds, host);
+  return result.kind === "accept" ? result.value.carrier : undefined;
+}
+
+function isCallableExpressionNode(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  return ast.kindName(node) === "KindArrowFunction" ||
+    ast.kindName(node) === "KindFunctionExpression";
 }
 
 function isObjectShapeRuntimeCarrierSyntaxNode(

@@ -12,6 +12,10 @@ export function printLiteral(value: string | number | boolean | null): string {
   return String(value);
 }
 
+export function printNumericLiteral(value: number, suffix: "F" | "D" | "M" | undefined): string {
+  return `${String(value)}${suffix ?? ""}`;
+}
+
 export function printCharLiteral(value: string): string {
   return `'${escapeCsharpCharLiteral(value)}'`;
 }

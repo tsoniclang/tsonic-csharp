@@ -48,7 +48,6 @@ import type {
 } from "./operations-provider.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
-const checkedOperationSyntaxFactQuery = { allowSemanticTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
 
 export function mapCsharpCheckedOperator(
   request: CheckedOperatorMappingRequest,
@@ -142,8 +141,8 @@ export function getCsharpOperatorResultTypeRefForOperator(
   }
 }
 
-export function getCheckedOperatorOperandQuery(operator: string): TargetTypeRefResolutionOptions {
-  return operator === "??" ? {} : checkedOperationSyntaxFactQuery;
+export function getCheckedOperatorOperandQuery(_operator: string): TargetTypeRefResolutionOptions {
+  return {};
 }
 
 export function getLiteralTargetTypeRefForKnownOperatorOperand(

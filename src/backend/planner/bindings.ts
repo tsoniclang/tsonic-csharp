@@ -25,6 +25,8 @@ export {
   allocateStringIterationNames,
   allocateSyntheticParameter,
   createDestructuringPlannerState,
+  declareCsharpLocalBindingName,
+  getCsharpLocalBindingName,
 } from "./binding-state.js";
 export { planBindingPatternFromExpression } from "./binding-patterns.js";
 export type {

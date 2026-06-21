@@ -50,7 +50,7 @@ export function planTopLevelVariableStatement(
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
     }
-    const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics);
+    const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
     moduleMembers.push({
       kind: "FieldDeclaration",
       name: field.name,

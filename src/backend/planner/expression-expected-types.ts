@@ -3,6 +3,7 @@ import {
   AsConditionalExpression,
   AsNoSubstitutionTemplateLiteral,
   AsNonNullExpression,
+  AsNumericLiteral,
   AsParenthesizedExpression,
   AsSatisfiesExpression,
   AsStringLiteral,
@@ -15,6 +16,7 @@ import {
   KindFunctionExpression,
   KindNoSubstitutionTemplateLiteral,
   KindNonNullExpression,
+  KindNumericLiteral,
   KindObjectLiteralExpression,
   KindParenthesizedExpression,
   KindSatisfiesExpression,
@@ -37,6 +39,9 @@ import {
   planFunctionExpression,
 } from "./expression-lambdas.js";
 import { planObjectLiteralExpressionWithExpectedType } from "./expression-object-literals.js";
+import {
+  parseFiniteNumberLiteral,
+} from "../../source/source-literal-values.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: (
@@ -129,18 +134,30 @@ function planExpectedTypeLiteral(
   expectedType: CsharpTypeNode,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  if (!isCsharpCharType(expectedType)) {
-    return undefined;
+  if (isCsharpFloatLiteralType(expectedType) && HasSourceKind(input.ast, node, KindNumericLiteral)) {
+    const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
+    if (value === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
+      return invalidExpression("invalid numeric literal");
+    }
+    return {
+      kind: "NumericLiteralExpression",
+      value,
+      suffix: expectedType.name === "float" ? "F" : "M",
+    };
   }
-  const text = getStringLiteralText(node, input);
-  if (text === undefined) {
-    return undefined;
+  if (isCsharpCharType(expectedType)) {
+    const text = getStringLiteralText(node, input);
+    if (text === undefined) {
+      return undefined;
+    }
+    if (text.length !== 1) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "C# char literals require exactly one UTF-16 code unit from TSTS/source primitive typing."));
+      return invalidExpression("invalid char literal");
+    }
+    return { kind: "CharacterLiteralExpression", value: text };
   }
-  if (text.length !== 1) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "C# char literals require exactly one UTF-16 code unit from TSTS/source primitive typing."));
-    return invalidExpression("invalid char literal");
-  }
-  return { kind: "CharacterLiteralExpression", value: text };
+  return undefined;
 }
 
 function getStringLiteralText(node: Node, input: TargetCompileInput): string | undefined {
@@ -156,4 +173,8 @@ function getStringLiteralText(node: Node, input: TargetCompileInput): string | u
 
 function isCsharpCharType(type: CsharpTypeNode): boolean {
   return type.kind === "PredefinedType" && type.name === "char";
+}
+
+function isCsharpFloatLiteralType(type: CsharpTypeNode): type is Extract<CsharpTypeNode, { readonly kind: "PredefinedType" }> {
+  return type.kind === "PredefinedType" && (type.name === "float" || type.name === "decimal");
 }

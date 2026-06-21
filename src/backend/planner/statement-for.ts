@@ -54,10 +54,10 @@ export function planForStatement(
       ? { initializer: initializer.initializer }
       : {}),
     ...(statement.Condition !== undefined
-      ? { condition: planExpression(statement.Condition, sourceFile, input, diagnostics) }
+      ? { condition: planExpression(statement.Condition, sourceFile, input, diagnostics, state) }
       : {}),
     ...(statement.Incrementor !== undefined
-      ? { incrementor: planExpression(statement.Incrementor, sourceFile, input, diagnostics) }
+      ? { incrementor: planExpression(statement.Incrementor, sourceFile, input, diagnostics, state) }
       : {}),
     body: {
       kind: "Block",
@@ -99,7 +99,7 @@ function planForInitializer(
     }
     const locals = declarations
       .filter((declaration): declaration is Node => declaration !== undefined)
-      .map((declaration) => planLocalDeclaration(declaration, sourceFile, input, diagnostics));
+      .map((declaration) => planLocalDeclaration(declaration, sourceFile, input, diagnostics, state));
     const first = locals[0];
     if (first !== undefined && locals.some((local) => !sameCsharpType(local.type, first.type))) {
       return {
@@ -122,7 +122,7 @@ function planForInitializer(
   return {
     initializer: {
       kind: "Expression",
-      expression: planExpression(node, sourceFile, input, diagnostics),
+      expression: planExpression(node, sourceFile, input, diagnostics, state),
     },
     prelude: [],
   };

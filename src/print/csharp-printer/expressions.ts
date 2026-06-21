@@ -11,6 +11,7 @@ import {
   indentLines,
   printCharLiteral,
   printLiteral,
+  printNumericLiteral,
 } from "./format.js";
 import { isCsharpTypeSyntax } from "./types.js";
 
@@ -26,6 +27,8 @@ export function printCsharpExpression(
       throw new Error(`Invalid C# expression reached printer: ${expression.reason}`);
     case "LiteralExpression":
       return printLiteral(expression.value);
+    case "NumericLiteralExpression":
+      return printNumericLiteral(expression.value, expression.suffix);
     case "CharacterLiteralExpression":
       return printCharLiteral(expression.value);
     case "InterpolatedStringExpression":

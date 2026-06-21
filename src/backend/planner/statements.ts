@@ -98,7 +98,7 @@ export function planStatements(
     case KindContinueStatement:
       return planContinueStatement(node, diagnostics, state);
     case KindThrowStatement:
-      return planThrowStatement(node, sourceFile, input, diagnostics);
+      return planThrowStatement(node, sourceFile, input, diagnostics, state);
     case KindDebuggerStatement:
       return planDebuggerStatement();
     case KindLabeledStatement: {
@@ -113,7 +113,7 @@ export function planStatements(
     case KindTryStatement:
       return [planTryStatement(node, sourceFile, input, diagnostics, state, planBlockStatements)];
     case KindExpressionStatement:
-      return planExpressionStatement(node, sourceFile, input, diagnostics);
+      return planExpressionStatement(node, sourceFile, input, diagnostics, state);
     case KindIfStatement:
       return planIfStatement(node, sourceFile, input, diagnostics, state, planNestedStatementBody);
     case KindWhileStatement:

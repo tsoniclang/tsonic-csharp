@@ -16,6 +16,12 @@ import type { CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import { requireCsharpIdentifier } from "./identifiers.js";
+import {
+  getCsharpLocalBindingName,
+} from "./bindings.js";
+import type {
+  DestructuringPlannerState,
+} from "./bindings.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "./source-paths.js";
 
@@ -24,6 +30,7 @@ export function planIdentifierExpression(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  state?: DestructuringPlannerState,
 ): CsharpExpression {
   const sourceName = Node_Text(AsIdentifier(identifier));
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
@@ -51,7 +58,11 @@ export function planIdentifierExpression(
   if (sourceModuleMemberReference !== undefined) {
     return sourceModuleMemberReference;
   }
-  return { kind: "IdentifierName", name: requireCsharpIdentifier(sourceName, diagnostics, "Source identifier") };
+  return {
+    kind: "IdentifierName",
+    name: getCsharpLocalBindingName(identifier, sourceFile, input, state) ??
+      requireCsharpIdentifier(sourceName, diagnostics, "Source identifier"),
+  };
 }
 
 export function isExternalDeclarationReference(
