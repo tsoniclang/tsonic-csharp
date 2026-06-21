@@ -14,6 +14,10 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
+  CsharpTargetOperatorOperation,
+  csharpTypeofRuntimeOperation,
+} from "../csharp-operation-tags.js";
+import {
   targetOperation,
 } from "./operations.js";
 import {
@@ -65,12 +69,12 @@ export function mapCsharpCheckedOperator(
       return deferObservation;
     }
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(`tsonic.csharp.typeof.${runtimeKind}`, "operator", `typeof:${runtimeKind}`),
+      operation: targetOperation(`tsonic.csharp.typeof.${runtimeKind}`, "operator", csharpTypeofRuntimeOperation(runtimeKind)),
     }, [{ message: "C# typeof runtime kind selected from checked TSTS operand type." }]);
   }
   if (request.operator === "instanceof") {
     return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("tsonic.csharp.instanceof", "operator", "is"),
+      operation: targetOperation("tsonic.csharp.instanceof", "operator", CsharpTargetOperatorOperation.typeTest),
     }, [{ message: "C# type-test operation selected from checked TSTS instanceof expression." }]);
   }
   const targetOperator = getCsharpOperatorTargetOperation(request.operator);

@@ -13,7 +13,7 @@ import {
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { planExpression } from "./expressions.js";
-import { csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
+import { CsharpTargetIterationOperation, csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
@@ -46,10 +46,10 @@ export function planForInStatement(
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires finalized TSTS/provider enumeration facts before C# emission."));
     return [];
   }
-  if (selectedIteration.iterationKind === "property-key" && selectedIteration.targetOperation === "object-shape-keys") {
+  if (selectedIteration.iterationKind === "property-key" && selectedIteration.targetOperation === CsharpTargetIterationOperation.jsObjectShapeKeys) {
     return planObjectShapeForInStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
-  if (selectedIteration.iterationKind !== "property-key" || selectedIteration.targetOperation !== "array-index-keys") {
+  if (selectedIteration.iterationKind !== "property-key" || selectedIteration.targetOperation !== CsharpTargetIterationOperation.jsIndexKeys) {
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-in emission does not support target iteration operation '${selectedIteration.targetOperation}' with kind '${selectedIteration.iterationKind}'.`));
     return [];
   }

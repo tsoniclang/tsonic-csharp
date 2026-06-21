@@ -27,6 +27,11 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  CsharpTargetOperatorOperation,
+  getCsharpTypeofComparisonOperation,
+  getCsharpTypeofRuntimeKind,
+} from "../../source/csharp-operation-tags.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
@@ -52,7 +57,7 @@ export function planTypeofExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, `Typeof expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
     return invalidExpression("selected target typeof operator");
   }
-  const runtimeKind = getStandaloneTypeofRuntimeKind(selectedOperator.targetOperation);
+  const runtimeKind = getCsharpTypeofRuntimeKind(selectedOperator.targetOperation);
   if (runtimeKind === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, `Typeof expression expected a provider typeof operator fact, but provider selected '${selectedOperator.targetOperation}'.`));
     return invalidExpression("selected target non-typeof operator");
@@ -68,7 +73,7 @@ export function tryPlanTypeTestExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (selectedOperator?.operationKind !== "operator" || selectedOperator.targetOperation !== "is") {
+  if (selectedOperator?.operationKind !== "operator" || selectedOperator.targetOperation !== CsharpTargetOperatorOperation.typeTest) {
     return undefined;
   }
   const left = getBinaryLeft(expression);
@@ -92,8 +97,10 @@ export function tryPlanTypeofComparisonExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (selectedOperator?.operationKind !== "operator" ||
-    (!selectedOperator.targetOperation.startsWith("typeof-is:") && !selectedOperator.targetOperation.startsWith("typeof-is-not:"))) {
+  const comparison = selectedOperator?.operationKind === "operator"
+    ? getCsharpTypeofComparisonOperation(selectedOperator.targetOperation)
+    : undefined;
+  if (comparison === undefined) {
     return undefined;
   }
   const operand = getTypeofComparisonOperand(expression, input);
@@ -101,33 +108,17 @@ export function tryPlanTypeofComparisonExpression(
     diagnostics.push(unsupportedNodeDiagnostic(expression, "Provider selected a typeof comparison operation, but the compared expression is not a typeof expression."));
     return invalidExpression("selected typeof comparison without typeof operand");
   }
-  const targetKind = selectedOperator.targetOperation.slice(selectedOperator.targetOperation.indexOf(":") + 1);
-  const targetType = getTypeofComparisonTargetType(targetKind);
+  const targetType = getTypeofComparisonTargetType(comparison.kind);
   if (targetType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(operand, `Provider selected unsupported typeof comparison target '${targetKind}'.`));
+    diagnostics.push(unsupportedNodeDiagnostic(operand, `Provider selected unsupported typeof comparison target '${comparison.kind}'.`));
     return invalidExpression("selected typeof comparison target");
   }
   return {
     kind: "IsPatternExpression",
     expression: planExpression(operand, sourceFile, input, diagnostics),
     type: targetType,
-    ...(selectedOperator.targetOperation.startsWith("typeof-is-not:") ? { negated: true } : {}),
+    ...(comparison.negated ? { negated: true } : {}),
   };
-}
-
-function getStandaloneTypeofRuntimeKind(targetOperation: string): "string" | "number" | "boolean" | "bigint" | undefined {
-  switch (targetOperation) {
-    case "typeof:string":
-      return "string";
-    case "typeof:number":
-      return "number";
-    case "typeof:boolean":
-      return "boolean";
-    case "typeof:bigint":
-      return "bigint";
-    default:
-      return undefined;
-  }
 }
 
 function getTypeofComparisonTargetType(kind: string): CsharpTypeNode | undefined {

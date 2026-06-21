@@ -21,10 +21,19 @@ export interface CsharpTargetTypeParameterConstraintFact {
   readonly constraints: readonly TargetConstraint[];
 }
 
+export const CsharpTargetIterationOperation = {
+  foreachStatement: "foreach-statement",
+  jsStringCodePoints: "js-string-code-points",
+  jsObjectShapeKeys: "js-object-shape-keys",
+  jsIndexKeys: "js-index-keys",
+} as const;
+
+export type CsharpTargetIterationOperation = typeof CsharpTargetIterationOperation[keyof typeof CsharpTargetIterationOperation];
+
 export interface CsharpTargetIterationFact {
   readonly operationId: string;
   readonly iterationKind: "sync" | "async" | "property-key";
-  readonly targetOperation: string;
+  readonly targetOperation: CsharpTargetIterationOperation;
   readonly elementType?: ExtensionFactSubject;
   readonly evidence?: readonly ExtensionEvidence[];
 }

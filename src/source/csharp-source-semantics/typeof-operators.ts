@@ -11,6 +11,10 @@ import {
   targetOperation,
 } from "./operations.js";
 import {
+  csharpTypeofComparisonOperation,
+  type CsharpTypeofRuntimeKind,
+} from "../csharp-operation-tags.js";
+import {
   sourcePrimitiveRuntimeKind,
   unwrapNullableTargetType,
 } from "./target-rules.js";
@@ -31,14 +35,14 @@ export function getTypeofComparisonOperation(
   return targetOperation(
     `tsonic.csharp.typeof.${negated ? "not-" : ""}${rightKind}`,
     "operator",
-    `${negated ? "typeof-is-not" : "typeof-is"}:${rightKind}`,
+    csharpTypeofComparisonOperation(rightKind, negated),
   );
 }
 
 export function getTypeofRuntimeKind(
   type: TargetTypeRef | undefined,
   options: { readonly allowNullableUnwrap: boolean },
-): "string" | "number" | "boolean" | "bigint" | undefined {
+): CsharpTypeofRuntimeKind | undefined {
   const unwrapped = unwrapNullableTargetType(type);
   if (unwrapped !== type) {
     return options.allowNullableUnwrap ? getTypeofRuntimeKind(unwrapped, options) : undefined;
@@ -64,7 +68,7 @@ function getTypeofLiteralComparisonKind(
   typeofExpression: ExtensionFactSubject | undefined,
   literal: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
-): "string" | "number" | "boolean" | "bigint" | undefined {
+): CsharpTypeofRuntimeKind | undefined {
   const ast = context.compiler?.ast;
   const expressionNode = asNodeSubject(typeofExpression);
   const literalNode = asNodeSubject(literal);

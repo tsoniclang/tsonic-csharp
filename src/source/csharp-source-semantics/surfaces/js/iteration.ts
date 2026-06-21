@@ -9,6 +9,7 @@ import type {
   ExtensionObservationContext,
 } from "@tsonic/tsts";
 import {
+  CsharpTargetIterationOperation,
   csharpTargetIterationFactKey,
 } from "../../../csharp-facts.js";
 import type {
@@ -34,7 +35,7 @@ export function mapCsharpJsSurfaceCheckedIteration(
       const fact = {
         operationId: "tsonic.csharp.js.string.codePoints",
         iterationKind: "sync",
-        targetOperation: "string-code-points",
+        targetOperation: CsharpTargetIterationOperation.jsStringCodePoints,
         elementType: csharpTargetNamedType("System.String"),
       } satisfies CsharpTargetIterationFact;
       context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# JS surface string for-of maps to string code-point iteration." }]);
@@ -50,7 +51,7 @@ export function mapCsharpJsSurfaceCheckedIteration(
       const fact = {
         operationId: "tsonic.csharp.js.objectShape.keys",
         iterationKind: "property-key",
-        targetOperation: "object-shape-keys",
+        targetOperation: CsharpTargetIterationOperation.jsObjectShapeKeys,
         elementType: csharpTargetNamedType("System.String"),
       } satisfies CsharpTargetIterationFact;
       context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# JS surface object-shape for-in maps to finalized object-shape key storage." }]);
@@ -62,7 +63,7 @@ export function mapCsharpJsSurfaceCheckedIteration(
       const fact = {
         operationId: "tsonic.csharp.js.indexable.keys",
         iterationKind: "property-key",
-        targetOperation: "array-index-keys",
+        targetOperation: CsharpTargetIterationOperation.jsIndexKeys,
         elementType: csharpTargetNamedType("System.String"),
       } satisfies CsharpTargetIterationFact;
       context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# JS surface indexable for-in maps to string index keys." }]);

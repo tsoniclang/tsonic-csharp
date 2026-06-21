@@ -32,7 +32,7 @@ import { planLocalDeclaration } from "./locals.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
 import { targetTypeRefFromFactSubject } from "./statement-iteration-facts.js";
-import { csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
+import { CsharpTargetIterationOperation, csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
 import type { CsharpTargetIterationFact } from "../../source/csharp-facts.js";
 
 export { planForInStatement } from "./statement-for-in.js";
@@ -64,10 +64,10 @@ export function planForOfStatement(
   if (binding === undefined) {
     return [];
   }
-  if (selectedIteration.iterationKind === "sync" && selectedIteration.targetOperation === "string-code-points") {
+  if (selectedIteration.iterationKind === "sync" && selectedIteration.targetOperation === CsharpTargetIterationOperation.jsStringCodePoints) {
     return planStringCodePointForOfStatement(statementNode, statement, binding, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
-  if (selectedIteration.iterationKind !== "sync" || selectedIteration.targetOperation !== "ForEachStatement") {
+  if (selectedIteration.iterationKind !== "sync" || selectedIteration.targetOperation !== CsharpTargetIterationOperation.foreachStatement) {
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-of emission does not support target iteration operation '${selectedIteration.targetOperation}' with kind '${selectedIteration.iterationKind}'.`));
     return [];
   }

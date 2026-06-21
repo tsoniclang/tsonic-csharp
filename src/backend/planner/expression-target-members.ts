@@ -32,6 +32,9 @@ import {
   planSelectedTargetReceiverExpression,
   targetStaticMemberExpression,
 } from "./expression-selected-target-members.js";
+import {
+  CsharpTargetOperatorOperation,
+} from "../../source/csharp-operation-tags.js";
 
 export {
   planSelectedTargetCallArguments,
@@ -91,7 +94,7 @@ export function planElementAccessExpression(
     return invalidExpression("missing target element access fact");
   }
   const selectedElementAccess = input.facts.getSelectedTargetElementAccess(elementAccess);
-  if (selectedElementAccess?.targetOperation === "string-code-unit") {
+  if (selectedElementAccess?.targetOperation === CsharpTargetOperatorOperation.jsStringCodeUnit) {
     const receiver = planExpression(expression.Expression!, sourceFile, input, diagnostics);
     return {
       kind: "InvocationExpression",
