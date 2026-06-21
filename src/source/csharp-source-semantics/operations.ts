@@ -7,6 +7,9 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  runtimeCarrierFactKey,
+} from "@tsonic/tsts";
+import {
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
 import type {
@@ -133,4 +136,9 @@ export function recordCsharpTargetOperation(
   evidence: readonly ExtensionEvidence[] = [],
 ): void {
   context.facts.set(subject, csharpTargetOperationFactKey, operation, evidence);
+  if (operation.resultType !== undefined) {
+    context.facts.set(subject, runtimeCarrierFactKey, {
+      carrier: operation.resultType,
+    }, evidence);
+  }
 }

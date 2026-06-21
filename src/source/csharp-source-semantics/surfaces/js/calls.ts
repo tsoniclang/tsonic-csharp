@@ -23,8 +23,10 @@ import type {
   SourceLibraryMember,
 } from "./source-library.js";
 import {
+  csharpTargetOperationFromMember,
   getSourceLibraryMember,
   getSourceLibraryMemberFromReceiver,
+  recordCsharpTargetOperation,
 } from "./source-library.js";
 import {
   getStringTargetMembers,
@@ -52,6 +54,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (member === undefined) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));
   }
+  recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# JS surface target call operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
   }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);

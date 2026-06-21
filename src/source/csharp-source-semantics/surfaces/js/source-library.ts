@@ -14,6 +14,7 @@ import {
   asSemanticType,
 } from "../../../fact-subjects.js";
 export {
+  csharpTargetOperationFromMember,
   csharpTargetIntrinsicOperatorOperation,
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,

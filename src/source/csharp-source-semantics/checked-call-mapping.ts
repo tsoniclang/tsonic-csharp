@@ -28,6 +28,10 @@ import {
   isCheckedAttributeBuilderCall,
   isErasedSourceSemanticsCall,
 } from "./erased-source-markers.js";
+import {
+  csharpTargetOperationFromMember,
+  recordCsharpTargetOperation,
+} from "./operations.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -90,6 +94,7 @@ export function mapCsharpCheckedCall(
   if (member.kind !== "method" && member.kind !== "constructor") {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_CALLABLE", 9100101, `C# provider mapped checked call '${request.calleePropertyName ?? "<anonymous>"}' to non-callable target member '${member.id}'.`));
   }
+  recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: "C# target call operation recorded from checked TSTS provider declaration." }]);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
