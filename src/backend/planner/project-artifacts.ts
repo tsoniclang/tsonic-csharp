@@ -1,26 +1,33 @@
-import type { TargetArtifact, TargetCompileInput, TargetSourceFile } from "@tsonic/target-api";
+import type { TargetCompileInput } from "@tsonic/target-api";
 import { sanitizeIdentifier } from "./identifiers.js";
 
-export function projectArtifact(
+export interface CsharpProjectFile {
+  readonly sdk: "Microsoft.NET.Sdk";
+  readonly path: string;
+  readonly properties: readonly CsharpProjectProperty[];
+  readonly references: readonly CsharpProjectReference[];
+}
+
+export interface CsharpProjectProperty {
+  readonly name: string;
+  readonly value: string;
+}
+
+export type CsharpProjectReference =
+  | { readonly kind: "project"; readonly include: string }
+  | { readonly kind: "package"; readonly include: string; readonly version?: string; readonly privateAssets?: string; readonly includeAssets?: string }
+  | { readonly kind: "framework"; readonly include: string }
+  | { readonly kind: "assembly"; readonly include: string; readonly hintPath?: string };
+
+export function planCsharpProjectFile(
   input: TargetCompileInput,
-  sourceArtifacts: readonly TargetSourceFile[],
   options: { readonly allowUnsafeBlocks?: boolean } = {},
-): TargetArtifact {
-  void sourceArtifacts;
-  const properties = csharpProjectProperties(input, options);
-  const itemGroups = csharpProjectItemGroups(input);
+): CsharpProjectFile {
   return {
-    kind: "project",
+    sdk: "Microsoft.NET.Sdk",
     path: `${readAssemblyName(input)}.csproj`,
-    text: [
-      "<Project Sdk=\"Microsoft.NET.Sdk\">",
-      "  <PropertyGroup>",
-      ...properties.map(([name, value]) => `    <${name}>${escapeXml(value)}</${name}>`),
-      "  </PropertyGroup>",
-      ...itemGroups,
-      "</Project>",
-      "",
-    ].join("\n"),
+    properties: csharpProjectProperties(input, options),
+    references: readReferencesOption(input),
   };
 }
 
@@ -31,7 +38,7 @@ export function readNamespace(input: TargetCompileInput): string {
 function csharpProjectProperties(
   input: TargetCompileInput,
   options: { readonly allowUnsafeBlocks?: boolean },
-): readonly (readonly [string, string])[] {
+): readonly CsharpProjectProperty[] {
   const properties = new Map<string, string>();
   properties.set("TargetFramework", readStringOption(input, "targetFramework", "net10.0"));
   properties.set("Nullable", readStringOption(input, "nullable", "enable"));
@@ -62,26 +69,8 @@ function csharpProjectProperties(
       properties.set(name, String(value));
     }
   }
-  return [...properties.entries()];
+  return [...properties.entries()].map(([name, value]) => ({ name, value }));
 }
-
-function csharpProjectItemGroups(input: TargetCompileInput): readonly string[] {
-  const references = readReferencesOption(input);
-  if (references.length === 0) {
-    return [];
-  }
-  return [
-    "  <ItemGroup>",
-    ...references.map(formatReferenceItem),
-    "  </ItemGroup>",
-  ];
-}
-
-type CsharpProjectReference =
-  | { readonly kind: "project"; readonly include: string }
-  | { readonly kind: "package"; readonly include: string; readonly version?: string; readonly privateAssets?: string; readonly includeAssets?: string }
-  | { readonly kind: "framework"; readonly include: string }
-  | { readonly kind: "assembly"; readonly include: string; readonly hintPath?: string };
 
 function readReferencesOption(input: TargetCompileInput): readonly CsharpProjectReference[] {
   const raw = input.target.options?.references;
@@ -122,35 +111,6 @@ function readAssemblyReferences(raw: Readonly<Record<string, unknown>>): readonl
       hintPath: readOptionalString(entry, "hintPath", `references.assemblies[${index}]`),
     };
   });
-}
-
-function formatReferenceItem(reference: CsharpProjectReference): string {
-  switch (reference.kind) {
-    case "project":
-      return `    <ProjectReference Include="${escapeXml(reference.include)}" />`;
-    case "package":
-      return formatXmlItem("PackageReference", {
-        Include: reference.include,
-        Version: reference.version,
-        PrivateAssets: reference.privateAssets,
-        IncludeAssets: reference.includeAssets,
-      });
-    case "framework":
-      return `    <FrameworkReference Include="${escapeXml(reference.include)}" />`;
-    case "assembly":
-      return formatXmlItem("Reference", {
-        Include: reference.include,
-        HintPath: reference.hintPath,
-      });
-  }
-}
-
-function formatXmlItem(name: string, attributes: Readonly<Record<string, string | undefined>>): string {
-  const renderedAttributes = Object.entries(attributes)
-    .filter((entry): entry is [string, string] => entry[1] !== undefined)
-    .map(([key, value]) => `${key}="${escapeXml(value)}"`)
-    .join(" ");
-  return `    <${name} ${renderedAttributes} />`;
 }
 
 function rejectDuplicateReferences(references: readonly CsharpProjectReference[]): readonly CsharpProjectReference[] {
@@ -253,15 +213,6 @@ function rejectUnknownKeys(raw: Readonly<Record<string, unknown>>, path: string,
       throw new Error(`C# target option '${path}.${key}' is not supported.`);
     }
   }
-}
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
 }
 
 function isXmlElementName(value: string): boolean {

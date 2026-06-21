@@ -27,15 +27,15 @@ import {
   SourceFile_FileName,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
-import type { TargetArtifact, TargetCompileInput, TargetDiagnostic, TargetSourceFile } from "@tsonic/target-api";
+import type { TargetArtifact, TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpCompilationUnit,
   CsharpStatement,
   CsharpTypeDeclaration,
   CsharpTypeMember,
 } from "../roslyn/syntax.js";
-import { printCsharpCompilationUnit } from "../../print/csharp-printer.js";
 import { isErasedAttributeExpressionStatement } from "./attributes.js";
+import { materializeCsharpOutputPlan } from "./csharp-output-plan.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -43,7 +43,7 @@ import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration } from "./locals.js";
 import { beginObjectShapePlanning, takeObjectShapeDeclarations } from "./object-shapes.js";
-import { projectArtifact, readNamespace } from "./project-artifacts.js";
+import { planCsharpProjectFile, readNamespace } from "./project-artifacts.js";
 import { sourceFileArtifactPath, sourceFileClassName } from "./source-paths.js";
 import { planStatements } from "./statements.js";
 import { compilationUnitRequiresUnsafe, markCompilationUnitUnsafe } from "./unsafe.js";
@@ -76,17 +76,15 @@ export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningRe
       diagnostics,
     };
   }
-  const sourceArtifacts: TargetSourceFile[] = plannedSources.map((source) => ({
-    kind: "source",
-    language: "csharp",
-    path: sourceFileArtifactPath(input, source.fileName, source.moduleClassName),
-    text: printCsharpCompilationUnit(source.unit),
-  }));
-  const artifacts: TargetArtifact[] = [];
-  artifacts.push(projectArtifact(input, sourceArtifacts, {
-    allowUnsafeBlocks: plannedSources.some((source) => source.requiresUnsafe),
-  }));
-  artifacts.push(...sourceArtifacts);
+  const artifacts = materializeCsharpOutputPlan({
+    project: planCsharpProjectFile(input, {
+      allowUnsafeBlocks: plannedSources.some((source) => source.requiresUnsafe),
+    }),
+    sources: plannedSources.map((source) => ({
+      path: sourceFileArtifactPath(input, source.fileName, source.moduleClassName),
+      unit: source.unit,
+    })),
+  });
   return {
     artifacts,
     diagnostics,
