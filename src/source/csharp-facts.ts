@@ -47,6 +47,11 @@ export interface CsharpTargetIterationFact {
   readonly evidence?: readonly ExtensionEvidence[];
 }
 
+export interface CsharpRegularExpressionLiteralFact {
+  readonly pattern: string;
+  readonly flags: string;
+}
+
 export type CsharpTargetOperationFact =
   | CsharpTargetMemberOperationFact
   | CsharpTargetIntrinsicOperatorOperationFact
@@ -115,6 +120,12 @@ export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetO
   extensionId: "tsonic.csharp",
   name: "targetOperation",
   equals: csharpTargetOperationFactEquals,
+});
+
+export const csharpRegularExpressionLiteralFactKey = defineExtensionFactKey<CsharpRegularExpressionLiteralFact>({
+  extensionId: "tsonic.csharp",
+  name: "regularExpressionLiteral",
+  equals: (left, right) => left.pattern === right.pattern && left.flags === right.flags,
 });
 
 function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right: CsharpTargetOperationFact): boolean {
