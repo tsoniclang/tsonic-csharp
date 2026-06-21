@@ -459,24 +459,16 @@ function getRuntimeCarrierChildNodes(
   node: Node,
 ): readonly (Node | undefined)[] {
   return Array.from(new Set([
-    ...safeAstChildNodes(() => ast.children(node)),
-    ...safeAstChildNodes(() => ast.typeArguments(node)),
-    ...safeAstChildNodes(() => ast.typeParameters(node)),
-    ...safeAstChildNodes(() => ast.parameters(node)),
-    ...safeAstChildNodes(() => ast.members(node)),
-    ...safeAstChildNodes(() => ast.elements(node)),
-    ...safeAstChildNodes(() => ast.properties(node)),
-    ...safeAstChildNodes(() => ast.arguments(node)),
+    ...ast.children(node),
+    ...ast.typeArguments(node),
+    ...ast.typeParameters(node),
+    ...ast.parameters(node),
+    ...ast.members(node),
+    ...ast.elements(node),
+    ...ast.properties(node),
+    ...ast.arguments(node),
     ...getStructuralChildNodes(node),
   ]));
-}
-
-function safeAstChildNodes(read: () => readonly (Node | undefined)[]): readonly (Node | undefined)[] {
-  try {
-    return read();
-  } catch {
-    return [];
-  }
 }
 
 function recordCsharpRuntimeCarrierFact(
