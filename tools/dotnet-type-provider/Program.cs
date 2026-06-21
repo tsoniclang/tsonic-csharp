@@ -85,12 +85,16 @@ sealed class ReflectionProvider
 
     public object GetModule()
     {
-        var sourceGroups = LoadTypes()
+        var allTypes = LoadTypes()
             .Where(type => type.Namespace == request.NamespaceName)
             .Where(type => type.IsPublic || type.IsNestedPublic)
             .Where(type => !type.IsSpecialName)
             .GroupBy(MetadataName, StringComparer.Ordinal)
             .Select(group => group.First())
+            .OrderBy(type => MetadataName(type), StringComparer.Ordinal)
+            .ToArray();
+        var sourceGroups = allTypes
+            .Where(type => !type.IsNested)
             .GroupBy(SourceTypeName, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .ToArray();
@@ -98,9 +102,17 @@ sealed class ReflectionProvider
             .Where(group => group.Count() == 1)
             .Select(group => group.First())
             .ToArray();
+        var exportTypeNames = exportTypes.Select(MetadataName).ToHashSet(StringComparer.Ordinal);
         var unsupportedExports = sourceGroups
             .Where(group => group.Count() > 1)
-            .Select(ToUnsupportedExport)
+            .Select(ToUnsupportedTypeFamilyExport)
+            .Concat(allTypes.Where(type => type.IsNested).Select(ToUnsupportedNestedTypeExport))
+            .ToArray();
+        var targetOnlyTypes = allTypes
+            .Where(type => !exportTypeNames.Contains(MetadataName(type)))
+            .Select(ToTypeExport)
+            .Where(export => export is not null)
+            .Cast<object>()
             .ToArray();
 
         providerReferenceNames = exportTypes.Select(SourceTypeName).ToHashSet(StringComparer.Ordinal);
@@ -116,6 +128,7 @@ sealed class ReflectionProvider
             moduleSpecifier = request.ModuleSpecifier,
             namespaceName = request.NamespaceName,
             exports,
+            targetOnlyTypes = targetOnlyTypes.Length == 0 ? null : targetOnlyTypes,
             unsupportedExports = unsupportedExports.Length == 0 ? null : unsupportedExports,
         };
     }
@@ -230,7 +243,7 @@ sealed class ReflectionProvider
         };
     }
 
-    static object ToUnsupportedExport(IGrouping<string, Type> group)
+    static object ToUnsupportedTypeFamilyExport(IGrouping<string, Type> group)
     {
         return new
         {
@@ -238,6 +251,18 @@ sealed class ReflectionProvider
             sourceName = group.Key,
             reason = "Multiple CLR metadata types share this source name. This requires a provider type-family declaration model before it can be exposed safely.",
             metadataNames = group.Select(MetadataName).OrderBy(name => name, StringComparer.Ordinal).ToArray(),
+        };
+    }
+
+    static object ToUnsupportedNestedTypeExport(Type type)
+    {
+        return new
+        {
+            kind = "unsupported-nested-type",
+            sourceName = SourceTypeName(type),
+            reason = "Nested CLR types require a provider nested-type declaration model before they can be exposed safely as source declarations.",
+            metadataName = MetadataName(type),
+            declaringMetadataName = type.DeclaringType is null ? null : MetadataName(type.DeclaringType),
         };
     }
 

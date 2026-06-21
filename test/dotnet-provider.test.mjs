@@ -108,6 +108,11 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
     member.sourceName === "desktop" &&
     member.targetName === "Desktop"
   ));
+
+  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  assert.equal("exports" in systemModule, true);
+  assert.equal(systemModule.exports.some((declaration) => declaration.sourceName === "SpecialFolder"), false);
+  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Environment.SpecialFolder"));
 });
 
 test(".NET reflection provider exposes delegates with source shells and target delegate identity", () => {
@@ -154,4 +159,17 @@ test(".NET reflection provider classifies unsupported type families without sile
   assert.ok(func.metadataNames.includes("System.Func`1"));
   assert.ok(func.metadataNames.includes("System.Func`2"));
   assert.match(func.reason, /provider type-family declaration model/);
+
+  const specialFolder = systemModule.unsupportedExports?.find((declaration) =>
+    declaration.kind === "unsupported-nested-type" &&
+    declaration.metadataName === "System.Environment.SpecialFolder"
+  );
+  assert.ok(specialFolder);
+  assert.equal(specialFolder.sourceName, "SpecialFolder");
+  assert.equal(specialFolder.declaringMetadataName, "System.Environment");
+  assert.match(specialFolder.reason, /nested-type declaration model/);
+
+  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Action`1"));
+  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Func`2"));
+  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Environment.SpecialFolder"));
 });

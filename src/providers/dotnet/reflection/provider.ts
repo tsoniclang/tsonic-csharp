@@ -143,7 +143,7 @@ function findTargetBindingInLoadedModules(
 }
 
 function findTargetBindingInModule(module: DotnetModuleModel, targetId: string): TargetBindingFact | undefined {
-  for (const declaration of module.exports) {
+  for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
     if (declaration.kind === "type" && declaration.metadataName === targetId) {
       return dotnetExportToTargetBinding(declaration);
     }
