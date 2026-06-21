@@ -45,7 +45,10 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (candidates.length === 0) {
     return undefined;
   }
-  const member = host.selectTargetMember(candidates, request.arguments, context);
+  const member = host.selectTargetMember(candidates, {
+    arguments: request.arguments,
+    receiver: request.calleeReceiver,
+  }, context);
   if (member === undefined) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));
   }

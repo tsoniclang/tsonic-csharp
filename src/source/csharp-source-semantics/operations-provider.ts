@@ -148,10 +148,13 @@ export function createCsharpJsSurfaceHost(extensionId: string, host: CsharpOpera
     isLiteralRepresentableAsTargetType,
     selectTargetMember: (
       candidates: readonly TargetMember[],
-      arguments_: readonly ExtensionFactSubject[],
+      request: {
+        readonly arguments: readonly ExtensionFactSubject[];
+        readonly receiver?: ExtensionFactSubject;
+      },
       context: ExtensionObservationContext,
     ) =>
-      selectTargetMember(candidates, arguments_, context, host.getTargetTypeRefForSubject),
+      selectTargetMember(candidates, request, context, host.getTargetTypeRefForSubject),
     getCsharpObjectShapeFactForSubject: host.getCsharpObjectShapeFactForSubject,
     csharpProviderDiagnostic,
   };

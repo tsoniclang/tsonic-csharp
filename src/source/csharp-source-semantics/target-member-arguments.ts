@@ -6,41 +6,46 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  asNodeSubject,
-} from "./ast-utils.js";
-import {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-literals.js";
 import {
-  stripMetadataArity,
   targetTypeRefEquals,
 } from "./target-ref-utils.js";
 import type {
   TargetTypeRefResolver,
 } from "./target-type-ref-resolution.js";
 
+export interface TargetMemberSelectionRequest {
+  readonly arguments: readonly ExtensionFactSubject[];
+  readonly receiver?: ExtensionFactSubject;
+}
+
 export function selectTargetMember(
   candidates: readonly TargetMember[],
-  arguments_: readonly ExtensionFactSubject[],
+  request: TargetMemberSelectionRequest,
   context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
 ): TargetMember | undefined {
   const matching = candidates.filter((member) =>
-    targetMemberMatchesArguments(member, arguments_, context, resolveTargetTypeRef));
+    targetMemberMatchesArguments(member, request, context, resolveTargetTypeRef));
   return matching.length === 1 ? matching[0] : undefined;
 }
 
 function targetMemberMatchesArguments(
   member: TargetMember,
-  arguments_: readonly ExtensionFactSubject[],
+  request: TargetMemberSelectionRequest,
   context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
 ): boolean {
-  const parameterOffset = member.receiverPassing === "first-argument" ? 1 : 0;
-  const parameters = member.parameters.slice(parameterOffset);
+  const arguments_ = getTargetArgumentSubjectsForMember(member, request);
+  if (arguments_ === undefined) {
+    return false;
+  }
+  const parameters = member.parameters;
   if (!targetArityMatches(parameters, arguments_.length)) {
     return false;
   }
+  const typeParameterBindings = new Map<string, TargetTypeRef>();
   for (let index = 0; index < arguments_.length; index += 1) {
     const parameter = getParameterForArgument(parameters, index);
     const argument = arguments_[index];
@@ -48,11 +53,23 @@ function targetMemberMatchesArguments(
       return false;
     }
     const argumentType = resolveTargetTypeRef(argument, context);
-    if (!targetTypeAcceptsArgument(getExpectedTargetTypeForArgument(parameter), argumentType, argument, context, resolveTargetTypeRef)) {
+    if (!targetTypeAcceptsArgument(getExpectedTargetTypeForArgument(parameter), argumentType, argument, context, typeParameterBindings)) {
       return false;
     }
   }
   return true;
+}
+
+function getTargetArgumentSubjectsForMember(
+  member: TargetMember,
+  request: TargetMemberSelectionRequest,
+): readonly ExtensionFactSubject[] | undefined {
+  if (member.receiverPassing !== "first-argument") {
+    return request.arguments;
+  }
+  return request.receiver === undefined
+    ? undefined
+    : [request.receiver, ...request.arguments];
 }
 
 function getExpectedTargetTypeForArgument(parameter: TargetParameter): TargetTypeRef {
@@ -81,18 +98,9 @@ function targetTypeAcceptsArgument(
   actual: TargetTypeRef | undefined,
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
-  resolveTargetTypeRef: TargetTypeRefResolver,
+  typeParameterBindings: Map<string, TargetTypeRef>,
 ): boolean {
-  if (delegateTargetTypeAcceptsArgument(expected, subject, context)) {
-    return true;
-  }
-  if (expected.kind === "type-parameter") {
-    return actual !== undefined;
-  }
-  if (expected.kind === "opaque" && (expected.id === "any" || expected.id === "unknown")) {
-    return true;
-  }
-  if (expected.kind === "target-named" && expected.id === "System.Object") {
+  if (actual !== undefined && targetTypeMatchesExpected(expected, actual, typeParameterBindings)) {
     return true;
   }
   if (isLiteralRepresentableAsTargetType(expected, subject, context)) {
@@ -101,24 +109,30 @@ function targetTypeAcceptsArgument(
   if (actual === undefined) {
     return false;
   }
+  if (expected.kind === "opaque" && (expected.id === "any" || expected.id === "unknown")) {
+    return true;
+  }
+  return expected.kind === "target-named" && expected.id === "System.Object";
+}
+
+function targetTypeMatchesExpected(
+  expected: TargetTypeRef,
+  actual: TargetTypeRef,
+  typeParameterBindings: Map<string, TargetTypeRef>,
+): boolean {
+  if (expected.kind === "type-parameter") {
+    return bindTargetTypeParameter(expected.name, actual, typeParameterBindings);
+  }
   if (targetTypeRefEquals(expected, actual)) {
     return true;
   }
-  return structuralTargetTypeMatches(expected, actual, resolveTargetTypeRef);
-}
-
-function structuralTargetTypeMatches(
-  expected: TargetTypeRef,
-  actual: TargetTypeRef,
-  _resolveTargetTypeRef: TargetTypeRefResolver,
-): boolean {
   if (expected.kind === "array" && actual.kind === "array" && (expected.rank ?? 1) === (actual.rank ?? 1)) {
-    return structuralTargetTypeMatches(expected.element, actual.element, _resolveTargetTypeRef);
+    return targetTypeMatchesExpected(expected.element, actual.element, typeParameterBindings);
   }
   if (expected.kind === "tuple" && actual.kind === "tuple" && expected.elements.length === actual.elements.length) {
     return expected.elements.every((element, index) => {
       const actualElement = actual.elements[index];
-      return actualElement !== undefined && structuralTargetTypeMatches(element, actualElement, _resolveTargetTypeRef);
+      return actualElement !== undefined && targetTypeMatchesExpected(element, actualElement, typeParameterBindings);
     });
   }
   if (expected.kind === "target-named" && actual.kind === "target-named" && expected.id === actual.id) {
@@ -129,56 +143,31 @@ function structuralTargetTypeMatches(
     }
     return expectedArgs.every((argument, index) => {
       const actualArgument = actualArgs[index];
-      return actualArgument !== undefined && structuralTargetTypeMatches(argument, actualArgument, _resolveTargetTypeRef);
+      return actualArgument !== undefined && targetTypeMatchesExpected(argument, actualArgument, typeParameterBindings);
     });
   }
   if (expected.kind === "pointer" && actual.kind === "pointer") {
-    return structuralTargetTypeMatches(expected.pointee, actual.pointee, _resolveTargetTypeRef);
+    return targetTypeMatchesExpected(expected.pointee, actual.pointee, typeParameterBindings);
   }
   if (expected.kind === "function-pointer" && actual.kind === "function-pointer" && expected.args.length === actual.args.length) {
-    return structuralTargetTypeMatches(expected.result, actual.result, _resolveTargetTypeRef) &&
+    return targetTypeMatchesExpected(expected.result, actual.result, typeParameterBindings) &&
       expected.args.every((argument, index) => {
         const actualArgument = actual.args[index];
-        return actualArgument !== undefined && structuralTargetTypeMatches(argument, actualArgument, _resolveTargetTypeRef);
+        return actualArgument !== undefined && targetTypeMatchesExpected(argument, actualArgument, typeParameterBindings);
       });
   }
-  return expected.kind === "type-parameter";
+  return false;
 }
 
-function delegateTargetTypeAcceptsArgument(
-  expected: TargetTypeRef,
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
+function bindTargetTypeParameter(
+  name: string,
+  actual: TargetTypeRef,
+  typeParameterBindings: Map<string, TargetTypeRef>,
 ): boolean {
-  if (expected.kind !== "target-named") {
-    return false;
+  const existing = typeParameterBindings.get(name);
+  if (existing === undefined) {
+    typeParameterBindings.set(name, actual);
+    return true;
   }
-  const stripped = stripMetadataArity(expected.id);
-  if (stripped !== "System.Func" && stripped !== "System.Action" && stripped !== "System.Predicate") {
-    return false;
-  }
-  const callbackParameterCount = getCallbackParameterCount(subject, context);
-  if (callbackParameterCount === undefined) {
-    return false;
-  }
-  const genericArgumentCount = (expected.typeArguments ?? []).length;
-  const expectedParameterCount = stripped === "System.Func"
-    ? genericArgumentCount - 1
-    : genericArgumentCount;
-  return callbackParameterCount === expectedParameterCount;
-}
-
-function getCallbackParameterCount(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-): number | undefined {
-  const ast = context.compiler?.ast;
-  const node = asNodeSubject(subject);
-  if (ast === undefined || node === undefined) {
-    return undefined;
-  }
-  if (!ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node)) {
-    return undefined;
-  }
-  return ast.parameters(node).length;
+  return targetTypeRefEquals(existing, actual);
 }

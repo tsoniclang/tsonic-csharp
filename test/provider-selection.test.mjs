@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
 import { createCsharpNativeProviderExtension } from "../dist/index.js";
+import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
 test("C# provider rejects ambiguous target members instead of ranking candidates", () => {
   const provider = getNativeSemanticProvider();
@@ -40,6 +41,61 @@ test("C# provider rejects ambiguous target members instead of ranking candidates
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+});
+
+test("target member selection binds first-argument receiver generics before explicit arguments", () => {
+  const receiver = {};
+  const validArgument = {};
+  const invalidArgument = {};
+  const int32Type = { kind: "source-primitive", name: "int32" };
+  const stringType = { kind: "target-named", id: "System.String" };
+  const member = {
+    id: "Tsonic.CSharp.Runtime.ArrayHelpers.includes",
+    sourceName: "includes",
+    targetName: "Includes",
+    kind: "method",
+    static: true,
+    receiverPassing: "first-argument",
+    parameters: [
+      {
+        name: "array",
+        type: { kind: "array", element: { kind: "type-parameter", name: "T" } },
+        passingMode: "by-value",
+      },
+      {
+        name: "value",
+        type: { kind: "type-parameter", name: "T" },
+        passingMode: "by-value",
+      },
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const context = {};
+  const resolveTargetTypeRef = (subject) => {
+    if (subject === receiver) {
+      return { kind: "array", element: int32Type };
+    }
+    if (subject === validArgument) {
+      return int32Type;
+    }
+    if (subject === invalidArgument) {
+      return stringType;
+    }
+    return undefined;
+  };
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [validArgument], receiver }, context, resolveTargetTypeRef),
+    member,
+  );
+  assert.equal(
+    selectTargetMember([member], { arguments: [invalidArgument], receiver }, context, resolveTargetTypeRef),
+    undefined,
+  );
+  assert.equal(
+    selectTargetMember([member], { arguments: [validArgument] }, context, resolveTargetTypeRef),
+    undefined,
+  );
 });
 
 function getNativeSemanticProvider() {

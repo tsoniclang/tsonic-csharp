@@ -42,7 +42,10 @@ export interface CsharpJsSurfaceHost {
   ) => boolean;
   readonly selectTargetMember: (
     candidates: readonly TargetMember[],
-    arguments_: readonly ExtensionFactSubject[],
+    request: {
+      readonly arguments: readonly ExtensionFactSubject[];
+      readonly receiver?: ExtensionFactSubject;
+    },
     context: ExtensionObservationContext,
   ) => TargetMember | undefined;
   readonly getCsharpObjectShapeFactForSubject: (

@@ -32,7 +32,10 @@ export function findTargetMemberForCall(
   resolveTargetTypeRef: TargetTypeRefResolver,
 ): TargetMember | undefined {
   const candidates = getTargetMemberCandidates(binding, declaration, sourceName);
-  return selectTargetMember(candidates, request.arguments, context, resolveTargetTypeRef);
+  return selectTargetMember(candidates, {
+    arguments: request.arguments,
+    receiver: request.calleeReceiver,
+  }, context, resolveTargetTypeRef);
 }
 
 export function findTargetMember(
