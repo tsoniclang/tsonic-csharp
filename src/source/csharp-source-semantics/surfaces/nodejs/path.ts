@@ -54,3 +54,7 @@ export function getNodePathTargetMembers(exportName: string): readonly TargetMem
       return [];
   }
 }
+
+export function getNodePathPropertyMembers(_exportName: string): readonly TargetMember[] {
+  return [];
+}

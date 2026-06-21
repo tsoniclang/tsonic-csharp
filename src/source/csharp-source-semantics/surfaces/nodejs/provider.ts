@@ -17,9 +17,25 @@ import {
   csharpTargetId,
 } from "../../identity.js";
 import {
+  nodeCryptoExports,
+  nodeCryptoModuleSpecifier,
+} from "./crypto.js";
+import {
+  nodeFsExports,
+  nodeFsModuleSpecifier,
+} from "./filesystem.js";
+import {
+  nodeOsExports,
+  nodeOsModuleSpecifier,
+} from "./os.js";
+import {
   nodePathExports,
   nodePathModuleSpecifier,
 } from "./path.js";
+import {
+  nodeProcessExports,
+  nodeProcessModuleSpecifier,
+} from "./process.js";
 
 const providerIdentity = {
   id: "tsonic.csharp.nodejs-surface-provider",
@@ -35,6 +51,30 @@ const supportedModules = new Map<string, ProviderDeclarationModel>([
     moduleSpecifier: nodePathModuleSpecifier,
     providerModuleId: nodePathModuleSpecifier,
     exports: nodePathExports(),
+    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
+  }],
+  [nodeFsModuleSpecifier, {
+    moduleSpecifier: nodeFsModuleSpecifier,
+    providerModuleId: nodeFsModuleSpecifier,
+    exports: nodeFsExports(),
+    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
+  }],
+  [nodeCryptoModuleSpecifier, {
+    moduleSpecifier: nodeCryptoModuleSpecifier,
+    providerModuleId: nodeCryptoModuleSpecifier,
+    exports: nodeCryptoExports(),
+    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
+  }],
+  [nodeOsModuleSpecifier, {
+    moduleSpecifier: nodeOsModuleSpecifier,
+    providerModuleId: nodeOsModuleSpecifier,
+    exports: nodeOsExports(),
+    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
+  }],
+  [nodeProcessModuleSpecifier, {
+    moduleSpecifier: nodeProcessModuleSpecifier,
+    providerModuleId: nodeProcessModuleSpecifier,
+    exports: nodeProcessExports(),
     evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
   }],
 ]);

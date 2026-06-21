@@ -533,7 +533,8 @@ function isProviderOwnedImportIdentity(subject: object | undefined, input: Targe
   return moduleId === csharpLangModule ||
     moduleId === csharpTypesModule ||
     moduleId.startsWith("@tsonic/csharp/") ||
-    moduleId.startsWith("@tsonic/dotnet/");
+    moduleId.startsWith("@tsonic/dotnet/") ||
+    moduleId.startsWith("node:");
 }
 
 function getSymbolDeclarations(symbol: unknown): readonly Node[] {
@@ -592,6 +593,9 @@ function planProjectSourceModuleMemberReference(
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }) ??
     getProjectSourceReferenceForPropertyAccessName(node, sourceFile, input);
   if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
+    return undefined;
+  }
+  if (isExternalDeclarationReference(sourceReference, sourceFile)) {
     return undefined;
   }
   if (!isModuleStaticValueDeclaration(sourceReference.declaration, input)) {

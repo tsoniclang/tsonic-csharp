@@ -731,8 +731,11 @@ function createCsharpOperationsProvider(selectedSurfaceIds: ReadonlySet<string>)
     },
     mapCheckedPropertyAccess(request, context) {
       return useObservationOrWhenDeferred(
-        mapCsharpCheckedPropertyAccess(request, context, identity.id),
-        () => jsSurfaceEnabled ? jsSurface.mapCheckedPropertyAccess(request, context) : deferObservation,
+        nodejsSurfaceEnabled ? nodejsSurface.mapCheckedPropertyAccess(request, context) : deferObservation,
+        () => useObservationOrWhenDeferred(
+          mapCsharpCheckedPropertyAccess(request, context, identity.id),
+          () => jsSurfaceEnabled ? jsSurface.mapCheckedPropertyAccess(request, context) : deferObservation,
+        ),
       );
     },
     mapCheckedElementAccess(request, context) {
