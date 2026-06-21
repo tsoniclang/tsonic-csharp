@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dotnetModuleToProviderDeclarationModel } from "../dist/index.js";
+import {
+  dotnetModuleToProviderDeclarationModel,
+  dotnetTypeRefToTargetTypeRef,
+} from "../dist/index.js";
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
@@ -50,4 +53,10 @@ test(".NET provider declaration model preserves explicit target parameter passin
 
   assert.equal(signature.parameters[0].passingMode, undefined);
   assert.equal(signature.parameters[1].passingMode, "byref-writeonly-must-init");
+});
+
+test(".NET target refs do not promote any or unknown to CLR object", () => {
+  assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "any" }), { kind: "opaque", id: "any" });
+  assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "unknown" }), { kind: "opaque", id: "unknown" });
+  assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "object" }), { kind: "target-named", id: "System.Object" });
 });

@@ -40,6 +40,7 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
       return { kind: "opaque", id: "System.Void" };
     case "any":
     case "unknown":
+      return { kind: "opaque", id: type.kind };
     case "object":
       return { kind: "target-named", id: "System.Object" };
     case "string":
