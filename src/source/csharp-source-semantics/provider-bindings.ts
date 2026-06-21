@@ -53,17 +53,17 @@ export function resolveTargetBindingForReference(
   const semanticType = getSemanticTypeForNode(node, context, sourceFile);
   const typeBinding = resolveTargetBinding(semanticType, context) ??
     resolveTargetBinding(semanticType?.symbol, context);
-  if (isTypeReferenceQueryNode(node, context)) {
-    return resolveTargetBinding(node, context) ?? typeBinding;
-  }
   const symbol = getSymbolAtReferenceNode(node, context, sourceFile);
   const resolvedSymbol = getResolvedSymbolForReferenceNode(node, context, sourceFile);
-  return resolveTargetBinding(node, context) ??
+  const referenceBinding = resolveTargetBinding(node, context) ??
     resolveTargetBinding(symbol, context) ??
     resolveTargetBinding(getAliasedSymbolIfAlias(symbol, context, sourceFile), context) ??
     resolveTargetBinding(resolvedSymbol, context) ??
-    resolveTargetBinding(getAliasedSymbolIfAlias(resolvedSymbol, context, sourceFile), context) ??
-    typeBinding;
+    resolveTargetBinding(getAliasedSymbolIfAlias(resolvedSymbol, context, sourceFile), context);
+  if (isTypeReferenceQueryNode(node, context)) {
+    return referenceBinding ?? typeBinding;
+  }
+  return referenceBinding;
 }
 
 function getSemanticTypeForNode(

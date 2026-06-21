@@ -5,11 +5,14 @@ import {
   KindObjectBindingPattern,
   KindObjectKeyword,
   KindTypeLiteral,
+  KindTypeReference,
   KindUnknownKeyword,
 } from "./source-ast.js";
 import type {
   Node,
   SourceFile,
+  TargetBindingFact,
+  TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
 import type {
@@ -36,6 +39,9 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpTargetTypeFromBinding,
 } from "../../source/csharp-source-semantics/target-types.js";
+import {
+  sourcePrimitiveTargetBindingId,
+} from "../../source/csharp-source-semantics/identity.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
@@ -96,6 +102,10 @@ export function getCsharpTypeForNode(
   if (keywordType !== undefined) {
     return keywordType;
   }
+  const targetBindingType = getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
+  if (targetBindingType !== undefined) {
+    return targetBindingType;
+  }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (nodeCarrierType !== undefined) {
     return nodeCarrierType;
@@ -125,19 +135,6 @@ export function getCsharpTypeForNode(
   );
   if (semanticType !== undefined) {
     return semanticType;
-  }
-  const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
-  if (targetBinding !== undefined) {
-    const targetType = csharpTargetTypeFromBinding(targetBinding) ?? {
-      kind: "target-named" as const,
-      id: targetBinding.id,
-    };
-    const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
-    if (csharpType !== undefined) {
-      return csharpType;
-    }
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned target type reference requires a renderable target identity before C# emission."));
-    return invalidCsharpType("provider target binding");
   }
   const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
@@ -186,6 +183,59 @@ function getCsharpTypeFromSemanticType(
     return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.Numerics.BigInteger"));
   }
   return undefined;
+}
+
+function getCsharpTypeFromTargetBindingForReference(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[] | undefined,
+): CsharpTypeNode | undefined {
+  const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
+  if (targetBinding === undefined) {
+    return undefined;
+  }
+  const carrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
+  if (isSourcePrimitiveBindingForCarrier(targetBinding, carrier)) {
+    return undefined;
+  }
+  const typeArguments = getTargetTypeArgumentsForReference(node, sourceFile, input, diagnostics);
+  if (typeArguments === undefined) {
+    return invalidCsharpType("provider target type arguments");
+  }
+  const targetType = csharpTargetTypeFromBinding(targetBinding, typeArguments) ?? {
+    kind: "target-named" as const,
+    id: targetBinding.id,
+    ...(typeArguments.length > 0 ? { typeArguments } : {}),
+  };
+  const csharpType = csharpTypeFromTargetTypeRef(targetType);
+  if (csharpType !== undefined) {
+    return csharpType;
+  }
+  diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned target type reference requires a renderable target identity before C# emission."));
+  return invalidCsharpType("provider target binding");
+}
+
+function getTargetTypeArgumentsForReference(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[] | undefined,
+): readonly TargetTypeRef[] | undefined {
+  if (input.ast.kindName(node) !== KindTypeReference) {
+    return [];
+  }
+  const typeArguments = input.ast.typeArguments(node);
+  const resolved = typeArguments.map((argument) => getTargetTypeRefForNode(input, argument, sourceFile));
+  if (resolved.some((argument) => argument === undefined)) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned generic target type requires target type facts for every type argument."));
+    return undefined;
+  }
+  return resolved as readonly TargetTypeRef[];
+}
+
+function isSourcePrimitiveBindingForCarrier(binding: TargetBindingFact, carrier: TargetTypeRef | undefined): boolean {
+  return carrier?.kind === "source-primitive" && binding.id === sourcePrimitiveTargetBindingId(carrier.name);
 }
 
 function getCsharpTypeFromKeywordTypeNode(node: Node, input: TargetCompileInput): CsharpTypeNode | undefined {

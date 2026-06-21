@@ -89,7 +89,6 @@ sealed class ReflectionProvider
             .Where(type => type.Namespace == request.NamespaceName)
             .Where(type => type.IsPublic || type.IsNestedPublic)
             .Where(type => !type.IsSpecialName)
-            .Where(type => !IsDelegate(type))
             .GroupBy(MetadataName, StringComparer.Ordinal)
             .Select(group => group.First())
             .GroupBy(SourceTypeName, StringComparer.Ordinal)
@@ -204,6 +203,11 @@ sealed class ReflectionProvider
         var typeParameters = TypeParameters(type);
         var members = Members(type).ToArray();
         var implementedContracts = ImplementedContracts(type);
+        var sourceShape = ExportSourceShape(type);
+        if (IsDelegate(type) && sourceShape is null)
+        {
+            return null;
+        }
         return new
         {
             kind = "type",
@@ -214,6 +218,7 @@ sealed class ReflectionProvider
             displayName = DisplayName(type),
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,
+            sourceShape,
             members = members.Length == 0 ? null : members,
         };
     }
@@ -539,6 +544,14 @@ sealed class ReflectionProvider
 
     object SourceShape(Type type)
     {
+        if (IsDelegate(type))
+        {
+            var delegateShape = DelegateSourceShape(type);
+            if (delegateShape is not null)
+            {
+                return delegateShape;
+            }
+        }
         if (type == typeof(string))
         {
             return new { kind = "string" };
@@ -578,6 +591,32 @@ sealed class ReflectionProvider
             };
         }
         return new { kind = "object" };
+    }
+
+    object? ExportSourceShape(Type type)
+    {
+        return IsDelegate(type) ? DelegateSourceShape(type) : null;
+    }
+
+    object? DelegateSourceShape(Type type)
+    {
+        var invoke = type.GetMethod("Invoke");
+        if (invoke is null)
+        {
+            return null;
+        }
+        var parameters = Parameters(invoke.GetParameters());
+        var returnType = TypeRef(invoke.ReturnType);
+        if (parameters is null || returnType is null)
+        {
+            return null;
+        }
+        return new
+        {
+            kind = "function",
+            parameters,
+            returnType,
+        };
     }
 
     static bool IsEnumerableShape(Type type, out Type element)

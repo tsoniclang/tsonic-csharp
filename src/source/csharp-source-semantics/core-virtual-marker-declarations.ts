@@ -6,6 +6,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpTargetId,
+  sourcePrimitiveTargetBindingId,
 } from "./identity.js";
 
 export function providerTypeMarkerDeclaration(exportName: string, marker: SourceTypeMarkerDeclaration["marker"]): ProviderExportDeclaration {
@@ -85,7 +86,7 @@ export function providerPrimitiveDeclaration(
     type: { kind: "source-primitive", name: primitive },
     targetIdentity: {
       target: csharpTargetId,
-      id: `tsonic.source.${primitive}`,
+      id: sourcePrimitiveTargetBindingId(primitive),
       displayName: exportName,
     },
   };

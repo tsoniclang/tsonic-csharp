@@ -6,3 +6,7 @@ export const csharpLangModule = "@tsonic/csharp/lang.js";
 export const csharpTargetId = "csharp";
 export const csharpProviderVersion = "0.0.1";
 export const csharpNativeProviderExtensionId = "tsonic.csharp.native-provider";
+
+export function sourcePrimitiveTargetBindingId(primitive: string): string {
+  return `tsonic.source.${primitive}`;
+}

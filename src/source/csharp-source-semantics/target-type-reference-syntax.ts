@@ -12,7 +12,7 @@ import {
   getNodeField,
 } from "./ast-utils.js";
 import {
-  findTargetBinding,
+  resolveTargetBindingForReference,
 } from "./provider-bindings.js";
 import {
   getSymbolDeclarations,
@@ -65,10 +65,6 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
       return csharpSourcePrimitiveTargetType(primitive.kind);
     }
   }
-  const aliasedType = getTargetTypeRefFromTypeAliasDeclarations(candidateSubjects, node, context, options, host, resolver);
-  if (aliasedType !== undefined) {
-    return aliasedType;
-  }
   for (const candidate of [type, type?.symbol]) {
     if (candidate === undefined) {
       continue;
@@ -78,15 +74,19 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
       return csharpSourcePrimitiveTargetType(primitive.kind);
     }
   }
-  const binding = findTargetBinding(context, candidateSubjects);
-  if (binding === undefined) {
-    return undefined;
+  const binding = resolveTargetBindingForReference(node, context);
+  if (binding !== undefined) {
+    const typeArguments = ast.typeArguments(node).map((argument) => resolver.resolveSubject(argument, context, options, host));
+    if (typeArguments.some((argument) => argument === undefined)) {
+      return undefined;
+    }
+    return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
   }
-  const typeArguments = ast.typeArguments(node).map((argument) => resolver.resolveSubject(argument, context, options, host));
-  if (typeArguments.some((argument) => argument === undefined)) {
-    return undefined;
+  const aliasedType = getTargetTypeRefFromTypeAliasDeclarations(candidateSubjects, node, context, options, host, resolver);
+  if (aliasedType !== undefined) {
+    return aliasedType;
   }
-  return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
+  return undefined;
 }
 
 function getTargetTypeRefFromTypeAliasDeclarations(

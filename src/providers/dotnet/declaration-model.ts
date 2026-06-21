@@ -62,14 +62,15 @@ export function dotnetExportToProviderExport(declaration: DotnetExportDeclaratio
 }
 
 function dotnetTypeToProviderExport(declaration: DotnetTypeDeclaration): ProviderExportDeclaration {
+  const kind = dotnetTypeKindToProviderKind(declaration.typeKind);
   return {
     id: declaration.metadataName,
     name: declaration.sourceName,
-    kind: dotnetTypeKindToProviderKind(declaration.typeKind),
+    kind,
     targetIdentity: dotnetTargetIdentity(declaration.metadataName, declaration.displayName ?? declaration.sourceName),
     ...(declaration.sourceShape !== undefined ? { type: dotnetTypeRefToProviderType(declaration.sourceShape) } : {}),
     ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
-    ...(declaration.members !== undefined ? { members: declaration.members.map(dotnetMemberToProviderMember) } : {}),
+    ...(kind !== "type" && declaration.members !== undefined ? { members: declaration.members.map(dotnetMemberToProviderMember) } : {}),
   };
 }
 
@@ -162,9 +163,8 @@ function dotnetTypeKindToProviderKind(kind: DotnetTypeDeclaration["typeKind"]): 
     case "enum":
       return kind;
     case "struct":
-      return "class";
     case "delegate":
-      return "function";
+      return "class";
     case "opaque":
       return "opaque";
   }

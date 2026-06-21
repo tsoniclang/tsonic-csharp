@@ -109,3 +109,27 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
     member.targetName === "Desktop"
   ));
 });
+
+test(".NET reflection provider exposes delegates with source shells and target delegate identity", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  assert.equal("exports" in systemModule, true);
+  const declarationModel = dotnetModuleToProviderDeclarationModel(systemModule);
+  const predicate = declarationModel.exports.find((declaration) => declaration.name === "Predicate");
+  assert.ok(predicate);
+  assert.equal(predicate.kind, "class");
+  assert.deepEqual(predicate.typeParameters?.map((parameter) => parameter.name), ["T"]);
+  assert.equal(predicate.type?.kind, "function");
+  assert.deepEqual(predicate.type?.kind === "function"
+    ? predicate.type.parameters.map((parameter) => [parameter.name, parameter.type])
+    : [], [["obj", { kind: "type-parameter", name: "T" }]]);
+  assert.deepEqual(predicate.type?.kind === "function" ? predicate.type.returnType : undefined, {
+    kind: "source-primitive",
+    name: "bool",
+  });
+
+  const targetBinding = provider.findTargetBindingByTargetId("System.Predicate`1");
+  assert.equal(targetBinding?.kind, "delegate");
+  assert.equal(targetBinding?.csharpType.kind, "target-named");
+  assert.equal(targetBinding?.csharpType.kind === "target-named" ? targetBinding.csharpType.id : undefined, "System.Predicate`1");
+});
