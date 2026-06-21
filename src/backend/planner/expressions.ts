@@ -771,13 +771,21 @@ function planSelectedTargetCallee(
   }
   if (HasSourceKind(input.ast, callee, KindIdentifier)) {
     if (member.static === true) {
-      diagnostics.push({
-        code: "CSHARP_UNSUPPORTED_AST",
-        category: "error",
-        source: "tsonic-csharp",
-        message: "Selected static target call requires a property-access callee so the provider-owned target type is explicit.",
-      });
-      return invalidExpression("selected static target call callee");
+      const declaringType = member.declaringType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.declaringType);
+      if (declaringType === undefined) {
+        diagnostics.push({
+          code: "CSHARP_UNSUPPORTED_AST",
+          category: "error",
+          source: "tsonic-csharp",
+          message: "Selected static target call requires a provider-owned declaring target type fact before C# emission.",
+        });
+        return invalidExpression("selected target static call declaring type");
+      }
+      return {
+        kind: "SimpleMemberAccessExpression",
+        receiver: declaringType,
+        name: member.targetName,
+      };
     }
     return {
       kind: "IdentifierName",

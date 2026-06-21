@@ -101,6 +101,10 @@ import {
   createCsharpJsSurfaceMappers,
 } from "./csharp-source-semantics/surfaces/js/index.js";
 import {
+  createCsharpNodejsSurfaceBindingProvider,
+  createCsharpNodejsSurfaceMappers,
+} from "./csharp-source-semantics/surfaces/nodejs/index.js";
+import {
   createCsharpDotnetSystemTypeDataProvider,
   createDotnetTargetBindingProvider,
   findCsharpDotnetProviderExportByTargetId,
@@ -150,6 +154,9 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       context.registerTargetBindingProvider(createDotnetTargetBindingProvider({
         provider: createCsharpDotnetSystemTypeDataProvider(),
       }));
+      if (selectedSurfaceIds.has("nodejs")) {
+        context.registerTargetBindingProvider(createCsharpNodejsSurfaceBindingProvider());
+      }
       const provider = createCsharpOperationsProvider(selectedSurfaceIds);
       context.registerTargetSemanticProvider(provider);
       context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext) => {
@@ -699,7 +706,9 @@ function createCsharpOperationsProvider(selectedSurfaceIds: ReadonlySet<string>)
     displayName: "Tsonic C# semantic mapper",
   };
   const jsSurfaceEnabled = selectedSurfaceIds.has("js");
+  const nodejsSurfaceEnabled = selectedSurfaceIds.has("nodejs");
   const jsSurface = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(identity.id));
+  const nodejsSurface = createCsharpNodejsSurfaceMappers(identity.id);
   return {
     identity,
     resolveRuntimeCarrier(request, context) {
@@ -713,8 +722,11 @@ function createCsharpOperationsProvider(selectedSurfaceIds: ReadonlySet<string>)
     },
     mapCheckedCall(request, context) {
       return useObservationOrWhenDeferred(
-        mapCsharpCheckedCall(request, context, identity.id),
-        () => jsSurfaceEnabled ? jsSurface.mapCheckedCall(request, context) : deferObservation,
+        nodejsSurfaceEnabled ? nodejsSurface.mapCheckedCall(request, context) : deferObservation,
+        () => useObservationOrWhenDeferred(
+          mapCsharpCheckedCall(request, context, identity.id),
+          () => jsSurfaceEnabled ? jsSurface.mapCheckedCall(request, context) : deferObservation,
+        ),
       );
     },
     mapCheckedPropertyAccess(request, context) {

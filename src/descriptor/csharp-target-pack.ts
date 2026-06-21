@@ -40,6 +40,14 @@ export function createCsharpTargetPack(): TargetPack {
           return [];
         },
       },
+      {
+        id: "nodejs",
+        displayName: "Node.js compatibility",
+        requiredSurfaces: ["js"],
+        runtimeArtifacts(_context: TargetRuntimeArtifactContext): readonly TargetArtifact[] {
+          return [];
+        },
+      },
     ],
     createBackend(context: TargetBackendContext): TargetBackend {
       return createCsharpBackend(context);
