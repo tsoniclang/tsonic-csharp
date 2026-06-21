@@ -109,7 +109,7 @@ function targetTypeAcceptsArgument(
   if (actual === undefined) {
     return false;
   }
-  return expected.kind === "target-named" && expected.id === "System.Object";
+  return false;
 }
 
 function targetTypeMatchesExpected(

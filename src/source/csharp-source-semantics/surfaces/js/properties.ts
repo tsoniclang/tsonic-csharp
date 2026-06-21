@@ -18,7 +18,6 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpTargetMemberOperation,
   getSourceLibraryMember,
-  getSourceLibraryMemberFromReceiver,
   recordCsharpTargetOperation,
 } from "./source-library.js";
 import {
@@ -31,16 +30,6 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
-  return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host);
-}
-
-export function mapCsharpReceiverSourceLibraryCheckedPropertyAccess(
-  request: CheckedPropertyAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-  host: CsharpJsSurfaceHost,
-): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const sourceMember = getSourceLibraryMemberFromReceiver(request.receiverType, request.propertyName, context, host) ??
-    getSourceLibraryMemberFromReceiver(request.receiver, request.propertyName, context, host);
   return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host);
 }
 

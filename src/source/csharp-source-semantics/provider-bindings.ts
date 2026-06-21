@@ -6,9 +6,6 @@ import type {
   ExtensionObservationContext,
   TargetBindingFact,
 } from "@tsonic/tsts";
-import {
-  findCsharpDotnetTargetBindingByTargetId,
-} from "../../providers/dotnet/index.js";
 
 export function findTargetBinding(
   context: ExtensionObservationContext,
@@ -30,11 +27,5 @@ export function resolveTargetBinding(
   if (subject === undefined) {
     return undefined;
   }
-  return canonicalCsharpTargetBinding(context.factResolver.resolve(subject, targetBindingFactKey));
-}
-
-function canonicalCsharpTargetBinding(binding: TargetBindingFact | undefined): TargetBindingFact | undefined {
-  return binding?.target === "csharp"
-    ? findCsharpDotnetTargetBindingByTargetId(binding.id) ?? binding
-    : binding;
+  return context.factResolver.resolve(subject, targetBindingFactKey);
 }

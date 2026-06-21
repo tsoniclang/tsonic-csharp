@@ -11,7 +11,6 @@ import type {
 import type { CsharpObjectShapeFact } from "../../../csharp-facts.js";
 import {
   asNodeSubject,
-  asSemanticType,
 } from "../../../fact-subjects.js";
 export {
   csharpTargetOperationFromMember,
@@ -105,34 +104,6 @@ export function getSourceLibraryMember(
     : { declaringName, memberName };
 }
 
-export function getSourceLibraryMemberFromReceiver(
-  receiver: ExtensionFactSubject | undefined,
-  memberName: string | undefined,
-  context: ExtensionObservationContext,
-  host: CsharpJsSurfaceHost,
-): SourceLibraryMember | undefined {
-  if (memberName === undefined || memberName.length === 0) {
-    return undefined;
-  }
-  const receiverType = host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(receiver, context, csharpJsCheckedTypeQuery));
-  if (receiverType?.kind === "array") {
-    return sourceLibraryMember("Array", memberName);
-  }
-  if (host.isCsharpStringType(receiverType)) {
-    return sourceLibraryMember("String", memberName);
-  }
-  if (isCsharpJsRegExpTargetType(receiverType)) {
-    return sourceLibraryMember("RegExp", memberName);
-  }
-  const libraryTypeName = getSourceLibraryTypeNameForSubject(receiver, context);
-  return libraryTypeName === "Array" ||
-      libraryTypeName === "ReadonlyArray" ||
-      libraryTypeName === "String" ||
-      libraryTypeName === "RegExp"
-    ? sourceLibraryMember(libraryTypeName, memberName)
-    : undefined;
-}
-
 export function isSourceLibraryType(type: Type, context: ExtensionObservationContext, name: string): boolean {
   const ast = context.compiler?.ast;
   const types = context.compiler?.types;
@@ -150,10 +121,6 @@ export function isSourceLibraryType(type: Type, context: ExtensionObservationCon
 
 export function range(count: number): readonly number[] {
   return Array.from({ length: count }, (_value, index) => index);
-}
-
-function sourceLibraryMember(declaringName: SourceLibraryDeclaringName, memberName: string): SourceLibraryMember {
-  return { declaringName, memberName };
 }
 
 function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringName | undefined {
@@ -175,28 +142,4 @@ function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclar
 
 function isTstsBundledStandardLibraryFile(fileName: string): boolean {
   return fileName.startsWith("bundled:///libs/");
-}
-
-function getSourceLibraryTypeNameForSubject(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-): "Array" | "ReadonlyArray" | "String" | "RegExp" | undefined {
-  const type = asSemanticType(subject);
-  if (type === undefined) {
-    return undefined;
-  }
-  if (isSourceLibraryType(type, context, "Array")) {
-    return "Array";
-  }
-  if (isSourceLibraryType(type, context, "ReadonlyArray")) {
-    return "ReadonlyArray";
-  }
-  if (isSourceLibraryType(type, context, "String")) {
-    return "String";
-  }
-  return isSourceLibraryType(type, context, "RegExp") ? "RegExp" : undefined;
-}
-
-function isCsharpJsRegExpTargetType(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Js.RegExp";
 }

@@ -30,7 +30,6 @@ import {
 } from "./iteration.js";
 import {
   mapCsharpDirectSourceLibraryCheckedPropertyAccess,
-  mapCsharpReceiverSourceLibraryCheckedPropertyAccess,
 } from "./properties.js";
 
 export interface CsharpJsSurfaceMappers {
@@ -74,9 +73,7 @@ export function createCsharpJsSurfaceMappers(host: CsharpJsSurfaceHost): CsharpJ
       if (request.target !== undefined && request.target !== host.targetId) {
         return deferObservation;
       }
-      return mapCsharpDirectSourceLibraryCheckedPropertyAccess(request, context, host) ??
-        mapCsharpReceiverSourceLibraryCheckedPropertyAccess(request, context, host) ??
-        deferObservation;
+      return mapCsharpDirectSourceLibraryCheckedPropertyAccess(request, context, host) ?? deferObservation;
     },
     mapCheckedElementAccess(request, context) {
       if (request.target !== undefined && request.target !== host.targetId) {

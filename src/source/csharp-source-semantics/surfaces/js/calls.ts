@@ -24,7 +24,6 @@ import type {
 } from "./source-library.js";
 import {
   getSourceLibraryMember,
-  getSourceLibraryMemberFromReceiver,
 } from "./source-library.js";
 import {
   getStringTargetMembers,
@@ -35,9 +34,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context) ??
-    getSourceLibraryMemberFromReceiver(request.calleeReceiverType, request.calleePropertyName, context, host) ??
-    getSourceLibraryMemberFromReceiver(request.calleeReceiver, request.calleePropertyName, context, host);
+  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
     return undefined;
   }

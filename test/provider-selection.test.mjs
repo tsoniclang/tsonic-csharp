@@ -16,7 +16,7 @@ test("C# provider rejects ambiguous target members instead of ranking candidates
     kind: "class",
     members: [
       method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
-      method("Example.Target.m(System.Object)", { kind: "target-named", id: "System.Object" }),
+      method("Example.Target.m(System.Int32Alt)", { kind: "source-primitive", name: "int32" }),
     ],
   };
 
@@ -41,6 +41,20 @@ test("C# provider rejects ambiguous target members instead of ranking candidates
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+});
+
+test("target member selection does not treat System.Object as an implicit wildcard", () => {
+  const argument = {};
+  const member = method("Example.Target.m(System.Object)", { kind: "target-named", id: "System.Object" });
+  const context = {};
+  const resolveTargetTypeRef = (subject) => subject === argument
+    ? { kind: "source-primitive", name: "int32" }
+    : undefined;
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [argument] }, context, resolveTargetTypeRef),
+    undefined,
+  );
 });
 
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
