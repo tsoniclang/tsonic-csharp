@@ -517,11 +517,6 @@ sealed class ReflectionProvider
         {
             return null;
         }
-        if (type.IsByRefLike)
-        {
-            return null;
-        }
-
         var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
         var typeArguments = type.IsGenericType && !type.IsGenericTypeDefinition
             ? type.GetGenericArguments().Select(TypeRef).ToArray()

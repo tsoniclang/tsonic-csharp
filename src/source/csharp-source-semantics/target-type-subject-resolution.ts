@@ -40,6 +40,10 @@ import {
 import {
   resolveTargetTypeRefFromSubjectFacts,
 } from "./target-type-subject-facts.js";
+import {
+  getAliasedSymbolIfAvailable,
+  getSymbolForDeclarationLookup,
+} from "./symbol-utils.js";
 
 export type CsharpTargetTypeResolver = (
   type: Type | undefined,
@@ -83,6 +87,17 @@ export function resolveTargetTypeRefForSubjectCore(
   );
   if (directFact !== undefined) {
     return directFact;
+  }
+  const referenceFact = resolveTargetTypeRefFromReferenceFacts(
+    subject,
+    context,
+    options,
+    host,
+    recursiveTargetTypeResolver,
+    resolveTargetTypeRefForType,
+  );
+  if (referenceFact !== undefined) {
+    return referenceFact;
   }
   const expressionResult = getTargetTypeRefFromCheckedExpressionSyntax(subject, context, options, host, recursiveTargetTypeResolver);
   if (expressionResult !== undefined) {
@@ -134,4 +149,74 @@ export function resolveTargetTypeRefForSubjectCore(
     ...options,
     ...(ast !== undefined && node !== undefined ? { sourceFile: ast.getSourceFile(node) } : {}),
   }, host);
+}
+
+function resolveTargetTypeRefFromReferenceFacts(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  recursiveTargetTypeResolver: CsharpRecursiveTargetTypeResolver,
+  resolveTargetTypeRefForType: CsharpTargetTypeResolver,
+): TargetTypeRef | undefined {
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  const checker = context.compiler?.checker;
+  if (node === undefined || ast === undefined || checker === undefined) {
+    return undefined;
+  }
+  const sourceFile = ast.getSourceFile(node);
+  const symbol = getSymbolForDeclarationLookup(ast, checker, node, sourceFile);
+  for (const referenceSubject of uniqueReferenceSubjects([
+    symbol,
+    getAliasedSymbolForReference(symbol, context, sourceFile),
+  ])) {
+    const fact = resolveTargetTypeRefFromSubjectFacts(
+      referenceSubject,
+      context,
+      options,
+      (factSubject, factContext, factOptions) =>
+        resolveTargetTypeRefForSubjectCore(
+          factSubject,
+          factContext,
+          factOptions,
+          host,
+          recursiveTargetTypeResolver,
+          resolveTargetTypeRefForType,
+        ),
+    );
+    if (fact !== undefined) {
+      return fact;
+    }
+  }
+  return undefined;
+}
+
+function getAliasedSymbolForReference(
+  symbol: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): ExtensionFactSubject | undefined {
+  const checker = context.compiler?.checker;
+  if (checker === undefined) {
+    return undefined;
+  }
+  try {
+    return getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
+  } catch {
+    return undefined;
+  }
+}
+
+function uniqueReferenceSubjects(subjects: readonly (ExtensionFactSubject | undefined)[]): readonly ExtensionFactSubject[] {
+  const seen = new Set<ExtensionFactSubject>();
+  const result: ExtensionFactSubject[] = [];
+  for (const subject of subjects) {
+    if (subject === undefined || seen.has(subject)) {
+      continue;
+    }
+    seen.add(subject);
+    result.push(subject);
+  }
+  return result;
 }
