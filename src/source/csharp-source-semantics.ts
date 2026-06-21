@@ -1,7 +1,6 @@
 import {
   ExtensionLifecycleEvent,
   ExtensionObservationPoint,
-  TstsProviderContractVersion,
   acceptObservation,
   contextualTargetTypeFactKey,
   createSourceSemanticsExtension,
@@ -9,7 +8,6 @@ import {
   functionPointerFactKey,
   pointerFactKey,
   providerVirtualDeclarationFactKey,
-  rejectObservation,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
   sourcePrimitiveFactKey,
@@ -17,26 +15,13 @@ import {
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
-  CheckedCallMappingRequest,
-  CheckedCallMappingResult,
-  CheckedElementAccessMappingRequest,
-  CheckedConversionMappingRequest,
-  CheckedConversionMappingResult,
-  CheckedIterationMappingRequest,
   CheckedOperationMappingResult,
-  CheckedOperatorMappingRequest,
-  CheckedPropertyAccessMappingRequest,
   CompilerExtension,
-  ContextualTargetTypeRequest,
-  ContextualTargetTypeResult,
   ExtensionObservation,
   ExtensionObservationContext,
   ExtensionFactStore,
   ExtensionFactSubject,
   Node,
-  ProviderIdentity,
-  ParameterPassingRequest,
-  ParameterPassingResult,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
   SourceFile,
@@ -44,8 +29,6 @@ import type {
   SourceFileBoundLifecycleRequest,
   SourcePrimitiveKind,
   TargetConstraint,
-  TargetMember,
-  TargetSemanticProvider,
   TargetTypeRef,
   Type,
   Symbol,
@@ -53,15 +36,12 @@ import type {
 import type { TargetProviderContext } from "@tsonic/target-api";
 import {
   csharpObjectShapeFactKey,
-  csharpTargetIterationFactKey,
   csharpTargetTypeParameterConstraintFactKey,
 } from "./csharp-facts.js";
 import type {
   CsharpObjectShapeFact,
   CsharpObjectShapeMemberFact,
-  CsharpTargetIterationFact,
 } from "./csharp-facts.js";
-import { csharpProviderDiagnostic } from "./csharp-source-semantics/diagnostics.js";
 import { createCsharpCoreVirtualModulesProvider } from "./csharp-source-semantics/core-virtual-modules.js";
 import {
   csharpNativeProviderExtensionId,
@@ -73,10 +53,8 @@ import {
   csharpTargetNamedType,
 } from "./csharp-source-semantics/target-types.js";
 import {
-  getCsharpConversionOperation,
   getCsharpOperatorTargetOperation,
   isCsharpBitwiseOperator,
-  isCsharpStringType,
   isIntegralTargetTypeRef,
   isVoidTargetType,
   sourcePrimitiveRuntimeKind,
@@ -85,13 +63,9 @@ import {
 import { csharpSourceSemanticsModules } from "./csharp-source-semantics/source-modules.js";
 import {
   findTargetBinding,
-  getKnownTargetBindingForTypeRef,
   resolveTargetBinding,
 } from "./csharp-source-semantics/provider-bindings.js";
-import {
-  targetOperation,
-  targetOperationFromMember,
-} from "./csharp-source-semantics/operations.js";
+import { targetOperation } from "./csharp-source-semantics/operations.js";
 import {
   asNodeSubject,
   getNodeField,
@@ -103,31 +77,16 @@ import {
   visitStructuralNodes,
 } from "./csharp-source-semantics/ast-utils.js";
 import {
-  asTargetParameter,
   asTargetTypeRef,
   asType,
   sourceNameToCsharpMemberName,
   targetTypeRefEquals,
 } from "./csharp-source-semantics/target-ref-utils.js";
-import {
-  findTargetMember,
-  findTargetMemberForCall,
-  isLiteralRepresentableAsTargetType,
-  selectTargetMember,
-} from "./csharp-source-semantics/target-member-selection.js";
+import type { TargetTypeRefResolutionOptions } from "./csharp-source-semantics/target-member-selection.js";
 import {
   getBinaryOperatorText,
   getPrefixUnaryOperatorText,
 } from "./csharp-source-semantics/operator-syntax.js";
-import {
-  getTypeofComparisonOperation,
-  getTypeofRuntimeKind,
-} from "./csharp-source-semantics/typeof-operators.js";
-import {
-  erasedSourceSemanticsMember,
-  isCheckedAttributeBuilderCall,
-  isErasedSourceSemanticsCall,
-} from "./csharp-source-semantics/erased-source-markers.js";
 import {
   getObjectShapeTargetName,
 } from "./csharp-source-semantics/object-shape-identity.js";
@@ -136,16 +95,20 @@ import {
   getSymbolDeclarations,
   getSymbolForDeclarationLookup,
 } from "./csharp-source-semantics/symbol-utils.js";
-import type {
-  TargetTypeRefResolutionOptions,
-} from "./csharp-source-semantics/target-member-selection.js";
 import {
   createCsharpJsSurfaceMappers,
 } from "./csharp-source-semantics/surfaces/js/index.js";
 import {
   createCsharpNodejsSurfaceBindingProvider,
-  createCsharpNodejsSurfaceMappers,
 } from "./csharp-source-semantics/surfaces/nodejs/index.js";
+import {
+  createCsharpJsSurfaceHost,
+  createCsharpOperationsProvider,
+  getCheckedOperatorOperandQuery,
+  getCsharpOperatorResultTypeRefForOperator,
+  getLiteralTargetTypeRefForKnownOperatorOperand,
+  useObservationOrWhenDeferred,
+} from "./csharp-source-semantics/operations-provider.js";
 import {
   createCsharpDotnetSystemTypeDataProvider,
   createDotnetTargetBindingProvider,
@@ -157,9 +120,6 @@ export {
   neutralLangModule,
   neutralTypesModule,
 } from "./csharp-source-semantics/identity.js";
-
-const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
-const checkedOperationSyntaxFactQuery = { allowSemanticTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
 
 export function createCsharpSourceSemanticsExtension(_context: TargetProviderContext): CompilerExtension {
   return createSourceSemanticsExtension({
@@ -192,7 +152,11 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       if (selectedSurfaceIds.has("nodejs")) {
         context.registerTargetBindingProvider(createCsharpNodejsSurfaceBindingProvider());
       }
-      const provider = createCsharpOperationsProvider(selectedSurfaceIds);
+      const provider = createCsharpOperationsProvider(selectedSurfaceIds, {
+        getTargetTypeRefForSubject,
+        getCsharpObjectShapeFactForSubject,
+        mapRuntimeCarrier,
+      });
       context.registerTargetSemanticProvider(provider);
       context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext) => {
         recordCsharpSourceFileFacts(request, context.facts, lifecycleContext.compiler?.ast);
@@ -615,7 +579,11 @@ function resolveCsharpRuntimeCarrierFromLifecycle(
   selectedSurfaceIds: ReadonlySet<string>,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const jsSurface = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpNativeProviderExtensionId));
+  const jsSurface = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpNativeProviderExtensionId, {
+    getTargetTypeRefForSubject,
+    getCsharpObjectShapeFactForSubject,
+    mapRuntimeCarrier,
+  }));
   return useObservationOrWhenDeferred(
     mapRuntimeCarrier(request, context),
     () => selectedSurfaceIds.has("js") ? jsSurface.mapRuntimeCarrier(request, context) : deferObservation,
@@ -713,489 +681,6 @@ function getRuntimeCarrierSubjectSymbol(
 ): Symbol | undefined {
   return compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
     compiler.checker.getResolvedSymbol(node, { sourceFile });
-}
-
-function createCsharpOperationsProvider(selectedSurfaceIds: ReadonlySet<string>): TargetSemanticProvider {
-  const identity: ProviderIdentity = {
-    id: "tsonic.csharp.operations",
-    version: csharpProviderVersion,
-    target: csharpTargetId,
-    extensionContractVersion: TstsProviderContractVersion,
-    providerKind: "semantic",
-    displayName: "Tsonic C# semantic mapper",
-  };
-  const jsSurfaceEnabled = selectedSurfaceIds.has("js");
-  const nodejsSurfaceEnabled = selectedSurfaceIds.has("nodejs");
-  const jsSurface = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(identity.id));
-  const nodejsSurface = createCsharpNodejsSurfaceMappers(identity.id);
-  return {
-    identity,
-    resolveRuntimeCarrier(request, context) {
-      if (request.target !== undefined && request.target !== csharpTargetId) {
-        return deferObservation;
-      }
-      return useObservationOrWhenDeferred(
-        mapRuntimeCarrier(request, context),
-        () => jsSurfaceEnabled ? jsSurface.mapRuntimeCarrier(request, context) : deferObservation,
-      );
-    },
-    mapCheckedCall(request, context) {
-      return useObservationOrWhenDeferred(
-        nodejsSurfaceEnabled ? nodejsSurface.mapCheckedCall(request, context) : deferObservation,
-        () => useObservationOrWhenDeferred(
-          mapCsharpCheckedCall(request, context, identity.id),
-          () => jsSurfaceEnabled ? jsSurface.mapCheckedCall(request, context) : deferObservation,
-        ),
-      );
-    },
-    mapCheckedPropertyAccess(request, context) {
-      return useObservationOrWhenDeferred(
-        nodejsSurfaceEnabled ? nodejsSurface.mapCheckedPropertyAccess(request, context) : deferObservation,
-        () => useObservationOrWhenDeferred(
-          mapCsharpCheckedPropertyAccess(request, context, identity.id),
-          () => jsSurfaceEnabled ? jsSurface.mapCheckedPropertyAccess(request, context) : deferObservation,
-        ),
-      );
-    },
-    mapCheckedElementAccess(request, context) {
-      return useObservationOrWhenDeferred(
-        mapCsharpCheckedElementAccess(request, context, identity.id),
-        () => jsSurfaceEnabled ? jsSurface.mapCheckedElementAccess(request, context) : deferObservation,
-      );
-    },
-    mapCheckedOperator(request, context) {
-      return mapCsharpCheckedOperator(request, context, identity.id);
-    },
-    mapCheckedIteration(request, context) {
-      return useObservationOrWhenDeferred(
-        mapCsharpNativeCheckedIteration(request, context),
-        () => jsSurfaceEnabled ? jsSurface.mapCheckedIteration(request, context) : deferObservation,
-      );
-    },
-    recordContextualTargetType(request, context) {
-      return mapCsharpContextualTargetType(request, context);
-    },
-    mapCheckedConversion(request, context) {
-      return mapCsharpCheckedConversion(request, context);
-    },
-    resolveParameterPassing(request, context) {
-      return mapCsharpParameterPassing(request, context);
-    },
-  };
-}
-
-function createCsharpJsSurfaceHost(extensionId: string) {
-  return {
-    targetId: csharpTargetId,
-    extensionId,
-    getTargetTypeRefForSubject,
-    unwrapNullableTargetType,
-    isCsharpStringType,
-    isIntegralTargetTypeRef,
-    isLiteralRepresentableAsTargetType,
-    selectTargetMember: (
-      candidates: readonly TargetMember[],
-      arguments_: readonly ExtensionFactSubject[],
-      context: ExtensionObservationContext,
-    ) =>
-      selectTargetMember(candidates, arguments_, context, getTargetTypeRefForSubject),
-    getCsharpObjectShapeFactForSubject,
-    csharpProviderDiagnostic,
-  };
-}
-
-function useObservationOrWhenDeferred<T>(
-  primary: ExtensionObservation<T>,
-  whenDeferred: () => ExtensionObservation<T>,
-): ExtensionObservation<T> {
-  return primary.kind === "defer" ? whenDeferred() : primary;
-}
-
-function mapCsharpCheckedCall(
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  extensionId: string,
-): ExtensionObservation<CheckedCallMappingResult> {
-  if (request.target !== undefined && request.target !== csharpTargetId) {
-    return deferObservation;
-  }
-  if (isCheckedAttributeBuilderCall(request, context)) {
-    return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member: erasedSourceSemanticsMember(undefined, request) },
-    }, [{ message: "C# attribute builder marker call was checked by TSTS and marked for fact-driven erasure." }]);
-  }
-  const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
-  if (isErasedSourceSemanticsCall(virtualDeclaration)) {
-    return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member: erasedSourceSemanticsMember(virtualDeclaration, request) },
-    }, [{ message: "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure." }]);
-  }
-  const binding = findTargetBinding(context, [
-    request.sourceSelectedContainerSymbol,
-    request.sourceSelectedDeclarationContainer,
-    request.calleeAliasedSymbol,
-    request.calleeResolvedSymbol,
-    request.calleeSymbol,
-    request.callee,
-    request.calleeReceiverTypeSymbol,
-    request.calleeReceiverType,
-    request.calleeReceiverAliasedSymbol,
-    request.calleeReceiverResolvedSymbol,
-    request.calleeReceiverSymbol,
-  ]) ?? getKnownTargetBindingForTypeRef(
-    getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
-      getTargetTypeRefForSubject(request.calleeReceiver, context, checkedOperationSyntaxFactQuery),
-  );
-  if (binding === undefined) {
-    return deferObservation;
-  }
-  const member = findTargetMemberForCall(
-    binding,
-    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey),
-    request.calleePropertyName,
-    request,
-    context,
-    getTargetTypeRefForSubject,
-  );
-  if (member === undefined) {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_FOUND", 9100100, `C# provider could not map checked call '${request.calleePropertyName ?? "<anonymous>"}' on target '${binding.id}'.`));
-  }
-  if (member.kind !== "method" && member.kind !== "constructor") {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_CALLABLE", 9100101, `C# provider mapped checked call '${request.calleePropertyName ?? "<anonymous>"}' to non-callable target member '${member.id}'.`));
-  }
-  return acceptObservation<CheckedCallMappingResult>({
-    selectedSignature: { member },
-  }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
-}
-
-function mapCsharpCheckedPropertyAccess(
-  request: CheckedPropertyAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-  extensionId: string,
-): ExtensionObservation<CheckedOperationMappingResult> {
-  if (request.target !== undefined && request.target !== csharpTargetId) {
-    return deferObservation;
-  }
-  const binding = findTargetBinding(context, [
-    request.sourceSelectedContainerSymbol,
-    request.sourceSelectedDeclarationContainer,
-    request.sourceSelectedDeclaration,
-    request.receiverTypeSymbol,
-    request.receiverType,
-    request.receiverAliasedSymbol,
-    request.receiverResolvedSymbol,
-    request.receiverSymbol,
-  ]) ?? getKnownTargetBindingForTypeRef(
-    getTargetTypeRefForSubject(request.receiverType, context) ??
-      getTargetTypeRefForSubject(request.receiver, context, checkedOperationSyntaxFactQuery),
-  );
-  if (binding === undefined) {
-    const arrayOperation = mapCsharpNativeArrayCheckedPropertyAccess(request, context);
-    if (arrayOperation !== undefined) {
-      return arrayOperation;
-    }
-    return mapCsharpObjectShapeCheckedPropertyAccess(request, context) ?? deferObservation;
-  }
-  const member = findTargetMember(binding, context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey), request.propertyName);
-  if (member === undefined) {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_PROPERTY_NOT_FOUND", 9100102, `C# provider could not map checked property '${request.propertyName}' on target '${binding.id}'.`));
-  }
-  return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperationFromMember(member),
-  }, [{ message: "C# target property/member access selected from checked TSTS provider declaration." }]);
-}
-
-function mapCsharpObjectShapeCheckedPropertyAccess(
-  request: CheckedPropertyAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const objectShape = getCsharpObjectShapeFactForSubject(request.receiver, context) ??
-    getCsharpObjectShapeFactForSubject(request.receiverType, context) ??
-    getCsharpObjectShapeFactForSubject(request.receiverSymbol, context) ??
-    getCsharpObjectShapeFactForSubject(request.receiverResolvedSymbol, context) ??
-    getCsharpObjectShapeFactForSubject(request.receiverAliasedSymbol, context);
-  if (objectShape === undefined) {
-    return undefined;
-  }
-  const member = objectShape.members.find((candidate) => candidate.sourceName === request.propertyName);
-  if (member === undefined) {
-    return undefined;
-  }
-  return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(
-      `tsonic.csharp.objectShape.${request.propertyName}`,
-      member.memberKind === "method" ? "method" : "property",
-      member.targetName,
-      { resultType: member.type },
-    ),
-  }, [{ message: "C# object-shape property access selected from finalized structural shape fact." }]);
-}
-
-function mapCsharpCheckedElementAccess(
-  request: CheckedElementAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
-  extensionId: string,
-): ExtensionObservation<CheckedOperationMappingResult> {
-  if (request.target !== undefined && request.target !== csharpTargetId) {
-    return deferObservation;
-  }
-  const binding = findTargetBinding(context, [
-    request.receiverTypeSymbol,
-    request.receiverType,
-    request.receiver,
-  ]) ?? getKnownTargetBindingForTypeRef(
-    getTargetTypeRefForSubject(request.receiverType, context) ??
-      getTargetTypeRefForSubject(request.receiver, context, checkedOperationSyntaxFactQuery),
-  );
-  if (binding === undefined) {
-    return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId) ?? deferObservation;
-  }
-  const indexers = (binding.members ?? []).filter((member) => member.kind === "indexer");
-  const member = indexers.length === 1 ? indexers[0] : undefined;
-  if (member === undefined) {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, `C# provider could not map checked element access on target '${binding.id}' to a unique indexer.`));
-  }
-  return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperationFromMember(member),
-  }, [{ message: "C# target indexer access selected from checked TSTS provider declaration." }]);
-}
-
-function mapCsharpNativeArrayCheckedPropertyAccess(
-  request: CheckedPropertyAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  if (request.propertyName !== "length") {
-    return undefined;
-  }
-  const receiverType = unwrapNullableTargetType(
-    getTargetTypeRefForSubject(request.receiverType, context, noRuntimeCarrierQuery) ??
-      getTargetTypeRefForSubject(request.receiver, context, { ...noRuntimeCarrierQuery, allowSemanticTypeQuery: false }),
-  );
-  if (receiverType?.kind !== "array") {
-    return undefined;
-  }
-  return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation("tsonic.csharp.array.length", "property", "Length", {
-      resultType: csharpSourcePrimitiveTargetType("int32"),
-    }),
-  }, [{ message: "C# native array length selected from checked TypeScript array property access." }]);
-}
-
-function mapCsharpNativeArrayCheckedElementAccess(
-  request: CheckedElementAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
-  extensionId: string,
-): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = unwrapNullableTargetType(
-    getTargetTypeRefForSubject(request.receiverType, context, noRuntimeCarrierQuery) ??
-      getTargetTypeRefForSubject(request.receiver, context, { ...noRuntimeCarrierQuery, allowSemanticTypeQuery: false }),
-  );
-  if (receiverType?.kind !== "array") {
-    return undefined;
-  }
-  const indexType = getTargetTypeRefForSubject(request.argument, context);
-  if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100109, "C# native array element access requires an integral TSTS/provider-backed index type."));
-  }
-  return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation("tsonic.csharp.array.indexer", "indexer", "System.Array.Item", {
-      resultType: receiverType.element,
-    }),
-  }, [{ message: "C# native array indexer selected from checked TypeScript element access." }]);
-}
-
-function mapCsharpCheckedOperator(
-  request: CheckedOperatorMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedOperator">,
-  _extensionId: string,
-): ExtensionObservation<CheckedOperationMappingResult> {
-  if (request.target !== undefined && request.target !== csharpTargetId) {
-    return deferObservation;
-  }
-  const typeofComparison = getTypeofComparisonOperation(request, context);
-  if (typeofComparison !== undefined) {
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: typeofComparison,
-    }, [{ message: "C# typeof comparison selected from checked TSTS operator result." }]);
-  }
-  if (request.operator === "typeof") {
-    const operandType = getTargetTypeRefForSubject(request.leftType, context, noRuntimeCarrierQuery) ??
-      getTargetTypeRefForSubject(request.left, context, noRuntimeCarrierQuery);
-    const runtimeKind = getTypeofRuntimeKind(operandType, { allowNullableUnwrap: false });
-    if (runtimeKind === undefined) {
-      return deferObservation;
-    }
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation(`tsonic.csharp.typeof.${runtimeKind}`, "operator", `typeof:${runtimeKind}`),
-    }, [{ message: "C# typeof runtime kind selected from checked TSTS operand type." }]);
-  }
-  if (request.operator === "instanceof") {
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: targetOperation("tsonic.csharp.instanceof", "operator", "is"),
-    }, [{ message: "C# type-test operation selected from checked TSTS instanceof expression." }]);
-  }
-  const targetOperator = getCsharpOperatorTargetOperation(request.operator);
-  if (targetOperator === undefined) {
-    return deferObservation;
-  }
-  const operandQuery = getCheckedOperatorOperandQuery(request.operator);
-  const left = getTargetTypeRefForSubject(request.leftType, context) ??
-    getTargetTypeRefForSubject(request.left, context, operandQuery);
-  const right = getTargetTypeRefForSubject(request.rightType, context) ??
-    getTargetTypeRefForSubject(request.right, context, operandQuery) ??
-    getLiteralTargetTypeRefForKnownOperatorOperand(left, request.right, context);
-  if (left === undefined || (request.right !== undefined && right === undefined)) {
-    return deferObservation;
-  }
-  if (left.kind === "type-parameter" || right?.kind === "type-parameter") {
-    return deferObservation;
-  }
-  if (isCsharpBitwiseOperator(request.operator) && !isIntegralTargetTypeRef(left)) {
-    return deferObservation;
-  }
-  return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(
-      `tsonic.csharp.operator.${targetOperator}`,
-      "operator",
-      targetOperator,
-      { resultType: getCsharpOperatorResultTypeRef(request, left, right) },
-    ),
-  }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
-}
-
-function getCsharpOperatorResultTypeRef(
-  request: CheckedOperatorMappingRequest,
-  left: TargetTypeRef,
-  right: TargetTypeRef | undefined,
-): TargetTypeRef {
-  return getCsharpOperatorResultTypeRefForOperator(request.operator, left, right);
-}
-
-function getCsharpOperatorResultTypeRefForOperator(
-  operator: string,
-  left: TargetTypeRef,
-  right: TargetTypeRef | undefined,
-): TargetTypeRef {
-  switch (operator) {
-    case "===":
-    case "==":
-    case "!==":
-    case "!=":
-    case "<":
-    case "<=":
-    case ">":
-    case ">=":
-    case "&&":
-    case "||":
-      return csharpSourcePrimitiveTargetType("bool");
-    case "typeof":
-      return csharpTargetNamedType("System.String");
-    case "??":
-      return unwrapNullableTargetType(left) ?? right ?? left;
-    default:
-      return left;
-  }
-}
-
-function getCheckedOperatorOperandQuery(operator: string): TargetTypeRefResolutionOptions {
-  return operator === "??" ? {} : checkedOperationSyntaxFactQuery;
-}
-
-function getLiteralTargetTypeRefForKnownOperatorOperand(
-  expectedOperandType: TargetTypeRef | undefined,
-  operand: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-): TargetTypeRef | undefined {
-  const unwrappedExpected = unwrapNullableTargetType(expectedOperandType);
-  return unwrappedExpected !== undefined && isLiteralRepresentableAsTargetType(unwrappedExpected, operand, context)
-    ? unwrappedExpected
-    : undefined;
-}
-
-function mapCsharpNativeCheckedIteration(
-  request: CheckedIterationMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedIteration">,
-): ExtensionObservation<CheckedOperationMappingResult> {
-  if (request.target !== undefined && request.target !== csharpTargetId) {
-    return deferObservation;
-  }
-  const expressionType = getTargetTypeRefForSubject(request.sourceExpressionType, context, noRuntimeCarrierQuery);
-  if (request.kind === "for-of") {
-    if (expressionType?.kind === "array") {
-      const fact = {
-        operationId: "tsonic.csharp.array.foreach",
-        iterationKind: "sync",
-        targetOperation: "ForEachStatement",
-        elementType: expressionType.element,
-      } satisfies CsharpTargetIterationFact;
-      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# array for-of maps to foreach." }]);
-      return acceptObservation<CheckedOperationMappingResult>({
-        operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
-      }, [{ message: "C# array iteration fact recorded after TSTS accepted for-of." }]);
-    }
-    return deferObservation;
-  }
-  return deferObservation;
-}
-
-function mapCsharpContextualTargetType(
-  request: ContextualTargetTypeRequest,
-  _context: ExtensionObservationContext<"type.recordContextualTargetType">,
-): ExtensionObservation<ContextualTargetTypeResult> {
-  if (request.target !== undefined && request.target !== csharpTargetId) {
-    return deferObservation;
-  }
-  return acceptObservation<ContextualTargetTypeResult>({
-    type: request.context,
-  }, [{ message: "C# contextual target type recorded from checked TSTS contextual type." }]);
-}
-
-function mapCsharpCheckedConversion(
-  request: CheckedConversionMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedConversion">,
-): ExtensionObservation<CheckedConversionMappingResult> {
-  if (request.targetPlatform !== undefined && request.targetPlatform !== csharpTargetId) {
-    return deferObservation;
-  }
-  const source = getTargetTypeRefForSubject(request.source, context);
-  const target = getTargetTypeRefForSubject(request.target, context);
-  if (target === undefined) {
-    return deferObservation;
-  }
-  if (source !== undefined && targetTypeRefEquals(source, target)) {
-    return acceptObservation<CheckedConversionMappingResult>({
-      convertedType: target,
-    }, [{ message: "C# argument already has the selected target type." }]);
-  }
-  if (isLiteralRepresentableAsTargetType(target, request.source, context)) {
-    return acceptObservation<CheckedConversionMappingResult>({
-      convertedType: target,
-    }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
-  }
-  const operation = getCsharpConversionOperation(source, target);
-  return acceptObservation<CheckedConversionMappingResult>({
-    convertedType: target,
-    ...(operation !== undefined ? { operation } : {}),
-  }, [{ message: "C# target conversion recorded from checked call argument and selected target parameter." }]);
-}
-
-function mapCsharpParameterPassing(
-  request: ParameterPassingRequest,
-  _context: ExtensionObservationContext<"parameter.resolvePassing">,
-): ExtensionObservation<ParameterPassingResult> {
-  if (request.target !== undefined && request.target !== csharpTargetId) {
-    return deferObservation;
-  }
-  const parameter = asTargetParameter(request.parameter);
-  if (parameter === undefined) {
-    return deferObservation;
-  }
-  return acceptObservation<ParameterPassingResult>({
-    passing: {
-      mode: parameter.passingMode,
-      ...(request.argument !== undefined ? { targetExpression: request.argument } : {}),
-    },
-  }, [{ message: "C# argument passing recorded from selected target parameter." }]);
 }
 
 function getTargetTypeRefForSubject(
