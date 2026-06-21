@@ -1,7 +1,6 @@
 import {
   AsBlock,
   AsBreakStatement,
-  AsCatchClause,
   AsContinueStatement,
   AsDoStatement,
   AsExpressionStatement,
@@ -11,7 +10,6 @@ import {
   AsLabeledStatement,
   AsReturnStatement,
   AsThrowStatement,
-  AsTryStatement,
   AsVariableDeclaration,
   AsVariableDeclarationList,
   AsVariableStatement,
@@ -46,20 +44,17 @@ import {
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
-  CsharpCatchClause,
   CsharpForInitializer,
   CsharpStatement,
 } from "../roslyn/syntax.js";
 import { sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
-  allocateControlLabel,
   createDestructuringPlannerState,
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { isErasedAttributeExpressionStatement } from "./attributes.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
-import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import {
@@ -69,8 +64,9 @@ import {
   planDiscardedExpression,
 } from "./statement-output.js";
 import { planSwitchStatement } from "./switch-statements.js";
-import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { planForInStatement, planForOfStatement } from "./statement-loops.js";
+import { findControlLabel, planLabeledStatement } from "./statement-labels.js";
+import { planTryStatement } from "./statement-try.js";
 
 export function planBlockStatements(
   blockNode: Node | undefined,
@@ -189,7 +185,7 @@ export function planStatements(
       })];
     case KindLabeledStatement: {
       const statement = AsLabeledStatement(node)!;
-      return [planLabeledStatement(statement, sourceFile, input, diagnostics, state)];
+      return [planLabeledStatement(statement, sourceFile, input, diagnostics, state, planNestedStatementBody)];
     }
     case KindSwitchStatement:
       return [planSwitchStatement(node, sourceFile, input, diagnostics, state, {
@@ -197,7 +193,7 @@ export function planStatements(
         planStatements,
       })];
     case KindTryStatement:
-      return [planTryStatement(node, sourceFile, input, diagnostics, state)];
+      return [planTryStatement(node, sourceFile, input, diagnostics, state, planBlockStatements)];
     case KindExpressionStatement:
       if (isErasedAttributeExpressionStatement(node, input)) {
         return [];
@@ -296,205 +292,6 @@ export function planStatements(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Statement is outside the current C# planning surface."));
       return [];
   }
-}
-
-function planSingleStatement(
-  node: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-): CsharpStatement {
-  const statements = planNestedStatementBody(node, sourceFile, input, diagnostics, state);
-  if (statements.length === 1) {
-    return statements[0]!;
-  }
-  return {
-    kind: "Block",
-    body: { kind: "Block", statements },
-  };
-}
-
-function planLabeledStatement(
-  statement: NonNullable<ReturnType<typeof AsLabeledStatement>>,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-): CsharpStatement {
-  const sourceName = sanitizeIdentifier(Node_Text(statement.Label!));
-  const target = {
-    sourceName,
-    breakLabel: allocateControlLabel(state, sourceName, "BreakStatement"),
-    ...(isIterationStatement(statement.Statement, input)
-      ? { continueLabel: allocateControlLabel(state, sourceName, "ContinueStatement") }
-      : {}),
-  };
-  state.controlLabels.push(target);
-  const planned = planSingleStatement(statement.Statement, sourceFile, input, diagnostics, state);
-  state.controlLabels.pop();
-  const loweredStatement = target.continueLabel === undefined
-    ? planned
-    : attachContinueLabel(planned, target.continueLabel);
-  return {
-    kind: "Block",
-    body: {
-      kind: "Block",
-      statements: [
-        {
-          kind: "LabeledStatement",
-          name: sourceName,
-          statement: loweredStatement,
-        },
-        controlLabelStatement(target.breakLabel),
-      ],
-    },
-  };
-}
-
-function findControlLabel(
-  state: DestructuringPlannerState,
-  sourceName: string,
-): { readonly breakLabel: string; readonly continueLabel?: string } | undefined {
-  const sanitized = sanitizeIdentifier(sourceName);
-  for (let index = state.controlLabels.length - 1; index >= 0; index--) {
-    const target = state.controlLabels[index]!;
-    if (target.sourceName === sanitized) {
-      return target;
-    }
-  }
-  return undefined;
-}
-
-function isIterationStatement(node: Node | undefined, input: TargetCompileInput): boolean {
-  return HasSourceKind(input.ast, node, KindWhileStatement) ||
-    HasSourceKind(input.ast, node, KindDoStatement) ||
-    HasSourceKind(input.ast, node, KindForStatement) ||
-    HasSourceKind(input.ast, node, KindForInStatement) ||
-    HasSourceKind(input.ast, node, KindForOfStatement);
-}
-
-function attachContinueLabel(statement: CsharpStatement, label: string): CsharpStatement {
-  switch (statement.kind) {
-    case "WhileStatement":
-    case "DoStatement":
-    case "ForStatement":
-    case "ForEachStatement":
-      return {
-        ...statement,
-        body: {
-          kind: "Block",
-          statements: [
-            ...statement.body.statements,
-            controlLabelStatement(label),
-          ],
-        },
-      };
-    case "Block": {
-      const lastIndex = statement.body.statements.length - 1;
-      const last = statement.body.statements[lastIndex];
-      if (last !== undefined) {
-        return {
-          kind: "Block",
-          body: {
-            kind: "Block",
-            statements: statement.body.statements.map((child, index) =>
-              index === lastIndex ? attachContinueLabel(child, label) : child),
-          },
-        };
-      }
-      return statement;
-    }
-    default:
-      return statement;
-  }
-}
-
-function controlLabelStatement(label: string): CsharpStatement {
-  return {
-    kind: "LabeledStatement",
-    name: label,
-    statement: {
-      kind: "Block",
-      body: { kind: "Block", statements: [] },
-    },
-  };
-}
-
-function planTryStatement(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-): CsharpStatement {
-  const statement = AsTryStatement(node)!;
-  return {
-    kind: "TryStatement",
-    tryBody: {
-      kind: "Block",
-      statements: planBlockStatements(statement.TryBlock, sourceFile, input, diagnostics, state),
-    },
-    ...(statement.CatchClause !== undefined
-      ? { catchClause: planCatchClause(statement.CatchClause, sourceFile, input, diagnostics, state) }
-      : {}),
-    ...(statement.FinallyBlock !== undefined
-      ? { finallyBody: { kind: "Block", statements: planBlockStatements(statement.FinallyBlock, sourceFile, input, diagnostics, state) } }
-      : {}),
-  };
-}
-
-function planCatchClause(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-): CsharpCatchClause {
-  const clause = AsCatchClause(node)!;
-  if (clause.VariableDeclaration !== undefined) {
-    const variable = AsVariableDeclaration(clause.VariableDeclaration)!;
-    const variableName = variable.name;
-    if (variableName !== undefined && (HasSourceKind(input.ast, variableName, KindObjectBindingPattern) || HasSourceKind(input.ast, variableName, KindArrayBindingPattern))) {
-      diagnostics.push(unsupportedNodeDiagnostic(variableName, "Catch destructuring requires a closed thrown-value carrier; unknown catch values cannot trickle into C#."));
-      return {
-        kind: "CatchClause",
-        body: {
-          kind: "Block",
-          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-        },
-      };
-    }
-    const carrier = getRuntimeCarrierForExpression(input, variable.name ?? clause.VariableDeclaration, sourceFile) ??
-      getRuntimeCarrierForExpression(input, clause.VariableDeclaration, sourceFile);
-    const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
-    if (!isCsharpExceptionCarrier(carrier) || variableType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission."));
-      return {
-        kind: "CatchClause",
-        body: {
-          kind: "Block",
-          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-        },
-      };
-    }
-    return {
-      kind: "CatchClause",
-      variableType,
-      variableName: variable.name === undefined ? undefined : sanitizeIdentifier(Node_Text(variable.name)),
-      body: {
-        kind: "Block",
-        statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-      },
-    };
-  }
-  return {
-    kind: "CatchClause",
-    body: {
-      kind: "Block",
-      statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
-    },
-  };
 }
 
 interface PlannedForInitializer {
