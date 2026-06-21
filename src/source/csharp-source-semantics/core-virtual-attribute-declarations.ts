@@ -78,17 +78,10 @@ function methodMember(
     kind: "method" as const,
     signatures: [{
       id,
-      name: targetMemberNameFromId(id),
+      name: sourceName,
       parameters,
       returnType,
       ...(typeParameters.length === 0 ? {} : { typeParameters }),
     }],
   };
-}
-
-function targetMemberNameFromId(id: string): string {
-  const paren = id.indexOf("(");
-  const qualifiedName = paren === -1 ? id : id.slice(0, paren);
-  const lastDot = qualifiedName.lastIndexOf(".");
-  return qualifiedName.slice(lastDot + 1);
 }

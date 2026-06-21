@@ -93,7 +93,7 @@ function providerMemberToTargetMembers(member: ProviderMemberDeclaration, declar
         : [{
             id: member.id,
             sourceName: member.name,
-            targetName: targetMemberNameFromProviderMember(member),
+            targetName: member.name,
             kind: member.kind,
             parameters: [],
             returnType: providerTypeExpressionToTargetTypeRef(member.type),
@@ -103,9 +103,10 @@ function providerMemberToTargetMembers(member: ProviderMemberDeclaration, declar
     case "method":
     case "constructor":
     case "indexer":
-      return (member.signatures ?? []).map((signature) =>
-        providerSignatureToTargetMember(member, signature, declaringTypeId)
-      );
+      return (member.signatures ?? []).flatMap((signature) => {
+        const targetMember = providerSignatureToTargetMember(member, signature, declaringTypeId);
+        return targetMember === undefined ? [] : [targetMember];
+      });
   }
 }
 
@@ -113,12 +114,16 @@ function providerSignatureToTargetMember(
   member: ProviderMemberDeclaration,
   signature: ProviderSignatureDeclaration,
   declaringTypeId: string,
-): TargetMember {
+): TargetMember | undefined {
   const kind = member.kind;
+  const targetName = targetMemberNameFromProviderSignature(member, signature);
+  if (targetName === undefined) {
+    return undefined;
+  }
   return {
     id: signature.id,
     sourceName: member.name,
-    targetName: targetMemberNameFromProviderSignature(member, signature),
+    targetName,
     kind,
     declaringType: csharpTargetNamedType(declaringTypeId),
     ...(member.static === true ? { static: true } : {}),
@@ -185,23 +190,12 @@ function providerTypeExpressionToTargetTypeRef(type: ProviderTypeExpression): Ta
   }
 }
 
-function targetMemberNameFromProviderMember(member: ProviderMemberDeclaration): string {
-  return targetMemberNameFromId(member.id);
-}
-
 function targetMemberNameFromProviderSignature(
   member: ProviderMemberDeclaration,
   signature: ProviderSignatureDeclaration,
-): string {
+): string | undefined {
   if (member.kind === "constructor") {
     return ".ctor";
   }
-  return signature.name ?? targetMemberNameFromId(signature.id);
-}
-
-function targetMemberNameFromId(id: string): string {
-  const paren = id.indexOf("(");
-  const qualifiedName = paren === -1 ? id : id.slice(0, paren);
-  const lastDot = qualifiedName.lastIndexOf(".");
-  return qualifiedName.slice(lastDot + 1);
+  return signature.name;
 }
