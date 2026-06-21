@@ -15,7 +15,7 @@ import {
 } from "./target-ref-utils.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
-} from "./runtime-carriers.js";
+} from "./runtime-carrier-types.js";
 
 export function recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(
   request: RuntimeCarrierFactRequest,
