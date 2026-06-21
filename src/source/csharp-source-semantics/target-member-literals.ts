@@ -13,6 +13,9 @@ import {
   parseBigIntLiteral,
   parseFiniteNumberLiteral,
 } from "../source-literal-values.js";
+import {
+  isCsharpStringType,
+} from "./target-rules.js";
 
 export function isLiteralRepresentableAsTargetType(
   expected: TargetTypeRef,
@@ -25,7 +28,7 @@ export function isLiteralRepresentableAsTargetType(
     return false;
   }
   const kind = ast.kindName(node);
-  if (expected.kind === "target-named" && expected.id === "System.String") {
+  if (isCsharpStringType(expected)) {
     return kind === "KindStringLiteral" || kind === "KindNoSubstitutionTemplateLiteral";
   }
   if (expected.kind !== "source-primitive") {

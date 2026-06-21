@@ -5,6 +5,11 @@ import { KindIdentifier } from "../dist/backend/planner/source-ast.js";
 import { isCsharpThrowableCarrier } from "../dist/backend/planner/statement-output.js";
 import { printCsharpType } from "../dist/print/csharp-printer.js";
 import { csharpTargetTypeParameterConstraintFactKey } from "../dist/source/csharp-facts.js";
+import {
+  isCsharpStringType,
+  isVoidTargetType,
+  unwrapNullableTargetType,
+} from "../dist/source/csharp-source-semantics/target-rules.js";
 import { getTypeofRuntimeKind } from "../dist/source/csharp-source-semantics/typeof-operators.js";
 import { csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
 
@@ -18,6 +23,19 @@ test("typeof runtime mapping requires explicit C# target metadata", () => {
   assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.String"), { allowNullableUnwrap: false }), "string");
   assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.Boolean"), { allowNullableUnwrap: false }), "boolean");
   assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.Numerics.BigInteger"), { allowNullableUnwrap: false }), "bigint");
+});
+
+test("special C# target types require explicit metadata", () => {
+  const rawString = { kind: "target-named", id: "System.String" };
+  const rawVoid = { kind: "target-named", id: "System.Void" };
+  const intType = { kind: "source-primitive", name: "int32" };
+  const rawNullable = { kind: "target-named", id: "System.Nullable`1", typeArguments: [intType] };
+  assert.equal(isCsharpStringType(rawString), false);
+  assert.equal(isCsharpStringType(csharpTargetNamedType("System.String")), true);
+  assert.equal(isVoidTargetType(rawVoid), false);
+  assert.equal(isVoidTargetType(csharpTargetNamedType("System.Void")), true);
+  assert.equal(unwrapNullableTargetType(rawNullable), rawNullable);
+  assert.deepEqual(unwrapNullableTargetType(csharpTargetNamedType("System.Nullable`1", [intType])), intType);
 });
 
 test("type parameter constraints render finalized C# type facts", () => {

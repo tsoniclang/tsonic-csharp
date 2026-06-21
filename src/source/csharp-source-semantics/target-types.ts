@@ -18,6 +18,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpRender?: CsharpTargetTypeRenderShape;
   readonly csharpThrowable?: true;
   readonly csharpTypeofRuntimeKind?: CsharpTypeofRuntimeKind;
+  readonly csharpSpecialType?: "string" | "void" | "nullable";
 };
 
 export type CsharpTargetBindingFact = TargetBindingFact & {
@@ -106,6 +107,7 @@ export function csharpTargetNamedType(
     ...(typeArguments !== undefined && typeArguments.length > 0 ? { typeArguments } : {}),
     ...(renderShape !== undefined ? { csharpRender: renderShape } : {}),
     ...(knownCsharpThrowableTypeIds.has(id) ? { csharpThrowable: true } : {}),
+    ...knownCsharpSpecialType(id),
     ...knownCsharpTypeofRuntimeKind(id),
   } satisfies CsharpTargetNamedTypeRef;
 }
@@ -178,6 +180,22 @@ export function getCsharpTypeofRuntimeKindForTargetType(type: TargetTypeRef | un
   return type?.kind === "target-named"
     ? (type as CsharpTargetNamedTypeRef).csharpTypeofRuntimeKind
     : undefined;
+}
+
+export function isCsharpStringTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpSpecialType === "string";
+}
+
+export function isCsharpVoidTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpSpecialType === "void";
+}
+
+export function getCsharpNullableElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  if (type?.kind !== "target-named" || (type as CsharpTargetNamedTypeRef).csharpSpecialType !== "nullable") {
+    return undefined;
+  }
+  const typeArguments = type.typeArguments ?? [];
+  return typeArguments.length === 1 ? typeArguments[0] : undefined;
 }
 
 export function csharpQualifiedTypeRenderShape(namespaceName: string, name: string): CsharpTargetTypeRenderShape {
@@ -290,6 +308,19 @@ function knownCsharpTypeofRuntimeKind(id: string): { readonly csharpTypeofRuntim
       return { csharpTypeofRuntimeKind: "boolean" };
     case "System.Numerics.BigInteger":
       return { csharpTypeofRuntimeKind: "bigint" };
+    default:
+      return {};
+  }
+}
+
+function knownCsharpSpecialType(id: string): { readonly csharpSpecialType: CsharpTargetNamedTypeRef["csharpSpecialType"] } | {} {
+  switch (id) {
+    case "System.String":
+      return { csharpSpecialType: "string" };
+    case "System.Void":
+      return { csharpSpecialType: "void" };
+    case "System.Nullable`1":
+      return { csharpSpecialType: "nullable" };
     default:
       return {};
   }

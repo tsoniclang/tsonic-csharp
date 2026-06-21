@@ -11,6 +11,9 @@ import {
   targetOperation,
 } from "./operations.js";
 import {
+  getCsharpNullableElementTargetType,
+  isCsharpStringTargetType,
+  isCsharpVoidTargetType,
   csharpTargetNamedType,
 } from "./target-types.js";
 
@@ -135,21 +138,15 @@ export function getCsharpConversionOperation(source: TargetTypeRef | undefined, 
 }
 
 export function isVoidTargetType(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" && type.id === "System.Void";
+  return isCsharpVoidTargetType(type);
 }
 
 export function isCsharpStringType(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "target-named" && type.id === "System.String";
+  return isCsharpStringTargetType(type);
 }
 
 export function unwrapNullableTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
-  const firstTypeArgument = type?.kind === "target-named" ? type.typeArguments?.[0] : undefined;
-  return type?.kind === "target-named" &&
-      type.id === "System.Nullable`1" &&
-      firstTypeArgument !== undefined &&
-      (type.typeArguments ?? []).length === 1
-    ? firstTypeArgument
-    : type;
+  return getCsharpNullableElementTargetType(type) ?? type;
 }
 
 function sourcePrimitiveConversionMethod(kind: SourcePrimitiveKind): string | undefined {
