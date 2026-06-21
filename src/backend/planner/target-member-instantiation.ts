@@ -13,11 +13,14 @@ export function instantiateSelectedTargetMember(
   diagnostics: TargetDiagnostic[],
 ): TargetMember | undefined {
   const member = selectedSignature.member;
-  const selectedTypeArgumentMap = getSelectedTargetTypeArgumentMap(member, selectedSignature.targetTypeArguments ?? []);
+  const selectedTypeArgumentMap = getSelectedTargetTypeArgumentMap(operationNode, member, selectedSignature.targetTypeArguments ?? [], diagnostics);
+  if (selectedTypeArgumentMap === undefined) {
+    return undefined;
+  }
   const instantiated = selectedTypeArgumentMap.size > 0
     ? substituteTargetMemberTypeParameters(member, selectedTypeArgumentMap)
     : member;
-  const unresolved = collectTargetTypeParameterNamesFromMember(instantiated);
+  const unresolved = collectUnresolvedTargetTypeRefsFromMember(instantiated);
   if (unresolved.length > 0) {
     diagnostics.push(unsupportedNodeDiagnostic(
       operationNode,
@@ -29,40 +32,47 @@ export function instantiateSelectedTargetMember(
 }
 
 function getSelectedTargetTypeArgumentMap(
+  operationNode: Node,
   member: TargetMember,
   targetTypeArguments: readonly TargetTypeRef[],
-): ReadonlyMap<string, TargetTypeRef> {
+  diagnostics: TargetDiagnostic[],
+): ReadonlyMap<string, TargetTypeRef> | undefined {
   if (targetTypeArguments.length === 0) {
     return new Map();
   }
-  const typeParameters = getTargetMemberTypeParameters(member);
-  return typeParameters.length === 0 ? new Map() : buildTargetTypeArgumentMap(typeParameters, targetTypeArguments);
-}
-
-function getTargetMemberTypeParameters(
-  member: TargetMember,
-): readonly { readonly name: string }[] {
-  if (member.typeParameters !== undefined && member.typeParameters.length > 0) {
-    return member.typeParameters;
+  const typeParameters = member.typeParameters ?? [];
+  if (typeParameters.length === 0) {
+    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `Selected target member '${member.id}' supplied target type arguments, but the provider member declaration has no target type parameters.`));
+    return undefined;
   }
-  return collectTargetTypeParameterNamesFromMember(member).map((name) => ({ name }));
+  if (typeParameters.length !== targetTypeArguments.length) {
+    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `Selected target member '${member.id}' supplied ${targetTypeArguments.length} target type argument(s), but the provider member declaration requires ${typeParameters.length}.`));
+    return undefined;
+  }
+  return buildTargetTypeArgumentMap(typeParameters, targetTypeArguments);
 }
 
-function collectTargetTypeParameterNamesFromMember(member: TargetMember): readonly string[] {
+function collectUnresolvedTargetTypeRefsFromMember(member: TargetMember): readonly string[] {
   const names: string[] = [];
   const seen = new Set<string>();
+  const add = (name: string): void => {
+    if (!seen.has(name)) {
+      seen.add(name);
+      names.push(name);
+    }
+  };
   const visit = (type: TargetTypeRef | undefined): void => {
     if (type === undefined) {
       return;
     }
     switch (type.kind) {
       case "type-parameter":
-        if (!seen.has(type.name)) {
-          seen.add(type.name);
-          names.push(type.name);
-        }
+        add(type.name);
         return;
       case "target-named":
+        if (getTargetNamedTypeArity(type.id) !== (type.typeArguments ?? []).length) {
+          add(type.id);
+        }
         for (const argument of type.typeArguments ?? []) {
           visit(argument);
         }
@@ -123,7 +133,7 @@ function substituteTargetMemberTypeParameters(
 ): TargetMember {
   const declaringType = member.declaringType === undefined
     ? undefined
-    : applyDeclaringTypeArguments(substituteTargetTypeRef(member.declaringType, typeArgumentMap), typeArgumentMap);
+    : substituteTargetTypeRef(member.declaringType, typeArgumentMap);
   return {
     ...member,
     ...(declaringType !== undefined ? { declaringType } : {}),
@@ -132,23 +142,6 @@ function substituteTargetMemberTypeParameters(
       type: substituteTargetTypeRef(parameter.type, typeArgumentMap),
     })),
     ...(member.returnType !== undefined ? { returnType: substituteTargetTypeRef(member.returnType, typeArgumentMap) } : {}),
-  };
-}
-
-function applyDeclaringTypeArguments(
-  declaringType: TargetTypeRef,
-  typeArgumentMap: ReadonlyMap<string, TargetTypeRef>,
-): TargetTypeRef {
-  if (declaringType.kind !== "target-named" || (declaringType.typeArguments ?? []).length > 0) {
-    return declaringType;
-  }
-  const arity = getTargetNamedTypeArity(declaringType.id);
-  if (arity === 0 || typeArgumentMap.size < arity) {
-    return declaringType;
-  }
-  return {
-    ...declaringType,
-    typeArguments: [...typeArgumentMap.values()].slice(0, arity),
   };
 }
 
