@@ -33,6 +33,7 @@ export { createDotnetTargetBindingProvider } from "./provider.js";
 export {
   createCsharpDotnetSystemTypeDataProvider,
   findCsharpDotnetProviderExportByTargetId,
+  findCsharpDotnetTargetBindingByTargetId,
 } from "./csharp-system-provider.js";
 export {
   createDotnetModuleSpecifier,

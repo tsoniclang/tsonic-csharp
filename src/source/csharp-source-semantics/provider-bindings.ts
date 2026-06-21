@@ -9,6 +9,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   findCsharpDotnetProviderExportByTargetId,
+  findCsharpDotnetTargetBindingByTargetId,
 } from "../../providers/dotnet/index.js";
 import {
   providerDeclarationToTargetBinding,
@@ -31,13 +32,23 @@ export function resolveTargetBinding(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): TargetBindingFact | undefined {
-  return subject === undefined ? undefined : context.factResolver.resolve(subject, targetBindingFactKey);
+  if (subject === undefined) {
+    return undefined;
+  }
+  return canonicalCsharpTargetBinding(context.factResolver.resolve(subject, targetBindingFactKey));
 }
 
 export function getKnownTargetBindingForTypeRef(type: TargetTypeRef | undefined): TargetBindingFact | undefined {
   if (type?.kind !== "target-named") {
     return undefined;
   }
-  const declaration = findCsharpDotnetProviderExportByTargetId(type.id);
-  return declaration === undefined ? undefined : providerDeclarationToTargetBinding(declaration);
+  const providerDeclaration = findCsharpDotnetProviderExportByTargetId(type.id);
+  return findCsharpDotnetTargetBindingByTargetId(type.id) ??
+    (providerDeclaration === undefined ? undefined : providerDeclarationToTargetBinding(providerDeclaration));
+}
+
+function canonicalCsharpTargetBinding(binding: TargetBindingFact | undefined): TargetBindingFact | undefined {
+  return binding?.target === "csharp"
+    ? findCsharpDotnetTargetBindingByTargetId(binding.id) ?? binding
+    : binding;
 }

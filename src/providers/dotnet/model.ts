@@ -22,5 +22,6 @@ export {
 } from "./model-provider-conversion.js";
 export {
   dotnetConstraintToTargetConstraint,
+  dotnetExportToTargetBinding,
   dotnetTypeRefToTargetTypeRef,
 } from "./model-target-conversion.js";

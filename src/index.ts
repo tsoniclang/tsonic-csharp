@@ -67,5 +67,6 @@ export {
   dotnetPackageName,
   dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
+  findCsharpDotnetTargetBindingByTargetId,
   parseDotnetModuleSpecifier,
 } from "./providers/dotnet/index.js";

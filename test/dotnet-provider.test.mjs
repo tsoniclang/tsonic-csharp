@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   dotnetModuleToProviderDeclarationModel,
   dotnetTypeRefToTargetTypeRef,
+  findCsharpDotnetTargetBindingByTargetId,
 } from "../dist/index.js";
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
@@ -60,4 +61,15 @@ test(".NET target refs do not promote any or unknown to CLR object", () => {
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "any" }), { kind: "opaque", id: "any" });
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "unknown" }), { kind: "opaque", id: "unknown" });
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "object" }), { kind: "target-named", id: "System.Object" });
+});
+
+test(".NET target binding uses provider-owned target member names", () => {
+  const binding = findCsharpDotnetTargetBindingByTargetId("System.Collections.Generic.List`1");
+  assert.ok(binding);
+
+  const count = binding.members.find((member) => member.sourceName === "count");
+  const item = binding.members.find((member) => member.sourceName === "item");
+
+  assert.equal(count?.targetName, "Count");
+  assert.equal(item?.targetName, "Item");
 });

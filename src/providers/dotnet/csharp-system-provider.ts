@@ -8,6 +8,7 @@ import type {
   DotnetTypeDataProvider,
 } from "./provider.js";
 import { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";
+import { dotnetExportToTargetBinding } from "./model.js";
 import { dotnetProviderDiagnostic } from "./csharp-system-provider-builders.js";
 import {
   csharpSystemModules,
@@ -15,6 +16,7 @@ import {
   hasCsharpSystemModule,
 } from "./csharp-system-modules.js";
 import type { ProviderExportDeclaration } from "@tsonic/tsts";
+import type { TargetBindingFact } from "@tsonic/tsts";
 
 const providerIdentity: DotnetProviderIdentity = {
   id: "tsonic.csharp.dotnet-system-provider",
@@ -48,6 +50,17 @@ export function findCsharpDotnetProviderExportByTargetId(targetId: string): Prov
     );
     if (declaration !== undefined) {
       return declaration;
+    }
+  }
+  return undefined;
+}
+
+export function findCsharpDotnetTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined {
+  for (const module of csharpSystemModules) {
+    for (const declaration of module.exports) {
+      if (declaration.kind === "type" && declaration.metadataName === targetId) {
+        return dotnetExportToTargetBinding(declaration);
+      }
     }
   }
   return undefined;

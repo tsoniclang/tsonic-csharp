@@ -12,7 +12,7 @@ export function constructorMember(id: string, parameters: readonly DotnetParamet
   return {
     kind: "constructor",
     sourceName: "constructor",
-    targetName: "constructor",
+    targetName: ".ctor",
     metadataName: id,
     signatures: [signature(id, parameters)],
   };
