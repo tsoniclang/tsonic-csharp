@@ -45,16 +45,13 @@ import {
   KindTypeOfExpression,
   KindTypeAssertionExpression,
   Node_Text,
-  HasSourceKind,
   SourceKind,
 } from "./source-ast.js";
 import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
-  planArrayLiteralExpression,
   planArrayLiteralExpressionFromFacts,
-  planTupleLiteralExpression,
 } from "./array-literals.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -80,7 +77,6 @@ import {
   planArrowFunctionExpression,
   planFunctionExpression,
 } from "./expression-lambdas.js";
-import { planObjectLiteralExpressionWithExpectedType } from "./expression-object-literals.js";
 import {
   planIdentifierExpression,
 } from "./expression-source-references.js";
@@ -91,6 +87,7 @@ import {
   planSelectedTargetCallArguments,
 } from "./expression-target-members.js";
 import { isProjectSourceTypeRef } from "./project-source-types.js";
+import { planExpressionWithExpectedTypeCore } from "./expression-expected-types.js";
 
 export function planExpression(
   node: Node,
@@ -406,104 +403,10 @@ export function planExpressionWithExpectedType(
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
 ): CsharpExpression {
-  const expectedTypeLiteral = planExpectedTypeLiteral(node, input, expectedType, diagnostics);
-  if (expectedTypeLiteral !== undefined) {
-    return expectedTypeLiteral;
-  }
-  if (HasSourceKind(input.ast, node, KindAsExpression)) {
-    return planExpressionWithExpectedType(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
-  }
-  if (HasSourceKind(input.ast, node, KindSatisfiesExpression)) {
-    return planExpressionWithExpectedType(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
-  }
-  if (HasSourceKind(input.ast, node, KindNonNullExpression)) {
-    return planExpressionWithExpectedType(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
-  }
-  if (HasSourceKind(input.ast, node, KindTypeAssertionExpression)) {
-    return planExpressionWithExpectedType(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
-  }
-  if (HasSourceKind(input.ast, node, KindParenthesizedExpression)) {
-    const expression = AsParenthesizedExpression(node)!;
-    return {
-      kind: "ParenthesizedExpression",
-      expression: planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
-    };
-  }
-  if (HasSourceKind(input.ast, node, KindArrowFunction)) {
-    return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planExpression, expectedType);
-  }
-  if (HasSourceKind(input.ast, node, KindFunctionExpression)) {
-    return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
-  }
-  if (HasSourceKind(input.ast, node, KindObjectLiteralExpression)) {
-    return planObjectLiteralExpressionWithExpectedType(
-      node,
-      sourceFile,
-      input,
-      diagnostics,
-      expectedType,
-      expectedTypeSubject,
-      planExpression,
-      planExpressionWithExpectedType,
-    );
-  }
-  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
-    return planTupleLiteralExpression(node, sourceFile, input, diagnostics, {
-      planExpression,
-      planExpressionWithExpectedType,
-    });
-  }
-  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
-    return planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType, {
-      planExpression,
-      planExpressionWithExpectedType,
-    });
-  }
-  if (HasSourceKind(input.ast, node, KindConditionalExpression)) {
-    const expression = AsConditionalExpression(node)!;
-    return {
-      kind: "ConditionalExpression",
-      condition: planExpression(expression.Condition!, sourceFile, input, diagnostics),
-      whenTrue: planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
-      whenFalse: planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
-    };
-  }
-  return planExpression(node, sourceFile, input, diagnostics);
-}
-
-function planExpectedTypeLiteral(
-  node: Node,
-  input: TargetCompileInput,
-  expectedType: CsharpTypeNode,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression | undefined {
-  if (!isCsharpCharType(expectedType)) {
-    return undefined;
-  }
-  const text = getStringLiteralText(node, input);
-  if (text === undefined) {
-    return undefined;
-  }
-  if (text.length !== 1) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "C# char literals require exactly one UTF-16 code unit from TSTS/source primitive typing."));
-    return invalidExpression("invalid char literal");
-  }
-  return { kind: "CharacterLiteralExpression", value: text };
-}
-
-function getStringLiteralText(node: Node, input: TargetCompileInput): string | undefined {
-  switch (SourceKind(input.ast, node)) {
-    case KindStringLiteral:
-      return Node_Text(AsStringLiteral(node));
-    case KindNoSubstitutionTemplateLiteral:
-      return Node_Text(AsNoSubstitutionTemplateLiteral(node));
-    default:
-      return undefined;
-  }
-}
-
-function isCsharpCharType(type: CsharpTypeNode): boolean {
-  return type.kind === "PredefinedType" && type.name === "char";
+  return planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
+    planExpression,
+    planExpressionWithExpectedType,
+  });
 }
 
 function isNode(value: unknown): value is Node {
