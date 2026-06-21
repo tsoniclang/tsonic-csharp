@@ -9,10 +9,10 @@ import type {
   Node,
   SourceFileBoundLifecycleRequest,
   SourcePrimitiveKind,
-  TargetConstraint,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  type CsharpTypeParameterConstraint,
   csharpObjectShapeFactKey,
   csharpTargetTypeParameterConstraintFactKey,
 } from "../csharp-facts.js";
@@ -23,9 +23,6 @@ import {
   getNodeNameText,
   visitStructuralNodes,
 } from "./ast-utils.js";
-import {
-  csharpTargetId,
-} from "./identity.js";
 import {
   csharpDelegateTargetType,
   csharpSourcePrimitiveTargetType,
@@ -106,7 +103,8 @@ function recordCsharpTypeParameterConstraintFact(
   if (constraintType?.kind !== "source-primitive") {
     return;
   }
-  const constraint = getCsharpTypeParameterConstraintForPrimitive(constraintType.name);
+  const typeParameterName = getNodeNameText(node);
+  const constraint = getCsharpTypeParameterConstraintForPrimitive(constraintType.name, typeParameterName);
   if (constraint === undefined) {
     return;
   }
@@ -115,9 +113,15 @@ function recordCsharpTypeParameterConstraintFact(
   }, [{ message: "C# type-parameter constraint fact recorded from source primitive constraint." }]);
 }
 
-function getCsharpTypeParameterConstraintForPrimitive(kind: SourcePrimitiveKind): TargetConstraint | undefined {
+function getCsharpTypeParameterConstraintForPrimitive(
+  kind: SourcePrimitiveKind,
+  typeParameterName: string,
+): CsharpTypeParameterConstraint | undefined {
   return sourcePrimitiveRuntimeKind(kind) === "number" || sourcePrimitiveRuntimeKind(kind) === "bigint"
-    ? { kind: "target-specific", target: csharpTargetId, name: "generic-math-number" }
+    ? {
+        kind: "csharp-type",
+        type: csharpTargetNamedType("System.Numerics.INumber`1", [{ kind: "type-parameter", name: typeParameterName }]),
+      }
     : undefined;
 }
 

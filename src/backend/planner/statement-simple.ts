@@ -41,7 +41,7 @@ import {
 } from "./statement-labels.js";
 import {
   expressionStatement,
-  isCsharpExceptionCarrier,
+  isCsharpThrowableCarrier,
   isVoidCsharpType,
   planDiscardedExpression,
 } from "./statement-output.js";
@@ -123,7 +123,7 @@ export function planThrowStatement(
     return [];
   }
   const carrier = getRuntimeCarrierForExpression(input, statement.Expression, sourceFile);
-  if (!isCsharpExceptionCarrier(carrier)) {
+  if (!isCsharpThrowableCarrier(carrier)) {
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require finalized TSTS/provider exception-carrier facts before C# emission."));
     return [];
   }

@@ -1,5 +1,8 @@
 import type { TargetTypeRef } from "@tsonic/tsts";
 import type { CsharpExpression, CsharpStatement, CsharpTypeNode } from "../roslyn/syntax.js";
+import {
+  isCsharpThrowableTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 export function expressionStatement(expression: CsharpExpression): CsharpStatement {
   return {
@@ -8,8 +11,8 @@ export function expressionStatement(expression: CsharpExpression): CsharpStateme
   };
 }
 
-export function isCsharpExceptionCarrier(carrier: TargetTypeRef | undefined): boolean {
-  return carrier?.kind === "target-named" && carrier.id === "System.Exception";
+export function isCsharpThrowableCarrier(carrier: TargetTypeRef | undefined): boolean {
+  return isCsharpThrowableTargetType(carrier);
 }
 
 export function isVoidCsharpType(type: CsharpTypeNode): boolean {

@@ -17,7 +17,7 @@ import type { DestructuringPlannerState } from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
-import { isCsharpExceptionCarrier } from "./statement-output.js";
+import { isCsharpThrowableCarrier } from "./statement-output.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
 export type BlockStatementPlanner = (
@@ -77,7 +77,7 @@ function planCatchClause(
     const carrier = getRuntimeCarrierForExpression(input, variable.name ?? clause.VariableDeclaration, sourceFile) ??
       getRuntimeCarrierForExpression(input, clause.VariableDeclaration, sourceFile);
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
-    if (!isCsharpExceptionCarrier(carrier) || variableType === undefined) {
+    if (!isCsharpThrowableCarrier(carrier) || variableType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission."));
       return {
         kind: "CatchClause",

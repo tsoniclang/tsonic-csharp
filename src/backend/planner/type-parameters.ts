@@ -1,5 +1,5 @@
 import { AsTypeParameterDeclaration } from "./source-ast.js";
-import type { Node, SourceFile, TargetConstraint } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
 import type { TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTypeNode, CsharpTypeParameter } from "../roslyn/syntax.js";
@@ -7,7 +7,12 @@ import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planIdentifierName } from "./names.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
-import { csharpTargetTypeParameterConstraintFactKey } from "../../source/csharp-facts.js";
+import {
+  csharpTargetTypeParameterConstraintFactKey,
+} from "../../source/csharp-facts.js";
+import type {
+  CsharpTypeParameterConstraint,
+} from "../../source/csharp-facts.js";
 
 export function planTypeParameters(
   nodes: readonly (Node | undefined)[],
@@ -28,7 +33,7 @@ function planTypeParameter(
 ): CsharpTypeParameter {
   const declaration = AsTypeParameterDeclaration(node)!;
   const name = planIdentifierName(declaration.name, "T", input, diagnostics, "Type parameter name");
-  const constraints = planTypeParameterConstraints(node, name, sourceFile, input, diagnostics);
+  const constraints = planTypeParameterConstraints(node, sourceFile, input, diagnostics);
   if (declaration.DefaultType !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Defaulted generic type parameters have no direct C# source equivalent."));
   }
@@ -43,7 +48,6 @@ function planTypeParameter(
 
 function planTypeParameterConstraints(
   node: Node,
-  typeParameterName: string,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -51,7 +55,7 @@ function planTypeParameterConstraints(
   const fact = input.facts.getFact(node, csharpTargetTypeParameterConstraintFactKey);
   if (fact !== undefined) {
     const constraints = fact.constraints
-      .map((constraint) => csharpTypeFromTargetTypeParameterConstraint(typeParameterName, constraint, node, diagnostics))
+      .map((constraint) => csharpTypeFromTargetTypeParameterConstraint(constraint, node, diagnostics))
       .filter((constraint): constraint is CsharpTypeNode => constraint !== undefined);
     return constraints;
   }
@@ -73,27 +77,18 @@ function planTypeParameterConstraints(
 }
 
 function csharpTypeFromTargetTypeParameterConstraint(
-  typeParameterName: string,
-  constraint: TargetConstraint,
+  constraint: CsharpTypeParameterConstraint,
   sourceNode: Node,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
-  if (
-    constraint.kind === "target-specific" &&
-    constraint.target === "csharp" &&
-    constraint.name === "generic-math-number"
-  ) {
-    const csharpType = csharpTypeFromTargetTypeRef({
-      kind: "target-named",
-      id: "System.Numerics.INumber`1",
-      typeArguments: [{ kind: "type-parameter", name: typeParameterName }],
-    });
+  if (constraint.kind === "csharp-type") {
+    const csharpType = csharpTypeFromTargetTypeRef(constraint.type);
     if (csharpType !== undefined) {
       return csharpType;
     }
     diagnostics.push(unsupportedNodeDiagnostic(
       sourceNode,
-      "C# emission could not render provider type-parameter constraint 'System.Numerics.INumber<T>'.",
+      "C# emission could not render finalized provider type-parameter constraint facts.",
     ));
     return undefined;
   }
@@ -104,7 +99,10 @@ function csharpTypeFromTargetTypeParameterConstraint(
   return undefined;
 }
 
-function targetConstraintLabel(constraint: TargetConstraint): string {
+function targetConstraintLabel(constraint: CsharpTypeParameterConstraint): string {
+  if (constraint.kind === "csharp-type") {
+    return "csharp-type";
+  }
   if (constraint.kind === "target-specific") {
     return `${constraint.target}:${constraint.name}`;
   }

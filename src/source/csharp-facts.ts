@@ -25,8 +25,17 @@ export interface CsharpObjectShapeFact {
   readonly constructible?: boolean;
 }
 
+export type CsharpTypeParameterConstraint =
+  | TargetConstraint
+  | CsharpExplicitTypeParameterConstraint;
+
+export interface CsharpExplicitTypeParameterConstraint {
+  readonly kind: "csharp-type";
+  readonly type: TargetTypeRef;
+}
+
 export interface CsharpTargetTypeParameterConstraintFact {
-  readonly constraints: readonly TargetConstraint[];
+  readonly constraints: readonly CsharpTypeParameterConstraint[];
 }
 
 export interface CsharpTargetIterationFact {
@@ -124,7 +133,7 @@ export const csharpObjectShapeFactKey = defineExtensionFactKey<CsharpObjectShape
 export const csharpTargetTypeParameterConstraintFactKey = defineExtensionFactKey<CsharpTargetTypeParameterConstraintFact>({
   extensionId: "tsonic.csharp",
   name: "typeParameterConstraint",
-  equals: (left, right) => targetConstraintArrayEquals(left.constraints, right.constraints),
+  equals: (left, right) => csharpTypeParameterConstraintArrayEquals(left.constraints, right.constraints),
 });
 
 export const csharpTargetIterationFactKey = defineExtensionFactKey<CsharpTargetIterationFact>({
@@ -283,6 +292,35 @@ function targetTypeParameterArrayEquals(left: readonly TargetTypeParameter[] | u
       && parameter.variance === other.variance
       && targetConstraintArrayEquals(parameter.constraints, other.constraints);
   });
+}
+
+function csharpTypeParameterConstraintArrayEquals(
+  left: readonly CsharpTypeParameterConstraint[] | undefined,
+  right: readonly CsharpTypeParameterConstraint[] | undefined,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left === undefined || right === undefined || left.length !== right.length) {
+    return false;
+  }
+  return left.every((constraint, index) => csharpTypeParameterConstraintEquals(constraint, right[index]));
+}
+
+function csharpTypeParameterConstraintEquals(
+  left: CsharpTypeParameterConstraint | undefined,
+  right: CsharpTypeParameterConstraint | undefined,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left === undefined || right === undefined || left.kind !== right.kind) {
+    return false;
+  }
+  if (left.kind === "csharp-type") {
+    return right.kind === "csharp-type" && targetTypeRefEquals(left.type, right.type);
+  }
+  return right.kind !== "csharp-type" && targetConstraintEquals(left, right);
 }
 
 function objectShapeMemberArrayEquals(left: readonly CsharpObjectShapeMemberFact[] | undefined, right: readonly CsharpObjectShapeMemberFact[] | undefined): boolean {

@@ -13,6 +13,7 @@ export type CsharpTargetTypeRenderShape =
 
 export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "target-named" }> & {
   readonly csharpRender?: CsharpTargetTypeRenderShape;
+  readonly csharpThrowable?: true;
 };
 
 export type CsharpTargetBindingFact = TargetBindingFact & {
@@ -100,6 +101,7 @@ export function csharpTargetNamedType(
     id,
     ...(typeArguments !== undefined && typeArguments.length > 0 ? { typeArguments } : {}),
     ...(renderShape !== undefined ? { csharpRender: renderShape } : {}),
+    ...(knownCsharpThrowableTypeIds.has(id) ? { csharpThrowable: true } : {}),
   } satisfies CsharpTargetNamedTypeRef;
 }
 
@@ -161,6 +163,10 @@ export function csharpDelegateTargetType(
 
 export function csharpSourcePrimitiveTargetType(kind: SourcePrimitiveKind): TargetTypeRef {
   return { kind: "source-primitive", name: kind };
+}
+
+export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpThrowable === true;
 }
 
 export function csharpQualifiedTypeRenderShape(namespaceName: string, name: string): CsharpTargetTypeRenderShape {
@@ -259,4 +265,8 @@ const genericRenderShapes = new Map<string, CsharpTargetTypeRenderShape>([
   ["Tsonic.CSharp.Node.os", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "os" }],
   ["Tsonic.CSharp.Node.path", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "path" }],
   ["Tsonic.CSharp.Node.process", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "process" }],
+]);
+
+const knownCsharpThrowableTypeIds = new Set<string>([
+  "System.Exception",
 ]);
