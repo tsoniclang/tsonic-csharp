@@ -13,7 +13,6 @@ import {
   rejectObservation,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
-  sourcePrimitive,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
   targetOperationFactKey,
@@ -33,19 +32,14 @@ import type {
   ContextualTargetTypeResult,
   ExtensionObservation,
   ExtensionObservationContext,
-  ExtensionDiagnostic,
   ExtensionFactStore,
   ExtensionFactSubject,
   Node,
   ProviderDeclarationKind,
   ProviderVirtualDeclarationFact,
-  ProviderDeclarationModel,
   ProviderExportDeclaration,
   ProviderIdentity,
   ProviderMemberDeclaration,
-  ProviderModuleContext,
-  ProviderModuleResolution,
-  ProviderOwnership,
   ProviderParameterDeclaration,
   ProviderSignatureDeclaration,
   ProviderTypeExpression,
@@ -57,13 +51,9 @@ import type {
   SourceFile,
   BeforeSemanticsFinalizedLifecycleRequest,
   SourceFileBoundLifecycleRequest,
-  SourceCallMarkerDeclaration,
   SourcePrimitiveKind,
-  SourceSemanticsModule,
-  SourceTypeMarkerDeclaration,
   TargetBindingFact,
   TargetConstraint,
-  TargetBindingProvider,
   TargetMember,
   TargetParameter,
   TargetTypeParameter,
@@ -84,19 +74,19 @@ import type {
   CsharpTargetIterationFact,
 } from "./csharp-facts.js";
 import { csharpProviderDiagnostic } from "./csharp-source-semantics/diagnostics.js";
+import { createCsharpCoreVirtualModulesProvider } from "./csharp-source-semantics/core-virtual-modules.js";
 import {
   csharpLangModule,
   csharpNativeProviderExtensionId,
   csharpProviderVersion,
   csharpTargetId,
-  csharpTypesModule,
   neutralLangModule,
-  neutralTypesModule,
 } from "./csharp-source-semantics/identity.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
 } from "./csharp-source-semantics/target-types.js";
+import { csharpSourceSemanticsModules } from "./csharp-source-semantics/source-modules.js";
 import {
   createCsharpJsSurfaceMappers,
 } from "./csharp-source-semantics/surfaces/js/index.js";
@@ -1644,6 +1634,13 @@ function targetMemberNameFromProviderSignature(
     return ".ctor";
   }
   return signature.name ?? targetMemberNameFromId(signature.id);
+}
+
+function targetMemberNameFromId(id: string): string {
+  const paren = id.indexOf("(");
+  const qualifiedName = paren === -1 ? id : id.slice(0, paren);
+  const lastDot = qualifiedName.lastIndexOf(".");
+  return qualifiedName.slice(lastDot + 1);
 }
 
 function findTargetMemberForCall(
@@ -3671,352 +3668,4 @@ function getNodeNameText(node: Node): string {
 
 function sourceNameToCsharpMemberName(name: string): string {
   return name.replace(/[^A-Za-z0-9_]/g, "_");
-}
-
-function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
-  return [
-    {
-      moduleSpecifier: neutralTypesModule,
-      packageName: "@tsonic/core",
-      subpath: "types.js",
-      exports: [
-        sourcePrimitive("bool", "bool", "boolean"),
-        sourcePrimitive("char", "char", "string", false, 16),
-        sourcePrimitive("int8", "int8", "number", true, 8),
-        sourcePrimitive("uint8", "uint8", "number", false, 8),
-        sourcePrimitive("int16", "int16", "number", true, 16),
-        sourcePrimitive("uint16", "uint16", "number", false, 16),
-        sourcePrimitive("int32", "int32", "number", true, 32),
-        sourcePrimitive("uint32", "uint32", "number", false, 32),
-        sourcePrimitive("int64", "int64", "bigint", true, 64),
-        sourcePrimitive("uint64", "uint64", "bigint", false, 64),
-        sourcePrimitive("int128", "int128", "bigint", true, 128),
-        sourcePrimitive("uint128", "uint128", "bigint", false, 128),
-        sourcePrimitive("nativeInt", "native-int", "number", true),
-        sourcePrimitive("nativeUint", "native-uint", "number", false),
-        sourcePrimitive("float16", "float16", "number", true, 16),
-        sourcePrimitive("float32", "float32", "number", true, 32),
-        sourcePrimitive("float64", "float64", "number", true, 64),
-        sourcePrimitive("decimal", "decimal", "number", true, 128),
-      ],
-    },
-    {
-      moduleSpecifier: csharpTypesModule,
-      packageName: "@tsonic/csharp",
-      subpath: "types.js",
-      exports: [
-        sourcePrimitive("bool", "bool", "boolean"),
-        sourcePrimitive("char", "char", "string", false, 16),
-        sourcePrimitive("byte", "uint8", "number", false, 8),
-        sourcePrimitive("sbyte", "int8", "number", true, 8),
-        sourcePrimitive("short", "int16", "number", true, 16),
-        sourcePrimitive("ushort", "uint16", "number", false, 16),
-        sourcePrimitive("int", "int32", "number", true, 32),
-        sourcePrimitive("uint", "uint32", "number", false, 32),
-        sourcePrimitive("long", "int64", "bigint", true, 64),
-        sourcePrimitive("ulong", "uint64", "bigint", false, 64),
-        sourcePrimitive("nint", "native-int", "number", true),
-        sourcePrimitive("nuint", "native-uint", "number", false),
-        sourcePrimitive("float", "float32", "number", true, 32),
-        sourcePrimitive("double", "float64", "number", true, 64),
-        sourcePrimitive("decimal", "decimal", "number", true, 128),
-      ],
-    },
-    {
-      moduleSpecifier: neutralLangModule,
-      packageName: "@tsonic/core",
-      subpath: "lang.js",
-      exports: [
-        { kind: "call-marker", exportName: "out", marker: "out" },
-        { kind: "call-marker", exportName: "ref", marker: "ref" },
-        { kind: "call-marker", exportName: "inref", marker: "inref" },
-        { kind: "call-marker", exportName: "borrow", marker: "borrow" },
-        { kind: "call-marker", exportName: "borrowMut", marker: "borrowMut" },
-        { kind: "call-marker", exportName: "move", marker: "move" },
-        { kind: "call-marker", exportName: "struct", marker: "struct" },
-        { kind: "call-marker", exportName: "field", marker: "field" },
-        { kind: "call-marker", exportName: "attribute", marker: "attribute" },
-        { kind: "call-marker", exportName: "defaultof", marker: "defaultof" },
-        { kind: "type-marker", exportName: "ptr", marker: "ptr" },
-        { kind: "type-marker", exportName: "fnptr", marker: "fnptr" },
-      ],
-    },
-    {
-      moduleSpecifier: csharpLangModule,
-      packageName: "@tsonic/csharp",
-      subpath: "lang.js",
-      exports: [
-        { kind: "call-marker", exportName: "out", marker: "out" },
-        { kind: "call-marker", exportName: "ref", marker: "ref" },
-        { kind: "call-marker", exportName: "inref", marker: "inref" },
-        { kind: "call-marker", exportName: "struct", marker: "struct" },
-        { kind: "call-marker", exportName: "field", marker: "field" },
-        { kind: "call-marker", exportName: "attribute", marker: "attribute" },
-        { kind: "call-marker", exportName: "defaultof", marker: "defaultof" },
-        { kind: "type-marker", exportName: "ptr", marker: "ptr" },
-        { kind: "type-marker", exportName: "fnptr", marker: "fnptr" },
-      ],
-    },
-  ];
-}
-
-function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider {
-  const modules = new Map(csharpSourceSemanticsModules().map((module) => [module.moduleSpecifier, module]));
-  const identity: ProviderIdentity = {
-    id: "tsonic.csharp.core-virtual-modules",
-    version: csharpProviderVersion,
-    target: csharpTargetId,
-    extensionContractVersion: TstsProviderContractVersion,
-    providerKind: "binding",
-    displayName: "Tsonic C# source modules",
-  };
-  return {
-    identity,
-    ownsModule(specifier: string, _context: ProviderModuleContext): ProviderOwnership {
-      return modules.has(specifier) ? { kind: "owned" } : { kind: "unowned" };
-    },
-    resolveModule(specifier: string, _context: ProviderModuleContext): ProviderModuleResolution | ExtensionDiagnostic {
-      const module = modules.get(specifier);
-      if (module === undefined) {
-        return csharpProviderDiagnostic(identity.id, "CSHARP_CORE_MODULE_UNOWNED", 9100001, `C# core provider does not own '${specifier}'.`);
-      }
-      return {
-        kind: "virtual",
-        moduleSpecifier: specifier,
-        virtualFileName: `tsts-provider://csharp-source/${specifier}`,
-        providerModuleId: specifier,
-        ...(module.packageName !== undefined ? { packageName: module.packageName } : {}),
-        ...(module.packageVersion !== undefined ? { packageVersion: module.packageVersion } : {}),
-        evidence: [{ message: "C# target supplies source module as provider virtual module." }],
-      };
-    },
-    getDeclarationModel(resolution: ProviderModuleResolution): ProviderDeclarationModel | ExtensionDiagnostic {
-      const module = modules.get(resolution.moduleSpecifier);
-      if (module === undefined) {
-        return csharpProviderDiagnostic(identity.id, "CSHARP_CORE_MODULE_DECLARATION_MISSING", 9100002, `No C# core declaration model exists for '${resolution.moduleSpecifier}'.`);
-      }
-      return {
-        moduleSpecifier: resolution.moduleSpecifier,
-        providerModuleId: resolution.providerModuleId,
-        exports: providerExportDeclarationsForModule(module),
-        evidence: [{ message: "Declaration model is generated from C# target source semantics." }],
-      };
-    },
-    getTargetIdentity(symbol) {
-      if (symbol.exportName === undefined) {
-        return undefined;
-      }
-      const declaration = providerExportDeclarationsForModule(modules.get(symbol.moduleSpecifier) ?? emptySourceModule(symbol.moduleSpecifier))
-        .find((candidate) => candidate.name === symbol.exportName);
-      return declaration?.targetIdentity ?? {
-        target: csharpTargetId,
-        id: `${symbol.moduleSpecifier}#${symbol.exportName}`,
-        displayName: symbol.exportName,
-      };
-    },
-  };
-}
-
-function providerExportDeclarationsForModule(module: SourceSemanticsModule): readonly ProviderExportDeclaration[] {
-  return [
-    ...sourceSemanticsHelperDeclarations(module.moduleSpecifier),
-    ...module.exports.map(providerExportDeclarationForSourceSemantics),
-  ];
-}
-
-function sourceSemanticsHelperDeclarations(moduleSpecifier: string): readonly ProviderExportDeclaration[] {
-  if (moduleSpecifier !== neutralLangModule && moduleSpecifier !== csharpLangModule) {
-    return [];
-  }
-  return [
-    attributeBuilderDeclaration(),
-    attributeMemberBuilderDeclaration(),
-  ];
-}
-
-function providerExportDeclarationForSourceSemantics(declaration: SourceSemanticsModule["exports"][number]): ProviderExportDeclaration {
-  switch (declaration.kind) {
-    case "source-primitive":
-      return {
-        id: declaration.exportName,
-        name: declaration.exportName,
-        kind: "type",
-        type: providerTypeForPrimitive(declaration.primitive),
-        targetIdentity: {
-          target: csharpTargetId,
-          id: `tsonic.source.${declaration.primitive}`,
-          displayName: declaration.exportName,
-        },
-      };
-    case "type-marker":
-      return providerTypeMarkerDeclaration(declaration.exportName, declaration.marker);
-    case "call-marker":
-      return providerCallMarkerDeclaration(declaration.exportName, declaration.marker);
-  }
-}
-
-function providerTypeMarkerDeclaration(exportName: string, marker: SourceTypeMarkerDeclaration["marker"]): ProviderExportDeclaration {
-  const typeParameters = marker === "ptr"
-    ? [{ name: "T" }]
-    : [{ name: "TArgs" }, { name: "TReturn" }];
-  return {
-    id: exportName,
-    name: exportName,
-    kind: "type",
-    typeParameters,
-    type: { kind: "unknown" },
-  };
-}
-
-function providerCallMarkerDeclaration(exportName: string, marker: SourceCallMarkerDeclaration["marker"]): ProviderExportDeclaration {
-  const typeParameter = { kind: "type-parameter" as const, name: "T" };
-  switch (marker) {
-    case "out":
-    case "ref":
-    case "inref":
-    case "borrow":
-    case "borrowMut":
-    case "move":
-    case "struct":
-      return {
-        id: exportName,
-        name: exportName,
-        kind: "function",
-        signatures: [{
-          id: `${exportName}(value)`,
-          typeParameters: [{ name: "T" }],
-          parameters: [{ name: "value", type: typeParameter }],
-          returnType: typeParameter,
-        }],
-      };
-    case "field":
-    case "defaultof":
-      return {
-        id: exportName,
-        name: exportName,
-        kind: "function",
-        signatures: [{
-          id: `${exportName}<T>()`,
-          typeParameters: [{ name: "T" }],
-          parameters: [],
-          returnType: typeParameter,
-        }],
-      };
-    case "attribute":
-      return {
-        id: exportName,
-        name: exportName,
-        kind: "function",
-        signatures: [{
-          id: `${exportName}<T>(...args)`,
-          typeParameters: [{ name: "T" }],
-          parameters: [],
-          returnType: {
-            kind: "provider-ref",
-            name: "__TsonicAttributeBuilder",
-            typeArguments: [typeParameter],
-          },
-        }],
-      };
-  }
-}
-
-function attributeBuilderDeclaration(): ProviderExportDeclaration {
-  const ownerType: ProviderTypeExpression = { kind: "type-parameter", name: "TOwner" };
-  const memberBuilder: ProviderTypeExpression = {
-    kind: "provider-ref",
-    name: "__TsonicAttributeMemberBuilder",
-    typeArguments: [ownerType],
-  };
-  return {
-    id: "__TsonicAttributeBuilder",
-    name: "__TsonicAttributeBuilder",
-    kind: "interface",
-    typeParameters: [{ name: "TOwner" }],
-    members: [
-      methodMember("__TsonicAttributeBuilder.add", "add", [
-        { name: "attribute", type: { kind: "object" } },
-        { name: "args", type: { kind: "any" }, rest: true },
-      ], { kind: "void" }),
-      methodMember("__TsonicAttributeBuilder.property", "property", [{
-        name: "selector",
-        type: {
-          kind: "function",
-          parameters: [{ name: "target", type: ownerType }],
-          returnType: { kind: "any" },
-        },
-      }], memberBuilder),
-      methodMember("__TsonicAttributeBuilder.method", "method", [{
-        name: "selector",
-        type: {
-          kind: "function",
-          parameters: [{ name: "target", type: ownerType }],
-          returnType: { kind: "any" },
-        },
-      }], memberBuilder),
-    ],
-  };
-}
-
-function attributeMemberBuilderDeclaration(): ProviderExportDeclaration {
-  const ownerType: ProviderTypeExpression = { kind: "type-parameter", name: "TOwner" };
-  const self: ProviderTypeExpression = {
-    kind: "provider-ref",
-    name: "__TsonicAttributeMemberBuilder",
-    typeArguments: [ownerType],
-  };
-  return {
-    id: "__TsonicAttributeMemberBuilder",
-    name: "__TsonicAttributeMemberBuilder",
-    kind: "interface",
-    typeParameters: [{ name: "TOwner" }],
-    members: [
-      methodMember("__TsonicAttributeMemberBuilder.add", "add", [
-        { name: "attribute", type: { kind: "object" } },
-        { name: "args", type: { kind: "any" }, rest: true },
-      ], { kind: "void" }),
-      methodMember("__TsonicAttributeMemberBuilder.parameter", "parameter", [
-        { name: "name", type: { kind: "string" } },
-      ], self),
-    ],
-  };
-}
-
-function methodMember(
-  id: string,
-  sourceName: string,
-  parameters: readonly ProviderParameterDeclaration[],
-  returnType: ProviderTypeExpression,
-  typeParameters: readonly { readonly name: string }[] = [],
-) {
-  return {
-    id,
-    name: sourceName,
-    kind: "method" as const,
-    signatures: [{
-      id,
-      name: targetMemberNameFromId(id),
-      parameters,
-      returnType,
-      ...(typeParameters.length === 0 ? {} : { typeParameters }),
-    }],
-  };
-}
-
-function targetMemberNameFromId(id: string): string {
-  const paren = id.indexOf("(");
-  const qualifiedName = paren === -1 ? id : id.slice(0, paren);
-  const lastDot = qualifiedName.lastIndexOf(".");
-  return qualifiedName.slice(lastDot + 1);
-}
-
-function providerTypeForPrimitive(kind: SourcePrimitiveKind): ProviderTypeExpression {
-  return { kind: "source-primitive", name: kind };
-}
-
-function emptySourceModule(moduleSpecifier: string): SourceSemanticsModule {
-  return {
-    moduleSpecifier,
-    exports: [],
-  };
 }
