@@ -45,6 +45,38 @@ test("selected call lifecycle does not record unresolved generic C# members", ()
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
 
+test("selected constructor lifecycle records explicit result type from declaring type", () => {
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
+  const call = { Kind: 1 };
+  sourceFile.Statements.Nodes.push(call);
+  const declaringType = {
+    kind: "target-named",
+    id: "Example.Box",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Box" },
+  };
+  const facts = new TestFactStore();
+  facts.set(call, selectedTargetSignatureFactKey, {
+    member: {
+      id: "Example.Box..ctor",
+      sourceName: "Box",
+      targetName: ".ctor",
+      kind: "constructor",
+      parameters: [],
+      declaringType,
+    },
+  });
+
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host: { facts },
+    compiler: fakeCompiler([sourceFile]),
+  });
+
+  const operation = facts.get(call, csharpTargetOperationFactKey);
+  assert.equal(operation.kind, "member");
+  assert.equal(operation.operationKind, "constructor");
+  assert.deepEqual(operation.resultType, declaringType);
+});
+
 function genericIdentityMember() {
   return {
     id: "Example.Box.identity``1",

@@ -19,14 +19,14 @@ export function attributeBuilderDeclaration(): ProviderExportDeclaration {
     members: [
       methodMember("__TsonicAttributeBuilder.add", "add", [
         { name: "attribute", type: { kind: "object" } },
-        { name: "args", type: { kind: "any" }, rest: true },
+        { name: "args", type: { kind: "unknown" }, rest: true },
       ], { kind: "void" }),
       methodMember("__TsonicAttributeBuilder.property", "property", [{
         name: "selector",
         type: {
           kind: "function",
           parameters: [{ name: "target", type: ownerType }],
-          returnType: { kind: "any" },
+          returnType: { kind: "unknown" },
         },
       }], memberBuilder),
       methodMember("__TsonicAttributeBuilder.method", "method", [{
@@ -34,7 +34,7 @@ export function attributeBuilderDeclaration(): ProviderExportDeclaration {
         type: {
           kind: "function",
           parameters: [{ name: "target", type: ownerType }],
-          returnType: { kind: "any" },
+          returnType: { kind: "unknown" },
         },
       }], memberBuilder),
     ],
@@ -56,7 +56,7 @@ export function attributeMemberBuilderDeclaration(): ProviderExportDeclaration {
     members: [
       methodMember("__TsonicAttributeMemberBuilder.add", "add", [
         { name: "attribute", type: { kind: "object" } },
-        { name: "args", type: { kind: "any" }, rest: true },
+        { name: "args", type: { kind: "unknown" }, rest: true },
       ], { kind: "void" }),
       methodMember("__TsonicAttributeMemberBuilder.parameter", "parameter", [
         { name: "name", type: { kind: "string" } },

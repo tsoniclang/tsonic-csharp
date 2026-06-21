@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { csharpTypeFromTargetTypeRef } from "../dist/backend/planner/target-types.js";
 import { renderObjectShapeMembers } from "../dist/backend/planner/object-shape-declarations.js";
 import { printCsharpType } from "../dist/print/csharp-printer.js";
-import { csharpDelegateTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpDelegateTargetType,
+  csharpTargetTypeFromBinding,
+} from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("printer preserves C# array rank", () => {
   assert.equal(printCsharpType({ kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } }), "int[]");
@@ -46,6 +49,29 @@ test("target type rendering requires explicit C# render shape for non-predefined
 
   assert.ok(rendered);
   assert.equal(printCsharpType(rendered), "System.Collections.Generic.List<int>");
+});
+
+test("target bindings do not infer C# render shape from targetName or id", () => {
+  assert.equal(csharpTargetTypeFromBinding({
+    id: "Example.Widget",
+    sourceName: "Widget",
+    targetName: "Example.Widget",
+    target: "csharp",
+    kind: "class",
+  }), undefined);
+
+  assert.deepEqual(csharpTargetTypeFromBinding({
+    id: "Example.Widget",
+    sourceName: "Widget",
+    targetName: "Example.Widget",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Widget" },
+  }), {
+    kind: "target-named",
+    id: "Example.Widget",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Widget" },
+  });
 });
 
 test("object shape methods require explicit delegate signature metadata", () => {
