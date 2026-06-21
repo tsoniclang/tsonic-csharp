@@ -1,0 +1,187 @@
+import {
+  AsArrowFunction,
+  AsFunctionExpression,
+  AsParameterDeclaration,
+  HasSourceKind,
+  HasSyntacticModifier,
+  KindBlock,
+  KindIdentifier,
+  Node_Text,
+  ModifierFlagsAsync,
+} from "./source-ast.js";
+import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
+import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
+import type { CsharpExpression, CsharpLambdaParameter, CsharpTypeNode } from "../roslyn/syntax.js";
+import { getCsharpTypeForNode } from "./csharp-types.js";
+import { unsupportedNodeDiagnostic } from "./diagnostics.js";
+import { sanitizeIdentifier } from "./identifiers.js";
+import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
+import { getTargetTypeRefForNode, getTargetTypeRefForType } from "./runtime-carriers.js";
+import { planBlockStatements } from "./statements.js";
+import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+
+type ExpressionPlanner = (
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+) => CsharpExpression;
+
+export function planArrowFunctionExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  expectedType?: CsharpTypeNode,
+): CsharpExpression {
+  const expression = AsArrowFunction(node)!;
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
+  if (HasSourceKind(input.ast, expression.Body, KindBlock)) {
+    return {
+      kind: "LambdaExpression",
+      ...(isAsyncExpression(node) ? { async: true } : {}),
+      parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+      body: {
+        kind: "Block",
+        statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics),
+      },
+    };
+  }
+  return {
+    kind: "LambdaExpression",
+    ...(isAsyncExpression(node) ? { async: true } : {}),
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    body: planExpression(expression.Body!, sourceFile, input, diagnostics),
+  };
+}
+
+export function planFunctionExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  expectedType?: CsharpTypeNode,
+): CsharpExpression {
+  const expression = AsFunctionExpression(node)!;
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
+  return {
+    kind: "LambdaExpression",
+    ...(isAsyncExpression(node) ? { async: true } : {}),
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    body: {
+      kind: "Block",
+      statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics),
+    },
+  };
+}
+
+export function planLambdaParameters(
+  parameterNodes: readonly (Node | undefined)[],
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpLambdaParameter[] {
+  return parameterNodes
+    .filter((parameterNode): parameterNode is Node => parameterNode !== undefined)
+    .map((parameterNode): CsharpLambdaParameter => {
+      const parameter = AsParameterDeclaration(parameterNode)!;
+      diagnoseTypeScriptOnlyRuntimeShapeModifiers(parameterNode, "lambda parameter declaration", diagnostics);
+      if (parameter.DotDotDotToken !== undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(parameterNode, "Rest parameters in lambdas require target delegate facts before C# emission."));
+      }
+      if (!HasSourceKind(input.ast, parameter.name, KindIdentifier)) {
+        diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode, "Lambda parameter binding is outside the current C# planning surface."));
+      }
+      return {
+        kind: "Parameter",
+        name: HasSourceKind(input.ast, parameter.name, KindIdentifier) ? sanitizeIdentifier(Node_Text(parameter.name)) : "arg",
+        ...(parameter.Type === undefined ? {} : { type: getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics) }),
+      };
+    });
+}
+
+export function diagnoseMissingLambdaTargetContext(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  expectedType?: CsharpTypeNode,
+): void {
+  if (expectedType !== undefined && isCsharpDelegateType(expectedType)) {
+    return;
+  }
+  const contextualType = getContextualTargetCsharpType(node, sourceFile, input);
+  if (contextualType !== undefined && isCsharpDelegateType(contextualType)) {
+    return;
+  }
+  diagnostics.push(unsupportedNodeDiagnostic(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."));
+}
+
+export function isCsharpDelegateType(type: CsharpTypeNode): boolean {
+  return type.kind === "IdentifierName" && (type.name === "Func" || type.name === "Action" || type.name === "Predicate");
+}
+
+export function isAsyncExpression(node: Node): boolean {
+  return HasSyntacticModifier(node, ModifierFlagsAsync);
+}
+
+function getContextualTargetCsharpType(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const fact = input.facts.getContextualTargetTypeFact(node);
+  const targetType = fact?.targetType ?? getContextualTargetRefFromSubject(fact?.type, sourceFile, input);
+  return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+}
+
+function getContextualTargetRefFromSubject(
+  subject: unknown,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): TargetTypeRef | undefined {
+  const targetRef = asTargetTypeRef(subject);
+  if (targetRef !== undefined) {
+    return targetRef;
+  }
+  const type = asSemanticType(subject);
+  if (type !== undefined) {
+    return getTargetTypeRefForType(input, type, sourceFile);
+  }
+  return isNode(subject)
+    ? getTargetTypeRefForNode(input, subject, sourceFile)
+    : undefined;
+}
+
+function asSemanticType(subject: unknown): Type | undefined {
+  return typeof subject === "object" && subject !== null && "flags" in subject ? subject as Type : undefined;
+}
+
+function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
+  if (typeof subject !== "object" || subject === null) {
+    return undefined;
+  }
+  switch ((subject as { readonly kind?: unknown }).kind) {
+    case "source-primitive":
+    case "target-named":
+    case "type-parameter":
+    case "array":
+    case "tuple":
+    case "pointer":
+    case "function-pointer":
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
+    case "target-specific":
+      return subject as TargetTypeRef;
+    default:
+      return undefined;
+  }
+}
+
+function isNode(value: unknown): value is Node {
+  return typeof value === "object"
+    && value !== null
+    && typeof (value as { readonly Kind?: unknown }).Kind === "number";
+}
