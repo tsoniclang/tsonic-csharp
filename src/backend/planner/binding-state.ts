@@ -1,7 +1,11 @@
 import { tryCsharpIdentifier } from "./identifiers.js";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
-import type { Node } from "@tsonic/tsts";
+import type { AstReader, Node } from "@tsonic/tsts";
 import {
+  asNodeSubject,
+} from "../../source/fact-subjects.js";
+import {
+  KindIdentifier,
   Node_Text,
 } from "./source-ast.js";
 
@@ -35,9 +39,9 @@ export interface StringIterationSyntheticNames {
   readonly indexName: string;
 }
 
-export function createDestructuringPlannerState(root?: Node): DestructuringPlannerState {
+export function createDestructuringPlannerState(root?: Node, ast?: AstReader): DestructuringPlannerState {
   const usedNames = new Set<string>();
-  collectReservedSourceNames(root, usedNames, new WeakSet<object>());
+  collectReservedSourceNames(root, usedNames, new WeakSet<object>(), ast);
   return {
     nextTempIndex: 0,
     nextParameterIndex: 0,
@@ -105,21 +109,21 @@ function allocateSyntheticName(
   }
 }
 
-function collectReservedSourceNames(value: unknown, names: Set<string>, seen: WeakSet<object>): void {
+function collectReservedSourceNames(value: unknown, names: Set<string>, seen: WeakSet<object>, ast: AstReader | undefined): void {
   if (typeof value !== "object" || value === null || seen.has(value)) {
     return;
   }
   seen.add(value);
-  const node = value as { readonly Kind?: unknown };
-  if (node.Kind === "KindIdentifier") {
-    const identifier = tryCsharpIdentifier(Node_Text(value as Node));
+  const node = asNodeSubject(value);
+  if (node !== undefined && ast?.kindName(node) === KindIdentifier) {
+    const identifier = tryCsharpIdentifier(Node_Text(node));
     if (identifier !== undefined) {
       names.add(identifier);
     }
   }
   if (Array.isArray(value)) {
     for (const item of value) {
-      collectReservedSourceNames(item, names, seen);
+      collectReservedSourceNames(item, names, seen, ast);
     }
     return;
   }
@@ -127,6 +131,6 @@ function collectReservedSourceNames(value: unknown, names: Set<string>, seen: We
     if (key === "Parent" || key === "Symbol" || key === "LocalSymbol" || key === "FlowNode") {
       continue;
     }
-    collectReservedSourceNames(item, names, seen);
+    collectReservedSourceNames(item, names, seen, ast);
   }
 }

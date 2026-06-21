@@ -92,7 +92,7 @@ export function createCsharpNodejsSurfaceBindingProvider(): TargetBindingProvide
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: `tsts-provider://csharp-nodejs/${specifier}`,
+        virtualFileName: csharpNodejsVirtualDeclarationFileName(specifier),
         providerModuleId: specifier,
         packageName: "node",
         evidence: [{ message: "C# NodeJS surface provider supplied virtual module." }],
@@ -106,6 +106,10 @@ export function createCsharpNodejsSurfaceBindingProvider(): TargetBindingProvide
       return undefined;
     },
   };
+}
+
+function csharpNodejsVirtualDeclarationFileName(specifier: string): string {
+  return `tsts-provider://csharp-nodejs/${encodeURIComponent(specifier)}.d.ts`;
 }
 
 function nodejsProviderDiagnostic(

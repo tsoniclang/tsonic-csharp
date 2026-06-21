@@ -2,6 +2,7 @@ import {
   AsIdentifier,
   AsPropertyAccessExpression,
   HasSourceKind,
+  KindArrayLiteralExpression,
   KindIdentifier,
   KindPropertyAccessExpression,
   Node_Text,
@@ -10,6 +11,7 @@ import type {
   Node,
   SourceFile,
   TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   TargetCompileInput,
@@ -18,6 +20,7 @@ import type {
 import type {
   CsharpArgument,
   CsharpExpression,
+  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import {
   unsupportedNodeDiagnostic,
@@ -61,7 +64,7 @@ export function planSelectedTargetCallArguments(
     .filter((argument): argument is Node => argument !== undefined)
     .map((argument, index) => {
       const parameter = member.parameters[index + parameterOffset];
-      const expectedType = parameter === undefined ? undefined : csharpTypeFromTargetTypeRef(parameter.type);
+      const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(argument, parameter.type, input);
       return planCallArgument(argument, sourceFile, input, diagnostics, expectedType);
     });
   return receiverArgument === undefined ? argumentsList : [receiverArgument, ...argumentsList];
@@ -178,6 +181,37 @@ function planSelectedTargetReceiverArgument(
     return undefined;
   }
   const parameter = member.parameters[0];
-  const expectedType = parameter === undefined ? undefined : csharpTypeFromTargetTypeRef(parameter.type);
+  const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(receiver, parameter.type, input);
   return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType);
+}
+
+function getExpectedArgumentRenderType(
+  argument: Node,
+  targetType: TargetTypeRef,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  if (HasSourceKind(input.ast, argument, KindArrayLiteralExpression)) {
+    const collectionElementType = getEnumerableCollectionElementType(targetType);
+    if (collectionElementType !== undefined) {
+      return csharpTypeFromTargetTypeRef({ kind: "array", element: collectionElementType });
+    }
+  }
+  return csharpTypeFromTargetTypeRef(targetType);
+}
+
+function getEnumerableCollectionElementType(type: TargetTypeRef): TargetTypeRef | undefined {
+  if (
+    type.kind === "target-named" &&
+    (
+      type.id === "System.Collections.Generic.IEnumerable`1" ||
+      type.id === "System.Collections.Generic.IReadOnlyCollection`1" ||
+      type.id === "System.Collections.Generic.IReadOnlyList`1" ||
+      type.id === "System.Collections.Generic.ICollection`1" ||
+      type.id === "System.Collections.Generic.IList`1" ||
+      type.id === "System.Collections.Generic.List`1"
+    )
+  ) {
+    return type.typeArguments?.[0];
+  }
+  return undefined;
 }

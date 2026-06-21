@@ -123,7 +123,7 @@ function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): Provider
     ...(member.static !== undefined ? { static: member.static } : {}),
     ...(member.type !== undefined ? { type: dotnetTypeRefToProviderType(member.type) } : {}),
     ...(member.signatures !== undefined
-      ? { signatures: member.signatures.map((signature) => dotnetSignatureToProviderSignature(signature, member.targetName)) }
+      ? { signatures: member.signatures.map((signature) => dotnetSignatureToProviderSignature(signature, member.kind === "constructor" ? undefined : member.targetName)) }
       : {}),
   };
 }

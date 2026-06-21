@@ -19,8 +19,9 @@ import {
   asType,
 } from "./target-ref-utils.js";
 import {
-  csharpTargetTypeFromBinding,
-} from "./target-types.js";
+  enrichCsharpTargetTypeRef,
+  getCsharpTargetTypeFromBinding,
+} from "./target-enrichment.js";
 import {
   getTargetTypeRefFromCheckedExpressionSyntax,
   getTargetTypeRefFromSyntax,
@@ -93,11 +94,11 @@ export function resolveTargetTypeRefForSubjectCore(
   }
   const binding = resolveTargetBinding(subject, context);
   if (binding !== undefined) {
-    return csharpTargetTypeFromBinding(binding);
+    return getCsharpTargetTypeFromBinding(binding, [], host);
   }
   const providerVirtualTarget = getProviderVirtualDeclarationTargetTypeRef(subject, context);
   if (providerVirtualTarget !== undefined) {
-    return providerVirtualTarget;
+    return enrichCsharpTargetTypeRef(providerVirtualTarget, host);
   }
   const syntaxType = getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
   if (syntaxType !== undefined) {

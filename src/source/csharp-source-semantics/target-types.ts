@@ -130,9 +130,14 @@ export function csharpTargetTypeFromBinding(
     return typeArguments.length === 0 ? declaredType : undefined;
   }
   const renderShape = (binding as CsharpTargetBindingFact).csharpRender;
-  return renderShape === undefined
+  const known = csharpTargetNamedType(binding.id, typeArguments, renderShape);
+  if (csharpRenderShapeForTargetNamedType(known) !== undefined) {
+    return known;
+  }
+  const providerRenderShape = csharpRenderShapeFromProviderTargetName(binding.targetName);
+  return providerRenderShape === undefined
     ? undefined
-    : csharpTargetNamedType(binding.id, typeArguments, renderShape);
+    : csharpTargetNamedType(binding.id, typeArguments, providerRenderShape);
 }
 
 export function csharpRenderShapeForTargetNamedType(
@@ -201,6 +206,22 @@ export function csharpQualifiedTypeRenderShape(namespaceName: string, name: stri
     namespace: namespaceName.split(".").filter((part) => part.length > 0),
     name,
   };
+}
+
+function csharpRenderShapeFromProviderTargetName(targetName: string): CsharpTargetTypeRenderShape | undefined {
+  const lastSeparator = targetName.lastIndexOf(".");
+  const name = stripCsharpGenericArity(lastSeparator < 0 ? targetName : targetName.slice(lastSeparator + 1));
+  if (name.length === 0) {
+    return undefined;
+  }
+  return lastSeparator < 0
+    ? { kind: "named", name }
+    : csharpQualifiedTypeRenderShape(targetName.slice(0, lastSeparator), name);
+}
+
+function stripCsharpGenericArity(name: string): string {
+  const tick = name.indexOf("`");
+  return tick < 0 ? name : name.slice(0, tick);
 }
 
 function knownCsharpTargetTypeRenderShape(id: string): CsharpTargetTypeRenderShape | undefined {

@@ -19,7 +19,7 @@ export function attributeBuilderDeclaration(): ProviderExportDeclaration {
     members: [
       methodMember("__TsonicAttributeBuilder.add", "add", [
         { name: "attribute", type: { kind: "object" } },
-        { name: "args", type: { kind: "unknown" }, rest: true },
+        { name: "args", type: { kind: "array", elementType: { kind: "unknown" } }, rest: true },
       ], { kind: "void" }),
       methodMember("__TsonicAttributeBuilder.property", "property", [{
         name: "selector",
@@ -56,7 +56,7 @@ export function attributeMemberBuilderDeclaration(): ProviderExportDeclaration {
     members: [
       methodMember("__TsonicAttributeMemberBuilder.add", "add", [
         { name: "attribute", type: { kind: "object" } },
-        { name: "args", type: { kind: "unknown" }, rest: true },
+        { name: "args", type: { kind: "array", elementType: { kind: "unknown" } }, rest: true },
       ], { kind: "void" }),
       methodMember("__TsonicAttributeMemberBuilder.parameter", "parameter", [
         { name: "name", type: { kind: "string" } },

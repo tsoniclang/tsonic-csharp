@@ -141,3 +141,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+/tools/dotnet-type-provider/bin/
+/tools/dotnet-type-provider/obj/

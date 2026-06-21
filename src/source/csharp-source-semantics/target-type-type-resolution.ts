@@ -12,8 +12,11 @@ import {
 import {
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
-  csharpTargetTypeFromBinding,
 } from "./target-types.js";
+import {
+  enrichCsharpTargetTypeRef,
+  getCsharpTargetTypeFromBinding,
+} from "./target-enrichment.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -85,7 +88,7 @@ export function resolveTargetTypeRefForTypeCore(
     if (targetTypeArguments === undefined || !targetTypeArgumentArityMatches(binding.typeParameters?.length ?? 0, targetTypeArguments.length)) {
       return undefined;
     }
-    return csharpTargetTypeFromBinding(binding, targetTypeArguments);
+    return getCsharpTargetTypeFromBinding(binding, targetTypeArguments, host);
   }
   const providerVirtualTarget = getProviderVirtualDeclarationTargetTypeRef(type.symbol, context) ??
     getProviderVirtualDeclarationTargetTypeRefFromDeclarations(type, context);
@@ -94,10 +97,10 @@ export function resolveTargetTypeRefForTypeCore(
     if (targetTypeArguments === undefined) {
       return undefined;
     }
-    return {
+    return enrichCsharpTargetTypeRef({
       ...providerVirtualTarget,
       ...(targetTypeArguments.length > 0 ? { typeArguments: targetTypeArguments } : {}),
-    };
+    }, host);
   }
   const typeParameterName = getTypeParameterName(type, context);
   if (typeParameterName !== undefined) {

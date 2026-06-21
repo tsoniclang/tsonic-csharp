@@ -49,6 +49,8 @@ export type {
   DotnetProviderModuleContext,
   DotnetProviderModuleResult,
   DotnetProviderOwnership,
+  DotnetReflectionTypeDataProvider,
+  DotnetReflectionTypeDataProviderOptions,
   DotnetSignatureDeclaration,
   DotnetTypeDataProvider,
   DotnetTypeDeclaration,
@@ -59,6 +61,7 @@ export type {
 } from "./providers/dotnet/index.js";
 export {
   createDotnetModuleSpecifier,
+  createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
   dotnetConstraintToTargetConstraint,
   dotnetModuleExtension,
@@ -67,6 +70,5 @@ export {
   dotnetPackageName,
   dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
-  findCsharpDotnetTargetBindingByTargetId,
   parseDotnetModuleSpecifier,
 } from "./providers/dotnet/index.js";

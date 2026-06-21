@@ -57,7 +57,7 @@ export function planFunctionDeclaration(
   const declaration = AsFunctionDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "function declaration", diagnostics);
   const name = planIdentifierName(declaration.name, "__anonymous", input, diagnostics, "Function name");
-  const state = createDestructuringPlannerState(node);
+  const state = createDestructuringPlannerState(node, input.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
   state.currentReturnType = returnType;

@@ -42,7 +42,7 @@ export function planClassStaticBlockDeclaration(
   diagnostics: TargetDiagnostic[],
 ): CsharpConstructorDeclaration {
   const declaration = AsClassStaticBlockDeclaration(node)!;
-  const state = createDestructuringPlannerState(node);
+  const state = createDestructuringPlannerState(node, input.ast);
   return {
     kind: "ConstructorDeclaration",
     name: className,
@@ -66,7 +66,7 @@ export function planConstructorDeclaration(
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "constructor declaration", diagnostics);
   const bodyStatements = AsBlock(declaration.Body)?.Statements?.Nodes ?? [];
   const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
-  const state = createDestructuringPlannerState(node);
+  const state = createDestructuringPlannerState(node, input.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   if (leadingSuperCall !== undefined && parameters.prelude.length > 0 && (leadingSuperCall.Arguments?.Nodes ?? []).length > 0) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Constructor base arguments cannot reference destructured parameter locals until base-argument rewriting is finalized."));

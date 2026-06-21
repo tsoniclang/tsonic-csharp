@@ -72,6 +72,36 @@ export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): 
   }
 }
 
+export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
+  switch (type.kind) {
+    case "source-primitive":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
+      return true;
+    case "type-parameter":
+      return false;
+    case "target-named":
+      return (type.typeArguments ?? []).every(targetTypeRefIsClosed);
+    case "array":
+      return targetTypeRefIsClosed(type.element);
+    case "tuple":
+      return type.elements.every(targetTypeRefIsClosed);
+    case "pointer":
+      return targetTypeRefIsClosed(type.pointee);
+    case "function-pointer":
+      return targetTypeRefIsClosed(type.result) && type.args.every(targetTypeRefIsClosed);
+    case "associated-type":
+      return targetTypeRefIsClosed(type.owner);
+  }
+}
+
+export function targetMemberIsClosed(member: { readonly declaringType?: TargetTypeRef; readonly returnType?: TargetTypeRef; readonly parameters: readonly TargetParameter[] }): boolean {
+  return (member.declaringType === undefined || targetTypeRefIsClosed(member.declaringType)) &&
+    (member.returnType === undefined || targetTypeRefIsClosed(member.returnType)) &&
+    member.parameters.every((parameter) => targetTypeRefIsClosed(parameter.type));
+}
+
 export function generatedObjectShapeMemberName(sourceName: string): string {
   return `__tsonic_member_${hashString(sourceName)}`;
 }

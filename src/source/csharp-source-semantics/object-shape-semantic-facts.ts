@@ -15,6 +15,7 @@ import type {
 import {
   asNodeSubject,
   getNodeNameText,
+  isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
   getObjectShapeTargetName,
@@ -87,7 +88,7 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
   const node = asNodeSubject(subject);
   const sourceFile = node === undefined ? undefined : compiler.ast.getSourceFile(node);
   const semanticType = asType(subject) ??
-    (node === undefined ? undefined : compiler.checker.getTypeAtLocation(node, { sourceFile }));
+    getSemanticTypeForObjectShapeSubject(node, context, sourceFile);
   if (semanticType === undefined ||
     compiler.types.isAny(semanticType) ||
     compiler.types.isUnknown(semanticType) ||
@@ -131,6 +132,24 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     members,
     ...(implementsTypes === undefined ? {} : { implements: implementsTypes }),
   };
+}
+
+function getSemanticTypeForObjectShapeSubject(
+  node: ReturnType<typeof asNodeSubject>,
+  context: ExtensionObservationContext,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): Type | undefined {
+  const compiler = context.compiler;
+  if (compiler === undefined || node === undefined) {
+    return undefined;
+  }
+  try {
+    return isTypeSyntaxNode(compiler.ast, node)
+      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
+      : compiler.checker.getTypeAtLocation(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }
 
 function deriveCsharpObjectShapeMemberFactForSemanticProperty(

@@ -51,14 +51,18 @@ test("target type rendering requires explicit C# render shape for non-predefined
   assert.equal(printCsharpType(rendered), "System.Collections.Generic.List<int>");
 });
 
-test("target bindings do not infer C# render shape from targetName or id", () => {
-  assert.equal(csharpTargetTypeFromBinding({
+test("target bindings use provider targetName when explicit C# render shape is absent", () => {
+  assert.deepEqual(csharpTargetTypeFromBinding({
     id: "Example.Widget",
     sourceName: "Widget",
     targetName: "Example.Widget",
     target: "csharp",
     kind: "class",
-  }), undefined);
+  }), {
+    kind: "target-named",
+    id: "Example.Widget",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Widget" },
+  });
 
   assert.deepEqual(csharpTargetTypeFromBinding({
     id: "Example.Widget",

@@ -134,6 +134,7 @@ export type DotnetTypeRef =
   | { readonly kind: "bigint" }
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "type-parameter"; readonly name: string }
+  | { readonly kind: "provider-ref"; readonly name: string; readonly typeArguments?: readonly DotnetTypeRef[] }
   | { readonly kind: "named"; readonly metadataName: string; readonly displayName?: string; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef }
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly DotnetTypeRef[] }

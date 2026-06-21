@@ -25,12 +25,7 @@ export function getDeclarationTypeNode(
   }
   const sourceFile = ast.getSourceFile(node);
   const symbol = getSymbolForDeclarationLookup(ast, checker, node, sourceFile);
-  const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
-  const declarations = [
-    ...getSymbolDeclarations(symbol),
-    ...getSymbolDeclarations(aliasedSymbol),
-  ];
-  for (const declaration of declarations) {
+  for (const declaration of getSymbolDeclarations(symbol)) {
     const type = asNodeSubject(getNodeField(declaration, "Type"));
     if (type !== undefined) {
       return type;
@@ -48,8 +43,15 @@ export function getSymbolForDeclarationLookup(
   if (!isSymbolLookupNode(ast, node)) {
     return undefined;
   }
-  return checker.getSymbolAtLocation(node, { sourceFile }) ??
-    checker.getResolvedSymbol(node, { sourceFile });
+  const symbol = checker.getSymbolAtLocation(node, { sourceFile });
+  if (symbol !== undefined || !isResolvedSymbolLookupNode(ast, node)) {
+    return symbol;
+  }
+  try {
+    return checker.getResolvedSymbol(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }
 
 export function getAliasedSymbolIfAvailable(
@@ -80,7 +82,6 @@ function isSymbolLookupNode(
     ast.is.IsQualifiedName(node) ||
     ast.is.IsTypeReferenceNode(node) ||
     ast.is.IsPropertyAccessExpression(node) ||
-    ast.is.IsElementAccessExpression(node) ||
     ast.is.IsVariableDeclaration(node) ||
     ast.is.IsParameterDeclaration(node) ||
     ast.is.IsBindingElement(node) ||
@@ -88,4 +89,15 @@ function isSymbolLookupNode(
     ast.is.IsClassDeclaration(node) ||
     ast.is.IsMethodDeclaration(node) ||
     ast.is.IsPropertyDeclaration(node);
+}
+
+function isResolvedSymbolLookupNode(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  return ast.is.IsIdentifier(node) ||
+    ast.is.IsPrivateIdentifier(node) ||
+    ast.is.IsQualifiedName(node) ||
+    ast.is.IsTypeReferenceNode(node) ||
+    ast.is.IsPropertyAccessExpression(node);
 }

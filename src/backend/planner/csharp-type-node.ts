@@ -1,5 +1,6 @@
 import {
   KindAnyKeyword,
+  KindArrayType,
   KindArrayBindingPattern,
   KindObjectBindingPattern,
   KindObjectKeyword,
@@ -9,6 +10,7 @@ import {
 import type {
   Node,
   SourceFile,
+  Type,
 } from "@tsonic/tsts";
 import type {
   TargetCompileInput,
@@ -30,6 +32,8 @@ import {
   getTargetTypeRefForNode,
 } from "./runtime-carriers.js";
 import {
+  csharpTargetNamedType,
+  csharpSourcePrimitiveTargetType,
   csharpTargetTypeFromBinding,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
@@ -81,6 +85,17 @@ export function getCsharpTypeForNode(
   if (isUnionTypeNode(input, node)) {
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
   }
+  if (input.ast.kindName(node) === KindArrayType) {
+    const elementTypeNode = (node as { readonly ElementType?: Node }).ElementType;
+    const elementType = getCsharpTypeForNode(elementTypeNode, sourceFile, input, invalidCsharpType("array element type"), diagnostics);
+    return elementType.kind === "InvalidType"
+      ? invalidCsharpType("array type")
+      : { kind: "ArrayType", elementType };
+  }
+  const keywordType = getCsharpTypeFromKeywordTypeNode(node, input);
+  if (keywordType !== undefined) {
+    return keywordType;
+  }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (nodeCarrierType !== undefined) {
     return nodeCarrierType;
@@ -103,9 +118,20 @@ export function getCsharpTypeForNode(
       return csharpType;
     }
   }
+  const semanticType = getCsharpTypeFromSemanticType(
+    input.semantics.getTypeAtLocation(node, { sourceFile }),
+    sourceFile,
+    input,
+  );
+  if (semanticType !== undefined) {
+    return semanticType;
+  }
   const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding !== undefined) {
-    const targetType = csharpTargetTypeFromBinding(targetBinding);
+    const targetType = csharpTargetTypeFromBinding(targetBinding) ?? {
+      kind: "target-named" as const,
+      id: targetBinding.id,
+    };
     const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
     if (csharpType !== undefined) {
       return csharpType;
@@ -116,4 +142,66 @@ export function getCsharpTypeForNode(
   const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
   return invalidCsharpType("unsupported semantic type");
+}
+
+function getCsharpTypeFromSemanticType(
+  type: Type | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  seen: ReadonlySet<Type> = new Set(),
+): CsharpTypeNode | undefined {
+  if (
+    type === undefined ||
+    seen.has(type) ||
+    input.types.isAny(type) ||
+    input.types.isUnknown(type)
+  ) {
+    return undefined;
+  }
+  const nextSeen = new Set(seen).add(type);
+  if (input.types.isArrayLike(type, { sourceFile })) {
+    const elementType = input.types.getTypeArguments(type, { sourceFile })[0];
+    const csharpElementType = getCsharpTypeFromSemanticType(elementType, sourceFile, input, nextSeen);
+    return csharpElementType === undefined
+      ? undefined
+      : { kind: "ArrayType", elementType: csharpElementType };
+  }
+  if (input.types.isTuple(type)) {
+    const elements = input.types.getTupleElementTypes(type, { sourceFile })
+      .map((element) => getCsharpTypeFromSemanticType(element, sourceFile, input, nextSeen));
+    return elements.some((element) => element === undefined)
+      ? undefined
+      : { kind: "TupleType", elements: elements as readonly CsharpTypeNode[] };
+  }
+  if (input.types.isBooleanLike(type)) {
+    return csharpTypeFromTargetTypeRef(csharpSourcePrimitiveTargetType("bool"));
+  }
+  if (input.types.isNumberLike(type)) {
+    return csharpTypeFromTargetTypeRef(csharpSourcePrimitiveTargetType("float64"));
+  }
+  if (input.types.isStringLike(type)) {
+    return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.String"));
+  }
+  if (input.types.isBigIntLike(type)) {
+    return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.Numerics.BigInteger"));
+  }
+  return undefined;
+}
+
+function getCsharpTypeFromKeywordTypeNode(node: Node, input: TargetCompileInput): CsharpTypeNode | undefined {
+  switch (input.ast.kindName(node)) {
+    case "KindBooleanKeyword":
+      return csharpTypeFromTargetTypeRef(csharpSourcePrimitiveTargetType("bool"));
+    case "KindNumberKeyword":
+      return csharpTypeFromTargetTypeRef(csharpSourcePrimitiveTargetType("float64"));
+    case "KindStringKeyword":
+      return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.String"));
+    case "KindBigIntKeyword":
+      return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.Numerics.BigInteger"));
+    case "KindVoidKeyword":
+    case "KindNeverKeyword":
+      return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.Void"));
+    default:
+      return undefined;
+  }
 }

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createDotnetReflectionTypeDataProvider,
   dotnetModuleToProviderDeclarationModel,
   dotnetTypeRefToTargetTypeRef,
-  findCsharpDotnetTargetBindingByTargetId,
 } from "../dist/index.js";
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
@@ -68,7 +68,8 @@ test(".NET target refs do not promote any or unknown to CLR object", () => {
 });
 
 test(".NET target binding uses provider-owned target member names", () => {
-  const binding = findCsharpDotnetTargetBindingByTargetId("System.Collections.Generic.List`1");
+  const provider = createDotnetReflectionTypeDataProvider();
+  const binding = provider.findTargetBindingByTargetId("System.Collections.Generic.List`1");
   assert.ok(binding);
 
   const count = binding.members.find((member) => member.sourceName === "count");

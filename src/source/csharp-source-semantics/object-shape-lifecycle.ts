@@ -137,9 +137,10 @@ function isObjectRestBindingElement(
   node: Node,
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
 ): boolean {
+  const parent = asNodeSubject(getNodeField(node, "Parent"));
   return ast.kindName(node) === "KindBindingElement" &&
     getNodeField(node, "DotDotDotToken") !== undefined &&
-    ast.kindName(getNodeField(node, "Parent") as Node | undefined) === "KindObjectBindingPattern";
+    ast.kindName(parent) === "KindObjectBindingPattern";
 }
 
 function getObjectBindingPatternSourceExpression(restBindingElement: Node): Node | undefined {

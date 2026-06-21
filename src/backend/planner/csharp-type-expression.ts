@@ -92,7 +92,10 @@ function getCsharpTypeForExpressionReference(
   }
   const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding !== undefined) {
-    const targetType = csharpTargetTypeFromBinding(targetBinding);
+    const targetType = csharpTargetTypeFromBinding(targetBinding) ?? {
+      kind: "target-named" as const,
+      id: targetBinding.id,
+    };
     const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
     if (csharpType !== undefined) {
       return csharpType;

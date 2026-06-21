@@ -1,7 +1,4 @@
-import type {
-  ExtensionObservationContext,
-  Node,
-} from "@tsonic/tsts";
+import type { ExtensionObservationContext, Node } from "@tsonic/tsts";
 import {
   asNodeSubject,
   getNodeField,
@@ -21,7 +18,7 @@ export function getPrefixUnaryOperatorText(
 ): string | undefined {
   const operator = getNodeField(node, "Operator");
   return typeof operator === "number"
-    ? getOperatorTextFromKindName(ast.kindName({ Kind: operator } as Node))
+    ? getOperatorTextFromKindName(ast.kindNameFromKind(operator))
     : undefined;
 }
 

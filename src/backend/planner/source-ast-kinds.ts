@@ -1,96 +1,96 @@
 import type { AstReader, Node } from "@tsonic/tsts";
 
-export const KindAnyKeyword: any = "KindAnyKeyword";
-export const KindArrayBindingPattern: any = "KindArrayBindingPattern";
-export const KindArrayLiteralExpression: any = "KindArrayLiteralExpression";
-export const KindArrayType: any = "KindArrayType";
-export const KindArrowFunction: any = "KindArrowFunction";
-export const KindAsExpression: any = "KindAsExpression";
-export const KindAwaitExpression: any = "KindAwaitExpression";
-export const KindBindingElement: any = "KindBindingElement";
-export const KindBinaryExpression: any = "KindBinaryExpression";
-export const KindBlock: any = "KindBlock";
-export const KindBreakStatement: any = "KindBreakStatement";
-export const KindCallExpression: any = "KindCallExpression";
-export const KindClassDeclaration: any = "KindClassDeclaration";
-export const KindClassStaticBlockDeclaration: any = "KindClassStaticBlockDeclaration";
-export const KindConditionalExpression: any = "KindConditionalExpression";
-export const KindConstructor: any = "KindConstructor";
-export const KindContinueStatement: any = "KindContinueStatement";
-export const KindDebuggerStatement: any = "KindDebuggerStatement";
-export const KindDefaultClause: any = "KindDefaultClause";
-export const KindDoStatement: any = "KindDoStatement";
-export const KindElementAccessExpression: any = "KindElementAccessExpression";
-export const KindEmptyStatement: any = "KindEmptyStatement";
-export const KindEnumDeclaration: any = "KindEnumDeclaration";
-export const KindEnumMember: any = "KindEnumMember";
-export const KindEqualsToken: any = "KindEqualsToken";
-export const KindExportAssignment: any = "KindExportAssignment";
-export const KindExportDeclaration: any = "KindExportDeclaration";
-export const KindExpressionStatement: any = "KindExpressionStatement";
-export const KindExpressionWithTypeArguments: any = "KindExpressionWithTypeArguments";
-export const KindExtendsKeyword: any = "KindExtendsKeyword";
-export const KindFalseKeyword: any = "KindFalseKeyword";
-export const KindForInStatement: any = "KindForInStatement";
-export const KindForOfStatement: any = "KindForOfStatement";
-export const KindForStatement: any = "KindForStatement";
-export const KindFunctionDeclaration: any = "KindFunctionDeclaration";
-export const KindFunctionExpression: any = "KindFunctionExpression";
-export const KindGetAccessor: any = "KindGetAccessor";
-export const KindIdentifier: any = "KindIdentifier";
-export const KindIfStatement: any = "KindIfStatement";
-export const KindImplementsKeyword: any = "KindImplementsKeyword";
-export const KindImportDeclaration: any = "KindImportDeclaration";
-export const KindIndexSignature: any = "KindIndexSignature";
-export const KindInterfaceDeclaration: any = "KindInterfaceDeclaration";
-export const KindLabeledStatement: any = "KindLabeledStatement";
-export const KindMethodDeclaration: any = "KindMethodDeclaration";
-export const KindMethodSignature: any = "KindMethodSignature";
-export const KindNewExpression: any = "KindNewExpression";
-export const KindNeverKeyword: any = "KindNeverKeyword";
-export const KindNoSubstitutionTemplateLiteral: any = "KindNoSubstitutionTemplateLiteral";
-export const KindNonNullExpression: any = "KindNonNullExpression";
-export const KindNullKeyword: any = "KindNullKeyword";
-export const KindNumericLiteral: any = "KindNumericLiteral";
-export const KindObjectBindingPattern: any = "KindObjectBindingPattern";
-export const KindObjectKeyword: any = "KindObjectKeyword";
-export const KindObjectLiteralExpression: any = "KindObjectLiteralExpression";
-export const KindParameter: any = "KindParameter";
-export const KindParenthesizedExpression: any = "KindParenthesizedExpression";
-export const KindPostfixUnaryExpression: any = "KindPostfixUnaryExpression";
-export const KindPrefixUnaryExpression: any = "KindPrefixUnaryExpression";
-export const KindPrivateIdentifier: any = "KindPrivateIdentifier";
-export const KindPropertyAccessExpression: any = "KindPropertyAccessExpression";
-export const KindPropertyAssignment: any = "KindPropertyAssignment";
-export const KindPropertyDeclaration: any = "KindPropertyDeclaration";
-export const KindPropertySignature: any = "KindPropertySignature";
-export const KindRegularExpressionLiteral: any = "KindRegularExpressionLiteral";
-export const KindReturnStatement: any = "KindReturnStatement";
-export const KindSatisfiesExpression: any = "KindSatisfiesExpression";
-export const KindSetAccessor: any = "KindSetAccessor";
-export const KindShorthandPropertyAssignment: any = "KindShorthandPropertyAssignment";
-export const KindSpreadAssignment: any = "KindSpreadAssignment";
-export const KindSpreadElement: any = "KindSpreadElement";
-export const KindStringLiteral: any = "KindStringLiteral";
-export const KindSuperKeyword: any = "KindSuperKeyword";
-export const KindSwitchStatement: any = "KindSwitchStatement";
-export const KindTemplateExpression: any = "KindTemplateExpression";
-export const KindThisKeyword: any = "KindThisKeyword";
-export const KindThrowStatement: any = "KindThrowStatement";
-export const KindTrueKeyword: any = "KindTrueKeyword";
-export const KindTryStatement: any = "KindTryStatement";
-export const KindTypeAliasDeclaration: any = "KindTypeAliasDeclaration";
-export const KindTypeAssertionExpression: any = "KindTypeAssertionExpression";
-export const KindTypeLiteral: any = "KindTypeLiteral";
-export const KindTypeOfExpression: any = "KindTypeOfExpression";
-export const KindTypeReference: any = "KindTypeReference";
-export const KindUnionType: any = "KindUnionType";
-export const KindUnknownKeyword: any = "KindUnknownKeyword";
-export const KindVariableDeclaration: any = "KindVariableDeclaration";
-export const KindVariableDeclarationList: any = "KindVariableDeclarationList";
-export const KindVariableStatement: any = "KindVariableStatement";
-export const KindVoidExpression: any = "KindVoidExpression";
-export const KindWhileStatement: any = "KindWhileStatement";
+export const KindAnyKeyword = "KindAnyKeyword";
+export const KindArrayBindingPattern = "KindArrayBindingPattern";
+export const KindArrayLiteralExpression = "KindArrayLiteralExpression";
+export const KindArrayType = "KindArrayType";
+export const KindArrowFunction = "KindArrowFunction";
+export const KindAsExpression = "KindAsExpression";
+export const KindAwaitExpression = "KindAwaitExpression";
+export const KindBindingElement = "KindBindingElement";
+export const KindBinaryExpression = "KindBinaryExpression";
+export const KindBlock = "KindBlock";
+export const KindBreakStatement = "KindBreakStatement";
+export const KindCallExpression = "KindCallExpression";
+export const KindClassDeclaration = "KindClassDeclaration";
+export const KindClassStaticBlockDeclaration = "KindClassStaticBlockDeclaration";
+export const KindConditionalExpression = "KindConditionalExpression";
+export const KindConstructor = "KindConstructor";
+export const KindContinueStatement = "KindContinueStatement";
+export const KindDebuggerStatement = "KindDebuggerStatement";
+export const KindDefaultClause = "KindDefaultClause";
+export const KindDoStatement = "KindDoStatement";
+export const KindElementAccessExpression = "KindElementAccessExpression";
+export const KindEmptyStatement = "KindEmptyStatement";
+export const KindEnumDeclaration = "KindEnumDeclaration";
+export const KindEnumMember = "KindEnumMember";
+export const KindEqualsToken = "KindEqualsToken";
+export const KindExportAssignment = "KindExportAssignment";
+export const KindExportDeclaration = "KindExportDeclaration";
+export const KindExpressionStatement = "KindExpressionStatement";
+export const KindExpressionWithTypeArguments = "KindExpressionWithTypeArguments";
+export const KindExtendsKeyword = "KindExtendsKeyword";
+export const KindFalseKeyword = "KindFalseKeyword";
+export const KindForInStatement = "KindForInStatement";
+export const KindForOfStatement = "KindForOfStatement";
+export const KindForStatement = "KindForStatement";
+export const KindFunctionDeclaration = "KindFunctionDeclaration";
+export const KindFunctionExpression = "KindFunctionExpression";
+export const KindGetAccessor = "KindGetAccessor";
+export const KindIdentifier = "KindIdentifier";
+export const KindIfStatement = "KindIfStatement";
+export const KindImplementsKeyword = "KindImplementsKeyword";
+export const KindImportDeclaration = "KindImportDeclaration";
+export const KindIndexSignature = "KindIndexSignature";
+export const KindInterfaceDeclaration = "KindInterfaceDeclaration";
+export const KindLabeledStatement = "KindLabeledStatement";
+export const KindMethodDeclaration = "KindMethodDeclaration";
+export const KindMethodSignature = "KindMethodSignature";
+export const KindNewExpression = "KindNewExpression";
+export const KindNeverKeyword = "KindNeverKeyword";
+export const KindNoSubstitutionTemplateLiteral = "KindNoSubstitutionTemplateLiteral";
+export const KindNonNullExpression = "KindNonNullExpression";
+export const KindNullKeyword = "KindNullKeyword";
+export const KindNumericLiteral = "KindNumericLiteral";
+export const KindObjectBindingPattern = "KindObjectBindingPattern";
+export const KindObjectKeyword = "KindObjectKeyword";
+export const KindObjectLiteralExpression = "KindObjectLiteralExpression";
+export const KindParameter = "KindParameter";
+export const KindParenthesizedExpression = "KindParenthesizedExpression";
+export const KindPostfixUnaryExpression = "KindPostfixUnaryExpression";
+export const KindPrefixUnaryExpression = "KindPrefixUnaryExpression";
+export const KindPrivateIdentifier = "KindPrivateIdentifier";
+export const KindPropertyAccessExpression = "KindPropertyAccessExpression";
+export const KindPropertyAssignment = "KindPropertyAssignment";
+export const KindPropertyDeclaration = "KindPropertyDeclaration";
+export const KindPropertySignature = "KindPropertySignature";
+export const KindRegularExpressionLiteral = "KindRegularExpressionLiteral";
+export const KindReturnStatement = "KindReturnStatement";
+export const KindSatisfiesExpression = "KindSatisfiesExpression";
+export const KindSetAccessor = "KindSetAccessor";
+export const KindShorthandPropertyAssignment = "KindShorthandPropertyAssignment";
+export const KindSpreadAssignment = "KindSpreadAssignment";
+export const KindSpreadElement = "KindSpreadElement";
+export const KindStringLiteral = "KindStringLiteral";
+export const KindSuperKeyword = "KindSuperKeyword";
+export const KindSwitchStatement = "KindSwitchStatement";
+export const KindTemplateExpression = "KindTemplateExpression";
+export const KindThisKeyword = "KindThisKeyword";
+export const KindThrowStatement = "KindThrowStatement";
+export const KindTrueKeyword = "KindTrueKeyword";
+export const KindTryStatement = "KindTryStatement";
+export const KindTypeAliasDeclaration = "KindTypeAliasDeclaration";
+export const KindTypeAssertionExpression = "KindTypeAssertionExpression";
+export const KindTypeLiteral = "KindTypeLiteral";
+export const KindTypeOfExpression = "KindTypeOfExpression";
+export const KindTypeReference = "KindTypeReference";
+export const KindUnionType = "KindUnionType";
+export const KindUnknownKeyword = "KindUnknownKeyword";
+export const KindVariableDeclaration = "KindVariableDeclaration";
+export const KindVariableDeclarationList = "KindVariableDeclarationList";
+export const KindVariableStatement = "KindVariableStatement";
+export const KindVoidExpression = "KindVoidExpression";
+export const KindWhileStatement = "KindWhileStatement";
 
 export function kindName(node: Node | undefined): string {
   return node === undefined ? "Undefined" : String((node as { readonly Kind?: unknown }).Kind);
@@ -105,8 +105,7 @@ export function SourceKind(ast: AstReader, node: Node | undefined): string {
 }
 
 export function SourceTokenKind(ast: AstReader, kind: unknown): string {
-  void ast;
-  return sourceTokenKindNames.get(Number(kind)) ?? String(kind);
+  return typeof kind === "number" ? ast.kindNameFromKind(kind) : "Undefined";
 }
 
 export function HasSourceKind(ast: AstReader, node: Node | undefined, expected: string): boolean {
@@ -172,38 +171,3 @@ export function IsTypeSyntaxNode(ast: AstReader, node: Node): boolean {
 export function KindString(kind: unknown): string {
   return String(kind);
 }
-
-const sourceTokenKindNames = new Map<number, string>([
-  [29, "KindLessThanToken"],
-  [31, "KindGreaterThanToken"],
-  [32, "KindLessThanEqualsToken"],
-  [33, "KindGreaterThanEqualsToken"],
-  [34, "KindEqualsEqualsToken"],
-  [35, "KindExclamationEqualsToken"],
-  [36, "KindEqualsEqualsEqualsToken"],
-  [37, "KindExclamationEqualsEqualsToken"],
-  [39, "KindPlusToken"],
-  [40, "KindMinusToken"],
-  [41, "KindAsteriskToken"],
-  [43, "KindSlashToken"],
-  [44, "KindPercentToken"],
-  [45, "KindPlusPlusToken"],
-  [46, "KindMinusMinusToken"],
-  [47, "KindLessThanLessThanToken"],
-  [48, "KindGreaterThanGreaterThanToken"],
-  [49, "KindGreaterThanGreaterThanGreaterThanToken"],
-  [50, "KindAmpersandToken"],
-  [51, "KindBarToken"],
-  [52, "KindCaretToken"],
-  [53, "KindExclamationToken"],
-  [55, "KindAmpersandAmpersandToken"],
-  [56, "KindBarBarToken"],
-  [63, "KindEqualsToken"],
-  [64, "KindPlusEqualsToken"],
-  [65, "KindMinusEqualsToken"],
-  [66, "KindAsteriskEqualsToken"],
-  [68, "KindSlashEqualsToken"],
-  [69, "KindPercentEqualsToken"],
-  [95, "KindExtendsKeyword"],
-  [118, "KindImplementsKeyword"],
-]);

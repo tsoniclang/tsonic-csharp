@@ -86,7 +86,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: `tsts-provider://csharp-dotnet/${specifier}`,
+        virtualFileName: providerVirtualDeclarationFileName("csharp-dotnet", specifier),
         providerModuleId: specifier,
         packageName: dotnetPackageName,
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
@@ -103,6 +103,10 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       return options.provider.getTargetIdentity?.(symbol);
     },
   };
+}
+
+function providerVirtualDeclarationFileName(providerId: string, specifier: string): string {
+  return `tsts-provider://${providerId}/${encodeURIComponent(specifier)}.d.ts`;
 }
 
 function providerContext(

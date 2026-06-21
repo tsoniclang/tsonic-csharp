@@ -28,6 +28,13 @@ export function isLiteralRepresentableAsTargetType(
     return false;
   }
   const kind = ast.kindName(node);
+  if (kind === "KindArrayLiteralExpression") {
+    const elementType = getTargetElementTypeForArrayLiteral(expected);
+    return elementType === undefined
+      ? false
+      : ast.elements(node).every((element) =>
+          element !== undefined && isLiteralRepresentableAsTargetType(elementType, element, context));
+  }
   if (isCsharpStringType(expected)) {
     return kind === "KindStringLiteral" || kind === "KindNoSubstitutionTemplateLiteral";
   }
@@ -69,6 +76,26 @@ export function isLiteralRepresentableAsTargetType(
       return value !== undefined && isBigIntRepresentableAsPrimitive(value, expected.name);
     }
   }
+}
+
+function getTargetElementTypeForArrayLiteral(expected: TargetTypeRef): TargetTypeRef | undefined {
+  if (expected.kind === "array") {
+    return expected.element;
+  }
+  if (
+    expected.kind === "target-named" &&
+    (
+      expected.id === "System.Collections.Generic.IEnumerable`1" ||
+      expected.id === "System.Collections.Generic.IReadOnlyCollection`1" ||
+      expected.id === "System.Collections.Generic.IReadOnlyList`1" ||
+      expected.id === "System.Collections.Generic.ICollection`1" ||
+      expected.id === "System.Collections.Generic.IList`1" ||
+      expected.id === "System.Collections.Generic.List`1"
+    )
+  ) {
+    return expected.typeArguments?.[0];
+  }
+  return undefined;
 }
 
 function getNumericLiteralValue(
@@ -131,7 +158,7 @@ function getPrefixUnaryOperatorKindName(
 ): string | undefined {
   const operator = getNodeField(node, "Operator");
   if (typeof operator === "number") {
-    return ast.kindName({ Kind: operator } as Node);
+    return ast.kindNameFromKind(operator);
   }
   if (typeof operator === "string") {
     return operator;

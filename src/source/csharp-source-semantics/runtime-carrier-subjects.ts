@@ -8,6 +8,9 @@ import type {
 import {
   isTypeSyntaxNode,
 } from "./ast-utils.js";
+import {
+  getSymbolForDeclarationLookup,
+} from "./symbol-utils.js";
 
 export function getRuntimeCarrierSubjectType(
   compiler: NonNullable<ExtensionObservationContext["compiler"]>,
@@ -24,8 +27,7 @@ export function getRuntimeCarrierSubjectSymbol(
   sourceFile: SourceFile,
   node: Node,
 ): Symbol | undefined {
-  return compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
-    compiler.checker.getResolvedSymbol(node, { sourceFile });
+  return getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile);
 }
 
 export function isRuntimeCarrierTypeSyntaxNode(

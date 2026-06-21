@@ -137,8 +137,7 @@ function getSemanticSubjects(
   }
   const symbol = node === undefined || sourceFile === undefined
     ? undefined
-    : compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
-      compiler.checker.getResolvedSymbol(node, { sourceFile });
+    : getSafeObjectShapeSymbol(node, sourceFile, context);
   if (symbol !== undefined) {
     subjects.push(symbol);
   }
@@ -150,6 +149,37 @@ function getSemanticSubjects(
     }
   }
   return subjects;
+}
+
+function getSafeObjectShapeSymbol(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+): Symbol | undefined {
+  const compiler = context.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  try {
+    const symbol = compiler.checker.getSymbolAtLocation(node, { sourceFile });
+    if (symbol !== undefined || !isResolvedObjectShapeSymbolLookupNode(compiler.ast, node)) {
+      return symbol;
+    }
+    return compiler.checker.getResolvedSymbol(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
+}
+
+function isResolvedObjectShapeSymbolLookupNode(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  return ast.is.IsIdentifier(node) ||
+    ast.is.IsPrivateIdentifier(node) ||
+    ast.is.IsQualifiedName(node) ||
+    ast.is.IsTypeReferenceNode(node) ||
+    ast.is.IsPropertyAccessExpression(node);
 }
 
 function getTypeSubject(
@@ -165,9 +195,13 @@ function getTypeSubject(
   if (compiler === undefined || node === undefined || sourceFile === undefined) {
     return undefined;
   }
-  return isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)
-    ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
-    : compiler.checker.getTypeAtLocation(node, { sourceFile });
+  try {
+    return isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)
+      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
+      : compiler.checker.getTypeAtLocation(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }
 
 function isTypeSyntaxNodeForObjectShapeRecording(

@@ -43,7 +43,7 @@ export function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider 
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: `tsts-provider://csharp-source/${specifier}`,
+        virtualFileName: csharpCoreVirtualDeclarationFileName(specifier),
         providerModuleId: specifier,
         ...(module.packageName !== undefined ? { packageName: module.packageName } : {}),
         ...(module.packageVersion !== undefined ? { packageVersion: module.packageVersion } : {}),
@@ -75,4 +75,8 @@ export function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider 
       return declaration?.targetIdentity;
     },
   };
+}
+
+function csharpCoreVirtualDeclarationFileName(specifier: string): string {
+  return `tsts-provider://csharp-source/${encodeURIComponent(specifier)}.d.ts`;
 }

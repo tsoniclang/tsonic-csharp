@@ -1,4 +1,5 @@
 import type {
+  AstReader,
   ExtensionObservationContext,
   Node,
 } from "@tsonic/tsts";
@@ -141,4 +142,29 @@ export function getStructuralChildNodes(node: Node): readonly Node[] {
     }
   }
   return children;
+}
+
+export function getAstReaderChildNodes(
+  ast: AstReader,
+  node: Node,
+): readonly (Node | undefined)[] {
+  return [
+    ...readAstNodeList(() => ast.children(node)),
+    ...readAstNodeList(() => ast.typeArguments(node)),
+    ...readAstNodeList(() => ast.typeParameters(node)),
+    ...readAstNodeList(() => ast.parameters(node)),
+    ...readAstNodeList(() => ast.members(node)),
+    ...readAstNodeList(() => ast.elements(node)),
+    ...readAstNodeList(() => ast.properties(node)),
+    ...readAstNodeList(() => ast.arguments(node)),
+    ...getStructuralChildNodes(node),
+  ];
+}
+
+function readAstNodeList(read: () => readonly (Node | undefined)[]): readonly (Node | undefined)[] {
+  try {
+    return read();
+  } catch {
+    return [];
+  }
 }

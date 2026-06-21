@@ -12,8 +12,8 @@ import {
   findTargetBinding,
 } from "./provider-bindings.js";
 import {
-  csharpTargetTypeFromBinding,
-} from "./target-types.js";
+  getCsharpTargetTypeFromBinding,
+} from "./target-enrichment.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -44,5 +44,5 @@ export function getTargetTypeRefFromConstructedExpressionSyntax(
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
-  return csharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[]);
+  return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
 }

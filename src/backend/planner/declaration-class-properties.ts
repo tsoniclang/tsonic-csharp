@@ -106,7 +106,7 @@ function mergeGetterAccessor(
 ): CsharpPropertyDeclaration {
   const declaration = AsGetAccessorDeclaration(node)!;
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, existing?.type ?? invalidCsharpType("get accessor type"), diagnostics);
-  const state = createDestructuringPlannerState(node);
+  const state = createDestructuringPlannerState(node, input.ast);
   state.currentReturnType = type;
   return {
     kind: "PropertyDeclaration",
@@ -155,7 +155,7 @@ function mergeSetterAccessor(
           name: planIdentifierName(parameterDeclaration.name, "value", input, diagnostics, "Set accessor parameter name"),
           type,
         };
-  const state = createDestructuringPlannerState(node);
+  const state = createDestructuringPlannerState(node, input.ast);
   const parameterName = parameterDeclaration?.name;
   const parameterPrelude = HasSourceKind(input.ast, parameterName, KindObjectBindingPattern) || HasSourceKind(input.ast, parameterName, KindArrayBindingPattern)
     ? planParameterBindingPrelude(parameterName, "value", sourceFile, input, diagnostics, state)

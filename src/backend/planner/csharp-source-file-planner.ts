@@ -67,7 +67,7 @@ export function planSourceFile(
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
   const topLevelStatements: CsharpStatement[] = [];
-  const topLevelState = createDestructuringPlannerState(sourceFile);
+  const topLevelState = createDestructuringPlannerState(sourceFile, input.ast);
   for (const statement of sourceFile.Statements?.Nodes ?? []) {
     if (statement === undefined) {
       continue;

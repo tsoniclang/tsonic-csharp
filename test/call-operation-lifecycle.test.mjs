@@ -15,17 +15,18 @@ test("selected call lifecycle records closed C# operation facts from selected ty
     targetTypeArguments: [{ kind: "target-named", id: "System.String" }],
   });
 
+  const host = fakeObservationHost(facts);
   recordCsharpSelectedCallOperationFactsBeforeFinalization({
-    host: { facts },
+    host,
     compiler: fakeCompiler([sourceFile]),
-  });
+  }, fakeTargetTypeHost());
 
   const operation = facts.get(call, csharpTargetOperationFactKey);
   assert.equal(operation.kind, "member");
   assert.equal(operation.operationId, "Example.Box.identity``1");
-  assert.deepEqual(operation.resultType, { kind: "target-named", id: "System.String" });
-  assert.deepEqual(operation.selectedMember.parameters[0].type, { kind: "target-named", id: "System.String" });
-  assert.deepEqual(operation.selectedMember.returnType, { kind: "target-named", id: "System.String" });
+  assert.deepEqual(operation.resultType, csharpStringTargetType());
+  assert.deepEqual(operation.selectedMember.parameters[0].type, csharpStringTargetType());
+  assert.deepEqual(operation.selectedMember.returnType, csharpStringTargetType());
 });
 
 test("selected call lifecycle does not record unresolved generic C# members", () => {
@@ -37,10 +38,11 @@ test("selected call lifecycle does not record unresolved generic C# members", ()
     member: genericIdentityMember(),
   });
 
+  const host = fakeObservationHost(facts);
   recordCsharpSelectedCallOperationFactsBeforeFinalization({
-    host: { facts },
+    host,
     compiler: fakeCompiler([sourceFile]),
-  });
+  }, fakeTargetTypeHost());
 
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
@@ -66,10 +68,11 @@ test("selected constructor lifecycle records explicit result type from declaring
     },
   });
 
+  const host = fakeObservationHost(facts);
   recordCsharpSelectedCallOperationFactsBeforeFinalization({
-    host: { facts },
+    host,
     compiler: fakeCompiler([sourceFile]),
-  });
+  }, fakeTargetTypeHost());
 
   const operation = facts.get(call, csharpTargetOperationFactKey);
   assert.equal(operation.kind, "member");
@@ -93,6 +96,16 @@ function genericIdentityMember() {
   };
 }
 
+function csharpStringTargetType() {
+  return {
+    kind: "target-named",
+    id: "System.String",
+    csharpRender: { kind: "predefined", name: "string" },
+    csharpSpecialType: "string",
+    csharpTypeofRuntimeKind: "string",
+  };
+}
+
 function fakeCompiler(sourceFiles) {
   return {
     getSourceFiles: () => sourceFiles,
@@ -105,7 +118,31 @@ function fakeCompiler(sourceFiles) {
       elements: () => [],
       properties: () => [],
       arguments: () => [],
+      is: {
+        IsNewExpression: () => false,
+        IsCallExpression: () => false,
+        IsPropertyAccessExpression: () => false,
+      },
     },
+  };
+}
+
+function fakeObservationHost(facts) {
+  return {
+    facts,
+    factResolver: {
+      resolve(subject, key) {
+        return facts.get(subject, key);
+      },
+    },
+  };
+}
+
+function fakeTargetTypeHost() {
+  return {
+    getCsharpTargetBindingByTargetId: () => undefined,
+    getCsharpObjectShapeFactForSubject: () => undefined,
+    getSemanticTypeDeclarationShape: () => undefined,
   };
 }
 

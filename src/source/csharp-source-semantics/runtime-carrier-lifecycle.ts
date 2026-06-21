@@ -5,14 +5,15 @@ import type {
   ExtensionObservationContext,
   Node,
   SourceFile,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpObjectShapeFactKey,
 } from "../csharp-facts.js";
 import {
   asNodeSubject,
+  getAstReaderChildNodes,
   getNodeField,
-  getStructuralChildNodes,
 } from "./ast-utils.js";
 import type {
   CsharpLifecycleObservationContext,
@@ -33,6 +34,9 @@ import {
   getRuntimeCarrierSyntaxTargetTypeRef,
   resolveCsharpRuntimeCarrierFromLifecycle,
 } from "./runtime-carrier-lifecycle-resolution.js";
+import {
+  getCatchVariableTargetTypeRef,
+} from "./target-type-resolution-facts.js";
 
 export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
   lifecycleContext: CsharpLifecycleObservationContext,
@@ -86,17 +90,7 @@ function getRuntimeCarrierChildNodes(
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
   node: Node,
 ): readonly (Node | undefined)[] {
-  return Array.from(new Set([
-    ...ast.children(node),
-    ...ast.typeArguments(node),
-    ...ast.typeParameters(node),
-    ...ast.parameters(node),
-    ...ast.members(node),
-    ...ast.elements(node),
-    ...ast.properties(node),
-    ...ast.arguments(node),
-    ...getStructuralChildNodes(node),
-  ]));
+  return Array.from(new Set(getAstReaderChildNodes(ast, node)));
 }
 
 function recordCsharpRuntimeCarrierFact(
@@ -129,13 +123,35 @@ function recordCsharpRuntimeCarrierFact(
     carrier: result.value.carrier,
     ...(result.value.requiresAllocation !== undefined ? { requiresAllocation: result.value.requiresAllocation } : {}),
   };
-  lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, fact, result.evidence ?? []);
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, result.evidence ?? []);
+  if (!targetTypeRefContainsSourcePrimitive(fact.carrier)) {
+    lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, fact, result.evidence ?? []);
+  }
   if (symbol !== undefined) {
     lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
   }
-  if (type.symbol !== undefined) {
+  if (type.symbol !== undefined && !targetTypeRefContainsSourcePrimitive(fact.carrier)) {
     lifecycleContext.host.facts.set(type.symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
+  }
+}
+
+function targetTypeRefContainsSourcePrimitive(type: TargetTypeRef): boolean {
+  switch (type.kind) {
+    case "source-primitive":
+      return true;
+    case "array":
+      return targetTypeRefContainsSourcePrimitive(type.element);
+    case "tuple":
+      return type.elements.some(targetTypeRefContainsSourcePrimitive);
+    case "target-named":
+      return (type.typeArguments ?? []).some(targetTypeRefContainsSourcePrimitive);
+    case "pointer":
+      return targetTypeRefContainsSourcePrimitive(type.pointee);
+    case "function-pointer":
+      return targetTypeRefContainsSourcePrimitive(type.result) ||
+        type.args.some(targetTypeRefContainsSourcePrimitive);
+    default:
+      return false;
   }
 }
 
@@ -149,8 +165,22 @@ function recordCsharpRuntimeCarrierSyntaxFact(
   if (compiler === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
     return;
   }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  const catchVariableCarrier = getCatchVariableTargetTypeRef(node, context);
+  if (catchVariableCarrier !== undefined) {
+    const fact = { carrier: catchVariableCarrier };
+    const evidence = [{ message: "C# catch variable runtime carrier recorded from finalized provider exception policy." }];
+    lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+    const sourceFile = compiler.ast.getSourceFile(node);
+    const symbol = sourceFile === undefined
+      ? undefined
+      : getRuntimeCarrierSubjectSymbol(compiler, sourceFile, node);
+    if (symbol !== undefined) {
+      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
+    }
+    return;
+  }
   if (isObjectShapeRuntimeCarrierSyntaxNode(compiler.ast, node)) {
-    const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
     const objectShape = host.getCsharpObjectShapeFactForSubject(node, context);
     if (objectShape !== undefined) {
       const evidence = [{ message: "C# runtime carrier recorded from finalized object-shape facts." }];

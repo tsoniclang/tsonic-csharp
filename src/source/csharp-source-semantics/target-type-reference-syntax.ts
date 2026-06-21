@@ -25,8 +25,10 @@ import {
 } from "./target-ref-utils.js";
 import {
   csharpSourcePrimitiveTargetType,
-  csharpTargetTypeFromBinding,
 } from "./target-types.js";
+import {
+  getCsharpTargetTypeFromBinding,
+} from "./target-enrichment.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -84,7 +86,7 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
-  return csharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[]);
+  return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
 }
 
 function getTargetTypeRefFromTypeAliasDeclarations(

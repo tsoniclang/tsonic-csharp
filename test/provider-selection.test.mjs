@@ -57,7 +57,7 @@ test("target member selection does not treat System.Object as an implicit wildca
   );
 });
 
-test("C# provider requires provider virtual declaration identity instead of source-name fallback", () => {
+test("C# provider selects from a proven provider binding using checked source member and target argument facts", () => {
   const provider = getNativeSemanticProvider();
   const containerSymbol = {};
   const argument = {};
@@ -91,8 +91,33 @@ test("C# provider requires provider virtual declaration identity instead of sour
     },
   }));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
+test("C# provider defers when no provider target binding proves ownership", () => {
+  const provider = getNativeSemanticProvider();
+  const containerSymbol = {};
+  const argument = {};
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+  }));
+
+  assert.equal(result.kind, "defer");
 });
 
 test("C# provider selects target member from provider virtual declaration identity", () => {
@@ -144,7 +169,7 @@ test("C# provider selects target member from provider virtual declaration identi
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
-test("C# provider selected declaration signature id wins over source names", () => {
+test("C# provider includes virtual declaration signature id as candidate evidence", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -236,9 +261,21 @@ test("target member selection binds first-argument receiver generics before expl
     return undefined;
   };
 
-  assert.equal(
+  assert.deepEqual(
     selectTargetMember([member], { arguments: [validArgument], receiver }, context, resolveTargetTypeRef),
-    member,
+    {
+      ...member,
+      parameters: [
+        {
+          ...member.parameters[0],
+          type: { kind: "array", element: int32Type },
+        },
+        {
+          ...member.parameters[1],
+          type: int32Type,
+        },
+      ],
+    },
   );
   assert.equal(
     selectTargetMember([member], { arguments: [invalidArgument], receiver }, context, resolveTargetTypeRef),

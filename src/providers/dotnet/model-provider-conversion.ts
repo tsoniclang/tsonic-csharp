@@ -22,6 +22,12 @@ export function dotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTypeEx
       return { kind: "source-primitive", name: type.name };
     case "type-parameter":
       return { kind: "type-parameter", name: type.name };
+    case "provider-ref":
+      return {
+        kind: "provider-ref",
+        name: type.name,
+        ...(type.typeArguments !== undefined ? { typeArguments: type.typeArguments.map(dotnetTypeRefToProviderType) } : {}),
+      };
     case "named":
       return {
         kind: "target-named",
@@ -63,21 +69,27 @@ export function dotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTypeEx
 }
 
 export function dotnetTypeParameterToProviderTypeParameter(typeParameter: DotnetTypeParameterDeclaration) {
+  const providerConstraints = (typeParameter.constraints ?? []).flatMap(dotnetConstraintToProviderConstraints);
   return {
     name: typeParameter.name,
-    ...(typeParameter.constraints !== undefined
-      ? { constraints: typeParameter.constraints.map(dotnetConstraintToProviderConstraint) }
-      : {}),
+    ...(providerConstraints.length > 0 ? { constraints: providerConstraints } : {}),
     ...(typeParameter.variance !== undefined ? { variance: typeParameter.variance } : {}),
   };
 }
 
-function dotnetConstraintToProviderConstraint(constraint: DotnetConstraint): ProviderTypeExpression {
+function dotnetConstraintToProviderConstraints(constraint: DotnetConstraint): readonly ProviderTypeExpression[] {
   switch (constraint.kind) {
     case "implements":
-      return dotnetTypeRefToProviderType(constraint.contract);
+      return [dotnetTypeRefToProviderType(constraint.contract)];
+    case "value-type":
+    case "reference-type":
+    case "constructible":
+    case "unmanaged":
+    case "not-null":
+    case "target-specific":
+      return [];
     default:
-      throw new Error(`Unsupported .NET provider constraint '${constraint.kind}'. Add a typed TSTS provider constraint before exposing this declaration.`);
+      return [];
   }
 }
 

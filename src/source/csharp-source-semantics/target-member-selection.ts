@@ -30,7 +30,7 @@ export function findTargetMemberForCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   resolveTargetTypeRef: TargetTypeRefResolver,
 ): TargetMember | undefined {
-  const candidates = getTargetMemberCandidates(binding, declaration);
+  const candidates = getTargetMemberCandidatesForCall(binding, declaration, request);
   return selectTargetMember(candidates, {
     arguments: request.arguments,
     receiver: request.calleeReceiver,
@@ -49,17 +49,35 @@ export function findTargetMember(
   return memberName === undefined ? undefined : members.find((member) => member.sourceName === memberName);
 }
 
-function getTargetMemberCandidates(
+function getTargetMemberCandidatesForCall(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
+  request: CheckedCallMappingRequest,
 ): readonly TargetMember[] {
   const members = binding.members ?? [];
-  if (declaration?.signatureId !== undefined) {
-    return members.filter((member) => member.id === declaration.signatureId);
-  }
-  const memberName = declaration?.memberName;
+  const memberName = declaration?.memberName ?? request.calleePropertyName;
+  const signatureMember = declaration?.signatureId === undefined
+    ? undefined
+    : members.find((member) => member.id === declaration.signatureId);
   if (memberName !== undefined) {
-    return members.filter((member) => member.sourceName === memberName);
+    return uniqueTargetMembers([
+      signatureMember,
+      ...members.filter((member) => member.sourceName === memberName),
+    ]);
   }
-  return members.filter((member) => member.kind === "constructor");
+  return uniqueTargetMembers([
+    signatureMember,
+    ...members.filter((member) => member.kind === "constructor"),
+  ]);
+}
+
+function uniqueTargetMembers(members: readonly (TargetMember | undefined)[]): readonly TargetMember[] {
+  const seen = new Set<string>();
+  return members.filter((member): member is TargetMember => {
+    if (member === undefined || seen.has(member.id)) {
+      return false;
+    }
+    seen.add(member.id);
+    return true;
+  });
 }

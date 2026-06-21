@@ -178,6 +178,8 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
       return { kind: "source-primitive", name: type.name };
     case "type-parameter":
       return { kind: "type-parameter", name: type.name };
+    case "provider-ref":
+      throw new Error("Provider-ref is a source declaration shape only and cannot be emitted as a target type.");
     case "named":
       return csharpTargetNamedType(
         type.metadataName,
@@ -221,7 +223,13 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
 
 function dotnetDisplayNameRenderShape(displayName: string): ReturnType<typeof csharpQualifiedTypeRenderShape> {
   const lastSeparator = displayName.lastIndexOf(".");
+  const name = stripGenericArity(lastSeparator < 0 ? displayName : displayName.slice(lastSeparator + 1));
   return lastSeparator < 0
-    ? { kind: "named", name: displayName }
-    : csharpQualifiedTypeRenderShape(displayName.slice(0, lastSeparator), displayName.slice(lastSeparator + 1));
+    ? { kind: "named", name }
+    : csharpQualifiedTypeRenderShape(displayName.slice(0, lastSeparator), name);
+}
+
+function stripGenericArity(name: string): string {
+  const tick = name.indexOf("`");
+  return tick < 0 ? name : name.slice(0, tick);
 }

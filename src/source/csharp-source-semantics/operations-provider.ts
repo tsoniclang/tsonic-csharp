@@ -9,6 +9,7 @@ import type {
   ProviderIdentity,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
+  TargetBindingFact,
   TargetMember,
   TargetSemanticProvider,
   TargetTypeRef,
@@ -50,6 +51,7 @@ import {
 } from "./checked-native-mapping.js";
 
 export interface CsharpOperationsProviderHost {
+  readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
   readonly getTargetTypeRefForSubject: (
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,
@@ -137,7 +139,13 @@ export function createCsharpOperationsProvider(
   };
 }
 
-export function createCsharpJsSurfaceHost(extensionId: string, host: CsharpOperationsProviderHost) {
+export function createCsharpJsSurfaceHost(
+  extensionId: string,
+  host: Pick<
+    CsharpOperationsProviderHost,
+    "getTargetTypeRefForSubject" | "getCsharpObjectShapeFactForSubject" | "mapRuntimeCarrier"
+  >,
+) {
   return {
     targetId: csharpTargetId,
     extensionId,

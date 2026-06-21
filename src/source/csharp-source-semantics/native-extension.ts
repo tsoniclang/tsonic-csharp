@@ -85,41 +85,73 @@ import {
   recordCsharpSelectedCallOperationFactsBeforeFinalization,
 } from "./csharp-operation-lifecycle.js";
 import {
-  createCsharpDotnetSystemTypeDataProvider,
+  createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
 } from "../../providers/dotnet/index.js";
 
-const targetTypeResolutionHost = {
-  getCsharpObjectShapeFactForSubject,
-  getSemanticTypeDeclarationShape,
-} satisfies CsharpTargetTypeResolutionHost;
-
-const objectShapeSemanticsHost = {
-  getTargetTypeRefForSubject,
-  getTargetTypeRefForType,
-  getFunctionTargetTypeRefFromSignatureLikeSubject: (
-    node: Node,
-    context: ExtensionObservationContext,
-    options: TargetTypeRefResolutionOptions,
-  ) => resolveFunctionTargetTypeRefFromSignatureLikeSubject(node, context, options, targetTypeResolutionHost),
-  getTargetTypeArgumentsForType: (
-    type: Type,
-    context: ExtensionObservationContext,
-    options: TargetTypeRefResolutionOptions,
-  ) => resolveTargetTypeArgumentsForType(type, context, options, targetTypeResolutionHost),
-} satisfies CsharpObjectShapeSemanticsHost;
-
-const objectShapeLifecycleHost = {
-  getCsharpObjectShapeFactForSubject,
-  getRecordedCsharpObjectShapeFactForSubject,
-} satisfies CsharpObjectShapeLifecycleHost;
-
-const checkedOperatorLifecycleHost = {
-  getTargetTypeRefForSubject,
-} satisfies CsharpCheckedOperatorLifecycleHost;
-
 export function createCsharpNativeProviderExtension(context: TargetProviderContext): CompilerExtension {
   const selectedSurfaceIds = new Set(context.selectedSurfaces.map((surface) => surface.id));
+  const dotnetProvider = createDotnetReflectionTypeDataProvider();
+  let objectShapeSemanticsHost: CsharpObjectShapeSemanticsHost;
+  const targetTypeResolutionHost = {
+    getCsharpTargetBindingByTargetId: (targetId: string) => dotnetProvider.findTargetBindingByTargetId(targetId),
+    getCsharpObjectShapeFactForSubject,
+    getSemanticTypeDeclarationShape,
+  } satisfies CsharpTargetTypeResolutionHost;
+  const getTargetTypeRefForSubject = (
+    subject: ExtensionFactSubject | undefined,
+    context: ExtensionObservationContext,
+    options: TargetTypeRefResolutionOptions = {},
+  ): TargetTypeRef | undefined => resolveTargetTypeRefForSubject(subject, context, options, targetTypeResolutionHost);
+  const getTargetTypeRefForType = (
+    type: Type | undefined,
+    context: ExtensionObservationContext,
+    options: TargetTypeRefResolutionOptions = {},
+  ): TargetTypeRef | undefined => resolveTargetTypeRefForType(type, context, options, targetTypeResolutionHost);
+  const getTargetTypeRefForSyntaxNode = (
+    node: Node | undefined,
+    facts: ExtensionFactStore,
+    ast?: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  ): TargetTypeRef | undefined => resolveTargetTypeRefForSyntaxNode(node, facts, ast);
+  function getCsharpObjectShapeFactForSubject(
+    subject: ExtensionFactSubject | undefined,
+    context: ExtensionObservationContext,
+  ): CsharpObjectShapeFact | undefined {
+    return resolveCsharpObjectShapeFactForSubject(subject, context, objectShapeSemanticsHost);
+  }
+  function getRecordedCsharpObjectShapeFactForSubject(
+    subject: ExtensionFactSubject | undefined,
+    context: ExtensionObservationContext,
+  ): CsharpObjectShapeFact | undefined {
+    return resolveRecordedCsharpObjectShapeFactForSubject(subject, context);
+  }
+  function getSemanticTypeDeclarationShape(
+    type: Type,
+    context: ExtensionObservationContext,
+  ): CsharpSemanticTypeDeclarationShape | undefined {
+    return resolveSemanticTypeDeclarationShape(type, context, objectShapeSemanticsHost);
+  }
+  objectShapeSemanticsHost = {
+    getTargetTypeRefForSubject,
+    getTargetTypeRefForType,
+    getFunctionTargetTypeRefFromSignatureLikeSubject: (
+      node: Node,
+      context: ExtensionObservationContext,
+      options: TargetTypeRefResolutionOptions,
+    ) => resolveFunctionTargetTypeRefFromSignatureLikeSubject(node, context, options, targetTypeResolutionHost),
+    getTargetTypeArgumentsForType: (
+      type: Type,
+      context: ExtensionObservationContext,
+      options: TargetTypeRefResolutionOptions,
+    ) => resolveTargetTypeArgumentsForType(type, context, options, targetTypeResolutionHost),
+  };
+  const objectShapeLifecycleHost = {
+    getCsharpObjectShapeFactForSubject,
+    getRecordedCsharpObjectShapeFactForSubject,
+  } satisfies CsharpObjectShapeLifecycleHost;
+  const checkedOperatorLifecycleHost = {
+    getTargetTypeRefForSubject,
+  } satisfies CsharpCheckedOperatorLifecycleHost;
   return {
     identity: {
       id: csharpNativeProviderExtensionId,
@@ -133,7 +165,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
     initialize(context): void {
       context.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
       context.registerTargetBindingProvider(createDotnetTargetBindingProvider({
-        provider: createCsharpDotnetSystemTypeDataProvider(),
+        provider: dotnetProvider,
       }));
       if (selectedSurfaceIds.has("nodejs")) {
         context.registerTargetBindingProvider(createCsharpNodejsSurfaceBindingProvider());
@@ -146,6 +178,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         getRecordedCsharpObjectShapeFactForSubject,
       } satisfies CsharpRuntimeCarrierSemanticsHost;
       const provider = createCsharpOperationsProvider(selectedSurfaceIds, {
+        getCsharpTargetBindingByTargetId: targetTypeResolutionHost.getCsharpTargetBindingByTargetId,
         getTargetTypeRefForSubject,
         getCsharpObjectShapeFactForSubject,
         mapRuntimeCarrier: (request, observationContext) => mapCsharpRuntimeCarrier(request, observationContext, runtimeCarrierHost),
@@ -160,7 +193,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, checkedOperatorLifecycleHost);
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds, runtimeCarrierHost);
-        recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext);
+        recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, targetTypeResolutionHost);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         const primitive = resolverContext.facts.get(subject, sourcePrimitiveFactKey);
@@ -175,49 +208,4 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       });
     },
   };
-}
-
-function getTargetTypeRefForSubject(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions = {},
-): TargetTypeRef | undefined {
-  return resolveTargetTypeRefForSubject(subject, context, options, targetTypeResolutionHost);
-}
-
-function getTargetTypeRefForType(
-  type: Type | undefined,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions = {},
-): TargetTypeRef | undefined {
-  return resolveTargetTypeRefForType(type, context, options, targetTypeResolutionHost);
-}
-
-function getTargetTypeRefForSyntaxNode(
-  node: Node | undefined,
-  facts: ExtensionFactStore,
-  ast?: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-): TargetTypeRef | undefined {
-  return resolveTargetTypeRefForSyntaxNode(node, facts, ast);
-}
-
-function getCsharpObjectShapeFactForSubject(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-): CsharpObjectShapeFact | undefined {
-  return resolveCsharpObjectShapeFactForSubject(subject, context, objectShapeSemanticsHost);
-}
-
-function getRecordedCsharpObjectShapeFactForSubject(
-  subject: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-): CsharpObjectShapeFact | undefined {
-  return resolveRecordedCsharpObjectShapeFactForSubject(subject, context);
-}
-
-function getSemanticTypeDeclarationShape(
-  type: Type,
-  context: ExtensionObservationContext,
-): CsharpSemanticTypeDeclarationShape | undefined {
-  return resolveSemanticTypeDeclarationShape(type, context, objectShapeSemanticsHost);
 }

@@ -30,11 +30,13 @@ export type {
   DotnetTypeDataProvider,
 } from "./provider.js";
 export { createDotnetTargetBindingProvider } from "./provider.js";
+export type {
+  DotnetReflectionTypeDataProvider,
+  DotnetReflectionTypeDataProviderOptions,
+} from "./reflection/provider.js";
 export {
-  createCsharpDotnetSystemTypeDataProvider,
-  findCsharpDotnetProviderExportByTargetId,
-  findCsharpDotnetTargetBindingByTargetId,
-} from "./csharp-system-provider.js";
+  createDotnetReflectionTypeDataProvider,
+} from "./reflection/provider.js";
 export {
   createDotnetModuleSpecifier,
   dotnetModuleExtension,
