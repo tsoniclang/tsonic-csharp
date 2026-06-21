@@ -133,10 +133,6 @@ export function getCsharpTypeForNode(
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
     return invalidType("structural object type");
   }
-  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
-  if (nodeCarrierType !== undefined) {
-    return nodeCarrierType;
-  }
   if (input.ast.kindName(node) === KindAnyKeyword || input.ast.kindName(node) === KindUnknownKeyword) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
     return invalidType("any or unknown type");
@@ -147,6 +143,10 @@ export function getCsharpTypeForNode(
   }
   if (input.ast.kindName(node) === KindUnionType) {
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
+  }
+  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
+  if (nodeCarrierType !== undefined) {
+    return nodeCarrierType;
   }
   if (input.ast.kindName(node) === KindObjectBindingPattern || input.ast.kindName(node) === KindArrayBindingPattern) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));

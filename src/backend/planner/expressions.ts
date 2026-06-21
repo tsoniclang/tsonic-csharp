@@ -82,7 +82,7 @@ import {
 } from "./source-ast.js";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { canonicalIdentityFactKey } from "@tsonic/tsts";
-import type { ArgumentPassingFact, Node, SourceFile, Symbol, TargetMember, TargetOperationFact, TargetTypeRef, Type } from "@tsonic/tsts";
+import type { ArgumentPassingFact, Node, SelectedTargetSignatureFact, SourceFile, Symbol, TargetMember, TargetOperationFact, TargetTypeRef, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../roslyn/syntax.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
@@ -257,11 +257,11 @@ function planExpressionCore(
       }
       const member = selectedTargetCall === undefined
         ? undefined
-        : instantiateSelectedTargetMember(node, expression.Expression, selectedTargetCall.member, sourceFile, input);
+        : instantiateSelectedTargetMember(node, expression.Expression, selectedTargetCall, sourceFile, input);
       const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
       const selectedConstructorTypeRef = member?.returnType ??
-        expressionCarrier ??
         member?.declaringType ??
+        expressionCarrier ??
         selectedTargetCall?.member.returnType ??
         selectedTargetCall?.member.declaringType;
       const selectedConstructorType = selectedConstructorTypeRef === undefined
@@ -589,7 +589,8 @@ function planProjectSourceModuleMemberReference(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const sourceReference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile });
+  const sourceReference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }) ??
+    getProjectSourceReferenceForPropertyAccessName(node, sourceFile, input);
   if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
     return undefined;
   }
@@ -607,6 +608,20 @@ function planProjectSourceModuleMemberReference(
   };
 }
 
+function getProjectSourceReferenceForPropertyAccessName(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]> {
+  if (!HasSourceKind(input.ast, node, KindPropertyAccessExpression)) {
+    return undefined;
+  }
+  const name = AsPropertyAccessExpression(node)?.name;
+  return name === undefined
+    ? undefined
+    : input.semantics.getProjectSourceReferenceForNode(name, { sourceFile });
+}
+
 function planPropertyAccessExpression(
   propertyAccess: Node,
   sourceFile: SourceFile,
@@ -614,6 +629,10 @@ function planPropertyAccessExpression(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   const expression = AsPropertyAccessExpression(propertyAccess)!;
+  const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
+  if (sourceModuleMemberReference !== undefined) {
+    return sourceModuleMemberReference;
+  }
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   if (targetOperation !== undefined && targetOperation.operationKind === "property") {
     const staticMember = targetStaticMemberExpression(targetOperation, diagnostics, propertyAccess);
@@ -629,10 +648,6 @@ function planPropertyAccessExpression(
   if (targetOperation !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
     return invalidExpression("selected target property");
-  }
-  const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
-  if (sourceModuleMemberReference !== undefined) {
-    return sourceModuleMemberReference;
   }
   const sourceName = Node_Text(expression.name!);
   const receiver = expression.Expression;
@@ -701,7 +716,7 @@ function planCallExpression(
   const expression = AsCallExpression(node)!;
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
   if (selectedTargetCall !== undefined) {
-    const member = instantiateSelectedTargetMember(node, expression.Expression, selectedTargetCall.member, sourceFile, input);
+    const member = instantiateSelectedTargetMember(node, expression.Expression, selectedTargetCall, sourceFile, input);
     return {
       kind: "InvocationExpression",
       callee: planSelectedTargetCallee(expression.Expression, member, sourceFile, input, diagnostics),
@@ -781,11 +796,12 @@ function planSelectedTargetCallee(
 function instantiateSelectedTargetMember(
   operationNode: Node,
   callee: Node | undefined,
-  member: TargetMember,
+  selectedSignature: SelectedTargetSignatureFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): TargetMember {
-  const explicitTypeArgumentMap = getExplicitSelectedTargetTypeArgumentMap(operationNode, sourceFile, input);
+  const member = selectedSignature.member;
+  const explicitTypeArgumentMap = getExplicitSelectedTargetTypeArgumentMap(member, operationNode, sourceFile, input);
   if (explicitTypeArgumentMap.size > 0) {
     return substituteTargetMemberTypeParameters(member, explicitTypeArgumentMap);
   }
@@ -795,11 +811,15 @@ function instantiateSelectedTargetMember(
   const typeSubject = propertyAccess?.Expression ?? operationNode;
   const bindingSubject = propertyAccess?.Expression ?? callee ?? operationNode;
   const carrier = getTargetTypeRefForNode(input, typeSubject, sourceFile);
+  const binding = input.semantics.getTargetBindingForReference(bindingSubject, { sourceFile });
+  const selectedTypeArgumentMap = getSelectedTargetTypeArgumentMap(member, binding?.typeParameters ?? [], selectedSignature.targetTypeArguments ?? []);
+  if (selectedTypeArgumentMap.size > 0) {
+    return substituteTargetMemberTypeParameters(member, selectedTypeArgumentMap);
+  }
   if (carrier?.kind !== "target-named" || (carrier.typeArguments ?? []).length === 0) {
     return member;
   }
-  const binding = input.semantics.getTargetBindingForReference(bindingSubject, { sourceFile });
-  const typeParameters = binding?.typeParameters ?? [];
+  const typeParameters = member.typeParameters ?? binding?.typeParameters ?? [];
   if (typeParameters.length === 0) {
     return member;
   }
@@ -817,7 +837,20 @@ function instantiateSelectedTargetMember(
   return substituteTargetMemberTypeParameters(member, typeArgumentMap);
 }
 
+function getSelectedTargetTypeArgumentMap(
+  member: TargetMember,
+  bindingTypeParameters: readonly { readonly name: string }[],
+  targetTypeArguments: readonly TargetTypeRef[],
+): ReadonlyMap<string, TargetTypeRef> {
+  if (targetTypeArguments.length === 0) {
+    return new Map();
+  }
+  const typeParameters = getTargetMemberTypeParameters(member, bindingTypeParameters);
+  return typeParameters.length === 0 ? new Map() : buildTargetTypeArgumentMap(typeParameters, targetTypeArguments);
+}
+
 function getExplicitSelectedTargetTypeArgumentMap(
+  member: TargetMember,
   operationNode: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
@@ -829,17 +862,84 @@ function getExplicitSelectedTargetTypeArgumentMap(
     return new Map();
   }
   const binding = input.semantics.getTargetBindingForReference(newExpression.Expression, { sourceFile });
-  const typeParameters = binding?.typeParameters ?? [];
+  const typeParameters = getTargetMemberTypeParameters(member, binding?.typeParameters ?? []);
   if (typeParameters.length === 0) {
     return new Map();
   }
-  const typeArguments = (newExpression.TypeArguments?.Nodes ?? [])
+  const typeArguments = input.ast.typeArguments(newExpression)
     .filter((argument): argument is Node => argument !== undefined)
     .map((argument) => getTargetTypeRefForNode(input, argument, sourceFile));
   if (typeArguments.length === 0 || typeArguments.some((argument) => argument === undefined)) {
     return new Map();
   }
   return buildTargetTypeArgumentMap(typeParameters, typeArguments as readonly TargetTypeRef[]);
+}
+
+function getTargetMemberTypeParameters(
+  member: TargetMember,
+  bindingTypeParameters: readonly { readonly name: string }[],
+): readonly { readonly name: string }[] {
+  if (member.typeParameters !== undefined && member.typeParameters.length > 0) {
+    return member.typeParameters;
+  }
+  if (bindingTypeParameters.length > 0) {
+    return bindingTypeParameters;
+  }
+  return collectTargetTypeParameterNamesFromMember(member).map((name) => ({ name }));
+}
+
+function collectTargetTypeParameterNamesFromMember(member: TargetMember): readonly string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const visit = (type: TargetTypeRef | undefined): void => {
+    if (type === undefined) {
+      return;
+    }
+    switch (type.kind) {
+      case "type-parameter":
+        if (!seen.has(type.name)) {
+          seen.add(type.name);
+          names.push(type.name);
+        }
+        return;
+      case "target-named":
+        for (const argument of type.typeArguments ?? []) {
+          visit(argument);
+        }
+        return;
+      case "array":
+        visit(type.element);
+        return;
+      case "tuple":
+        for (const element of type.elements) {
+          visit(element);
+        }
+        return;
+      case "pointer":
+        visit(type.pointee);
+        return;
+      case "function-pointer":
+        for (const argument of type.args) {
+          visit(argument);
+        }
+        visit(type.result);
+        return;
+      case "associated-type":
+        visit(type.owner);
+        return;
+      case "source-primitive":
+      case "opaque":
+      case "lifetime":
+      case "target-specific":
+        return;
+    }
+  };
+  visit(member.declaringType);
+  for (const parameter of member.parameters) {
+    visit(parameter.type);
+  }
+  visit(member.returnType);
+  return names;
 }
 
 function buildTargetTypeArgumentMap(
@@ -861,15 +961,44 @@ function substituteTargetMemberTypeParameters(
   member: TargetMember,
   typeArgumentMap: ReadonlyMap<string, TargetTypeRef>,
 ): TargetMember {
+  const declaringType = member.declaringType === undefined
+    ? undefined
+    : applyDeclaringTypeArguments(substituteTargetTypeRef(member.declaringType, typeArgumentMap), typeArgumentMap);
   return {
     ...member,
-    ...(member.declaringType !== undefined ? { declaringType: substituteTargetTypeRef(member.declaringType, typeArgumentMap) } : {}),
+    ...(declaringType !== undefined ? { declaringType } : {}),
     parameters: member.parameters.map((parameter) => ({
       ...parameter,
       type: substituteTargetTypeRef(parameter.type, typeArgumentMap),
     })),
     ...(member.returnType !== undefined ? { returnType: substituteTargetTypeRef(member.returnType, typeArgumentMap) } : {}),
   };
+}
+
+function applyDeclaringTypeArguments(
+  declaringType: TargetTypeRef,
+  typeArgumentMap: ReadonlyMap<string, TargetTypeRef>,
+): TargetTypeRef {
+  if (declaringType.kind !== "target-named" || (declaringType.typeArguments ?? []).length > 0) {
+    return declaringType;
+  }
+  const arity = getTargetNamedTypeArity(declaringType.id);
+  if (arity === 0 || typeArgumentMap.size < arity) {
+    return declaringType;
+  }
+  return {
+    ...declaringType,
+    typeArguments: [...typeArgumentMap.values()].slice(0, arity),
+  };
+}
+
+function getTargetNamedTypeArity(id: string): number {
+  const tick = id.lastIndexOf("`");
+  if (tick < 0) {
+    return 0;
+  }
+  const parsed = Number.parseInt(id.slice(tick + 1), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function substituteTargetTypeRef(type: TargetTypeRef, typeArgumentMap: ReadonlyMap<string, TargetTypeRef>): TargetTypeRef {
@@ -1220,7 +1349,12 @@ function planObjectLiteralExpressionWithExpectedType(
       assignments,
     };
   }
-  const objectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input);
+  if (expectedTypeForbidsObjectShapeFallback(expectedTypeSubject, sourceFile, input)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires a source-owned expected type or finalized TSTS/provider object-shape facts before C# emission."));
+    return invalidExpression("object literal without finalized object-shape facts");
+  }
+  const objectShape = getExpectedObjectShapeFact(node, sourceFile, input) ??
+    getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input);
   if (objectShape !== undefined) {
     return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape);
   }
@@ -1449,6 +1583,22 @@ function isSourceOwnedObjectInitializerType(
     return false;
   }
   return isSourceOwnedProjectConstructibleObjectSubject(expectedTypeSubject, sourceFile, input);
+}
+
+function expectedTypeForbidsObjectShapeFallback(
+  expectedTypeSubject: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  if (expectedTypeSubject === undefined) {
+    return false;
+  }
+  if (input.semantics.getTargetBindingForReference(expectedTypeSubject, { sourceFile }) !== undefined) {
+    return true;
+  }
+  const declaration = input.semantics.getProjectSourceDeclarationForNode(expectedTypeSubject, { sourceFile });
+  return HasSourceKind(input.ast, declaration, KindClassDeclaration) &&
+    !isSourceOwnedProjectConstructibleObjectSubject(expectedTypeSubject, sourceFile, input);
 }
 
 function planObjectLiteralAssignment(

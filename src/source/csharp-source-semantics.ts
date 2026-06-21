@@ -1,8 +1,10 @@
 import {
   ExtensionLifecycleEvent,
+  ExtensionObservationPoint,
   TstsProviderContractVersion,
   acceptObservation,
   attributeFactKey,
+  contextualTargetTypeFactKey,
   createSourceSemanticsExtension,
   deferObservation,
   functionPointerFactKey,
@@ -10,6 +12,7 @@ import {
   providerVirtualDeclarationFactKey,
   rejectObservation,
   runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
   sourcePrimitive,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
@@ -48,6 +51,7 @@ import type {
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
   SourceFile,
+  BeforeSemanticsFinalizedLifecycleRequest,
   SourceFileBoundLifecycleRequest,
   SourceCallMarkerDeclaration,
   SourcePrimitiveKind,
@@ -118,8 +122,11 @@ export function createCsharpTargetSemanticsExtension(_context: TargetExtensionCo
       context.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
       const provider = createCsharpSurfaceOperationsProvider();
       context.registerTargetSemanticProvider(provider);
-      context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request) => {
-        recordCsharpSourceFileFacts(request, context.facts);
+      context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext) => {
+        recordCsharpSourceFileFacts(request, context.facts, lifecycleContext.compiler?.ast);
+      });
+      context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
+        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         const primitive = resolverContext.facts.get(subject, sourcePrimitiveFactKey);
@@ -134,6 +141,224 @@ export function createCsharpTargetSemanticsExtension(_context: TargetExtensionCo
       });
     },
   };
+}
+
+function recordCsharpRuntimeCarrierFactsBeforeFinalization(
+  lifecycleContext: Parameters<NonNullable<CompilerExtension["initialize"]>>[0] extends never ? never : { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  targetId: string,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, true, targetId);
+    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, false, targetId);
+  }
+}
+
+function walkCsharpRuntimeCarrierFacts(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node | undefined,
+  typeSyntaxOnly: boolean,
+  targetId: string,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || node === undefined) {
+    return;
+  }
+  if (typeSyntaxOnly) {
+    for (const child of getRuntimeCarrierChildNodes(compiler.ast, node)) {
+      walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId);
+    }
+    if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)) {
+      recordCsharpRuntimeCarrierFact(lifecycleContext, sourceFile, node, targetId);
+    }
+    return;
+  }
+  for (const child of getRuntimeCarrierChildNodes(compiler.ast, node)) {
+    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId);
+  }
+  recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, node);
+  propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
+}
+
+function getRuntimeCarrierChildNodes(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): readonly (Node | undefined)[] {
+  return Array.from(new Set([
+    ...safeAstChildNodes(() => ast.children(node)),
+    ...safeAstChildNodes(() => ast.typeArguments(node)),
+    ...safeAstChildNodes(() => ast.typeParameters(node)),
+    ...safeAstChildNodes(() => ast.parameters(node)),
+    ...safeAstChildNodes(() => ast.members(node)),
+    ...safeAstChildNodes(() => ast.elements(node)),
+    ...safeAstChildNodes(() => ast.properties(node)),
+    ...safeAstChildNodes(() => ast.arguments(node)),
+    ...getStructuralChildNodes(node),
+  ]));
+}
+
+function safeAstChildNodes(read: () => readonly (Node | undefined)[]): readonly (Node | undefined)[] {
+  try {
+    return read();
+  } catch {
+    return [];
+  }
+}
+
+function recordCsharpRuntimeCarrierFact(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node,
+  targetId: string,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
+    return;
+  }
+  const type = getRuntimeCarrierSubjectType(compiler, sourceFile, node);
+  if (type === undefined) {
+    return;
+  }
+  const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, node);
+  const result = lifecycleContext.host.runObservation(
+    ExtensionObservationPoint.resolveRuntimeCarrier,
+    {
+      type,
+      sourceTypeReference: node,
+      ...(symbol !== undefined ? { sourceTypeSymbol: symbol } : {}),
+      target: targetId,
+    },
+    () => undefined as unknown as RuntimeCarrierFactResult,
+  );
+  if (result.kind !== "accept") {
+    return;
+  }
+  const fact = {
+    carrier: result.value.carrier,
+    ...(result.value.requiresAllocation !== undefined ? { requiresAllocation: result.value.requiresAllocation } : {}),
+  };
+  lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, fact, result.evidence ?? []);
+  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, result.evidence ?? []);
+  if (symbol !== undefined) {
+    lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
+  }
+  if (type.symbol !== undefined) {
+    lifecycleContext.host.facts.set(type.symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
+  }
+}
+
+function recordCsharpRuntimeCarrierSyntaxFact(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
+    return;
+  }
+  const carrier = getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node);
+  if (carrier === undefined) {
+    return;
+  }
+  const fact = { carrier };
+  const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
+  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+}
+
+function getRuntimeCarrierSyntaxTargetTypeRef(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node,
+): TargetTypeRef | undefined {
+  const ast = lifecycleContext.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  if (ast.is.IsRegularExpressionLiteral(node)) {
+    return csharpTargetNamedType("Tsonic.CSharp.Js.RegExp");
+  }
+  if (!ast.is.IsNewExpression(node)) {
+    return undefined;
+  }
+  const selected = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey);
+  const declaringType = selected?.member.returnType ?? selected?.member.declaringType;
+  if (declaringType?.kind !== "target-named") {
+    return undefined;
+  }
+  const typeArguments = ast.typeArguments(node)
+    .map((argument) => getTargetTypeRefForSyntaxNode(argument, lifecycleContext.host.facts, ast));
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  return {
+    ...declaringType,
+    ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly TargetTypeRef[] } : {}),
+  };
+}
+
+function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || compiler.ast.kindName(node) !== "KindVariableDeclaration") {
+    return;
+  }
+  const initializer = asNodeSubject(getNodeField(node, "Initializer"));
+  const name = asNodeSubject(getNodeField(node, "Name"));
+  const initializerFact = lifecycleContext.host.facts.get(initializer, runtimeCarrierFactKey);
+  if (initializerFact === undefined) {
+    return;
+  }
+  const evidence = [{ message: "C# runtime carrier propagated from checked initializer syntax." }];
+  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, initializerFact, evidence);
+  if (name !== undefined) {
+    lifecycleContext.host.facts.set(name, runtimeCarrierFactKey, initializerFact, evidence);
+    const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
+    if (symbol !== undefined) {
+      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, initializerFact, evidence);
+    }
+  }
+}
+
+function isRuntimeCarrierTypeSyntaxNode(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  return isTypeSyntaxNode(ast, node);
+}
+
+function getRuntimeCarrierSubjectType(
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+  sourceFile: SourceFile,
+  node: Node,
+): Type | undefined {
+  try {
+    return isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)
+      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
+      : compiler.checker.getTypeAtLocation(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
+}
+
+function getRuntimeCarrierSubjectSymbol(
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+  sourceFile: SourceFile,
+  node: Node,
+): Symbol | undefined {
+  try {
+    return compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
+      compiler.checker.getResolvedSymbol(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }
 
 function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
@@ -290,9 +515,16 @@ function mapCsharpCheckedPropertyAccess(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  const sourceLibraryProperty = mapCsharpSourceLibraryCheckedPropertyAccess(request, context);
+  const sourceLibraryProperty = mapCsharpDirectSourceLibraryCheckedPropertyAccess(request, context);
   if (sourceLibraryProperty !== undefined) {
     return sourceLibraryProperty;
+  }
+  if (!hasCsharpOwnedPropertyAccessSubject(request, context)) {
+    return deferObservation;
+  }
+  const receiverSourceLibraryProperty = mapCsharpReceiverSourceLibraryCheckedPropertyAccess(request, context);
+  if (receiverSourceLibraryProperty !== undefined) {
+    return receiverSourceLibraryProperty;
   }
   const binding = findTargetBinding(context, [
     request.sourceSelectedContainerSymbol,
@@ -306,7 +538,7 @@ function mapCsharpCheckedPropertyAccess(
       getTargetTypeRefForSubject(request.receiver, context, noNodeTypeQuery),
   );
   if (binding === undefined) {
-    return deferObservation;
+    return mapCsharpObjectShapeCheckedPropertyAccess(request, context) ?? deferObservation;
   }
   const member = findTargetMember(binding, context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey), request.propertyName);
   if (member === undefined) {
@@ -315,6 +547,50 @@ function mapCsharpCheckedPropertyAccess(
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(member),
   }, [{ message: "C# target property/member access selected from checked TSTS provider declaration." }]);
+}
+
+function hasCsharpOwnedPropertyAccessSubject(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext,
+): boolean {
+  return hasDirectCsharpOwnedSubject(context, [
+    request.expression,
+    request.receiver,
+    request.receiverType,
+    request.receiverTypeSymbol,
+    request.receiverSymbol,
+    request.receiverResolvedSymbol,
+    request.receiverAliasedSymbol,
+    request.sourceSelectedDeclaration,
+    request.sourceSelectedDeclarationContainer,
+    request.sourceSelectedContainerSymbol,
+  ]);
+}
+
+function mapCsharpObjectShapeCheckedPropertyAccess(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const objectShape = getCsharpObjectShapeFactForSubject(request.receiver, context) ??
+    getCsharpObjectShapeFactForSubject(request.receiverType, context) ??
+    getCsharpObjectShapeFactForSubject(request.receiverSymbol, context) ??
+    getCsharpObjectShapeFactForSubject(request.receiverResolvedSymbol, context) ??
+    getCsharpObjectShapeFactForSubject(request.receiverAliasedSymbol, context);
+  if (objectShape === undefined) {
+    return undefined;
+  }
+  const member = objectShape.members.find((candidate) => candidate.sourceName === request.propertyName);
+  if (member === undefined) {
+    return undefined;
+  }
+  return acceptObservation<CheckedOperationMappingResult>({
+    operation: targetOperation(
+      `tsonic.csharp.objectShape.${request.propertyName}`,
+      member.memberKind === "method" ? "method" : "property",
+      member.targetName,
+      { resultType: member.type },
+    ),
+  }, [{ message: "C# object-shape property access selected from finalized structural shape fact." }]);
 }
 
 function mapCsharpCheckedElementAccess(
@@ -382,13 +658,9 @@ function mapCsharpCheckedOperator(
     return deferObservation;
   }
   const left = getTargetTypeRefForSubject(request.leftType, context, noNodeTypeQuery) ??
-    getTargetTypeRefForSubject(request.leftType, context) ??
-    getTargetTypeRefForSubject(request.left, context, noNodeTypeQuery) ??
-    getTargetTypeRefForSubject(request.left, context);
+    getTargetTypeRefForSubject(request.left, context, noNodeTypeQuery);
   const right = getTargetTypeRefForSubject(request.rightType, context, noNodeTypeQuery) ??
-    getTargetTypeRefForSubject(request.rightType, context) ??
-    getTargetTypeRefForSubject(request.right, context, noNodeTypeQuery) ??
-    getTargetTypeRefForSubject(request.right, context);
+    getTargetTypeRefForSubject(request.right, context, noNodeTypeQuery);
   if (left === undefined || (request.right !== undefined && right === undefined)) {
     return deferObservation;
   }
@@ -417,8 +689,7 @@ function mapCsharpCheckedIteration(
     return deferObservation;
   }
   const expressionType = getTargetTypeRefForSubject(request.sourceElementType, context, noNodeRuntimeCarrierTypeQuery) ??
-    getTargetTypeRefForSubject(request.expression, context, noNodeRuntimeCarrierTypeQuery) ??
-    getTargetTypeRefForSubject(request.expression, context, { allowRuntimeCarrier: false });
+    getTargetTypeRefForSubject(request.expression, context, noNodeRuntimeCarrierTypeQuery);
   if (request.kind === "for-of") {
     if (isCsharpStringType(expressionType)) {
       const fact = {
@@ -796,6 +1067,23 @@ function findTargetBinding(
   return undefined;
 }
 
+function hasDirectCsharpOwnedSubject(
+  context: ExtensionObservationContext,
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+): boolean {
+  return subjects.some((subject) => {
+    if (subject === undefined) {
+      return false;
+    }
+    return context.facts.get(subject, targetBindingFactKey) !== undefined ||
+      context.facts.get(subject, runtimeCarrierFactKey) !== undefined ||
+      context.facts.get(subject, sourcePrimitiveFactKey) !== undefined ||
+      context.facts.get(subject, selectedTargetSignatureFactKey) !== undefined ||
+      context.facts.get(subject, providerVirtualDeclarationFactKey) !== undefined ||
+      context.facts.get(subject, csharpObjectShapeFactKey) !== undefined;
+  });
+}
+
 function getKnownTargetBindingForTypeRef(type: TargetTypeRef | undefined): TargetBindingFact | undefined {
   if (type?.kind !== "target-named" || type.id !== "System.Exception") {
     return undefined;
@@ -893,11 +1181,8 @@ function scoreTargetMember(
     if (parameter === undefined) {
       return undefined;
     }
-    const factBackedArgumentType = getTargetTypeRefForSubject(arguments_[index], context, noNodeTypeQuery);
-    const factBackedArgumentScore = scoreTargetTypeMatch(parameter.type, factBackedArgumentType, arguments_[index], context);
-    const checkedArgumentScore = factBackedArgumentScore ??
-      scoreTargetTypeMatch(parameter.type, getTargetTypeRefForSubject(arguments_[index], context), arguments_[index], context);
-    const argumentScore = checkedArgumentScore;
+    const argumentType = getTargetTypeRefForSubject(arguments_[index], context, noNodeTypeQuery);
+    const argumentScore = scoreTargetTypeMatch(parameter.type, argumentType, arguments_[index], context);
     if (argumentScore === undefined) {
       return undefined;
     }
@@ -1528,6 +1813,9 @@ function getTargetTypeRefFromSyntax(
   if (ast.is.IsRegularExpressionLiteral(node)) {
     return csharpTargetNamedType("Tsonic.CSharp.Js.RegExp");
   }
+  if (ast.is.IsNewExpression(node)) {
+    return getTargetTypeRefFromConstructedExpressionSyntax(node, context, options);
+  }
   if (ast.is.IsTypeReferenceNode(node)) {
     return getTargetTypeRefFromTypeReferenceSyntax(node, context, options);
   }
@@ -1550,6 +1838,31 @@ function getTargetTypeRefFromSyntax(
   return undefined;
 }
 
+function getTargetTypeRefFromConstructedExpressionSyntax(
+  node: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): TargetTypeRef | undefined {
+  const expression = asNodeSubject(getNodeField(node, "Expression"));
+  if (expression === undefined) {
+    return undefined;
+  }
+  const binding = findTargetBinding(context, [expression]);
+  if (binding === undefined) {
+    return undefined;
+  }
+  const typeArguments = getNodeList(getNodeField(node, "TypeArguments"))
+    .map((argument) => getTargetTypeRefForSubject(argument, context, options));
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  return {
+    kind: "target-named",
+    id: binding.id,
+    ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly TargetTypeRef[] } : {}),
+  };
+}
+
 function getTargetTypeRefFromTypeReferenceSyntax(
   node: Node,
   context: ExtensionObservationContext,
@@ -1565,6 +1878,7 @@ function getTargetTypeRefFromTypeReferenceSyntax(
   const candidateSubjects: readonly (ExtensionFactSubject | undefined)[] = [
     node,
     typeName,
+    type?.symbol,
     checker.getSymbolAtLocation(typeName),
   ];
   for (const candidate of candidateSubjects) {
@@ -1921,13 +2235,26 @@ function mapCsharpSourceLibraryCheckedCall(
   }, [{ message: `C# target call selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
 }
 
-function mapCsharpSourceLibraryCheckedPropertyAccess(
+function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, request.propertyName, context) ??
-    getSourceLibraryMemberFromReceiver(request.receiverType, request.propertyName, context) ??
+  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, request.propertyName, context);
+  return mapCsharpSourceLibraryPropertyOperation(sourceMember);
+}
+
+function mapCsharpReceiverSourceLibraryCheckedPropertyAccess(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const sourceMember = getSourceLibraryMemberFromReceiver(request.receiverType, request.propertyName, context) ??
     getSourceLibraryMemberFromReceiver(request.receiver, request.propertyName, context);
+  return mapCsharpSourceLibraryPropertyOperation(sourceMember);
+}
+
+function mapCsharpSourceLibraryPropertyOperation(
+  sourceMember: SourceLibraryMember | undefined,
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   if (sourceMember === undefined) {
     return undefined;
   }
@@ -1948,10 +2275,7 @@ function getSourceLibraryMemberFromReceiver(
   if (memberName === undefined || memberName.length === 0) {
     return undefined;
   }
-  const receiverType = unwrapNullableTargetType(
-    getTargetTypeRefForSubject(receiver, context, noNodeTypeQuery) ??
-      getTargetTypeRefForSubject(receiver, context),
-  );
+  const receiverType = unwrapNullableTargetType(getTargetTypeRefForSubject(receiver, context, noNodeTypeQuery));
   if (receiverType?.kind === "array") {
     return {
       declaringName: "Array",
@@ -1982,12 +2306,10 @@ function mapCsharpSourceLibraryCheckedElementAccess(
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const receiverType = unwrapNullableTargetType(
     getTargetTypeRefForSubject(request.receiverType, context, noNodeTypeQuery) ??
-      getTargetTypeRefForSubject(request.receiverType, context) ??
-      getTargetTypeRefForSubject(request.receiver, context, noNodeTypeQuery) ??
-      getTargetTypeRefForSubject(request.receiver, context),
+      getTargetTypeRefForSubject(request.receiver, context, noNodeTypeQuery),
   );
   if (receiverType?.kind === "array") {
-    const indexType = getTargetTypeRefForSubject(request.argument, context);
+    const indexType = getTargetTypeRefForSubject(request.argument, context, noNodeTypeQuery);
     if (!isIntegralTargetTypeRef(indexType) && scoreLiteralTargetTypeMatch(csharpSourcePrimitiveTargetType("int32"), request.argument, context) === undefined) {
       return rejectObservation(csharpProviderDiagnostic("tsonic.csharp.surface-operations", "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100111, "C# array element access requires an integral provider-backed index type."));
     }
@@ -2001,7 +2323,7 @@ function mapCsharpSourceLibraryCheckedElementAccess(
     }, [{ message: "C# target array indexer selected from checked TypeScript element access." }]);
   }
   if (receiverType?.kind === "target-named" && receiverType.id === "System.String") {
-    const indexType = getTargetTypeRefForSubject(request.argument, context);
+    const indexType = getTargetTypeRefForSubject(request.argument, context, noNodeTypeQuery);
     if (!isIntegralTargetTypeRef(indexType) && scoreLiteralTargetTypeMatch(csharpSourcePrimitiveTargetType("int32"), request.argument, context) === undefined) {
       return rejectObservation(csharpProviderDiagnostic("tsonic.csharp.surface-operations", "CSHARP_NON_INTEGRAL_STRING_INDEX", 9100112, "C# string element access requires an integral provider-backed index type."));
     }
@@ -2428,7 +2750,24 @@ function mapRuntimeCarrier(
   const primitive = (request.sourceTypeReference === undefined ? undefined : context.factResolver.resolve(request.sourceTypeReference, sourcePrimitiveFactKey)) ??
     (request.sourceTypeSymbol === undefined ? undefined : context.factResolver.resolve(request.sourceTypeSymbol, sourcePrimitiveFactKey)) ??
     context.factResolver.resolve(request.type, sourcePrimitiveFactKey);
+  const syntaxCarrier = request.sourceTypeReference === undefined
+    ? undefined
+    : getTargetTypeRefForSubject(request.sourceTypeReference, context, { allowRuntimeCarrier: false });
+  if (syntaxCarrier !== undefined) {
+    recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, syntaxCarrier);
+    return acceptObservation<RuntimeCarrierFactResult>({
+      carrier: syntaxCarrier,
+    }, [{ message: "C# runtime carrier mapped from source syntax/provider facts." }]);
+  }
   if (primitive === undefined) {
+    const objectShape = getCsharpObjectShapeFactForSubject(request.sourceTypeReference, context) ??
+      getCsharpObjectShapeFactForSubject(request.type, context);
+    if (objectShape !== undefined) {
+      recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, objectShape);
+      return acceptObservation<RuntimeCarrierFactResult>({
+        carrier: objectShape.targetType,
+      }, [{ message: "C# runtime carrier mapped from finalized structural object-shape facts." }]);
+    }
     const carrier = getTargetTypeRefForType(asType(request.type), context, { allowRuntimeCarrier: false });
     return carrier === undefined
       ? deferObservation
@@ -2441,21 +2780,57 @@ function mapRuntimeCarrier(
   }, [{ message: "C# runtime carrier mapped from source primitive fact." }]);
 }
 
+function recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(
+  request: RuntimeCarrierFactRequest,
+  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
+  carrier: TargetTypeRef,
+): void {
+  const objectShape = getCsharpObjectShapeFactForSubject(request.sourceTypeReference, context) ??
+    getCsharpObjectShapeFactForSubject(request.type, context);
+  if (objectShape === undefined || !targetTypeRefEquals(objectShape.targetType, carrier)) {
+    return;
+  }
+  recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, objectShape);
+}
+
+function recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(
+  request: RuntimeCarrierFactRequest,
+  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
+  objectShape: CsharpObjectShapeFact,
+): void {
+  context.facts.set(request.type, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to runtime carrier type." }]);
+  if (request.sourceTypeReference !== undefined) {
+    context.facts.set(request.sourceTypeReference, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type reference." }]);
+  }
+  if (request.sourceTypeSymbol !== undefined) {
+    context.facts.set(request.sourceTypeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
+  }
+  const typeSymbol = asType(request.type)?.symbol;
+  if (typeSymbol !== undefined) {
+    context.facts.set(typeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
+  }
+}
+
 function recordCsharpSourceFileFacts(
   request: SourceFileBoundLifecycleRequest,
   facts: ExtensionFactStore,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
 ): void {
   const sourceFile = asNodeSubject(request.sourceFile);
   if (sourceFile === undefined || request.providerVirtualModule !== undefined) {
     return;
   }
   visitStructuralNodes(sourceFile, (node) => {
-    recordCsharpObjectShapeFact(node, request.sourceFile, facts);
-    recordCsharpTypeParameterConstraintFact(node, facts);
+    recordCsharpObjectShapeFact(node, facts, ast);
+    recordCsharpTypeParameterConstraintFact(node, facts, ast);
   });
 }
 
-function recordCsharpObjectShapeFact(node: Node, sourceFile: ExtensionFactSubject | undefined, facts: ExtensionFactStore): void {
+function recordCsharpObjectShapeFact(
+  node: Node,
+  facts: ExtensionFactStore,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
+): void {
   if (!isTypeLiteralLikeNode(node)) {
     return;
   }
@@ -2464,14 +2839,13 @@ function recordCsharpObjectShapeFact(node: Node, sourceFile: ExtensionFactSubjec
     return;
   }
   const shapeMembers = members
-    .map((member) => member === undefined ? undefined : getCsharpObjectShapeMemberFact(member, facts))
+    .map((member) => member === undefined ? undefined : getCsharpObjectShapeMemberFact(member, facts, ast))
     .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
   if (shapeMembers.length !== members.length) {
     return;
   }
-  const shapeId = getStableNodeId(node, sourceFile);
   const fact = {
-    targetType: csharpTargetNamedType(`__TsonicShape${shapeId}`),
+    targetType: csharpTargetNamedType(getObjectShapeTargetName("__TsonicShape", shapeMembers)),
     members: shapeMembers,
   } satisfies CsharpObjectShapeFact;
   facts.set(node, csharpObjectShapeFactKey, fact, [{ message: "C# object-shape fact recorded from structural type literal." }]);
@@ -2480,6 +2854,7 @@ function recordCsharpObjectShapeFact(node: Node, sourceFile: ExtensionFactSubjec
 function getCsharpObjectShapeMemberFact(
   node: Node,
   facts: ExtensionFactStore,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
 ): CsharpObjectShapeMemberFact | undefined {
   const sourceName = getNodeNameText(node);
   if (sourceName.length === 0) {
@@ -2487,8 +2862,8 @@ function getCsharpObjectShapeMemberFact(
   }
   const memberKind = getNodeList(getNodeField(node, "Parameters")).length > 0 ? "method" : "property";
   const type = memberKind === "method"
-    ? getFunctionTargetTypeRefFromSignatureLikeNode(node, facts)
-    : getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type") ?? getNodeField(node, "type")), facts);
+    ? getFunctionTargetTypeRefFromSignatureLikeNode(node, facts, ast)
+    : getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type") ?? getNodeField(node, "type")), facts, ast);
   if (type === undefined) {
     return undefined;
   }
@@ -2501,12 +2876,16 @@ function getCsharpObjectShapeMemberFact(
   };
 }
 
-function recordCsharpTypeParameterConstraintFact(node: Node, facts: ExtensionFactStore): void {
+function recordCsharpTypeParameterConstraintFact(
+  node: Node,
+  facts: ExtensionFactStore,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
+): void {
   const constraintNode = asNodeSubject(getNodeField(node, "Constraint"));
   if (constraintNode === undefined || getNodeNameText(node).length === 0) {
     return;
   }
-  const constraintType = getTargetTypeRefForSyntaxNode(constraintNode, facts);
+  const constraintType = getTargetTypeRefForSyntaxNode(constraintNode, facts, ast);
   if (constraintType?.kind !== "source-primitive") {
     return;
   }
@@ -2528,13 +2907,14 @@ function getCsharpTypeParameterConstraintForPrimitive(kind: SourcePrimitiveKind)
 function getFunctionTargetTypeRefFromSignatureLikeNode(
   node: Node,
   facts: ExtensionFactStore,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
 ): TargetTypeRef | undefined {
   const parameters = getNodeList(getNodeField(node, "Parameters"))
-    .map((parameter) => getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(parameter, "Type")), facts));
+    .map((parameter) => getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(parameter, "Type")), facts, ast));
   if (parameters.some((parameter) => parameter === undefined)) {
     return undefined;
   }
-  const returnType = getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type")), facts);
+  const returnType = getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type")), facts, ast);
   if (returnType === undefined || isVoidTargetType(returnType)) {
     return csharpTargetNamedType(`System.Action\`${parameters.length}`, parameters as readonly TargetTypeRef[]);
   }
@@ -2544,9 +2924,14 @@ function getFunctionTargetTypeRefFromSignatureLikeNode(
 function getTargetTypeRefForSyntaxNode(
   node: Node | undefined,
   facts: ExtensionFactStore,
+  ast?: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
 ): TargetTypeRef | undefined {
   if (node === undefined) {
     return undefined;
+  }
+  const keyword = ast === undefined ? undefined : getTargetTypeRefFromKeywordTypeSyntax(ast, node);
+  if (keyword !== undefined) {
+    return keyword;
   }
   const direct = facts.get(node, runtimeCarrierFactKey)?.carrier;
   if (direct !== undefined) {
@@ -2566,14 +2951,14 @@ function getTargetTypeRefForSyntaxNode(
   }
   const elementTypeNode = asNodeSubject(getNodeField(node, "ElementType"));
   if (elementTypeNode !== undefined) {
-    const elementType = getTargetTypeRefForSyntaxNode(elementTypeNode, facts);
+    const elementType = getTargetTypeRefForSyntaxNode(elementTypeNode, facts, ast);
     if (elementType === undefined) {
       return undefined;
     }
     return { kind: "array", element: elementType };
   }
   if (getNodeList(getNodeField(node, "Parameters")).length > 0) {
-    return getFunctionTargetTypeRefFromSignatureLikeNode(node, facts);
+    return getFunctionTargetTypeRefFromSignatureLikeNode(node, facts, ast);
   }
   return undefined;
 }
@@ -2620,6 +3005,15 @@ function deriveCsharpObjectShapeFactForSemanticSubject(
     compiler.types.isArrayLike(semanticType, { sourceFile })) {
     return undefined;
   }
+  const contextualTargetType = asType(node === undefined ? undefined : context.facts.get(node, contextualTargetTypeFactKey)?.type);
+  const declaredShape = getSemanticTypeDeclarationShape(contextualTargetType ?? semanticType, context);
+  if (declaredShape?.kind === "class" || declaredShape?.kind === "enum") {
+    return undefined;
+  }
+  if (declaredShape?.kind === "interface" &&
+    (node === undefined || (!compiler.ast.is.IsObjectLiteralExpression(node) && compiler.ast.kindName(node) !== "KindObjectLiteralExpression"))) {
+    return undefined;
+  }
   const properties = compiler.types.getProperties(semanticType, { sourceFile })
     .filter((property): property is Symbol => property !== undefined);
   if (properties.length === 0) {
@@ -2631,10 +3025,48 @@ function deriveCsharpObjectShapeFactForSemanticSubject(
   if (members.length !== properties.length) {
     return undefined;
   }
+  const implementsTypes = declaredShape?.kind === "interface"
+    ? [declaredShape.targetType]
+    : undefined;
+  const shapeNamePrefix = declaredShape?.kind === "interface"
+    ? `__TsonicShape_${sourceNameToCsharpMemberName(declaredShape.name)}`
+    : "__TsonicShape";
   return {
-    targetType: csharpTargetNamedType(`__TsonicShape${node === undefined ? "Semantic" : getStableNodeId(node, sourceFile)}`),
+    targetType: csharpTargetNamedType(getObjectShapeTargetName(shapeNamePrefix, members, implementsTypes)),
     members,
+    ...(implementsTypes === undefined ? {} : { implements: implementsTypes }),
   };
+}
+
+function getSemanticTypeDeclarationShape(
+  type: Type,
+  context: ExtensionObservationContext,
+): { readonly kind: "class" | "interface" | "enum"; readonly name: string; readonly targetType: TargetTypeRef } | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  const declarations = getSymbolDeclarations(type.symbol);
+  for (const declaration of declarations) {
+    const kind = ast.kindName(declaration);
+    if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
+      continue;
+    }
+    const name = getNodeNameText(declaration);
+    if (name.length === 0) {
+      continue;
+    }
+    const targetTypeArguments = getTargetTypeArgumentsForType(type, context, {});
+    const targetType = csharpTargetNamedType(name, targetTypeArguments);
+    if (kind === "KindClassDeclaration") {
+      return { kind: "class", name, targetType };
+    }
+    if (kind === "KindInterfaceDeclaration") {
+      return { kind: "interface", name, targetType };
+    }
+    return { kind: "enum", name, targetType };
+  }
+  return undefined;
 }
 
 function deriveCsharpObjectShapeMemberFactForSemanticProperty(
@@ -2702,9 +3134,67 @@ function deriveCsharpObjectShapeFactForSubject(
     return undefined;
   }
   return {
-    targetType: csharpTargetNamedType(`__TsonicShape${getStableNodeId(node, context.compiler?.ast.getSourceFile(node))}`),
+    targetType: csharpTargetNamedType(getObjectShapeTargetName("__TsonicShape", shapeMembers)),
     members: shapeMembers,
   };
+}
+
+function objectShapeMemberKey(member: CsharpObjectShapeMemberFact): string {
+  return [
+    member.sourceName,
+    member.targetName,
+    member.memberKind,
+    member.optional === true ? "optional" : "required",
+    targetTypeRefKey(member.type),
+  ].join(":");
+}
+
+function getObjectShapeTargetName(
+  prefix: string,
+  members: readonly CsharpObjectShapeMemberFact[],
+  implementsTypes: readonly TargetTypeRef[] | undefined = undefined,
+): string {
+  const key = [
+    ...members.map(objectShapeMemberKey).sort(),
+    ...(implementsTypes ?? []).map((type) => `implements:${targetTypeRefKey(type)}`),
+  ].join("|");
+  return `${prefix}_${hashString(key)}`;
+}
+
+function targetTypeRefKey(type: TargetTypeRef): string {
+  switch (type.kind) {
+    case "source-primitive":
+      return `source:${type.name}`;
+    case "target-named":
+      return `target:${type.id}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
+    case "type-parameter":
+      return `type-param:${type.name}`;
+    case "array":
+      return `array:${targetTypeRefKey(type.element)}`;
+    case "tuple":
+      return `tuple:${type.elements.map(targetTypeRefKey).join(",")}`;
+    case "pointer":
+      return `pointer:${type.mutability}:${targetTypeRefKey(type.pointee)}`;
+    case "function-pointer":
+      return `fnptr:${type.abi ?? ""}:${type.args.map(targetTypeRefKey).join(",")}=>${targetTypeRefKey(type.result)}`;
+    case "opaque":
+      return `opaque:${type.id}`;
+    case "associated-type":
+      return `associated:${type.name}:${targetTypeRefKey(type.owner)}`;
+    case "lifetime":
+      return `lifetime:${type.name}`;
+    case "target-specific":
+      return `target-specific:${type.target}:${type.name}:${String(type.value)}`;
+  }
+}
+
+function hashString(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function deriveCsharpObjectShapeMemberFactForSubject(
@@ -2745,11 +3235,11 @@ function getDeclarationTypeNode(
     return node;
   }
   const sourceFile = ast.getSourceFile(node);
-  const symbol = checker.getSymbolAtLocation(node, { sourceFile }) ??
-    checker.getResolvedSymbol(node, { sourceFile });
+  const symbol = getSymbolForDeclarationLookup(checker, node, sourceFile);
+  const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
   const declarations = [
     ...getSymbolDeclarations(symbol),
-    ...getSymbolDeclarations(symbol === undefined ? undefined : checker.getAliasedSymbol(symbol, { sourceFile })),
+    ...getSymbolDeclarations(aliasedSymbol),
   ];
   for (const declaration of declarations) {
     const type = asNodeSubject(getNodeField(declaration, "Type") ?? getNodeField(declaration, "type"));
@@ -2758,6 +3248,34 @@ function getDeclarationTypeNode(
     }
   }
   return undefined;
+}
+
+function getSymbolForDeclarationLookup(
+  checker: NonNullable<ExtensionObservationContext["compiler"]>["checker"],
+  node: Node,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): Symbol | undefined {
+  try {
+    return checker.getSymbolAtLocation(node, { sourceFile }) ??
+      checker.getResolvedSymbol(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
+}
+
+function getAliasedSymbolIfAvailable(
+  checker: NonNullable<ExtensionObservationContext["compiler"]>["checker"],
+  symbol: ExtensionFactSubject | undefined,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): Symbol | undefined {
+  if (symbol === undefined) {
+    return undefined;
+  }
+  try {
+    return checker.getAliasedSymbol(symbol as Symbol, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }
 
 function getSymbolDeclarations(symbol: ExtensionFactSubject | undefined): readonly Node[] {
@@ -2834,12 +3352,12 @@ function getNodeField(node: Node | undefined, field: string): unknown {
     return undefined;
   }
   const record = node as unknown as Record<string, unknown>;
-  const exact = record[field];
+  const exact = Object.prototype.hasOwnProperty.call(record, field) ? record[field] : undefined;
   if (exact !== undefined) {
     return exact;
   }
   const alternate = `${field[0]!.toLowerCase()}${field.slice(1)}`;
-  return record[alternate];
+  return Object.prototype.hasOwnProperty.call(record, alternate) ? record[alternate] : undefined;
 }
 
 function getNodeNameText(node: Node): string {
@@ -2847,20 +3365,6 @@ function getNodeNameText(node: Node): string {
   const text = (name as { readonly Text?: unknown; readonly text?: unknown } | undefined)?.Text ??
     (name as { readonly text?: unknown } | undefined)?.text;
   return typeof text === "function" || text === undefined ? "" : String(text);
-}
-
-function getStableNodeId(node: Node, sourceFile: ExtensionFactSubject | undefined): string {
-  const fileName = (sourceFile as { readonly FileName?: unknown; readonly fileName?: unknown } | undefined)?.FileName ??
-    (sourceFile as { readonly fileName?: unknown } | undefined)?.fileName;
-  const id = (node as { readonly id?: unknown }).id;
-  const loc = (node as { readonly Loc?: unknown }).Loc as { readonly pos?: unknown; readonly end?: unknown } | undefined;
-  const pos = typeof loc?.pos === "number" || typeof loc?.pos === "string" ? loc.pos : undefined;
-  const end = typeof loc?.end === "number" || typeof loc?.end === "string" ? loc.end : undefined;
-  return [fileName, id, pos, end]
-    .filter((part) => part !== undefined && part !== "")
-    .map(String)
-    .join("_")
-    .replace(/[^A-Za-z0-9_]/g, "_");
 }
 
 function sourceNameToCsharpMemberName(name: string): string {

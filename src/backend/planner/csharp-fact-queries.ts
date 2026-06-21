@@ -50,12 +50,12 @@ function getNodeField(node: Node | undefined, field: string): unknown {
     return undefined;
   }
   const record = node as unknown as Record<string, unknown>;
-  const exact = record[field];
+  const exact = Object.prototype.hasOwnProperty.call(record, field) ? record[field] : undefined;
   if (exact !== undefined) {
     return exact;
   }
   const alternate = `${field[0]!.toLowerCase()}${field.slice(1)}`;
-  return record[alternate];
+  return Object.prototype.hasOwnProperty.call(record, alternate) ? record[alternate] : undefined;
 }
 
 function asNode(value: unknown): Node | undefined {

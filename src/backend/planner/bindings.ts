@@ -24,7 +24,6 @@ import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { getSemanticOwnership, isSourceOwnedProjectShapeSubject, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
 import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
-import { csharpObjectShapeFactKey } from "../../source/csharp-facts.js";
 import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
 
 export interface DestructuringPlannerState {
@@ -420,7 +419,7 @@ function planObjectShapeRestBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires an identifier binding name."));
     return [];
   }
-  const restShape = input.facts.getFact(name, csharpObjectShapeFactKey);
+  const restShape = getCsharpObjectShapeFactForNode(name, sourceFile, input);
   if (restShape === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object rest destructuring requires finalized provider object-shape facts for the rest binding."));
     return [];
