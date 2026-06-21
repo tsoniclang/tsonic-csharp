@@ -145,6 +145,7 @@ function dotnetParameterToProviderParameter(parameter: DotnetParameterDeclaratio
   return {
     name: parameter.name,
     type: dotnetTypeRefToProviderType(parameter.type),
+    ...(parameter.passingMode !== "by-value" ? { passingMode: parameter.passingMode } : {}),
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { rest: true } : {}),
   };

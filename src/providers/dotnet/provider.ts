@@ -86,7 +86,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: `/node_modules/${specifier}.d.ts`,
+        virtualFileName: `tsts-provider://csharp-dotnet/${specifier}`,
         providerModuleId: specifier,
         packageName: dotnetPackageName,
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],

@@ -1581,7 +1581,7 @@ function providerParameterToTargetParameter(parameter: ProviderParameterDeclarat
   return {
     name: parameter.name,
     type: providerTypeExpressionToTargetTypeRef(parameter.type),
-    passingMode: "by-value",
+    passingMode: parameter.passingMode ?? "by-value",
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),
   };
@@ -1719,13 +1719,19 @@ function scoreTargetMember(
       return undefined;
     }
     const argumentType = getTargetTypeRefForSubject(arguments_[index], context);
-    const argumentScore = scoreTargetTypeMatch(parameter.type, argumentType, arguments_[index], context);
+    const argumentScore = scoreTargetTypeMatch(getExpectedTargetTypeForArgument(parameter), argumentType, arguments_[index], context);
     if (argumentScore === undefined) {
       return undefined;
     }
     score += argumentScore;
   }
   return score + (parameters.length === arguments_.length ? 1 : 0);
+}
+
+function getExpectedTargetTypeForArgument(parameter: TargetParameter): TargetTypeRef {
+  return parameter.paramsArray === true && parameter.type.kind === "array"
+    ? parameter.type.element
+    : parameter.type;
 }
 
 function targetArityMatches(parameters: readonly TargetParameter[], argumentCount: number): boolean {
@@ -3777,7 +3783,7 @@ function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider {
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: `/node_modules/${specifier}.d.ts`,
+        virtualFileName: `tsts-provider://csharp-source/${specifier}`,
         providerModuleId: specifier,
         ...(module.packageName !== undefined ? { packageName: module.packageName } : {}),
         ...(module.packageVersion !== undefined ? { packageVersion: module.packageVersion } : {}),

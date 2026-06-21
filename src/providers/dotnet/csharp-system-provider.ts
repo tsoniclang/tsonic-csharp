@@ -25,16 +25,19 @@ const providerIdentity: DotnetProviderIdentity = {
 };
 
 const systemModule = createDotnetModuleSpecifier("System");
+const systemIoModule = createDotnetModuleSpecifier("System.IO");
 const collectionsGenericModule = createDotnetModuleSpecifier("System.Collections.Generic");
 
 const stringType = namedType("System.String", { kind: "string" });
 const boolType = sourcePrimitiveType("bool");
 const intType = sourcePrimitiveType("int32");
 const doubleType = sourcePrimitiveType("float64");
+const voidType = { kind: "void" } satisfies DotnetTypeRef;
 const listItemType = typeParameterType("T");
 
 const csharpSystemModules = [
   systemDotnetModule(),
+  systemIoDotnetModule(),
   collectionsGenericDotnetModule(),
 ] as const;
 
@@ -77,6 +80,107 @@ function systemDotnetModule(): DotnetModuleModel {
     moduleSpecifier: systemModule,
     namespaceName: "System",
     exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "Console",
+        namespaceName: "System",
+        metadataName: "System.Console",
+        displayName: "System.Console",
+        members: [
+          staticMethodMember("System.Console.Write(System.String)", "write", [
+            parameter("value", stringType),
+          ], voidType),
+          staticMethodMember("System.Console.WriteLine()", "writeLine", [], voidType),
+          staticMethodMember("System.Console.WriteLine(System.String)", "writeLine", [
+            parameter("value", stringType),
+          ], voidType),
+          staticMethodMember("System.Console.WriteLine(System.Int32)", "writeLine", [
+            parameter("value", intType),
+          ], voidType),
+          staticMethodMember("System.Console.WriteLine(System.Double)", "writeLine", [
+            parameter("value", doubleType),
+          ], voidType),
+          staticMethodMember("System.Console.WriteLine(System.Boolean)", "writeLine", [
+            parameter("value", boolType),
+          ], voidType),
+          staticMethodMember("System.Console.ReadLine()", "readLine", [], stringType),
+        ],
+      },
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "Math",
+        namespaceName: "System",
+        metadataName: "System.Math",
+        displayName: "System.Math",
+        members: [
+          staticMethodMember("System.Math.Abs(System.Double)", "abs", [
+            parameter("value", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Acos(System.Double)", "acos", [
+            parameter("d", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Asin(System.Double)", "asin", [
+            parameter("d", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Atan(System.Double)", "atan", [
+            parameter("d", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Atan2(System.Double,System.Double)", "atan2", [
+            parameter("y", doubleType),
+            parameter("x", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Cos(System.Double)", "cos", [
+            parameter("d", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Cosh(System.Double)", "cosh", [
+            parameter("value", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Exp(System.Double)", "exp", [
+            parameter("d", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Log(System.Double)", "log", [
+            parameter("d", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Log10(System.Double)", "log10", [
+            parameter("d", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Log2(System.Double)", "log2", [
+            parameter("d", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Max(System.Double,System.Double)", "max", [
+            parameter("val1", doubleType),
+            parameter("val2", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Min(System.Double,System.Double)", "min", [
+            parameter("val1", doubleType),
+            parameter("val2", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Pow(System.Double,System.Double)", "pow", [
+            parameter("x", doubleType),
+            parameter("y", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Sin(System.Double)", "sin", [
+            parameter("a", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Sinh(System.Double)", "sinh", [
+            parameter("value", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Sqrt(System.Double)", "sqrt", [
+            parameter("d", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Tan(System.Double)", "tan", [
+            parameter("a", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Tanh(System.Double)", "tanh", [
+            parameter("value", doubleType),
+          ], doubleType),
+          staticMethodMember("System.Math.Truncate(System.Double)", "trunc", [
+            parameter("d", doubleType),
+          ], doubleType),
+        ],
+      },
       {
         kind: "type",
         typeKind: "class",
@@ -136,6 +240,57 @@ function systemDotnetModule(): DotnetModuleModel {
           constructorMember("System.CLSCompliantAttribute..ctor(System.Boolean)", [
             parameter("isCompliant", boolType),
           ]),
+        ],
+      },
+    ],
+  };
+}
+
+function systemIoDotnetModule(): DotnetModuleModel {
+  return {
+    moduleSpecifier: systemIoModule,
+    namespaceName: "System.IO",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "File",
+        namespaceName: "System.IO",
+        metadataName: "System.IO.File",
+        displayName: "System.IO.File",
+        members: [
+          staticMethodMember("System.IO.File.Exists(System.String)", "exists", [
+            parameter("path", stringType),
+          ], boolType),
+          staticMethodMember("System.IO.File.ReadAllText(System.String)", "readAllText", [
+            parameter("path", stringType),
+          ], stringType),
+          staticMethodMember("System.IO.File.WriteAllText(System.String,System.String)", "writeAllText", [
+            parameter("path", stringType),
+            parameter("contents", stringType),
+          ], voidType),
+        ],
+      },
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "Path",
+        namespaceName: "System.IO",
+        metadataName: "System.IO.Path",
+        displayName: "System.IO.Path",
+        members: [
+          staticMethodMember("System.IO.Path.Combine(System.String[])", "combine", [
+            restParameter("paths", {
+              kind: "array",
+              elementType: stringType,
+            }),
+          ], stringType),
+          staticMethodMember("System.IO.Path.GetFileName(System.String)", "getFileName", [
+            parameter("path", stringType),
+          ], stringType),
+          staticMethodMember("System.IO.Path.GetDirectoryName(System.String)", "getDirectoryName", [
+            parameter("path", stringType),
+          ], stringType),
         ],
       },
     ],
@@ -276,6 +431,15 @@ function parameter(name: string, type: DotnetTypeRef): DotnetParameterDeclaratio
     name,
     type,
     passingMode: "by-value",
+  };
+}
+
+function restParameter(name: string, type: DotnetTypeRef): DotnetParameterDeclaration {
+  return {
+    name,
+    type,
+    passingMode: "by-value",
+    rest: true,
   };
 }
 

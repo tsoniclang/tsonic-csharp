@@ -35,14 +35,14 @@ export function createCsharpTargetPack(): TargetPack {
     surfaces: [
       {
         id: "js",
-        displayName: "JavaScript compatibility",
+        displayName: "JavaScript surface",
         runtimeArtifacts(_context: TargetRuntimeArtifactContext): readonly TargetArtifact[] {
           return [];
         },
       },
       {
         id: "nodejs",
-        displayName: "Node.js compatibility",
+        displayName: "Node.js surface",
         requiredSurfaces: ["js"],
         runtimeArtifacts(_context: TargetRuntimeArtifactContext): readonly TargetArtifact[] {
           return [];
