@@ -6,7 +6,6 @@ import {
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import type { ExtensionFactSubject, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
-import { getTargetTypeRefForNode } from "./runtime-carriers.js";
 import type {
   SemanticOwnership,
 } from "./semantic-guard-types.js";
@@ -19,7 +18,6 @@ import {
 } from "./semantic-queryable-symbols.js";
 import {
   isSourceDeclaredCallableReference,
-  isSourceOwnedDelegateCarrier,
   isSourceOwnedProjectShapeSubject,
 } from "./semantic-source-ownership.js";
 
@@ -40,10 +38,8 @@ export function getCallableSemanticOwnership(
     hasSelectedTargetFactEvidence(input, symbol) ||
     propertyAccessReceiverRequiresSelectedTargetFact(input, callee, sourceFile);
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(callee, { sourceFile });
-  const carrier = getTargetTypeRefForNode(input, callee, sourceFile);
   const sourceOwned = !requiresSelectedTargetFact &&
     (isSourceDeclaredCallableReference(sourceReference, input) ||
-      isSourceOwnedDelegateCarrier(carrier) ||
       isSourceOwnedProjectShapeSubject(callee, sourceFile, input));
   if (!sourceOwned) {
     appendSemanticNodeFactReasons(reasons, input, callee, sourceFile, "callee semantic node");

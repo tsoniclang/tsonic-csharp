@@ -28,6 +28,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
+  csharpTargetTypeFromBinding,
+} from "../../source/csharp-source-semantics/target-types.js";
+import {
   getCsharpTypeForNode,
 } from "./csharp-type-node.js";
 import {
@@ -84,7 +87,8 @@ function getCsharpTypeForExpressionReference(
   }
   const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding !== undefined) {
-    const csharpType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: targetBinding.id });
+    const targetType = csharpTargetTypeFromBinding(targetBinding);
+    const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
     if (csharpType !== undefined) {
       return csharpType;
     }

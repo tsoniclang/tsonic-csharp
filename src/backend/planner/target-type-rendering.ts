@@ -2,6 +2,11 @@ import type { SourcePrimitiveKind, TargetTypeRef } from "@tsonic/tsts";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 
+type CsharpTargetTypeRenderShape =
+  | { readonly kind: "predefined"; readonly name: string }
+  | { readonly kind: "named"; readonly namespace?: readonly string[]; readonly name: string }
+  | { readonly kind: "nullable" };
+
 const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
   ["bool", "bool"],
   ["char", "char"],
@@ -47,12 +52,17 @@ const predefinedTargetIds = new Map<string, string>([
   ["System.Void", "void"],
 ]);
 
+const knownTargetRenderShapes = new Map<string, CsharpTargetTypeRenderShape>([
+  ...Array.from(predefinedTargetIds.entries()).map(([id, name]) => [id, { kind: "predefined", name } satisfies CsharpTargetTypeRenderShape] as const),
+  ["System.Nullable`1", { kind: "nullable" }],
+]);
+
 export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
   switch (type.kind) {
     case "source-primitive":
       return csharpTypeFromSourcePrimitiveKind(type.name);
     case "target-named":
-      return csharpTypeFromTargetNamedId(type.id, (type.typeArguments ?? []).map(csharpTypeFromTargetTypeRef));
+      return csharpTypeFromTargetNamedType(type);
     case "type-parameter":
       return { kind: "IdentifierName", name: sanitizeIdentifier(type.name) };
     case "array": {
@@ -119,68 +129,47 @@ function csharpTypeFromTargetSpecificRef(type: Extract<TargetTypeRef, { readonly
       };
 }
 
-function csharpTypeFromTargetNamedId(id: string, typeArguments: readonly (CsharpTypeNode | undefined)[]): CsharpTypeNode | undefined {
-  const predefined = predefinedTargetIds.get(id);
-  if (predefined !== undefined && typeArguments.length === 0) {
-    return {
-      kind: "PredefinedType",
-      name: predefined,
-    };
-  }
+function csharpTypeFromTargetNamedType(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): CsharpTypeNode | undefined {
+  const typeArguments = (type.typeArguments ?? []).map(csharpTypeFromTargetTypeRef);
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
-  if (stripMetadataArity(id) === "System.Nullable" && typeArguments.length === 1) {
-    return {
-      kind: "NullableType",
-      inner: typeArguments[0]!,
-    };
-  }
-  const genericPredefined = getGenericPredefinedTypeName(id);
-  if (genericPredefined !== undefined) {
-    return {
-      kind: "IdentifierName",
-      name: genericPredefined,
-      typeArguments: typeArguments as readonly CsharpTypeNode[],
-    };
-  }
-  const parts = id.split(".").filter((part) => part.length > 0);
-  if (parts.length === 0) {
+  const shape = getCsharpRenderShape(type);
+  if (shape === undefined) {
     return undefined;
   }
-  const renderedParts = parts.map(stripMetadataArity).map(sanitizeIdentifier);
-  const last = renderedParts[renderedParts.length - 1]!;
-  const args = typeArguments as readonly CsharpTypeNode[];
-  let current: CsharpTypeNode = { kind: "IdentifierName", name: renderedParts[0]! };
-  for (let index = 1; index < renderedParts.length; index += 1) {
+  switch (shape.kind) {
+    case "predefined":
+      return typeArguments.length === 0 ? { kind: "PredefinedType", name: shape.name } : undefined;
+    case "nullable":
+      return typeArguments.length === 1 ? { kind: "NullableType", inner: typeArguments[0]! } : undefined;
+    case "named":
+      return csharpNamedTypeFromRenderShape(shape, typeArguments as readonly CsharpTypeNode[]);
+  }
+}
+
+function getCsharpRenderShape(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): CsharpTargetTypeRenderShape | undefined {
+  const renderShape = (type as { readonly csharpRender?: CsharpTargetTypeRenderShape }).csharpRender;
+  return renderShape ?? knownTargetRenderShapes.get(type.id);
+}
+
+function csharpNamedTypeFromRenderShape(
+  shape: Extract<CsharpTargetTypeRenderShape, { readonly kind: "named" }>,
+  typeArguments: readonly CsharpTypeNode[],
+): CsharpTypeNode {
+  const parts = [...(shape.namespace ?? []), shape.name].map(sanitizeIdentifier);
+  let current: CsharpTypeNode = {
+    kind: "IdentifierName",
+    name: parts[0]!,
+    ...(parts.length === 1 && typeArguments.length > 0 ? { typeArguments } : {}),
+  };
+  for (let index = 1; index < parts.length; index += 1) {
     current = {
       kind: "QualifiedName",
       left: current,
-      name: renderedParts[index]!,
-      ...(index === renderedParts.length - 1 && args.length > 0 ? { typeArguments: args } : {}),
+      name: parts[index]!,
+      ...(index === parts.length - 1 && typeArguments.length > 0 ? { typeArguments } : {}),
     };
   }
-  if (renderedParts.length === 1 && args.length > 0) {
-    current = { kind: "IdentifierName", name: last, typeArguments: args };
-  }
   return current;
-}
-
-function stripMetadataArity(name: string): string {
-  const tick = name.indexOf("`");
-  return tick < 0 ? name : name.slice(0, tick);
-}
-
-function getGenericPredefinedTypeName(id: string): string | undefined {
-  const stripped = stripMetadataArity(id);
-  switch (stripped) {
-    case "System.Func":
-      return "Func";
-    case "System.Action":
-      return "Action";
-    case "System.Predicate":
-      return "Predicate";
-    default:
-      return undefined;
-  }
 }

@@ -8,6 +8,9 @@ import type {
 import {
   asTargetTypeRef,
 } from "../../source/fact-subjects.js";
+import {
+  csharpTargetTypeFromBinding,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 export function getTargetTypeRefFromDirectFacts(
   input: TargetCompileInput,
@@ -54,7 +57,7 @@ export function getTargetTypeRefFromDirectFacts(
   }
   const binding = input.facts.getTargetBindingFact(subject);
   if (binding !== undefined) {
-    return { kind: "target-named", id: binding.id };
+    return csharpTargetTypeFromBinding(binding);
   }
   return undefined;
 }

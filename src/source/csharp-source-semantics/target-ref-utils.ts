@@ -72,11 +72,6 @@ export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): 
   }
 }
 
-export function stripMetadataArity(name: string): string {
-  const tick = name.indexOf("`");
-  return tick < 0 ? name : name.slice(0, tick);
-}
-
 export function sourceNameToCsharpMemberName(name: string): string {
   return name.replace(/[^A-Za-z0-9_]/g, "_");
 }

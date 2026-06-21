@@ -34,6 +34,9 @@ import {
 import {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-selection.js";
+import {
+  csharpTargetNamedType,
+} from "./target-types.js";
 import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type { CsharpOperationsProviderHost } from "./operations-provider.js";
 
@@ -105,7 +108,7 @@ export function mapCsharpCheckedConversion(
   if (operation !== undefined) {
     recordCsharpTargetOperation(context, request.source, csharpTargetMemberOperation(operation.operationId, "method", operation.targetOperation, {
       static: true,
-      declaringType: { kind: "target-named", id: "System.Convert" },
+      declaringType: csharpTargetNamedType("System.Convert"),
     }), [{ message: "C# target conversion static member recorded from selected target conversion." }]);
   }
   return acceptObservation<CheckedConversionMappingResult>({

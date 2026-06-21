@@ -20,6 +20,12 @@ import type {
 import {
   dotnetTypeRefKey,
 } from "./model-type-ref-key.js";
+import {
+  type CsharpTargetBindingFact,
+  csharpDelegateTargetType,
+  csharpQualifiedTypeRenderShape,
+  csharpTargetNamedType,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint): TargetConstraint {
   switch (constraint.kind) {
@@ -50,12 +56,17 @@ export function dotnetExportToTargetBinding(declaration: DotnetExportDeclaration
 }
 
 function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBindingFact {
-  return {
+  const binding = {
     id: declaration.metadataName,
     sourceName: declaration.sourceName,
     targetName: declaration.displayName ?? declaration.metadataName,
     target: "csharp",
     kind: dotnetTypeKindToTargetBindingKind(declaration.typeKind),
+    csharpType: csharpTargetNamedType(
+      declaration.metadataName,
+      declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
+      declaration.displayName === undefined ? undefined : dotnetDisplayNameRenderShape(declaration.displayName),
+    ),
     ...(declaration.typeParameters !== undefined && declaration.typeParameters.length > 0
       ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
@@ -65,7 +76,8 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     ...(declaration.members !== undefined && declaration.members.length > 0
       ? { members: declaration.members.flatMap((member) => dotnetMemberToTargetMembers(member, declaration.metadataName)) }
       : {}),
-  };
+  } satisfies CsharpTargetBindingFact;
+  return binding;
 }
 
 function dotnetTypeKindToTargetBindingKind(kind: DotnetTypeKind): TargetBindingFact["kind"] {
@@ -107,7 +119,7 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
             sourceName: member.sourceName,
             targetName: member.targetName,
             kind: member.kind,
-            declaringType: { kind: "target-named", id: declaringTypeId },
+            declaringType: csharpTargetNamedType(declaringTypeId),
             ...(member.static === true ? { static: true } : {}),
             parameters: [],
             returnType: dotnetTypeRefToTargetTypeRef(member.type),
@@ -125,7 +137,7 @@ function dotnetSignatureToTargetMember(
     sourceName: member.sourceName,
     targetName: signature.targetName ?? member.targetName,
     kind: member.kind,
-    declaringType: { kind: "target-named", id: declaringTypeId },
+    declaringType: csharpTargetNamedType(declaringTypeId),
     ...(member.static === true ? { static: true } : {}),
     parameters: signature.parameters.map(dotnetParameterToTargetParameter),
     ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToTargetTypeRef(signature.returnType) } : {}),
@@ -149,30 +161,30 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
 export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef {
   switch (type.kind) {
     case "void":
-      return { kind: "opaque", id: "System.Void" };
+      return csharpTargetNamedType("System.Void");
     case "any":
     case "unknown":
       return { kind: "opaque", id: type.kind };
     case "object":
-      return { kind: "target-named", id: "System.Object" };
+      return csharpTargetNamedType("System.Object");
     case "string":
-      return { kind: "target-named", id: "System.String" };
+      return csharpTargetNamedType("System.String");
     case "boolean":
-      return { kind: "target-named", id: "System.Boolean" };
+      return csharpTargetNamedType("System.Boolean");
     case "number":
-      return { kind: "target-named", id: "System.Double" };
+      return csharpTargetNamedType("System.Double");
     case "bigint":
-      return { kind: "target-named", id: "System.Numerics.BigInteger" };
+      return csharpTargetNamedType("System.Numerics.BigInteger", undefined, csharpQualifiedTypeRenderShape("System.Numerics", "BigInteger"));
     case "source-primitive":
       return { kind: "source-primitive", name: type.name };
     case "type-parameter":
       return { kind: "type-parameter", name: type.name };
     case "named":
-      return {
-        kind: "target-named",
-        id: type.metadataName,
-        ...(type.typeArguments !== undefined ? { typeArguments: type.typeArguments.map(dotnetTypeRefToTargetTypeRef) } : {}),
-      };
+      return csharpTargetNamedType(
+        type.metadataName,
+        type.typeArguments?.map(dotnetTypeRefToTargetTypeRef),
+        type.displayName === undefined ? undefined : dotnetDisplayNameRenderShape(type.displayName),
+      );
     case "array":
       return {
         kind: "array",
@@ -184,16 +196,16 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "union":
       return { kind: "opaque", id: `csharp.union:${type.types.map(dotnetTypeRefKey).join("|")}` };
     case "function":
-      return {
-        kind: "target-named",
-        id: type.returnType.kind === "void"
-          ? `System.Action\`${type.parameters.length}`
-          : `System.Func\`${type.parameters.length + 1}`,
-        typeArguments: [
-          ...type.parameters.map((parameter) => dotnetTypeRefToTargetTypeRef(parameter.type)),
-          ...(type.returnType.kind === "void" ? [] : [dotnetTypeRefToTargetTypeRef(type.returnType)]),
-        ],
-      };
+      return type.returnType.kind === "void"
+        ? csharpDelegateTargetType(
+            "System.Action",
+            type.parameters.map((parameter) => dotnetTypeRefToTargetTypeRef(parameter.type)),
+          )
+        : csharpDelegateTargetType(
+            "System.Func",
+            type.parameters.map((parameter) => dotnetTypeRefToTargetTypeRef(parameter.type)),
+            dotnetTypeRefToTargetTypeRef(type.returnType),
+          );
     case "pointer":
       return { kind: "pointer", pointee: dotnetTypeRefToTargetTypeRef(type.pointee), mutability: type.mutability };
     case "function-pointer":
@@ -206,4 +218,11 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "opaque":
       return { kind: "opaque", id: type.id };
   }
+}
+
+function dotnetDisplayNameRenderShape(displayName: string): ReturnType<typeof csharpQualifiedTypeRenderShape> {
+  const lastSeparator = displayName.lastIndexOf(".");
+  return lastSeparator < 0
+    ? { kind: "named", name: displayName }
+    : csharpQualifiedTypeRenderShape(displayName.slice(0, lastSeparator), displayName.slice(lastSeparator + 1));
 }

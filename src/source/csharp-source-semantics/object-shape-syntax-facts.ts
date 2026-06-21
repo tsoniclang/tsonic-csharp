@@ -27,8 +27,10 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
+  csharpDelegateTargetType,
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
+  csharpTargetTypeFromBinding,
 } from "./target-types.js";
 import {
   isVoidTargetType,
@@ -71,7 +73,7 @@ export function getTargetTypeRefForSyntaxNode(
   }
   const binding = facts.get(node, targetBindingFactKey);
   if (binding !== undefined) {
-    return csharpTargetNamedType(binding.id);
+    return csharpTargetTypeFromBinding(binding);
   }
   const objectShape = facts.get(node, csharpObjectShapeFactKey);
   if (objectShape !== undefined) {
@@ -131,9 +133,9 @@ function getFunctionTargetTypeRefFromSignatureLikeNode(
   }
   const returnType = getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type")), facts, ast);
   if (returnType === undefined || isVoidTargetType(returnType)) {
-    return csharpTargetNamedType(`System.Action\`${parameters.length}`, parameters as readonly TargetTypeRef[]);
+    return csharpDelegateTargetType("System.Action", parameters as readonly TargetTypeRef[]);
   }
-  return csharpTargetNamedType(`System.Func\`${parameters.length + 1}`, [...(parameters as readonly TargetTypeRef[]), returnType]);
+  return csharpDelegateTargetType("System.Func", parameters as readonly TargetTypeRef[], returnType);
 }
 
 function getTargetTypeRefFromKeywordTypeSyntax(

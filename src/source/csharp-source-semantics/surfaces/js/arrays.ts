@@ -14,6 +14,7 @@ import type {
 import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
   csharpJsCheckedTypeQuery,
+  csharpDelegateTargetType,
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
   csharpTargetMemberOperation,
@@ -97,14 +98,14 @@ function arrayCallbackHelpers(
   const intType = csharpSourcePrimitiveTargetType("int32");
   const callbackShapes: readonly TargetTypeRef[] = delegateKind === "System.Action"
     ? [
-        csharpTargetNamedType("System.Action`1", [itemType]),
-        csharpTargetNamedType("System.Action`2", [itemType, intType]),
-        csharpTargetNamedType("System.Action`3", [itemType, intType, arrayType]),
+        csharpDelegateTargetType("System.Action", [itemType]),
+        csharpDelegateTargetType("System.Action", [itemType, intType]),
+        csharpDelegateTargetType("System.Action", [itemType, intType, arrayType]),
       ]
     : [
-        csharpTargetNamedType("System.Func`2", [itemType, returnType]),
-        csharpTargetNamedType("System.Func`3", [itemType, intType, returnType]),
-        csharpTargetNamedType("System.Func`4", [itemType, intType, arrayType, returnType]),
+        csharpDelegateTargetType("System.Func", [itemType], returnType),
+        csharpDelegateTargetType("System.Func", [itemType, intType], returnType),
+        csharpDelegateTargetType("System.Func", [itemType, intType, arrayType], returnType),
       ];
   return callbackShapes.map((callback, index) => arrayHelper(`${sourceName}:${index + 1}`, targetName, [
     targetParameter("array", arrayType),

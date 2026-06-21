@@ -17,11 +17,6 @@ export function isTypeParameterTargetRef(type: TargetTypeRef | undefined): boole
   return type?.kind === "type-parameter";
 }
 
-export function isSourceOwnedDelegateCarrier(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "target-named" &&
-    (type.id.startsWith("System.Func`") || type.id.startsWith("System.Action`"));
-}
-
 export function isSourceOwnedProjectShapeSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
   if (node === undefined) {
     return false;

@@ -12,6 +12,7 @@ import {
 import {
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
+  csharpTargetTypeFromBinding,
 } from "./target-types.js";
 import type {
   TargetTypeRefResolutionOptions,
@@ -84,11 +85,7 @@ export function resolveTargetTypeRefForTypeCore(
     if (targetTypeArguments === undefined || !targetTypeArgumentArityMatches(binding.typeParameters?.length ?? 0, targetTypeArguments.length)) {
       return undefined;
     }
-    return {
-      kind: "target-named",
-      id: binding.id,
-      ...(targetTypeArguments.length > 0 ? { typeArguments: targetTypeArguments } : {}),
-    };
+    return csharpTargetTypeFromBinding(binding, targetTypeArguments);
   }
   const providerVirtualTarget = getProviderVirtualDeclarationTargetTypeRef(type.symbol, context) ??
     getProviderVirtualDeclarationTargetTypeRefFromDeclarations(type, context);

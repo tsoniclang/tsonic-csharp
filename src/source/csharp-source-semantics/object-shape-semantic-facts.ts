@@ -30,6 +30,7 @@ import {
   sourceNameToCsharpMemberName,
 } from "./target-ref-utils.js";
 import {
+  csharpDelegateTargetType,
   csharpTargetNamedType,
 } from "./target-types.js";
 import type {
@@ -176,6 +177,6 @@ function getFunctionTargetTypeRefFromSemanticSignature(
   }
   const returnType = host.getTargetTypeRefForType(compiler.types.getReturnTypeOfSignature(signature as Parameters<typeof compiler.types.getReturnTypeOfSignature>[0], { sourceFile }), context);
   return returnType === undefined || isVoidTargetType(returnType)
-    ? csharpTargetNamedType(`System.Action\`${parameterTypes.length}`, parameterTypes as readonly TargetTypeRef[])
-    : csharpTargetNamedType(`System.Func\`${parameterTypes.length + 1}`, [...(parameterTypes as readonly TargetTypeRef[]), returnType]);
+    ? csharpDelegateTargetType("System.Action", parameterTypes as readonly TargetTypeRef[])
+    : csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);
 }

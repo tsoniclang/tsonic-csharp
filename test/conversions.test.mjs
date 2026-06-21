@@ -4,6 +4,7 @@ import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
   const value = trueKeyword();
@@ -25,7 +26,7 @@ test("planner renders target conversion method facts as C# AST calls", () => {
       operationKind: "method",
       memberName: "ToByte",
       static: true,
-      declaringType: { kind: "target-named", id: "System.Convert" },
+      declaringType: csharpTargetNamedType("System.Convert"),
     },
   }), diagnostics);
 

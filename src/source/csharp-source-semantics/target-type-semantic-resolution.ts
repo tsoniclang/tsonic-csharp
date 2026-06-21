@@ -7,6 +7,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
+  csharpDelegateTargetType,
   csharpTargetNamedType,
 } from "./target-types.js";
 import {
@@ -85,9 +86,9 @@ export function getCallableTargetTypeRefForSemanticType(
   }
   const returnType = resolver.resolveType(types.getReturnTypeOfSignature(signature), context, options, host);
   if (returnType === undefined || isVoidTargetType(returnType)) {
-    return csharpTargetNamedType(`System.Action\`${parameterTypes.length}`, parameterTypes as readonly TargetTypeRef[]);
+    return csharpDelegateTargetType("System.Action", parameterTypes as readonly TargetTypeRef[]);
   }
-  return csharpTargetNamedType(`System.Func\`${parameterTypes.length + 1}`, [...(parameterTypes as readonly TargetTypeRef[]), returnType]);
+  return csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);
 }
 
 export function getNullableUnionTargetTypeRef(

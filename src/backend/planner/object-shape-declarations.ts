@@ -175,26 +175,24 @@ function renderObjectShapeMethodMember(
   }];
 }
 
+interface CsharpDelegateSignatureMetadata {
+  readonly parameters: readonly TargetTypeRef[];
+  readonly returnType?: TargetTypeRef;
+}
+
 function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): { readonly parameters: readonly CsharpTypeNode[]; readonly returnType?: CsharpTypeNode } | undefined {
-  if (type.kind !== "target-named") {
+  const metadata = (type as { readonly csharpDelegateSignature?: CsharpDelegateSignatureMetadata }).csharpDelegateSignature;
+  if (metadata === undefined) {
     return undefined;
   }
-  const typeArguments = type.typeArguments ?? [];
-  if (type.id.startsWith("System.Action`") || type.id === "System.Action") {
-    const parameters = typeArguments.map(csharpTypeFromTargetTypeRef);
-    return parameters.some((parameter) => parameter === undefined)
-      ? undefined
-      : { parameters: parameters as readonly CsharpTypeNode[] };
-  }
-  if (!type.id.startsWith("System.Func`")) {
-    return undefined;
-  }
-  if (typeArguments.length === 0) {
-    return undefined;
-  }
-  const parameters = typeArguments.slice(0, -1).map(csharpTypeFromTargetTypeRef);
-  const returnType = csharpTypeFromTargetTypeRef(typeArguments[typeArguments.length - 1]!);
-  return parameters.some((parameter) => parameter === undefined) || returnType === undefined
+  const parameters = metadata.parameters.map(csharpTypeFromTargetTypeRef);
+  const returnType = metadata.returnType === undefined
     ? undefined
-    : { parameters: parameters as readonly CsharpTypeNode[], returnType };
+    : csharpTypeFromTargetTypeRef(metadata.returnType);
+  return parameters.some((parameter) => parameter === undefined) || (metadata.returnType !== undefined && returnType === undefined)
+    ? undefined
+    : {
+        parameters: parameters as readonly CsharpTypeNode[],
+        ...(returnType !== undefined ? { returnType } : {}),
+      };
 }

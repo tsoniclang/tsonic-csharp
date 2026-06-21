@@ -135,7 +135,7 @@ function getStringHelperReturnType(sourceName: string, stringType: TargetTypeRef
     case "charCodeAt":
       return doubleType;
     case "codePointAt":
-      return { kind: "target-named", id: "System.Nullable`1", typeArguments: [intType] };
+      return csharpTargetNamedType("System.Nullable`1", [intType]);
     case "split":
       return { kind: "array", element: stringType };
     default:

@@ -60,7 +60,11 @@ test(".NET provider declaration model preserves explicit target parameter passin
 test(".NET target refs do not promote any or unknown to CLR object", () => {
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "any" }), { kind: "opaque", id: "any" });
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "unknown" }), { kind: "opaque", id: "unknown" });
-  assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "object" }), { kind: "target-named", id: "System.Object" });
+  assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "object" }), {
+    kind: "target-named",
+    id: "System.Object",
+    csharpRender: { kind: "predefined", name: "object" },
+  });
 });
 
 test(".NET target binding uses provider-owned target member names", () => {
