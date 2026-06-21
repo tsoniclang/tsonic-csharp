@@ -6,7 +6,7 @@ import {
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpExpression } from "../roslyn/syntax.js";
+import type { CsharpArgument, CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import { sanitizeIdentifier } from "./identifiers.js";
@@ -32,9 +32,9 @@ import {
   planSelectedTargetReceiverExpression,
   targetStaticMemberExpression,
 } from "./expression-selected-target-members.js";
-import {
-  CsharpTargetOperatorOperation,
-  csharpTargetOperationFactKey,
+import type {
+  CsharpTargetMemberOperationFact,
+  CsharpTargetOperationArgument,
 } from "../../source/csharp-facts.js";
 import {
   getRequiredCsharpTargetOperation,
@@ -109,25 +109,34 @@ export function planElementAccessExpression(
   const selectedElementAccess = input.facts.getSelectedTargetElementAccess(elementAccess);
   const csharpOperation = selectedElementAccess === undefined
     ? undefined
-    : input.facts.getFact(elementAccess, csharpTargetOperationFactKey);
+    : getRequiredCsharpTargetOperation(input, elementAccess, selectedElementAccess, diagnostics, "C# element access emission");
   if (selectedElementAccess !== undefined && csharpOperation?.operationId !== selectedElementAccess.operationId) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "C# element access emission received mismatched or missing finalized C# target operation facts."));
     return invalidExpression("selected target element access operation");
   }
-  if (csharpOperation?.kind === "intrinsic-operator" && csharpOperation.operator === CsharpTargetOperatorOperation.jsStringCodeUnit) {
+  if (csharpOperation !== undefined && csharpOperation.kind !== "member") {
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `C# element access emission requires a finalized member/indexer operation fact, but provider recorded '${csharpOperation.kind}'.`));
+    return invalidExpression("selected target element access operation");
+  }
+  if (csharpOperation?.operationKind === "method" && csharpOperation.argumentProjection !== undefined) {
     const receiver = planExpression(expression.Expression!, sourceFile, input, diagnostics);
+    const arguments_ = planCsharpTargetOperationArguments(csharpOperation, elementAccess, expression.ArgumentExpression, sourceFile, input, diagnostics, planExpression);
+    if (arguments_ === undefined) {
+      return invalidExpression("selected target element access arguments");
+    }
     return {
       kind: "InvocationExpression",
       callee: {
         kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
         receiver,
-        name: "Substring",
+        name: csharpOperation.memberName,
       },
-      arguments: [
-        { kind: "Argument", expression: planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics) },
-        { kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } },
-      ],
+      arguments: arguments_,
     };
+  }
+  if (csharpOperation !== undefined && csharpOperation.operationKind !== "indexer") {
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `C# element access emission expected an indexer operation fact or projected member call, but provider recorded '${csharpOperation.operationKind}'.`));
+    return invalidExpression("selected target element access operation");
   }
   return {
     kind: expression.QuestionDotToken === undefined ? "ElementAccessExpression" : "ConditionalElementAccessExpression",
@@ -136,6 +145,51 @@ export function planElementAccessExpression(
       : planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression),
     argument: planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics),
   };
+}
+
+function planCsharpTargetOperationArguments(
+  operation: CsharpTargetMemberOperationFact,
+  diagnosticNode: Node,
+  sourceArgument: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): readonly CsharpArgument[] | undefined {
+  const projection = operation.argumentProjection;
+  if (projection === undefined) {
+    return [];
+  }
+  const planned: CsharpArgument[] = [];
+  for (const argument of projection) {
+    const expression = planCsharpTargetOperationArgument(argument, diagnosticNode, sourceArgument, sourceFile, input, diagnostics, planExpression);
+    if (expression === undefined) {
+      return undefined;
+    }
+    planned.push({ kind: "Argument", expression });
+  }
+  return planned;
+}
+
+function planCsharpTargetOperationArgument(
+  argument: CsharpTargetOperationArgument,
+  diagnosticNode: Node,
+  sourceArgument: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  switch (argument.kind) {
+    case "source-argument":
+      if (argument.index !== 0 || sourceArgument === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `C# target operation argument projection requires source argument index ${argument.index}, but element access provides only index 0.`));
+        return undefined;
+      }
+      return planExpression(sourceArgument, sourceFile, input, diagnostics);
+    case "literal":
+      return { kind: "LiteralExpression", value: argument.value };
+  }
 }
 
 export function planCallExpression(

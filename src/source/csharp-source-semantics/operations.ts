@@ -13,6 +13,7 @@ import {
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
 import type {
+  CsharpTargetOperationArgument,
   CsharpTargetOperationFact,
   CsharpTypeofRuntimeKind,
   CsharpTargetOperatorOperation,
@@ -60,6 +61,7 @@ export function csharpTargetMemberOperation(
     readonly static?: boolean;
     readonly declaringType?: TargetTypeRef;
     readonly resultType?: TargetTypeRef;
+    readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
   } = {},
 ): CsharpTargetOperationFact {
   return {
@@ -70,6 +72,7 @@ export function csharpTargetMemberOperation(
     ...(options.static === true ? { static: true } : {}),
     ...(options.declaringType !== undefined ? { declaringType: options.declaringType } : {}),
     ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
+    ...(options.argumentProjection !== undefined ? { argumentProjection: options.argumentProjection } : {}),
   };
 }
 

@@ -13,13 +13,10 @@ import type {
 } from "@tsonic/tsts";
 import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
-  CsharpTargetOperatorOperation,
-} from "../../../csharp-facts.js";
-import {
   csharpJsCheckedTypeQuery,
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
-  csharpTargetIntrinsicOperatorOperation,
+  csharpTargetMemberOperation,
   recordCsharpTargetOperation,
   targetMethod,
   targetOperation,
@@ -39,9 +36,15 @@ export function mapCsharpJsStringElementAccess(
   if (!host.isIntegralTargetTypeRef(indexType) && !host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
     return rejectObservation(host.csharpProviderDiagnostic("tsonic.csharp.js-surface-operations", "CSHARP_NON_INTEGRAL_STRING_INDEX", 9100112, "C# JS surface string element access requires an integral provider-backed index type."));
   }
-  recordCsharpTargetOperation(context, request.expression, csharpTargetIntrinsicOperatorOperation("tsonic.csharp.js.string.codeUnit", CsharpTargetOperatorOperation.jsStringCodeUnit, csharpTargetNamedType("System.String")), [{ message: "C# JS surface string code-unit operation recorded from checked TypeScript element access." }]);
+  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.js.string.codeUnit", "method", "Substring", {
+    resultType: csharpTargetNamedType("System.String"),
+    argumentProjection: [
+      { kind: "source-argument", index: 0 },
+      { kind: "literal", value: 1 },
+    ],
+  }), [{ message: "C# JS surface string code-unit operation recorded from checked TypeScript element access." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation("tsonic.csharp.js.string.codeUnit", "indexer", CsharpTargetOperatorOperation.jsStringCodeUnit, {
+    operation: targetOperation("tsonic.csharp.js.string.codeUnit", "indexer", "String.Substring", {
       resultType: csharpTargetNamedType("System.String"),
     }),
   }, [{ message: "C# JS surface string code-unit access selected from checked TypeScript element access." }]);

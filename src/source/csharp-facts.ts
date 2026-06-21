@@ -5,7 +5,6 @@ export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint"
 
 export const CsharpTargetOperatorOperation = {
   typeTest: "type-test",
-  jsStringCodeUnit: "js-string-code-unit",
 } as const;
 
 export type CsharpTargetOperatorOperation = typeof CsharpTargetOperatorOperation[keyof typeof CsharpTargetOperatorOperation];
@@ -67,7 +66,12 @@ export interface CsharpTargetMemberOperationFact {
   readonly static?: boolean;
   readonly declaringType?: TargetTypeRef;
   readonly resultType?: TargetTypeRef;
+  readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
 }
+
+export type CsharpTargetOperationArgument =
+  | { readonly kind: "source-argument"; readonly index: number }
+  | { readonly kind: "literal"; readonly value: string | number | boolean | null };
 
 export interface CsharpTargetIntrinsicOperatorOperationFact {
   readonly kind: "intrinsic-operator";
@@ -148,7 +152,8 @@ function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right:
         && left.memberName === right.memberName
         && left.static === right.static
         && targetTypeRefEquals(left.declaringType, right.declaringType)
-        && targetTypeRefEquals(left.resultType, right.resultType);
+        && targetTypeRefEquals(left.resultType, right.resultType)
+        && csharpTargetOperationArgumentArrayEquals(left.argumentProjection, right.argumentProjection);
     case "intrinsic-operator":
       return right.kind === "intrinsic-operator"
         && left.operator === right.operator
@@ -168,6 +173,27 @@ function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right:
         && left.negated === right.negated
         && targetTypeRefEquals(left.resultType, right.resultType);
   }
+}
+
+function csharpTargetOperationArgumentArrayEquals(left: readonly CsharpTargetOperationArgument[] | undefined, right: readonly CsharpTargetOperationArgument[] | undefined): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left === undefined || right === undefined || left.length !== right.length) {
+    return false;
+  }
+  return left.every((argument, index) => {
+    const other = right[index];
+    if (other === undefined || argument.kind !== other.kind) {
+      return false;
+    }
+    switch (argument.kind) {
+      case "source-argument":
+        return other.kind === "source-argument" && argument.index === other.index;
+      case "literal":
+        return other.kind === "literal" && Object.is(argument.value, other.value);
+    }
+  });
 }
 
 function objectShapeMemberArrayEquals(left: readonly CsharpObjectShapeMemberFact[] | undefined, right: readonly CsharpObjectShapeMemberFact[] | undefined): boolean {
