@@ -120,6 +120,10 @@ import {
   isLiteralRepresentableAsTargetType,
   selectTargetMember,
 } from "./csharp-source-semantics/target-member-selection.js";
+import {
+  getBinaryOperatorText,
+  getPrefixUnaryOperatorText,
+} from "./csharp-source-semantics/operator-syntax.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./csharp-source-semantics/target-member-selection.js";
@@ -1759,107 +1763,6 @@ function getTargetTypeRefFromCheckedExpressionSyntax(
     return undefined;
   }
   return left;
-}
-
-function getBinaryOperatorText(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): string | undefined {
-  const operatorToken = asNodeSubject(getNodeField(node, "OperatorToken"));
-  return operatorToken === undefined ? undefined : getOperatorTextFromKindName(ast.kindName(operatorToken));
-}
-
-function getPrefixUnaryOperatorText(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): string | undefined {
-  const operator = getNodeField(node, "Operator");
-  return typeof operator === "number"
-    ? getOperatorTextFromKindName(ast.kindName({ Kind: operator } as Node))
-    : undefined;
-}
-
-function getOperatorTextFromKindName(kind: string): string | undefined {
-  switch (kind) {
-    case "KindEqualsEqualsEqualsToken":
-      return "===";
-    case "KindEqualsEqualsToken":
-      return "==";
-    case "KindExclamationEqualsEqualsToken":
-      return "!==";
-    case "KindExclamationEqualsToken":
-      return "!=";
-    case "KindLessThanToken":
-      return "<";
-    case "KindLessThanEqualsToken":
-      return "<=";
-    case "KindGreaterThanToken":
-      return ">";
-    case "KindGreaterThanEqualsToken":
-      return ">=";
-    case "KindAmpersandAmpersandToken":
-      return "&&";
-    case "KindBarBarToken":
-      return "||";
-    case "KindQuestionQuestionToken":
-      return "??";
-    case "KindAmpersandToken":
-      return "&";
-    case "KindBarToken":
-      return "|";
-    case "KindCaretToken":
-      return "^";
-    case "KindLessThanLessThanToken":
-      return "<<";
-    case "KindGreaterThanGreaterThanToken":
-      return ">>";
-    case "KindGreaterThanGreaterThanGreaterThanToken":
-      return ">>>";
-    case "KindPlusToken":
-      return "+";
-    case "KindMinusToken":
-      return "-";
-    case "KindAsteriskToken":
-      return "*";
-    case "KindSlashToken":
-      return "/";
-    case "KindPercentToken":
-      return "%";
-    case "KindEqualsToken":
-      return "=";
-    case "KindPlusEqualsToken":
-      return "+=";
-    case "KindMinusEqualsToken":
-      return "-=";
-    case "KindAsteriskEqualsToken":
-      return "*=";
-    case "KindSlashEqualsToken":
-      return "/=";
-    case "KindPercentEqualsToken":
-      return "%=";
-    case "KindAmpersandEqualsToken":
-      return "&=";
-    case "KindBarEqualsToken":
-      return "|=";
-    case "KindCaretEqualsToken":
-      return "^=";
-    case "KindLessThanLessThanEqualsToken":
-      return "<<=";
-    case "KindGreaterThanGreaterThanEqualsToken":
-      return ">>=";
-    case "KindGreaterThanGreaterThanGreaterThanEqualsToken":
-      return ">>>=";
-    case "KindExclamationToken":
-      return "!";
-    case "KindTildeToken":
-      return "~";
-    case "KindPlusPlusToken":
-      return "++";
-    case "KindMinusMinusToken":
-      return "--";
-    default:
-      return undefined;
-  }
 }
 
 function getTargetTypeRefFromConstructedExpressionSyntax(
