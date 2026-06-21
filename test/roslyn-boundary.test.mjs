@@ -11,10 +11,19 @@ test("C# backend exposes Roslyn syntax as the only output AST boundary", async (
   assert.equal(existsSync(join(root, "src/backend/roslyn/syntax.ts")), true);
 
   const syntax = await readFile(join(root, "src/backend/roslyn/syntax.ts"), "utf8");
-  assert.match(syntax, /kind: "CompilationUnit"/);
-  assert.match(syntax, /kind: "MethodDeclaration"/);
-  assert.match(syntax, /kind: "InvocationExpression"/);
-  assert.match(syntax, /kind: "LocalDeclarationStatement"/);
+  assert.match(syntax, /from "\.\/syntax\/declarations\.js"/);
+  assert.match(syntax, /from "\.\/syntax\/members\.js"/);
+  assert.match(syntax, /from "\.\/syntax\/expressions\.js"/);
+  assert.match(syntax, /from "\.\/syntax\/statements\.js"/);
+
+  const declarations = await readFile(join(root, "src/backend/roslyn/syntax/declarations.ts"), "utf8");
+  const members = await readFile(join(root, "src/backend/roslyn/syntax/members.ts"), "utf8");
+  const expressions = await readFile(join(root, "src/backend/roslyn/syntax/expressions.ts"), "utf8");
+  const statements = await readFile(join(root, "src/backend/roslyn/syntax/statements.ts"), "utf8");
+  assert.match(declarations, /kind: "CompilationUnit"/);
+  assert.match(members, /kind: "MethodDeclaration"/);
+  assert.match(expressions, /kind: "InvocationExpression"/);
+  assert.match(statements, /kind: "LocalDeclarationStatement"/);
 
   const sources = await collectSourceFiles(join(root, "src"));
   for (const source of sources) {
