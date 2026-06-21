@@ -1,5 +1,4 @@
 import {
-  AsArrayLiteralExpression,
   AsArrowFunction,
   AsAsExpression,
   AsAwaitExpression,
@@ -21,10 +20,8 @@ import {
   AsPrefixUnaryExpression,
   AsPropertyAssignment,
   AsPropertyAccessExpression,
-  AsRegularExpressionLiteral,
   AsShorthandPropertyAssignment,
   AsSpreadAssignment,
-  AsSpreadElement,
   AsStringLiteral,
   AsSatisfiesExpression,
   AsTemplateExpression,
@@ -59,7 +56,6 @@ import {
   KindRegularExpressionLiteral,
   KindShorthandPropertyAssignment,
   KindSpreadAssignment,
-  KindSpreadElement,
   KindStringLiteral,
   KindSatisfiesExpression,
   KindSuperKeyword,
@@ -85,13 +81,18 @@ import { canonicalIdentityFactKey } from "@tsonic/tsts";
 import type { ArgumentPassingFact, Node, SourceFile, Symbol, TargetMember, TargetOperationFact, TargetTypeRef, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpLambdaParameter, CsharpObjectInitializerAssignment, CsharpTypeNode } from "../roslyn/syntax.js";
-import { runtimeArrayHelperCall } from "./array-helpers.js";
-import { expressionToCsharpType, getCsharpTypeForNode, predefined, sameCsharpType } from "./csharp-types.js";
+import {
+  planArrayLiteralExpression,
+  planArrayLiteralExpressionFromFacts,
+  planTupleLiteralExpression,
+} from "./array-literals.js";
+import { expressionToCsharpType, getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
+import { invalidExpression } from "./invalid-expression.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
-import { getRuntimeCarrierForExpression, getTargetTypeRefForNode, getTargetTypeRefForType } from "./runtime-carriers.js";
+import { getTargetTypeRefForNode, getTargetTypeRefForType } from "./runtime-carriers.js";
 import {
   getCallableSemanticOwnership,
   getProviderOperationOwnership,
@@ -105,6 +106,7 @@ import { sourceFileClassName } from "./source-paths.js";
 import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
 import { instantiateSelectedTargetMember } from "./target-member-instantiation.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
+import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
 import { csharpLangModule, csharpTypesModule } from "../../source/csharp-source-semantics.js";
 import type { CsharpObjectShapeFact, CsharpObjectShapeMemberFact } from "../../source/csharp-facts.js";
 
@@ -178,7 +180,10 @@ function planExpressionCore(
       };
     }
     case KindArrayLiteralExpression: {
-      return planArrayLiteralExpressionFromFacts(node, sourceFile, input, diagnostics);
+      return planArrayLiteralExpressionFromFacts(node, sourceFile, input, diagnostics, {
+        planExpression,
+        planExpressionWithExpectedType,
+      });
     }
     case KindObjectLiteralExpression:
       diagnostics.push(unsupportedNodeDiagnostic(node, "Object literals require an explicit target type before C# emission."));
@@ -459,10 +464,6 @@ function planTargetConversionConstructor(
     type: targetType,
     arguments: [{ kind: "Argument", expression }],
   };
-}
-
-function invalidExpression(reason: string): CsharpExpression {
-  return { kind: "InvalidExpression", reason };
 }
 
 function planIdentifierExpression(
@@ -1083,10 +1084,16 @@ export function planExpressionWithExpectedType(
     return planObjectLiteralExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
-    return planTupleLiteralExpression(node, sourceFile, input, diagnostics);
+    return planTupleLiteralExpression(node, sourceFile, input, diagnostics, {
+      planExpression,
+      planExpressionWithExpectedType,
+    });
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
-    return planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType);
+    return planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType, {
+      planExpression,
+      planExpressionWithExpectedType,
+    });
   }
   if (HasSourceKind(input.ast, node, KindConditionalExpression)) {
     const expression = AsConditionalExpression(node)!;
@@ -1683,198 +1690,6 @@ function getStringLiteralText(node: Node, input: TargetCompileInput): string | u
 
 function isCsharpCharType(type: CsharpTypeNode): boolean {
   return type.kind === "PredefinedType" && type.name === "char";
-}
-
-function planRegularExpressionLiteral(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression {
-  const carrier = getRuntimeCarrierForExpression(input, node, sourceFile);
-  if (carrier?.kind !== "target-named" || carrier.id !== "Tsonic.CSharp.Js.RegExp") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires a finalized provider runtime carrier for Tsonic.CSharp.Js.RegExp."));
-    return invalidExpression("regexp literal without provider carrier");
-  }
-  const literal = parseRegularExpressionLiteral(Node_Text(AsRegularExpressionLiteral(node)));
-  if (literal === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal text could not be split into pattern and flags by the C# backend."));
-    return invalidExpression("invalid regexp literal text");
-  }
-  return {
-    kind: "ObjectCreationExpression",
-    type: csharpTypeFromTargetTypeRef(carrier) ?? { kind: "InvalidType", reason: "regexp carrier" },
-    arguments: [
-      { kind: "Argument", expression: { kind: "LiteralExpression", value: literal.pattern } },
-      { kind: "Argument", expression: { kind: "LiteralExpression", value: literal.flags } },
-    ],
-  };
-}
-
-function parseRegularExpressionLiteral(text: string): { readonly pattern: string; readonly flags: string } | undefined {
-  if (!text.startsWith("/")) {
-    return undefined;
-  }
-  let escaped = false;
-  let inCharacterClass = false;
-  for (let index = 1; index < text.length; index += 1) {
-    const char = text[index]!;
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (char === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (char === "[" && !inCharacterClass) {
-      inCharacterClass = true;
-      continue;
-    }
-    if (char === "]" && inCharacterClass) {
-      inCharacterClass = false;
-      continue;
-    }
-    if (char === "/" && !inCharacterClass) {
-      return {
-        pattern: text.slice(1, index),
-        flags: text.slice(index + 1),
-      };
-    }
-  }
-  return undefined;
-}
-
-function planTupleLiteralExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression {
-  const literal = AsArrayLiteralExpression(node)!;
-  return {
-    kind: "TupleExpression",
-    elements: (literal.Elements?.Nodes ?? [])
-      .filter((element): element is Node => element !== undefined)
-      .map((element) => planExpression(element, sourceFile, input, diagnostics)),
-  };
-}
-
-function planArrayLiteralExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  elementType: CsharpTypeNode,
-): CsharpExpression {
-  const literal = AsArrayLiteralExpression(node)!;
-  if ((literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindSpreadElement))) {
-    return planArraySpreadLiteralExpression(node, sourceFile, input, diagnostics, elementType);
-  }
-  return {
-    kind: "ArrayCreationExpression",
-    elementType,
-    elements: (literal.Elements?.Nodes ?? [])
-      .filter((element): element is Node => element !== undefined)
-      .map((element) => planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType)),
-  };
-}
-
-function planArraySpreadLiteralExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  elementType: CsharpTypeNode,
-): CsharpExpression {
-  const expectedArrayType = { kind: "ArrayType", elementType } satisfies CsharpTypeNode;
-  const chunks = createArraySpreadChunks(node, sourceFile, input, diagnostics, elementType, expectedArrayType);
-  if (chunks.length === 0) {
-    return {
-      kind: "ArrayCreationExpression",
-      elementType,
-      elements: [],
-    };
-  }
-  if (chunks.length === 1 && chunks[0]?.fromSpread !== true) {
-    return chunks[0]!.expression;
-  }
-  return runtimeArrayHelperCall("Concat", chunks.map((chunk) => ({ kind: "Argument", expression: chunk.expression })));
-}
-
-function createArraySpreadChunks(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  elementType: CsharpTypeNode,
-  expectedArrayType: CsharpTypeNode,
-): readonly { readonly expression: CsharpExpression; readonly fromSpread?: boolean }[] {
-  const literal = AsArrayLiteralExpression(node)!;
-  const chunks: { readonly expression: CsharpExpression; readonly fromSpread?: boolean }[] = [];
-  let pendingElements: CsharpExpression[] = [];
-  const flushPending = () => {
-    if (pendingElements.length === 0) {
-      return;
-    }
-    chunks.push({
-      expression: {
-        kind: "ArrayCreationExpression",
-        elementType,
-        elements: pendingElements,
-      },
-    });
-    pendingElements = [];
-  };
-  for (const element of literal.Elements?.Nodes ?? []) {
-    if (element === undefined) {
-      continue;
-    }
-    if (!HasSourceKind(input.ast, element, KindSpreadElement)) {
-      pendingElements.push(planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType));
-      continue;
-    }
-    flushPending();
-    const expression = AsSpreadElement(element)?.Expression;
-    if (expression === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
-      continue;
-    }
-    const spreadCarrier = getTargetTypeRefForNode(input, expression, sourceFile);
-    const spreadType = spreadCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(spreadCarrier);
-    if (spreadType === undefined || !sameCsharpType(spreadType, expectedArrayType)) {
-      diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a finalized provider array carrier matching the target array element type before C# emission."));
-      continue;
-    }
-    chunks.push({
-      expression: planExpression(expression, sourceFile, input, diagnostics),
-      fromSpread: true,
-    });
-  }
-  flushPending();
-  return chunks;
-}
-
-function planArrayLiteralExpressionFromFacts(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression {
-  const carrier = getRuntimeCarrierForExpression(input, node, sourceFile);
-  if (carrier?.kind === "array") {
-    const elementType = csharpTypeFromTargetTypeRef(carrier.element);
-    if (elementType !== undefined) {
-      return planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType);
-    }
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires a renderable provider element carrier type before C# emission."));
-    return invalidExpression("array literal with unrenderable element carrier");
-  }
-  if (carrier?.kind === "tuple") {
-    return planTupleLiteralExpression(node, sourceFile, input, diagnostics);
-  }
-  diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires finalized TSTS/provider array or tuple runtime-carrier facts before C# emission."));
-  return invalidExpression("array literal without runtime carrier");
 }
 
 function tryPlanBinaryExpression(
