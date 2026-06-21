@@ -4,9 +4,13 @@ import type {
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
+import {
+  asSemanticType,
+  asTargetTypeRef as asCanonicalTargetTypeRef,
+} from "../fact-subjects.js";
 
 export function asType(subject: unknown): Type | undefined {
-  return typeof subject === "object" && subject !== null && "flags" in subject ? subject as Type : undefined;
+  return asSemanticType(subject);
 }
 
 export function asTargetParameter(subject: ExtensionFactSubject | undefined): TargetParameter | undefined {
@@ -22,26 +26,7 @@ export function asTargetParameter(subject: ExtensionFactSubject | undefined): Ta
 }
 
 export function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
-  if (typeof subject !== "object" || subject === null) {
-    return undefined;
-  }
-  const kind = (subject as { readonly kind?: unknown }).kind;
-  switch (kind) {
-    case "source-primitive":
-    case "target-named":
-    case "type-parameter":
-    case "array":
-    case "tuple":
-    case "pointer":
-    case "function-pointer":
-    case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
-      return subject as TargetTypeRef;
-    default:
-      return undefined;
-  }
+  return asCanonicalTargetTypeRef(subject);
 }
 
 export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): boolean {

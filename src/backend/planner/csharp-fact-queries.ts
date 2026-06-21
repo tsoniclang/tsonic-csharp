@@ -3,6 +3,9 @@ import type { TargetCompileInput } from "@tsonic/target-api";
 import { csharpObjectShapeFactKey } from "../../source/csharp-facts.js";
 import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
 import { IsTypeSyntaxNode } from "./source-ast.js";
+import {
+  asNodeSubject,
+} from "../../source/fact-subjects.js";
 
 export function getCsharpObjectShapeFactForNode(
   node: Node | undefined,
@@ -36,7 +39,7 @@ function getCsharpObjectShapeFactForDeclarationAnnotation(
   const declarations = (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
     ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
   for (const declaration of declarations) {
-    const typeNode = asNode(getNodeField(declaration, "Type"));
+    const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
     const fact = input.facts.getFact(typeNode, csharpObjectShapeFactKey);
     if (fact !== undefined) {
       return fact;
@@ -50,12 +53,4 @@ function getNodeField(node: Node | undefined, field: string): unknown {
     return undefined;
   }
   return Object.getOwnPropertyDescriptor(node, field)?.value;
-}
-
-function asNode(value: unknown): Node | undefined {
-  return typeof value === "object" &&
-    value !== null &&
-    typeof (value as { readonly Kind?: unknown }).Kind === "number"
-    ? value as Node
-    : undefined;
 }

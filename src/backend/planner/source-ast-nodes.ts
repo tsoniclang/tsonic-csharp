@@ -1,4 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
+import {
+  isNodeSubject,
+} from "../../source/fact-subjects.js";
 
 export const ModifierFlagsPublic = 1 << 0;
 export const ModifierFlagsPrivate = 1 << 1;
@@ -44,10 +47,7 @@ export function SourceFile_FileName(sourceFile: SourceFile): string {
 }
 
 export function isAstNode(value: unknown): value is Node {
-  const kind = (value as { readonly Kind?: unknown } | undefined)?.Kind;
-  return typeof value === "object" &&
-    value !== null &&
-    (typeof kind === "number" || typeof kind === "string");
+  return isNodeSubject(value);
 }
 
 function nodeField(node: Node | undefined, field: string): Node | undefined {

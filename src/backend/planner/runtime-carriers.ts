@@ -3,6 +3,9 @@ import type { TargetCompileInput } from "@tsonic/target-api";
 import {
   getTargetTypeRefFromDirectFacts,
 } from "./runtime-carrier-direct-facts.js";
+import {
+  asNodeSubject,
+} from "../../source/fact-subjects.js";
 
 export function getRuntimeCarrierForExpression(
   input: TargetCompileInput,
@@ -36,10 +39,11 @@ function getTargetTypeRefFromSelectedOperation(
     input.facts.getSelectedTargetProperty(sourceNode)?.resultType ??
     input.facts.getSelectedTargetElementAccess(sourceNode)?.resultType ??
     input.facts.getSelectedTargetCall(sourceNode)?.member.returnType;
+  const resultNode = asNodeSubject(resultType);
   return resultType === undefined || resultType === sourceNode
     ? undefined
     : getTargetTypeRefFromDirectFacts(input, resultType) ??
-      (asNode(resultType) === undefined ? undefined : getTargetTypeRefForNode(input, asNode(resultType), sourceFile));
+      (resultNode === undefined ? undefined : getTargetTypeRefForNode(input, resultNode, sourceFile));
 }
 
 export function getTargetTypeRefForType(
@@ -54,12 +58,4 @@ export function getTargetTypeRefForType(
     ? undefined
     : getTargetTypeRefFromDirectFacts(input, type) ??
       getTargetTypeRefFromDirectFacts(input, type.symbol);
-}
-
-function asNode(value: unknown): Node | undefined {
-  return typeof value === "object" &&
-    value !== null &&
-    typeof (value as { readonly Kind?: unknown }).Kind === "number"
-    ? value as Node
-    : undefined;
 }

@@ -5,6 +5,9 @@ import type {
 import type {
   TargetCompileInput,
 } from "@tsonic/target-api";
+import {
+  asTargetTypeRef,
+} from "../../source/fact-subjects.js";
 
 export function getTargetTypeRefFromDirectFacts(
   input: TargetCompileInput,
@@ -54,27 +57,4 @@ export function getTargetTypeRefFromDirectFacts(
     return { kind: "target-named", id: binding.id };
   }
   return undefined;
-}
-
-function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
-  if (typeof subject !== "object" || subject === null) {
-    return undefined;
-  }
-  const kind = (subject as { readonly kind?: unknown }).kind;
-  switch (kind) {
-    case "source-primitive":
-    case "target-named":
-    case "type-parameter":
-    case "array":
-    case "tuple":
-    case "pointer":
-    case "function-pointer":
-    case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
-      return subject as TargetTypeRef;
-    default:
-      return undefined;
-  }
 }

@@ -10,9 +10,13 @@ import {
   ModifierFlagsAsync,
   isAstNode,
 } from "./source-ast.js";
-import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpLambdaParameter, CsharpTypeNode } from "../roslyn/syntax.js";
+import {
+  asSemanticType,
+  asTargetTypeRef,
+} from "../../source/fact-subjects.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { sanitizeIdentifier } from "./identifiers.js";
@@ -153,30 +157,4 @@ function getContextualTargetRefFromSubject(
   return isAstNode(subject)
     ? getTargetTypeRefForNode(input, subject, sourceFile)
     : undefined;
-}
-
-function asSemanticType(subject: unknown): Type | undefined {
-  return typeof subject === "object" && subject !== null && "flags" in subject ? subject as Type : undefined;
-}
-
-function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
-  if (typeof subject !== "object" || subject === null) {
-    return undefined;
-  }
-  switch ((subject as { readonly kind?: unknown }).kind) {
-    case "source-primitive":
-    case "target-named":
-    case "type-parameter":
-    case "array":
-    case "tuple":
-    case "pointer":
-    case "function-pointer":
-    case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
-      return subject as TargetTypeRef;
-    default:
-      return undefined;
-  }
 }

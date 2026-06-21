@@ -9,7 +9,15 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../../../csharp-facts.js";
+import {
+  asNodeSubject,
+  asSemanticType,
+} from "../../../fact-subjects.js";
 export { targetOperation } from "../../operations.js";
+export {
+  asNodeSubject,
+  asSemanticType as asType,
+} from "../../../fact-subjects.js";
 
 export {
   csharpSourcePrimitiveTargetType,
@@ -135,18 +143,6 @@ export function isSourceLibraryType(type: Type, context: ExtensionObservationCon
     ast.getFileName(ast.getSourceFile(declaration)).startsWith("bundled:///libs/"));
 }
 
-export function asNodeSubject(subject: unknown): Node | undefined {
-  return typeof subject === "object" &&
-    subject !== null &&
-    typeof (subject as { readonly Kind?: unknown }).Kind === "number"
-    ? subject as Node
-    : undefined;
-}
-
-export function asType(subject: unknown): Type | undefined {
-  return typeof subject === "object" && subject !== null && "flags" in subject ? subject as Type : undefined;
-}
-
 export function range(count: number): readonly number[] {
   return Array.from({ length: count }, (_value, index) => index);
 }
@@ -167,7 +163,7 @@ function getSourceLibraryTypeNameForSubject(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): "Array" | "ReadonlyArray" | "String" | "RegExp" | undefined {
-  const type = asType(subject);
+  const type = asSemanticType(subject);
   if (type === undefined) {
     return undefined;
   }

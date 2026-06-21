@@ -2,14 +2,12 @@ import type {
   ExtensionObservationContext,
   Node,
 } from "@tsonic/tsts";
-
-export function asNodeSubject(subject: unknown): Node | undefined {
-  return typeof subject === "object" &&
-    subject !== null &&
-    typeof (subject as { readonly Kind?: unknown }).Kind === "number"
-    ? subject as Node
-    : undefined;
-}
+import {
+  asNodeSubject,
+} from "../fact-subjects.js";
+export {
+  asNodeSubject,
+} from "../fact-subjects.js";
 
 export function isTypeSyntaxNode(
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
