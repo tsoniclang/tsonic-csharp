@@ -67,10 +67,6 @@ export function mapCsharpCheckedPropertyAccess(
     request.receiverSymbol,
   ]);
   if (binding === undefined) {
-    const arrayOperation = mapCsharpNativeArrayCheckedPropertyAccess(request, context, host);
-    if (arrayOperation !== undefined) {
-      return arrayOperation;
-    }
     return mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ?? deferObservation;
   }
   const member = findTargetMember(binding, context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey));
@@ -140,31 +136,6 @@ function mapCsharpObjectShapeCheckedPropertyAccess(
       { resultType: member.type },
     ),
   }, [{ message: "C# object-shape property access selected from finalized structural shape fact." }]);
-}
-
-function mapCsharpNativeArrayCheckedPropertyAccess(
-  request: CheckedPropertyAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-  host: CsharpOperationsProviderHost,
-): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  if (request.propertyName !== "length") {
-    return undefined;
-  }
-  const receiverType = unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.receiverType, context, noRuntimeCarrierQuery) ??
-      host.getTargetTypeRefForSubject(request.receiver, context, { ...noRuntimeCarrierQuery, allowSemanticTypeQuery: false }),
-  );
-  if (receiverType?.kind !== "array") {
-    return undefined;
-  }
-  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.array.length", "property", "Length", {
-    resultType: csharpSourcePrimitiveTargetType("int32"),
-  }), [{ message: "C# native array length operation recorded from checked TypeScript array property access." }]);
-  return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation("tsonic.csharp.array.length", "property", "Length", {
-      resultType: csharpSourcePrimitiveTargetType("int32"),
-    }),
-  }, [{ message: "C# native array length selected from checked TypeScript array property access." }]);
 }
 
 function mapCsharpNativeArrayCheckedElementAccess(
