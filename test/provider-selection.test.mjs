@@ -98,6 +98,21 @@ test("target member selection binds first-argument receiver generics before expl
   );
 });
 
+test("target member selection does not treat opaque any or unknown as wildcard target types", () => {
+  const argument = {};
+  const int32Type = { kind: "source-primitive", name: "int32" };
+  const context = {};
+  const resolveTargetTypeRef = (subject) => subject === argument ? int32Type : undefined;
+
+  for (const typeId of ["any", "unknown"]) {
+    const member = method(`Example.Target.${typeId}`, { kind: "opaque", id: typeId });
+    assert.equal(
+      selectTargetMember([member], { arguments: [argument] }, context, resolveTargetTypeRef),
+      undefined,
+    );
+  }
+});
+
 function getNativeSemanticProvider() {
   const semanticProviders = [];
   const extension = createCsharpNativeProviderExtension({
