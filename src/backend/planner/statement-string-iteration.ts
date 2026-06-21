@@ -25,14 +25,9 @@ import type {
 import {
   planExpression,
 } from "./expressions.js";
-
-type NestedStatementPlanner = (
-  node: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-) => readonly CsharpStatement[];
+import type {
+  NestedStatementPlanner,
+} from "./statement-nested-planner.js";
 
 export interface PlannedStringForOfBinding extends CsharpLocalDeclaration {
   readonly prelude: readonly CsharpStatement[];
