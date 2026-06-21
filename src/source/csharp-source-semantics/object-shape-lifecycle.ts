@@ -81,8 +81,9 @@ export function recordCsharpObjectRestBindingFactsBeforeFinalization(
       if (members.length === sourceShape.members.length || members.length === 0) {
         return;
       }
+      const targetName = getObjectShapeTargetName("__TsonicShape", members);
       const restShape = {
-        targetType: csharpTargetNamedType(getObjectShapeTargetName("__TsonicShape", members)),
+        targetType: csharpTargetNamedType(targetName, undefined, { kind: "named", name: targetName }),
         members,
       } satisfies CsharpObjectShapeFact;
       recordCsharpObjectRestBindingFact(lifecycleContext, sourceFile, [node, restName], restShape);

@@ -2,6 +2,7 @@ import {
   KindArrowFunction,
   KindCallExpression,
   KindArrayLiteralExpression,
+  KindBinaryExpression,
   KindElementAccessExpression,
   KindFunctionExpression,
   KindIdentifier,
@@ -130,11 +131,11 @@ function planExpressionCore(
     case KindPostfixUnaryExpression: {
       return planPostfixUnaryExpression(node, sourceFile, input, diagnostics, planExpression);
     }
-    default: {
+    case KindBinaryExpression: {
       const binary = tryPlanBinaryExpression(node, sourceFile, input, diagnostics, planExpression);
-      if (binary !== undefined) {
-        return binary;
-      }
+      return binary ?? invalidExpression("unsupported binary expression");
+    }
+    default: {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Expression is outside the current C# planning surface."));
       return invalidExpression("unsupported expression");
     }

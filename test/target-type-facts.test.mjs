@@ -12,6 +12,10 @@ import {
 } from "../dist/source/csharp-source-semantics/target-rules.js";
 import { getTypeofRuntimeKind } from "../dist/source/csharp-source-semantics/typeof-operators.js";
 import { csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpJsRegExpTargetType,
+  isCsharpJsRegExpRuntimeCarrier,
+} from "../dist/source/csharp-source-semantics/surfaces/js/regexp.js";
 
 test("throwable carriers require explicit C# target capability metadata", () => {
   assert.equal(isCsharpThrowableCarrier({ kind: "target-named", id: "System.Exception" }), false);
@@ -36,6 +40,11 @@ test("special C# target types require explicit metadata", () => {
   assert.equal(isVoidTargetType(csharpTargetNamedType("System.Void")), true);
   assert.equal(unwrapNullableTargetType(rawNullable), rawNullable);
   assert.deepEqual(unwrapNullableTargetType(csharpTargetNamedType("System.Nullable`1", [intType])), intType);
+});
+
+test("JS RegExp runtime carrier requires explicit JS surface metadata", () => {
+  assert.equal(isCsharpJsRegExpRuntimeCarrier({ kind: "target-named", id: "Tsonic.CSharp.Js.RegExp" }), false);
+  assert.equal(isCsharpJsRegExpRuntimeCarrier(csharpJsRegExpTargetType()), true);
 });
 
 test("type parameter constraints render finalized C# type facts", () => {

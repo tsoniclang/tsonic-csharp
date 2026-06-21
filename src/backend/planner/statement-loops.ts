@@ -27,7 +27,7 @@ import {
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier } from "./identifiers.js";
 import { planLocalDeclaration } from "./locals.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
@@ -187,7 +187,7 @@ function planForOfBinding(
   if (HasSourceKind(input.ast, initializer, KindIdentifier)) {
     const identifier = AsIdentifier(initializer)!;
     return {
-      name: sanitizeIdentifier(Node_Text(identifier)),
+      name: requireCsharpIdentifier(Node_Text(identifier), diagnostics, "For-of assignment target"),
       kind: "VariableDeclarator",
       type: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
       prelude: [],

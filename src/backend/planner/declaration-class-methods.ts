@@ -42,7 +42,7 @@ export function planMethodDeclaration(
 ): CsharpMethodDeclaration {
   const declaration = AsMethodDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "method declaration", diagnostics);
-  const state = createDestructuringPlannerState();
+  const state = createDestructuringPlannerState(node);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
   state.currentReturnType = returnType;

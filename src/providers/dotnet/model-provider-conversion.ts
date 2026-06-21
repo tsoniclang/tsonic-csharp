@@ -6,9 +6,6 @@ import type {
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
 } from "./model-types.js";
-import {
-  dotnetTypeRefKey,
-} from "./model-type-ref-key.js";
 
 export function dotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTypeExpression {
   switch (type.kind) {
@@ -53,17 +50,8 @@ export function dotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTypeEx
         ...(type.typeParameters !== undefined ? { typeParameters: type.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
       };
     case "pointer":
-      return {
-        kind: "opaque",
-        id: `csharp.pointer:${dotnetTypeRefKey(type.pointee)}`,
-        displayName: "pointer",
-      };
     case "function-pointer":
-      return {
-        kind: "opaque",
-        id: `csharp.function-pointer:${type.args.map(dotnetTypeRefKey).join(",")}=>${dotnetTypeRefKey(type.result)}`,
-        displayName: "function pointer",
-      };
+      throw unsupportedDotnetProviderType(type.kind);
     case "opaque":
       return {
         kind: "opaque",
@@ -89,6 +77,10 @@ function dotnetConstraintToProviderConstraint(constraint: DotnetConstraint): Pro
     case "implements":
       return dotnetTypeRefToProviderType(constraint.contract);
     default:
-      return { kind: "opaque", id: `csharp.constraint:${constraint.kind}` };
+      throw new Error(`Unsupported .NET provider constraint '${constraint.kind}'. Add a typed TSTS provider constraint before exposing this declaration.`);
   }
+}
+
+function unsupportedDotnetProviderType(kind: DotnetTypeRef["kind"]): Error {
+  return new Error(`Unsupported .NET provider type '${kind}'. Add a typed TSTS provider type expression before exposing this declaration.`);
 }

@@ -16,6 +16,7 @@ import {
   csharpRegularExpressionLiteralFactKey,
 } from "../../../csharp-facts.js";
 import {
+  type CsharpTargetNamedTypeRef,
   asNodeSubject,
   asType,
   csharpTargetMemberOperation,
@@ -27,7 +28,18 @@ import {
   targetParameter,
 } from "./source-library.js";
 
-export const csharpJsRegExpTypeId = "Tsonic.CSharp.Js.RegExp";
+const csharpJsRegExpTypeId = "Tsonic.CSharp.Js.RegExp";
+
+type CsharpJsRegExpTargetTypeRef = CsharpTargetNamedTypeRef & {
+  readonly csharpJsSurfaceKind: "regexp";
+};
+
+export function csharpJsRegExpTargetType(): CsharpJsRegExpTargetTypeRef {
+  return {
+    ...csharpTargetNamedType(csharpJsRegExpTypeId),
+    csharpJsSurfaceKind: "regexp",
+  } satisfies CsharpJsRegExpTargetTypeRef;
+}
 
 export function mapCsharpJsRegExpRuntimeCarrier(
   request: RuntimeCarrierFactRequest,
@@ -58,8 +70,8 @@ function recordCsharpJsRegExpLiteralFact(
   }
   context.facts.set(node, csharpRegularExpressionLiteralFactKey, literal, [{ message: "C# JS surface RegExp literal pattern and flags recorded from source syntax." }]);
   recordCsharpTargetOperation(context, node, csharpTargetMemberOperation("tsonic.csharp.js.regexp.literal.constructor", "constructor", "RegExp", {
-    declaringType: csharpTargetNamedType(csharpJsRegExpTypeId),
-    resultType: csharpTargetNamedType(csharpJsRegExpTypeId),
+    declaringType: csharpJsRegExpTargetType(),
+    resultType: csharpJsRegExpTargetType(),
   }), [{ message: "C# JS surface RegExp literal constructor operation recorded from source syntax." }]);
 }
 
@@ -104,7 +116,7 @@ export function getCsharpJsRegExpRuntimeCarrierForSubject(
   const node = asNodeSubject(subject);
   const ast = context.compiler?.ast;
   if (node !== undefined && ast?.is.IsRegularExpressionLiteral(node) === true) {
-    return csharpTargetNamedType(csharpJsRegExpTypeId);
+    return csharpJsRegExpTargetType();
   }
   const directType = asType(subject);
   if (directType !== undefined) {
@@ -123,16 +135,16 @@ export function getCsharpJsRegExpRuntimeCarrierForType(
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
   return type !== undefined && isSourceLibraryType(type, context, "RegExp")
-    ? csharpTargetNamedType(csharpJsRegExpTypeId)
+    ? csharpJsRegExpTargetType()
     : undefined;
 }
 
-export function isCsharpJsRegExpRuntimeCarrier(type: TargetTypeRef | undefined): type is TargetTypeRef {
-  return type?.kind === "target-named" && type.id === csharpJsRegExpTypeId;
+export function isCsharpJsRegExpRuntimeCarrier(type: TargetTypeRef | undefined): type is CsharpJsRegExpTargetTypeRef {
+  return type?.kind === "target-named" && (type as CsharpJsRegExpTargetTypeRef).csharpJsSurfaceKind === "regexp";
 }
 
 export function getRegExpTargetMembers(sourceName: string): readonly TargetMember[] {
-  const regExpType = csharpTargetNamedType(csharpJsRegExpTypeId);
+  const regExpType = csharpJsRegExpTargetType();
   const stringType = csharpTargetNamedType("System.String");
   const boolType = csharpSourcePrimitiveTargetType("bool");
   if (sourceName === "constructor") {

@@ -43,6 +43,9 @@ export function targetOperationFromMember(member: TargetMember): CheckedOperatio
 }
 
 export function csharpTargetOperationFromMember(member: TargetMember): CsharpTargetMemberOperationFact {
+  const resultType = member.kind === "constructor"
+    ? member.declaringType
+    : member.returnType;
   return {
     kind: "member",
     operationId: member.id,
@@ -50,7 +53,7 @@ export function csharpTargetOperationFromMember(member: TargetMember): CsharpTar
     memberName: member.targetName,
     ...(member.static === true ? { static: true } : {}),
     ...(member.declaringType !== undefined ? { declaringType: member.declaringType } : {}),
-    ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
+    ...(resultType !== undefined ? { resultType } : {}),
     selectedMember: member,
   };
 }

@@ -3,7 +3,10 @@ import { materializeCsharpOutputPlan } from "./csharp-output-plan.js";
 import { planSourceFile } from "./csharp-source-file-planner.js";
 import type { PlannedCsharpSourceFile } from "./csharp-source-file-planner.js";
 import { planCsharpProjectFile } from "./project-artifacts.js";
-import { sourceFileArtifactPath } from "./source-paths.js";
+import {
+  sourceFileArtifactPath,
+  validateSourceFileOutputIdentities,
+} from "./source-paths.js";
 
 export interface CsharpPlanningResult {
   readonly artifacts: readonly TargetArtifact[];
@@ -12,6 +15,13 @@ export interface CsharpPlanningResult {
 
 export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningResult {
   const diagnostics: TargetDiagnostic[] = [];
+  validateSourceFileOutputIdentities(input, diagnostics);
+  if (diagnostics.length > 0) {
+    return {
+      artifacts: [],
+      diagnostics,
+    };
+  }
   const plannedSources: PlannedCsharpSourceFile[] = [];
   for (const sourceFile of input.sourceFiles) {
     const plannedSource = planSourceFile(sourceFile, input, diagnostics);

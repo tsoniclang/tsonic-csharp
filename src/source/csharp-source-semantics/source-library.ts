@@ -5,6 +5,9 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
+  getBundledLibraryPath,
+} from "@tsonic/tsts";
+import {
   asNodeSubject,
 } from "../fact-subjects.js";
 
@@ -71,5 +74,11 @@ function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclar
 }
 
 function isTstsBundledStandardLibraryFile(fileName: string): boolean {
-  return fileName.startsWith("bundled:///libs/");
+  const libraryPath = normalizePathPrefix(getBundledLibraryPath());
+  const normalizedFileName = normalizePathPrefix(fileName);
+  return normalizedFileName.startsWith(`${libraryPath}/`);
+}
+
+function normalizePathPrefix(value: string): string {
+  return value.split("\\").join("/").replace(/\/+$/, "");
 }

@@ -15,7 +15,7 @@ import type {
 } from "../roslyn/syntax.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier } from "./identifiers.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { isCsharpThrowableCarrier } from "./statement-output.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
@@ -90,7 +90,7 @@ function planCatchClause(
     return {
       kind: "CatchClause",
       variableType,
-      variableName: variable.name === undefined ? undefined : sanitizeIdentifier(Node_Text(variable.name)),
+      variableName: variable.name === undefined ? undefined : requireCsharpIdentifier(Node_Text(variable.name), diagnostics, "Catch variable"),
       body: {
         kind: "Block",
         statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),

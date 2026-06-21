@@ -15,7 +15,7 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  allocateForInIndex,
+  allocateForInNames,
 } from "./bindings.js";
 import type {
   DestructuringPlannerState,
@@ -86,10 +86,7 @@ export function planObjectShapeForInStatement(
     diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Object-shape for-in requires a renderable object-shape target type before C# emission."));
     return [];
   }
-  const indexName = allocateForInIndex(state);
-  const suffix = indexName.slice("__forInIndex".length);
-  const collectionName = `__forInTarget${suffix}`;
-  const keysName = `__forInKeys${suffix}`;
+  const { indexName, collectionName, keysName } = allocateForInNames(state);
   const keyExpression: CsharpExpression = {
     kind: "ElementAccessExpression",
     receiver: { kind: "IdentifierName", name: keysName },

@@ -20,9 +20,9 @@ import { planExpression } from "./expressions.js";
 export {
   allocateCatchValue,
   allocateControlLabel,
-  allocateForInIndex,
+  allocateForInNames,
   allocateForOfItem,
-  allocateForOfLoop,
+  allocateStringIterationNames,
   allocateSyntheticParameter,
   createDestructuringPlannerState,
 } from "./binding-state.js";

@@ -18,9 +18,6 @@ import type {
   DotnetTypeRef,
 } from "./model-types.js";
 import {
-  dotnetTypeRefKey,
-} from "./model-type-ref-key.js";
-import {
   type CsharpTargetBindingFact,
   csharpDelegateTargetType,
   csharpQualifiedTypeRenderShape,
@@ -31,13 +28,14 @@ export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint)
   switch (constraint.kind) {
     case "implements": {
       const contract = dotnetTypeRefToTargetTypeRef(constraint.contract);
-      return contract.kind === "target-named"
-        ? {
-            kind: "implements",
-            contract: contract.id,
-            ...(contract.typeArguments !== undefined ? { typeArguments: contract.typeArguments } : {}),
-          }
-        : { kind: "target-specific", target: "csharp", name: "implements", value: contract };
+      if (contract.kind !== "target-named") {
+        throw new Error(`Unsupported .NET target constraint 'implements' for non-named contract '${contract.kind}'. Add a typed TSTS target constraint before exposing this declaration.`);
+      }
+      return {
+        kind: "implements",
+        contract: contract.id,
+        ...(contract.typeArguments !== undefined ? { typeArguments: contract.typeArguments } : {}),
+      };
     }
     case "value-type":
     case "reference-type":
@@ -45,9 +43,9 @@ export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint)
     case "unmanaged":
       return { kind: constraint.kind };
     case "not-null":
-      return { kind: "target-specific", target: "csharp", name: "not-null" };
+      throw new Error("Unsupported .NET target constraint 'not-null'. Add a typed TSTS target constraint before exposing this declaration.");
     case "target-specific":
-      return { kind: "target-specific", target: "csharp", name: constraint.name, value: constraint.value };
+      throw new Error(`Unsupported .NET target-specific constraint '${constraint.name}'. Add a typed TSTS target constraint before exposing this declaration.`);
   }
 }
 
@@ -56,17 +54,18 @@ export function dotnetExportToTargetBinding(declaration: DotnetExportDeclaration
 }
 
 function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBindingFact {
+  const declaredCsharpType = csharpTargetNamedType(
+    declaration.metadataName,
+    declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
+    declaration.displayName === undefined ? undefined : dotnetDisplayNameRenderShape(declaration.displayName),
+  );
   const binding = {
     id: declaration.metadataName,
     sourceName: declaration.sourceName,
     targetName: declaration.displayName ?? declaration.metadataName,
     target: "csharp",
     kind: dotnetTypeKindToTargetBindingKind(declaration.typeKind),
-    csharpType: csharpTargetNamedType(
-      declaration.metadataName,
-      declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
-      declaration.displayName === undefined ? undefined : dotnetDisplayNameRenderShape(declaration.displayName),
-    ),
+    csharpType: declaredCsharpType,
     ...(declaration.typeParameters !== undefined && declaration.typeParameters.length > 0
       ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
@@ -74,7 +73,7 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
       ? { implementedContracts: declaration.implementedContracts.map(dotnetConstraintToTargetConstraint) }
       : {}),
     ...(declaration.members !== undefined && declaration.members.length > 0
-      ? { members: declaration.members.flatMap((member) => dotnetMemberToTargetMembers(member, declaration.metadataName)) }
+      ? { members: declaration.members.flatMap((member) => dotnetMemberToTargetMembers(member, declaredCsharpType)) }
       : {}),
   } satisfies CsharpTargetBindingFact;
   return binding;
@@ -102,13 +101,13 @@ function dotnetTypeParameterToTargetTypeParameter(parameter: DotnetTypeParameter
   };
 }
 
-function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringTypeId: string): readonly TargetMember[] {
+function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringType: TargetTypeRef): readonly TargetMember[] {
   switch (member.kind) {
     case "method":
     case "constructor":
     case "indexer":
     case "operator":
-      return (member.signatures ?? []).map((signature) => dotnetSignatureToTargetMember(member, signature, declaringTypeId));
+      return (member.signatures ?? []).map((signature) => dotnetSignatureToTargetMember(member, signature, declaringType));
     case "property":
     case "field":
     case "event":
@@ -119,7 +118,7 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
             sourceName: member.sourceName,
             targetName: member.targetName,
             kind: member.kind,
-            declaringType: csharpTargetNamedType(declaringTypeId),
+            declaringType,
             ...(member.static === true ? { static: true } : {}),
             parameters: [],
             returnType: dotnetTypeRefToTargetTypeRef(member.type),
@@ -130,14 +129,14 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
 function dotnetSignatureToTargetMember(
   member: DotnetMemberDeclaration,
   signature: DotnetSignatureDeclaration,
-  declaringTypeId: string,
+  declaringType: TargetTypeRef,
 ): TargetMember {
   return {
     id: signature.id,
     sourceName: member.sourceName,
     targetName: signature.targetName ?? member.targetName,
     kind: member.kind,
-    declaringType: csharpTargetNamedType(declaringTypeId),
+    declaringType,
     ...(member.static === true ? { static: true } : {}),
     parameters: signature.parameters.map(dotnetParameterToTargetParameter),
     ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToTargetTypeRef(signature.returnType) } : {}),
@@ -194,7 +193,7 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "tuple":
       return { kind: "tuple", elements: type.elements.map(dotnetTypeRefToTargetTypeRef) };
     case "union":
-      return { kind: "opaque", id: `csharp.union:${type.types.map(dotnetTypeRefKey).join("|")}` };
+      throw new Error("Unsupported .NET union target type. Add a typed TSTS target union/carrier model before exposing this declaration.");
     case "function":
       return type.returnType.kind === "void"
         ? csharpDelegateTargetType(

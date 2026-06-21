@@ -28,6 +28,7 @@ export {
 } from "../../../fact-subjects.js";
 
 export {
+  type CsharpTargetNamedTypeRef,
   csharpDelegateTargetType,
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,

@@ -15,7 +15,7 @@ import {
   allocateControlLabel,
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier } from "./identifiers.js";
 
 export type NestedStatementBodyPlanner = (
   node: Node | undefined,
@@ -33,7 +33,7 @@ export function planLabeledStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementBodyPlanner,
 ): CsharpStatement {
-  const sourceName = sanitizeIdentifier(Node_Text(statement.Label!));
+  const sourceName = requireCsharpIdentifier(Node_Text(statement.Label!), diagnostics, "Statement label");
   const target = {
     sourceName,
     breakLabel: allocateControlLabel(state, sourceName, "BreakStatement"),
@@ -67,7 +67,7 @@ export function findControlLabel(
   state: DestructuringPlannerState,
   sourceName: string,
 ): { readonly breakLabel: string; readonly continueLabel?: string } | undefined {
-  const sanitized = sanitizeIdentifier(sourceName);
+  const sanitized = sourceName;
   for (let index = state.controlLabels.length - 1; index >= 0; index--) {
     const target = state.controlLabels[index]!;
     if (target.sourceName === sanitized) {

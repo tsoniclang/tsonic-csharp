@@ -1,14 +1,46 @@
+import type {
+  TargetDiagnostic,
+} from "@tsonic/target-api";
+
 export function sanitizeIdentifier(value: string): string {
-  const sanitized = value.replace(/[^A-Za-z0-9_]/g, "_");
-  if (sanitized.length === 0) {
-    return "_";
+  const identifier = tryCsharpIdentifier(value);
+  if (identifier === undefined) {
+    throw new Error(`Invalid C# identifier '${value}'. C# backend names must come from source/provider facts with explicit valid target names.`);
   }
-  const identifier = /^[A-Za-z_]/.test(sanitized) ? sanitized : `_${sanitized}`;
-  return csharpReservedIdentifiers.has(identifier) ? `@${identifier}` : identifier;
+  return identifier;
+}
+
+export function tryCsharpIdentifier(value: string): string | undefined {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    return undefined;
+  }
+  return csharpReservedIdentifiers.has(value) ? `@${value}` : value;
+}
+
+export function requireCsharpIdentifier(
+  value: string,
+  diagnostics: TargetDiagnostic[],
+  description: string,
+): string {
+  const identifier = tryCsharpIdentifier(value);
+  if (identifier !== undefined) {
+    return identifier;
+  }
+  diagnostics.push({
+    code: "CSHARP_INVALID_IDENTIFIER",
+    category: "error",
+    source: "tsonic-csharp",
+    message: `${description} '${value}' is not a valid C# identifier. Add an explicit target name/fact instead of relying on backend name rewriting.`,
+  });
+  return "__invalid";
 }
 
 export function sanitizePathSegment(value: string): string {
-  return sanitizeIdentifier(value).replace(/^_+$/, "_");
+  const identifier = tryCsharpIdentifier(value);
+  if (identifier === undefined || identifier.startsWith("@")) {
+    throw new Error(`Invalid C# path segment '${value}'. C# output paths must use canonical generated identities.`);
+  }
+  return identifier;
 }
 
 export function toPascalCase(value: string): string {

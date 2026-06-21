@@ -16,7 +16,7 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  allocateForOfLoop,
+  allocateStringIterationNames,
 } from "./bindings.js";
 import type {
   DestructuringPlannerState,
@@ -80,9 +80,7 @@ export function planStringCodePointForOfStatement(
     });
     return [];
   }
-  const loopIndex = allocateForOfLoop(state);
-  const collectionName = `__forOfString${loopIndex}`;
-  const indexName = `__forOfIndex${loopIndex}`;
+  const { collectionName, indexName } = allocateStringIterationNames(state);
   const bindingIdentifier = { kind: "IdentifierName", name: binding.name } satisfies CsharpExpression;
   const collectionIdentifier = { kind: "IdentifierName", name: collectionName } satisfies CsharpExpression;
   const indexIdentifier = { kind: "IdentifierName", name: indexName } satisfies CsharpExpression;

@@ -72,8 +72,8 @@ export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): 
   }
 }
 
-export function sourceNameToCsharpMemberName(name: string): string {
-  return name.replace(/[^A-Za-z0-9_]/g, "_");
+export function generatedObjectShapeMemberName(sourceName: string): string {
+  return `__tsonic_member_${hashString(sourceName)}`;
 }
 
 export function targetTypeRefKey(type: TargetTypeRef): string {

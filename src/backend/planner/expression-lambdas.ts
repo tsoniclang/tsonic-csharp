@@ -19,7 +19,7 @@ import {
 } from "../../source/fact-subjects.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
 import { getTargetTypeRefForNode, getTargetTypeRefForType } from "./runtime-carriers.js";
 import { planBlockStatements } from "./statements.js";
@@ -100,7 +100,7 @@ export function planLambdaParameters(
       }
       return {
         kind: "Parameter",
-        name: HasSourceKind(input.ast, parameter.name, KindIdentifier) ? sanitizeIdentifier(Node_Text(parameter.name)) : "arg",
+        name: HasSourceKind(input.ast, parameter.name, KindIdentifier) ? requireCsharpIdentifier(Node_Text(parameter.name), diagnostics, "Lambda parameter") : "arg",
         ...(parameter.Type === undefined ? {} : { type: getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics) }),
       };
     });

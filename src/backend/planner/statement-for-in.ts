@@ -9,7 +9,7 @@ import type {
 import { predefined, sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
-  allocateForInIndex,
+  allocateForInNames,
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { planExpression } from "./expressions.js";
@@ -74,8 +74,7 @@ export function planForInStatement(
   if (collectionType === undefined) {
     return [];
   }
-  const indexName = allocateForInIndex(state);
-  const collectionName = `__forInTarget${indexName.slice("__forInIndex".length)}`;
+  const { indexName, collectionName } = allocateForInNames(state);
   const plannedLoop: CsharpStatement = {
     kind: "ForStatement",
     initializer: {

@@ -16,7 +16,10 @@ import type {
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import {
+  requireCsharpIdentifier,
+  tryCsharpIdentifier,
+} from "./identifiers.js";
 import { isSourceOwnedProjectShapeSubject } from "./semantic-guards.js";
 
 export function planObjectBindingElement(
@@ -85,12 +88,12 @@ function getDirectSourcePropertyName(
   if (!HasSourceKind(input.ast, propertyName, KindIdentifier)) {
     if (HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
       const text = AsStringLiteral(propertyName)?.Text;
-      if (text !== undefined && sanitizeIdentifier(text) === text) {
+      if (text !== undefined && tryCsharpIdentifier(text) === text) {
         return text;
       }
     }
     diagnostics.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from source-owned declarations supports only identifier property names until provider object-shape facts supply target member names."));
     return undefined;
   }
-  return sanitizeIdentifier(Node_Text(propertyName));
+  return requireCsharpIdentifier(Node_Text(propertyName), diagnostics, "Object destructuring source property");
 }

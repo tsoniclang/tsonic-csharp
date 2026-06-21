@@ -17,9 +17,6 @@ import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
 import {
-  asType,
-} from "./target-ref-utils.js";
-import {
   isSourceLibraryType,
 } from "./source-library.js";
 import type {
@@ -149,9 +146,7 @@ export function getFirstTypeArgument(
   if (typeArgument !== undefined) {
     return typeArgument;
   }
-  return types.getIndexInfos(type)
-    .map((info) => (info as { readonly valueType?: unknown }).valueType)
-    .find((value): value is Type => asType(value) !== undefined);
+  return undefined;
 }
 
 export function resolveTargetTypeArgumentsForTypeWithResolver(

@@ -8,6 +8,7 @@ export const KindArrowFunction: any = "KindArrowFunction";
 export const KindAsExpression: any = "KindAsExpression";
 export const KindAwaitExpression: any = "KindAwaitExpression";
 export const KindBindingElement: any = "KindBindingElement";
+export const KindBinaryExpression: any = "KindBinaryExpression";
 export const KindBlock: any = "KindBlock";
 export const KindBreakStatement: any = "KindBreakStatement";
 export const KindCallExpression: any = "KindCallExpression";

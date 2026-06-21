@@ -9,7 +9,7 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier } from "./identifiers.js";
 import {
   getCallableSemanticOwnership,
   getSemanticOwnership,
@@ -90,7 +90,7 @@ export function planPropertyAccessExpression(
   return {
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
     receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
-    name: sanitizeIdentifier(sourceName),
+    name: requireCsharpIdentifier(sourceName, diagnostics, "Source-owned property name"),
   };
 }
 

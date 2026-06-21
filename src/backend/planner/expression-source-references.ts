@@ -15,7 +15,7 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier } from "./identifiers.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "./source-paths.js";
 
@@ -51,7 +51,7 @@ export function planIdentifierExpression(
   if (sourceModuleMemberReference !== undefined) {
     return sourceModuleMemberReference;
   }
-  return { kind: "IdentifierName", name: sanitizeIdentifier(sourceName) };
+  return { kind: "IdentifierName", name: requireCsharpIdentifier(sourceName, diagnostics, "Source identifier") };
 }
 
 export function isExternalDeclarationReference(
@@ -88,7 +88,7 @@ export function planProjectSourceModuleMemberReference(
       kind: "IdentifierName",
       name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
     },
-    name: sanitizeIdentifier(sourceReference.symbol.Name),
+    name: requireCsharpIdentifier(sourceReference.symbol.Name, diagnostics, "Cross-file source reference"),
   };
 }
 

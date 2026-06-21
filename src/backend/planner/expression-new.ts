@@ -19,9 +19,6 @@ import {
   invalidExpression,
 } from "./invalid-expression.js";
 import {
-  getTargetTypeRefForNode,
-} from "./runtime-carriers.js";
-import {
   getCallableSemanticOwnership,
   isSourceOwnedProjectConstructibleObjectSubject,
   pushMissingTargetFactDiagnostic,
@@ -29,9 +26,6 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
-import {
-  isProjectSourceTypeRef,
-} from "./project-source-types.js";
 import {
   isProviderVirtualSourceFile,
 } from "./provider-virtual-source-files.js";
@@ -75,10 +69,8 @@ export function planNewExpression(
   }
   if (selectedTargetCall === undefined) {
     const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
-    const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
     const sourceConstructible = isProjectSourceClassReference(expression.Expression, sourceFile, input) ||
-      isSourceOwnedProjectConstructibleObjectSubject(expression.Expression, sourceFile, input) ||
-      isProjectSourceTypeRef(expressionCarrier);
+      isSourceOwnedProjectConstructibleObjectSubject(expression.Expression, sourceFile, input);
     if (!sourceConstructible) {
       pushMissingTargetFactDiagnostic(diagnostics, node, "C# construction emission requires a source-owned constructor or a selected target constructor fact.", {
         requiresTargetFact: true,
@@ -89,12 +81,11 @@ export function planNewExpression(
     }
   }
   const member = csharpOperation?.selectedMember;
-  const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
-  const selectedConstructorTypeRef = csharpOperation?.resultType ??
-    csharpOperation?.declaringType ??
-    member?.returnType ??
-    member?.declaringType ??
-    expressionCarrier;
+  const selectedConstructorTypeRef = csharpOperation?.resultType;
+  if (csharpOperation !== undefined && selectedConstructorTypeRef === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# construction emission requires the finalized constructor operation fact to carry an explicit result target type."));
+    return invalidExpression("missing C# constructor result type");
+  }
   const selectedConstructorType = selectedConstructorTypeRef === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(selectedConstructorTypeRef);

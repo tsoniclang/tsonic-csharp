@@ -13,6 +13,7 @@ import type {
 import { planLocalDeclaration } from "./locals.js";
 import { planStatements } from "./statements.js";
 import { planValueTypeDeclaration } from "./value-types.js";
+import type { DestructuringPlannerState } from "./bindings.js";
 
 export function planTopLevelVariableStatement(
   statement: Node,
@@ -22,13 +23,14 @@ export function planTopLevelVariableStatement(
   namespaceMembers: CsharpTypeDeclaration[],
   moduleMembers: CsharpTypeMember[],
   topLevelStatements: CsharpStatement[],
+  state: DestructuringPlannerState,
 ): void {
   const declarationList = AsVariableStatement(statement)!.DeclarationList;
   const variableDeclarationList = AsVariableDeclarationList(declarationList)!;
   const declarations = variableDeclarationList.Declarations?.Nodes ?? [];
   const isConst = (variableDeclarationList.Flags & NodeFlagsConst) !== 0;
   if (declarations.length === 0) {
-    topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics));
+    topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, state));
     return;
   }
   for (const declaration of declarations) {

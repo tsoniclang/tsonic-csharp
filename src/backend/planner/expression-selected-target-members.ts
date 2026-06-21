@@ -23,7 +23,7 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  sanitizeIdentifier,
+  requireCsharpIdentifier,
 } from "./identifiers.js";
 import {
   invalidExpression,
@@ -82,7 +82,7 @@ export function planSelectedTargetReceiverExpression(
     diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
     return invalidExpression("provider declaration receiver");
   }
-  return { kind: "IdentifierName", name: sanitizeIdentifier(sourceName) };
+  return { kind: "IdentifierName", name: requireCsharpIdentifier(sourceName, diagnostics, "Selected target receiver") };
 }
 
 export function targetStaticMemberExpression(

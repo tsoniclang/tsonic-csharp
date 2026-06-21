@@ -21,7 +21,7 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  sanitizeIdentifier,
+  requireCsharpIdentifier,
 } from "./identifiers.js";
 import {
   getRuntimeCarrierForExpression,
@@ -80,7 +80,7 @@ export function planForInBinding(
     }
     return {
       kind: "LocalDeclarationStatement",
-      name: sanitizeIdentifier(Node_Text(variable.name)),
+      name: requireCsharpIdentifier(Node_Text(variable.name), diagnostics, "For-in key binding"),
       node: first,
       currentType: getCsharpTypeForNode(variable.name, sourceFile, input, undefined, diagnostics),
     };
@@ -89,7 +89,7 @@ export function planForInBinding(
     const identifier = AsIdentifier(initializer)!;
     return {
       kind: "assignment",
-      name: sanitizeIdentifier(Node_Text(identifier)),
+      name: requireCsharpIdentifier(Node_Text(identifier), diagnostics, "For-in assignment target"),
       node: initializer,
       currentType: getCsharpTypeForNode(initializer, sourceFile, input, undefined, diagnostics),
     };

@@ -22,7 +22,7 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  sanitizeIdentifier,
+  requireCsharpIdentifier,
 } from "./identifiers.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -86,7 +86,9 @@ function getCsharpTypeForExpressionReference(
     input,
   );
   if (sourceReferenceName !== undefined) {
-    return { kind: "IdentifierName", name: sanitizeIdentifier(sourceReferenceName) };
+    return diagnostics === undefined
+      ? { kind: "IdentifierName", name: sourceReferenceName }
+      : { kind: "IdentifierName", name: requireCsharpIdentifier(sourceReferenceName, diagnostics, "Project source type reference") };
   }
   const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding !== undefined) {

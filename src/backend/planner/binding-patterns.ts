@@ -17,7 +17,7 @@ import { allocateDestructuringTemp } from "./binding-state.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier } from "./identifiers.js";
 import {
   getObjectShapeForBindingSource,
   planObjectBindingPattern,
@@ -58,7 +58,7 @@ function planBindingNameFromProjection(
   if (HasSourceKind(input.ast, name, KindIdentifier)) {
     return [{
       kind: "LocalDeclarationStatement",
-      name: sanitizeIdentifier(Node_Text(name)),
+      name: requireCsharpIdentifier(Node_Text(name), diagnostics, "Destructuring binding"),
       type: projectedType ?? getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
       initializer: projected,
     }];

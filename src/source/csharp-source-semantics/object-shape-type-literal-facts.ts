@@ -17,7 +17,7 @@ import {
   getObjectShapeTargetName,
 } from "./object-shape-identity.js";
 import {
-  sourceNameToCsharpMemberName,
+  generatedObjectShapeMemberName,
 } from "./target-ref-utils.js";
 import {
   csharpTargetNamedType,
@@ -44,8 +44,9 @@ export function deriveCsharpObjectShapeFactForSubject(
   if (shapeMembers.length !== members.length) {
     return undefined;
   }
+  const targetName = getObjectShapeTargetName("__TsonicShape", shapeMembers);
   return {
-    targetType: csharpTargetNamedType(getObjectShapeTargetName("__TsonicShape", shapeMembers)),
+    targetType: csharpTargetNamedType(targetName, undefined, { kind: "named", name: targetName }),
     members: shapeMembers,
   };
 }
@@ -68,7 +69,7 @@ function deriveCsharpObjectShapeMemberFactForSubject(
   }
   return {
     sourceName,
-    targetName: sourceNameToCsharpMemberName(sourceName),
+    targetName: generatedObjectShapeMemberName(sourceName),
     memberKind,
     type,
     ...(getNodeField(member, "QuestionToken") !== undefined ? { optional: true } : {}),

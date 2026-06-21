@@ -9,7 +9,7 @@ import {
 } from "./source-ast.js";
 import type { Node } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier } from "./identifiers.js";
 
 export function planIdentifierName(
   node: Node | undefined,
@@ -28,10 +28,16 @@ export function planIdentifierName(
     return errorName;
   }
   if (HasSourceKind(input.ast, node, KindIdentifier)) {
-    return sanitizeIdentifier(Node_Text(AsIdentifier(node)));
+    return requireCsharpIdentifier(Node_Text(AsIdentifier(node)), diagnostics, description);
   }
   if (HasSourceKind(input.ast, node, KindPrivateIdentifier)) {
-    return sanitizeIdentifier(Node_Text(AsPrivateIdentifier(node)));
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_NAME",
+      category: "error",
+      source: "tsonic-csharp",
+      message: `${description} '${Node_Text(AsPrivateIdentifier(node))}' is a private JavaScript identifier and requires an explicit target name/fact before C# emission.`,
+    });
+    return errorName;
   }
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_NAME",

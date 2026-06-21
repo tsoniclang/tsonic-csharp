@@ -44,6 +44,7 @@ import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js"
 import { sourceFileClassName } from "./source-paths.js";
 import { planStatements } from "./statements.js";
 import { compilationUnitRequiresUnsafe, markCompilationUnitUnsafe } from "./unsafe.js";
+import { createDestructuringPlannerState } from "./bindings.js";
 
 export interface PlannedCsharpSourceFile {
   readonly fileName: string;
@@ -66,6 +67,7 @@ export function planSourceFile(
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
   const topLevelStatements: CsharpStatement[] = [];
+  const topLevelState = createDestructuringPlannerState(sourceFile);
   for (const statement of sourceFile.Statements?.Nodes ?? []) {
     if (statement === undefined) {
       continue;
@@ -98,7 +100,7 @@ export function planSourceFile(
         namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));
         break;
       case KindVariableStatement:
-        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements);
+        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements, topLevelState);
         break;
       case KindExpressionStatement:
       case KindIfStatement:
@@ -112,7 +114,7 @@ export function planSourceFile(
       case KindTryStatement:
       case KindDebuggerStatement:
       case KindLabeledStatement:
-        topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics));
+        topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, topLevelState));
         break;
       default:
         diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level statement is outside the current C# planning surface."));

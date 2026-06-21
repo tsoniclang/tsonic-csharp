@@ -1,5 +1,7 @@
 import {
   AsBinaryExpression,
+  HasSourceKind,
+  KindBinaryExpression,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -37,6 +39,9 @@ export function tryPlanBinaryExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
+  if (!HasSourceKind(input.ast, node, KindBinaryExpression)) {
+    return undefined;
+  }
   const selectedOperator = input.facts.getSelectedTargetOperator(node);
   if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
     diagnostics.push(unsupportedNodeDiagnostic(node, `Binary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));

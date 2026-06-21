@@ -27,7 +27,7 @@ import {
 } from "./target-rules.js";
 import {
   asType,
-  sourceNameToCsharpMemberName,
+  generatedObjectShapeMemberName,
 } from "./target-ref-utils.js";
 import {
   csharpDelegateTargetType,
@@ -63,7 +63,7 @@ export function getSemanticTypeDeclarationShape(
     if (targetTypeArguments === undefined) {
       return undefined;
     }
-    const targetType = csharpTargetNamedType(name, targetTypeArguments);
+    const targetType = csharpTargetNamedType(name, targetTypeArguments, { kind: "named", name });
     if (kind === "KindClassDeclaration") {
       return { kind: "class", name, targetType };
     }
@@ -123,10 +123,11 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     ? [declaredShape.targetType]
     : undefined;
   const shapeNamePrefix = declaredShape?.kind === "interface"
-    ? `__TsonicShape_${sourceNameToCsharpMemberName(declaredShape.name)}`
+    ? `__TsonicShape_${generatedObjectShapeMemberName(declaredShape.name)}`
     : "__TsonicShape";
+  const targetName = getObjectShapeTargetName(shapeNamePrefix, members, implementsTypes);
   return {
-    targetType: csharpTargetNamedType(getObjectShapeTargetName(shapeNamePrefix, members, implementsTypes)),
+    targetType: csharpTargetNamedType(targetName, undefined, { kind: "named", name: targetName }),
     members,
     ...(implementsTypes === undefined ? {} : { implements: implementsTypes }),
   };
@@ -154,7 +155,7 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   }
   return {
     sourceName,
-    targetName: sourceNameToCsharpMemberName(sourceName),
+    targetName: generatedObjectShapeMemberName(sourceName),
     memberKind,
     type,
   };

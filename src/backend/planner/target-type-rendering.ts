@@ -1,6 +1,6 @@
 import type { SourcePrimitiveKind, TargetTypeRef } from "@tsonic/tsts";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
-import { sanitizeIdentifier } from "./identifiers.js";
+import { sanitizeIdentifier, tryCsharpIdentifier } from "./identifiers.js";
 import type {
   CsharpTargetTypeRenderShape,
 } from "../../source/csharp-source-semantics/target-types.js";
@@ -36,7 +36,7 @@ export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode
     case "target-named":
       return csharpTypeFromTargetNamedType(type);
     case "type-parameter":
-      return { kind: "IdentifierName", name: sanitizeIdentifier(type.name) };
+      return csharpTypeParameterName(type.name);
     case "array": {
       const elementType = csharpTypeFromTargetTypeRef(type.element);
       return elementType === undefined
@@ -63,10 +63,15 @@ export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode
         : { kind: "FunctionPointerType", parameters: parameters as readonly CsharpTypeNode[], returnType };
     }
     case "target-specific":
-      return csharpTypeFromTargetSpecificRef(type);
+      return undefined;
     default:
       return undefined;
   }
+}
+
+function csharpTypeParameterName(name: string): CsharpTypeNode | undefined {
+  const identifier = tryCsharpIdentifier(name);
+  return identifier === undefined ? undefined : { kind: "IdentifierName", name: identifier };
 }
 
 export function csharpTypeFromSourcePrimitiveKind(kind: SourcePrimitiveKind): CsharpTypeNode {
@@ -74,31 +79,6 @@ export function csharpTypeFromSourcePrimitiveKind(kind: SourcePrimitiveKind): Cs
     kind: "PredefinedType",
     name: primitiveTargetNames.get(kind)!,
   };
-}
-
-function csharpTypeFromTargetSpecificRef(type: Extract<TargetTypeRef, { readonly kind: "target-specific" }>): CsharpTypeNode | undefined {
-  if (type.target !== "csharp" || type.name !== "project-source-type") {
-    return undefined;
-  }
-  if (typeof type.value === "string") {
-    return { kind: "IdentifierName", name: sanitizeIdentifier(type.value) };
-  }
-  if (typeof type.value !== "object" || type.value === null) {
-    return undefined;
-  }
-  const value = type.value as { readonly name?: unknown; readonly typeArguments?: unknown };
-  if (typeof value.name !== "string" || value.name.length === 0) {
-    return undefined;
-  }
-  const rawArguments = Array.isArray(value.typeArguments) ? value.typeArguments : [];
-  const typeArguments = rawArguments.map((argument) => csharpTypeFromTargetTypeRef(argument as TargetTypeRef));
-  return typeArguments.some((argument) => argument === undefined)
-    ? undefined
-    : {
-        kind: "IdentifierName",
-        name: sanitizeIdentifier(value.name),
-        ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly CsharpTypeNode[] } : {}),
-      };
 }
 
 function csharpTypeFromTargetNamedType(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): CsharpTypeNode | undefined {

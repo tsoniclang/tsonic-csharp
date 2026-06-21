@@ -129,13 +129,10 @@ export function csharpTargetTypeFromBinding(
   if (declaredType !== undefined) {
     return typeArguments.length === 0 ? declaredType : undefined;
   }
-  return csharpTargetNamedType(
-    binding.id,
-    typeArguments,
-    (binding as CsharpTargetBindingFact).csharpRender ??
-      csharpTargetDisplayNameRenderShape(binding.targetName) ??
-      knownCsharpTargetTypeRenderShape(binding.id),
-  );
+  const renderShape = (binding as CsharpTargetBindingFact).csharpRender;
+  return renderShape === undefined
+    ? undefined
+    : csharpTargetNamedType(binding.id, typeArguments, renderShape);
 }
 
 export function csharpRenderShapeForTargetNamedType(
@@ -206,27 +203,6 @@ export function csharpQualifiedTypeRenderShape(namespaceName: string, name: stri
   };
 }
 
-function csharpTargetDisplayNameRenderShape(displayName: string): CsharpTargetTypeRenderShape | undefined {
-  if (displayName.includes("`") || displayName.includes("<") || displayName.includes(">")) {
-    return undefined;
-  }
-  const parts = displayName.split(".");
-  if (parts.length === 0 || !parts.every(isCsharpIdentifierPart)) {
-    return undefined;
-  }
-  const name = parts[parts.length - 1]!;
-  const namespace = parts.slice(0, -1);
-  return {
-    kind: "named",
-    ...(namespace.length > 0 ? { namespace } : {}),
-    name,
-  };
-}
-
-function isCsharpIdentifierPart(part: string): boolean {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(part);
-}
-
 function knownCsharpTargetTypeRenderShape(id: string): CsharpTargetTypeRenderShape | undefined {
   const predefined = predefinedRenderShapes.get(id);
   if (predefined !== undefined) {
@@ -235,9 +211,6 @@ function knownCsharpTargetTypeRenderShape(id: string): CsharpTargetTypeRenderSha
   const generic = genericRenderShapes.get(id);
   if (generic !== undefined) {
     return generic;
-  }
-  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(id)) {
-    return { kind: "named", name: id };
   }
   return undefined;
 }
