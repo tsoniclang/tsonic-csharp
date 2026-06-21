@@ -17,8 +17,7 @@ export function getTypeParameterName(input: TargetCompileInput, type: Type): str
     if (!input.ast.is.IsTypeParameterDeclaration(declaration)) {
       continue;
     }
-    const name = (declaration as { readonly name?: { readonly Text?: unknown }; readonly Name?: { readonly Text?: unknown } }).name ??
-      (declaration as { readonly Name?: { readonly Text?: unknown } }).Name;
+    const name = (declaration as { readonly name?: { readonly Text?: unknown } }).name;
     const text = name?.Text;
     if (typeof text === "string" && text.length > 0) {
       return text;
@@ -32,16 +31,7 @@ export function getNodeField(node: Node | undefined, field: string): unknown {
     return undefined;
   }
   const record = node as unknown as Record<string, unknown>;
-  const exact = record[field];
-  if (exact !== undefined) {
-    return exact;
-  }
-  const first = field[0];
-  if (first === undefined) {
-    return undefined;
-  }
-  const alternate = `${first.toLowerCase()}${field.slice(1)}`;
-  return record[alternate];
+  return Object.prototype.hasOwnProperty.call(record, field) ? record[field] : undefined;
 }
 
 export function getSemanticTypeForNode(

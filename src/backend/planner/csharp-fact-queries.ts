@@ -36,7 +36,7 @@ function getCsharpObjectShapeFactForDeclarationAnnotation(
   const declarations = (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
     ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
   for (const declaration of declarations) {
-    const typeNode = asNode(getNodeField(declaration, "Type") ?? getNodeField(declaration, "type"));
+    const typeNode = asNode(getNodeField(declaration, "Type"));
     const fact = input.facts.getFact(typeNode, csharpObjectShapeFactKey);
     if (fact !== undefined) {
       return fact;
@@ -50,12 +50,7 @@ function getNodeField(node: Node | undefined, field: string): unknown {
     return undefined;
   }
   const record = node as unknown as Record<string, unknown>;
-  const exact = Object.prototype.hasOwnProperty.call(record, field) ? record[field] : undefined;
-  if (exact !== undefined) {
-    return exact;
-  }
-  const alternate = `${field[0]!.toLowerCase()}${field.slice(1)}`;
-  return Object.prototype.hasOwnProperty.call(record, alternate) ? record[alternate] : undefined;
+  return Object.prototype.hasOwnProperty.call(record, field) ? record[field] : undefined;
 }
 
 function asNode(value: unknown): Node | undefined {

@@ -34,7 +34,6 @@ export type SourceAstNode<T extends object = object> = Node & T & {
   readonly Left?: SourceAstNode;
   readonly Literal?: SourceAstNode;
   readonly Members?: SourceAstNodeList;
-  readonly Name?: SourceAstNode;
   readonly OperatorToken?: SourceAstNode;
   readonly Parameters?: SourceAstNodeList;
   readonly Parent?: SourceAstNode;

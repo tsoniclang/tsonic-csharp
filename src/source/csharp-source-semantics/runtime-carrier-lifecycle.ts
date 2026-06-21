@@ -187,7 +187,7 @@ function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
     return;
   }
   const initializer = asNodeSubject(getNodeField(node, "Initializer"));
-  const name = asNodeSubject(getNodeField(node, "Name"));
+  const name = asNodeSubject(getNodeField(node, "name"));
   const initializerFact = lifecycleContext.host.facts.get(initializer, runtimeCarrierFactKey);
   if (initializerFact === undefined) {
     return;

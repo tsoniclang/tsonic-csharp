@@ -65,7 +65,7 @@ export function recordCsharpObjectRestBindingFactsBeforeFinalization(
       if (!isObjectRestBindingElement(node, compiler.ast)) {
         return;
       }
-      const restName = asNodeSubject(getNodeField(node, "Name") ?? getNodeField(node, "name"));
+      const restName = asNodeSubject(getNodeField(node, "name"));
       const sourceExpression = getObjectBindingPatternSourceExpression(node);
       if (restName === undefined || sourceExpression === undefined) {
         return;
@@ -106,7 +106,7 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
         return;
       }
       const receiver = asNodeSubject(getNodeField(node, "Expression"));
-      const propertyName = getSourceNameNodeText(asNodeSubject(getNodeField(node, "Name") ?? getNodeField(node, "name")), compiler.ast);
+      const propertyName = getSourceNameNodeText(asNodeSubject(getNodeField(node, "name")), compiler.ast);
       if (receiver === undefined || propertyName.length === 0) {
         return;
       }
@@ -168,7 +168,7 @@ function getObjectBindingElementSourceName(
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
 ): string {
   const propertyName = asNodeSubject(getNodeField(bindingElement, "PropertyName"));
-  const sourceNameNode = propertyName ?? asNodeSubject(getNodeField(bindingElement, "Name") ?? getNodeField(bindingElement, "name"));
+  const sourceNameNode = propertyName ?? asNodeSubject(getNodeField(bindingElement, "name"));
   return getSourceNameNodeText(sourceNameNode, ast);
 }
 

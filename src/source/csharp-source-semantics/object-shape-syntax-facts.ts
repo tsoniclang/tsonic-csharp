@@ -140,7 +140,7 @@ function getCsharpObjectShapeMemberFact(
   const memberKind = getNodeList(getNodeField(node, "Parameters")).length > 0 ? "method" : "property";
   const type = memberKind === "method"
     ? getFunctionTargetTypeRefFromSignatureLikeNode(node, facts, ast)
-    : getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type") ?? getNodeField(node, "type")), facts, ast);
+    : getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type")), facts, ast);
   if (type === undefined) {
     return undefined;
   }

@@ -62,7 +62,7 @@ function deriveCsharpObjectShapeMemberFactForSubject(
   const memberKind = getNodeList(getNodeField(member, "Parameters")).length > 0 ? "method" : "property";
   const type = memberKind === "method"
     ? host.getFunctionTargetTypeRefFromSignatureLikeSubject(member, context, {})
-    : host.getTargetTypeRefForSubject(asNodeSubject(getNodeField(member, "Type") ?? getNodeField(member, "type")), context);
+    : host.getTargetTypeRefForSubject(asNodeSubject(getNodeField(member, "Type")), context);
   if (type === undefined) {
     return undefined;
   }

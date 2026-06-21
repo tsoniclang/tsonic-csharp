@@ -72,7 +72,6 @@ export function isTypeSyntaxNode(
 
 export function isTypeLiteralLikeNode(node: Node): boolean {
   return getNodeList(getNodeField(node, "Members")).length > 0 &&
-    getNodeField(node, "Name") === undefined &&
     getNodeField(node, "name") === undefined &&
     getNodeField(node, "HeritageClauses") === undefined;
 }
@@ -104,20 +103,11 @@ export function getNodeField(node: Node | undefined, field: string): unknown {
     return undefined;
   }
   const record = node as unknown as Record<string, unknown>;
-  const exact = Object.prototype.hasOwnProperty.call(record, field) ? record[field] : undefined;
-  if (exact !== undefined) {
-    return exact;
-  }
-  const first = field[0];
-  if (first === undefined) {
-    return undefined;
-  }
-  const alternate = `${first.toLowerCase()}${field.slice(1)}`;
-  return Object.prototype.hasOwnProperty.call(record, alternate) ? record[alternate] : undefined;
+  return Object.prototype.hasOwnProperty.call(record, field) ? record[field] : undefined;
 }
 
 export function getNodeNameText(node: Node): string {
-  const name = asNodeSubject(getNodeField(node, "Name") ?? getNodeField(node, "name"));
+  const name = asNodeSubject(getNodeField(node, "name"));
   const text = (name as { readonly Text?: unknown } | undefined)?.Text;
   return typeof text === "function" || text === undefined ? "" : String(text);
 }
@@ -129,7 +119,6 @@ export function getStructuralChildNodes(node: Node): readonly Node[] {
     children.push(...getNodeList(getNodeField(node, key)));
   }
   const nodeFields = [
-    "Name",
     "name",
     "Body",
     "Type",

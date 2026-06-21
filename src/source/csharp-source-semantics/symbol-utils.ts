@@ -31,7 +31,7 @@ export function getDeclarationTypeNode(
     ...getSymbolDeclarations(aliasedSymbol),
   ];
   for (const declaration of declarations) {
-    const type = asNodeSubject(getNodeField(declaration, "Type") ?? getNodeField(declaration, "type"));
+    const type = asNodeSubject(getNodeField(declaration, "Type"));
     if (type !== undefined) {
       return type;
     }

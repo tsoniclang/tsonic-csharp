@@ -27,11 +27,11 @@ export function Node_Text(node: Node | undefined): string {
 }
 
 export function Node_Name(node: Node | undefined): Node | undefined {
-  return nodeField(node, "Name", "name");
+  return nodeField(node, "name");
 }
 
 export function Node_Expression(node: Node | undefined): Node | undefined {
-  return nodeField(node, "Expression", "expression");
+  return nodeField(node, "Expression");
 }
 
 export function Node_Symbol(node: Node | undefined): object | undefined {
@@ -50,11 +50,7 @@ export function isAstNode(value: unknown): value is Node {
     (typeof kind === "number" || typeof kind === "string");
 }
 
-function nodeField(node: Node | undefined, upperName: string, lowerName: string): Node | undefined {
-  const upperValue = (node as Record<string, unknown> | undefined)?.[upperName];
-  if (isAstNode(upperValue)) {
-    return upperValue;
-  }
-  const lowerValue = (node as Record<string, unknown> | undefined)?.[lowerName];
-  return isAstNode(lowerValue) ? lowerValue : undefined;
+function nodeField(node: Node | undefined, field: string): Node | undefined {
+  const value = (node as Record<string, unknown> | undefined)?.[field];
+  return isAstNode(value) ? value : undefined;
 }
