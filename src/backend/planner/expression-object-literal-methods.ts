@@ -1,0 +1,105 @@
+import {
+  AsMethodDeclaration,
+} from "./source-ast.js";
+import type {
+  Node,
+  SourceFile,
+} from "@tsonic/tsts";
+import type {
+  TargetCompileInput,
+  TargetDiagnostic,
+} from "@tsonic/target-api";
+import type {
+  CsharpExpression,
+  CsharpObjectInitializerAssignment,
+  CsharpTypeNode,
+} from "../roslyn/syntax.js";
+import type {
+  CsharpObjectShapeFact,
+} from "../../source/csharp-facts.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
+import {
+  invalidExpression,
+} from "./invalid-expression.js";
+import {
+  objectShapeStorageMemberName,
+} from "./object-shapes.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
+import {
+  planBlockStatements,
+} from "./statements.js";
+import {
+  diagnoseMissingLambdaTargetContext,
+  isAsyncExpression,
+  isCsharpDelegateType,
+  planLambdaParameters,
+} from "./expression-lambdas.js";
+import {
+  findObjectShapeMember,
+  getObjectLiteralPropertySourceName,
+} from "./expression-object-literal-support.js";
+
+export function planObjectShapeMethodMemberAssignment(
+  methodNode: Node,
+  objectShape: CsharpObjectShapeFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpObjectInitializerAssignment | undefined {
+  const sourceName = getObjectLiteralPropertySourceName(methodNode, input, diagnostics);
+  const member = sourceName === undefined ? undefined : findObjectShapeMember(objectShape, sourceName);
+  if (member === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method must match a finalized provider object-shape member."));
+    return undefined;
+  }
+  const memberType = csharpTypeFromTargetTypeRef(member.type);
+  if (memberType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a renderable delegate target type before C# emission.`));
+    return undefined;
+  }
+  if (!isCsharpDelegateType(memberType)) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a finalized delegate target type before C# emission.`));
+    return undefined;
+  }
+  return {
+    kind: "AssignmentExpression",
+    name: objectShapeStorageMemberName(objectShape, member),
+    expression: planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType),
+  };
+}
+
+function planObjectLiteralMethodAsLambda(
+  methodNode: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  expectedType: CsharpTypeNode,
+): CsharpExpression {
+  const method = AsMethodDeclaration(methodNode);
+  diagnoseMissingLambdaTargetContext(methodNode, sourceFile, input, diagnostics, expectedType);
+  if (method === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method-declaration AST node."));
+    return invalidExpression("object literal method without method declaration");
+  }
+  if ((method.TypeParameters?.Nodes ?? []).some((typeParameter) => typeParameter !== undefined)) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal generic methods require finalized target delegate facts before C# emission."));
+    return invalidExpression("generic object literal method");
+  }
+  if (method.Body === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method body."));
+    return invalidExpression("object literal method without body");
+  }
+  return {
+    kind: "LambdaExpression",
+    ...(isAsyncExpression(methodNode) ? { async: true } : {}),
+    parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    body: {
+      kind: "Block",
+      statements: planBlockStatements(method.Body, sourceFile, input, diagnostics),
+    },
+  };
+}
