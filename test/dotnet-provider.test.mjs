@@ -57,6 +57,73 @@ test(".NET provider declaration model preserves explicit target parameter passin
   assert.equal(signature.parameters[1].passingMode, "byref-writeonly-must-init");
 });
 
+test(".NET provider declaration model omits source members without truthful source shapes", () => {
+  const model = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@tsonic/dotnet/System.js",
+    namespaceName: "System",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "Example",
+        namespaceName: "System",
+        metadataName: "System.Example",
+        members: [
+          {
+            kind: "property",
+            sourceName: "unsafeTargetOnly",
+            targetName: "UnsafeTargetOnly",
+            metadataName: "System.Example.UnsafeTargetOnly",
+            type: {
+              kind: "named",
+              metadataName: "System.Environment.SpecialFolder",
+              displayName: "System.Environment.SpecialFolder",
+            },
+          },
+          {
+            kind: "property",
+            sourceName: "safeString",
+            targetName: "SafeString",
+            metadataName: "System.Example.SafeString",
+            type: {
+              kind: "named",
+              metadataName: "System.String",
+              displayName: "System.String",
+              sourceShape: { kind: "string" },
+            },
+          },
+          {
+            kind: "method",
+            sourceName: "unsafeMethod",
+            targetName: "UnsafeMethod",
+            metadataName: "System.Example.UnsafeMethod",
+            signatures: [
+              {
+                id: "System.Example.UnsafeMethod(System.Environment.SpecialFolder)",
+                parameters: [
+                  {
+                    name: "folder",
+                    type: {
+                      kind: "named",
+                      metadataName: "System.Environment.SpecialFolder",
+                      displayName: "System.Environment.SpecialFolder",
+                    },
+                    passingMode: "by-value",
+                  },
+                ],
+                returnType: { kind: "void" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  const example = model.exports[0];
+  assert.deepEqual(example.members.map((member) => member.name), ["safeString"]);
+});
+
 test(".NET target refs do not promote any or unknown to CLR object", () => {
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "any" }), { kind: "opaque", id: "any" });
   assert.deepEqual(dotnetTypeRefToTargetTypeRef({ kind: "unknown" }), { kind: "opaque", id: "unknown" });
@@ -113,6 +180,24 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
   assert.equal("exports" in systemModule, true);
   assert.equal(systemModule.exports.some((declaration) => declaration.sourceName === "SpecialFolder"), false);
   assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Environment.SpecialFolder"));
+});
+
+test(".NET reflection provider keeps unmodelled nested CLR types out of source declarations", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  assert.equal("exports" in systemModule, true);
+
+  const rawEnvironment = systemModule.exports.find((declaration) => declaration.sourceName === "Environment");
+  assert.ok(rawEnvironment);
+  assert.ok(rawEnvironment.members.some((member) => member.sourceName === "getFolderPath"));
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(systemModule);
+  const environment = declarationModel.exports.find((declaration) => declaration.name === "Environment");
+  assert.ok(environment);
+  assert.equal(environment.members.some((member) => member.name === "getFolderPath"), false);
+  assert.equal(environment.members.some((member) => member.name === "newLine"), true);
+
+  assert.ok(provider.findTargetBindingByTargetId("System.Environment.SpecialFolder"));
 });
 
 test(".NET reflection provider exposes delegates with source shells and target delegate identity", () => {

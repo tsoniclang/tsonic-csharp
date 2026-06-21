@@ -22,6 +22,7 @@ export type {
 export {
   dotnetTypeParameterToProviderTypeParameter,
   dotnetTypeRefToProviderType,
+  tryDotnetTypeRefToProviderType,
 } from "./model-provider-conversion.js";
 export {
   dotnetConstraintToTargetConstraint,

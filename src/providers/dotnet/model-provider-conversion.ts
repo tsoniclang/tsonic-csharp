@@ -1,4 +1,5 @@
 import type {
+  ProviderParameterDeclaration,
   ProviderTypeExpression,
 } from "@tsonic/tsts";
 import type {
@@ -8,6 +9,14 @@ import type {
 } from "./model-types.js";
 
 export function dotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTypeExpression {
+  const providerType = tryDotnetTypeRefToProviderType(type);
+  if (providerType === undefined) {
+    throw unsupportedDotnetProviderType(type.kind);
+  }
+  return providerType;
+}
+
+export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTypeExpression | undefined {
   switch (type.kind) {
     case "void":
     case "any":
@@ -22,49 +31,78 @@ export function dotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTypeEx
       return { kind: "source-primitive", name: type.name };
     case "type-parameter":
       return { kind: "type-parameter", name: type.name };
-    case "provider-ref":
+    case "provider-ref": {
+      const typeArguments = mapDotnetProviderTypes(type.typeArguments);
+      if (typeArguments === undefined) {
+        return undefined;
+      }
       return {
         kind: "provider-ref",
         name: type.name,
-        ...(type.typeArguments !== undefined ? { typeArguments: type.typeArguments.map(dotnetTypeRefToProviderType) } : {}),
+        ...(typeArguments.length > 0 ? { typeArguments } : {}),
       };
-    case "named":
+    }
+    case "named": {
+      if (type.sourceShape === undefined) {
+        return undefined;
+      }
+      const typeArguments = mapDotnetProviderTypes(type.typeArguments);
+      const sourceShape = tryDotnetTypeRefToProviderType(type.sourceShape);
+      if (typeArguments === undefined || sourceShape === undefined) {
+        return undefined;
+      }
       return {
         kind: "target-named",
         target: "csharp",
         id: type.metadataName,
         ...(type.displayName !== undefined ? { displayName: type.displayName } : {}),
-        ...(type.typeArguments !== undefined ? { typeArguments: type.typeArguments.map(dotnetTypeRefToProviderType) } : {}),
-        ...(type.sourceShape !== undefined ? { sourceShape: dotnetTypeRefToProviderType(type.sourceShape) } : {}),
+        ...(typeArguments.length > 0 ? { typeArguments } : {}),
+        sourceShape,
       };
-    case "array":
-      return { kind: "array", elementType: dotnetTypeRefToProviderType(type.elementType) };
-    case "tuple":
-      return { kind: "tuple", elementTypes: type.elements.map(dotnetTypeRefToProviderType) };
-    case "union":
-      return { kind: "union", types: type.types.map(dotnetTypeRefToProviderType) };
-    case "function":
+    }
+    case "array": {
+      const elementType = tryDotnetTypeRefToProviderType(type.elementType);
+      return elementType === undefined ? undefined : { kind: "array", elementType };
+    }
+    case "tuple": {
+      const elementTypes = mapDotnetProviderTypes(type.elements);
+      return elementTypes === undefined ? undefined : { kind: "tuple", elementTypes };
+    }
+    case "union": {
+      const types = mapDotnetProviderTypes(type.types);
+      return types === undefined ? undefined : { kind: "union", types };
+    }
+    case "function": {
+      const parameters = type.parameters.map(tryDotnetParameterToProviderParameter);
+      const returnType = tryDotnetTypeRefToProviderType(type.returnType);
+      if (parameters.some((parameter) => parameter === undefined) || returnType === undefined) {
+        return undefined;
+      }
       return {
         kind: "function",
-        parameters: type.parameters.map((parameter) => ({
-          name: parameter.name,
-          type: dotnetTypeRefToProviderType(parameter.type),
-          ...(parameter.optional === true ? { optional: true } : {}),
-          ...(parameter.rest === true ? { rest: true } : {}),
-        })),
-        returnType: dotnetTypeRefToProviderType(type.returnType),
+        parameters: parameters as NonNullable<(typeof parameters)[number]>[],
+        returnType,
         ...(type.typeParameters !== undefined ? { typeParameters: type.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
       };
+    }
     case "pointer":
     case "function-pointer":
-      throw unsupportedDotnetProviderType(type.kind);
-    case "opaque":
+      return undefined;
+    case "opaque": {
+      if (type.sourceShape === undefined) {
+        return undefined;
+      }
+      const sourceShape = tryDotnetTypeRefToProviderType(type.sourceShape);
+      if (sourceShape === undefined) {
+        return undefined;
+      }
       return {
         kind: "opaque",
         id: type.id,
         ...(type.displayName !== undefined ? { displayName: type.displayName } : {}),
-        ...(type.sourceShape !== undefined ? { sourceShape: dotnetTypeRefToProviderType(type.sourceShape) } : {}),
+        sourceShape,
       };
+    }
   }
 }
 
@@ -80,7 +118,7 @@ export function dotnetTypeParameterToProviderTypeParameter(typeParameter: Dotnet
 function dotnetConstraintToProviderConstraints(constraint: DotnetConstraint): readonly ProviderTypeExpression[] {
   switch (constraint.kind) {
     case "implements":
-      return [dotnetTypeRefToProviderType(constraint.contract)];
+      return optionalProviderTypeToArray(tryDotnetTypeRefToProviderType(constraint.contract));
     case "value-type":
     case "reference-type":
     case "constructible":
@@ -95,4 +133,32 @@ function dotnetConstraintToProviderConstraints(constraint: DotnetConstraint): re
 
 function unsupportedDotnetProviderType(kind: DotnetTypeRef["kind"]): Error {
   return new Error(`Unsupported .NET provider type '${kind}'. Add a typed TSTS provider type expression before exposing this declaration.`);
+}
+
+function tryDotnetParameterToProviderParameter(
+  parameter: Extract<DotnetTypeRef, { readonly kind: "function" }>["parameters"][number],
+): ProviderParameterDeclaration | undefined {
+  const type = tryDotnetTypeRefToProviderType(parameter.type);
+  return type === undefined
+    ? undefined
+    : {
+        name: parameter.name,
+        type,
+        ...(parameter.optional === true ? { optional: true as const } : {}),
+        ...(parameter.rest === true ? { rest: true as const } : {}),
+      };
+}
+
+function mapDotnetProviderTypes(types: readonly DotnetTypeRef[] | undefined): readonly ProviderTypeExpression[] | undefined {
+  if (types === undefined) {
+    return [];
+  }
+  const mapped = types.map(tryDotnetTypeRefToProviderType);
+  return mapped.some((type) => type === undefined)
+    ? undefined
+    : mapped as readonly ProviderTypeExpression[];
+}
+
+function optionalProviderTypeToArray(type: ProviderTypeExpression | undefined): readonly ProviderTypeExpression[] {
+  return type === undefined ? [] : [type];
 }

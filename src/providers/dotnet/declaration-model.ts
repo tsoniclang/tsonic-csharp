@@ -18,65 +18,93 @@ import type {
 } from "./model.js";
 import {
   dotnetTypeParameterToProviderTypeParameter,
-  dotnetTypeRefToProviderType,
+  tryDotnetTypeRefToProviderType,
 } from "./model.js";
 
 export function dotnetModuleToProviderDeclarationModel(module: DotnetModuleModel): ProviderDeclarationModel {
   return {
     moduleSpecifier: module.moduleSpecifier,
     providerModuleId: module.moduleSpecifier,
-    exports: module.exports.map(dotnetExportToProviderExport),
+    exports: module.exports
+      .map(dotnetExportToProviderExport)
+      .filter((declaration): declaration is ProviderExportDeclaration => declaration !== undefined),
     evidence: [{ message: ".NET provider declaration model generated from target provider data." }],
   };
 }
 
-export function dotnetExportToProviderExport(declaration: DotnetExportDeclaration): ProviderExportDeclaration {
+export function dotnetExportToProviderExport(declaration: DotnetExportDeclaration): ProviderExportDeclaration | undefined {
   switch (declaration.kind) {
     case "type":
       return dotnetTypeToProviderExport(declaration);
-    case "function":
+    case "function": {
+      const signatures = declaration.signatures
+        .map((signature) => dotnetSignatureToProviderSignature(signature))
+        .filter((signature): signature is ProviderSignatureDeclaration => signature !== undefined);
+      if (signatures.length === 0) {
+        return undefined;
+      }
       return {
         id: declaration.metadataName,
         name: declaration.sourceName,
         kind: "function",
         targetIdentity: dotnetTargetIdentity(declaration.metadataName, declaration.sourceName),
-        signatures: declaration.signatures.map((signature) => dotnetSignatureToProviderSignature(signature)),
+        signatures,
       };
-    case "value":
+    }
+    case "value": {
+      const type = tryDotnetTypeRefToProviderType(declaration.type);
+      if (type === undefined) {
+        return undefined;
+      }
       return {
         id: declaration.metadataName,
         name: declaration.sourceName,
         kind: "value",
         targetIdentity: dotnetTargetIdentity(declaration.metadataName, declaration.sourceName),
-        type: dotnetTypeRefToProviderType(declaration.type),
+        type,
       };
+    }
     case "namespace":
       return {
         id: declaration.namespaceName,
         name: declaration.sourceName,
         kind: "namespace",
         targetIdentity: dotnetTargetIdentity(declaration.namespaceName, declaration.sourceName),
-        members: declaration.exports.map(dotnetExportToNamespaceMember),
+        members: declaration.exports
+          .map(dotnetExportToNamespaceMember)
+          .filter((member): member is ProviderMemberDeclaration => member !== undefined),
       };
   }
 }
 
 function dotnetTypeToProviderExport(declaration: DotnetTypeDeclaration): ProviderExportDeclaration {
   const kind = dotnetTypeKindToProviderKind(declaration.typeKind);
+  const members = declaration.members
+    ?.map(dotnetMemberToProviderMember)
+    .filter((member): member is ProviderMemberDeclaration => member !== undefined);
+  const sourceType = declaration.sourceShape === undefined
+    ? undefined
+    : tryDotnetTypeRefToProviderType(declaration.sourceShape);
   return {
     id: declaration.metadataName,
     name: declaration.sourceName,
     kind,
     targetIdentity: dotnetTargetIdentity(declaration.metadataName, declaration.displayName ?? declaration.sourceName),
-    ...(declaration.sourceShape !== undefined ? { type: dotnetTypeRefToProviderType(declaration.sourceShape) } : {}),
+    ...(sourceType !== undefined ? { type: sourceType } : {}),
     ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
-    ...(kind !== "type" && declaration.members !== undefined ? { members: declaration.members.map(dotnetMemberToProviderMember) } : {}),
+    ...(kind !== "type" && members !== undefined && members.length > 0 ? { members } : {}),
   };
 }
 
-function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): ProviderMemberDeclaration {
+function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): ProviderMemberDeclaration | undefined {
   switch (declaration.kind) {
-    case "type":
+    case "type": {
+      const sourceType = declaration.sourceShape === undefined
+        ? undefined
+        : tryDotnetTypeRefToProviderType(declaration.sourceShape);
+      if (sourceType === undefined) {
+        return undefined;
+      }
       return {
         id: declaration.metadataName,
         name: declaration.sourceName,
@@ -87,24 +115,38 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
           target: "csharp",
           id: declaration.metadataName,
           ...(declaration.displayName !== undefined ? { displayName: declaration.displayName } : {}),
+          sourceShape: sourceType,
         },
       };
-    case "function":
+    }
+    case "function": {
+      const signatures = declaration.signatures
+        .map((signature) => dotnetSignatureToProviderSignature(signature))
+        .filter((signature): signature is ProviderSignatureDeclaration => signature !== undefined);
+      if (signatures.length === 0) {
+        return undefined;
+      }
       return {
         id: declaration.metadataName,
         name: declaration.sourceName,
         kind: "method",
         static: true,
-        signatures: declaration.signatures.map((signature) => dotnetSignatureToProviderSignature(signature)),
+        signatures,
       };
-    case "value":
+    }
+    case "value": {
+      const type = tryDotnetTypeRefToProviderType(declaration.type);
+      if (type === undefined) {
+        return undefined;
+      }
       return {
         id: declaration.metadataName,
         name: declaration.sourceName,
         kind: "property",
         static: true,
-        type: dotnetTypeRefToProviderType(declaration.type),
+        type,
       };
+    }
     case "namespace":
       return {
         id: declaration.namespaceName,
@@ -116,36 +158,53 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
   }
 }
 
-function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): ProviderMemberDeclaration {
+function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): ProviderMemberDeclaration | undefined {
+  const type = member.type === undefined ? undefined : tryDotnetTypeRefToProviderType(member.type);
+  if (member.type !== undefined && type === undefined) {
+    return undefined;
+  }
+  const signatures = member.signatures
+    ?.map((signature) => dotnetSignatureToProviderSignature(signature, member.kind === "constructor" ? undefined : member.targetName))
+    .filter((signature): signature is ProviderSignatureDeclaration => signature !== undefined);
+  if (member.signatures !== undefined && (signatures === undefined || signatures.length === 0)) {
+    return undefined;
+  }
   return {
     id: member.metadataName,
     name: member.sourceName,
     kind: dotnetMemberKindToProviderKind(member.kind),
     ...(member.static !== undefined ? { static: member.static } : {}),
-    ...(member.type !== undefined ? { type: dotnetTypeRefToProviderType(member.type) } : {}),
-    ...(member.signatures !== undefined
-      ? { signatures: member.signatures.map((signature) => dotnetSignatureToProviderSignature(signature, member.kind === "constructor" ? undefined : member.targetName)) }
-      : {}),
+    ...(type !== undefined ? { type } : {}),
+    ...(signatures !== undefined ? { signatures } : {}),
   };
 }
 
 function dotnetSignatureToProviderSignature(
   signature: DotnetSignatureDeclaration,
   memberTargetName?: string,
-): ProviderSignatureDeclaration {
+): ProviderSignatureDeclaration | undefined {
+  const parameters = signature.parameters.map(dotnetParameterToProviderParameter);
+  const returnType = signature.returnType === undefined ? undefined : tryDotnetTypeRefToProviderType(signature.returnType);
+  if (parameters.some((parameter) => parameter === undefined) || (signature.returnType !== undefined && returnType === undefined)) {
+    return undefined;
+  }
   return {
     id: signature.id,
     ...(signature.targetName !== undefined || memberTargetName !== undefined ? { name: signature.targetName ?? memberTargetName } : {}),
-    parameters: signature.parameters.map(dotnetParameterToProviderParameter),
-    ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToProviderType(signature.returnType) } : {}),
+    parameters: parameters as ProviderParameterDeclaration[],
+    ...(returnType !== undefined ? { returnType } : {}),
     ...(signature.typeParameters !== undefined ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToProviderTypeParameterStrict) } : {}),
   };
 }
 
-function dotnetParameterToProviderParameter(parameter: DotnetParameterDeclaration): ProviderParameterDeclaration {
+function dotnetParameterToProviderParameter(parameter: DotnetParameterDeclaration): ProviderParameterDeclaration | undefined {
+  const type = tryDotnetTypeRefToProviderType(parameter.type);
+  if (type === undefined) {
+    return undefined;
+  }
   return {
     name: parameter.name,
-    type: dotnetTypeRefToProviderType(parameter.type),
+    type,
     ...(parameter.passingMode !== "by-value" ? { passingMode: parameter.passingMode } : {}),
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { rest: true } : {}),

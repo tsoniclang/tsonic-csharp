@@ -585,7 +585,7 @@ sealed class ReflectionProvider
         };
     }
 
-    object SourceShape(Type type)
+    object? SourceShape(Type type)
     {
         if (IsDelegate(type))
         {
@@ -611,21 +611,48 @@ sealed class ReflectionProvider
         if (type.IsArray)
         {
             var element = SourceShape(type.GetElementType()!);
-            return new { kind = "array", elementType = element };
+            return element is null ? null : new { kind = "array", elementType = element };
         }
         if (type.IsGenericParameter)
         {
             return new { kind = "type-parameter", name = type.Name };
         }
+        if (IsNullableShape(type, out var nullableElement))
+        {
+            var element = SourceShape(nullableElement);
+            return element is null
+                ? null
+                : new { kind = "union", types = new[] { element, new { kind = "literal", value = (object?)null } } };
+        }
+        if (TryValueTupleElementTypes(type, out var tupleElements))
+        {
+            var elements = tupleElements.Select(SourceShape).ToArray();
+            return elements.Any(element => element is null)
+                ? null
+                : new { kind = "tuple", elementTypes = elements };
+        }
+        if (IsKeyValuePairShape(type, out var keyType, out var valueType))
+        {
+            var key = SourceShape(keyType);
+            var value = SourceShape(valueType);
+            return key is null || value is null
+                ? null
+                : new { kind = "tuple", elementTypes = new[] { key, value } };
+        }
         if (IsEnumerableShape(type, out var enumerableElement))
         {
-            return new { kind = "array", elementType = SourceShape(enumerableElement) };
+            var element = SourceShape(enumerableElement);
+            return element is null ? null : new { kind = "array", elementType = element };
         }
         if (type.Namespace == request.NamespaceName && providerReferenceNames.Contains(SourceTypeName(type.IsGenericType ? type.GetGenericTypeDefinition() : type)))
         {
             var args = type.IsGenericType
                 ? type.GetGenericArguments().Select(SourceShape).ToArray()
                 : Array.Empty<object>();
+            if (args.Any(argument => argument is null))
+            {
+                return null;
+            }
             return new
             {
                 kind = "provider-ref",
@@ -633,7 +660,7 @@ sealed class ReflectionProvider
                 typeArguments = args.Length == 0 ? null : args,
             };
         }
-        return new { kind = "object" };
+        return null;
     }
 
     object? ExportSourceShape(Type type)
@@ -676,6 +703,62 @@ sealed class ReflectionProvider
         }
         element = typeof(object);
         return false;
+    }
+
+    static bool IsNullableShape(Type type, out Type element)
+    {
+        var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+        if (definition.FullName == "System.Nullable`1")
+        {
+            element = type.GetGenericArguments()[0];
+            return true;
+        }
+        element = typeof(object);
+        return false;
+    }
+
+    static bool IsKeyValuePairShape(Type type, out Type keyType, out Type valueType)
+    {
+        var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+        if (definition.FullName == "System.Collections.Generic.KeyValuePair`2")
+        {
+            var args = type.GetGenericArguments();
+            keyType = args[0];
+            valueType = args[1];
+            return true;
+        }
+        keyType = typeof(object);
+        valueType = typeof(object);
+        return false;
+    }
+
+    static bool TryValueTupleElementTypes(Type type, out IReadOnlyList<Type> elements)
+    {
+        var flattened = new List<Type>();
+        if (!AppendValueTupleElementTypes(type, flattened))
+        {
+            elements = Array.Empty<Type>();
+            return false;
+        }
+        elements = flattened;
+        return true;
+    }
+
+    static bool AppendValueTupleElementTypes(Type type, List<Type> elements)
+    {
+        var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+        if (definition.FullName is null || !definition.FullName.StartsWith("System.ValueTuple`", StringComparison.Ordinal))
+        {
+            return false;
+        }
+        var args = type.GetGenericArguments();
+        if (args.Length == 8)
+        {
+            elements.AddRange(args.Take(7));
+            return AppendValueTupleElementTypes(args[7], elements);
+        }
+        elements.AddRange(args);
+        return args.Length > 0;
     }
 
     static bool IsIndexSignatureParameterType(Type type)
