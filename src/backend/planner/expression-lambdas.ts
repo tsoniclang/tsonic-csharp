@@ -8,6 +8,7 @@ import {
   KindIdentifier,
   Node_Text,
   ModifierFlagsAsync,
+  isAstNode,
 } from "./source-ast.js";
 import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -149,7 +150,7 @@ function getContextualTargetRefFromSubject(
   if (type !== undefined) {
     return getTargetTypeRefForType(input, type, sourceFile);
   }
-  return isNode(subject)
+  return isAstNode(subject)
     ? getTargetTypeRefForNode(input, subject, sourceFile)
     : undefined;
 }
@@ -178,10 +179,4 @@ function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
     default:
       return undefined;
   }
-}
-
-function isNode(value: unknown): value is Node {
-  return typeof value === "object"
-    && value !== null
-    && typeof (value as { readonly Kind?: unknown }).Kind === "number";
 }

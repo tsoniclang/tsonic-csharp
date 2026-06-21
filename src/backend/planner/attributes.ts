@@ -1,4 +1,4 @@
-import { AsExpressionStatement, HasSourceKind, KindExpressionStatement, Node_Symbol } from "./source-ast.js";
+import { AsExpressionStatement, HasSourceKind, KindExpressionStatement, Node_Symbol, isAstNode } from "./source-ast.js";
 import type { AttributeFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpAttribute } from "../roslyn/syntax.js";
@@ -36,12 +36,12 @@ function planAttribute(
   diagnostics: TargetDiagnostic[],
 ): CsharpAttribute {
   return {
-    type: isNode(attribute.target)
+    type: isAstNode(attribute.target)
       ? expressionToCsharpType(attribute.target, sourceFile, input, diagnostics)
       : unsupportedAttributeTarget(attribute, diagnostics),
     arguments: (attribute.arguments ?? []).map((argument): CsharpArgument => ({
       kind: "Argument",
-      expression: isNode(argument)
+      expression: isAstNode(argument)
         ? planExpression(argument, sourceFile, input, diagnostics)
         : unsupportedAttributeArgument(attribute, diagnostics),
     })),
@@ -114,7 +114,7 @@ function attributeApplicationTargetsSubject(
   contextSourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {
-  const applicationTarget = isNode(attribute.applicationTarget) ? attribute.applicationTarget : undefined;
+  const applicationTarget = isAstNode(attribute.applicationTarget) ? attribute.applicationTarget : undefined;
   if (applicationTarget === undefined) {
     return false;
   }
@@ -142,10 +142,4 @@ function visitSourceNode(
   }
   visit(node);
   input.ast.forEachChild(node, (child) => visitSourceNode(input, child, visit));
-}
-
-function isNode(value: unknown): value is Node {
-  return typeof value === "object"
-    && value !== null
-    && typeof (value as { readonly Kind?: unknown }).Kind === "number";
 }

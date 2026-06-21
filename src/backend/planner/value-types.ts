@@ -1,4 +1,4 @@
-import { AsVariableDeclaration } from "./source-ast.js";
+import { AsVariableDeclaration, isAstNode } from "./source-ast.js";
 import type { Node, SourceFile, StructFact } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpFieldDeclaration, CsharpStructDeclaration, CsharpTypeNode } from "../roslyn/syntax.js";
@@ -24,17 +24,11 @@ export function planValueTypeDeclaration(
       kind: "FieldDeclaration",
       name: field.name,
       modifiers: field.readonly === true ? ["public", "readonly"] : ["public"],
-      type: isNode(field.type)
+      type: isAstNode(field.type)
         ? getCsharpTypeForNode(field.type, sourceFile, input, undefined, diagnostics)
         : unsupportedFieldType(field.type, declarationNode, diagnostics),
     })),
   };
-}
-
-function isNode(value: unknown): value is Node {
-  return typeof value === "object"
-    && value !== null
-    && typeof (value as { readonly Kind?: unknown }).Kind === "number";
 }
 
 function unsupportedFieldType(
