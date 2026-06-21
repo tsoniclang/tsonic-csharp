@@ -121,6 +121,16 @@ export function isCsharpStringType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" && type.id === "System.String";
 }
 
+export function unwrapNullableTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  const firstTypeArgument = type?.kind === "target-named" ? type.typeArguments?.[0] : undefined;
+  return type?.kind === "target-named" &&
+      type.id === "System.Nullable`1" &&
+      firstTypeArgument !== undefined &&
+      (type.typeArguments ?? []).length === 1
+    ? firstTypeArgument
+    : type;
+}
+
 function sourcePrimitiveConversionMethod(kind: SourcePrimitiveKind): string | undefined {
   switch (kind) {
     case "bool":

@@ -84,6 +84,7 @@ import {
   isIntegralTargetTypeRef,
   isVoidTargetType,
   sourcePrimitiveRuntimeKind,
+  unwrapNullableTargetType,
 } from "./csharp-source-semantics/target-rules.js";
 import { csharpSourceSemanticsModules } from "./csharp-source-semantics/source-modules.js";
 import {
@@ -124,6 +125,10 @@ import {
   getBinaryOperatorText,
   getPrefixUnaryOperatorText,
 } from "./csharp-source-semantics/operator-syntax.js";
+import {
+  getTypeofComparisonOperation,
+  getTypeofRuntimeKind,
+} from "./csharp-source-semantics/typeof-operators.js";
 import {
   getDeclarationTypeNode,
   getSymbolDeclarations,
@@ -1234,66 +1239,6 @@ function mapCsharpParameterPassing(
   }, [{ message: "C# argument passing recorded from selected target parameter." }]);
 }
 
-function getTypeofComparisonOperation(
-  request: CheckedOperatorMappingRequest,
-  context: ExtensionObservationContext,
-) {
-  if (request.operator !== "===" && request.operator !== "==" && request.operator !== "!==" && request.operator !== "!=") {
-    return undefined;
-  }
-  const leftKind = getTypeofLiteralComparisonKind(request.left, request.right, context);
-  const rightKind = leftKind ?? getTypeofLiteralComparisonKind(request.right, request.left, context);
-  if (rightKind === undefined) {
-    return undefined;
-  }
-  const negated = request.operator === "!==" || request.operator === "!=";
-  return targetOperation(
-    `tsonic.csharp.typeof.${negated ? "not-" : ""}${rightKind}`,
-    "operator",
-    `${negated ? "typeof-is-not" : "typeof-is"}:${rightKind}`,
-  );
-}
-
-function getTypeofLiteralComparisonKind(
-  typeofExpression: ExtensionFactSubject | undefined,
-  literal: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-): "string" | "number" | "boolean" | "bigint" | undefined {
-  const ast = context.compiler?.ast;
-  const expressionNode = asNodeSubject(typeofExpression);
-  const literalNode = asNodeSubject(literal);
-  if (ast === undefined || expressionNode === undefined || literalNode === undefined || !ast.is.IsTypeOfExpression(expressionNode) || !ast.is.IsStringLiteral(literalNode)) {
-    return undefined;
-  }
-  const text = ast.text(literalNode);
-  return text === "string" || text === "number" || text === "boolean" || text === "bigint" ? text : undefined;
-}
-
-function getTypeofRuntimeKind(
-  type: TargetTypeRef | undefined,
-  options: { readonly allowNullableUnwrap: boolean },
-): "string" | "number" | "boolean" | "bigint" | undefined {
-  const unwrapped = unwrapNullableTargetType(type);
-  if (unwrapped !== type) {
-    return options.allowNullableUnwrap ? getTypeofRuntimeKind(unwrapped, options) : undefined;
-  }
-  if (type?.kind === "source-primitive") {
-    return sourcePrimitiveRuntimeKind(type.name);
-  }
-  if (type?.kind === "target-named") {
-    if (type.id === "System.String") {
-      return "string";
-    }
-    if (type.id === "System.Boolean") {
-      return "boolean";
-    }
-    if (type.id === "System.Numerics.BigInteger") {
-      return "bigint";
-    }
-  }
-  return undefined;
-}
-
 function getTargetTypeRefForSubject(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
@@ -1569,14 +1514,6 @@ function getNullableUnionTargetTypeRef(
   return inner === undefined
     ? undefined
     : csharpTargetNamedType("System.Nullable`1", [inner]);
-}
-
-function unwrapNullableTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
-  return type?.kind === "target-named" &&
-      type.id === "System.Nullable`1" &&
-      (type.typeArguments ?? []).length === 1
-    ? type.typeArguments![0]
-    : type;
 }
 
 function getFirstTypeArgument(
