@@ -6,7 +6,6 @@ import type {
   CheckedPropertyAccessMappingRequest,
   ExtensionFactSubject,
   ExtensionObservationContext,
-  ProviderVirtualDeclarationFact,
 } from "@tsonic/tsts";
 import {
   isNodejsProviderModule,
@@ -25,18 +24,7 @@ export function getNodejsCheckedCallDeclaration(
   if (direct !== undefined) {
     return direct;
   }
-  const moduleDeclaration = getProviderModuleDeclaration(context, [
-    request.calleeReceiverAliasedSymbol,
-    request.calleeReceiverResolvedSymbol,
-    request.calleeReceiverSymbol,
-    request.calleeReceiver,
-  ]);
-  return moduleDeclaration === undefined || request.calleePropertyName === undefined
-    ? undefined
-    : {
-        moduleSpecifier: moduleDeclaration.moduleSpecifier,
-        exportName: request.calleePropertyName,
-      };
+  return undefined;
 }
 
 export function getNodejsCheckedPropertyDeclaration(
@@ -47,18 +35,7 @@ export function getNodejsCheckedPropertyDeclaration(
   if (direct !== undefined) {
     return direct;
   }
-  const moduleDeclaration = getProviderModuleDeclaration(context, [
-    request.receiverAliasedSymbol,
-    request.receiverResolvedSymbol,
-    request.receiverSymbol,
-    request.receiver,
-  ]);
-  return moduleDeclaration === undefined
-    ? undefined
-    : {
-        moduleSpecifier: moduleDeclaration.moduleSpecifier,
-        exportName: request.propertyName,
-      };
+  return undefined;
 }
 
 function getProviderExportDeclaration(
@@ -72,17 +49,4 @@ function getProviderExportDeclaration(
         moduleSpecifier: declaration.moduleSpecifier,
         exportName: declaration.exportName,
       };
-}
-
-function getProviderModuleDeclaration(
-  context: ExtensionObservationContext,
-  subjects: readonly (ExtensionFactSubject | undefined)[],
-): ProviderVirtualDeclarationFact | undefined {
-  for (const subject of subjects) {
-    const declaration = context.facts.get(subject, providerVirtualDeclarationFactKey);
-    if (declaration?.exportName === undefined && isNodejsProviderModule(declaration?.moduleSpecifier)) {
-      return declaration;
-    }
-  }
-  return undefined;
 }

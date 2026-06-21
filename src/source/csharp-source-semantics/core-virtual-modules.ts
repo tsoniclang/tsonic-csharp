@@ -17,7 +17,6 @@ import {
 } from "./identity.js";
 import { csharpSourceSemanticsModules } from "./source-modules.js";
 import {
-  emptySourceModule,
   providerExportDeclarationsForModule,
 } from "./core-virtual-declarations.js";
 
@@ -67,13 +66,13 @@ export function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider 
       if (symbol.exportName === undefined) {
         return undefined;
       }
-      const declaration = providerExportDeclarationsForModule(modules.get(symbol.moduleSpecifier) ?? emptySourceModule(symbol.moduleSpecifier))
+      const module = modules.get(symbol.moduleSpecifier);
+      if (module === undefined) {
+        return undefined;
+      }
+      const declaration = providerExportDeclarationsForModule(module)
         .find((candidate) => candidate.name === symbol.exportName);
-      return declaration?.targetIdentity ?? {
-        target: csharpTargetId,
-        id: `${symbol.moduleSpecifier}#${symbol.exportName}`,
-        displayName: symbol.exportName,
-      };
+      return declaration?.targetIdentity;
     },
   };
 }
