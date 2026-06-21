@@ -22,6 +22,9 @@ import {
   tryPlanTypeofComparisonExpression,
   tryPlanTypeTestExpression,
 } from "./expression-typeof-operators.js";
+import {
+  csharpTargetOperationFactKey,
+} from "../../source/csharp-facts.js";
 
 export {
   planTypeofExpression,
@@ -57,10 +60,15 @@ export function tryPlanBinaryExpression(
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a selected provider operator fact.", ownership);
     return invalidExpression("missing target operator fact");
   }
+  const csharpOperator = input.facts.getFact(node, csharpTargetOperationFactKey);
+  if (csharpOperator?.kind !== "operator-token" || csharpOperator.operationId !== selectedOperator.operationId) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# binary operator emission requires a finalized C# operator-token fact matching the selected TSTS/provider operator."));
+    return invalidExpression("missing C# operator token fact");
+  }
   return {
     kind: "BinaryExpression",
     left: planExpression(left!, sourceFile, input, diagnostics),
-    operator: selectedOperator.targetOperation,
+    operator: csharpOperator.operator,
     right: planExpression(right!, sourceFile, input, diagnostics),
   };
 }

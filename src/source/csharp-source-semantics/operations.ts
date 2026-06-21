@@ -83,6 +83,19 @@ export function csharpTargetIntrinsicOperatorOperation(
   };
 }
 
+export function csharpTargetTokenOperatorOperation(
+  operationId: string,
+  operator: string,
+  resultType?: TargetTypeRef,
+): CsharpTargetOperationFact {
+  return {
+    kind: "operator-token",
+    operationId,
+    operator,
+    ...(resultType !== undefined ? { resultType } : {}),
+  };
+}
+
 export function csharpTargetTypeofRuntimeOperation(
   operationId: string,
   runtimeKind: CsharpTypeofRuntimeKind,
@@ -99,6 +112,7 @@ export function csharpTargetTypeofRuntimeOperation(
 export function csharpTargetTypeofComparisonOperation(
   operationId: string,
   runtimeKind: CsharpTypeofRuntimeKind,
+  targetType: TargetTypeRef,
   negated: boolean,
   resultType?: TargetTypeRef,
 ): CsharpTargetOperationFact {
@@ -106,6 +120,7 @@ export function csharpTargetTypeofComparisonOperation(
     kind: "typeof-comparison",
     operationId,
     runtimeKind,
+    targetType,
     negated,
     ...(resultType !== undefined ? { resultType } : {}),
   };

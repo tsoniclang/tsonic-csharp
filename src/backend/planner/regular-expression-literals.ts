@@ -6,6 +6,7 @@ import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import {
+  csharpTargetOperationFactKey,
   csharpRegularExpressionLiteralFactKey,
 } from "../../source/csharp-facts.js";
 
@@ -24,6 +25,11 @@ export function planRegularExpressionLiteral(
   if (literal === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires finalized provider pattern and flags facts."));
     return invalidExpression("invalid regexp literal text");
+  }
+  const operation = input.facts.getFact(node, csharpTargetOperationFactKey);
+  if (operation?.kind !== "member" || operation.operationKind !== "constructor" || operation.declaringType?.kind !== "target-named" || operation.declaringType.id !== carrier.id) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires a finalized provider constructor operation fact."));
+    return invalidExpression("regexp literal without provider constructor");
   }
   return {
     kind: "ObjectCreationExpression",

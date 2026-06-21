@@ -54,6 +54,7 @@ export interface CsharpRegularExpressionLiteralFact {
 
 export type CsharpTargetOperationFact =
   | CsharpTargetMemberOperationFact
+  | CsharpTargetTokenOperatorOperationFact
   | CsharpTargetIntrinsicOperatorOperationFact
   | CsharpTargetTypeofRuntimeOperationFact
   | CsharpTargetTypeofComparisonOperationFact;
@@ -75,6 +76,13 @@ export interface CsharpTargetIntrinsicOperatorOperationFact {
   readonly resultType?: TargetTypeRef;
 }
 
+export interface CsharpTargetTokenOperatorOperationFact {
+  readonly kind: "operator-token";
+  readonly operationId: string;
+  readonly operator: string;
+  readonly resultType?: TargetTypeRef;
+}
+
 export interface CsharpTargetTypeofRuntimeOperationFact {
   readonly kind: "typeof-runtime";
   readonly operationId: string;
@@ -86,6 +94,7 @@ export interface CsharpTargetTypeofComparisonOperationFact {
   readonly kind: "typeof-comparison";
   readonly operationId: string;
   readonly runtimeKind: CsharpTypeofRuntimeKind;
+  readonly targetType: TargetTypeRef;
   readonly negated: boolean;
   readonly resultType?: TargetTypeRef;
 }
@@ -144,6 +153,10 @@ function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right:
       return right.kind === "intrinsic-operator"
         && left.operator === right.operator
         && targetTypeRefEquals(left.resultType, right.resultType);
+    case "operator-token":
+      return right.kind === "operator-token"
+        && left.operator === right.operator
+        && targetTypeRefEquals(left.resultType, right.resultType);
     case "typeof-runtime":
       return right.kind === "typeof-runtime"
         && left.runtimeKind === right.runtimeKind
@@ -151,6 +164,7 @@ function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right:
     case "typeof-comparison":
       return right.kind === "typeof-comparison"
         && left.runtimeKind === right.runtimeKind
+        && targetTypeRefEquals(left.targetType, right.targetType)
         && left.negated === right.negated
         && targetTypeRefEquals(left.resultType, right.resultType);
   }

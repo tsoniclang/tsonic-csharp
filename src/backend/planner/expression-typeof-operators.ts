@@ -8,11 +8,9 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpExpression,
-  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import {
   expressionToCsharpType,
-  predefined,
 } from "./csharp-types.js";
 import {
   unsupportedNodeDiagnostic,
@@ -33,7 +31,6 @@ import {
 } from "../../source/csharp-facts.js";
 import type {
   CsharpTargetOperationFact,
-  CsharpTypeofRuntimeKind,
 } from "../../source/csharp-facts.js";
 import type {
   ExpressionPlanner,
@@ -110,7 +107,7 @@ export function tryPlanTypeofComparisonExpression(
     diagnostics.push(unsupportedNodeDiagnostic(expression, "Provider selected a typeof comparison operation, but the compared expression is not a typeof expression."));
     return invalidExpression("selected typeof comparison without typeof operand");
   }
-  const targetType = getTypeofComparisonTargetType(comparison.runtimeKind);
+  const targetType = csharpTypeFromTargetTypeRef(comparison.targetType);
   if (targetType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(operand, `Provider selected unsupported typeof comparison target '${comparison.runtimeKind}'.`));
     return invalidExpression("selected typeof comparison target");
@@ -121,21 +118,6 @@ export function tryPlanTypeofComparisonExpression(
     type: targetType,
     ...(comparison.negated ? { negated: true } : {}),
   };
-}
-
-function getTypeofComparisonTargetType(kind: CsharpTypeofRuntimeKind): CsharpTypeNode | undefined {
-  switch (kind) {
-    case "string":
-      return predefined("string");
-    case "number":
-      return predefined("double");
-    case "boolean":
-      return predefined("bool");
-    case "bigint":
-      return csharpTypeFromTargetTypeRef({ kind: "target-named", id: "System.Numerics.BigInteger" });
-    default:
-      return undefined;
-  }
 }
 
 function getSelectedCsharpOperator(

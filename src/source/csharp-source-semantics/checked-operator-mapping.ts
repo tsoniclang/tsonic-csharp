@@ -18,6 +18,7 @@ import {
 } from "../csharp-facts.js";
 import {
   csharpTargetIntrinsicOperatorOperation,
+  csharpTargetTokenOperatorOperation,
   csharpTargetTypeofRuntimeOperation,
   recordCsharpTargetOperation,
   targetOperation,
@@ -102,12 +103,15 @@ export function mapCsharpCheckedOperator(
   if (isCsharpBitwiseOperator(request.operator) && !isIntegralTargetTypeRef(left)) {
     return deferObservation;
   }
+  const resultType = getCsharpOperatorResultTypeRef(request, left, right);
+  const operationId = `tsonic.csharp.operator.${targetOperator}`;
+  recordCsharpTargetOperation(context, request.expression, csharpTargetTokenOperatorOperation(operationId, targetOperator, resultType), [{ message: "C# source operator token operation recorded after TSTS accepted the operation." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(
-      `tsonic.csharp.operator.${targetOperator}`,
+      operationId,
       "operator",
       targetOperator,
-      { resultType: getCsharpOperatorResultTypeRef(request, left, right) },
+      { resultType },
     ),
   }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
 }

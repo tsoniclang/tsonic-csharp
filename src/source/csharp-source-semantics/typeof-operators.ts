@@ -15,6 +15,10 @@ import {
   type CsharpTypeofRuntimeKind,
 } from "../csharp-facts.js";
 import {
+  csharpSourcePrimitiveTargetType,
+  csharpTargetNamedType,
+} from "./target-types.js";
+import {
   sourcePrimitiveRuntimeKind,
   unwrapNullableTargetType,
 } from "./target-rules.js";
@@ -31,12 +35,29 @@ export function getTypeofComparisonOperation(
   if (rightKind === undefined) {
     return undefined;
   }
+  const targetType = getTypeofComparisonTargetType(rightKind);
+  if (targetType === undefined) {
+    return undefined;
+  }
   const negated = request.operator === "!==" || request.operator === "!=";
   const operationId = `tsonic.csharp.typeof.${negated ? "not-" : ""}${rightKind}`;
   return {
     operation: targetOperation(operationId, "operator", "typeof-comparison"),
-    csharpOperation: csharpTargetTypeofComparisonOperation(operationId, rightKind, negated),
+    csharpOperation: csharpTargetTypeofComparisonOperation(operationId, rightKind, targetType, negated),
   };
+}
+
+function getTypeofComparisonTargetType(kind: CsharpTypeofRuntimeKind): TargetTypeRef | undefined {
+  switch (kind) {
+    case "string":
+      return csharpTargetNamedType("System.String");
+    case "number":
+      return csharpSourcePrimitiveTargetType("float64");
+    case "boolean":
+      return csharpSourcePrimitiveTargetType("bool");
+    case "bigint":
+      return csharpTargetNamedType("System.Numerics.BigInteger");
+  }
 }
 
 export function getTypeofRuntimeKind(

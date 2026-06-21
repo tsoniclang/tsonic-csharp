@@ -14,6 +14,9 @@ import {
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
+import {
+  csharpTargetOperationFactKey,
+} from "../../source/csharp-facts.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
@@ -33,9 +36,14 @@ export function planPrefixUnaryExpression(
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# prefix unary operator emission requires a selected provider operator fact.", ownership);
     return invalidExpression("missing target prefix operator fact");
   }
+  const csharpOperator = input.facts.getFact(node, csharpTargetOperationFactKey);
+  if (csharpOperator?.kind !== "operator-token" || csharpOperator.operationId !== selectedOperator.operationId) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# prefix unary operator emission requires a finalized C# operator-token fact matching the selected TSTS/provider operator."));
+    return invalidExpression("missing C# prefix operator token fact");
+  }
   return {
     kind: "PrefixUnaryExpression",
-    operator: selectedOperator.targetOperation,
+    operator: csharpOperator.operator,
     operand: planExpression(expression.Operand!, sourceFile, input, diagnostics),
   };
 }
@@ -58,9 +66,14 @@ export function planPostfixUnaryExpression(
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# postfix unary operator emission requires a selected provider operator fact.", ownership);
     return invalidExpression("missing target postfix operator fact");
   }
+  const csharpOperator = input.facts.getFact(node, csharpTargetOperationFactKey);
+  if (csharpOperator?.kind !== "operator-token" || csharpOperator.operationId !== selectedOperator.operationId) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# postfix unary operator emission requires a finalized C# operator-token fact matching the selected TSTS/provider operator."));
+    return invalidExpression("missing C# postfix operator token fact");
+  }
   return {
     kind: "PostfixUnaryExpression",
     operand: planExpression(expression.Operand!, sourceFile, input, diagnostics),
-    operator: selectedOperator.targetOperation,
+    operator: csharpOperator.operator,
   };
 }

@@ -18,9 +18,11 @@ import {
 import {
   asNodeSubject,
   asType,
+  csharpTargetMemberOperation,
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
   isSourceLibraryType,
+  recordCsharpTargetOperation,
   targetMethod,
   targetParameter,
 } from "./source-library.js";
@@ -55,6 +57,10 @@ function recordCsharpJsRegExpLiteralFact(
     return;
   }
   context.facts.set(node, csharpRegularExpressionLiteralFactKey, literal, [{ message: "C# JS surface RegExp literal pattern and flags recorded from source syntax." }]);
+  recordCsharpTargetOperation(context, node, csharpTargetMemberOperation("tsonic.csharp.js.regexp.literal.constructor", "constructor", "RegExp", {
+    declaringType: csharpTargetNamedType(csharpJsRegExpTypeId),
+    resultType: csharpTargetNamedType(csharpJsRegExpTypeId),
+  }), [{ message: "C# JS surface RegExp literal constructor operation recorded from source syntax." }]);
 }
 
 function parseRegularExpressionLiteral(text: string): { readonly pattern: string; readonly flags: string } | undefined {

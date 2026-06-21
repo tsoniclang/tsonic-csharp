@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindIdentifier, KindPrefixUnaryExpression } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
+import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 
 test("binary expression emission requires selected target operator fact even for source primitives", () => {
   const left = identifier("left");
@@ -34,6 +35,12 @@ test("binary expression emission uses the finalized selected target operator fac
       operationId: "tsonic.csharp.operator.add",
       operationKind: "operator",
       targetOperation: "+",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.add",
+      operator: "+",
     },
   }), diagnostics);
 
@@ -95,7 +102,7 @@ function fakeInput(options = {}) {
       getSourcePrimitiveFact: (subject) => subject === options.sourcePrimitiveSubject
         ? { kind: "int32", runtimeBase: "number", signed: true, width: 32 }
         : undefined,
-      getFact: () => undefined,
+      getFact: (subject, key) => subject === options.csharpOperationSubject && key === csharpTargetOperationFactKey ? options.csharpOperation : undefined,
       getTargetIterationFact: () => undefined,
       getValueTypeFact: () => undefined,
       getFieldFact: () => undefined,

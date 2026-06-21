@@ -18,8 +18,12 @@ import {
   getPrefixUnaryOperatorText,
 } from "./operator-syntax.js";
 import {
+  csharpTargetTokenOperatorOperation,
   targetOperation,
 } from "./operations.js";
+import {
+  csharpTargetOperationFactKey,
+} from "../csharp-facts.js";
 import {
   getCsharpOperatorTargetOperation,
   isCsharpBitwiseOperator,
@@ -62,19 +66,20 @@ export function recordCsharpCheckedOperatorFactsBeforeFinalization(
       if (lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
         return;
       }
-      const operation = getCsharpCheckedOperatorFactFromSyntax(node, context, host);
+      const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
       if (operation !== undefined) {
-        lifecycleContext.host.facts.set(node, targetOperationFactKey, operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
+        lifecycleContext.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
+        lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
       }
     });
   }
 }
 
-function getCsharpCheckedOperatorFactFromSyntax(
+function getCsharpCheckedOperatorFactsFromSyntax(
   node: Node,
   context: ExtensionObservationContext,
   host: CsharpCheckedOperatorLifecycleHost,
-): CheckedOperationMappingResult["operation"] | undefined {
+): { readonly operation: CheckedOperationMappingResult["operation"]; readonly csharpOperation: ReturnType<typeof csharpTargetTokenOperatorOperation> } | undefined {
   const ast = context.compiler?.ast;
   if (ast === undefined) {
     return undefined;
@@ -107,10 +112,15 @@ function getCsharpCheckedOperatorFactFromSyntax(
   if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left)) {
     return undefined;
   }
-  return targetOperation(
-    `tsonic.csharp.operator.${targetOperator}`,
-    "operator",
-    targetOperator,
-    { resultType: getCsharpOperatorResultTypeRefForOperator(operator, left, right) },
-  );
+  const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right);
+  const operationId = `tsonic.csharp.operator.${targetOperator}`;
+  return {
+    operation: targetOperation(
+      operationId,
+      "operator",
+      targetOperator,
+      { resultType },
+    ),
+    csharpOperation: csharpTargetTokenOperatorOperation(operationId, targetOperator, resultType),
+  };
 }
