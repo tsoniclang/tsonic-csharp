@@ -33,8 +33,8 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
-  splitQualifiedTargetOperation,
-} from "./target-conversions.js";
+  getCsharpStaticMemberOperation,
+} from "../../source/csharp-operation-tags.js";
 import {
   isExternalDeclarationReference,
 } from "./expression-source-references.js";
@@ -87,11 +87,11 @@ export function targetStaticMemberExpression(
   diagnostics: TargetDiagnostic[],
   node: Node,
 ): CsharpExpression | undefined {
-  const qualified = splitQualifiedTargetOperation(operation.targetOperation);
-  if (qualified === undefined) {
+  const staticMember = getCsharpStaticMemberOperation(operation.targetOperation);
+  if (staticMember === undefined) {
     return undefined;
   }
-  const declaringType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: qualified.declaringTypeId });
+  const declaringType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: staticMember.declaringTypeId });
   if (declaringType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Static target property requires a renderable declaring target type before C# emission."));
     return invalidExpression("static target property");
@@ -99,7 +99,7 @@ export function targetStaticMemberExpression(
   return {
     kind: "SimpleMemberAccessExpression",
     receiver: declaringType,
-    name: qualified.memberName,
+    name: staticMember.memberName,
   };
 }
 

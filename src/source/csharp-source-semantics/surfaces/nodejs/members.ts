@@ -3,6 +3,9 @@ import type {
   TargetOperationFact,
 } from "@tsonic/tsts";
 import {
+  csharpStaticMemberOperation,
+} from "../../../csharp-operation-tags.js";
+import {
   getNodeCryptoTargetMembers,
   nodeCryptoModuleSpecifier,
 } from "./crypto.js";
@@ -85,6 +88,6 @@ function getNodejsPropertyTargetMembers(moduleSpecifier: string, exportName: str
 
 function getStaticTargetOperation(member: TargetMember): string {
   return member.declaringType?.kind === "target-named"
-    ? `${member.declaringType.id}.${member.targetName}`
+    ? csharpStaticMemberOperation(member.declaringType.id, member.targetName)
     : member.targetName;
 }

@@ -3,6 +3,9 @@ import type {
   ExtensionFactSubject,
   TargetMember,
 } from "@tsonic/tsts";
+import {
+  csharpStaticMemberOperation,
+} from "../csharp-operation-tags.js";
 
 export function targetOperation(
   operationId: string,
@@ -23,7 +26,7 @@ export function targetOperationFromMember(member: TargetMember): CheckedOperatio
     operationId: member.id,
     operationKind: member.kind === "field" || member.kind === "event" ? "property" : member.kind,
     targetOperation: member.static === true && member.declaringType?.kind === "target-named"
-      ? `${member.declaringType.id}.${member.targetName}`
+      ? csharpStaticMemberOperation(member.declaringType.id, member.targetName)
       : member.targetName,
   };
 }

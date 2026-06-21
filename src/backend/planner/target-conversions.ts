@@ -4,6 +4,9 @@ import type { CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import {
+  getCsharpStaticMemberOperation,
+} from "../../source/csharp-operation-tags.js";
 
 type TargetConversion = NonNullable<ReturnType<TargetCompileInput["facts"]["getTargetConversionFact"]>>;
 
@@ -63,9 +66,9 @@ function targetConversionStaticMethodCallee(
   diagnostics: TargetDiagnostic[],
   node: Node,
 ): CsharpExpression | undefined {
-  const qualified = splitQualifiedTargetOperation(operation.targetOperation);
-  const declaringTypeRef = qualified === undefined ? undefined : { kind: "target-named" as const, id: qualified.declaringTypeId };
-  const methodName = qualified?.memberName ?? operation.targetOperation;
+  const staticMember = getCsharpStaticMemberOperation(operation.targetOperation);
+  const declaringTypeRef = staticMember === undefined ? undefined : { kind: "target-named" as const, id: staticMember.declaringTypeId };
+  const methodName = staticMember?.memberName;
   const declaringType = declaringTypeRef === undefined ? undefined : csharpTypeFromTargetTypeRef(declaringTypeRef);
   if (declaringType === undefined || methodName === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Target conversion method requires a declaring target type and method name before C# emission."));
@@ -75,17 +78,6 @@ function targetConversionStaticMethodCallee(
     kind: "SimpleMemberAccessExpression",
     receiver: declaringType,
     name: methodName,
-  };
-}
-
-export function splitQualifiedTargetOperation(targetOperation: string): { readonly declaringTypeId: string; readonly memberName: string } | undefined {
-  const separator = targetOperation.lastIndexOf(".");
-  if (separator <= 0 || separator === targetOperation.length - 1) {
-    return undefined;
-  }
-  return {
-    declaringTypeId: targetOperation.slice(0, separator),
-    memberName: targetOperation.slice(separator + 1),
   };
 }
 

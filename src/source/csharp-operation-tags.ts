@@ -9,6 +9,7 @@ export type CsharpTargetOperatorOperation = typeof CsharpTargetOperatorOperation
 
 const typeofRuntimePrefix = "typeof-runtime:";
 const typeofComparisonPrefix = "typeof-comparison:";
+const csharpStaticMemberPrefix = "csharp-static-member:";
 
 export function csharpTypeofRuntimeOperation(kind: CsharpTypeofRuntimeKind): string {
   return `${typeofRuntimePrefix}${kind}`;
@@ -41,4 +42,23 @@ function getCsharpRuntimeKind(operation: string, prefix: string): CsharpTypeofRu
   return kind === "string" || kind === "number" || kind === "boolean" || kind === "bigint"
     ? kind
     : undefined;
+}
+
+export function csharpStaticMemberOperation(declaringTypeId: string, memberName: string): string {
+  return `${csharpStaticMemberPrefix}${encodeURIComponent(declaringTypeId)}:${encodeURIComponent(memberName)}`;
+}
+
+export function getCsharpStaticMemberOperation(operation: string): { readonly declaringTypeId: string; readonly memberName: string } | undefined {
+  if (!operation.startsWith(csharpStaticMemberPrefix)) {
+    return undefined;
+  }
+  const payload = operation.slice(csharpStaticMemberPrefix.length);
+  const separator = payload.indexOf(":");
+  if (separator <= 0 || separator === payload.length - 1) {
+    return undefined;
+  }
+  return {
+    declaringTypeId: decodeURIComponent(payload.slice(0, separator)),
+    memberName: decodeURIComponent(payload.slice(separator + 1)),
+  };
 }

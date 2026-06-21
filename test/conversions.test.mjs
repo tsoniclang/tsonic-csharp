@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
+import { csharpStaticMemberOperation } from "../dist/source/csharp-operation-tags.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
   const value = trueKeyword();
@@ -14,7 +15,7 @@ test("planner renders target conversion method facts as C# AST calls", () => {
       operation: {
         operationId: "System.Convert.ToByte",
         operationKind: "method",
-        targetOperation: "System.Convert.ToByte",
+        targetOperation: csharpStaticMemberOperation("System.Convert", "ToByte"),
       },
     },
   }), diagnostics);
