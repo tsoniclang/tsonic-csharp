@@ -85,6 +85,10 @@ import {
   resolveTargetBinding,
 } from "./csharp-source-semantics/provider-bindings.js";
 import {
+  targetOperation,
+  targetOperationFromMember,
+} from "./csharp-source-semantics/operations.js";
+import {
   createCsharpJsSurfaceMappers,
 } from "./csharp-source-semantics/surfaces/js/index.js";
 import {
@@ -1200,20 +1204,6 @@ function mapCsharpParameterPassing(
       ...(request.argument !== undefined ? { targetExpression: request.argument } : {}),
     },
   }, [{ message: "C# argument passing recorded from selected target parameter." }]);
-}
-
-function targetOperation(
-  operationId: string,
-  operationKind: "property" | "method" | "indexer" | "operator" | "constructor" | "iteration",
-  targetOperation: string,
-  options: { readonly resultType?: ExtensionFactSubject } = {},
-) {
-  return {
-    operationId,
-    operationKind,
-    targetOperation,
-    ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
-  };
 }
 
 function getTypeofComparisonOperation(
@@ -2772,16 +2762,6 @@ function targetTypeRefListEquals(left: readonly TargetTypeRef[], right: readonly
 function stripMetadataArity(name: string): string {
   const tick = name.indexOf("`");
   return tick < 0 ? name : name.slice(0, tick);
-}
-
-function targetOperationFromMember(member: TargetMember) {
-  return {
-    operationId: member.id,
-    operationKind: member.kind === "field" || member.kind === "event" ? "property" as const : member.kind,
-    targetOperation: member.static === true && member.declaringType?.kind === "target-named"
-      ? `${member.declaringType.id}.${member.targetName}`
-      : member.targetName,
-  };
 }
 
 function mapRuntimeCarrier(

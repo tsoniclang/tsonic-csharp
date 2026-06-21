@@ -1,5 +1,4 @@
 import type {
-  CheckedOperationMappingResult,
   ExtensionDiagnostic,
   ExtensionFactSubject,
   ExtensionObservationContext,
@@ -10,6 +9,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../../../csharp-facts.js";
+export { targetOperation } from "../../operations.js";
 
 export {
   csharpSourcePrimitiveTargetType,
@@ -64,20 +64,6 @@ export interface SourceLibraryMember {
 }
 
 export const csharpJsCheckedTypeQuery = { allowSemanticTypeQuery: false } satisfies CsharpJsTargetTypeRefResolutionOptions;
-
-export function targetOperation(
-  operationId: string,
-  operationKind: "property" | "method" | "indexer" | "operator" | "constructor" | "iteration",
-  targetOperation: string,
-  options: { readonly resultType?: ExtensionFactSubject } = {},
-): CheckedOperationMappingResult["operation"] {
-  return {
-    operationId,
-    operationKind,
-    targetOperation,
-    ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
-  };
-}
 
 export function getSourceLibraryMember(
   declarationSubject: ExtensionFactSubject | undefined,
