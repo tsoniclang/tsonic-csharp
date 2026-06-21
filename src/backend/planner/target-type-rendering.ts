@@ -1,11 +1,12 @@
 import type { SourcePrimitiveKind, TargetTypeRef } from "@tsonic/tsts";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import { sanitizeIdentifier } from "./identifiers.js";
-
-type CsharpTargetTypeRenderShape =
-  | { readonly kind: "predefined"; readonly name: string }
-  | { readonly kind: "named"; readonly namespace?: readonly string[]; readonly name: string }
-  | { readonly kind: "nullable" };
+import type {
+  CsharpTargetTypeRenderShape,
+} from "../../source/csharp-source-semantics/target-types.js";
+import {
+  csharpRenderShapeForTargetNamedType,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
   ["bool", "bool"],
@@ -26,35 +27,6 @@ const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
   ["decimal", "decimal"],
   ["int128", "Int128"],
   ["uint128", "UInt128"],
-]);
-
-const predefinedTargetIds = new Map<string, string>([
-  ["System.Boolean", "bool"],
-  ["System.Char", "char"],
-  ["System.SByte", "sbyte"],
-  ["System.Byte", "byte"],
-  ["System.Int16", "short"],
-  ["System.UInt16", "ushort"],
-  ["System.Int32", "int"],
-  ["System.UInt32", "uint"],
-  ["System.Int64", "long"],
-  ["System.UInt64", "ulong"],
-  ["System.IntPtr", "nint"],
-  ["System.UIntPtr", "nuint"],
-  ["System.Half", "Half"],
-  ["System.Single", "float"],
-  ["System.Double", "double"],
-  ["System.Decimal", "decimal"],
-  ["System.Int128", "Int128"],
-  ["System.UInt128", "UInt128"],
-  ["System.String", "string"],
-  ["System.Object", "object"],
-  ["System.Void", "void"],
-]);
-
-const knownTargetRenderShapes = new Map<string, CsharpTargetTypeRenderShape>([
-  ...Array.from(predefinedTargetIds.entries()).map(([id, name]) => [id, { kind: "predefined", name } satisfies CsharpTargetTypeRenderShape] as const),
-  ["System.Nullable`1", { kind: "nullable" }],
 ]);
 
 export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
@@ -134,7 +106,7 @@ function csharpTypeFromTargetNamedType(type: Extract<TargetTypeRef, { readonly k
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
-  const shape = getCsharpRenderShape(type);
+  const shape = csharpRenderShapeForTargetNamedType(type);
   if (shape === undefined) {
     return undefined;
   }
@@ -146,11 +118,6 @@ function csharpTypeFromTargetNamedType(type: Extract<TargetTypeRef, { readonly k
     case "named":
       return csharpNamedTypeFromRenderShape(shape, typeArguments as readonly CsharpTypeNode[]);
   }
-}
-
-function getCsharpRenderShape(type: Extract<TargetTypeRef, { readonly kind: "target-named" }>): CsharpTargetTypeRenderShape | undefined {
-  const renderShape = (type as { readonly csharpRender?: CsharpTargetTypeRenderShape }).csharpRender;
-  return renderShape ?? knownTargetRenderShapes.get(type.id);
 }
 
 function csharpNamedTypeFromRenderShape(

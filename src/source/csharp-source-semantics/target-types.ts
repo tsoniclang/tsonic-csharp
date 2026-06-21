@@ -129,6 +129,12 @@ export function csharpTargetTypeFromBinding(
   );
 }
 
+export function csharpRenderShapeForTargetNamedType(
+  type: Extract<TargetTypeRef, { readonly kind: "target-named" }>,
+): CsharpTargetTypeRenderShape | undefined {
+  return (type as CsharpTargetNamedTypeRef).csharpRender ?? knownCsharpTargetTypeRenderShape(type.id);
+}
+
 export function csharpDelegateTargetType(
   kind: "System.Action" | "System.Func",
   parameters: readonly TargetTypeRef[],
