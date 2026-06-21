@@ -255,19 +255,10 @@ function getSymbolLookupSubjects(
       symbols.push(symbol);
     }
   };
-  try {
-    add(compiler.checker.getSymbolAtLocation(node, { sourceFile }));
-  } catch {
-  }
-  try {
-    add(compiler.checker.getResolvedSymbol(node, { sourceFile }));
-  } catch {
-  }
+  add(compiler.checker.getSymbolAtLocation(node, { sourceFile }));
+  add(compiler.checker.getResolvedSymbol(node, { sourceFile }));
   for (const symbol of [...symbols]) {
-    try {
-      add(compiler.checker.getAliasedSymbol(symbol, { sourceFile }));
-    } catch {
-    }
+    add(compiler.checker.getAliasedSymbol(symbol, { sourceFile }));
   }
   return symbols;
 }

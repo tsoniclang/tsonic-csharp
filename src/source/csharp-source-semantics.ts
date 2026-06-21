@@ -664,13 +664,9 @@ function getRuntimeCarrierSubjectType(
   sourceFile: SourceFile,
   node: Node,
 ): Type | undefined {
-  try {
-    return isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)
-      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
-      : compiler.checker.getTypeAtLocation(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)
+    ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
+    : compiler.checker.getTypeAtLocation(node, { sourceFile });
 }
 
 function getRuntimeCarrierSubjectSymbol(
@@ -678,12 +674,8 @@ function getRuntimeCarrierSubjectSymbol(
   sourceFile: SourceFile,
   node: Node,
 ): Symbol | undefined {
-  try {
-    return compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
-      compiler.checker.getResolvedSymbol(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
+  return compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
+    compiler.checker.getResolvedSymbol(node, { sourceFile });
 }
 
 function createCsharpOperationsProvider(selectedSurfaceIds: ReadonlySet<string>): TargetSemanticProvider {

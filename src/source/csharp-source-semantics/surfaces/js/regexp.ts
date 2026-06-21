@@ -54,12 +54,8 @@ export function getCsharpJsRegExpRuntimeCarrierForSubject(
   if (node === undefined || ast === undefined || checker === undefined) {
     return undefined;
   }
-  try {
-    const sourceFile = ast.getSourceFile(node);
-    return getCsharpJsRegExpRuntimeCarrierForType(checker.getTypeAtLocation(node, { sourceFile }), context);
-  } catch {
-    return undefined;
-  }
+  const sourceFile = ast.getSourceFile(node);
+  return getCsharpJsRegExpRuntimeCarrierForType(checker.getTypeAtLocation(node, { sourceFile }), context);
 }
 
 export function getCsharpJsRegExpRuntimeCarrierForType(
