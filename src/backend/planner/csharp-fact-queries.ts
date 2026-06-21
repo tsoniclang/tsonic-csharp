@@ -49,8 +49,7 @@ function getNodeField(node: Node | undefined, field: string): unknown {
   if (node === undefined) {
     return undefined;
   }
-  const record = node as unknown as Record<string, unknown>;
-  return Object.prototype.hasOwnProperty.call(record, field) ? record[field] : undefined;
+  return Object.getOwnPropertyDescriptor(node, field)?.value;
 }
 
 function asNode(value: unknown): Node | undefined {
