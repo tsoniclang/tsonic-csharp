@@ -1,0 +1,112 @@
+import type {
+  ExtensionFactSubject,
+  ExtensionObservationContext,
+  TargetTypeRef,
+} from "@tsonic/tsts";
+import {
+  asNodeSubject,
+  getNodeField,
+} from "./ast-utils.js";
+import {
+  getLiteralTargetTypeRefForKnownOperatorOperand,
+} from "./checked-operator-mapping.js";
+import {
+  getBinaryOperatorText,
+  getPrefixUnaryOperatorText,
+} from "./operator-syntax.js";
+import type {
+  TargetTypeRefResolutionOptions,
+} from "./target-member-selection.js";
+import {
+  isCsharpBitwiseOperator,
+  isIntegralTargetTypeRef,
+  unwrapNullableTargetType,
+} from "./target-rules.js";
+import {
+  csharpSourcePrimitiveTargetType,
+} from "./target-types.js";
+import type {
+  CsharpTargetTypeResolutionHost,
+} from "./target-type-resolution.js";
+import type {
+  CsharpRecursiveTargetTypeResolver,
+} from "./target-type-syntax-types.js";
+
+export function getTargetTypeRefFromCheckedExpressionSyntax(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolver: CsharpRecursiveTargetTypeResolver,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  const node = asNodeSubject(subject);
+  if (ast === undefined || node === undefined) {
+    return undefined;
+  }
+  if (ast.is.IsParenthesizedExpression(node)) {
+    return resolver.resolveSubject(asNodeSubject(getNodeField(node, "Expression")), context, {
+      ...options,
+      allowSemanticTypeQuery: false,
+    }, host);
+  }
+  if (ast.kindName(node) === "KindPrefixUnaryExpression") {
+    const operator = getPrefixUnaryOperatorText(ast, node);
+    const operandType = resolver.resolveSubject(asNodeSubject(getNodeField(node, "Operand")), context, {
+      ...options,
+      allowSemanticTypeQuery: false,
+    }, host);
+    if (operator === "!") {
+      return csharpSourcePrimitiveTargetType("bool");
+    }
+    if (operator === "~") {
+      return isIntegralTargetTypeRef(operandType) ? operandType : undefined;
+    }
+    return operandType;
+  }
+  if (!ast.is.IsBinaryExpression(node)) {
+    return undefined;
+  }
+  const operator = getBinaryOperatorText(ast, node);
+  if (operator === undefined) {
+    return undefined;
+  }
+  const operandOptions = operator === "??"
+    ? {
+        ...options,
+        allowSemanticTypeQuery: true,
+      }
+    : {
+        ...options,
+        allowSemanticTypeQuery: false,
+      };
+  const left = resolver.resolveSubject(asNodeSubject(getNodeField(node, "Left")), context, {
+    ...operandOptions,
+  }, host);
+  const rightSubject = asNodeSubject(getNodeField(node, "Right"));
+  const right = resolver.resolveSubject(rightSubject, context, {
+    ...operandOptions,
+  }, host) ?? getLiteralTargetTypeRefForKnownOperatorOperand(left, rightSubject, context);
+  if (operator === "===" ||
+    operator === "==" ||
+    operator === "!==" ||
+    operator === "!=" ||
+    operator === "<" ||
+    operator === "<=" ||
+    operator === ">" ||
+    operator === ">=" ||
+    operator === "&&" ||
+    operator === "||") {
+    return csharpSourcePrimitiveTargetType("bool");
+  }
+  if (left === undefined || right === undefined) {
+    return undefined;
+  }
+  if (operator === "??") {
+    return unwrapNullableTargetType(left) ?? right;
+  }
+  if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left)) {
+    return undefined;
+  }
+  return left;
+}
