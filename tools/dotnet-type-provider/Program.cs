@@ -87,7 +87,7 @@ sealed class ReflectionProvider
     {
         var exportTypes = LoadTypes()
             .Where(type => type.Namespace == request.NamespaceName)
-            .Where(type => type.IsPublic && !type.IsNested)
+            .Where(type => type.IsPublic || type.IsNestedPublic)
             .Where(type => !type.IsSpecialName)
             .Where(type => !IsDelegate(type))
             .GroupBy(MetadataName, StringComparer.Ordinal)
@@ -203,6 +203,7 @@ sealed class ReflectionProvider
     {
         var typeParameters = TypeParameters(type);
         var members = Members(type).ToArray();
+        var implementedContracts = ImplementedContracts(type);
         return new
         {
             kind = "type",
@@ -212,6 +213,7 @@ sealed class ReflectionProvider
             metadataName = MetadataName(type),
             displayName = DisplayName(type),
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
+            implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,
             members = members.Length == 0 ? null : members,
         };
     }
@@ -248,6 +250,25 @@ sealed class ReflectionProvider
             {
                 kind = "method",
                 sourceName = LowerCamel(first.Name),
+                targetName = first.Name,
+                metadataName = $"{MetadataName(type)}.{first.Name}",
+                @static = first.IsStatic ? true : (bool?)null,
+                signatures,
+            };
+        }
+
+        foreach (var group in Operators(type).GroupBy(MethodGroupKey))
+        {
+            var first = group.First();
+            var signatures = group.Select(method => MethodSignature(method)).Where(signature => signature is not null).Cast<object>().ToArray();
+            if (signatures.Length == 0)
+            {
+                continue;
+            }
+            yield return new
+            {
+                kind = "operator",
+                sourceName = OperatorSourceName(first.Name),
                 targetName = first.Name,
                 metadataName = $"{MetadataName(type)}.{first.Name}",
                 @static = first.IsStatic ? true : (bool?)null,
@@ -376,6 +397,15 @@ sealed class ReflectionProvider
             .Where(method => !method.IsSpecialName)
             .Where(method => !(type.IsInterface && method.IsStatic))
             .Where(method => !(method.IsStatic && UsesDeclaringTypeParameter(method, type)))
+            .OrderBy(MethodId, StringComparer.Ordinal);
+    }
+
+    IEnumerable<MethodInfo> Operators(Type type)
+    {
+        return type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => method.IsSpecialName)
+            .Where(method => method.Name.StartsWith("op_", StringComparison.Ordinal))
+            .Where(method => !UsesDeclaringTypeParameter(method, type))
             .OrderBy(MethodId, StringComparer.Ordinal);
     }
 
@@ -596,6 +626,16 @@ sealed class ReflectionProvider
             : method.GetGenericArguments().Where(parameter => parameter.IsGenericParameter).Select(TypeParameter).ToArray();
     }
 
+    object[] ImplementedContracts(Type type)
+    {
+        return type.GetInterfaces()
+            .OrderBy(MetadataName, StringComparer.Ordinal)
+            .Select(TypeRef)
+            .Where(contract => contract is not null)
+            .Select(contract => new { kind = "implements", contract })
+            .ToArray();
+    }
+
     object TypeParameter(Type parameter)
     {
         var constraints = new List<object>();
@@ -787,6 +827,13 @@ sealed class ReflectionProvider
             return Identifier(source.ToLowerInvariant());
         }
         return Identifier(char.ToLowerInvariant(source[0]) + source[1..]);
+    }
+
+    static string OperatorSourceName(string name)
+    {
+        return name.StartsWith("op_", StringComparison.Ordinal)
+            ? LowerCamel(name[3..])
+            : LowerCamel(name);
     }
 
     static string Identifier(string value)

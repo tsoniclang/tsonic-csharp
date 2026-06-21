@@ -78,3 +78,34 @@ test(".NET target binding uses provider-owned target member names", () => {
   assert.equal(count?.targetName, "Count");
   assert.equal(item?.targetName, "Item");
 });
+
+test(".NET reflection provider exposes contracts, operators, and nested public types", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+
+  const int32 = provider.findTargetBindingByTargetId("System.Int32");
+  assert.ok(int32);
+  assert.ok(int32.implementedContracts.some((contract) =>
+    contract.kind === "implements" &&
+    contract.contract === "System.IEquatable`1" &&
+    contract.typeArguments?.[0]?.kind === "source-primitive" &&
+    contract.typeArguments[0].name === "int32"
+  ));
+
+  const dateTime = provider.findTargetBindingByTargetId("System.DateTime");
+  assert.ok(dateTime);
+  assert.ok(dateTime.members.some((member) =>
+    member.kind === "operator" &&
+    member.sourceName === "addition" &&
+    member.targetName === "op_Addition"
+  ));
+
+  const specialFolder = provider.findTargetBindingByTargetId("System.Environment.SpecialFolder");
+  assert.ok(specialFolder);
+  assert.equal(specialFolder.kind, "enum");
+  assert.ok(specialFolder.members.some((member) =>
+    member.kind === "field" &&
+    member.static === true &&
+    member.sourceName === "desktop" &&
+    member.targetName === "Desktop"
+  ));
+});

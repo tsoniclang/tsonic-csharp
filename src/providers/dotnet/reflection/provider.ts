@@ -114,14 +114,17 @@ export function createDotnetReflectionTypeDataProvider(
       if (existing !== undefined) {
         return existing;
       }
-      const namespaceName = namespaceFromTargetId(targetId);
-      if (namespaceName === undefined) {
-        return undefined;
+      for (const namespaceName of namespaceCandidatesFromTargetId(targetId)) {
+        const moduleResult = loadModule(createDotnetModuleSpecifier(namespaceName), {});
+        if (isDotnetProviderDiagnostic(moduleResult)) {
+          continue;
+        }
+        const binding = findTargetBindingInModule(moduleResult, targetId);
+        if (binding !== undefined) {
+          return binding;
+        }
       }
-      const moduleResult = loadModule(createDotnetModuleSpecifier(namespaceName), {});
-      return isDotnetProviderDiagnostic(moduleResult)
-        ? undefined
-        : findTargetBindingInModule(moduleResult, targetId);
+      return undefined;
     },
   };
 }
@@ -148,9 +151,13 @@ function findTargetBindingInModule(module: DotnetModuleModel, targetId: string):
   return undefined;
 }
 
-function namespaceFromTargetId(targetId: string): string | undefined {
-  const typeNameStart = targetId.lastIndexOf(".");
-  return typeNameStart < 0 ? undefined : targetId.slice(0, typeNameStart);
+function namespaceCandidatesFromTargetId(targetId: string): readonly string[] {
+  const parts = targetId.split(".");
+  const candidates: string[] = [];
+  for (let count = parts.length - 1; count >= 1; count -= 1) {
+    candidates.push(parts.slice(0, count).join("."));
+  }
+  return candidates;
 }
 
 function isDotnetProviderDiagnostic(value: DotnetProviderModuleResult): value is DotnetProviderDiagnostic {
