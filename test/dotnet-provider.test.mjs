@@ -200,6 +200,120 @@ test(".NET reflection provider keeps unmodelled nested CLR types out of source d
   assert.ok(provider.findTargetBindingByTargetId("System.Environment.SpecialFolder"));
 });
 
+test(".NET reflection provider preserves cross-namespace source-visible provider refs", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const ioModule = provider.getModule("@tsonic/dotnet/System.IO.js", {});
+  assert.equal("exports" in ioModule, true);
+
+  const binaryReader = ioModule.exports.find((declaration) => declaration.sourceName === "BinaryReader");
+  assert.ok(binaryReader);
+  const encodingConstructor = binaryReader.members.find((member) =>
+    member.kind === "constructor" &&
+    member.signatures.some((signature) => signature.id === "System.IO.BinaryReader..ctor(System.IO.Stream,System.Text.Encoding)")
+  );
+  assert.ok(encodingConstructor);
+  const encodingParameter = encodingConstructor.signatures
+    .find((signature) => signature.id === "System.IO.BinaryReader..ctor(System.IO.Stream,System.Text.Encoding)")
+    ?.parameters.find((parameter) => parameter.name === "encoding");
+  assert.deepEqual(encodingParameter?.type.sourceShape, {
+    kind: "provider-ref",
+    name: "Encoding",
+    moduleSpecifier: "@tsonic/dotnet/System.Text.js",
+  });
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(ioModule);
+  const sourceBinaryReader = declarationModel.exports.find((declaration) => declaration.name === "BinaryReader");
+  assert.ok(sourceBinaryReader);
+  const sourceEncodingConstructor = sourceBinaryReader.members.find((member) =>
+    member.kind === "constructor" &&
+    member.signatures.some((signature) => signature.id === "System.IO.BinaryReader..ctor(System.IO.Stream,System.Text.Encoding)")
+  );
+  assert.ok(sourceEncodingConstructor);
+  const sourceEncodingParameter = sourceEncodingConstructor.signatures
+    .find((signature) => signature.id === "System.IO.BinaryReader..ctor(System.IO.Stream,System.Text.Encoding)")
+    ?.parameters.find((parameter) => parameter.name === "encoding");
+  assert.deepEqual(sourceEncodingParameter?.type.sourceShape, {
+    kind: "provider-ref",
+    name: "Encoding",
+    moduleSpecifier: "@tsonic/dotnet/System.Text.js",
+  });
+
+  const rawMemoryStream = ioModule.exports.find((declaration) => declaration.sourceName === "MemoryStream");
+  assert.deepEqual(rawMemoryStream?.baseType?.sourceShape, {
+    kind: "provider-ref",
+    name: "Stream",
+  });
+  const sourceMemoryStream = declarationModel.exports.find((declaration) => declaration.name === "MemoryStream");
+  assert.ok(sourceMemoryStream);
+  assert.equal("extends" in sourceMemoryStream, false);
+});
+
+test(".NET provider source declarations omit target-only generic constraints", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const buffersModule = provider.getModule("@tsonic/dotnet/System.Buffers.js", {});
+  assert.equal("exports" in buffersModule, true);
+
+  const rawSequenceReader = buffersModule.exports.find((declaration) => declaration.sourceName === "SequenceReader");
+  assert.ok(rawSequenceReader);
+  assert.ok(rawSequenceReader.typeParameters?.[0]?.constraints?.some((constraint) => constraint.kind === "implements"));
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(buffersModule);
+  const sequenceReader = declarationModel.exports.find((declaration) => declaration.name === "SequenceReader");
+  assert.ok(sequenceReader);
+  assert.deepEqual(sequenceReader.typeParameters, [{ name: "T" }]);
+});
+
+test(".NET provider source declarations keep only TS-compatible numeric indexers", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const specializedModule = provider.getModule("@tsonic/dotnet/System.Collections.Specialized.js", {});
+  assert.equal("exports" in specializedModule, true);
+
+  const rawNameValueCollection = specializedModule.exports.find((declaration) => declaration.sourceName === "NameValueCollection");
+  assert.ok(rawNameValueCollection);
+  assert.equal(rawNameValueCollection.members.filter((member) => member.kind === "indexer").length, 2);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(specializedModule);
+  const nameValueCollection = declarationModel.exports.find((declaration) => declaration.name === "NameValueCollection");
+  assert.ok(nameValueCollection);
+  const indexers = nameValueCollection.members.filter((member) => member.kind === "indexer");
+  assert.equal(indexers.length, 1);
+  assert.deepEqual(indexers[0].signatures[0].parameters[0].type, { kind: "source-primitive", name: "int32" });
+});
+
+test(".NET provider source declarations omit constructor-named non-constructor members", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const reflectionModule = provider.getModule("@tsonic/dotnet/System.Reflection.js", {});
+  assert.equal("exports" in reflectionModule, true);
+
+  const rawCustomAttributeData = reflectionModule.exports.find((declaration) => declaration.sourceName === "CustomAttributeData");
+  assert.ok(rawCustomAttributeData);
+  assert.ok(rawCustomAttributeData.members.some((member) =>
+    member.kind === "property" &&
+    member.sourceName === "constructor" &&
+    member.targetName === "Constructor"
+  ));
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(reflectionModule);
+  const customAttributeData = declarationModel.exports.find((declaration) => declaration.name === "CustomAttributeData");
+  assert.ok(customAttributeData);
+  assert.equal(customAttributeData.members.some((member) => member.kind !== "constructor" && member.name === "constructor"), false);
+});
+
+test(".NET provider source declarations omit signatures that reference unexportable provider refs", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const threadingModule = provider.getModule("@tsonic/dotnet/System.Threading.js", {});
+  assert.equal("exports" in threadingModule, true);
+
+  const rawPreAllocatedOverlapped = threadingModule.exports.find((declaration) => declaration.sourceName === "PreAllocatedOverlapped");
+  assert.ok(rawPreAllocatedOverlapped);
+  assert.match(JSON.stringify(rawPreAllocatedOverlapped), /IOCompletionCallback/);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(threadingModule);
+  const preAllocatedOverlapped = declarationModel.exports.find((declaration) => declaration.name === "PreAllocatedOverlapped");
+  assert.ok(preAllocatedOverlapped);
+  assert.doesNotMatch(JSON.stringify(preAllocatedOverlapped), /IOCompletionCallback/);
+});
+
 test(".NET reflection provider exposes delegates with source shells and target delegate identity", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});

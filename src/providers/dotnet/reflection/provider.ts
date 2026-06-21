@@ -11,6 +11,7 @@ import {
 } from "../model.js";
 import {
   createDotnetModuleSpecifier,
+  dotnetModulePrefix,
   parseDotnetModuleSpecifier,
 } from "../module-specifier.js";
 import type {
@@ -44,6 +45,7 @@ export function createDotnetReflectionTypeDataProvider(
   const modules = new Map<string, DotnetModuleModel>();
   const diagnostics = new Map<string, DotnetProviderDiagnostic>();
   const toolProjectPath = options.toolProjectPath ?? defaultToolProjectPath();
+  let allModulesLoaded = false;
 
   function loadModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
     const existing = modules.get(specifier);
@@ -58,15 +60,39 @@ export function createDotnetReflectionTypeDataProvider(
     if (parsed === undefined) {
       return diagnostic("DOTNET_REFLECTION_SPECIFIER_INVALID", `.NET reflection provider does not own '${specifier}'.`, { specifier });
     }
+    const batchDiagnostic = loadAllModules(context);
+    if (batchDiagnostic !== undefined) {
+      return batchDiagnostic;
+    }
+    const loaded = modules.get(specifier);
+    if (loaded !== undefined) {
+      return loaded;
+    }
+    const emptyModule: DotnetModuleModel = {
+      moduleSpecifier: specifier,
+      namespaceName: parsed.namespaceName,
+      exports: [],
+    };
+    modules.set(specifier, emptyModule);
+    return emptyModule;
+  }
+
+  function loadAllModules(context: DotnetProviderModuleContext): DotnetProviderDiagnostic | undefined {
+    if (allModulesLoaded) {
+      return undefined;
+    }
+    const existingDiagnostic = diagnostics.get("*");
+    if (existingDiagnostic !== undefined) {
+      return existingDiagnostic;
+    }
     const args = [
       "run",
       "--project",
       toolProjectPath,
       "--",
-      "--namespace",
-      parsed.namespaceName,
-      "--module-specifier",
-      specifier,
+      "--all-modules",
+      "--module-specifier-prefix",
+      dotnetModulePrefix,
     ];
     if (options.referenceDirectory !== undefined) {
       args.push("--reference-dir", options.referenceDirectory);
@@ -80,23 +106,26 @@ export function createDotnetReflectionTypeDataProvider(
     });
     if (result.status !== 0) {
       const error = diagnostic("DOTNET_REFLECTION_PROVIDER_FAILED", ".NET reflection provider tool failed.", {
-        specifier,
+        specifier: "*",
         status: result.status,
         stderr: result.stderr,
       });
-      diagnostics.set(specifier, error);
+      diagnostics.set("*", error);
       return error;
     }
     try {
-      const module = JSON.parse(result.stdout) as DotnetModuleModel;
-      modules.set(specifier, module);
-      return module;
+      const loadedModules = JSON.parse(result.stdout) as DotnetModuleModel[];
+      for (const module of loadedModules) {
+        modules.set(module.moduleSpecifier, module);
+      }
+      allModulesLoaded = true;
+      return undefined;
     } catch (error) {
       const parseError = diagnostic("DOTNET_REFLECTION_PROVIDER_INVALID_JSON", ".NET reflection provider emitted invalid JSON.", {
-        specifier,
+        specifier: "*",
         error: error instanceof Error ? error.message : String(error),
       });
-      diagnostics.set(specifier, parseError);
+      diagnostics.set("*", parseError);
       return parseError;
     }
   }

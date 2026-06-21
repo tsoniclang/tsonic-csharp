@@ -91,7 +91,7 @@ function dotnetTypeToProviderExport(declaration: DotnetTypeDeclaration): Provide
     kind,
     targetIdentity: dotnetTargetIdentity(declaration.metadataName, declaration.displayName ?? declaration.sourceName),
     ...(sourceType !== undefined ? { type: sourceType } : {}),
-    ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
+    ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderSourceTypeParameter) } : {}),
     ...(kind !== "type" && members !== undefined && members.length > 0 ? { members } : {}),
   };
 }
@@ -159,6 +159,12 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
 }
 
 function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): ProviderMemberDeclaration | undefined {
+  if (member.kind !== "constructor" && member.sourceName === "constructor") {
+    return undefined;
+  }
+  if (member.kind === "indexer" && !isSourceVisibleProviderIndexer(member)) {
+    return undefined;
+  }
   const type = member.type === undefined ? undefined : tryDotnetTypeRefToProviderType(member.type);
   if (member.type !== undefined && type === undefined) {
     return undefined;
@@ -177,6 +183,46 @@ function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): Provider
     ...(type !== undefined ? { type } : {}),
     ...(signatures !== undefined ? { signatures } : {}),
   };
+}
+
+function isSourceVisibleProviderIndexer(member: DotnetMemberDeclaration): boolean {
+  if (member.signatures === undefined || member.signatures.length !== 1) {
+    return false;
+  }
+  const signature = member.signatures[0];
+  if (signature === undefined || signature.parameters.length !== 1 || signature.returnType === undefined) {
+    return false;
+  }
+  const parameterType = tryDotnetTypeRefToProviderType(signature.parameters[0]!.type);
+  return parameterType !== undefined && isProviderNumberIndexType(parameterType);
+}
+
+function isProviderNumberIndexType(type: ReturnType<typeof tryDotnetTypeRefToProviderType>): boolean {
+  if (type === undefined) {
+    return false;
+  }
+  return type.kind === "number" || (type.kind === "source-primitive" && isNumericSourcePrimitive(type.name));
+}
+
+function isNumericSourcePrimitive(name: string): boolean {
+  switch (name) {
+    case "int8":
+    case "uint8":
+    case "int16":
+    case "uint16":
+    case "int32":
+    case "uint32":
+    case "int64":
+    case "uint64":
+    case "nativeint":
+    case "nativeuint":
+    case "float32":
+    case "float64":
+    case "decimal":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function dotnetSignatureToProviderSignature(
@@ -212,7 +258,15 @@ function dotnetParameterToProviderParameter(parameter: DotnetParameterDeclaratio
 }
 
 function dotnetTypeParameterToProviderTypeParameterStrict(typeParameter: DotnetTypeParameterDeclaration): ProviderTypeParameterDeclaration {
-  return dotnetTypeParameterToProviderTypeParameter(typeParameter);
+  return dotnetTypeParameterToProviderSourceTypeParameter(typeParameter);
+}
+
+function dotnetTypeParameterToProviderSourceTypeParameter(typeParameter: DotnetTypeParameterDeclaration): ProviderTypeParameterDeclaration {
+  const providerParameter = dotnetTypeParameterToProviderTypeParameter(typeParameter);
+  return {
+    name: providerParameter.name,
+    ...(providerParameter.variance !== undefined ? { variance: providerParameter.variance } : {}),
+  };
 }
 
 function dotnetTypeKindToProviderKind(kind: DotnetTypeDeclaration["typeKind"]): ProviderExportDeclaration["kind"] {

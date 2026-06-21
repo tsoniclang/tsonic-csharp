@@ -3,7 +3,6 @@ import type {
   ProviderTypeExpression,
 } from "@tsonic/tsts";
 import type {
-  DotnetConstraint,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
 } from "./model-types.js";
@@ -39,6 +38,7 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
       return {
         kind: "provider-ref",
         name: type.name,
+        ...(type.moduleSpecifier !== undefined ? { moduleSpecifier: type.moduleSpecifier } : {}),
         ...(typeArguments.length > 0 ? { typeArguments } : {}),
       };
     }
@@ -107,28 +107,10 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
 }
 
 export function dotnetTypeParameterToProviderTypeParameter(typeParameter: DotnetTypeParameterDeclaration) {
-  const providerConstraints = (typeParameter.constraints ?? []).flatMap(dotnetConstraintToProviderConstraints);
   return {
     name: typeParameter.name,
-    ...(providerConstraints.length > 0 ? { constraints: providerConstraints } : {}),
     ...(typeParameter.variance !== undefined ? { variance: typeParameter.variance } : {}),
   };
-}
-
-function dotnetConstraintToProviderConstraints(constraint: DotnetConstraint): readonly ProviderTypeExpression[] {
-  switch (constraint.kind) {
-    case "implements":
-      return optionalProviderTypeToArray(tryDotnetTypeRefToProviderType(constraint.contract));
-    case "value-type":
-    case "reference-type":
-    case "constructible":
-    case "unmanaged":
-    case "not-null":
-    case "target-specific":
-      return [];
-    default:
-      return [];
-  }
 }
 
 function unsupportedDotnetProviderType(kind: DotnetTypeRef["kind"]): Error {
@@ -157,8 +139,4 @@ function mapDotnetProviderTypes(types: readonly DotnetTypeRef[] | undefined): re
   return mapped.some((type) => type === undefined)
     ? undefined
     : mapped as readonly ProviderTypeExpression[];
-}
-
-function optionalProviderTypeToArray(type: ProviderTypeExpression | undefined): readonly ProviderTypeExpression[] {
-  return type === undefined ? [] : [type];
 }

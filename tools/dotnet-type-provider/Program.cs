@@ -5,22 +5,24 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var request = Request.Parse(args);
-if (request.NamespaceName.Length == 0 || request.ModuleSpecifier.Length == 0)
+if ((!request.AllModules && (request.NamespaceName.Length == 0 || request.ModuleSpecifier.Length == 0)) ||
+    (request.AllModules && request.ModuleSpecifierPrefix.Length == 0))
 {
     Console.Error.WriteLine("Usage: dotnet-type-provider --namespace <namespace> --module-specifier <specifier> [--reference-dir <dir>] [--reference <assembly>]");
+    Console.Error.WriteLine("   or: dotnet-type-provider --all-modules --module-specifier-prefix <prefix> [--reference-dir <dir>] [--reference <assembly>]");
     return 2;
 }
 
 try
 {
     var provider = new ReflectionProvider(request);
-    var module = provider.GetModule();
+    var output = request.AllModules ? provider.GetModules() : provider.GetModule();
     var options = new JsonSerializerOptions
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = false,
     };
-    Console.WriteLine(JsonSerializer.Serialize(module, options));
+    Console.WriteLine(JsonSerializer.Serialize(output, options));
     return 0;
 }
 catch (Exception exception)
@@ -29,12 +31,14 @@ catch (Exception exception)
     return 1;
 }
 
-sealed record Request(string NamespaceName, string ModuleSpecifier, string? ReferenceDirectory, IReadOnlyList<string> References)
+sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, bool AllModules, string? ReferenceDirectory, IReadOnlyList<string> References)
 {
     public static Request Parse(string[] args)
     {
         var namespaceName = "";
         var moduleSpecifier = "";
+        var moduleSpecifierPrefix = "";
+        var allModules = false;
         string? referenceDirectory = null;
         var references = new List<string>();
         for (var index = 0; index < args.Length; index++)
@@ -48,6 +52,12 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string? Refe
                 case "--module-specifier":
                     moduleSpecifier = RequiredValue(args, ref index, arg);
                     break;
+                case "--module-specifier-prefix":
+                    moduleSpecifierPrefix = RequiredValue(args, ref index, arg);
+                    break;
+                case "--all-modules":
+                    allModules = true;
+                    break;
                 case "--reference-dir":
                     referenceDirectory = RequiredValue(args, ref index, arg);
                     break;
@@ -58,7 +68,7 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string? Refe
                     throw new InvalidOperationException($"Unknown argument '{arg}'.");
             }
         }
-        return new Request(namespaceName, moduleSpecifier, referenceDirectory, references);
+        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, allModules, referenceDirectory, references);
     }
 
     static string RequiredValue(string[] args, ref int index, string name)
@@ -72,26 +82,63 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string? Refe
     }
 }
 
+sealed record SourceReference(string Name, string ModuleSpecifier);
+
 sealed class ReflectionProvider
 {
     readonly Request request;
     readonly ConcurrentDictionary<string, Assembly> assembliesByPath = new(StringComparer.Ordinal);
-    HashSet<string> providerReferenceNames = new(StringComparer.Ordinal);
+    Dictionary<string, SourceReference> providerSourceReferencesByMetadataName = new(StringComparer.Ordinal);
+    string moduleSpecifierPrefix = "";
+    string activeNamespaceName;
+    string activeModuleSpecifier;
 
     public ReflectionProvider(Request request)
     {
         this.request = request;
+        activeNamespaceName = request.NamespaceName;
+        activeModuleSpecifier = request.ModuleSpecifier;
     }
 
     public object GetModule()
     {
-        var allTypes = LoadTypes()
-            .Where(type => type.Namespace == request.NamespaceName)
+        var loadedTypes = LoadPublicTypes();
+        moduleSpecifierPrefix = GetModuleSpecifierPrefix();
+        providerSourceReferencesByMetadataName = SourceReferencesByMetadataName(loadedTypes);
+        return BuildModule(loadedTypes, activeNamespaceName, activeModuleSpecifier);
+    }
+
+    public object GetModules()
+    {
+        var loadedTypes = LoadPublicTypes();
+        moduleSpecifierPrefix = request.ModuleSpecifierPrefix;
+        providerSourceReferencesByMetadataName = SourceReferencesByMetadataName(loadedTypes);
+        return loadedTypes
+            .Where(type => type.Namespace is not null)
+            .Select(type => type.Namespace!)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(namespaceName => namespaceName, StringComparer.Ordinal)
+            .Select(namespaceName => BuildModule(loadedTypes, namespaceName, ModuleSpecifierForNamespace(namespaceName)))
+            .ToArray();
+    }
+
+    Type[] LoadPublicTypes()
+    {
+        return LoadTypes()
             .Where(type => type.IsPublic || type.IsNestedPublic)
             .Where(type => !type.IsSpecialName)
             .GroupBy(MetadataName, StringComparer.Ordinal)
             .Select(group => group.First())
             .OrderBy(type => MetadataName(type), StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    object BuildModule(Type[] loadedTypes, string namespaceName, string moduleSpecifier)
+    {
+        activeNamespaceName = namespaceName;
+        activeModuleSpecifier = moduleSpecifier;
+        var allTypes = loadedTypes
+            .Where(type => type.Namespace == activeNamespaceName)
             .ToArray();
         var sourceGroups = allTypes
             .Where(type => !type.IsNested)
@@ -115,8 +162,6 @@ sealed class ReflectionProvider
             .Cast<object>()
             .ToArray();
 
-        providerReferenceNames = exportTypes.Select(SourceTypeName).ToHashSet(StringComparer.Ordinal);
-
         var exports = exportTypes
             .Select(ToTypeExport)
             .Where(export => export is not null)
@@ -125,8 +170,8 @@ sealed class ReflectionProvider
 
         return new
         {
-            moduleSpecifier = request.ModuleSpecifier,
-            namespaceName = request.NamespaceName,
+            moduleSpecifier = activeModuleSpecifier,
+            namespaceName = activeNamespaceName,
             exports,
             targetOnlyTypes = targetOnlyTypes.Length == 0 ? null : targetOnlyTypes,
             unsupportedExports = unsupportedExports.Length == 0 ? null : unsupportedExports,
@@ -222,6 +267,7 @@ sealed class ReflectionProvider
     {
         var typeParameters = TypeParameters(type);
         var members = Members(type).ToArray();
+        var baseType = BaseType(type);
         var implementedContracts = ImplementedContracts(type);
         var sourceShape = ExportSourceShape(type);
         if (IsDelegate(type) && sourceShape is null)
@@ -233,14 +279,24 @@ sealed class ReflectionProvider
             kind = "type",
             typeKind = TypeKind(type),
             sourceName = SourceTypeName(type),
-            namespaceName = request.NamespaceName,
+            namespaceName = activeNamespaceName,
             metadataName = MetadataName(type),
             displayName = DisplayName(type),
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
+            baseType,
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,
             sourceShape,
             members = members.Length == 0 ? null : members,
         };
+    }
+
+    object? BaseType(Type type)
+    {
+        if (!type.IsClass || IsDelegate(type) || type.BaseType is null || type.BaseType == typeof(object))
+        {
+            return null;
+        }
+        return TypeRef(type.BaseType);
     }
 
     static object ToUnsupportedTypeFamilyExport(IGrouping<string, Type> group)
@@ -644,7 +700,8 @@ sealed class ReflectionProvider
             var element = SourceShape(enumerableElement);
             return element is null ? null : new { kind = "array", elementType = element };
         }
-        if (type.Namespace == request.NamespaceName && providerReferenceNames.Contains(SourceTypeName(type.IsGenericType ? type.GetGenericTypeDefinition() : type)))
+        var referenceDefinition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+        if (providerSourceReferencesByMetadataName.TryGetValue(MetadataName(referenceDefinition), out var sourceReference))
         {
             var args = type.IsGenericType
                 ? type.GetGenericArguments().Select(SourceShape).ToArray()
@@ -656,11 +713,68 @@ sealed class ReflectionProvider
             return new
             {
                 kind = "provider-ref",
-                name = SourceTypeName(type.IsGenericType ? type.GetGenericTypeDefinition() : type),
+                name = sourceReference.Name,
+                moduleSpecifier = sourceReference.ModuleSpecifier == activeModuleSpecifier ? null : sourceReference.ModuleSpecifier,
                 typeArguments = args.Length == 0 ? null : args,
             };
         }
         return null;
+    }
+
+    Dictionary<string, SourceReference> SourceReferencesByMetadataName(IEnumerable<Type> loadedTypes)
+    {
+        var candidates = loadedTypes
+            .Where(type => !type.IsNested)
+            .Where(type => type.Namespace is not null)
+            .GroupBy(type => $"{type.Namespace}\0{SourceTypeName(type)}", StringComparer.Ordinal)
+            .Where(group => group.Count() == 1)
+            .Select(group => group.First())
+            .ToArray();
+        var references = candidates
+            .Where(type => !IsDelegate(type))
+            .ToDictionary(
+                type => MetadataName(type),
+                ToSourceReference,
+                StringComparer.Ordinal);
+        providerSourceReferencesByMetadataName = references;
+
+        var pendingDelegates = candidates.Where(IsDelegate).ToList();
+        var added = true;
+        while (added)
+        {
+            added = false;
+            foreach (var type in pendingDelegates.ToArray())
+            {
+                if (DelegateSourceShape(type) is null)
+                {
+                    continue;
+                }
+                references[MetadataName(type)] = ToSourceReference(type);
+                pendingDelegates.Remove(type);
+                added = true;
+            }
+        }
+        return references;
+    }
+
+    SourceReference ToSourceReference(Type type)
+    {
+        return new SourceReference(SourceTypeName(type), ModuleSpecifierForNamespace(type.Namespace!));
+    }
+
+    string ModuleSpecifierForNamespace(string namespaceName)
+    {
+        return $"{moduleSpecifierPrefix}{namespaceName}.js";
+    }
+
+    string GetModuleSpecifierPrefix()
+    {
+        var suffix = $"{activeNamespaceName}.js";
+        if (!activeModuleSpecifier.EndsWith(suffix, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Module specifier '{activeModuleSpecifier}' does not end with namespace suffix '{suffix}'.");
+        }
+        return activeModuleSpecifier[..^suffix.Length];
     }
 
     object? ExportSourceShape(Type type)
