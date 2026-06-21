@@ -29,22 +29,29 @@ export interface CsharpTargetTypeParameterConstraintFact {
   readonly constraints: readonly TargetConstraint[];
 }
 
-export const CsharpTargetIterationOperation = {
-  foreachStatement: "foreach-statement",
-  jsStringCodePoints: "js-string-code-points",
-  jsObjectShapeKeys: "js-object-shape-keys",
-  jsIndexKeys: "js-index-keys",
-} as const;
-
-export type CsharpTargetIterationOperation = typeof CsharpTargetIterationOperation[keyof typeof CsharpTargetIterationOperation];
-
 export interface CsharpTargetIterationFact {
   readonly operationId: string;
   readonly iterationKind: "sync" | "async" | "property-key";
-  readonly targetOperation: CsharpTargetIterationOperation;
+  readonly lowering: CsharpTargetIterationLowering;
   readonly elementType?: ExtensionFactSubject;
   readonly evidence?: readonly ExtensionEvidence[];
 }
+
+export type CsharpTargetIterationLowering =
+  | { readonly kind: "foreach" }
+  | {
+      readonly kind: "string-code-point";
+      readonly lengthMember: string;
+      readonly substringMember: string;
+      readonly highSurrogateOperation: CsharpTargetMemberOperationFact;
+      readonly lowSurrogateOperation: CsharpTargetMemberOperationFact;
+    }
+  | {
+      readonly kind: "index-key";
+      readonly lengthMember: string;
+      readonly keyConversion: "invariant-string";
+    }
+  | { readonly kind: "object-shape-keys" };
 
 export interface CsharpRegularExpressionLiteralFact {
   readonly pattern: string;
@@ -125,7 +132,7 @@ export const csharpTargetIterationFactKey = defineExtensionFactKey<CsharpTargetI
   equals: (left, right) =>
     left.operationId === right.operationId
     && left.iterationKind === right.iterationKind
-    && left.targetOperation === right.targetOperation
+    && csharpTargetIterationLoweringEquals(left.lowering, right.lowering)
     && left.elementType === right.elementType,
 });
 
@@ -147,13 +154,7 @@ function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right:
   }
   switch (left.kind) {
     case "member":
-      return right.kind === "member"
-        && left.operationKind === right.operationKind
-        && left.memberName === right.memberName
-        && left.static === right.static
-        && targetTypeRefEquals(left.declaringType, right.declaringType)
-        && targetTypeRefEquals(left.resultType, right.resultType)
-        && csharpTargetOperationArgumentArrayEquals(left.argumentProjection, right.argumentProjection);
+      return right.kind === "member" && csharpTargetMemberOperationFactEquals(left, right);
     case "intrinsic-operator":
       return right.kind === "intrinsic-operator"
         && left.operator === right.operator
@@ -194,6 +195,38 @@ function csharpTargetOperationArgumentArrayEquals(left: readonly CsharpTargetOpe
         return other.kind === "literal" && Object.is(argument.value, other.value);
     }
   });
+}
+
+function csharpTargetIterationLoweringEquals(left: CsharpTargetIterationLowering, right: CsharpTargetIterationLowering): boolean {
+  if (left.kind !== right.kind) {
+    return false;
+  }
+  switch (left.kind) {
+    case "foreach":
+    case "object-shape-keys":
+      return true;
+    case "string-code-point":
+      return right.kind === "string-code-point"
+        && left.lengthMember === right.lengthMember
+        && left.substringMember === right.substringMember
+        && csharpTargetMemberOperationFactEquals(left.highSurrogateOperation, right.highSurrogateOperation)
+        && csharpTargetMemberOperationFactEquals(left.lowSurrogateOperation, right.lowSurrogateOperation);
+    case "index-key":
+      return right.kind === "index-key"
+        && left.lengthMember === right.lengthMember
+        && left.keyConversion === right.keyConversion;
+  }
+}
+
+function csharpTargetMemberOperationFactEquals(left: CsharpTargetMemberOperationFact, right: CsharpTargetMemberOperationFact): boolean {
+  return left.kind === right.kind
+    && left.operationId === right.operationId
+    && left.operationKind === right.operationKind
+    && left.memberName === right.memberName
+    && left.static === right.static
+    && targetTypeRefEquals(left.declaringType, right.declaringType)
+    && targetTypeRefEquals(left.resultType, right.resultType)
+    && csharpTargetOperationArgumentArrayEquals(left.argumentProjection, right.argumentProjection);
 }
 
 function objectShapeMemberArrayEquals(left: readonly CsharpObjectShapeMemberFact[] | undefined, right: readonly CsharpObjectShapeMemberFact[] | undefined): boolean {

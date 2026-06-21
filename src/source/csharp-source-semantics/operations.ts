@@ -14,6 +14,7 @@ import {
 } from "../csharp-facts.js";
 import type {
   CsharpTargetOperationArgument,
+  CsharpTargetMemberOperationFact,
   CsharpTargetOperationFact,
   CsharpTypeofRuntimeKind,
   CsharpTargetOperatorOperation,
@@ -41,7 +42,7 @@ export function targetOperationFromMember(member: TargetMember): CheckedOperatio
   };
 }
 
-export function csharpTargetOperationFromMember(member: TargetMember): CsharpTargetOperationFact {
+export function csharpTargetOperationFromMember(member: TargetMember): CsharpTargetMemberOperationFact {
   return {
     kind: "member",
     operationId: member.id,
@@ -63,7 +64,7 @@ export function csharpTargetMemberOperation(
     readonly resultType?: TargetTypeRef;
     readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
   } = {},
-): CsharpTargetOperationFact {
+): CsharpTargetMemberOperationFact {
   return {
     kind: "member",
     operationId,

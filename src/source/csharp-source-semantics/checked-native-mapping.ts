@@ -14,7 +14,7 @@ import type {
   ParameterPassingRequest,
   ParameterPassingResult,
 } from "@tsonic/tsts";
-import { CsharpTargetIterationOperation, csharpTargetIterationFactKey } from "../csharp-facts.js";
+import { csharpTargetIterationFactKey } from "../csharp-facts.js";
 import type { CsharpTargetIterationFact } from "../csharp-facts.js";
 import {
   csharpTargetId,
@@ -53,12 +53,12 @@ export function mapCsharpNativeCheckedIteration(
       const fact = {
         operationId: "tsonic.csharp.array.foreach",
         iterationKind: "sync",
-        targetOperation: CsharpTargetIterationOperation.foreachStatement,
+        lowering: { kind: "foreach" },
         elementType: expressionType.element,
       } satisfies CsharpTargetIterationFact;
       context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# array for-of maps to foreach." }]);
       return acceptObservation<CheckedOperationMappingResult>({
-        operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
+        operation: targetOperation(fact.operationId, "iteration", fact.lowering.kind),
       }, [{ message: "C# array iteration fact recorded after TSTS accepted for-of." }]);
     }
     return deferObservation;

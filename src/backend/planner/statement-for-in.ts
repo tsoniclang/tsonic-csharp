@@ -13,7 +13,7 @@ import {
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { planExpression } from "./expressions.js";
-import { CsharpTargetIterationOperation, csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
+import { csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
@@ -46,11 +46,11 @@ export function planForInStatement(
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires finalized TSTS/provider enumeration facts before C# emission."));
     return [];
   }
-  if (selectedIteration.iterationKind === "property-key" && selectedIteration.targetOperation === CsharpTargetIterationOperation.jsObjectShapeKeys) {
+  if (selectedIteration.iterationKind === "property-key" && selectedIteration.lowering.kind === "object-shape-keys") {
     return planObjectShapeForInStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
-  if (selectedIteration.iterationKind !== "property-key" || selectedIteration.targetOperation !== CsharpTargetIterationOperation.jsIndexKeys) {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-in emission does not support target iteration operation '${selectedIteration.targetOperation}' with kind '${selectedIteration.iterationKind}'.`));
+  if (selectedIteration.iterationKind !== "property-key" || selectedIteration.lowering.kind !== "index-key") {
+    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-in emission does not support provider iteration lowering '${selectedIteration.lowering.kind}' with kind '${selectedIteration.iterationKind}'.`));
     return [];
   }
   const keyType = getForInKeyType(selectedIteration, statementNode, diagnostics);
@@ -94,7 +94,7 @@ export function planForInStatement(
       right: {
         kind: "SimpleMemberAccessExpression",
         receiver: { kind: "IdentifierName", name: collectionName },
-        name: "Length",
+        name: selectedIteration.lowering.lengthMember,
       },
     },
     incrementor: {
@@ -105,7 +105,7 @@ export function planForInStatement(
     body: {
       kind: "Block",
       statements: [
-        planForInKeyBindingStatement(binding, keyType, indexName),
+        planForInKeyBindingStatement(binding, keyType, indexName, selectedIteration),
         ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
       ],
     },

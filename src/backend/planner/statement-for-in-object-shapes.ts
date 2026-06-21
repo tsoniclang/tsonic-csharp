@@ -55,6 +55,10 @@ export function planObjectShapeForInStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
+  if (selectedIteration.lowering.kind !== "object-shape-keys") {
+    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `Object-shape for-in received provider lowering '${selectedIteration.lowering.kind}'.`));
+    return [];
+  }
   const keyType = getForInKeyType(selectedIteration, statementNode, diagnostics);
   if (keyType === undefined) {
     return [];

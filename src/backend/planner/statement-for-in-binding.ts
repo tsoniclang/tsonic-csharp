@@ -133,8 +133,9 @@ export function planForInKeyBindingStatement(
   binding: PlannedForInBinding,
   keyType: ReturnType<typeof getCsharpTypeForNode>,
   indexName: string,
+  selectedIteration: CsharpTargetIterationFact,
 ): CsharpStatement {
-  return planForInKeyBindingStatementFromExpression(binding, keyType, forInKeyExpression(indexName));
+  return planForInKeyBindingStatementFromExpression(binding, keyType, forInKeyExpression(indexName, selectedIteration));
 }
 
 export function planForInKeyBindingStatementFromExpression(
@@ -158,7 +159,13 @@ export function planForInKeyBindingStatementFromExpression(
   });
 }
 
-function forInKeyExpression(indexName: string): CsharpExpression {
+function forInKeyExpression(indexName: string, selectedIteration: CsharpTargetIterationFact): CsharpExpression {
+  if (selectedIteration.lowering.kind !== "index-key" || selectedIteration.lowering.keyConversion !== "invariant-string") {
+    return {
+      kind: "InvalidExpression",
+      reason: "unsupported for-in key conversion",
+    };
+  }
   return {
     kind: "InvocationExpression",
     callee: {

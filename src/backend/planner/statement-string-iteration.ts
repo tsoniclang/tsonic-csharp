@@ -31,12 +31,21 @@ import {
   add,
   and,
   assign,
-  callStatic,
   element,
   lessThan,
   literalNumber,
   member,
 } from "./csharp-expression-builders.js";
+import {
+  csharpStaticMemberExpression,
+} from "./csharp-target-operations.js";
+import {
+  invalidExpression,
+} from "./invalid-expression.js";
+import type {
+  CsharpTargetIterationFact,
+  CsharpTargetMemberOperationFact,
+} from "../../source/csharp-facts.js";
 
 export interface PlannedStringForOfBinding extends CsharpLocalDeclaration {
   readonly prelude: readonly CsharpStatement[];
@@ -46,6 +55,7 @@ export function planStringCodePointForOfStatement(
   statementNode: Node,
   statement: NonNullable<ReturnType<typeof AsForInOrOfStatement>>,
   binding: PlannedStringForOfBinding,
+  selectedIteration: CsharpTargetIterationFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -53,6 +63,10 @@ export function planStringCodePointForOfStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const stringType = predefined("string");
+  if (selectedIteration.lowering.kind !== "string-code-point") {
+    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `String code-point for-of received provider lowering '${selectedIteration.lowering.kind}'.`));
+    return [];
+  }
   if (!sameCsharpType(binding.type, stringType)) {
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, "String for-of binding must have the finalized provider element type string."));
     return [];
@@ -94,7 +108,7 @@ export function planStringCodePointForOfStatement(
               initializer: { kind: "LiteralExpression", value: 0 },
             }],
           },
-          condition: lessThan(indexIdentifier, member(collectionIdentifier, "Length")),
+          condition: lessThan(indexIdentifier, member(collectionIdentifier, selectedIteration.lowering.lengthMember)),
           body: {
             kind: "Block",
             statements: [
@@ -105,18 +119,18 @@ export function planStringCodePointForOfStatement(
               },
               {
                 kind: "IfStatement",
-                condition: stringHasSurrogatePairAt(collectionIdentifier, indexIdentifier),
+                condition: stringHasSurrogatePairAt(collectionIdentifier, indexIdentifier, selectedIteration, diagnostics, statementNode),
                 thenBody: {
                   kind: "Block",
                   statements: [
-                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, 2)),
+                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, selectedIteration.lowering.substringMember, 2)),
                     assign(indexIdentifier, add(indexIdentifier, literalNumber(2))),
                   ],
                 },
                 elseBody: {
                   kind: "Block",
                   statements: [
-                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, 1)),
+                    assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, selectedIteration.lowering.substringMember, 1)),
                     {
                       kind: "ExpressionStatement",
                       expression: {
@@ -138,20 +152,47 @@ export function planStringCodePointForOfStatement(
   }];
 }
 
-function stringHasSurrogatePairAt(collection: CsharpExpression, index: CsharpExpression): CsharpExpression {
+function stringHasSurrogatePairAt(
+  collection: CsharpExpression,
+  index: CsharpExpression,
+  selectedIteration: CsharpTargetIterationFact,
+  diagnostics: TargetDiagnostic[],
+  diagnosticNode: Node,
+): CsharpExpression {
+  if (selectedIteration.lowering.kind !== "string-code-point") {
+    return invalidExpression("string code-point iteration lowering");
+  }
   return and(
-    lessThan(add(index, literalNumber(1)), member(collection, "Length")),
+    lessThan(add(index, literalNumber(1)), member(collection, selectedIteration.lowering.lengthMember)),
     and(
-      callStatic(predefined("char"), "IsHighSurrogate", [element(collection, index)]),
-      callStatic(predefined("char"), "IsLowSurrogate", [element(collection, add(index, literalNumber(1)))]),
+      callSurrogateOperation(selectedIteration.lowering.highSurrogateOperation, element(collection, index), diagnostics, diagnosticNode),
+      callSurrogateOperation(selectedIteration.lowering.lowSurrogateOperation, element(collection, add(index, literalNumber(1))), diagnostics, diagnosticNode),
     ),
   );
 }
 
-function substring(collection: CsharpExpression, start: CsharpExpression, length: number): CsharpExpression {
+function callSurrogateOperation(
+  operation: CsharpTargetMemberOperationFact,
+  argument: CsharpExpression,
+  diagnostics: TargetDiagnostic[],
+  diagnosticNode: Node,
+): CsharpExpression {
+  const callee = csharpStaticMemberExpression(operation, diagnostics, diagnosticNode, "String code-point surrogate test");
+  if (callee === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "String code-point surrogate test requires a static C# member operation fact."));
+    return invalidExpression("string surrogate test");
+  }
   return {
     kind: "InvocationExpression",
-    callee: member(collection, "Substring"),
+    callee,
+    arguments: [{ kind: "Argument", expression: argument }],
+  };
+}
+
+function substring(collection: CsharpExpression, start: CsharpExpression, memberName: string, length: number): CsharpExpression {
+  return {
+    kind: "InvocationExpression",
+    callee: member(collection, memberName),
     arguments: [
       { kind: "Argument", expression: start },
       { kind: "Argument", expression: literalNumber(length) },
