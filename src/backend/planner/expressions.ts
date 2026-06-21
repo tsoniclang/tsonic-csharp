@@ -262,7 +262,10 @@ function planExpressionCore(
       }
       const member = selectedTargetCall === undefined
         ? undefined
-        : instantiateSelectedTargetMember(node, expression.Expression, selectedTargetCall, sourceFile, input);
+        : instantiateSelectedTargetMember(node, selectedTargetCall, diagnostics);
+      if (selectedTargetCall !== undefined && member === undefined) {
+        return invalidExpression("selected target constructor type arguments");
+      }
       const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
       const selectedConstructorTypeRef = member?.returnType ??
         member?.declaringType ??
@@ -605,7 +608,10 @@ function planCallExpression(
   const expression = AsCallExpression(node)!;
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
   if (selectedTargetCall !== undefined) {
-    const member = instantiateSelectedTargetMember(node, expression.Expression, selectedTargetCall, sourceFile, input);
+    const member = instantiateSelectedTargetMember(node, selectedTargetCall, diagnostics);
+    if (member === undefined) {
+      return invalidExpression("selected target call type arguments");
+    }
     return {
       kind: "InvocationExpression",
       callee: planSelectedTargetCallee(expression.Expression, member, sourceFile, input, diagnostics),

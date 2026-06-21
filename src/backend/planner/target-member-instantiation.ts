@@ -1,111 +1,49 @@
-import {
-  AsNewExpression,
-  AsPropertyAccessExpression,
-  HasSourceKind,
-  KindNewExpression,
-  KindPropertyAccessExpression,
-} from "./source-ast.js";
 import type {
   Node,
   SelectedTargetSignatureFact,
-  SourceFile,
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import type { TargetCompileInput } from "@tsonic/target-api";
-import { getTargetTypeRefForNode } from "./runtime-carriers.js";
+import type { TargetDiagnostic } from "@tsonic/target-api";
+import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 
 export function instantiateSelectedTargetMember(
   operationNode: Node,
-  callee: Node | undefined,
   selectedSignature: SelectedTargetSignatureFact,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): TargetMember {
+  diagnostics: TargetDiagnostic[],
+): TargetMember | undefined {
   const member = selectedSignature.member;
-  const explicitTypeArgumentMap = getExplicitSelectedTargetTypeArgumentMap(member, operationNode, sourceFile, input);
-  if (explicitTypeArgumentMap.size > 0) {
-    return substituteTargetMemberTypeParameters(member, explicitTypeArgumentMap);
+  const selectedTypeArgumentMap = getSelectedTargetTypeArgumentMap(member, selectedSignature.targetTypeArguments ?? []);
+  const instantiated = selectedTypeArgumentMap.size > 0
+    ? substituteTargetMemberTypeParameters(member, selectedTypeArgumentMap)
+    : member;
+  const unresolved = collectTargetTypeParameterNamesFromMember(instantiated);
+  if (unresolved.length > 0) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      operationNode,
+      `Selected target member '${member.id}' requires finalized target type arguments for ${unresolved.join(", ")} before C# emission.`,
+    ));
+    return undefined;
   }
-  const propertyAccess = HasSourceKind(input.ast, callee, KindPropertyAccessExpression)
-    ? AsPropertyAccessExpression(callee)
-    : undefined;
-  const typeSubject = propertyAccess?.Expression ?? operationNode;
-  const bindingSubject = propertyAccess?.Expression ?? callee ?? operationNode;
-  const carrier = getTargetTypeRefForNode(input, typeSubject, sourceFile);
-  const binding = input.semantics.getTargetBindingForReference(bindingSubject, { sourceFile });
-  const selectedTypeArgumentMap = getSelectedTargetTypeArgumentMap(member, binding?.typeParameters ?? [], selectedSignature.targetTypeArguments ?? []);
-  if (selectedTypeArgumentMap.size > 0) {
-    return substituteTargetMemberTypeParameters(member, selectedTypeArgumentMap);
-  }
-  if (carrier?.kind !== "target-named" || (carrier.typeArguments ?? []).length === 0) {
-    return member;
-  }
-  const typeParameters = member.typeParameters ?? binding?.typeParameters ?? [];
-  if (typeParameters.length === 0) {
-    return member;
-  }
-  const typeArgumentMap = new Map<string, TargetTypeRef>();
-  for (let index = 0; index < typeParameters.length; index += 1) {
-    const parameter = typeParameters[index];
-    const argument = carrier.typeArguments?.[index];
-    if (parameter !== undefined && argument !== undefined) {
-      typeArgumentMap.set(parameter.name, argument);
-    }
-  }
-  if (typeArgumentMap.size === 0) {
-    return member;
-  }
-  return substituteTargetMemberTypeParameters(member, typeArgumentMap);
+  return instantiated;
 }
 
 function getSelectedTargetTypeArgumentMap(
   member: TargetMember,
-  bindingTypeParameters: readonly { readonly name: string }[],
   targetTypeArguments: readonly TargetTypeRef[],
 ): ReadonlyMap<string, TargetTypeRef> {
   if (targetTypeArguments.length === 0) {
     return new Map();
   }
-  const typeParameters = getTargetMemberTypeParameters(member, bindingTypeParameters);
+  const typeParameters = getTargetMemberTypeParameters(member);
   return typeParameters.length === 0 ? new Map() : buildTargetTypeArgumentMap(typeParameters, targetTypeArguments);
-}
-
-function getExplicitSelectedTargetTypeArgumentMap(
-  member: TargetMember,
-  operationNode: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): ReadonlyMap<string, TargetTypeRef> {
-  const newExpression = HasSourceKind(input.ast, operationNode, KindNewExpression)
-    ? AsNewExpression(operationNode)
-    : undefined;
-  if (newExpression?.Expression === undefined) {
-    return new Map();
-  }
-  const binding = input.semantics.getTargetBindingForReference(newExpression.Expression, { sourceFile });
-  const typeParameters = getTargetMemberTypeParameters(member, binding?.typeParameters ?? []);
-  if (typeParameters.length === 0) {
-    return new Map();
-  }
-  const typeArguments = input.ast.typeArguments(newExpression)
-    .filter((argument): argument is Node => argument !== undefined)
-    .map((argument) => getTargetTypeRefForNode(input, argument, sourceFile));
-  if (typeArguments.length === 0 || typeArguments.some((argument) => argument === undefined)) {
-    return new Map();
-  }
-  return buildTargetTypeArgumentMap(typeParameters, typeArguments as readonly TargetTypeRef[]);
 }
 
 function getTargetMemberTypeParameters(
   member: TargetMember,
-  bindingTypeParameters: readonly { readonly name: string }[],
 ): readonly { readonly name: string }[] {
   if (member.typeParameters !== undefined && member.typeParameters.length > 0) {
     return member.typeParameters;
-  }
-  if (bindingTypeParameters.length > 0) {
-    return bindingTypeParameters;
   }
   return collectTargetTypeParameterNamesFromMember(member).map((name) => ({ name }));
 }
