@@ -64,6 +64,7 @@ export function planSourceFile(
   }
   beginObjectShapePlanning(input);
   const moduleClassName = sourceFileClassName(input, fileName);
+  const executableTopLevelSourceFile = hasExecutableTopLevelStatement(sourceFile, input);
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
   const topLevelStatements: CsharpStatement[] = [];
@@ -100,7 +101,7 @@ export function planSourceFile(
         namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));
         break;
       case KindVariableStatement:
-        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements, topLevelState);
+        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements, topLevelState, executableTopLevelSourceFile);
         break;
       case KindExpressionStatement:
       case KindIfStatement:
@@ -159,6 +160,28 @@ export function planSourceFile(
     unit: requiresUnsafe ? markCompilationUnitUnsafe(unit) : unit,
     requiresUnsafe,
   };
+}
+
+function hasExecutableTopLevelStatement(sourceFile: SourceFile, input: TargetCompileInput): boolean {
+  for (const statement of sourceFile.Statements?.Nodes ?? []) {
+    if (statement === undefined || isErasedAttributeExpressionStatement(statement, input)) {
+      continue;
+    }
+    switch (input.ast.kindName(statement)) {
+      case KindImportDeclaration:
+      case KindTypeAliasDeclaration:
+      case KindExportDeclaration:
+      case KindInterfaceDeclaration:
+      case KindEnumDeclaration:
+      case KindFunctionDeclaration:
+      case KindClassDeclaration:
+      case KindVariableStatement:
+        continue;
+      default:
+        return true;
+    }
+  }
+  return false;
 }
 
 function planExportAssignment(
