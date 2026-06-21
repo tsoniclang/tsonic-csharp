@@ -76,7 +76,7 @@ import { isErasedAttributeExpressionStatement } from "./attributes.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
-import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
+import { getRuntimeCarrierForExpression, getTargetTypeRefForType } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
@@ -741,10 +741,14 @@ function getSourceOwnedForOfIterationFact(
   if (type === undefined || input.types.isStringLike(type) || !input.types.isArrayLike(type, { sourceFile })) {
     return undefined;
   }
+  const elementType = input.types.isTypeReference(type)
+    ? getTargetTypeRefForType(input, input.types.getTypeArguments(type, { sourceFile })[0], sourceFile)
+    : undefined;
   return {
     operationId: "source.array.foreach",
     iterationKind: "sync",
     targetOperation: "ForEachStatement",
+    ...(elementType === undefined ? {} : { elementType }),
   };
 }
 
@@ -1023,8 +1027,16 @@ function planForOfBinding(
         ),
       };
     }
+    const planned = planLocalDeclaration(first, sourceFile, input, diagnostics);
+    const inferredItemType = variable.Type === undefined
+      ? getForOfElementType(selectedIteration, first, diagnostics)
+      : undefined;
+    if (variable.Type === undefined && inferredItemType === undefined) {
+      return undefined;
+    }
     return {
-      ...planLocalDeclaration(first, sourceFile, input, diagnostics),
+      ...planned,
+      ...(inferredItemType === undefined ? {} : { type: inferredItemType }),
       prelude: [],
     };
   }
@@ -1315,8 +1327,8 @@ function planCatchClause(
         },
       };
     }
-    const carrier = input.facts.getRuntimeCarrierFact(variable.name ?? clause.VariableDeclaration)?.carrier ??
-      input.facts.getRuntimeCarrierFact(clause.VariableDeclaration)?.carrier;
+    const carrier = getRuntimeCarrierForExpression(input, variable.name ?? clause.VariableDeclaration, sourceFile) ??
+      getRuntimeCarrierForExpression(input, clause.VariableDeclaration, sourceFile);
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
     if (!isCsharpExceptionCarrier(carrier) || variableType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission."));

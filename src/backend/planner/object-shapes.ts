@@ -63,7 +63,19 @@ function registerObjectShapeDeclaration(
   diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
 ): void {
   const registry = registries.get(input);
-  if (registry === undefined || registry.declarations.has(name)) {
+  if (registry === undefined) {
+    return;
+  }
+  const existing = registry.declarations.get(name);
+  if (existing !== undefined) {
+    if (!objectShapeDeclarationMatches(existing, fact)) {
+      const message = `Object-shape carrier '${name}' was requested with incompatible finalized members. Structural carriers must have stable unique target identities.`;
+      if (diagnostics !== undefined && diagnosticSubject !== undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, message));
+        return;
+      }
+      throw new Error(message);
+    }
     return;
   }
   const interfaces = renderObjectShapeInterfaces(fact, diagnostics, diagnosticSubject);
@@ -109,6 +121,87 @@ function registerObjectShapeDeclaration(
     ...(interfaces.length === 0 ? {} : { interfaces }),
     members: members as CsharpClassDeclaration["members"],
   });
+}
+
+function objectShapeDeclarationMatches(
+  declaration: CsharpClassDeclaration,
+  fact: CsharpObjectShapeFact,
+): boolean {
+  for (const member of fact.members) {
+    if (member.memberKind === "method") {
+      const storageName = objectShapeStorageMemberName(fact, member);
+      if (!declaration.members.some((candidate) => candidate.kind === "FieldDeclaration" && candidate.name === storageName)) {
+        return false;
+      }
+      if (!declaration.members.some((candidate) => candidate.kind === "MethodDeclaration" && candidate.name === member.targetName)) {
+        return false;
+      }
+      continue;
+    }
+    const renderedType = csharpTypeFromTargetTypeRef(member.type);
+    const declarationMember = declaration.members
+      .filter(isObjectShapeStorageDeclaration)
+      .find((candidate) => candidate.name === member.targetName);
+    if (declarationMember === undefined || renderedType === undefined || !csharpTypeNodesMatch(declarationMember.type, renderedType)) {
+      return false;
+    }
+  }
+  return declaration.members.every((member) => {
+    if (member.kind === "MethodDeclaration") {
+      return fact.members.some((candidate) => candidate.memberKind === "method" && candidate.targetName === member.name);
+    }
+    if (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") {
+      return fact.members.some((candidate) =>
+        (candidate.memberKind === "method" ? objectShapeStorageMemberName(fact, candidate) : candidate.targetName) === member.name);
+    }
+    return true;
+  });
+}
+
+function csharpTypeNodesMatch(left: CsharpTypeNode, right: CsharpTypeNode): boolean {
+  if (left.kind !== right.kind) {
+    return false;
+  }
+  switch (left.kind) {
+    case "PredefinedType":
+      return right.kind === "PredefinedType" && left.name === right.name;
+    case "InvalidType":
+      return right.kind === "InvalidType" && left.reason === right.reason;
+    case "IdentifierName":
+      return right.kind === "IdentifierName" &&
+        left.name === right.name &&
+        csharpTypeNodeListsMatch(left.typeArguments ?? [], right.typeArguments ?? []);
+    case "QualifiedName":
+      return right.kind === "QualifiedName" &&
+        left.name === right.name &&
+        csharpTypeNodesMatch(left.left, right.left) &&
+        csharpTypeNodeListsMatch(left.typeArguments ?? [], right.typeArguments ?? []);
+    case "ArrayType":
+      return right.kind === "ArrayType" &&
+        (left.rank ?? 1) === (right.rank ?? 1) &&
+        csharpTypeNodesMatch(left.elementType, right.elementType);
+    case "TupleType":
+      return right.kind === "TupleType" && csharpTypeNodeListsMatch(left.elements, right.elements);
+    case "NullableType":
+      return right.kind === "NullableType" && csharpTypeNodesMatch(left.inner, right.inner);
+    case "PointerType":
+      return right.kind === "PointerType" && csharpTypeNodesMatch(left.pointee, right.pointee);
+    case "FunctionPointerType":
+      return right.kind === "FunctionPointerType" &&
+        csharpTypeNodeListsMatch(left.parameters, right.parameters) &&
+        csharpTypeNodesMatch(left.returnType, right.returnType);
+  }
+}
+
+function csharpTypeNodeListsMatch(left: readonly CsharpTypeNode[], right: readonly CsharpTypeNode[]): boolean {
+  return left.length === right.length &&
+    left.every((item, index) => csharpTypeNodesMatch(item, right[index]!));
+}
+
+function isObjectShapeStorageDeclaration(
+  member: CsharpTypeMember,
+): member is Extract<CsharpTypeMember, { readonly kind: "FieldDeclaration" | "PropertyDeclaration" }> {
+  return member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration";
 }
 
 function renderObjectShapeMethodMember(

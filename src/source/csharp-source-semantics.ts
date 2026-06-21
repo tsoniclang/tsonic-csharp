@@ -1,26 +1,37 @@
 import {
+  ExtensionLifecycleEvent,
   TstsProviderContractVersion,
   acceptObservation,
   attributeFactKey,
   createSourceSemanticsExtension,
   deferObservation,
+  functionPointerFactKey,
+  pointerFactKey,
   providerVirtualDeclarationFactKey,
   rejectObservation,
   runtimeCarrierFactKey,
   sourcePrimitive,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
+  targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
   CheckedElementAccessMappingRequest,
+  CheckedConversionMappingRequest,
+  CheckedConversionMappingResult,
+  CheckedIterationMappingRequest,
   CheckedOperationMappingResult,
+  CheckedOperatorMappingRequest,
   CheckedPropertyAccessMappingRequest,
   CompilerExtension,
+  ContextualTargetTypeRequest,
+  ContextualTargetTypeResult,
   ExtensionObservation,
   ExtensionObservationContext,
   ExtensionDiagnostic,
+  ExtensionFactStore,
   ExtensionFactSubject,
   Node,
   ProviderVirtualDeclarationFact,
@@ -32,22 +43,37 @@ import type {
   ProviderOwnership,
   ProviderParameterDeclaration,
   ProviderTypeExpression,
+  ParameterPassingRequest,
+  ParameterPassingResult,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
+  SourceFile,
+  SourceFileBoundLifecycleRequest,
   SourceCallMarkerDeclaration,
-  SourcePrimitiveFact,
   SourcePrimitiveKind,
   SourceSemanticsModule,
   SourceTypeMarkerDeclaration,
   TargetBindingFact,
+  TargetConstraint,
   TargetBindingProvider,
   TargetMember,
   TargetParameter,
   TargetSemanticProvider,
   TargetTypeRef,
   Type,
+  Symbol,
 } from "@tsonic/tsts";
 import type { TargetExtensionContext } from "@tsonic/target-api";
+import {
+  csharpObjectShapeFactKey,
+  csharpTargetIterationFactKey,
+  csharpTargetTypeParameterConstraintFactKey,
+} from "./csharp-facts.js";
+import type {
+  CsharpObjectShapeFact,
+  CsharpObjectShapeMemberFact,
+  CsharpTargetIterationFact,
+} from "./csharp-facts.js";
 
 export const neutralTypesModule = "@tsonic/core/types.js";
 export const csharpTypesModule = "@tsonic/csharp/types.js";
@@ -57,6 +83,14 @@ export const dotnetCollectionsModule = "@tsonic/dotnet/System.Collections.Generi
 
 const csharpTargetId = "csharp";
 const csharpProviderVersion = "0.0.1";
+const noNodeTypeQuery = { allowNodeTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
+const noNodeRuntimeCarrierTypeQuery = { allowRuntimeCarrier: false, allowNodeTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
+
+interface TargetTypeRefResolutionOptions {
+  readonly allowRuntimeCarrier?: boolean;
+  readonly allowNodeTypeQuery?: boolean;
+  readonly sourceFile?: SourceFile;
+}
 
 export function createCsharpSourceSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
   return createSourceSemanticsExtension({
@@ -84,6 +118,9 @@ export function createCsharpTargetSemanticsExtension(_context: TargetExtensionCo
       context.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
       const provider = createCsharpSurfaceOperationsProvider();
       context.registerTargetSemanticProvider(provider);
+      context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request) => {
+        recordCsharpSourceFileFacts(request, context.facts);
+      });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         const primitive = resolverContext.facts.get(subject, sourcePrimitiveFactKey);
         return primitive === undefined
@@ -114,7 +151,7 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       if (request.target !== undefined && request.target !== csharpTargetId) {
         return deferObservation;
       }
-      return mapRuntimeCarrier(request, context.factResolver.resolve(request.type, sourcePrimitiveFactKey));
+      return mapRuntimeCarrier(request, context);
     },
     mapCheckedCall(request, context) {
       return mapCsharpCheckedCall(request, context, identity.id);
@@ -124,6 +161,21 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
     },
     mapCheckedElementAccess(request, context) {
       return mapCsharpCheckedElementAccess(request, context, identity.id);
+    },
+    mapCheckedOperator(request, context) {
+      return mapCsharpCheckedOperator(request, context, identity.id);
+    },
+    mapCheckedIteration(request, context) {
+      return mapCsharpCheckedIteration(request, context, identity.id);
+    },
+    recordContextualTargetType(request, context) {
+      return mapCsharpContextualTargetType(request, context);
+    },
+    mapCheckedConversion(request, context) {
+      return mapCsharpCheckedConversion(request, context);
+    },
+    resolveParameterPassing(request, context) {
+      return mapCsharpParameterPassing(request, context);
     },
   };
 }
@@ -153,12 +205,19 @@ function mapCsharpCheckedCall(
   }
   const binding = findTargetBinding(context, [
     request.sourceSelectedContainerSymbol,
+    request.calleeAliasedSymbol,
+    request.calleeResolvedSymbol,
+    request.calleeSymbol,
+    request.callee,
     request.calleeReceiverTypeSymbol,
     request.calleeReceiverType,
     request.calleeReceiverAliasedSymbol,
     request.calleeReceiverResolvedSymbol,
     request.calleeReceiverSymbol,
-  ]);
+  ]) ?? getKnownTargetBindingForTypeRef(
+    getTargetTypeRefForSubject(request.calleeReceiverType, context, noNodeTypeQuery) ??
+      getTargetTypeRefForSubject(request.calleeReceiver, context, noNodeTypeQuery),
+  );
   if (binding === undefined) {
     return deferObservation;
   }
@@ -242,7 +301,10 @@ function mapCsharpCheckedPropertyAccess(
     request.receiverAliasedSymbol,
     request.receiverResolvedSymbol,
     request.receiverSymbol,
-  ]);
+  ]) ?? getKnownTargetBindingForTypeRef(
+    getTargetTypeRefForSubject(request.receiverType, context, noNodeTypeQuery) ??
+      getTargetTypeRefForSubject(request.receiver, context, noNodeTypeQuery),
+  );
   if (binding === undefined) {
     return deferObservation;
   }
@@ -285,6 +347,442 @@ function mapCsharpCheckedElementAccess(
   }, [{ message: "C# target indexer access selected from checked TSTS provider declaration." }]);
 }
 
+function mapCsharpCheckedOperator(
+  request: CheckedOperatorMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedOperator">,
+  _extensionId: string,
+): ExtensionObservation<CheckedOperationMappingResult> {
+  if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  const typeofComparison = getTypeofComparisonOperation(request, context);
+  if (typeofComparison !== undefined) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: typeofComparison,
+    }, [{ message: "C# typeof comparison selected from checked TSTS operator result." }]);
+  }
+  if (request.operator === "typeof") {
+    const operandType = getTargetTypeRefForSubject(request.leftType, context, noNodeRuntimeCarrierTypeQuery) ??
+      getTargetTypeRefForSubject(request.left, context, noNodeRuntimeCarrierTypeQuery);
+    const runtimeKind = getTypeofRuntimeKind(operandType, { allowNullableUnwrap: false });
+    if (runtimeKind === undefined) {
+      return deferObservation;
+    }
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(`tsonic.csharp.typeof.${runtimeKind}`, "operator", `typeof:${runtimeKind}`),
+    }, [{ message: "C# typeof runtime kind selected from checked TSTS operand type." }]);
+  }
+  if (request.operator === "instanceof") {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation("tsonic.csharp.instanceof", "operator", "is"),
+    }, [{ message: "C# type-test operation selected from checked TSTS instanceof expression." }]);
+  }
+  const targetOperator = getCsharpOperatorTargetOperation(request.operator);
+  if (targetOperator === undefined) {
+    return deferObservation;
+  }
+  const left = getTargetTypeRefForSubject(request.leftType, context, noNodeTypeQuery) ??
+    getTargetTypeRefForSubject(request.leftType, context) ??
+    getTargetTypeRefForSubject(request.left, context, noNodeTypeQuery) ??
+    getTargetTypeRefForSubject(request.left, context);
+  const right = getTargetTypeRefForSubject(request.rightType, context, noNodeTypeQuery) ??
+    getTargetTypeRefForSubject(request.rightType, context) ??
+    getTargetTypeRefForSubject(request.right, context, noNodeTypeQuery) ??
+    getTargetTypeRefForSubject(request.right, context);
+  if (left === undefined || (request.right !== undefined && right === undefined)) {
+    return deferObservation;
+  }
+  if (left.kind === "type-parameter" || right?.kind === "type-parameter") {
+    return deferObservation;
+  }
+  if (isCsharpBitwiseOperator(request.operator) && !isIntegralTargetTypeRef(left)) {
+    return deferObservation;
+  }
+  return acceptObservation<CheckedOperationMappingResult>({
+    operation: targetOperation(
+      `tsonic.csharp.operator.${targetOperator}`,
+      "operator",
+      targetOperator,
+      { resultType: getCsharpOperatorResultSubject(request) },
+    ),
+  }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
+}
+
+function mapCsharpCheckedIteration(
+  request: CheckedIterationMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedIteration">,
+  _extensionId: string,
+): ExtensionObservation<CheckedOperationMappingResult> {
+  if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  const expressionType = getTargetTypeRefForSubject(request.sourceElementType, context, noNodeRuntimeCarrierTypeQuery) ??
+    getTargetTypeRefForSubject(request.expression, context, noNodeRuntimeCarrierTypeQuery) ??
+    getTargetTypeRefForSubject(request.expression, context, { allowRuntimeCarrier: false });
+  if (request.kind === "for-of") {
+    if (isCsharpStringType(expressionType)) {
+      const fact = {
+        operationId: "tsonic.csharp.string.codePoints",
+        iterationKind: "sync",
+        targetOperation: "string-code-points",
+        elementType: csharpTargetNamedType("System.String"),
+      } satisfies CsharpTargetIterationFact;
+      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# string for-of maps to string code-point iteration." }]);
+      return acceptObservation<CheckedOperationMappingResult>({
+        operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
+      }, [{ message: "C# string iteration fact recorded after TSTS accepted for-of." }]);
+    }
+    if (expressionType?.kind === "array") {
+      const fact = {
+        operationId: "tsonic.csharp.array.foreach",
+        iterationKind: "sync",
+        targetOperation: "ForEachStatement",
+        elementType: expressionType.element,
+      } satisfies CsharpTargetIterationFact;
+      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# array for-of maps to foreach." }]);
+      return acceptObservation<CheckedOperationMappingResult>({
+        operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
+      }, [{ message: "C# array iteration fact recorded after TSTS accepted for-of." }]);
+    }
+    return deferObservation;
+  }
+  if (request.kind === "for-in") {
+    const objectShape = getCsharpObjectShapeFactForSubject(request.expression, context);
+    if (objectShape !== undefined) {
+      const fact = {
+        operationId: "tsonic.csharp.objectShape.keys",
+        iterationKind: "property-key",
+        targetOperation: "object-shape-keys",
+        elementType: csharpTargetNamedType("System.String"),
+      } satisfies CsharpTargetIterationFact;
+      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# object-shape for-in maps to finalized object-shape key storage." }]);
+      return acceptObservation<CheckedOperationMappingResult>({
+        operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
+      }, [{ message: "C# object-shape key iteration fact recorded after TSTS accepted for-in." }]);
+    }
+    if (expressionType?.kind === "array" || isCsharpStringType(expressionType)) {
+      const fact = {
+        operationId: "tsonic.csharp.indexable.keys",
+        iterationKind: "property-key",
+        targetOperation: "array-index-keys",
+        elementType: csharpTargetNamedType("System.String"),
+      } satisfies CsharpTargetIterationFact;
+      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# indexable for-in maps to string index keys." }]);
+      return acceptObservation<CheckedOperationMappingResult>({
+        operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
+      }, [{ message: "C# index-key iteration fact recorded after TSTS accepted for-in." }]);
+    }
+  }
+  return deferObservation;
+}
+
+function mapCsharpContextualTargetType(
+  request: ContextualTargetTypeRequest,
+  _context: ExtensionObservationContext<"type.recordContextualTargetType">,
+): ExtensionObservation<ContextualTargetTypeResult> {
+  if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  return acceptObservation<ContextualTargetTypeResult>({
+    type: request.context,
+  }, [{ message: "C# contextual target type recorded from checked TSTS contextual type." }]);
+}
+
+function mapCsharpCheckedConversion(
+  request: CheckedConversionMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedConversion">,
+): ExtensionObservation<CheckedConversionMappingResult> {
+  if (request.targetPlatform !== undefined && request.targetPlatform !== csharpTargetId) {
+    return deferObservation;
+  }
+  const source = getTargetTypeRefForSubject(request.source, context, noNodeTypeQuery);
+  const target = getTargetTypeRefForSubject(request.target, context, noNodeTypeQuery);
+  if (target === undefined) {
+    return deferObservation;
+  }
+  if (source !== undefined && targetTypeRefEquals(source, target)) {
+    return acceptObservation<CheckedConversionMappingResult>({
+      convertedType: target,
+    }, [{ message: "C# argument already has the selected target type." }]);
+  }
+  if (scoreLiteralTargetTypeMatch(target, request.source, context) !== undefined) {
+    return acceptObservation<CheckedConversionMappingResult>({
+      convertedType: target,
+    }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
+  }
+  const operation = getCsharpConversionOperation(source, target);
+  return acceptObservation<CheckedConversionMappingResult>({
+    convertedType: target,
+    ...(operation !== undefined ? { operation } : {}),
+  }, [{ message: "C# target conversion recorded from checked call argument and selected target parameter." }]);
+}
+
+function mapCsharpParameterPassing(
+  request: ParameterPassingRequest,
+  _context: ExtensionObservationContext<"parameter.resolvePassing">,
+): ExtensionObservation<ParameterPassingResult> {
+  if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  const parameter = asTargetParameter(request.parameter);
+  if (parameter === undefined) {
+    return deferObservation;
+  }
+  return acceptObservation<ParameterPassingResult>({
+    passing: {
+      mode: parameter.passingMode,
+      ...(request.argument !== undefined ? { targetExpression: request.argument } : {}),
+    },
+  }, [{ message: "C# argument passing recorded from selected target parameter." }]);
+}
+
+function targetOperation(
+  operationId: string,
+  operationKind: "property" | "method" | "indexer" | "operator" | "constructor" | "iteration",
+  targetOperation: string,
+  options: { readonly resultType?: ExtensionFactSubject } = {},
+) {
+  return {
+    operationId,
+    operationKind,
+    targetOperation,
+    ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
+  };
+}
+
+function getCsharpOperatorResultSubject(request: CheckedOperatorMappingRequest): ExtensionFactSubject | undefined {
+  switch (request.operator) {
+    case "===":
+    case "==":
+    case "!==":
+    case "!=":
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+    case "&&":
+    case "||":
+      return csharpSourcePrimitiveTargetType("bool");
+    case "typeof":
+      return csharpTargetNamedType("System.String");
+    default:
+      return request.left;
+  }
+}
+
+function getTypeofComparisonOperation(
+  request: CheckedOperatorMappingRequest,
+  context: ExtensionObservationContext,
+) {
+  if (request.operator !== "===" && request.operator !== "==" && request.operator !== "!==" && request.operator !== "!=") {
+    return undefined;
+  }
+  const leftKind = getTypeofLiteralComparisonKind(request.left, request.right, context);
+  const rightKind = leftKind ?? getTypeofLiteralComparisonKind(request.right, request.left, context);
+  if (rightKind === undefined) {
+    return undefined;
+  }
+  const negated = request.operator === "!==" || request.operator === "!=";
+  return targetOperation(
+    `tsonic.csharp.typeof.${negated ? "not-" : ""}${rightKind}`,
+    "operator",
+    `${negated ? "typeof-is-not" : "typeof-is"}:${rightKind}`,
+  );
+}
+
+function getTypeofLiteralComparisonKind(
+  typeofExpression: ExtensionFactSubject | undefined,
+  literal: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): "string" | "number" | "boolean" | "bigint" | undefined {
+  const ast = context.compiler?.ast;
+  const expressionNode = asNodeSubject(typeofExpression);
+  const literalNode = asNodeSubject(literal);
+  if (ast === undefined || expressionNode === undefined || literalNode === undefined || !ast.is.IsTypeOfExpression(expressionNode) || !ast.is.IsStringLiteral(literalNode)) {
+    return undefined;
+  }
+  const text = ast.text(literalNode);
+  return text === "string" || text === "number" || text === "boolean" || text === "bigint" ? text : undefined;
+}
+
+function getTypeofRuntimeKind(
+  type: TargetTypeRef | undefined,
+  options: { readonly allowNullableUnwrap: boolean },
+): "string" | "number" | "boolean" | "bigint" | undefined {
+  const unwrapped = unwrapNullableTargetType(type);
+  if (unwrapped !== type) {
+    return options.allowNullableUnwrap ? getTypeofRuntimeKind(unwrapped, options) : undefined;
+  }
+  if (type?.kind === "source-primitive") {
+    return sourcePrimitiveRuntimeKind(type.name);
+  }
+  if (type?.kind === "target-named") {
+    if (type.id === "System.String") {
+      return "string";
+    }
+    if (type.id === "System.Boolean") {
+      return "boolean";
+    }
+    if (type.id === "System.Numerics.BigInteger") {
+      return "bigint";
+    }
+  }
+  return undefined;
+}
+
+function sourcePrimitiveRuntimeKind(kind: SourcePrimitiveKind): "string" | "number" | "boolean" | "bigint" {
+  if (kind === "bool") {
+    return "boolean";
+  }
+  if (kind === "char") {
+    return "string";
+  }
+  return kind === "int64" || kind === "uint64" || kind === "int128" || kind === "uint128"
+    ? "bigint"
+    : "number";
+}
+
+function getCsharpOperatorTargetOperation(operator: string): string | undefined {
+  switch (operator) {
+    case "===":
+    case "==":
+      return "==";
+    case "!==":
+    case "!=":
+      return "!=";
+    case "+":
+    case "-":
+    case "*":
+    case "/":
+    case "%":
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+    case "&&":
+    case "||":
+    case "??":
+    case "&":
+    case "|":
+    case "^":
+    case "<<":
+    case ">>":
+    case ">>>":
+    case "=":
+    case "+=":
+    case "-=":
+    case "*=":
+    case "/=":
+    case "%=":
+    case "&=":
+    case "|=":
+    case "^=":
+    case "<<=":
+    case ">>=":
+    case ">>>=":
+    case "!":
+    case "~":
+    case "++":
+    case "--":
+      return operator;
+    default:
+      return undefined;
+  }
+}
+
+function isCsharpBitwiseOperator(operator: string): boolean {
+  return operator === "&" ||
+    operator === "|" ||
+    operator === "^" ||
+    operator === "<<" ||
+    operator === ">>" ||
+    operator === ">>>" ||
+    operator === "&=" ||
+    operator === "|=" ||
+    operator === "^=" ||
+    operator === "<<=" ||
+    operator === ">>=" ||
+    operator === ">>>=" ||
+    operator === "~";
+}
+
+function isIntegralTargetTypeRef(type: TargetTypeRef | undefined): boolean {
+  if (type?.kind !== "source-primitive") {
+    return false;
+  }
+  switch (type.name) {
+    case "int8":
+    case "uint8":
+    case "int16":
+    case "uint16":
+    case "int32":
+    case "uint32":
+    case "int64":
+    case "uint64":
+    case "native-int":
+    case "native-uint":
+    case "int128":
+    case "uint128":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function getCsharpConversionOperation(source: TargetTypeRef | undefined, target: TargetTypeRef) {
+  if (source?.kind === "source-primitive" && target.kind === "source-primitive" && source.name !== target.name) {
+    const methodName = sourcePrimitiveConversionMethod(target.name);
+    return methodName === undefined
+      ? undefined
+      : targetOperation(`System.Convert.${methodName}`, "method", `System.Convert.${methodName}`);
+  }
+  return undefined;
+}
+
+function sourcePrimitiveConversionMethod(kind: SourcePrimitiveKind): string | undefined {
+  switch (kind) {
+    case "bool":
+      return "ToBoolean";
+    case "int8":
+      return "ToSByte";
+    case "uint8":
+      return "ToByte";
+    case "int16":
+      return "ToInt16";
+    case "uint16":
+      return "ToUInt16";
+    case "int32":
+    case "native-int":
+      return "ToInt32";
+    case "uint32":
+    case "native-uint":
+      return "ToUInt32";
+    case "int64":
+      return "ToInt64";
+    case "uint64":
+      return "ToUInt64";
+    case "float32":
+    case "float16":
+      return "ToSingle";
+    case "float64":
+      return "ToDouble";
+    case "decimal":
+      return "ToDecimal";
+    case "char":
+    case "int128":
+    case "uint128":
+      return undefined;
+  }
+}
+
+function isVoidTargetType(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && type.id === "System.Void";
+}
+
+function isCsharpStringType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && type.id === "System.String";
+}
+
 function findTargetBinding(
   context: ExtensionObservationContext,
   subjects: readonly (ExtensionFactSubject | undefined)[],
@@ -296,6 +794,31 @@ function findTargetBinding(
     }
   }
   return undefined;
+}
+
+function getKnownTargetBindingForTypeRef(type: TargetTypeRef | undefined): TargetBindingFact | undefined {
+  if (type?.kind !== "target-named" || type.id !== "System.Exception") {
+    return undefined;
+  }
+  const stringType = csharpTargetNamedType("System.String");
+  return {
+    id: "System.Exception",
+    sourceName: "Exception",
+    targetName: "System.Exception",
+    target: csharpTargetId,
+    kind: "class",
+    members: [
+      {
+        id: "System.Exception..ctor(System.String)",
+        sourceName: "constructor",
+        targetName: ".ctor",
+        kind: "constructor",
+        parameters: [targetParameter("message", stringType)],
+      },
+      targetProperty("System.Exception.Message", "message", "Message", stringType),
+      targetMethod("System.Exception.ToString()", "toString", "ToString", [], stringType),
+    ],
+  };
 }
 
 function findTargetMemberForCall(
@@ -370,8 +893,11 @@ function scoreTargetMember(
     if (parameter === undefined) {
       return undefined;
     }
-    const argumentType = getTargetTypeRefForSubject(arguments_[index], context);
-    const argumentScore = scoreTargetTypeMatch(parameter.type, argumentType, arguments_[index], context);
+    const factBackedArgumentType = getTargetTypeRefForSubject(arguments_[index], context, noNodeTypeQuery);
+    const factBackedArgumentScore = scoreTargetTypeMatch(parameter.type, factBackedArgumentType, arguments_[index], context);
+    const checkedArgumentScore = factBackedArgumentScore ??
+      scoreTargetTypeMatch(parameter.type, getTargetTypeRefForSubject(arguments_[index], context), arguments_[index], context);
+    const argumentScore = checkedArgumentScore;
     if (argumentScore === undefined) {
       return undefined;
     }
@@ -406,7 +932,7 @@ function scoreTargetTypeMatch(
     return delegateScore;
   }
   if (expected.kind === "type-parameter") {
-    return 1;
+    return actual === undefined ? undefined : 2;
   }
   if (expected.kind === "opaque" && (expected.id === "any" || expected.id === "unknown")) {
     return 1;
@@ -414,13 +940,235 @@ function scoreTargetTypeMatch(
   if (expected.kind === "target-named" && expected.id === "System.Object") {
     return 1;
   }
+  const literalScore = scoreLiteralTargetTypeMatch(expected, subject, context);
+  if (literalScore !== undefined) {
+    return literalScore;
+  }
   if (actual === undefined) {
     return undefined;
   }
   if (targetTypeRefEquals(expected, actual)) {
     return 8;
   }
+  const structuralScore = scoreStructuralTargetTypeMatch(expected, actual);
+  if (structuralScore !== undefined) {
+    return structuralScore;
+  }
   return undefined;
+}
+
+function scoreLiteralTargetTypeMatch(
+  expected: TargetTypeRef,
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): number | undefined {
+  const ast = context.compiler?.ast;
+  const node = asNodeSubject(subject);
+  if (ast === undefined || node === undefined) {
+    return undefined;
+  }
+  const kind = ast.kindName(node);
+  if (expected.kind === "target-named" && expected.id === "System.String") {
+    return kind === "KindStringLiteral" || kind === "KindNoSubstitutionTemplateLiteral" ? 6 : undefined;
+  }
+  if (expected.kind !== "source-primitive") {
+    return undefined;
+  }
+  switch (expected.name) {
+    case "bool":
+      return ast.kindName(node) === "KindTrueKeyword" || ast.kindName(node) === "KindFalseKeyword" ? 6 : undefined;
+    case "char": {
+      if (!ast.is.IsStringLiteral(node)) {
+        return undefined;
+      }
+      return [...ast.text(node)].length === 1 ? 6 : undefined;
+    }
+    case "int8":
+    case "uint8":
+    case "int16":
+    case "uint16":
+    case "int32":
+    case "uint32":
+    case "native-int":
+    case "native-uint": {
+      const value = getNumericLiteralValue(node, context);
+      return value !== undefined && isNumberRepresentableAsPrimitive(value, expected.name) ? 6 : undefined;
+    }
+    case "float16":
+    case "float32":
+    case "float64":
+    case "decimal": {
+      const value = getNumericLiteralValue(node, context);
+      return value !== undefined && Number.isFinite(value) ? 6 : undefined;
+    }
+    case "int64":
+    case "uint64":
+    case "int128":
+    case "uint128": {
+      const value = getBigIntLiteralValue(node, context);
+      return value !== undefined && isBigIntRepresentableAsPrimitive(value, expected.name) ? 6 : undefined;
+    }
+  }
+}
+
+function getNumericLiteralValue(
+  node: Node,
+  context: ExtensionObservationContext,
+): number | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  const kind = ast.kindName(node);
+  if (kind === "KindNumericLiteral") {
+    return parseFiniteNumberLiteral(ast.text(node));
+  }
+  if (kind !== "KindPrefixUnaryExpression") {
+    return undefined;
+  }
+  const operator = getPrefixUnaryOperatorKindName(node, ast);
+  if (operator !== "KindPlusToken" && operator !== "KindMinusToken") {
+    return undefined;
+  }
+  const operand = asNodeSubject(getNodeField(node, "Operand"));
+  if (operand === undefined || ast.kindName(operand) !== "KindNumericLiteral") {
+    return undefined;
+  }
+  const value = parseFiniteNumberLiteral(ast.text(operand));
+  return value === undefined ? undefined : operator === "KindMinusToken" ? -value : value;
+}
+
+function getBigIntLiteralValue(
+  node: Node,
+  context: ExtensionObservationContext,
+): bigint | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  const kind = ast.kindName(node);
+  if (kind === "KindBigIntLiteral") {
+    return parseBigIntLiteral(ast.text(node));
+  }
+  if (kind !== "KindPrefixUnaryExpression") {
+    return undefined;
+  }
+  const operator = getPrefixUnaryOperatorKindName(node, ast);
+  if (operator !== "KindPlusToken" && operator !== "KindMinusToken") {
+    return undefined;
+  }
+  const operand = asNodeSubject(getNodeField(node, "Operand"));
+  if (operand === undefined || ast.kindName(operand) !== "KindBigIntLiteral") {
+    return undefined;
+  }
+  const value = parseBigIntLiteral(ast.text(operand));
+  return value === undefined ? undefined : operator === "KindMinusToken" ? -value : value;
+}
+
+function parseFiniteNumberLiteral(text: string): number | undefined {
+  const value = Number(text.split("_").join(""));
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function parseBigIntLiteral(text: string): bigint | undefined {
+  const normalized = text.split("_").join("").replace(/n$/u, "");
+  try {
+    return BigInt(normalized);
+  } catch {
+    return undefined;
+  }
+}
+
+function getPrefixUnaryOperatorKindName(
+  node: Node,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+): string | undefined {
+  const operator = getNodeField(node, "Operator");
+  if (typeof operator === "number") {
+    return ast.kindName({ Kind: operator } as Node);
+  }
+  if (typeof operator === "string") {
+    return operator;
+  }
+  const token = asNodeSubject(getNodeField(node, "OperatorToken"));
+  return token === undefined ? undefined : ast.kindName(token);
+}
+
+function isNumberRepresentableAsPrimitive(value: number, primitive: SourcePrimitiveKind): boolean {
+  if (!Number.isInteger(value)) {
+    return false;
+  }
+  switch (primitive) {
+    case "int8":
+      return value >= -128 && value <= 127;
+    case "uint8":
+      return value >= 0 && value <= 255;
+    case "int16":
+      return value >= -32768 && value <= 32767;
+    case "uint16":
+      return value >= 0 && value <= 65535;
+    case "int32":
+      return value >= -2147483648 && value <= 2147483647;
+    case "uint32":
+      return value >= 0 && value <= 4294967295;
+    case "native-int":
+      return value >= -2147483648 && value <= 2147483647;
+    case "native-uint":
+      return value >= 0 && value <= 4294967295;
+    default:
+      return false;
+  }
+}
+
+function isBigIntRepresentableAsPrimitive(value: bigint, primitive: SourcePrimitiveKind): boolean {
+  switch (primitive) {
+    case "int64":
+      return value >= -(1n << 63n) && value <= (1n << 63n) - 1n;
+    case "uint64":
+      return value >= 0n && value <= (1n << 64n) - 1n;
+    case "int128":
+      return value >= -(1n << 127n) && value <= (1n << 127n) - 1n;
+    case "uint128":
+      return value >= 0n && value <= (1n << 128n) - 1n;
+    default:
+      return false;
+  }
+}
+
+function scoreStructuralTargetTypeMatch(expected: TargetTypeRef, actual: TargetTypeRef): number | undefined {
+  if (expected.kind === "array" && actual.kind === "array" && (expected.rank ?? 1) === (actual.rank ?? 1)) {
+    const elementScore = scoreStructuralTargetTypeMatch(expected.element, actual.element);
+    return elementScore === undefined ? undefined : 4 + elementScore;
+  }
+  if (expected.kind === "tuple" && actual.kind === "tuple" && expected.elements.length === actual.elements.length) {
+    const scores = expected.elements.map((element, index) => scoreStructuralTargetTypeMatch(element, actual.elements[index]!));
+    return scores.some((score) => score === undefined)
+      ? undefined
+      : 4 + (scores as readonly number[]).reduce((sum, score) => sum + score, 0);
+  }
+  if (expected.kind === "target-named" && actual.kind === "target-named" && expected.id === actual.id) {
+    const expectedArgs = expected.typeArguments ?? [];
+    const actualArgs = actual.typeArguments ?? [];
+    if (expectedArgs.length !== actualArgs.length) {
+      return undefined;
+    }
+    const scores = expectedArgs.map((argument, index) => scoreStructuralTargetTypeMatch(argument, actualArgs[index]!));
+    return scores.some((score) => score === undefined)
+      ? undefined
+      : 4 + (scores as readonly number[]).reduce((sum, score) => sum + score, 0);
+  }
+  if (expected.kind === "pointer" && actual.kind === "pointer") {
+    const pointeeScore = scoreStructuralTargetTypeMatch(expected.pointee, actual.pointee);
+    return pointeeScore === undefined ? undefined : 4 + pointeeScore;
+  }
+  if (expected.kind === "function-pointer" && actual.kind === "function-pointer" && expected.args.length === actual.args.length) {
+    const argScores = expected.args.map((argument, index) => scoreStructuralTargetTypeMatch(argument, actual.args[index]!));
+    const resultScore = scoreStructuralTargetTypeMatch(expected.result, actual.result);
+    return resultScore === undefined || argScores.some((score) => score === undefined)
+      ? undefined
+      : 4 + resultScore + (argScores as readonly number[]).reduce((sum, score) => sum + score, 0);
+  }
+  return expected.kind === "type-parameter" ? 2 : undefined;
 }
 
 function scoreDelegateTargetTypeMatch(
@@ -464,37 +1212,126 @@ function getCallbackParameterCount(
 function getTargetTypeRefForSubject(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions = {},
 ): TargetTypeRef | undefined {
   if (subject === undefined) {
     return undefined;
   }
-  const direct = resolveRuntimeCarrier(subject, context);
-  if (direct !== undefined) {
-    return direct;
+  const targetRef = asTargetTypeRef(subject);
+  if (targetRef !== undefined) {
+    return targetRef;
   }
-  const type = asType(context.compiler?.checker.getTypeAtLocation(asNodeSubject(subject)));
-  return getTargetTypeRefForType(type, context);
+  const subjectType = asType(subject);
+  if (subjectType !== undefined) {
+    return getTargetTypeRefForType(subjectType, context, options);
+  }
+  if (options.allowRuntimeCarrier !== false) {
+    const direct = resolveRuntimeCarrier(subject, context);
+    if (direct !== undefined) {
+      return direct;
+    }
+  }
+  const pointer = context.factResolver.resolve(subject, pointerFactKey);
+  if (pointer !== undefined) {
+    const pointee = getTargetTypeRefForSubject(pointer.pointee, context, options);
+    return pointee === undefined
+      ? undefined
+      : {
+          kind: "pointer",
+          pointee,
+          mutability: pointer.mutability === "readwrite" ? "mut" : pointer.mutability === "readonly" ? "const" : "target-defined",
+        };
+  }
+  const functionPointer = context.factResolver.resolve(subject, functionPointerFactKey);
+  if (functionPointer !== undefined) {
+    const args = functionPointer.parameters.map((parameter) => getTargetTypeRefForSubject(parameter, context, options));
+    const result = getTargetTypeRefForSubject(functionPointer.result, context, options);
+    return result === undefined || args.some((arg) => arg === undefined)
+      ? undefined
+      : {
+          kind: "function-pointer",
+          args: args as readonly TargetTypeRef[],
+          result,
+          ...(functionPointer.abi.length > 0 ? { abi: functionPointer.abi } : {}),
+        };
+  }
+  const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
+  if (primitive !== undefined) {
+    return csharpSourcePrimitiveTargetType(primitive.kind);
+  }
+  const operationResult = context.factResolver.resolve(subject, targetOperationFactKey)?.resultType;
+  if (operationResult !== undefined && operationResult !== subject) {
+    const operationResultType = getTargetTypeRefForSubject(operationResult, context, options);
+    if (operationResultType !== undefined) {
+      return operationResultType;
+    }
+  }
+  const catchVariableType = options.allowNodeTypeQuery === false ? undefined : getCatchVariableTargetTypeRef(subject, context);
+  if (catchVariableType !== undefined) {
+    return catchVariableType;
+  }
+  const binding = resolveTargetBinding(subject, context);
+  if (binding !== undefined) {
+    return { kind: "target-named", id: binding.id };
+  }
+  const syntaxType = getTargetTypeRefFromSyntax(subject, context, options);
+  if (syntaxType !== undefined) {
+    return syntaxType;
+  }
+  const declarationType = options.allowNodeTypeQuery === false ? undefined : getTargetTypeRefFromDeclarationAnnotation(subject, context, options);
+  if (declarationType !== undefined) {
+    return declarationType;
+  }
+  const node = asNodeSubject(subject);
+  const checker = context.compiler?.checker;
+  const ast = context.compiler?.ast;
+  const type = node === undefined || checker === undefined || options.allowNodeTypeQuery === false
+    ? undefined
+    : ast !== undefined && isTypeSyntaxNode(ast, node)
+      ? asType(checker.getTypeFromTypeNode(node))
+      : asType(checker.getTypeAtLocation(node));
+  return getTargetTypeRefForType(type, context, {
+    ...options,
+    ...(ast !== undefined && node !== undefined ? { sourceFile: ast.getSourceFile(node) } : {}),
+  });
 }
 
 function getTargetTypeRefForType(
   type: Type | undefined,
   context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions = {},
 ): TargetTypeRef | undefined {
   if (type === undefined) {
     return undefined;
   }
-  const direct = resolveRuntimeCarrier(type, context) ??
-    resolveRuntimeCarrier(type.symbol, context);
-  if (direct !== undefined) {
-    return direct;
+  if (options.allowRuntimeCarrier !== false) {
+    const direct = resolveRuntimeCarrier(type, context) ??
+      resolveRuntimeCarrier(type.symbol, context);
+    if (direct !== undefined) {
+      return direct;
+    }
+  }
+  const primitive = context.factResolver.resolve(type, sourcePrimitiveFactKey) ??
+    (type.symbol === undefined ? undefined : context.factResolver.resolve(type.symbol, sourcePrimitiveFactKey));
+  if (primitive !== undefined) {
+    return csharpSourcePrimitiveTargetType(primitive.kind);
   }
   const binding = resolveTargetBinding(type.symbol, context);
   if (binding !== undefined) {
-    return { kind: "target-named", id: binding.id };
+    const targetTypeArguments = getTargetTypeArgumentsForType(type, context, options);
+    return {
+      kind: "target-named",
+      id: binding.id,
+      ...(targetTypeArguments.length > 0 ? { typeArguments: targetTypeArguments } : {}),
+    };
   }
   const types = context.compiler?.types;
   if (types === undefined) {
     return undefined;
+  }
+  const typeParameterName = getTypeParameterName(type, context);
+  if (typeParameterName !== undefined) {
+    return { kind: "type-parameter", name: typeParameterName };
   }
   if (types.isBooleanLike(type)) {
     return csharpSourcePrimitiveTargetType("bool");
@@ -508,11 +1345,125 @@ function getTargetTypeRefForType(
   if (types.isBigIntLike(type)) {
     return csharpTargetNamedType("System.Numerics.BigInteger");
   }
-  if (types.isArrayLike(type)) {
-    const element = getTargetTypeRefForType(types.getTypeArguments(type)[0], context);
+  if (types.isUnion(type)) {
+    const nullable = getNullableUnionTargetTypeRef(type, context, options);
+    if (nullable !== undefined) {
+      return nullable;
+    }
+  }
+  if (isSourceLibraryType(type, context, "Promise")) {
+    const result = getTargetTypeRefForType(getFirstTypeArgument(type, context, options), context, options);
+    return result === undefined || isVoidTargetType(result)
+      ? csharpTargetNamedType("System.Threading.Tasks.Task")
+      : csharpTargetNamedType("System.Threading.Tasks.Task`1", [result]);
+  }
+  const callable = getCallableTargetTypeRefForSemanticType(type, context, options);
+  if (callable !== undefined) {
+    return callable;
+  }
+  if (types.isArrayLike(type, typeShapeOptions(options))) {
+    const element = getTargetTypeRefForType(getFirstTypeArgument(type, context, options), context, options);
     return element === undefined ? undefined : { kind: "array", element };
   }
+  if (isSourceLibraryType(type, context, "RegExp")) {
+    return csharpTargetNamedType("Tsonic.CSharp.Js.RegExp");
+  }
   return undefined;
+}
+
+function getCatchVariableTargetTypeRef(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  const checker = context.compiler?.checker;
+  const node = asNodeSubject(subject);
+  if (ast === undefined || checker === undefined || node === undefined || !ast.is.IsIdentifier(node)) {
+    return undefined;
+  }
+  const symbol = checker.getSymbolAtLocation(node) ?? checker.getResolvedSymbol(node);
+  const declarations = getSymbolDeclarations(symbol);
+  return declarations.some((declaration) => {
+      const parent = asNodeSubject(getNodeField(declaration, "Parent"));
+      return parent !== undefined && ast.is.IsCatchClause(parent);
+    })
+    ? csharpTargetNamedType("System.Exception")
+    : undefined;
+}
+
+function getCallableTargetTypeRefForSemanticType(
+  type: Type,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): TargetTypeRef | undefined {
+  const checker = context.compiler?.checker;
+  const types = context.compiler?.types;
+  if (checker === undefined || types === undefined) {
+    return undefined;
+  }
+  const signatures = types.getCallSignatures(type);
+  if (signatures.length !== 1) {
+    return undefined;
+  }
+  const signature = signatures[0]!;
+  const parameters = (signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [];
+  const parameterTypes = parameters.map((parameter) => getTargetTypeRefForType(checker.getTypeOfSymbol(parameter), context, options));
+  if (parameterTypes.some((parameter) => parameter === undefined)) {
+    return undefined;
+  }
+  const returnType = getTargetTypeRefForType(types.getReturnTypeOfSignature(signature), context, options);
+  if (returnType === undefined || isVoidTargetType(returnType)) {
+    return csharpTargetNamedType(`System.Action\`${parameterTypes.length}`, parameterTypes as readonly TargetTypeRef[]);
+  }
+  return csharpTargetNamedType(`System.Func\`${parameterTypes.length + 1}`, [...(parameterTypes as readonly TargetTypeRef[]), returnType]);
+}
+
+function getNullableUnionTargetTypeRef(
+  type: Type,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): TargetTypeRef | undefined {
+  const types = context.compiler?.types;
+  if (types === undefined) {
+    return undefined;
+  }
+  const unionTypes = types.getUnionOrIntersectionTypes(type);
+  const nonNullish = unionTypes.filter((candidate) => !types.isNullish(candidate));
+  if (nonNullish.length !== 1 || nonNullish.length === unionTypes.length) {
+    return undefined;
+  }
+  const inner = getTargetTypeRefForType(nonNullish[0], context, options);
+  return inner === undefined
+    ? undefined
+    : csharpTargetNamedType("System.Nullable`1", [inner]);
+}
+
+function unwrapNullableTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  return type?.kind === "target-named" &&
+      type.id === "System.Nullable`1" &&
+      (type.typeArguments ?? []).length === 1
+    ? type.typeArguments![0]
+    : type;
+}
+
+function getFirstTypeArgument(
+  type: Type,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions = {},
+): Type | undefined {
+  const types = context.compiler?.types;
+  if (types === undefined) {
+    return undefined;
+  }
+  const typeArgument = types.isTypeReference(type)
+    ? types.getTypeArguments(type, typeShapeOptions(options))[0]
+    : undefined;
+  if (typeArgument !== undefined) {
+    return typeArgument;
+  }
+  return types.getIndexInfos(type)
+    .map((info) => (info as { readonly valueType?: unknown }).valueType)
+    .find((value): value is Type => asType(value) !== undefined);
 }
 
 function resolveRuntimeCarrier(
@@ -529,7 +1480,225 @@ function resolveTargetBinding(
   return subject === undefined ? undefined : context.factResolver.resolve(subject, targetBindingFactKey);
 }
 
-function asNodeSubject(subject: ExtensionFactSubject | undefined): Node | undefined {
+function getTargetTypeRefFromDeclarationAnnotation(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): TargetTypeRef | undefined {
+  const node = asNodeSubject(subject);
+  const checker = context.compiler?.checker;
+  if (node === undefined || checker === undefined) {
+    return undefined;
+  }
+  const symbol = checker.getSymbolAtLocation(node);
+  const declarations = getSymbolDeclarations(symbol);
+  for (const declaration of declarations) {
+    const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
+    if (typeNode !== undefined && typeNode !== node) {
+      const result = getTargetTypeRefForSubject(typeNode, context, options);
+      if (result !== undefined) {
+        return result;
+      }
+    }
+  }
+  return undefined;
+}
+
+function getTargetTypeRefFromSyntax(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  const node = asNodeSubject(subject);
+  if (ast === undefined || node === undefined) {
+    return undefined;
+  }
+  const keywordType = getTargetTypeRefFromKeywordTypeSyntax(ast, node);
+  if (keywordType !== undefined) {
+    return keywordType;
+  }
+  if (ast.is.IsRegularExpressionLiteral(node)) {
+    return csharpTargetNamedType("Tsonic.CSharp.Js.RegExp");
+  }
+  if (ast.is.IsTypeReferenceNode(node)) {
+    return getTargetTypeRefFromTypeReferenceSyntax(node, context, options);
+  }
+  if (ast.is.IsArrayTypeNode(node)) {
+    const element = getTargetTypeRefForSubject(asNodeSubject(getNodeField(node, "ElementType")), context, options);
+    return element === undefined ? undefined : { kind: "array", element };
+  }
+  if (ast.is.IsUnionTypeNode(node)) {
+    const nullable = getNullableUnionTargetTypeRefFromSyntax(node, context, options);
+    if (nullable !== undefined) {
+      return nullable;
+    }
+  }
+  if (ast.is.IsTypeLiteralNode(node)) {
+    return getCsharpObjectShapeFactForSubject(node, context)?.targetType;
+  }
+  if (ast.is.IsFunctionTypeNode(node) || ast.is.IsConstructorTypeNode(node)) {
+    return getFunctionTargetTypeRefFromSignatureLikeSubject(node, context, options);
+  }
+  if (!ast.is.IsArrayLiteralExpression(node)) {
+    return undefined;
+  }
+  const elements = ast.elements(node)
+    .map((element) => getTargetTypeRefForSubject(element, context, options));
+  if (elements.length === 0 || elements.some((element) => element === undefined)) {
+    return undefined;
+  }
+  const first = elements[0]!;
+  return elements.every((element) => element !== undefined && targetTypeRefEquals(first, element))
+    ? { kind: "array", element: first }
+    : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
+}
+
+function getTargetTypeRefFromTypeReferenceSyntax(
+  node: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  const checker = context.compiler?.checker;
+  const typeName = asNodeSubject(getNodeField(node, "TypeName"));
+  if (ast === undefined || checker === undefined || typeName === undefined) {
+    return undefined;
+  }
+  const type = asType(checker.getTypeFromTypeNode(node));
+  const candidateSubjects: readonly (ExtensionFactSubject | undefined)[] = [
+    node,
+    typeName,
+    checker.getSymbolAtLocation(typeName),
+  ];
+  for (const candidate of candidateSubjects) {
+    if (candidate === undefined) {
+      continue;
+    }
+    const primitive = context.factResolver.resolve(candidate, sourcePrimitiveFactKey);
+    if (primitive !== undefined) {
+      return csharpSourcePrimitiveTargetType(primitive.kind);
+    }
+  }
+  const aliasedType = getTargetTypeRefFromTypeAliasDeclarations(candidateSubjects, node, context, options);
+  if (aliasedType !== undefined) {
+    return aliasedType;
+  }
+  for (const candidate of [type, type?.symbol]) {
+    if (candidate === undefined) {
+      continue;
+    }
+    const primitive = context.factResolver.resolve(candidate, sourcePrimitiveFactKey);
+    if (primitive !== undefined) {
+      return csharpSourcePrimitiveTargetType(primitive.kind);
+    }
+  }
+  const binding = findTargetBinding(context, candidateSubjects);
+  if (binding === undefined) {
+    return undefined;
+  }
+  const typeArguments = ast.typeArguments(node).map((argument) => getTargetTypeRefForSubject(argument, context, options));
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  return csharpTargetNamedType(binding.id, typeArguments as readonly TargetTypeRef[]);
+}
+
+function getTargetTypeRefFromKeywordTypeSyntax(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): TargetTypeRef | undefined {
+  switch (ast.kindName(node)) {
+    case "KindBooleanKeyword":
+      return csharpSourcePrimitiveTargetType("bool");
+    case "KindNumberKeyword":
+      return csharpSourcePrimitiveTargetType("float64");
+    case "KindStringKeyword":
+      return csharpTargetNamedType("System.String");
+    case "KindBigIntKeyword":
+      return csharpTargetNamedType("System.Numerics.BigInteger");
+    case "KindVoidKeyword":
+      return csharpTargetNamedType("System.Void");
+    default:
+      return undefined;
+  }
+}
+
+function getTargetTypeRefFromTypeAliasDeclarations(
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  currentNode: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): TargetTypeRef | undefined {
+  for (const subject of subjects) {
+    const declarations = getSymbolDeclarations(subject);
+    for (const declaration of declarations) {
+      const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
+      if (typeNode === undefined || typeNode === currentNode) {
+        continue;
+      }
+      const result = getTargetTypeRefForSubject(typeNode, context, options);
+      if (result !== undefined) {
+        return result;
+      }
+    }
+  }
+  return undefined;
+}
+
+function getNullableUnionTargetTypeRefFromSyntax(
+  node: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): TargetTypeRef | undefined {
+  const members = getNodeList(getNodeField(node, "Types"));
+  const nonNullish = members.filter((member) => !isNullishTypeSyntax(member, context));
+  if (nonNullish.length !== 1 || nonNullish.length === members.length) {
+    return undefined;
+  }
+  const inner = getTargetTypeRefForSubject(nonNullish[0], context, options);
+  return inner === undefined ? undefined : csharpTargetNamedType("System.Nullable`1", [inner]);
+}
+
+function isNullishTypeSyntax(node: Node, context: ExtensionObservationContext): boolean {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return false;
+  }
+  const kind = ast.kindName(node);
+  if (kind === "KindNullKeyword" || kind === "KindUndefinedKeyword") {
+    return true;
+  }
+  if (ast.is.IsLiteralTypeNode(node)) {
+    const literal = asNodeSubject(getNodeField(node, "Literal"));
+    const literalKind = ast.kindName(literal);
+    return literalKind === "KindNullKeyword" || literalKind === "KindUndefinedKeyword";
+  }
+  if (ast.is.IsTypeReferenceNode(node)) {
+    const typeName = asNodeSubject(getNodeField(node, "TypeName"));
+    return ast.text(typeName) === "undefined";
+  }
+  return false;
+}
+
+function getFunctionTargetTypeRefFromSignatureLikeSubject(
+  node: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): TargetTypeRef | undefined {
+  const parameters = getNodeList(getNodeField(node, "Parameters"))
+    .map((parameter) => getTargetTypeRefForSubject(asNodeSubject(getNodeField(parameter, "Type")), context, options));
+  if (parameters.some((parameter) => parameter === undefined)) {
+    return undefined;
+  }
+  const returnType = getTargetTypeRefForSubject(asNodeSubject(getNodeField(node, "Type")), context, options);
+  if (returnType === undefined || isVoidTargetType(returnType)) {
+    return csharpTargetNamedType(`System.Action\`${parameters.length}`, parameters as readonly TargetTypeRef[]);
+  }
+  return csharpTargetNamedType(`System.Func\`${parameters.length + 1}`, [...(parameters as readonly TargetTypeRef[]), returnType]);
+}
+
+function asNodeSubject(subject: unknown): Node | undefined {
   return typeof subject === "object" &&
     subject !== null &&
     typeof (subject as { readonly Kind?: unknown }).Kind === "number"
@@ -537,8 +1706,147 @@ function asNodeSubject(subject: ExtensionFactSubject | undefined): Node | undefi
     : undefined;
 }
 
+function isTypeSyntaxNode(ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"], node: Node): boolean {
+  const kind = ast.kindName(node);
+  if (
+    kind === "KindAnyKeyword" ||
+    kind === "KindUnknownKeyword" ||
+    kind === "KindBooleanKeyword" ||
+    kind === "KindNumberKeyword" ||
+    kind === "KindStringKeyword" ||
+    kind === "KindBigIntKeyword" ||
+    kind === "KindVoidKeyword" ||
+    kind === "KindNeverKeyword" ||
+    kind === "KindObjectKeyword" ||
+    kind === "KindSymbolKeyword" ||
+    kind === "KindTypeReference" ||
+    kind === "KindUnionType" ||
+    kind === "KindIntersectionType" ||
+    kind === "KindArrayType" ||
+    kind === "KindTupleType" ||
+    kind === "KindTypeLiteral" ||
+    kind === "KindFunctionType" ||
+    kind === "KindConstructorType" ||
+    kind === "KindLiteralType" ||
+    kind === "KindIndexedAccessType" ||
+    kind === "KindConditionalType" ||
+    kind === "KindInferType" ||
+    kind === "KindMappedType" ||
+    kind === "KindOptionalType" ||
+    kind === "KindRestType" ||
+    kind === "KindParenthesizedType" ||
+    kind === "KindTemplateLiteralType" ||
+    kind === "KindImportType" ||
+    kind === "KindThisType"
+  ) {
+    return true;
+  }
+  return ast.is.IsKeywordTypeNode(node) ||
+    ast.is.IsTypeReferenceNode(node) ||
+    ast.is.IsUnionTypeNode(node) ||
+    ast.is.IsIntersectionTypeNode(node) ||
+    ast.is.IsConditionalTypeNode(node) ||
+    ast.is.IsInferTypeNode(node) ||
+    ast.is.IsArrayTypeNode(node) ||
+    ast.is.IsIndexedAccessTypeNode(node) ||
+    ast.is.IsLiteralTypeNode(node) ||
+    ast.is.IsThisTypeNode(node) ||
+    ast.is.IsMappedTypeNode(node) ||
+    ast.is.IsTupleTypeNode(node) ||
+    ast.is.IsOptionalTypeNode(node) ||
+    ast.is.IsRestTypeNode(node) ||
+    ast.is.IsParenthesizedTypeNode(node) ||
+    ast.is.IsFunctionTypeNode(node) ||
+    ast.is.IsConstructorTypeNode(node) ||
+    ast.is.IsTemplateLiteralTypeNode(node) ||
+    ast.is.IsImportTypeNode(node);
+}
+
 function asType(subject: unknown): Type | undefined {
   return typeof subject === "object" && subject !== null && "flags" in subject ? subject as Type : undefined;
+}
+
+function asTargetParameter(subject: ExtensionFactSubject | undefined): TargetParameter | undefined {
+  if (typeof subject !== "object" || subject === null) {
+    return undefined;
+  }
+  const parameter = subject as { readonly name?: unknown; readonly type?: unknown; readonly passingMode?: unknown };
+  return typeof parameter.name === "string" &&
+    typeof parameter.passingMode === "string" &&
+    asTargetTypeRef(parameter.type) !== undefined
+    ? subject as TargetParameter
+    : undefined;
+}
+
+function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
+  if (typeof subject !== "object" || subject === null) {
+    return undefined;
+  }
+  const kind = (subject as { readonly kind?: unknown }).kind;
+  switch (kind) {
+    case "source-primitive":
+    case "target-named":
+    case "type-parameter":
+    case "array":
+    case "tuple":
+    case "pointer":
+    case "function-pointer":
+    case "opaque":
+    case "associated-type":
+    case "lifetime":
+    case "target-specific":
+      return subject as TargetTypeRef;
+    default:
+      return undefined;
+  }
+}
+
+function getTargetTypeArgumentsForType(
+  type: Type,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): readonly TargetTypeRef[] {
+  const types = context.compiler?.types;
+  if (types === undefined || !types.isTypeReference(type)) {
+    return [];
+  }
+  return types.getTypeArguments(type, typeShapeOptions(options))
+    .map((argument) => getTargetTypeRefForType(argument, context, options))
+    .filter((argument): argument is TargetTypeRef => argument !== undefined);
+}
+
+function typeShapeOptions(options: TargetTypeRefResolutionOptions): { readonly sourceFile: SourceFile } | undefined {
+  return options.sourceFile === undefined ? undefined : { sourceFile: options.sourceFile };
+}
+
+function getTypeParameterName(type: Type, context: ExtensionObservationContext): string | undefined {
+  const ast = context.compiler?.ast;
+  const declarations = (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ?? [];
+  if (ast === undefined) {
+    return undefined;
+  }
+  for (const declaration of declarations) {
+    if (ast.is.IsTypeParameterDeclaration(declaration)) {
+      const name = ast.text(ast.name(declaration));
+      return name.length === 0 ? undefined : name;
+    }
+  }
+  return undefined;
+}
+
+function isSourceLibraryType(type: Type, context: ExtensionObservationContext, name: string): boolean {
+  const ast = context.compiler?.ast;
+  const types = context.compiler?.types;
+  if (ast === undefined || types === undefined) {
+    return false;
+  }
+  const target = types.isTypeReference(type) ? types.getTypeReferenceTarget(type) : type;
+  const declarations = (target?.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
+    (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
+    [];
+  return declarations.some((declaration) =>
+    ast.text(ast.name(declaration)) === name &&
+    ast.getFileName(ast.getSourceFile(declaration)).startsWith("bundled:///libs/"));
 }
 
 function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): boolean {
@@ -598,7 +1906,9 @@ function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, request.calleePropertyName, context);
+  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, request.calleePropertyName, context) ??
+    getSourceLibraryMemberFromReceiver(request.calleeReceiverType, request.calleePropertyName, context) ??
+    getSourceLibraryMemberFromReceiver(request.calleeReceiver, request.calleePropertyName, context);
   if (sourceMember === undefined) {
     return undefined;
   }
@@ -619,7 +1929,9 @@ function mapCsharpSourceLibraryCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, request.propertyName, context);
+  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, request.propertyName, context) ??
+    getSourceLibraryMemberFromReceiver(request.receiverType, request.propertyName, context) ??
+    getSourceLibraryMemberFromReceiver(request.receiver, request.propertyName, context);
   if (sourceMember === undefined) {
     return undefined;
   }
@@ -632,26 +1944,77 @@ function mapCsharpSourceLibraryCheckedPropertyAccess(
   }, [{ message: `C# target property selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
 }
 
+function getSourceLibraryMemberFromReceiver(
+  receiver: ExtensionFactSubject | undefined,
+  memberName: string | undefined,
+  context: ExtensionObservationContext,
+): SourceLibraryMember | undefined {
+  if (memberName === undefined || memberName.length === 0) {
+    return undefined;
+  }
+  const receiverType = unwrapNullableTargetType(
+    getTargetTypeRefForSubject(receiver, context, noNodeTypeQuery) ??
+      getTargetTypeRefForSubject(receiver, context),
+  );
+  if (receiverType?.kind === "array") {
+    return {
+      declaringName: "Array",
+      memberName,
+      fileName: "bundled:///libs/lib.es5.d.ts",
+    };
+  }
+  if (isCsharpStringType(receiverType)) {
+    return {
+      declaringName: "String",
+      memberName,
+      fileName: "bundled:///libs/lib.es5.d.ts",
+    };
+  }
+  if (receiverType?.kind === "target-named" && receiverType.id === "Tsonic.CSharp.Js.RegExp") {
+    return {
+      declaringName: "RegExp",
+      memberName,
+      fileName: "bundled:///libs/lib.es5.d.ts",
+    };
+  }
+  return undefined;
+}
+
 function mapCsharpSourceLibraryCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = getTargetTypeRefForSubject(request.receiver, context);
+  const receiverType = unwrapNullableTargetType(
+    getTargetTypeRefForSubject(request.receiverType, context, noNodeTypeQuery) ??
+      getTargetTypeRefForSubject(request.receiverType, context) ??
+      getTargetTypeRefForSubject(request.receiver, context, noNodeTypeQuery) ??
+      getTargetTypeRefForSubject(request.receiver, context),
+  );
   if (receiverType?.kind === "array") {
+    const indexType = getTargetTypeRefForSubject(request.argument, context);
+    if (!isIntegralTargetTypeRef(indexType) && scoreLiteralTargetTypeMatch(csharpSourcePrimitiveTargetType("int32"), request.argument, context) === undefined) {
+      return rejectObservation(csharpProviderDiagnostic("tsonic.csharp.surface-operations", "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100111, "C# array element access requires an integral provider-backed index type."));
+    }
     return acceptObservation<CheckedOperationMappingResult>({
       operation: {
         operationId: "tsonic.csharp.source.array.indexer",
         operationKind: "indexer",
         targetOperation: "System.Array.Item",
+        resultType: receiverType.element,
       },
     }, [{ message: "C# target array indexer selected from checked TypeScript element access." }]);
   }
   if (receiverType?.kind === "target-named" && receiverType.id === "System.String") {
+    const indexType = getTargetTypeRefForSubject(request.argument, context);
+    if (!isIntegralTargetTypeRef(indexType) && scoreLiteralTargetTypeMatch(csharpSourcePrimitiveTargetType("int32"), request.argument, context) === undefined) {
+      return rejectObservation(csharpProviderDiagnostic("tsonic.csharp.surface-operations", "CSHARP_NON_INTEGRAL_STRING_INDEX", 9100112, "C# string element access requires an integral provider-backed index type."));
+    }
     return acceptObservation<CheckedOperationMappingResult>({
       operation: {
         operationId: "tsonic.csharp.source.string.codeUnit",
         operationKind: "indexer",
         targetOperation: "string-code-unit",
+        resultType: csharpTargetNamedType("System.String"),
       },
     }, [{ message: "C# target string code-unit access selected from checked TypeScript element access." }]);
   }
@@ -673,8 +2036,10 @@ function getSourceLibraryMember(
   if (!fileName.startsWith("bundled:///libs/")) {
     return undefined;
   }
-  const memberName = ast.text(ast.name(declaration)) || fallbackMemberName;
   const containerName = ast.text(ast.name(ast.parent(declaration)));
+  const memberName = ast.text(ast.name(declaration)) ||
+    fallbackMemberName ||
+    (containerName.endsWith("Constructor") ? "constructor" : undefined);
   return memberName === undefined || memberName === "" || containerName === ""
     ? undefined
     : { declaringName: normalizeSourceLibraryDeclaringName(containerName), memberName, fileName };
@@ -690,6 +2055,8 @@ function getSourceLibraryCallMembers(sourceMember: SourceLibraryMember): readonl
       return getMathTargetMembers(sourceMember.memberName);
     case "String":
       return getStringTargetMembers(sourceMember.memberName);
+    case "RegExp":
+      return getRegExpTargetMembers(sourceMember.memberName);
     case "Array":
     case "ReadonlyArray":
       return getArrayTargetMembers(sourceMember.memberName);
@@ -704,9 +2071,36 @@ function getSourceLibraryPropertyOperation(sourceMember: SourceLibraryMember) {
       operationId: `tsonic.csharp.source.${sourceMember.declaringName}.length`,
       operationKind: "property" as const,
       targetOperation: "Length",
+      resultType: csharpSourcePrimitiveTargetType("int32"),
     };
   }
   return undefined;
+}
+
+function getRegExpTargetMembers(sourceName: string): readonly TargetMember[] {
+  const regExpType = csharpTargetNamedType("Tsonic.CSharp.Js.RegExp");
+  const stringType = csharpTargetNamedType("System.String");
+  const boolType = csharpSourcePrimitiveTargetType("bool");
+  if (sourceName === "constructor") {
+    return [{
+      id: "Tsonic.CSharp.Js.RegExp..ctor(System.String,System.String)",
+      sourceName,
+      targetName: "RegExp",
+      kind: "constructor",
+      parameters: [
+        targetParameter("pattern", stringType),
+        targetParameter("flags", stringType, { optional: true }),
+      ],
+      returnType: regExpType,
+      declaringType: regExpType,
+    }];
+  }
+  if (sourceName === "test") {
+    return [targetMethod("Tsonic.CSharp.Js.RegExp.test", "test", "test", [
+      targetParameter("value", stringType),
+    ], boolType)];
+  }
+  return [];
 }
 
 const mathTargetNames = new Map<string, string>([
@@ -968,6 +2362,28 @@ function targetMethod(
   };
 }
 
+function targetProperty(
+  id: string,
+  sourceName: string,
+  targetName: string,
+  returnType: TargetTypeRef,
+  options: {
+    readonly declaringType?: TargetTypeRef;
+    readonly static?: boolean;
+  } = {},
+): TargetMember {
+  return {
+    id,
+    sourceName,
+    targetName,
+    kind: "property",
+    parameters: [],
+    returnType,
+    ...(options.declaringType !== undefined ? { declaringType: options.declaringType } : {}),
+    ...(options.static !== undefined ? { static: options.static } : {}),
+  };
+}
+
 function targetParameter(
   name: string,
   type: TargetTypeRef,
@@ -1010,15 +2426,449 @@ function targetOperationFromMember(member: TargetMember) {
 }
 
 function mapRuntimeCarrier(
-  _request: RuntimeCarrierFactRequest,
-  primitive: SourcePrimitiveFact | undefined,
+  request: RuntimeCarrierFactRequest,
+  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
 ) {
+  const primitive = (request.sourceTypeReference === undefined ? undefined : context.factResolver.resolve(request.sourceTypeReference, sourcePrimitiveFactKey)) ??
+    (request.sourceTypeSymbol === undefined ? undefined : context.factResolver.resolve(request.sourceTypeSymbol, sourcePrimitiveFactKey)) ??
+    context.factResolver.resolve(request.type, sourcePrimitiveFactKey);
   if (primitive === undefined) {
-    return deferObservation;
+    const carrier = getTargetTypeRefForType(asType(request.type), context, { allowRuntimeCarrier: false });
+    return carrier === undefined
+      ? deferObservation
+      : acceptObservation<RuntimeCarrierFactResult>({
+          carrier,
+        }, [{ message: "C# runtime carrier mapped from checked TSTS type shape." }]);
   }
   return acceptObservation<RuntimeCarrierFactResult>({
     carrier: csharpSourcePrimitiveTargetType(primitive.kind),
   }, [{ message: "C# runtime carrier mapped from source primitive fact." }]);
+}
+
+function recordCsharpSourceFileFacts(
+  request: SourceFileBoundLifecycleRequest,
+  facts: ExtensionFactStore,
+): void {
+  const sourceFile = asNodeSubject(request.sourceFile);
+  if (sourceFile === undefined || request.providerVirtualModule !== undefined) {
+    return;
+  }
+  visitStructuralNodes(sourceFile, (node) => {
+    recordCsharpObjectShapeFact(node, request.sourceFile, facts);
+    recordCsharpTypeParameterConstraintFact(node, facts);
+  });
+}
+
+function recordCsharpObjectShapeFact(node: Node, sourceFile: ExtensionFactSubject | undefined, facts: ExtensionFactStore): void {
+  if (!isTypeLiteralLikeNode(node)) {
+    return;
+  }
+  const members = getNodeList(getNodeField(node, "Members"));
+  if (members.length === 0) {
+    return;
+  }
+  const shapeMembers = members
+    .map((member) => member === undefined ? undefined : getCsharpObjectShapeMemberFact(member, facts))
+    .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
+  if (shapeMembers.length !== members.length) {
+    return;
+  }
+  const shapeId = getStableNodeId(node, sourceFile);
+  const fact = {
+    targetType: csharpTargetNamedType(`__TsonicShape${shapeId}`),
+    members: shapeMembers,
+  } satisfies CsharpObjectShapeFact;
+  facts.set(node, csharpObjectShapeFactKey, fact, [{ message: "C# object-shape fact recorded from structural type literal." }]);
+}
+
+function getCsharpObjectShapeMemberFact(
+  node: Node,
+  facts: ExtensionFactStore,
+): CsharpObjectShapeMemberFact | undefined {
+  const sourceName = getNodeNameText(node);
+  if (sourceName.length === 0) {
+    return undefined;
+  }
+  const memberKind = getNodeList(getNodeField(node, "Parameters")).length > 0 ? "method" : "property";
+  const type = memberKind === "method"
+    ? getFunctionTargetTypeRefFromSignatureLikeNode(node, facts)
+    : getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type") ?? getNodeField(node, "type")), facts);
+  if (type === undefined) {
+    return undefined;
+  }
+  return {
+    sourceName,
+    targetName: sourceNameToCsharpMemberName(sourceName),
+    memberKind,
+    type,
+    ...(getNodeField(node, "QuestionToken") !== undefined ? { optional: true } : {}),
+  };
+}
+
+function recordCsharpTypeParameterConstraintFact(node: Node, facts: ExtensionFactStore): void {
+  const constraintNode = asNodeSubject(getNodeField(node, "Constraint"));
+  if (constraintNode === undefined || getNodeNameText(node).length === 0) {
+    return;
+  }
+  const constraintType = getTargetTypeRefForSyntaxNode(constraintNode, facts);
+  if (constraintType?.kind !== "source-primitive") {
+    return;
+  }
+  const constraint = getCsharpTypeParameterConstraintForPrimitive(constraintType.name);
+  if (constraint === undefined) {
+    return;
+  }
+  facts.set(node, csharpTargetTypeParameterConstraintFactKey, {
+    constraints: [constraint],
+  }, [{ message: "C# type-parameter constraint fact recorded from source primitive constraint." }]);
+}
+
+function getCsharpTypeParameterConstraintForPrimitive(kind: SourcePrimitiveKind): TargetConstraint | undefined {
+  return sourcePrimitiveRuntimeKind(kind) === "number" || sourcePrimitiveRuntimeKind(kind) === "bigint"
+    ? { kind: "target-specific", target: csharpTargetId, name: "generic-math-number" }
+    : undefined;
+}
+
+function getFunctionTargetTypeRefFromSignatureLikeNode(
+  node: Node,
+  facts: ExtensionFactStore,
+): TargetTypeRef | undefined {
+  const parameters = getNodeList(getNodeField(node, "Parameters"))
+    .map((parameter) => getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(parameter, "Type")), facts));
+  if (parameters.some((parameter) => parameter === undefined)) {
+    return undefined;
+  }
+  const returnType = getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type")), facts);
+  if (returnType === undefined || isVoidTargetType(returnType)) {
+    return csharpTargetNamedType(`System.Action\`${parameters.length}`, parameters as readonly TargetTypeRef[]);
+  }
+  return csharpTargetNamedType(`System.Func\`${parameters.length + 1}`, [...(parameters as readonly TargetTypeRef[]), returnType]);
+}
+
+function getTargetTypeRefForSyntaxNode(
+  node: Node | undefined,
+  facts: ExtensionFactStore,
+): TargetTypeRef | undefined {
+  if (node === undefined) {
+    return undefined;
+  }
+  const direct = facts.get(node, runtimeCarrierFactKey)?.carrier;
+  if (direct !== undefined) {
+    return direct;
+  }
+  const primitive = facts.get(node, sourcePrimitiveFactKey);
+  if (primitive !== undefined) {
+    return csharpSourcePrimitiveTargetType(primitive.kind);
+  }
+  const binding = facts.get(node, targetBindingFactKey);
+  if (binding !== undefined) {
+    return csharpTargetNamedType(binding.id);
+  }
+  const objectShape = facts.get(node, csharpObjectShapeFactKey);
+  if (objectShape !== undefined) {
+    return objectShape.targetType;
+  }
+  const elementTypeNode = asNodeSubject(getNodeField(node, "ElementType"));
+  if (elementTypeNode !== undefined) {
+    const elementType = getTargetTypeRefForSyntaxNode(elementTypeNode, facts);
+    if (elementType === undefined) {
+      return undefined;
+    }
+    return { kind: "array", element: elementType };
+  }
+  if (getNodeList(getNodeField(node, "Parameters")).length > 0) {
+    return getFunctionTargetTypeRefFromSignatureLikeNode(node, facts);
+  }
+  return undefined;
+}
+
+function getCsharpObjectShapeFactForSubject(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): CsharpObjectShapeFact | undefined {
+  const direct = context.facts.get(subject, csharpObjectShapeFactKey);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const declarationType = getDeclarationTypeNode(subject, context);
+  const declarationFact = declarationType === undefined ? undefined : context.facts.get(declarationType, csharpObjectShapeFactKey);
+  if (declarationFact !== undefined) {
+    return declarationFact;
+  }
+  const semanticFact = deriveCsharpObjectShapeFactForSemanticSubject(subject, context);
+  if (semanticFact !== undefined) {
+    return semanticFact;
+  }
+  return deriveCsharpObjectShapeFactForSubject(declarationType ?? asNodeSubject(subject), context);
+}
+
+function deriveCsharpObjectShapeFactForSemanticSubject(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): CsharpObjectShapeFact | undefined {
+  const compiler = context.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  const node = asNodeSubject(subject);
+  const sourceFile = node === undefined ? undefined : compiler.ast.getSourceFile(node);
+  const semanticType = asType(subject) ??
+    (node === undefined ? undefined : compiler.checker.getTypeAtLocation(node, { sourceFile }));
+  if (semanticType === undefined ||
+    compiler.types.isAny(semanticType) ||
+    compiler.types.isUnknown(semanticType) ||
+    compiler.types.isStringLike(semanticType) ||
+    compiler.types.isNumberLike(semanticType) ||
+    compiler.types.isBooleanLike(semanticType) ||
+    compiler.types.isBigIntLike(semanticType) ||
+    compiler.types.isArrayLike(semanticType, { sourceFile })) {
+    return undefined;
+  }
+  const properties = compiler.types.getProperties(semanticType, { sourceFile })
+    .filter((property): property is Symbol => property !== undefined);
+  if (properties.length === 0) {
+    return undefined;
+  }
+  const members = properties
+    .map((property) => deriveCsharpObjectShapeMemberFactForSemanticProperty(semanticType, property, context, sourceFile))
+    .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
+  if (members.length !== properties.length) {
+    return undefined;
+  }
+  return {
+    targetType: csharpTargetNamedType(`__TsonicShape${node === undefined ? "Semantic" : getStableNodeId(node, sourceFile)}`),
+    members,
+  };
+}
+
+function deriveCsharpObjectShapeMemberFactForSemanticProperty(
+  ownerType: Type,
+  property: Symbol,
+  context: ExtensionObservationContext,
+  sourceFile: Node | undefined extends never ? never : ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]>,
+): CsharpObjectShapeMemberFact | undefined {
+  const sourceName = property.Name;
+  if (sourceName.length === 0 || context.compiler === undefined) {
+    return undefined;
+  }
+  const propertyType = context.compiler.types.getPropertyType(ownerType, sourceName, { sourceFile });
+  const signatures = context.compiler.types.getCallSignatures(propertyType, { sourceFile });
+  const memberKind = signatures.length > 0 ? "method" : "property";
+  const type = memberKind === "method"
+    ? getFunctionTargetTypeRefFromSemanticSignature(signatures[0], context, sourceFile)
+    : getTargetTypeRefForType(propertyType, context);
+  if (type === undefined) {
+    return undefined;
+  }
+  return {
+    sourceName,
+    targetName: sourceNameToCsharpMemberName(sourceName),
+    memberKind,
+    type,
+  };
+}
+
+function getFunctionTargetTypeRefFromSemanticSignature(
+  signature: unknown,
+  context: ExtensionObservationContext,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): TargetTypeRef | undefined {
+  const compiler = context.compiler;
+  if (compiler === undefined || signature === undefined) {
+    return undefined;
+  }
+  const parameterTypes = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
+    .map((parameter) => getTargetTypeRefForType(compiler.checker.getTypeOfSymbol(parameter, { sourceFile }), context));
+  if (parameterTypes.some((parameter) => parameter === undefined)) {
+    return undefined;
+  }
+  const returnType = getTargetTypeRefForType(compiler.types.getReturnTypeOfSignature(signature as Parameters<typeof compiler.types.getReturnTypeOfSignature>[0], { sourceFile }), context);
+  return returnType === undefined || isVoidTargetType(returnType)
+    ? csharpTargetNamedType(`System.Action\`${parameterTypes.length}`, parameterTypes as readonly TargetTypeRef[])
+    : csharpTargetNamedType(`System.Func\`${parameterTypes.length + 1}`, [...(parameterTypes as readonly TargetTypeRef[]), returnType]);
+}
+
+function deriveCsharpObjectShapeFactForSubject(
+  node: Node | undefined,
+  context: ExtensionObservationContext,
+): CsharpObjectShapeFact | undefined {
+  if (node === undefined || !isTypeLiteralLikeNode(node)) {
+    return undefined;
+  }
+  const members = getNodeList(getNodeField(node, "Members"));
+  if (members.length === 0) {
+    return undefined;
+  }
+  const shapeMembers = members
+    .map((member) => deriveCsharpObjectShapeMemberFactForSubject(member, context))
+    .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
+  if (shapeMembers.length !== members.length) {
+    return undefined;
+  }
+  return {
+    targetType: csharpTargetNamedType(`__TsonicShape${getStableNodeId(node, context.compiler?.ast.getSourceFile(node))}`),
+    members: shapeMembers,
+  };
+}
+
+function deriveCsharpObjectShapeMemberFactForSubject(
+  member: Node,
+  context: ExtensionObservationContext,
+): CsharpObjectShapeMemberFact | undefined {
+  const sourceName = getNodeNameText(member);
+  if (sourceName.length === 0) {
+    return undefined;
+  }
+  const memberKind = getNodeList(getNodeField(member, "Parameters")).length > 0 ? "method" : "property";
+  const type = memberKind === "method"
+    ? getFunctionTargetTypeRefFromSignatureLikeSubject(member, context, {})
+    : getTargetTypeRefForSubject(asNodeSubject(getNodeField(member, "Type") ?? getNodeField(member, "type")), context);
+  if (type === undefined) {
+    return undefined;
+  }
+  return {
+    sourceName,
+    targetName: sourceNameToCsharpMemberName(sourceName),
+    memberKind,
+    type,
+    ...(getNodeField(member, "QuestionToken") !== undefined ? { optional: true } : {}),
+  };
+}
+
+function getDeclarationTypeNode(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): Node | undefined {
+  const checker = context.compiler?.checker;
+  const ast = context.compiler?.ast;
+  const node = asNodeSubject(subject);
+  if (checker === undefined || ast === undefined || node === undefined) {
+    return undefined;
+  }
+  if (isTypeSyntaxNode(ast, node)) {
+    return node;
+  }
+  const sourceFile = ast.getSourceFile(node);
+  const symbol = checker.getSymbolAtLocation(node, { sourceFile }) ??
+    checker.getResolvedSymbol(node, { sourceFile });
+  const declarations = [
+    ...getSymbolDeclarations(symbol),
+    ...getSymbolDeclarations(symbol === undefined ? undefined : checker.getAliasedSymbol(symbol, { sourceFile })),
+  ];
+  for (const declaration of declarations) {
+    const type = asNodeSubject(getNodeField(declaration, "Type") ?? getNodeField(declaration, "type"));
+    if (type !== undefined) {
+      return type;
+    }
+  }
+  return undefined;
+}
+
+function getSymbolDeclarations(symbol: ExtensionFactSubject | undefined): readonly Node[] {
+  return (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
+    ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
+}
+
+function isTypeLiteralLikeNode(node: Node): boolean {
+  return getNodeList(getNodeField(node, "Members")).length > 0 &&
+    getNodeField(node, "Name") === undefined &&
+    getNodeField(node, "name") === undefined &&
+    getNodeField(node, "HeritageClauses") === undefined;
+}
+
+function visitStructuralNodes(
+  node: Node,
+  visitor: (node: Node) => void,
+  seen: WeakSet<object> = new WeakSet(),
+): void {
+  if (seen.has(node)) {
+    return;
+  }
+  seen.add(node);
+  visitor(node);
+  for (const child of getStructuralChildNodes(node)) {
+    visitStructuralNodes(child, visitor, seen);
+  }
+}
+
+function getStructuralChildNodes(node: Node): readonly Node[] {
+  const children: Node[] = [];
+  const listFields = ["Statements", "Members", "Parameters", "TypeParameters", "TypeArguments", "Types", "Arguments", "Elements", "Properties", "Declarations"];
+  for (const key of listFields) {
+    children.push(...getNodeList(getNodeField(node, key)));
+  }
+  const nodeFields = [
+    "Name",
+    "name",
+    "Body",
+    "Type",
+    "ElementType",
+    "Constraint",
+    "Expression",
+    "Initializer",
+    "Left",
+    "Right",
+    "ThenStatement",
+    "ElseStatement",
+    "Statement",
+    "ImportClause",
+    "NamedBindings",
+    "ModuleSpecifier",
+    "TypeName",
+  ];
+  for (const key of nodeFields) {
+    const value = getNodeField(node, key);
+    const direct = asNodeSubject(value);
+    if (direct !== undefined) {
+      children.push(direct);
+    }
+  }
+  return children;
+}
+
+function getNodeList(value: unknown): readonly Node[] {
+  const nodes = (value as { readonly Nodes?: readonly unknown[] } | undefined)?.Nodes;
+  return nodes === undefined
+    ? []
+    : nodes.map(asNodeSubject).filter((node): node is Node => node !== undefined);
+}
+
+function getNodeField(node: Node | undefined, field: string): unknown {
+  if (node === undefined) {
+    return undefined;
+  }
+  const record = node as unknown as Record<string, unknown>;
+  const exact = record[field];
+  if (exact !== undefined) {
+    return exact;
+  }
+  const alternate = `${field[0]!.toLowerCase()}${field.slice(1)}`;
+  return record[alternate];
+}
+
+function getNodeNameText(node: Node): string {
+  const name = asNodeSubject(getNodeField(node, "Name") ?? getNodeField(node, "name"));
+  const text = (name as { readonly Text?: unknown; readonly text?: unknown } | undefined)?.Text ??
+    (name as { readonly text?: unknown } | undefined)?.text;
+  return typeof text === "function" || text === undefined ? "" : String(text);
+}
+
+function getStableNodeId(node: Node, sourceFile: ExtensionFactSubject | undefined): string {
+  const fileName = (sourceFile as { readonly FileName?: unknown; readonly fileName?: unknown } | undefined)?.FileName ??
+    (sourceFile as { readonly fileName?: unknown } | undefined)?.fileName;
+  const id = (node as { readonly id?: unknown }).id;
+  const loc = (node as { readonly Loc?: unknown }).Loc as { readonly pos?: unknown; readonly end?: unknown } | undefined;
+  const pos = typeof loc?.pos === "number" || typeof loc?.pos === "string" ? loc.pos : undefined;
+  const end = typeof loc?.end === "number" || typeof loc?.end === "string" ? loc.end : undefined;
+  return [fileName, id, pos, end]
+    .filter((part) => part !== undefined && part !== "")
+    .map(String)
+    .join("_")
+    .replace(/[^A-Za-z0-9_]/g, "_");
+}
+
+function sourceNameToCsharpMemberName(name: string): string {
+  return name.replace(/[^A-Za-z0-9_]/g, "_");
 }
 
 function csharpSourceSemanticsModules(): readonly SourceSemanticsModule[] {
@@ -1137,7 +2987,7 @@ function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider {
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: `tsts-provider://tsonic-csharp/${encodeURIComponent(specifier)}`,
+        virtualFileName: `/node_modules/${specifier}.d.ts`,
         providerModuleId: specifier,
         ...(module.packageName !== undefined ? { packageName: module.packageName } : {}),
         ...(module.packageVersion !== undefined ? { packageVersion: module.packageVersion } : {}),
@@ -1308,26 +3158,22 @@ function attributeBuilderDeclaration(): ProviderExportDeclaration {
         { name: "attribute", type: { kind: "object" } },
         { name: "args", type: { kind: "any" }, rest: true },
       ], { kind: "void" }),
-      methodMember("__TsonicAttributeBuilder.property", "property", [
-        {
-          name: "selector",
-          type: {
-            kind: "function",
-            parameters: [{ name: "target", type: ownerType }],
-            returnType: { kind: "unknown" },
-          },
+      methodMember("__TsonicAttributeBuilder.property", "property", [{
+        name: "selector",
+        type: {
+          kind: "function",
+          parameters: [{ name: "target", type: ownerType }],
+          returnType: { kind: "any" },
         },
-      ], memberBuilder),
-      methodMember("__TsonicAttributeBuilder.method", "method", [
-        {
-          name: "selector",
-          type: {
-            kind: "function",
-            parameters: [{ name: "target", type: ownerType }],
-            returnType: { kind: "unknown" },
-          },
+      }], memberBuilder),
+      methodMember("__TsonicAttributeBuilder.method", "method", [{
+        name: "selector",
+        type: {
+          kind: "function",
+          parameters: [{ name: "target", type: ownerType }],
+          returnType: { kind: "any" },
         },
-      ], memberBuilder),
+      }], memberBuilder),
     ],
   };
 }
@@ -1496,12 +3342,24 @@ function indexerMember(id: string, sourceName: string, parameters: readonly Prov
   };
 }
 
-function methodMember(id: string, sourceName: string, parameters: readonly ProviderParameterDeclaration[], returnType: ProviderTypeExpression) {
+function methodMember(
+  id: string,
+  sourceName: string,
+  parameters: readonly ProviderParameterDeclaration[],
+  returnType: ProviderTypeExpression,
+  typeParameters: readonly { readonly name: string }[] = [],
+) {
   return {
     id,
     name: sourceName,
     kind: "method" as const,
-    signatures: [{ id, name: targetMemberNameFromId(id), parameters, returnType }],
+    signatures: [{
+      id,
+      name: targetMemberNameFromId(id),
+      parameters,
+      returnType,
+      ...(typeParameters.length === 0 ? {} : { typeParameters }),
+    }],
   };
 }
 
@@ -1523,19 +3381,7 @@ function targetMemberNameFromId(id: string): string {
 }
 
 function providerTypeForPrimitive(kind: SourcePrimitiveKind): ProviderTypeExpression {
-  switch (kind) {
-    case "bool":
-      return { kind: "boolean" };
-    case "char":
-      return { kind: "string" };
-    case "int64":
-    case "uint64":
-    case "int128":
-    case "uint128":
-      return { kind: "bigint" };
-    default:
-      return { kind: "number" };
-  }
+  return { kind: "source-primitive", name: kind };
 }
 
 function providerCsharpStringType(): ProviderTypeExpression {
