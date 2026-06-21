@@ -67,7 +67,7 @@ export const csharpJsCheckedTypeQuery = { allowSemanticTypeQuery: false } satisf
 
 export function getSourceLibraryMember(
   declarationSubject: ExtensionFactSubject | undefined,
-  alternateMemberName: string | undefined,
+  checkedMemberName: string | undefined,
   context: ExtensionObservationContext,
 ): SourceLibraryMember | undefined {
   const ast = context.compiler?.ast;
@@ -82,7 +82,7 @@ export function getSourceLibraryMember(
   }
   const containerName = ast.text(ast.name(ast.parent(declaration)));
   const memberName = ast.text(ast.name(declaration)) ||
-    alternateMemberName ||
+    checkedMemberName ||
     (containerName.endsWith("Constructor") ? "constructor" : undefined);
   return memberName === undefined || memberName === "" || containerName === ""
     ? undefined
