@@ -1361,6 +1361,13 @@ function getTargetTypeRefForType(
   if (callable !== undefined) {
     return callable;
   }
+  if (types.isTuple(type)) {
+    const elements = types.getTupleElementTypes(type, typeShapeOptions(options))
+      .map((element) => getTargetTypeRefForType(element, context, options));
+    return elements.some((element) => element === undefined)
+      ? undefined
+      : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
+  }
   if (types.isArrayLike(type, typeShapeOptions(options))) {
     const element = getTargetTypeRefForType(getFirstTypeArgument(type, context, options), context, options);
     return element === undefined ? undefined : { kind: "array", element };
@@ -1540,18 +1547,7 @@ function getTargetTypeRefFromSyntax(
   if (ast.is.IsFunctionTypeNode(node) || ast.is.IsConstructorTypeNode(node)) {
     return getFunctionTargetTypeRefFromSignatureLikeSubject(node, context, options);
   }
-  if (!ast.is.IsArrayLiteralExpression(node)) {
-    return undefined;
-  }
-  const elements = ast.elements(node)
-    .map((element) => getTargetTypeRefForSubject(element, context, options));
-  if (elements.length === 0 || elements.some((element) => element === undefined)) {
-    return undefined;
-  }
-  const first = elements[0]!;
-  return elements.every((element) => element !== undefined && targetTypeRefEquals(first, element))
-    ? { kind: "array", element: first }
-    : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
+  return undefined;
 }
 
 function getTargetTypeRefFromTypeReferenceSyntax(
