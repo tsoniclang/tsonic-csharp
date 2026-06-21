@@ -1,0 +1,95 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { selectedTargetSignatureFactKey } from "@tsonic/tsts";
+import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { recordCsharpSelectedCallOperationFactsBeforeFinalization } from "../dist/source/csharp-source-semantics/csharp-operation-lifecycle.js";
+
+test("selected call lifecycle records closed C# operation facts from selected type arguments", () => {
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
+  const call = { Kind: 1 };
+  sourceFile.Statements.Nodes.push(call);
+  const member = genericIdentityMember();
+  const facts = new TestFactStore();
+  facts.set(call, selectedTargetSignatureFactKey, {
+    member,
+    targetTypeArguments: [{ kind: "target-named", id: "System.String" }],
+  });
+
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host: { facts },
+    compiler: fakeCompiler([sourceFile]),
+  });
+
+  const operation = facts.get(call, csharpTargetOperationFactKey);
+  assert.equal(operation.kind, "member");
+  assert.equal(operation.operationId, "Example.Box.identity``1");
+  assert.deepEqual(operation.resultType, { kind: "target-named", id: "System.String" });
+  assert.deepEqual(operation.selectedMember.parameters[0].type, { kind: "target-named", id: "System.String" });
+  assert.deepEqual(operation.selectedMember.returnType, { kind: "target-named", id: "System.String" });
+});
+
+test("selected call lifecycle does not record unresolved generic C# members", () => {
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
+  const call = { Kind: 1 };
+  sourceFile.Statements.Nodes.push(call);
+  const facts = new TestFactStore();
+  facts.set(call, selectedTargetSignatureFactKey, {
+    member: genericIdentityMember(),
+  });
+
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host: { facts },
+    compiler: fakeCompiler([sourceFile]),
+  });
+
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+function genericIdentityMember() {
+  return {
+    id: "Example.Box.identity``1",
+    sourceName: "identity",
+    targetName: "Identity",
+    kind: "method",
+    parameters: [{
+      name: "value",
+      type: { kind: "type-parameter", name: "T" },
+      passingMode: "by-value",
+    }],
+    returnType: { kind: "type-parameter", name: "T" },
+    typeParameters: [{ name: "T" }],
+  };
+}
+
+function fakeCompiler(sourceFiles) {
+  return {
+    getSourceFiles: () => sourceFiles,
+    ast: {
+      children: () => [],
+      typeArguments: () => [],
+      typeParameters: () => [],
+      parameters: () => [],
+      members: () => [],
+      elements: () => [],
+      properties: () => [],
+      arguments: () => [],
+    },
+  };
+}
+
+class TestFactStore {
+  #facts = new Map();
+
+  get(subject, key) {
+    return this.#facts.get(subject)?.get(key);
+  }
+
+  set(subject, key, value) {
+    let subjectFacts = this.#facts.get(subject);
+    if (subjectFacts === undefined) {
+      subjectFacts = new Map();
+      this.#facts.set(subject, subjectFacts);
+    }
+    subjectFacts.set(key, value);
+  }
+}

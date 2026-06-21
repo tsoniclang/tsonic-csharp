@@ -70,7 +70,6 @@ export function mapCsharpCheckedCall(
   const member = findTargetMemberForCall(
     binding,
     context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey),
-    request.calleePropertyName,
     request,
     context,
     host.getTargetTypeRefForSubject,

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
+import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
 import { createCsharpNativeProviderExtension } from "../dist/index.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
@@ -55,6 +55,144 @@ test("target member selection does not treat System.Object as an implicit wildca
     selectTargetMember([member], { arguments: [argument] }, context, resolveTargetTypeRef),
     undefined,
   );
+});
+
+test("C# provider requires provider virtual declaration identity instead of source-name fallback", () => {
+  const provider = getNativeSemanticProvider();
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+});
+
+test("C# provider selects target member from provider virtual declaration identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
+test("C# provider selected declaration signature id wins over source names", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      { ...method("Example.Target.m(System.Int64)", { kind: "source-primitive", name: "int64" }), sourceName: "renamed" },
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int64",
+      runtimeBase: "number",
+      signed: true,
+      width: 64,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      signatureId: "Example.Target.m(System.Int64)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
@@ -171,7 +309,12 @@ function method(id, parameterType) {
 function fakeObservationContext(options) {
   return {
     facts: {
-      get: () => undefined,
+      get(subject, key) {
+        if (subject === options.virtualDeclarationSubject && key === providerVirtualDeclarationFactKey) {
+          return options.virtualDeclaration;
+        }
+        return undefined;
+      },
       set() {},
     },
     factResolver: {

@@ -26,12 +26,11 @@ export type {
 export function findTargetMemberForCall(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
-  sourceName: string | undefined,
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   resolveTargetTypeRef: TargetTypeRefResolver,
 ): TargetMember | undefined {
-  const candidates = getTargetMemberCandidates(binding, declaration, sourceName);
+  const candidates = getTargetMemberCandidates(binding, declaration);
   return selectTargetMember(candidates, {
     arguments: request.arguments,
     receiver: request.calleeReceiver,
@@ -41,26 +40,24 @@ export function findTargetMemberForCall(
 export function findTargetMember(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
-  sourceName: string | undefined,
 ): TargetMember | undefined {
   const members = binding.members ?? [];
   if (declaration?.signatureId !== undefined) {
     return members.find((member) => member.id === declaration.signatureId);
   }
-  const memberName = declaration?.memberName ?? sourceName;
+  const memberName = declaration?.memberName;
   return memberName === undefined ? undefined : members.find((member) => member.sourceName === memberName);
 }
 
 function getTargetMemberCandidates(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
-  sourceName: string | undefined,
 ): readonly TargetMember[] {
   const members = binding.members ?? [];
   if (declaration?.signatureId !== undefined) {
     return members.filter((member) => member.id === declaration.signatureId);
   }
-  const memberName = declaration?.memberName ?? sourceName;
+  const memberName = declaration?.memberName;
   if (memberName !== undefined) {
     return members.filter((member) => member.sourceName === memberName);
   }
