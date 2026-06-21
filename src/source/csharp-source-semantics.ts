@@ -3,7 +3,6 @@ import {
   ExtensionObservationPoint,
   TstsProviderContractVersion,
   acceptObservation,
-  attributeFactKey,
   contextualTargetTypeFactKey,
   createSourceSemanticsExtension,
   deferObservation,
@@ -35,7 +34,6 @@ import type {
   ExtensionFactStore,
   ExtensionFactSubject,
   Node,
-  ProviderVirtualDeclarationFact,
   ProviderIdentity,
   ParameterPassingRequest,
   ParameterPassingResult,
@@ -66,11 +64,9 @@ import type {
 import { csharpProviderDiagnostic } from "./csharp-source-semantics/diagnostics.js";
 import { createCsharpCoreVirtualModulesProvider } from "./csharp-source-semantics/core-virtual-modules.js";
 import {
-  csharpLangModule,
   csharpNativeProviderExtensionId,
   csharpProviderVersion,
   csharpTargetId,
-  neutralLangModule,
 } from "./csharp-source-semantics/identity.js";
 import {
   csharpSourcePrimitiveTargetType,
@@ -129,6 +125,11 @@ import {
   getTypeofComparisonOperation,
   getTypeofRuntimeKind,
 } from "./csharp-source-semantics/typeof-operators.js";
+import {
+  erasedSourceSemanticsMember,
+  isCheckedAttributeBuilderCall,
+  isErasedSourceSemanticsCall,
+} from "./csharp-source-semantics/erased-source-markers.js";
 import {
   getDeclarationTypeNode,
   getSymbolDeclarations,
@@ -864,49 +865,6 @@ function mapCsharpCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
-}
-
-function isErasedSourceSemanticsCall(declaration: ProviderVirtualDeclarationFact | undefined): declaration is ProviderVirtualDeclarationFact {
-  if (declaration === undefined) {
-    return false;
-  }
-  if (declaration.moduleSpecifier !== neutralLangModule && declaration.moduleSpecifier !== csharpLangModule) {
-    return false;
-  }
-  return declaration.exportName === "attribute" ||
-    declaration.exportName === "field" ||
-    declaration.exportName === "struct" ||
-    declaration.exportName === "defaultof" ||
-    declaration.exportName === "out" ||
-    declaration.exportName === "ref" ||
-    declaration.exportName === "inref" ||
-    declaration.exportName === "borrow" ||
-    declaration.exportName === "borrowMut" ||
-    declaration.exportName === "move" ||
-    declaration.exportName === "__TsonicAttributeBuilder" ||
-    declaration.exportName === "__TsonicAttributeMemberBuilder";
-}
-
-function isCheckedAttributeBuilderCall(
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): boolean {
-  return context.facts.get(request.call, attributeFactKey) !== undefined ||
-    context.facts.get(request.calleeReceiver, attributeFactKey) !== undefined;
-}
-
-function erasedSourceSemanticsMember(
-  declaration: ProviderVirtualDeclarationFact | undefined,
-  request: CheckedCallMappingRequest,
-): TargetMember {
-  const sourceName = declaration?.memberName ?? declaration?.exportName ?? request.calleePropertyName ?? "sourceMarker";
-  return {
-    id: declaration?.signatureId ?? `${declaration?.providerModuleId ?? "source-semantics"}.${sourceName}`,
-    sourceName,
-    targetName: "__tsonic_erased_source_marker",
-    kind: "method",
-    parameters: [],
-  };
 }
 
 function mapCsharpCheckedPropertyAccess(
