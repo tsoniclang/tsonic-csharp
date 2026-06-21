@@ -17,7 +17,7 @@ test("provider-owned operator operands require selected target operator facts", 
   assert.deepEqual(ownership.reasons, ["operand semantic node target binding"]);
 });
 
-test("plain source primitive operator operands are source-owned without backend type-flag inspection", () => {
+test("source primitive operator operands require selected target operator facts", () => {
   const operand = node(KindIdentifier);
   const primitiveType = {};
   const input = fakeInput({
@@ -27,9 +27,9 @@ test("plain source primitive operator operands are source-owned without backend 
 
   const ownership = getProviderOperationOwnership(operand, {}, input);
 
-  assert.equal(ownership.requiresTargetFact, false);
-  assert.equal(ownership.sourceOwned, true);
-  assert.deepEqual(ownership.reasons, []);
+  assert.equal(ownership.requiresTargetFact, true);
+  assert.equal(ownership.sourceOwned, false);
+  assert.deepEqual(ownership.reasons, ["operand semantic node source primitive"]);
 });
 
 test("unowned non-scalar operator operands are not direct source operations", () => {

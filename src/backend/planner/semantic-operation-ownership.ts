@@ -20,7 +20,6 @@ import {
   getQueryableSymbol,
 } from "./semantic-queryable-symbols.js";
 import {
-  isSourceOwnedProjectShapeSubject,
   isTypeParameterTargetRef,
 } from "./semantic-source-ownership.js";
 
@@ -64,15 +63,10 @@ export function getProviderOperationOwnership(
   if (typeParameter) {
     reasons.push("operand type parameter");
   }
-  const sourceOwned = !typeParameter && (
-    carrier?.kind === "source-primitive" ||
-    isSourceOwnedProjectShapeSubject(node, sourceFile, input)
-  );
-  if (!sourceOwned) {
-    appendSemanticNodeFactReasons(reasons, input, node, sourceFile, "operand semantic node");
-  }
+  appendSemanticNodeFactReasons(reasons, input, node, sourceFile, "operand semantic node");
+  const sourceOwned = false;
   return {
-    requiresTargetFact: !sourceOwned && reasons.length > 0,
+    requiresTargetFact: reasons.length > 0,
     sourceOwned,
     reasons,
   };
