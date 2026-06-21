@@ -1,5 +1,4 @@
 import {
-  ExtensionObservationPoint,
   acceptObservation,
   deferObservation,
   runtimeCarrierFactKey,
@@ -7,7 +6,6 @@ import {
   sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
 import type {
-  CompilerExtension,
   ExtensionFactStore,
   ExtensionFactSubject,
   ExtensionObservation,
@@ -16,7 +14,6 @@ import type {
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
   SourceFile,
-  Symbol,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -30,7 +27,6 @@ import {
   asNodeSubject,
   getNodeField,
   getStructuralChildNodes,
-  isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
   csharpNativeProviderExtensionId,
@@ -41,7 +37,6 @@ import {
 } from "./target-types.js";
 import {
   asType,
-  targetTypeRefEquals,
 } from "./target-ref-utils.js";
 import type {
   TargetTypeRefResolutionOptions,
@@ -53,14 +48,32 @@ import {
   createCsharpJsSurfaceHost,
   useObservationOrWhenDeferred,
 } from "./operations-provider.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "./runtime-carrier-context.js";
+import type {
+  CsharpLifecycleObservationContext,
+} from "./runtime-carrier-context.js";
+import {
+  isRuntimeCarrierTypeSyntaxNode,
+  getRuntimeCarrierSubjectSymbol,
+  getRuntimeCarrierSubjectType,
+} from "./runtime-carrier-subjects.js";
+import {
+  recordCsharpObjectShapeFactOnRuntimeCarrierSubjects,
+  recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects,
+} from "./runtime-carrier-object-shapes.js";
 
-export type CsharpLifecycleObservationContext =
-  Parameters<NonNullable<CompilerExtension["initialize"]>>[0] extends never
-    ? never
-    : {
-        readonly host: ExtensionObservationContext["host"];
-        readonly compiler?: ExtensionObservationContext["compiler"];
-      };
+export {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "./runtime-carrier-context.js";
+export type {
+  CsharpLifecycleObservationContext,
+} from "./runtime-carrier-context.js";
+export {
+  getRuntimeCarrierSubjectSymbol,
+  getRuntimeCarrierSubjectType,
+} from "./runtime-carrier-subjects.js";
 
 export interface CsharpRuntimeCarrierSemanticsHost {
   readonly getTargetTypeRefForSubject: (
@@ -105,39 +118,6 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
     walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, true, targetId, selectedSurfaceIds, host);
     walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, false, targetId, selectedSurfaceIds, host);
   }
-}
-
-export function createRuntimeCarrierLifecycleObservationContext(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-): ExtensionObservationContext<typeof ExtensionObservationPoint.resolveRuntimeCarrier> {
-  return {
-    observation: ExtensionObservationPoint.resolveRuntimeCarrier,
-    extensionId: csharpNativeProviderExtensionId,
-    host: lifecycleContext.host,
-    facts: lifecycleContext.host.facts,
-    factResolver: lifecycleContext.host.factResolver,
-    diagnostics: lifecycleContext.host.diagnostics,
-    ...(lifecycleContext.compiler !== undefined ? { compiler: lifecycleContext.compiler } : {}),
-  };
-}
-
-export function getRuntimeCarrierSubjectType(
-  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
-  sourceFile: SourceFile,
-  node: Node,
-): Type | undefined {
-  return isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)
-    ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
-    : compiler.checker.getTypeAtLocation(node, { sourceFile });
-}
-
-export function getRuntimeCarrierSubjectSymbol(
-  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
-  sourceFile: SourceFile,
-  node: Node,
-): Symbol | undefined {
-  return compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
-    compiler.checker.getResolvedSymbol(node, { sourceFile });
 }
 
 export function mapRuntimeCarrier(
@@ -389,44 +369,5 @@ function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
     if (symbol !== undefined) {
       lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, initializerFact, evidence);
     }
-  }
-}
-
-function isRuntimeCarrierTypeSyntaxNode(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): boolean {
-  return isTypeSyntaxNode(ast, node);
-}
-
-function recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(
-  request: RuntimeCarrierFactRequest,
-  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
-  carrier: TargetTypeRef,
-  host: CsharpRuntimeCarrierSemanticsHost,
-): void {
-  const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(request.sourceTypeReference, context) ??
-    host.getRecordedCsharpObjectShapeFactForSubject(request.type, context);
-  if (objectShape === undefined || !targetTypeRefEquals(objectShape.targetType, carrier)) {
-    return;
-  }
-  recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, objectShape);
-}
-
-function recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(
-  request: RuntimeCarrierFactRequest,
-  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
-  objectShape: CsharpObjectShapeFact,
-): void {
-  context.facts.set(request.type, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to runtime carrier type." }]);
-  if (request.sourceTypeReference !== undefined) {
-    context.facts.set(request.sourceTypeReference, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type reference." }]);
-  }
-  if (request.sourceTypeSymbol !== undefined) {
-    context.facts.set(request.sourceTypeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
-  }
-  const typeSymbol = asType(request.type)?.symbol;
-  if (typeSymbol !== undefined) {
-    context.facts.set(typeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
   }
 }
