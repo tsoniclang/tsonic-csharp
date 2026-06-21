@@ -7,7 +7,6 @@ import type {
   CsharpExpression,
   CsharpLocalDeclaration,
   CsharpStatement,
-  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import {
   predefined,
@@ -28,6 +27,16 @@ import {
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
+import {
+  add,
+  and,
+  assign,
+  callStatic,
+  element,
+  lessThan,
+  literalNumber,
+  member,
+} from "./csharp-expression-builders.js";
 
 export interface PlannedStringForOfBinding extends CsharpLocalDeclaration {
   readonly prelude: readonly CsharpStatement[];
@@ -101,7 +110,7 @@ export function planStringCodePointForOfStatement(
                   kind: "Block",
                   statements: [
                     assign(bindingIdentifier, substring(collectionIdentifier, indexIdentifier, 2)),
-                    assign(indexIdentifier, add(indexIdentifier, literal(2))),
+                    assign(indexIdentifier, add(indexIdentifier, literalNumber(2))),
                   ],
                 },
                 elseBody: {
@@ -131,10 +140,10 @@ export function planStringCodePointForOfStatement(
 
 function stringHasSurrogatePairAt(collection: CsharpExpression, index: CsharpExpression): CsharpExpression {
   return and(
-    lessThan(add(index, literal(1)), member(collection, "Length")),
+    lessThan(add(index, literalNumber(1)), member(collection, "Length")),
     and(
       callStatic(predefined("char"), "IsHighSurrogate", [element(collection, index)]),
-      callStatic(predefined("char"), "IsLowSurrogate", [element(collection, add(index, literal(1)))]),
+      callStatic(predefined("char"), "IsLowSurrogate", [element(collection, add(index, literalNumber(1)))]),
     ),
   );
 }
@@ -145,81 +154,7 @@ function substring(collection: CsharpExpression, start: CsharpExpression, length
     callee: member(collection, "Substring"),
     arguments: [
       { kind: "Argument", expression: start },
-      { kind: "Argument", expression: literal(length) },
+      { kind: "Argument", expression: literalNumber(length) },
     ],
-  };
-}
-
-function callStatic(type: CsharpTypeNode, name: string, args: readonly CsharpExpression[]): CsharpExpression {
-  return {
-    kind: "InvocationExpression",
-    callee: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: type,
-      name,
-    },
-    arguments: args.map((expression) => ({ kind: "Argument", expression })),
-  };
-}
-
-function assign(left: CsharpExpression, right: CsharpExpression): CsharpStatement {
-  return {
-    kind: "ExpressionStatement",
-    expression: {
-      kind: "BinaryExpression",
-      left,
-      operator: "=",
-      right,
-    },
-  };
-}
-
-function and(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
-  return {
-    kind: "BinaryExpression",
-    left,
-    operator: "&&",
-    right,
-  };
-}
-
-function lessThan(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
-  return {
-    kind: "BinaryExpression",
-    left,
-    operator: "<",
-    right,
-  };
-}
-
-function add(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
-  return {
-    kind: "BinaryExpression",
-    left,
-    operator: "+",
-    right,
-  };
-}
-
-function member(receiver: CsharpExpression, name: string): CsharpExpression {
-  return {
-    kind: "SimpleMemberAccessExpression",
-    receiver,
-    name,
-  };
-}
-
-function element(receiver: CsharpExpression, argument: CsharpExpression): CsharpExpression {
-  return {
-    kind: "ElementAccessExpression",
-    receiver,
-    argument,
-  };
-}
-
-function literal(value: number): CsharpExpression {
-  return {
-    kind: "LiteralExpression",
-    value,
   };
 }
