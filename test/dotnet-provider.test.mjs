@@ -51,6 +51,7 @@ test(".NET provider declaration model preserves explicit target parameter passin
   const tryGetValue = dictionary.members[0];
   const signature = tryGetValue.signatures[0];
 
+  assert.equal(signature.name, "TryGetValue");
   assert.equal(signature.parameters[0].passingMode, undefined);
   assert.equal(signature.parameters[1].passingMode, "byref-writeonly-must-init");
 });

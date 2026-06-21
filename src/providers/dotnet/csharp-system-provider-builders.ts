@@ -18,19 +18,19 @@ export function constructorMember(id: string, parameters: readonly DotnetParamet
   };
 }
 
-export function propertyMember(metadataName: string, sourceName: string, type: DotnetTypeRef): DotnetMemberDeclaration {
+export function propertyMember(metadataName: string, sourceName: string, targetName: string, type: DotnetTypeRef): DotnetMemberDeclaration {
   return {
     kind: "property",
     sourceName,
-    targetName: memberTargetName(metadataName),
+    targetName,
     metadataName,
     type,
   };
 }
 
-export function staticPropertyMember(metadataName: string, sourceName: string, type: DotnetTypeRef): DotnetMemberDeclaration {
+export function staticPropertyMember(metadataName: string, sourceName: string, targetName: string, type: DotnetTypeRef): DotnetMemberDeclaration {
   return {
-    ...propertyMember(metadataName, sourceName, type),
+    ...propertyMember(metadataName, sourceName, targetName, type),
     static: true,
   };
 }
@@ -38,13 +38,14 @@ export function staticPropertyMember(metadataName: string, sourceName: string, t
 export function indexerMember(
   metadataName: string,
   sourceName: string,
+  targetName: string,
   parameters: readonly DotnetParameterDeclaration[],
   returnType: DotnetTypeRef,
 ): DotnetMemberDeclaration {
   return {
     kind: "indexer",
     sourceName,
-    targetName: memberTargetName(metadataName),
+    targetName,
     metadataName,
     signatures: [signature(metadataName, parameters, returnType)],
   };
@@ -53,13 +54,14 @@ export function indexerMember(
 export function methodMember(
   metadataName: string,
   sourceName: string,
+  targetName: string,
   parameters: readonly DotnetParameterDeclaration[],
   returnType: DotnetTypeRef,
 ): DotnetMemberDeclaration {
   return {
     kind: "method",
     sourceName,
-    targetName: memberTargetName(metadataName),
+    targetName,
     metadataName,
     signatures: [signature(metadataName, parameters, returnType)],
   };
@@ -68,11 +70,12 @@ export function methodMember(
 export function staticMethodMember(
   metadataName: string,
   sourceName: string,
+  targetName: string,
   parameters: readonly DotnetParameterDeclaration[],
   returnType: DotnetTypeRef,
 ): DotnetMemberDeclaration {
   return {
-    ...methodMember(metadataName, sourceName, parameters, returnType),
+    ...methodMember(metadataName, sourceName, targetName, parameters, returnType),
     static: true,
   };
 }
@@ -140,10 +143,4 @@ export function dotnetProviderDiagnostic(
     message,
     evidence: [evidence],
   };
-}
-
-function memberTargetName(metadataName: string): string {
-  const methodIndex = metadataName.indexOf("(");
-  const name = methodIndex === -1 ? metadataName : metadataName.slice(0, methodIndex);
-  return name.slice(name.lastIndexOf(".") + 1);
 }

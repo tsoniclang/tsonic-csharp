@@ -38,27 +38,27 @@ export function collectionsGenericDotnetModule(): DotnetModuleModel {
           constructorMember("System.Collections.Generic.List`1..ctor(System.Collections.Generic.IEnumerable`1)", [
             parameter("items", { kind: "array", elementType: listItemType }),
           ]),
-          propertyMember("System.Collections.Generic.List`1.Count", "count", intType),
-          indexerMember("System.Collections.Generic.List`1.Item(System.Int32)", "item", [
+          propertyMember("System.Collections.Generic.List`1.Count", "count", "Count", intType),
+          indexerMember("System.Collections.Generic.List`1.Item(System.Int32)", "item", "Item", [
             parameter("index", intType),
           ], listItemType),
-          methodMember("System.Collections.Generic.List`1.Add(T)", "add", [
+          methodMember("System.Collections.Generic.List`1.Add(T)", "add", "Add", [
             parameter("item", listItemType),
           ], voidType),
-          methodMember("System.Collections.Generic.List`1.Clear()", "clear", [], voidType),
-          methodMember("System.Collections.Generic.List`1.Contains(T)", "contains", [
+          methodMember("System.Collections.Generic.List`1.Clear()", "clear", "Clear", [], voidType),
+          methodMember("System.Collections.Generic.List`1.Contains(T)", "contains", "Contains", [
             parameter("item", listItemType),
           ], boolType),
-          methodMember("System.Collections.Generic.List`1.IndexOf(T)", "indexOf", [
+          methodMember("System.Collections.Generic.List`1.IndexOf(T)", "indexOf", "IndexOf", [
             parameter("item", listItemType),
           ], intType),
-          methodMember("System.Collections.Generic.List`1.Remove(T)", "remove", [
+          methodMember("System.Collections.Generic.List`1.Remove(T)", "remove", "Remove", [
             parameter("item", listItemType),
           ], boolType),
-          methodMember("System.Collections.Generic.List`1.RemoveAt(System.Int32)", "removeAt", [
+          methodMember("System.Collections.Generic.List`1.RemoveAt(System.Int32)", "removeAt", "RemoveAt", [
             parameter("index", intType),
           ], voidType),
-          methodMember("System.Collections.Generic.List`1.ToArray()", "toArray", [], {
+          methodMember("System.Collections.Generic.List`1.ToArray()", "toArray", "ToArray", [], {
             kind: "array",
             elementType: listItemType,
           }),

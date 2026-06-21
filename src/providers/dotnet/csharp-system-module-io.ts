@@ -30,13 +30,13 @@ export function systemIoDotnetModule(): DotnetModuleModel {
         metadataName: "System.IO.File",
         displayName: "System.IO.File",
         members: [
-          staticMethodMember("System.IO.File.Exists(System.String)", "exists", [
+          staticMethodMember("System.IO.File.Exists(System.String)", "exists", "Exists", [
             parameter("path", stringType),
           ], boolType),
-          staticMethodMember("System.IO.File.ReadAllText(System.String)", "readAllText", [
+          staticMethodMember("System.IO.File.ReadAllText(System.String)", "readAllText", "ReadAllText", [
             parameter("path", stringType),
           ], stringType),
-          staticMethodMember("System.IO.File.WriteAllText(System.String,System.String)", "writeAllText", [
+          staticMethodMember("System.IO.File.WriteAllText(System.String,System.String)", "writeAllText", "WriteAllText", [
             parameter("path", stringType),
             parameter("contents", stringType),
           ], voidType),
@@ -50,16 +50,16 @@ export function systemIoDotnetModule(): DotnetModuleModel {
         metadataName: "System.IO.Path",
         displayName: "System.IO.Path",
         members: [
-          staticMethodMember("System.IO.Path.Combine(System.String[])", "combine", [
+          staticMethodMember("System.IO.Path.Combine(System.String[])", "combine", "Combine", [
             restParameter("paths", {
               kind: "array",
               elementType: stringType,
             }),
           ], stringType),
-          staticMethodMember("System.IO.Path.GetFileName(System.String)", "getFileName", [
+          staticMethodMember("System.IO.Path.GetFileName(System.String)", "getFileName", "GetFileName", [
             parameter("path", stringType),
           ], stringType),
-          staticMethodMember("System.IO.Path.GetDirectoryName(System.String)", "getDirectoryName", [
+          staticMethodMember("System.IO.Path.GetDirectoryName(System.String)", "getDirectoryName", "GetDirectoryName", [
             parameter("path", stringType),
           ], stringType),
         ],
