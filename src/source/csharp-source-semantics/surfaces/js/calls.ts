@@ -35,7 +35,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, request.calleePropertyName, context) ??
+  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context) ??
     getSourceLibraryMemberFromReceiver(request.calleeReceiverType, request.calleePropertyName, context, host) ??
     getSourceLibraryMemberFromReceiver(request.calleeReceiver, request.calleePropertyName, context, host);
   if (sourceMember === undefined) {

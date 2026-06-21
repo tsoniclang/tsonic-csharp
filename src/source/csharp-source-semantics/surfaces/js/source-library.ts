@@ -69,16 +69,16 @@ export interface CsharpJsSurfaceHost {
 }
 
 export interface SourceLibraryMember {
-  readonly declaringName: string;
+  readonly declaringName: SourceLibraryDeclaringName;
   readonly memberName: string;
-  readonly fileName: string;
 }
 
 export const csharpJsCheckedTypeQuery = { allowSemanticTypeQuery: false } satisfies CsharpJsTargetTypeRefResolutionOptions;
 
+export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "RegExp" | "Math";
+
 export function getSourceLibraryMember(
   declarationSubject: ExtensionFactSubject | undefined,
-  checkedMemberName: string | undefined,
   context: ExtensionObservationContext,
 ): SourceLibraryMember | undefined {
   const ast = context.compiler?.ast;
@@ -88,16 +88,15 @@ export function getSourceLibraryMember(
   }
   const sourceFile = ast.getSourceFile(declaration);
   const fileName = ast.getFileName(sourceFile);
-  if (!fileName.startsWith("bundled:///libs/")) {
+  if (!isTstsBundledStandardLibraryFile(fileName)) {
     return undefined;
   }
   const containerName = ast.text(ast.name(ast.parent(declaration)));
-  const memberName = ast.text(ast.name(declaration)) ||
-    checkedMemberName ||
-    (containerName.endsWith("Constructor") ? "constructor" : undefined);
-  return memberName === undefined || memberName === "" || containerName === ""
+  const declaringName = sourceLibraryDeclaringName(containerName);
+  const memberName = ast.text(ast.name(declaration)) || sourceLibraryConstructorMemberName(containerName);
+  return memberName === undefined || memberName === "" || declaringName === undefined
     ? undefined
-    : { declaringName: normalizeSourceLibraryDeclaringName(containerName), memberName, fileName };
+    : { declaringName, memberName };
 }
 
 export function getSourceLibraryMemberFromReceiver(
@@ -147,16 +146,29 @@ export function range(count: number): readonly number[] {
   return Array.from({ length: count }, (_value, index) => index);
 }
 
-function sourceLibraryMember(declaringName: string, memberName: string): SourceLibraryMember {
-  return {
-    declaringName,
-    memberName,
-    fileName: "bundled:///libs/lib.es5.d.ts",
-  };
+function sourceLibraryMember(declaringName: SourceLibraryDeclaringName, memberName: string): SourceLibraryMember {
+  return { declaringName, memberName };
 }
 
-function normalizeSourceLibraryDeclaringName(name: string): string {
-  return name.endsWith("Constructor") ? name.slice(0, -"Constructor".length) : name;
+function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringName | undefined {
+  const normalized = name.endsWith("Constructor") ? name.slice(0, -"Constructor".length) : name;
+  return isSourceLibraryDeclaringName(normalized) ? normalized : undefined;
+}
+
+function sourceLibraryConstructorMemberName(name: string): "constructor" | undefined {
+  return name === "RegExpConstructor" ? "constructor" : undefined;
+}
+
+function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclaringName {
+  return name === "Array" ||
+    name === "ReadonlyArray" ||
+    name === "String" ||
+    name === "RegExp" ||
+    name === "Math";
+}
+
+function isTstsBundledStandardLibraryFile(fileName: string): boolean {
+  return fileName.startsWith("bundled:///libs/");
 }
 
 function getSourceLibraryTypeNameForSubject(

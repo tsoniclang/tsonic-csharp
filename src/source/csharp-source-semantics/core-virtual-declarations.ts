@@ -23,13 +23,6 @@ export function providerExportDeclarationsForModule(module: SourceSemanticsModul
   ];
 }
 
-export function emptySourceModule(moduleSpecifier: string): SourceSemanticsModule {
-  return {
-    moduleSpecifier,
-    exports: [],
-  };
-}
-
 function sourceSemanticsHelperDeclarations(moduleSpecifier: string): readonly ProviderExportDeclaration[] {
   if (moduleSpecifier !== neutralLangModule && moduleSpecifier !== csharpLangModule) {
     return [];

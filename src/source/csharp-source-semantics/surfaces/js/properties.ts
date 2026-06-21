@@ -27,7 +27,7 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, request.propertyName, context);
+  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
   return mapCsharpSourceLibraryPropertyOperation(sourceMember, host);
 }
 
