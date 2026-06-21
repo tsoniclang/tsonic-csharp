@@ -755,7 +755,7 @@ function createCsharpJsSurfaceHost(extensionId: string) {
     unwrapNullableTargetType,
     isCsharpStringType,
     isIntegralTargetTypeRef,
-    scoreLiteralTargetTypeMatch,
+    isLiteralRepresentableAsTargetType,
     selectTargetMember,
     getCsharpObjectShapeFactForSubject,
     csharpProviderDiagnostic,
@@ -994,7 +994,7 @@ function mapCsharpNativeArrayCheckedElementAccess(
     return undefined;
   }
   const indexType = getTargetTypeRefForSubject(request.argument, context);
-  if (!isIntegralTargetTypeRef(indexType) && scoreLiteralTargetTypeMatch(csharpSourcePrimitiveTargetType("int32"), request.argument, context) === undefined) {
+  if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100109, "C# native array element access requires an integral TSTS/provider-backed index type."));
   }
   return acceptObservation<CheckedOperationMappingResult>({
@@ -1107,7 +1107,7 @@ function getLiteralTargetTypeRefForKnownOperatorOperand(
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
   const unwrappedExpected = unwrapNullableTargetType(expectedOperandType);
-  return unwrappedExpected !== undefined && scoreLiteralTargetTypeMatch(unwrappedExpected, operand, context) !== undefined
+  return unwrappedExpected !== undefined && isLiteralRepresentableAsTargetType(unwrappedExpected, operand, context)
     ? unwrappedExpected
     : undefined;
 }
@@ -1167,7 +1167,7 @@ function mapCsharpCheckedConversion(
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);
   }
-  if (scoreLiteralTargetTypeMatch(target, request.source, context) !== undefined) {
+  if (isLiteralRepresentableAsTargetType(target, request.source, context)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
@@ -1456,41 +1456,31 @@ function selectTargetMember(
   arguments_: readonly ExtensionFactSubject[],
   context: ExtensionObservationContext,
 ): TargetMember | undefined {
-  const scored = candidates
-    .map((member) => ({ member, score: scoreTargetMember(member, arguments_, context) }))
-    .filter((candidate) => candidate.score !== undefined) as readonly { readonly member: TargetMember; readonly score: number }[];
-  if (scored.length === 0) {
-    return undefined;
-  }
-  const bestScore = Math.max(...scored.map((candidate) => candidate.score));
-  const best = scored.filter((candidate) => candidate.score === bestScore);
-  return best.length === 1 ? best[0]!.member : undefined;
+  const matching = candidates.filter((member) => targetMemberMatchesArguments(member, arguments_, context));
+  return matching.length === 1 ? matching[0]! : undefined;
 }
 
-function scoreTargetMember(
+function targetMemberMatchesArguments(
   member: TargetMember,
   arguments_: readonly ExtensionFactSubject[],
   context: ExtensionObservationContext,
-): number | undefined {
+): boolean {
   const parameterOffset = member.receiverPassing === "first-argument" ? 1 : 0;
   const parameters = member.parameters.slice(parameterOffset);
   if (!targetArityMatches(parameters, arguments_.length)) {
-    return undefined;
+    return false;
   }
-  let score = 0;
   for (let index = 0; index < arguments_.length; index += 1) {
     const parameter = getParameterForArgument(parameters, index);
     if (parameter === undefined) {
-      return undefined;
+      return false;
     }
     const argumentType = getTargetTypeRefForSubject(arguments_[index], context);
-    const argumentScore = scoreTargetTypeMatch(getExpectedTargetTypeForArgument(parameter), argumentType, arguments_[index], context);
-    if (argumentScore === undefined) {
-      return undefined;
+    if (!targetTypeAcceptsArgument(getExpectedTargetTypeForArgument(parameter), argumentType, arguments_[index], context)) {
+      return false;
     }
-    score += argumentScore;
   }
-  return score + (parameters.length === arguments_.length ? 1 : 0);
+  return true;
 }
 
 function getExpectedTargetTypeForArgument(parameter: TargetParameter): TargetTypeRef {
@@ -1514,67 +1504,61 @@ function getParameterForArgument(parameters: readonly TargetParameter[], index: 
   return last?.paramsArray === true ? last : undefined;
 }
 
-function scoreTargetTypeMatch(
+function targetTypeAcceptsArgument(
   expected: TargetTypeRef,
   actual: TargetTypeRef | undefined,
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
-): number | undefined {
-  const delegateScore = scoreDelegateTargetTypeMatch(expected, subject, context);
-  if (delegateScore !== undefined) {
-    return delegateScore;
+): boolean {
+  if (delegateTargetTypeAcceptsArgument(expected, subject, context)) {
+    return true;
   }
   if (expected.kind === "type-parameter") {
-    return actual === undefined ? undefined : 2;
+    return actual !== undefined;
   }
   if (expected.kind === "opaque" && (expected.id === "any" || expected.id === "unknown")) {
-    return 1;
+    return true;
   }
   if (expected.kind === "target-named" && expected.id === "System.Object") {
-    return 1;
+    return true;
   }
-  const literalScore = scoreLiteralTargetTypeMatch(expected, subject, context);
-  if (literalScore !== undefined) {
-    return literalScore;
+  if (isLiteralRepresentableAsTargetType(expected, subject, context)) {
+    return true;
   }
   if (actual === undefined) {
-    return undefined;
+    return false;
   }
   if (targetTypeRefEquals(expected, actual)) {
-    return 8;
+    return true;
   }
-  const structuralScore = scoreStructuralTargetTypeMatch(expected, actual);
-  if (structuralScore !== undefined) {
-    return structuralScore;
-  }
-  return undefined;
+  return structuralTargetTypeMatches(expected, actual);
 }
 
-function scoreLiteralTargetTypeMatch(
+function isLiteralRepresentableAsTargetType(
   expected: TargetTypeRef,
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
-): number | undefined {
+): boolean {
   const ast = context.compiler?.ast;
   const node = asNodeSubject(subject);
   if (ast === undefined || node === undefined) {
-    return undefined;
+    return false;
   }
   const kind = ast.kindName(node);
   if (expected.kind === "target-named" && expected.id === "System.String") {
-    return kind === "KindStringLiteral" || kind === "KindNoSubstitutionTemplateLiteral" ? 6 : undefined;
+    return kind === "KindStringLiteral" || kind === "KindNoSubstitutionTemplateLiteral";
   }
   if (expected.kind !== "source-primitive") {
-    return undefined;
+    return false;
   }
   switch (expected.name) {
     case "bool":
-      return ast.kindName(node) === "KindTrueKeyword" || ast.kindName(node) === "KindFalseKeyword" ? 6 : undefined;
+      return ast.kindName(node) === "KindTrueKeyword" || ast.kindName(node) === "KindFalseKeyword";
     case "char": {
       if (!ast.is.IsStringLiteral(node)) {
-        return undefined;
+        return false;
       }
-      return [...ast.text(node)].length === 1 ? 6 : undefined;
+      return [...ast.text(node)].length === 1;
     }
     case "int8":
     case "uint8":
@@ -1585,21 +1569,21 @@ function scoreLiteralTargetTypeMatch(
     case "native-int":
     case "native-uint": {
       const value = getNumericLiteralValue(node, context);
-      return value !== undefined && isNumberRepresentableAsPrimitive(value, expected.name) ? 6 : undefined;
+      return value !== undefined && isNumberRepresentableAsPrimitive(value, expected.name);
     }
     case "float16":
     case "float32":
     case "float64":
     case "decimal": {
       const value = getNumericLiteralValue(node, context);
-      return value !== undefined && Number.isFinite(value) ? 6 : undefined;
+      return value !== undefined && Number.isFinite(value);
     }
     case "int64":
     case "uint64":
     case "int128":
     case "uint128": {
       const value = getBigIntLiteralValue(node, context);
-      return value !== undefined && isBigIntRepresentableAsPrimitive(value, expected.name) ? 6 : undefined;
+      return value !== undefined && isBigIntRepresentableAsPrimitive(value, expected.name);
     }
   }
 }
@@ -1728,63 +1712,52 @@ function isBigIntRepresentableAsPrimitive(value: bigint, primitive: SourcePrimit
   }
 }
 
-function scoreStructuralTargetTypeMatch(expected: TargetTypeRef, actual: TargetTypeRef): number | undefined {
+function structuralTargetTypeMatches(expected: TargetTypeRef, actual: TargetTypeRef): boolean {
   if (expected.kind === "array" && actual.kind === "array" && (expected.rank ?? 1) === (actual.rank ?? 1)) {
-    const elementScore = scoreStructuralTargetTypeMatch(expected.element, actual.element);
-    return elementScore === undefined ? undefined : 4 + elementScore;
+    return structuralTargetTypeMatches(expected.element, actual.element);
   }
   if (expected.kind === "tuple" && actual.kind === "tuple" && expected.elements.length === actual.elements.length) {
-    const scores = expected.elements.map((element, index) => scoreStructuralTargetTypeMatch(element, actual.elements[index]!));
-    return scores.some((score) => score === undefined)
-      ? undefined
-      : 4 + (scores as readonly number[]).reduce((sum, score) => sum + score, 0);
+    return expected.elements.every((element, index) => structuralTargetTypeMatches(element, actual.elements[index]!));
   }
   if (expected.kind === "target-named" && actual.kind === "target-named" && expected.id === actual.id) {
     const expectedArgs = expected.typeArguments ?? [];
     const actualArgs = actual.typeArguments ?? [];
     if (expectedArgs.length !== actualArgs.length) {
-      return undefined;
+      return false;
     }
-    const scores = expectedArgs.map((argument, index) => scoreStructuralTargetTypeMatch(argument, actualArgs[index]!));
-    return scores.some((score) => score === undefined)
-      ? undefined
-      : 4 + (scores as readonly number[]).reduce((sum, score) => sum + score, 0);
+    return expectedArgs.every((argument, index) => structuralTargetTypeMatches(argument, actualArgs[index]!));
   }
   if (expected.kind === "pointer" && actual.kind === "pointer") {
-    const pointeeScore = scoreStructuralTargetTypeMatch(expected.pointee, actual.pointee);
-    return pointeeScore === undefined ? undefined : 4 + pointeeScore;
+    return structuralTargetTypeMatches(expected.pointee, actual.pointee);
   }
   if (expected.kind === "function-pointer" && actual.kind === "function-pointer" && expected.args.length === actual.args.length) {
-    const argScores = expected.args.map((argument, index) => scoreStructuralTargetTypeMatch(argument, actual.args[index]!));
-    const resultScore = scoreStructuralTargetTypeMatch(expected.result, actual.result);
-    return resultScore === undefined || argScores.some((score) => score === undefined)
-      ? undefined
-      : 4 + resultScore + (argScores as readonly number[]).reduce((sum, score) => sum + score, 0);
+    return structuralTargetTypeMatches(expected.result, actual.result) &&
+      expected.args.every((argument, index) => structuralTargetTypeMatches(argument, actual.args[index]!));
   }
-  return expected.kind === "type-parameter" ? 2 : undefined;
+  return expected.kind === "type-parameter";
 }
 
-function scoreDelegateTargetTypeMatch(
+function delegateTargetTypeAcceptsArgument(
   expected: TargetTypeRef,
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
-): number | undefined {
+): boolean {
   if (expected.kind !== "target-named") {
-    return undefined;
+    return false;
   }
   const stripped = stripMetadataArity(expected.id);
   if (stripped !== "System.Func" && stripped !== "System.Action" && stripped !== "System.Predicate") {
-    return undefined;
+    return false;
   }
   const callbackParameterCount = getCallbackParameterCount(subject, context);
   if (callbackParameterCount === undefined) {
-    return undefined;
+    return false;
   }
   const genericArgumentCount = (expected.typeArguments ?? []).length;
   const expectedParameterCount = stripped === "System.Func"
     ? genericArgumentCount - 1
     : genericArgumentCount;
-  return callbackParameterCount === expectedParameterCount ? 6 : undefined;
+  return callbackParameterCount === expectedParameterCount;
 }
 
 function getCallbackParameterCount(

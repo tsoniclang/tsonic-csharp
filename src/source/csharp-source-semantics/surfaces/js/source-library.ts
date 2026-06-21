@@ -35,11 +35,11 @@ export interface CsharpJsSurfaceHost {
   readonly unwrapNullableTargetType: (type: TargetTypeRef | undefined) => TargetTypeRef | undefined;
   readonly isCsharpStringType: (type: TargetTypeRef | undefined) => boolean;
   readonly isIntegralTargetTypeRef: (type: TargetTypeRef | undefined) => boolean;
-  readonly scoreLiteralTargetTypeMatch: (
+  readonly isLiteralRepresentableAsTargetType: (
     expected: TargetTypeRef,
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,
-  ) => number | undefined;
+  ) => boolean;
   readonly selectTargetMember: (
     candidates: readonly TargetMember[],
     arguments_: readonly ExtensionFactSubject[],
