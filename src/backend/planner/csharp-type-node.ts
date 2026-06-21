@@ -1,17 +1,14 @@
 import {
-  IsTypeSyntaxNode,
   KindAnyKeyword,
   KindArrayBindingPattern,
   KindObjectBindingPattern,
   KindObjectKeyword,
   KindTypeLiteral,
-  KindUnionType,
   KindUnknownKeyword,
 } from "./source-ast.js";
 import type {
   Node,
   SourceFile,
-  Type,
 } from "@tsonic/tsts";
 import type {
   TargetCompileInput,
@@ -31,15 +28,24 @@ import {
 } from "./object-shapes.js";
 import {
   getTargetTypeRefForNode,
-  getTargetTypeRefForType,
 } from "./runtime-carriers.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
   invalidCsharpType,
-  predefined,
 } from "./csharp-type-primitives.js";
+import {
+  getCsharpTypeForUnionTypeNode,
+  getCsharpTypeFromRuntimeCarrier,
+  getCsharpTypeFromSelectedTargetCall,
+  isUnionTypeNode,
+} from "./csharp-type-facts.js";
+import {
+  getCsharpTypeFromTstsSourceType,
+  getSemanticTypeForNode,
+  sourceTypeHasProviderEvidence,
+} from "./csharp-type-source.js";
 
 export function getCsharpTypeForNode(
   node: Node | undefined,
@@ -74,7 +80,7 @@ export function getCsharpTypeForNode(
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; TypeScript object is a broad structural carrier and cannot be emitted without provider facts."));
     return invalidCsharpType("object keyword type");
   }
-  if (input.ast.kindName(node) === KindUnionType) {
+  if (isUnionTypeNode(input, node)) {
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
   }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
@@ -120,110 +126,4 @@ export function getCsharpTypeForNode(
   const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
   return invalidCsharpType("unsupported semantic type");
-}
-
-function getCsharpTypeFromTstsSourceType(
-  type: Type | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[] | undefined,
-  diagnosticNode: Node,
-): CsharpTypeNode | undefined {
-  if (type === undefined) {
-    return undefined;
-  }
-  if (input.types.isAny(type) || input.types.isUnknown(type)) {
-    diagnostics?.push(unsupportedNodeDiagnostic(diagnosticNode, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
-    return invalidCsharpType("any or unknown semantic type");
-  }
-  if (input.types.isVoidLike(type)) {
-    return predefined("void");
-  }
-  if (input.types.isUnion(type)) {
-    return undefined;
-  }
-  const targetRef = getTargetTypeRefForType(input, type, sourceFile);
-  if (targetRef !== undefined) {
-    return csharpTypeFromTargetTypeRef(targetRef);
-  }
-  return undefined;
-}
-
-function sourceTypeHasProviderEvidence(
-  type: Type | undefined,
-  input: TargetCompileInput,
-): boolean {
-  return type !== undefined && (
-    input.facts.getRuntimeCarrierFact(type) !== undefined ||
-    input.facts.getRuntimeCarrierFact(type.symbol) !== undefined ||
-    input.facts.getTargetBindingFact(type) !== undefined ||
-    input.facts.getTargetBindingFact(type.symbol) !== undefined
-  );
-}
-
-function getCsharpTypeFromSelectedTargetCall(
-  node: Node,
-  input: TargetCompileInput,
-  diagnostics?: TargetDiagnostic[],
-): CsharpTypeNode | undefined {
-  const returnType = input.facts.getSelectedTargetCall(node)?.member.returnType;
-  if (returnType === undefined) {
-    return undefined;
-  }
-  const csharpType = csharpTypeFromTargetTypeRef(returnType);
-  if (csharpType === undefined) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Selected target call requires a renderable return type before C# type emission."));
-    return invalidCsharpType("selected target call return type");
-  }
-  return csharpType;
-}
-
-function getCsharpTypeForUnionTypeNode(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics?: TargetDiagnostic[],
-): CsharpTypeNode {
-  const contextualTargetType = input.facts.getContextualTargetTypeFact(node)?.targetType;
-  if (contextualTargetType !== undefined) {
-    const contextual = csharpTypeFromTargetTypeRef(contextualTargetType);
-    if (contextual !== undefined) {
-      return contextual;
-    }
-  }
-  const runtimeCarrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
-  if (runtimeCarrier !== undefined) {
-    const carrier = csharpTypeFromTargetTypeRef(runtimeCarrier);
-    if (carrier !== undefined) {
-      return carrier;
-    }
-  }
-  const semanticRuntimeCarrier = getTargetTypeRefForNode(input, node, sourceFile);
-  if (semanticRuntimeCarrier !== undefined) {
-    const carrier = csharpTypeFromTargetTypeRef(semanticRuntimeCarrier);
-    if (carrier !== undefined) {
-      return carrier;
-    }
-  }
-  diagnostics?.push(unsupportedNodeDiagnostic(node, "Union type annotations require finalized TSTS/provider storage facts before C# emission."));
-  return invalidCsharpType("union type");
-}
-
-function getCsharpTypeFromRuntimeCarrier(subject: Node, input: TargetCompileInput): CsharpTypeNode | undefined {
-  const sourceFile = input.ast.getSourceFile(subject);
-  if (sourceFile === undefined) {
-    return undefined;
-  }
-  const carrier = getTargetTypeRefForNode(input, subject, sourceFile);
-  return carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
-}
-
-function getSemanticTypeForNode(
-  input: TargetCompileInput,
-  node: Node,
-  sourceFile: SourceFile,
-): Type | undefined {
-  return IsTypeSyntaxNode(input.ast, node)
-    ? input.semantics.getTypeFromTypeNode(node, { sourceFile })
-    : input.semantics.getTypeAtLocation(node, { sourceFile });
 }
