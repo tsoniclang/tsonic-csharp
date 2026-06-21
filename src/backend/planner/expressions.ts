@@ -6,8 +6,6 @@ import {
   AsNoSubstitutionTemplateLiteral,
   AsNumericLiteral,
   AsParenthesizedExpression,
-  AsPostfixUnaryExpression,
-  AsPrefixUnaryExpression,
   AsStringLiteral,
   AsSatisfiesExpression,
   AsTypeAssertion,
@@ -53,15 +51,9 @@ import {
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
-import {
-  getProviderOperationOwnership,
-  pushMissingTargetFactDiagnostic,
-} from "./semantic-guards.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
 import { applyTargetConversionFact } from "./target-conversions.js";
 import {
-  getSourceOwnedUnaryOperator,
-  getUnaryOperatorKind,
   planTypeofExpression,
   tryPlanBinaryExpression,
 } from "./expression-operators.js";
@@ -87,6 +79,10 @@ import {
 import {
   planTemplateExpression,
 } from "./expression-template-strings.js";
+import {
+  planPostfixUnaryExpression,
+  planPrefixUnaryExpression,
+} from "./expression-unary.js";
 
 export function planExpression(
   node: Node,
@@ -199,46 +195,10 @@ function planExpressionCore(
       };
     }
     case KindPrefixUnaryExpression: {
-      const expression = AsPrefixUnaryExpression(node)!;
-      const selectedOperator = input.facts.getSelectedTargetOperator(node);
-      const operator = selectedOperator?.operationKind === "operator"
-        ? selectedOperator.targetOperation
-        : getSourceOwnedUnaryOperator(getUnaryOperatorKind(expression), expression.Operand, sourceFile, input);
-      if (operator === undefined) {
-        const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
-        pushMissingTargetFactDiagnostic(diagnostics, node, "C# prefix unary operator emission requires a selected provider operator fact.", ownership);
-        return invalidExpression("missing target prefix operator fact");
-      }
-      if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
-        diagnostics.push(unsupportedNodeDiagnostic(node, `Prefix unary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
-        return invalidExpression("selected target prefix operator");
-      }
-      return {
-        kind: "PrefixUnaryExpression",
-        operator,
-        operand: planExpression(expression.Operand!, sourceFile, input, diagnostics),
-      };
+      return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, planExpression);
     }
     case KindPostfixUnaryExpression: {
-      const expression = AsPostfixUnaryExpression(node)!;
-      const selectedOperator = input.facts.getSelectedTargetOperator(node);
-      const operator = selectedOperator?.operationKind === "operator"
-        ? selectedOperator.targetOperation
-        : getSourceOwnedUnaryOperator(getUnaryOperatorKind(expression), expression.Operand, sourceFile, input);
-      if (operator === undefined) {
-        const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
-        pushMissingTargetFactDiagnostic(diagnostics, node, "C# postfix unary operator emission requires a selected provider operator fact.", ownership);
-        return invalidExpression("missing target postfix operator fact");
-      }
-      if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
-        diagnostics.push(unsupportedNodeDiagnostic(node, `Postfix unary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
-        return invalidExpression("selected target postfix operator");
-      }
-      return {
-        kind: "PostfixUnaryExpression",
-        operand: planExpression(expression.Operand!, sourceFile, input, diagnostics),
-        operator,
-      };
+      return planPostfixUnaryExpression(node, sourceFile, input, diagnostics, planExpression);
     }
     default: {
       const binary = tryPlanBinaryExpression(node, sourceFile, input, diagnostics, planExpression);
