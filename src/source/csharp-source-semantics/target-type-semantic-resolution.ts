@@ -19,6 +19,9 @@ import type {
 import {
   asType,
 } from "./target-ref-utils.js";
+import {
+  isSourceLibraryType,
+} from "./source-library.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -186,19 +189,4 @@ export function getTypeParameterName(type: Type, context: ExtensionObservationCo
     }
   }
   return undefined;
-}
-
-export function isSourceLibraryType(type: Type, context: ExtensionObservationContext, name: string): boolean {
-  const ast = context.compiler?.ast;
-  const types = context.compiler?.types;
-  if (ast === undefined || types === undefined) {
-    return false;
-  }
-  const target = types.isTypeReference(type) ? types.getTypeReferenceTarget(type) : type;
-  const declarations = (target?.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    [];
-  return declarations.some((declaration) =>
-    ast.text(ast.name(declaration)) === name &&
-    ast.getFileName(ast.getSourceFile(declaration)).startsWith("bundled:///libs/"));
 }
