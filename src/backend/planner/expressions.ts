@@ -1353,8 +1353,8 @@ function planObjectLiteralExpressionWithExpectedType(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires a source-owned expected type or finalized TSTS/provider object-shape facts before C# emission."));
     return invalidExpression("object literal without finalized object-shape facts");
   }
-  const objectShape = getExpectedObjectShapeFact(node, sourceFile, input) ??
-    getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input);
+  const objectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input) ??
+    getExpectedObjectShapeFact(node, sourceFile, input);
   if (objectShape !== undefined) {
     return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape);
   }

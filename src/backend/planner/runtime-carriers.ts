@@ -2,6 +2,9 @@ import type { ExtensionFactSubject, Node, SourceFile, TargetTypeRef, Type } from
 import type { TargetCompileInput } from "@tsonic/target-api";
 import {
   IsTypeSyntaxNode,
+  KindClassDeclaration,
+  KindEnumDeclaration,
+  KindInterfaceDeclaration,
   KindTypeLiteral,
 } from "./source-ast.js";
 
@@ -78,6 +81,17 @@ export function getTargetTypeRefForType(
   if (typeParameterName !== undefined) {
     return { kind: "type-parameter", name: typeParameterName };
   }
+  const declaredSourceType = getProjectSourceDeclaredTargetTypeRef(input, type, sourceFile, seen);
+  if (declaredSourceType !== undefined) {
+    return declaredSourceType;
+  }
+  if (input.types.isUnion?.(type) === true) {
+    const nullable = getNullableUnionTargetTypeRef(input, type, sourceFile, seen);
+    if (nullable !== undefined) {
+      return nullable;
+    }
+    return undefined;
+  }
   if (input.types.isBooleanLike(type)) {
     return { kind: "source-primitive", name: "bool" };
   }
@@ -92,12 +106,6 @@ export function getTargetTypeRefForType(
   }
   if (input.types.isVoidLike?.(type) === true) {
     return { kind: "target-named", id: "System.Void" };
-  }
-  if (input.types.isUnion?.(type) === true) {
-    const nullable = getNullableUnionTargetTypeRef(input, type, sourceFile, seen);
-    if (nullable !== undefined) {
-      return nullable;
-    }
   }
   if (isSourceLibraryType(input, type, "Promise", sourceFile)) {
     const nextSeen = new Set(seen).add(type);
@@ -129,6 +137,42 @@ export function getTargetTypeRefForType(
     return callable;
   }
   return getTargetTypeRefForProjectSourceType(input, type, sourceFile);
+}
+
+function getProjectSourceDeclaredTargetTypeRef(
+  input: TargetCompileInput,
+  type: Type,
+  sourceFile: SourceFile,
+  seen: ReadonlySet<Type>,
+): TargetTypeRef | undefined {
+  const declaration = getSymbolDeclarations(type.symbol)
+    .find((candidate) =>
+      input.ast.kindName(candidate) === KindClassDeclaration ||
+      input.ast.kindName(candidate) === KindInterfaceDeclaration ||
+      input.ast.kindName(candidate) === KindEnumDeclaration
+    );
+  if (declaration === undefined) {
+    return undefined;
+  }
+  const declarationSourceFile = input.ast.getSourceFile(declaration);
+  const declarationFileName = declarationSourceFile === undefined ? "" : input.ast.getFileName(declarationSourceFile);
+  if (declarationSourceFile?.IsDeclarationFile === true || declarationFileName.startsWith("tsts-provider://")) {
+    return undefined;
+  }
+  const symbolName = type.symbol?.Name;
+  if (symbolName === undefined || symbolName.length === 0) {
+    return undefined;
+  }
+  const typeArguments = input.types.isTypeReference(type)
+    ? input.types.getTypeArguments(type, { sourceFile })
+      .map((argument) => getTargetTypeRefForType(input, argument, sourceFile, new Set(seen).add(type)))
+      .filter((argument): argument is TargetTypeRef => argument !== undefined)
+    : [];
+  return {
+    kind: "target-named",
+    id: symbolName,
+    ...(typeArguments.length > 0 ? { typeArguments } : {}),
+  };
 }
 
 function getCallableTargetTypeRefForSemanticType(

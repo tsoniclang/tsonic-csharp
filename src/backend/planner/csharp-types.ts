@@ -206,6 +206,9 @@ function getCsharpTypeFromTstsSourceType(
   if (input.types.isVoidLike(type)) {
     return predefined("void");
   }
+  if (input.types.isUnion(type)) {
+    return undefined;
+  }
   if (input.types.isBooleanLike(type)) {
     return predefined("bool");
   }
