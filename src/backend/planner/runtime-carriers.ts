@@ -1,18 +1,9 @@
 import type { ExtensionFactSubject, Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
 import {
-  AsArrayLiteralExpression,
-  HasSourceKind,
   IsTypeSyntaxNode,
-  KindArrayLiteralExpression,
-  KindArrayType,
-  KindRegularExpressionLiteral,
   KindTypeLiteral,
-  KindTypeReference,
-  KindUnionType,
 } from "./source-ast.js";
-import { targetTypeRefsMatch } from "./target-types.js";
-import { csharpObjectShapeFactKey } from "../../source/csharp-facts.js";
 
 export function getRuntimeCarrierForExpression(
   input: TargetCompileInput,
@@ -30,20 +21,12 @@ export function getTargetTypeRefForNode(
   if (sourceNode === undefined) {
     return undefined;
   }
-  if (HasSourceKind(input.ast, sourceNode, KindTypeReference) || IsTypeSyntaxNode(input.ast, sourceNode)) {
-    return getTargetTypeRefFromTypeReferenceAlias(input, sourceNode, sourceFile) ??
-      getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-      getTargetTypeRefFromSyntax(input, sourceNode, sourceFile) ??
-      getTargetTypeRefForType(input, getSemanticTypeForNode(input, sourceNode, sourceFile), sourceFile);
-  }
-  return input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile }) ??
-    getTargetTypeRefFromDirectFacts(input, sourceNode) ??
+  return getTargetTypeRefFromDirectFacts(input, sourceNode) ??
+    input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile }) ??
     getTargetTypeRefFromDirectFacts(input, input.semantics.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.semantics.getResolvedSymbol(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromSelectedOperation(input, sourceNode, sourceFile) ??
     getCatchVariableTargetTypeRef(input, sourceNode, sourceFile) ??
-    getTargetTypeRefFromSyntax(input, sourceNode, sourceFile) ??
-    getTargetTypeRefFromDeclarationAnnotation(input, sourceNode, sourceFile) ??
     getTargetTypeRefForType(input, getSemanticTypeForNode(input, sourceNode, sourceFile), sourceFile);
 }
 
@@ -281,247 +264,6 @@ function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
   }
 }
 
-function getTargetTypeRefFromSyntax(
-  input: TargetCompileInput,
-  sourceNode: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  const keywordType = getTargetTypeRefFromKeywordTypeSyntax(input, sourceNode);
-  if (keywordType !== undefined) {
-    return keywordType;
-  }
-  if (HasSourceKind(input.ast, sourceNode, KindRegularExpressionLiteral)) {
-    return { kind: "target-named", id: "Tsonic.CSharp.Js.RegExp" };
-  }
-  if (HasSourceKind(input.ast, sourceNode, KindTypeReference)) {
-    return getTargetTypeRefFromTypeReferenceSyntax(input, sourceNode, sourceFile);
-  }
-  if (HasSourceKind(input.ast, sourceNode, KindArrayType)) {
-    const element = getTargetTypeRefForNode(input, asNode(getNodeField(sourceNode, "ElementType")), sourceFile);
-    return element === undefined ? undefined : { kind: "array", element };
-  }
-  if (HasSourceKind(input.ast, sourceNode, KindUnionType)) {
-    const nullable = getNullableUnionTargetTypeRefFromSyntax(input, sourceNode, sourceFile);
-    if (nullable !== undefined) {
-      return nullable;
-    }
-  }
-  if (HasSourceKind(input.ast, sourceNode, KindTypeLiteral)) {
-    const objectShape = input.facts.getFact(sourceNode, csharpObjectShapeFactKey);
-    if (objectShape !== undefined) {
-      return objectShape.targetType;
-    }
-  }
-  if (!HasSourceKind(input.ast, sourceNode, KindArrayLiteralExpression)) {
-    return isFunctionTypeSyntax(input, sourceNode)
-      ? getTargetTypeRefFromFunctionTypeSyntax(input, sourceNode, sourceFile)
-      : undefined;
-  }
-  const elements = (AsArrayLiteralExpression(sourceNode)?.Elements?.Nodes ?? [])
-    .filter((element): element is Node => element !== undefined)
-    .map((element) => getTargetTypeRefForNode(input, element, sourceFile));
-  if (elements.length === 0 || elements.some((element) => element === undefined)) {
-    return undefined;
-  }
-  const first = elements[0]!;
-  return elements.every((element) => element !== undefined && targetTypeRefsMatch(first, element))
-    ? { kind: "array", element: first }
-    : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
-}
-
-function getTargetTypeRefFromKeywordTypeSyntax(
-  input: TargetCompileInput,
-  sourceNode: Node,
-): TargetTypeRef | undefined {
-  switch (input.ast.kindName(sourceNode)) {
-    case "KindBooleanKeyword":
-      return { kind: "source-primitive", name: "bool" };
-    case "KindNumberKeyword":
-      return { kind: "source-primitive", name: "float64" };
-    case "KindStringKeyword":
-      return { kind: "target-named", id: "System.String" };
-    case "KindBigIntKeyword":
-      return { kind: "target-named", id: "System.Numerics.BigInteger" };
-    case "KindVoidKeyword":
-      return { kind: "target-named", id: "System.Void" };
-    default:
-      return undefined;
-  }
-}
-
-function isFunctionTypeSyntax(input: TargetCompileInput, sourceNode: Node): boolean {
-  const kind = input.ast.kindName(sourceNode);
-  return kind === "KindFunctionType" || kind === "KindConstructorType";
-}
-
-function getTargetTypeRefFromTypeReferenceSyntax(
-  input: TargetCompileInput,
-  sourceNode: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  const typeName = asNode(getNodeField(sourceNode, "TypeName"));
-  if (typeName === undefined) {
-    return undefined;
-  }
-  const semanticType = input.semantics.getTypeFromTypeNode(sourceNode, { sourceFile });
-  const aliased = getTargetTypeRefFromTypeAliasDeclarations(input, [
-    input.semantics.getSymbolAtLocation(typeName, { sourceFile }),
-    semanticType?.symbol,
-  ], sourceNode, sourceFile);
-  if (aliased !== undefined) {
-    return aliased;
-  }
-  const direct = getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-    getTargetTypeRefFromDirectFacts(input, typeName);
-  if (direct?.kind === "source-primitive") {
-    return direct;
-  }
-  const semanticDirect = getTargetTypeRefFromDirectFacts(input, semanticType) ??
-    getTargetTypeRefFromDirectFacts(input, semanticType?.symbol);
-  if (semanticDirect !== undefined) {
-    return semanticDirect;
-  }
-  const binding = input.semantics.getTargetBindingForReference(sourceNode, { sourceFile });
-  if (binding === undefined) {
-    return direct;
-  }
-  const typeArguments = getNodeList(getNodeField(sourceNode, "TypeArguments"))
-    .map((argument) => getTargetTypeRefForNode(input, argument, sourceFile));
-  if (typeArguments.some((argument) => argument === undefined)) {
-    return undefined;
-  }
-  return {
-    kind: "target-named",
-    id: binding.id,
-    ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly TargetTypeRef[] } : {}),
-  };
-}
-
-function getTargetTypeRefFromTypeReferenceAlias(
-  input: TargetCompileInput,
-  sourceNode: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  if (!HasSourceKind(input.ast, sourceNode, KindTypeReference)) {
-    return undefined;
-  }
-  const typeName = asNode(getNodeField(sourceNode, "TypeName"));
-  return typeName === undefined
-    ? undefined
-    : getTargetTypeRefFromTypeAliasDeclarations(
-        input,
-        [input.semantics.getSymbolAtLocation(typeName, { sourceFile })],
-        sourceNode,
-        sourceFile,
-      );
-}
-
-function getTargetTypeRefFromTypeAliasDeclarations(
-  input: TargetCompileInput,
-  symbols: readonly (ExtensionFactSubject | undefined)[],
-  currentNode: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  for (const symbol of symbols) {
-    for (const declaration of getSymbolDeclarations(symbol)) {
-      const typeNode = asNode(getNodeField(declaration, "Type"));
-      if (typeNode === undefined || typeNode === currentNode) {
-        continue;
-      }
-      const result = getTargetTypeRefForNode(input, typeNode, sourceFileOfNode(input, typeNode, sourceFile));
-      if (result !== undefined) {
-        return result;
-      }
-    }
-  }
-  return undefined;
-}
-
-function getNullableUnionTargetTypeRefFromSyntax(
-  input: TargetCompileInput,
-  sourceNode: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  const members = getNodeList(getNodeField(sourceNode, "Types"));
-  const nonNullish = members.filter((member) => !isNullishTypeSyntax(input, member));
-  if (nonNullish.length !== 1 || nonNullish.length === members.length) {
-    return undefined;
-  }
-  const inner = getTargetTypeRefForNode(input, nonNullish[0], sourceFile);
-  return inner === undefined ? undefined : { kind: "target-named", id: "System.Nullable`1", typeArguments: [inner] };
-}
-
-function isNullishTypeSyntax(input: TargetCompileInput, node: Node): boolean {
-  const kind = input.ast.kindName(node);
-  if (kind === "KindNullKeyword" || kind === "KindUndefinedKeyword") {
-    return true;
-  }
-  const literal = asNode(getNodeField(node, "Literal"));
-  const literalKind = input.ast.kindName(literal);
-  if (literalKind === "KindNullKeyword" || literalKind === "KindUndefinedKeyword") {
-    return true;
-  }
-  if (HasSourceKind(input.ast, node, KindTypeReference)) {
-    return input.ast.text(asNode(getNodeField(node, "TypeName"))) === "undefined";
-  }
-  return false;
-}
-
-function getTargetTypeRefFromFunctionTypeSyntax(
-  input: TargetCompileInput,
-  sourceNode: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  const parameters = getNodeList(getNodeField(sourceNode, "Parameters"));
-  if (parameters.length === 0) {
-    return undefined;
-  }
-  const parameterTypes = parameters.map((parameter) => getTargetTypeRefForNode(input, asNode(getNodeField(parameter, "Type")), sourceFile));
-  if (parameterTypes.some((parameter) => parameter === undefined)) {
-    return undefined;
-  }
-  const returnType = getTargetTypeRefForNode(input, asNode(getNodeField(sourceNode, "Type")), sourceFile);
-  if (returnType === undefined || isVoidTargetType(returnType)) {
-    return {
-      kind: "target-named",
-      id: `System.Action\`${parameterTypes.length}`,
-      typeArguments: parameterTypes as readonly TargetTypeRef[],
-    };
-  }
-  return {
-    kind: "target-named",
-    id: `System.Func\`${parameterTypes.length + 1}`,
-    typeArguments: [...(parameterTypes as readonly TargetTypeRef[]), returnType],
-  };
-}
-
-function getNodeList(value: unknown): readonly Node[] {
-  const nodes = (value as { readonly Nodes?: readonly unknown[] } | undefined)?.Nodes;
-  return nodes === undefined
-    ? []
-    : nodes.map(asNode).filter((node): node is Node => node !== undefined);
-}
-
-function getTargetTypeRefFromDeclarationAnnotation(
-  input: TargetCompileInput,
-  sourceNode: Node,
-  sourceFile: SourceFile,
-): TargetTypeRef | undefined {
-  const symbol = input.semantics.getSymbolAtLocation(sourceNode, { sourceFile });
-  const declarations = (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
-    ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
-  for (const declaration of declarations) {
-    const typeNode = asNode(getNodeField(declaration, "Type"));
-    if (typeNode !== undefined && typeNode !== sourceNode) {
-      const result = getTargetTypeRefForNode(input, typeNode, sourceFileOfNode(input, typeNode, sourceFile));
-      if (result !== undefined) {
-        return result;
-      }
-    }
-  }
-  return undefined;
-}
-
 function getTypeParameterName(input: TargetCompileInput, type: Type): string | undefined {
   const declarations = (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ?? [];
   for (const declaration of declarations) {
@@ -536,6 +278,10 @@ function getTypeParameterName(input: TargetCompileInput, type: Type): string | u
     }
   }
   return undefined;
+}
+
+function isVoidTargetType(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && type.id === "System.Void";
 }
 
 function getNodeField(node: Node | undefined, field: string): unknown {
@@ -630,16 +376,4 @@ function getTargetTypeRefForProjectSourceType(
       ...(typeArguments.length > 0 ? { typeArguments } : {}),
     },
   };
-}
-
-function isVoidTargetType(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" && type.id === "System.Void";
-}
-
-function sourceFileOfNode(
-  input: TargetCompileInput,
-  node: Node,
-  fallback: SourceFile,
-): SourceFile {
-  return input.ast.getSourceFile(node) ?? fallback;
 }

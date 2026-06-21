@@ -317,7 +317,8 @@ function planForInStatement(
   if (binding === undefined) {
     return [];
   }
-  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey);
+  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey) ??
+    getSourceOwnedForInIterationFact(statement.Expression, sourceFile, input);
   if (selectedIteration === undefined) {
     const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires finalized TSTS/provider enumeration facts before C# emission."));
@@ -509,6 +510,26 @@ function planObjectShapeForInStatement(
       ],
     },
   }];
+}
+
+function getSourceOwnedForInIterationFact(
+  expression: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTargetIterationFact | undefined {
+  if (expression === undefined) {
+    return undefined;
+  }
+  const type = input.semantics.getTypeAtLocation(expression, { sourceFile });
+  if (type === undefined || (!input.types.isStringLike(type) && !input.types.isArrayLike(type, { sourceFile }))) {
+    return undefined;
+  }
+  return {
+    operationId: "source.indexable.keys",
+    iterationKind: "property-key",
+    targetOperation: "array-index-keys",
+    elementType: { kind: "target-named", id: "System.String" },
+  };
 }
 
 function getObjectShapeForForInExpression(
@@ -738,7 +759,18 @@ function getSourceOwnedForOfIterationFact(
     return undefined;
   }
   const type = input.semantics.getTypeAtLocation(expression, { sourceFile });
-  if (type === undefined || input.types.isStringLike(type) || !input.types.isArrayLike(type, { sourceFile })) {
+  if (type === undefined) {
+    return undefined;
+  }
+  if (input.types.isStringLike(type)) {
+    return {
+      operationId: "source.string.codePoints",
+      iterationKind: "sync",
+      targetOperation: "string-code-points",
+      elementType: { kind: "target-named", id: "System.String" },
+    };
+  }
+  if (!input.types.isArrayLike(type, { sourceFile })) {
     return undefined;
   }
   const elementType = input.types.isTypeReference(type)

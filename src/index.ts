@@ -34,8 +34,38 @@ export type {
 } from "./backend/roslyn/syntax.js";
 export { printCsharpCompilationUnit, printCsharpExpression, printCsharpStatement, printCsharpType } from "./print/csharp-printer.js";
 export type {
+  DotnetAssemblyReference,
+  DotnetBindingProviderOptions,
+  DotnetConstraint,
+  DotnetExportDeclaration,
+  DotnetFunctionDeclaration,
+  DotnetMemberDeclaration,
+  DotnetMemberKind,
+  DotnetModuleModel,
+  DotnetNamespaceDeclaration,
+  DotnetParameterDeclaration,
   DotnetProviderDiagnostic,
-  DotnetProviderOperation,
-  DotnetProviderRequest,
-  DotnetProviderResponse,
-} from "./providers/dotnet-provider-protocol.js";
+  DotnetProviderIdentity,
+  DotnetProviderModuleContext,
+  DotnetProviderModuleResult,
+  DotnetProviderOwnership,
+  DotnetSignatureDeclaration,
+  DotnetTypeDataProvider,
+  DotnetTypeDeclaration,
+  DotnetTypeKind,
+  DotnetTypeParameterDeclaration,
+  DotnetTypeRef,
+  DotnetValueDeclaration,
+} from "./providers/dotnet/index.js";
+export {
+  createDotnetModuleSpecifier,
+  createDotnetTargetBindingProvider,
+  dotnetConstraintToTargetConstraint,
+  dotnetModuleExtension,
+  dotnetModulePrefix,
+  dotnetModuleToProviderDeclarationModel,
+  dotnetPackageName,
+  dotnetTypeRefToProviderType,
+  dotnetTypeRefToTargetTypeRef,
+  parseDotnetModuleSpecifier,
+} from "./providers/dotnet/index.js";

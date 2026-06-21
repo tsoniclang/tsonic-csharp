@@ -1,26 +1,21 @@
 import {
   AsExpressionWithTypeArguments,
-  AsNewExpression,
-  AsTypeReferenceNode,
   IsTypeSyntaxNode,
   KindArrayBindingPattern,
-  KindArrayType,
   KindAnyKeyword,
   KindClassDeclaration,
   KindEnumDeclaration,
   KindExpressionWithTypeArguments,
   KindIdentifier,
   KindInterfaceDeclaration,
-  KindNewExpression,
   KindObjectKeyword,
   KindObjectBindingPattern,
   KindPropertyAccessExpression,
-  KindTypeReference,
   KindTypeLiteral,
   KindUnionType,
   KindUnknownKeyword,
 } from "./source-ast.js";
-import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -123,28 +118,9 @@ export function getCsharpTypeForNode(
   if (node === undefined) {
     return errorType;
   }
-  if (input.ast.kindName(node) === KindArrayType) {
-    const element = (node as { readonly ElementType?: Node }).ElementType;
-    return {
-      kind: "ArrayType",
-      elementType: getCsharpTypeForNode(element, sourceFile, input, invalidType("missing array element type"), diagnostics),
-    };
-  }
-  if (input.ast.kindName(node) === KindTypeReference) {
-    const typeReferenceType = getCsharpTypeFromTypeReferenceSyntax(node, sourceFile, input, diagnostics);
-    if (typeReferenceType !== undefined) {
-      return typeReferenceType;
-    }
-  }
   const selectedTargetCallType = getCsharpTypeFromSelectedTargetCall(node, input, diagnostics);
   if (selectedTargetCallType !== undefined) {
     return selectedTargetCallType;
-  }
-  if (input.ast.kindName(node) === KindNewExpression) {
-    const newExpressionType = getCsharpTypeFromNewExpressionSyntax(node, sourceFile, input, diagnostics);
-    if (newExpressionType !== undefined) {
-      return newExpressionType;
-    }
   }
   if (input.ast.kindName(node) === KindTypeLiteral) {
     const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
@@ -157,10 +133,6 @@ export function getCsharpTypeForNode(
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Structural object type annotations require target object-shape semantics before C# emission."));
     return invalidType("structural object type");
   }
-  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
-  if (nodeCarrierType !== undefined) {
-    return nodeCarrierType;
-  }
   if (input.ast.kindName(node) === KindAnyKeyword || input.ast.kindName(node) === KindUnknownKeyword) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
     return invalidType("any or unknown type");
@@ -171,6 +143,10 @@ export function getCsharpTypeForNode(
   }
   if (input.ast.kindName(node) === KindUnionType) {
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
+  }
+  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
+  if (nodeCarrierType !== undefined) {
+    return nodeCarrierType;
   }
   if (input.ast.kindName(node) === KindObjectBindingPattern || input.ast.kindName(node) === KindArrayBindingPattern) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));
@@ -290,94 +266,6 @@ function getCsharpTypeFromSelectedTargetCall(
     return invalidType("selected target call return type");
   }
   return csharpType;
-}
-
-function getCsharpTypeFromTypeReferenceSyntax(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics?: TargetDiagnostic[],
-): CsharpTypeNode | undefined {
-  const reference = AsTypeReferenceNode(node);
-  const typeName = reference?.TypeName;
-  if (typeName === undefined) {
-    return undefined;
-  }
-  const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
-  const carrier = getTargetTypeRefForNode(input, node, sourceFile) ??
-    getTargetTypeRefForType(input, input.semantics.getTypeFromTypeNode(node, { sourceFile }), sourceFile);
-  const typeArgumentNodes = (reference?.TypeArguments?.Nodes ?? [])
-    .filter((argument): argument is Node => argument !== undefined);
-  if (carrier !== undefined && (typeArgumentNodes.length === 0 || hasTargetTypeArguments(carrier))) {
-    const csharpType = csharpTypeFromTargetTypeRef(carrier);
-    if (csharpType !== undefined) {
-      return csharpType;
-    }
-  }
-  const projectSourceName = getProjectSourceReferenceTypeName(
-    input.semantics.getProjectSourceReferenceForNode(typeName, { sourceFile }),
-    input,
-  );
-  if (projectSourceName !== undefined) {
-    const typeArguments = typeArgumentNodes.map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("missing type argument"), diagnostics));
-    return {
-      kind: "IdentifierName",
-      name: sanitizeIdentifier(projectSourceName),
-      ...(typeArguments.length > 0 ? { typeArguments } : {}),
-    };
-  }
-  if (targetBinding === undefined) {
-    return undefined;
-  }
-  const typeArguments = typeArgumentNodes.map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("missing type argument"), diagnostics));
-  if ((targetBinding.typeParameters ?? []).length !== typeArguments.length) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider target type reference has mismatched type-argument arity before C# emission."));
-    return invalidType("target type reference arity");
-  }
-  const csharpType = csharpTypeFromTargetTypeRef({ kind: "target-named", id: targetBinding.id });
-  if (csharpType === undefined) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider target type reference requires a renderable target identity before C# emission."));
-    return invalidType("target type reference");
-  }
-  if (typeArguments.length === 0) {
-    return csharpType;
-  }
-  return csharpType.kind === "IdentifierName" || csharpType.kind === "QualifiedName"
-    ? { ...csharpType, typeArguments }
-    : csharpType;
-}
-
-function hasTargetTypeArguments(type: TargetTypeRef): boolean {
-  if (type.kind === "target-named") {
-    return (type.typeArguments ?? []).length > 0;
-  }
-  if (type.kind !== "target-specific" || typeof type.value !== "object" || type.value === null) {
-    return false;
-  }
-  const value = type.value as { readonly typeArguments?: unknown };
-  return Array.isArray(value.typeArguments) && value.typeArguments.length > 0;
-}
-
-function getCsharpTypeFromNewExpressionSyntax(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics?: TargetDiagnostic[],
-): CsharpTypeNode | undefined {
-  const expression = AsNewExpression(node);
-  if (expression?.Expression === undefined) {
-    return undefined;
-  }
-  const baseType = expressionToCsharpType(expression.Expression, sourceFile, input, diagnostics);
-  const typeArguments = (expression.TypeArguments?.Nodes ?? [])
-    .filter((argument): argument is Node => argument !== undefined)
-    .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, invalidType("missing constructor type argument"), diagnostics));
-  if (typeArguments.length === 0) {
-    return baseType;
-  }
-  return baseType.kind === "IdentifierName" || baseType.kind === "QualifiedName"
-    ? { ...baseType, typeArguments }
-    : baseType;
 }
 
 export function invalidCsharpType(reason: string): CsharpTypeNode {
