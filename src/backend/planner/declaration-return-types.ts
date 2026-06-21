@@ -1,10 +1,6 @@
-import {
-  HasSourceKind,
-  KindNeverKeyword,
-} from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import { getCsharpTypeForNode, invalidCsharpType, predefined } from "./csharp-types.js";
+import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
@@ -24,9 +20,6 @@ export function getExplicitReturnType(
     }
     const inferred = csharpTypeFromTargetTypeRef(returnCarrier);
     return inferred ?? invalidCsharpType(`${context} return type`);
-  }
-  if (HasSourceKind(input.ast, typeNode, KindNeverKeyword)) {
-    return predefined("void");
   }
   return getCsharpTypeForNode(typeNode, sourceFile, input, invalidCsharpType(`${context} return type`), diagnostics);
 }

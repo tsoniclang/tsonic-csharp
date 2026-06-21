@@ -109,9 +109,6 @@ function targetTypeAcceptsArgument(
   if (actual === undefined) {
     return false;
   }
-  if (expected.kind === "opaque" && (expected.id === "any" || expected.id === "unknown")) {
-    return true;
-  }
   return expected.kind === "target-named" && expected.id === "System.Object";
 }
 
