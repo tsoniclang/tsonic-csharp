@@ -1,5 +1,6 @@
 import type {
   Node,
+  SelectedTargetSignatureFact,
   TargetOperationFact,
 } from "@tsonic/tsts";
 import type {
@@ -11,6 +12,7 @@ import {
 } from "../../source/csharp-facts.js";
 import type {
   CsharpTargetOperationFact,
+  CsharpTargetMemberOperationFact,
 } from "../../source/csharp-facts.js";
 import type {
   CsharpExpression,
@@ -63,4 +65,27 @@ export function csharpStaticMemberExpression(
     receiver: declaringType,
     name: operation.memberName,
   };
+}
+
+export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
+  input: TargetCompileInput,
+  subject: Node,
+  selectedSignature: SelectedTargetSignatureFact,
+  diagnostics: TargetDiagnostic[],
+  purpose: string,
+): CsharpTargetMemberOperationFact | undefined {
+  const operation = input.facts.getFact(subject, csharpTargetOperationFactKey);
+  if (operation === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a finalized C# target member operation fact; the generic selected target member '${selectedSignature.member.id}' is not enough for C# emission.`));
+    return undefined;
+  }
+  if (operation.operationId !== selectedSignature.member.id) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched target operation facts: generic selected member '${selectedSignature.member.id}', C# '${operation.operationId}'.`));
+    return undefined;
+  }
+  if (operation.kind !== "member") {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a finalized C# member operation fact, but provider recorded '${operation.kind}'.`));
+    return undefined;
+  }
+  return operation;
 }

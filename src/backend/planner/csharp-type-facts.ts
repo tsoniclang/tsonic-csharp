@@ -24,13 +24,19 @@ import {
 import {
   invalidCsharpType,
 } from "./csharp-type-primitives.js";
+import {
+  instantiateSelectedTargetMember,
+} from "./target-member-instantiation.js";
 
 export function getCsharpTypeFromSelectedTargetCall(
   node: Node,
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
-  const returnType = input.facts.getSelectedTargetCall(node)?.member.returnType;
+  const selectedTargetCall = input.facts.getSelectedTargetCall(node);
+  const returnType = selectedTargetCall === undefined
+    ? undefined
+    : instantiateSelectedTargetMember(node, selectedTargetCall, diagnostics ?? [])?.returnType;
   if (returnType === undefined) {
     return undefined;
   }

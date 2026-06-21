@@ -38,6 +38,9 @@ import {
 import {
   planSelectedTargetCallArguments,
 } from "./expression-target-members.js";
+import {
+  getRequiredCsharpTargetMemberOperationForSelectedSignature,
+} from "./csharp-target-operations.js";
 
 export type CallArgumentPlanner = (
   node: Node,
@@ -59,6 +62,16 @@ export function planNewExpression(
   if (selectedTargetCall !== undefined && selectedTargetCall.member.kind !== "constructor") {
     diagnostics.push(unsupportedNodeDiagnostic(node, `New expression expected a provider constructor fact, but provider selected a ${selectedTargetCall.member.kind} member.`));
     return invalidExpression("selected target constructor");
+  }
+  const csharpOperation = selectedTargetCall === undefined
+    ? undefined
+    : getRequiredCsharpTargetMemberOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# construction emission");
+  if (selectedTargetCall !== undefined && csharpOperation === undefined) {
+    return invalidExpression("missing C# target constructor operation fact");
+  }
+  if (csharpOperation !== undefined && csharpOperation.operationKind !== "constructor") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `New expression expected a finalized C# constructor operation fact, but provider recorded '${csharpOperation.operationKind}'.`));
+    return invalidExpression("selected target constructor operation");
   }
   if (selectedTargetCall === undefined) {
     const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
@@ -82,11 +95,11 @@ export function planNewExpression(
     return invalidExpression("selected target constructor type arguments");
   }
   const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
-  const selectedConstructorTypeRef = member?.returnType ??
+  const selectedConstructorTypeRef = csharpOperation?.resultType ??
+    csharpOperation?.declaringType ??
+    member?.returnType ??
     member?.declaringType ??
-    expressionCarrier ??
-    selectedTargetCall?.member.returnType ??
-    selectedTargetCall?.member.declaringType;
+    expressionCarrier;
   const selectedConstructorType = selectedConstructorTypeRef === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(selectedConstructorTypeRef);

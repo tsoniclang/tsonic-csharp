@@ -33,6 +33,7 @@ import {
 } from "./target-types.js";
 import type {
   CsharpTargetOperationFact,
+  CsharpTargetMemberOperationFact,
 } from "../../source/csharp-facts.js";
 import {
   csharpStaticMemberExpression,
@@ -94,29 +95,38 @@ export function targetStaticMemberExpression(
 
 export function planSelectedTargetCallee(
   callee: Node | undefined,
-  member: TargetMember,
+  operation: CsharpTargetMemberOperationFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression {
-  if (HasSourceKind(input.ast, callee, KindPropertyAccessExpression)) {
+  if (operation.operationKind !== "method" && operation.operationKind !== "constructor" && operation.operationKind !== "operator") {
+    diagnostics.push({
+      code: "CSHARP_UNSUPPORTED_AST",
+      category: "error",
+      source: "tsonic-csharp",
+      message: `Selected target call requires a C# method, constructor, or operator operation fact, but provider recorded '${operation.operationKind}'.`,
+    });
+    return invalidExpression("selected target call operation kind");
+  }
+  if (callee !== undefined && HasSourceKind(input.ast, callee, KindPropertyAccessExpression)) {
     const property = AsPropertyAccessExpression(callee)!;
-    if (member.static === true) {
-      return planSelectedStaticTargetCallee(member, diagnostics);
+    if (operation.static === true) {
+      return planSelectedStaticTargetCallee(operation, diagnostics, callee);
     }
     return {
       kind: property.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
       receiver: planSelectedTargetReceiverExpression(property.Expression!, sourceFile, input, diagnostics, planExpression),
-      name: member.targetName,
+      name: operation.memberName,
     };
   }
-  if (HasSourceKind(input.ast, callee, KindIdentifier)) {
-    return member.static === true
-      ? planSelectedStaticTargetCallee(member, diagnostics)
+  if (callee !== undefined && HasSourceKind(input.ast, callee, KindIdentifier)) {
+    return operation.static === true
+      ? planSelectedStaticTargetCallee(operation, diagnostics, callee)
       : {
           kind: "IdentifierName",
-          name: member.targetName,
+          name: operation.memberName,
         };
   }
   diagnostics.push({
@@ -129,24 +139,12 @@ export function planSelectedTargetCallee(
 }
 
 function planSelectedStaticTargetCallee(
-  member: TargetMember,
+  operation: CsharpTargetMemberOperationFact,
   diagnostics: TargetDiagnostic[],
+  node: Node,
 ): CsharpExpression {
-  const declaringType = member.declaringType === undefined ? undefined : csharpTypeFromTargetTypeRef(member.declaringType);
-  if (declaringType === undefined) {
-    diagnostics.push({
-      code: "CSHARP_UNSUPPORTED_AST",
-      category: "error",
-      source: "tsonic-csharp",
-      message: "Selected static target call requires a provider-owned declaring target type fact before C# emission.",
-    });
-    return invalidExpression("selected target static call declaring type");
-  }
-  return {
-    kind: "SimpleMemberAccessExpression",
-    receiver: declaringType,
-    name: member.targetName,
-  };
+  return csharpStaticMemberExpression(operation, diagnostics, node, "Selected static target call") ??
+    invalidExpression("selected target static call");
 }
 
 function planSelectedTargetReceiverArgument(

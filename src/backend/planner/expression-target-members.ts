@@ -38,6 +38,7 @@ import {
 } from "../../source/csharp-facts.js";
 import {
   getRequiredCsharpTargetOperation,
+  getRequiredCsharpTargetMemberOperationForSelectedSignature,
 } from "./csharp-target-operations.js";
 
 export {
@@ -152,9 +153,13 @@ export function planCallExpression(
     if (member === undefined) {
       return invalidExpression("selected target call type arguments");
     }
+    const csharpOperation = getRequiredCsharpTargetMemberOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");
+    if (csharpOperation === undefined) {
+      return invalidExpression("missing C# target call operation fact");
+    }
     return {
       kind: "InvocationExpression",
-      callee: planSelectedTargetCallee(expression.Expression, member, sourceFile, input, diagnostics, planExpression),
+      callee: planSelectedTargetCallee(expression.Expression, csharpOperation, sourceFile, input, diagnostics, planExpression),
       arguments: planSelectedTargetCallArguments(expression.Expression, expression, member, sourceFile, input, diagnostics, planCallArgument),
     };
   }
