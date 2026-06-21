@@ -35,7 +35,7 @@ import {
 } from "./provider-bindings.js";
 import {
   getLiteralTargetTypeRefForKnownOperatorOperand,
-} from "./operations-provider.js";
+} from "./checked-operator-mapping.js";
 import {
   getSymbolDeclarations,
   getSymbolForDeclarationLookup,

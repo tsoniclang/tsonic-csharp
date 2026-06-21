@@ -29,7 +29,7 @@ import {
   getCheckedOperatorOperandQuery,
   getCsharpOperatorResultTypeRefForOperator,
   getLiteralTargetTypeRefForKnownOperatorOperand,
-} from "./operations-provider.js";
+} from "./checked-operator-mapping.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carriers.js";
