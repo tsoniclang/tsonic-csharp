@@ -1,12 +1,21 @@
-import type { ExtensionFactSubject, Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
 import {
-  IsTypeSyntaxNode,
   KindClassDeclaration,
   KindEnumDeclaration,
   KindInterfaceDeclaration,
   KindTypeLiteral,
 } from "./source-ast.js";
+import {
+  getTargetTypeRefFromDirectFacts,
+} from "./runtime-carrier-direct-facts.js";
+import {
+  asNode,
+  getNodeField,
+  getSemanticTypeForNode,
+  getSymbolDeclarations,
+  getTypeParameterName,
+} from "./runtime-carrier-node-utils.js";
 
 export function getRuntimeCarrierForExpression(
   input: TargetCompileInput,
@@ -124,131 +133,6 @@ function getProjectSourceDeclaredTargetTypeRef(
     id: symbolName,
     ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly TargetTypeRef[] } : {}),
   };
-}
-
-function getTargetTypeRefFromDirectFacts(
-  input: TargetCompileInput,
-  subject: ExtensionFactSubject | undefined,
-): TargetTypeRef | undefined {
-  if (subject === undefined) {
-    return undefined;
-  }
-  const targetTypeRef = asTargetTypeRef(subject);
-  if (targetTypeRef !== undefined) {
-    return targetTypeRef;
-  }
-  const runtimeCarrier = input.facts.getRuntimeCarrierFact(subject)?.carrier;
-  if (runtimeCarrier !== undefined) {
-    return runtimeCarrier;
-  }
-  const pointer = input.facts.getPointerFact(subject);
-  if (pointer !== undefined) {
-    const pointee = getTargetTypeRefFromDirectFacts(input, pointer.pointee);
-    if (pointee !== undefined) {
-      return {
-        kind: "pointer",
-        pointee,
-        mutability: pointer.mutability === "readwrite" ? "mut" : pointer.mutability === "readonly" ? "const" : "target-defined",
-      };
-    }
-  }
-  const functionPointer = input.facts.getFunctionPointerFact(subject);
-  if (functionPointer !== undefined) {
-    const args = functionPointer.parameters.map((parameter) => getTargetTypeRefFromDirectFacts(input, parameter));
-    const result = getTargetTypeRefFromDirectFacts(input, functionPointer.result);
-    if (result !== undefined && args.every((argument) => argument !== undefined)) {
-      return {
-        kind: "function-pointer",
-        args: args as readonly TargetTypeRef[],
-        result,
-        ...(functionPointer.abi.length > 0 ? { abi: functionPointer.abi } : {}),
-      };
-    }
-  }
-  const primitive = input.facts.getSourcePrimitiveFact(subject);
-  if (primitive !== undefined) {
-    return { kind: "source-primitive", name: primitive.kind };
-  }
-  const binding = input.facts.getTargetBindingFact(subject);
-  if (binding !== undefined) {
-    return { kind: "target-named", id: binding.id };
-  }
-  return undefined;
-}
-
-function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
-  if (typeof subject !== "object" || subject === null) {
-    return undefined;
-  }
-  const kind = (subject as { readonly kind?: unknown }).kind;
-  switch (kind) {
-    case "source-primitive":
-    case "target-named":
-    case "type-parameter":
-    case "array":
-    case "tuple":
-    case "pointer":
-    case "function-pointer":
-    case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
-      return subject as TargetTypeRef;
-    default:
-      return undefined;
-  }
-}
-
-function getTypeParameterName(input: TargetCompileInput, type: Type): string | undefined {
-  const declarations = (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ?? [];
-  for (const declaration of declarations) {
-    if (!input.ast.is.IsTypeParameterDeclaration(declaration)) {
-      continue;
-    }
-    const name = (declaration as { readonly name?: { readonly Text?: unknown }; readonly Name?: { readonly Text?: unknown } }).name ??
-      (declaration as { readonly Name?: { readonly Text?: unknown } }).Name;
-    const text = name?.Text;
-    if (typeof text === "string" && text.length > 0) {
-      return text;
-    }
-  }
-  return undefined;
-}
-
-function getNodeField(node: Node | undefined, field: string): unknown {
-  if (node === undefined) {
-    return undefined;
-  }
-  const record = node as unknown as Record<string, unknown>;
-  const exact = record[field];
-  if (exact !== undefined) {
-    return exact;
-  }
-  const alternate = `${field[0]!.toLowerCase()}${field.slice(1)}`;
-  return record[alternate];
-}
-
-function getSemanticTypeForNode(
-  input: TargetCompileInput,
-  sourceNode: Node,
-  sourceFile: SourceFile,
-): Type | undefined {
-  return IsTypeSyntaxNode(input.ast, sourceNode)
-    ? input.semantics.getTypeFromTypeNode(sourceNode, { sourceFile })
-    : input.semantics.getTypeAtLocation(sourceNode, { sourceFile });
-}
-
-function getSymbolDeclarations(symbol: ExtensionFactSubject | undefined): readonly Node[] {
-  return (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
-    ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
-}
-
-function asNode(value: unknown): Node | undefined {
-  return typeof value === "object" &&
-    value !== null &&
-    typeof (value as { readonly Kind?: unknown }).Kind === "number"
-    ? value as Node
-    : undefined;
 }
 
 function getTargetTypeRefForProjectSourceType(
