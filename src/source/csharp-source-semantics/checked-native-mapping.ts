@@ -23,7 +23,6 @@ import {
   getCsharpConversionOperation,
 } from "./target-rules.js";
 import {
-  csharpTargetMemberOperation,
   targetOperation,
   recordCsharpTargetOperation,
 } from "./operations.js";
@@ -34,9 +33,6 @@ import {
 import {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-selection.js";
-import {
-  csharpTargetNamedType,
-} from "./target-types.js";
 import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type { CsharpOperationsProviderHost } from "./operations-provider.js";
 
@@ -106,14 +102,11 @@ export function mapCsharpCheckedConversion(
   }
   const operation = getCsharpConversionOperation(source, target);
   if (operation !== undefined) {
-    recordCsharpTargetOperation(context, request.source, csharpTargetMemberOperation(operation.operationId, "method", operation.targetOperation, {
-      static: true,
-      declaringType: csharpTargetNamedType("System.Convert"),
-    }), [{ message: "C# target conversion static member recorded from selected target conversion." }]);
+    recordCsharpTargetOperation(context, request.source, operation.csharpOperation, [{ message: "C# target conversion static member recorded from selected target conversion." }]);
   }
   return acceptObservation<CheckedConversionMappingResult>({
     convertedType: target,
-    ...(operation !== undefined ? { operation } : {}),
+    ...(operation !== undefined ? { operation: operation.operation } : {}),
   }, [{ message: "C# target conversion recorded from checked call argument and selected target parameter." }]);
 }
 

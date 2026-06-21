@@ -1,8 +1,23 @@
 import type {
+  CheckedOperationMappingResult,
   SourcePrimitiveKind,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import { targetOperation } from "./operations.js";
+import type {
+  CsharpTargetMemberOperationFact,
+} from "../csharp-facts.js";
+import {
+  csharpTargetMemberOperation,
+  targetOperation,
+} from "./operations.js";
+import {
+  csharpTargetNamedType,
+} from "./target-types.js";
+
+export interface CsharpConversionOperation {
+  readonly operation: CheckedOperationMappingResult["operation"];
+  readonly csharpOperation: CsharpTargetMemberOperationFact;
+}
 
 export function sourcePrimitiveRuntimeKind(kind: SourcePrimitiveKind): "string" | "number" | "boolean" | "bigint" {
   if (kind === "bool") {
@@ -103,12 +118,18 @@ export function isIntegralTargetTypeRef(type: TargetTypeRef | undefined): boolea
   }
 }
 
-export function getCsharpConversionOperation(source: TargetTypeRef | undefined, target: TargetTypeRef) {
+export function getCsharpConversionOperation(source: TargetTypeRef | undefined, target: TargetTypeRef): CsharpConversionOperation | undefined {
   if (source?.kind === "source-primitive" && target.kind === "source-primitive" && source.name !== target.name) {
     const methodName = sourcePrimitiveConversionMethod(target.name);
     return methodName === undefined
       ? undefined
-      : targetOperation(`System.Convert.${methodName}`, "method", methodName);
+      : {
+          operation: targetOperation(`System.Convert.${methodName}`, "method", methodName),
+          csharpOperation: csharpTargetMemberOperation(`System.Convert.${methodName}`, "method", methodName, {
+            static: true,
+            declaringType: csharpTargetNamedType("System.Convert"),
+          }),
+        };
   }
   return undefined;
 }
