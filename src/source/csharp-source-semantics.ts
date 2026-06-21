@@ -1,10 +1,7 @@
 import {
   ExtensionLifecycleEvent,
-  ExtensionObservationPoint,
-  acceptObservation,
   contextualTargetTypeFactKey,
   createSourceSemanticsExtension,
-  deferObservation,
   functionPointerFactKey,
   pointerFactKey,
   providerVirtualDeclarationFactKey,
@@ -17,13 +14,10 @@ import {
 import type {
   CheckedOperationMappingResult,
   CompilerExtension,
-  ExtensionObservation,
   ExtensionObservationContext,
   ExtensionFactStore,
   ExtensionFactSubject,
   Node,
-  RuntimeCarrierFactRequest,
-  RuntimeCarrierFactResult,
   SourceFile,
   BeforeSemanticsFinalizedLifecycleRequest,
   SourceFileBoundLifecycleRequest,
@@ -71,7 +65,6 @@ import {
   getNodeField,
   getNodeList,
   getNodeNameText,
-  getStructuralChildNodes,
   isTypeLiteralLikeNode,
   isTypeSyntaxNode,
   visitStructuralNodes,
@@ -80,7 +73,6 @@ import {
   asTargetTypeRef,
   asType,
   sourceNameToCsharpMemberName,
-  targetTypeRefEquals,
 } from "./csharp-source-semantics/target-ref-utils.js";
 import type { TargetTypeRefResolutionOptions } from "./csharp-source-semantics/target-member-selection.js";
 import {
@@ -96,19 +88,23 @@ import {
   getSymbolForDeclarationLookup,
 } from "./csharp-source-semantics/symbol-utils.js";
 import {
-  createCsharpJsSurfaceMappers,
-} from "./csharp-source-semantics/surfaces/js/index.js";
-import {
   createCsharpNodejsSurfaceBindingProvider,
 } from "./csharp-source-semantics/surfaces/nodejs/index.js";
 import {
-  createCsharpJsSurfaceHost,
   createCsharpOperationsProvider,
   getCheckedOperatorOperandQuery,
   getCsharpOperatorResultTypeRefForOperator,
   getLiteralTargetTypeRefForKnownOperatorOperand,
-  useObservationOrWhenDeferred,
 } from "./csharp-source-semantics/operations-provider.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+  getRuntimeCarrierSubjectType,
+  mapRuntimeCarrier as mapCsharpRuntimeCarrier,
+  recordCsharpRuntimeCarrierFactsBeforeFinalization,
+} from "./csharp-source-semantics/runtime-carriers.js";
+import type {
+  CsharpRuntimeCarrierSemanticsHost,
+} from "./csharp-source-semantics/runtime-carriers.js";
 import {
   createCsharpDotnetSystemTypeDataProvider,
   createDotnetTargetBindingProvider,
@@ -152,10 +148,17 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       if (selectedSurfaceIds.has("nodejs")) {
         context.registerTargetBindingProvider(createCsharpNodejsSurfaceBindingProvider());
       }
+      const runtimeCarrierHost = {
+        getTargetTypeRefForSubject,
+        getTargetTypeRefForType,
+        getTargetTypeRefForSyntaxNode,
+        getCsharpObjectShapeFactForSubject,
+        getRecordedCsharpObjectShapeFactForSubject,
+      } satisfies CsharpRuntimeCarrierSemanticsHost;
       const provider = createCsharpOperationsProvider(selectedSurfaceIds, {
         getTargetTypeRefForSubject,
         getCsharpObjectShapeFactForSubject,
-        mapRuntimeCarrier,
+        mapRuntimeCarrier: (request, observationContext) => mapCsharpRuntimeCarrier(request, observationContext, runtimeCarrierHost),
       });
       context.registerTargetSemanticProvider(provider);
       context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext) => {
@@ -165,7 +168,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext);
-        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds);
+        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds, runtimeCarrierHost);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         const primitive = resolverContext.facts.get(subject, sourcePrimitiveFactKey);
@@ -180,24 +183,6 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       });
     },
   };
-}
-
-function recordCsharpRuntimeCarrierFactsBeforeFinalization(
-  lifecycleContext: Parameters<NonNullable<CompilerExtension["initialize"]>>[0] extends never ? never : { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  targetId: string,
-  selectedSurfaceIds: ReadonlySet<string>,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
-      continue;
-    }
-    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, true, targetId, selectedSurfaceIds);
-    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, false, targetId, selectedSurfaceIds);
-  }
 }
 
 function recordCsharpObjectRestBindingFactsBeforeFinalization(
@@ -433,254 +418,6 @@ function getCsharpCheckedOperatorFactFromSyntax(
     targetOperator,
     { resultType: getCsharpOperatorResultTypeRefForOperator(operator, left, right) },
   );
-}
-
-function walkCsharpRuntimeCarrierFacts(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  sourceFile: SourceFile,
-  node: Node | undefined,
-  typeSyntaxOnly: boolean,
-  targetId: string,
-  selectedSurfaceIds: ReadonlySet<string>,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || node === undefined) {
-    return;
-  }
-  if (typeSyntaxOnly) {
-    for (const child of getRuntimeCarrierChildNodes(compiler.ast, node)) {
-      walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId, selectedSurfaceIds);
-    }
-    if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)) {
-      recordCsharpRuntimeCarrierFact(lifecycleContext, sourceFile, node, targetId, selectedSurfaceIds);
-    }
-    return;
-  }
-  for (const child of getRuntimeCarrierChildNodes(compiler.ast, node)) {
-    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId, selectedSurfaceIds);
-  }
-  recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, node, selectedSurfaceIds);
-  propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
-}
-
-function getRuntimeCarrierChildNodes(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): readonly (Node | undefined)[] {
-  return Array.from(new Set([
-    ...ast.children(node),
-    ...ast.typeArguments(node),
-    ...ast.typeParameters(node),
-    ...ast.parameters(node),
-    ...ast.members(node),
-    ...ast.elements(node),
-    ...ast.properties(node),
-    ...ast.arguments(node),
-    ...getStructuralChildNodes(node),
-  ]));
-}
-
-function recordCsharpRuntimeCarrierFact(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  sourceFile: SourceFile,
-  node: Node,
-  targetId: string,
-  selectedSurfaceIds: ReadonlySet<string>,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
-    return;
-  }
-  const type = getRuntimeCarrierSubjectType(compiler, sourceFile, node);
-  if (type === undefined) {
-    return;
-  }
-  const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, node);
-  const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
-    type,
-    sourceTypeReference: node,
-    ...(symbol !== undefined ? { sourceTypeSymbol: symbol } : {}),
-    target: targetId,
-  }, selectedSurfaceIds);
-  if (result.kind !== "accept") {
-    return;
-  }
-  const fact = {
-    carrier: result.value.carrier,
-    ...(result.value.requiresAllocation !== undefined ? { requiresAllocation: result.value.requiresAllocation } : {}),
-  };
-  lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, fact, result.evidence ?? []);
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, result.evidence ?? []);
-  if (symbol !== undefined) {
-    lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
-  }
-  if (type.symbol !== undefined) {
-    lifecycleContext.host.facts.set(type.symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
-  }
-}
-
-function recordCsharpRuntimeCarrierSyntaxFact(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  node: Node,
-  selectedSurfaceIds: ReadonlySet<string>,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
-    return;
-  }
-  if (isObjectShapeRuntimeCarrierSyntaxNode(compiler.ast, node)) {
-    const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-    const objectShape = getCsharpObjectShapeFactForSubject(node, context);
-    if (objectShape !== undefined) {
-      const evidence = [{ message: "C# runtime carrier recorded from finalized object-shape facts." }];
-      lifecycleContext.host.facts.set(node, csharpObjectShapeFactKey, objectShape, evidence);
-      lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, { carrier: objectShape.targetType }, evidence);
-      return;
-    }
-  }
-  const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, selectedSurfaceIds) ??
-    getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node);
-  if (carrier === undefined) {
-    return;
-  }
-  const fact = { carrier };
-  const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
-}
-
-function isObjectShapeRuntimeCarrierSyntaxNode(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): boolean {
-  return ast.is.IsObjectLiteralExpression(node) ||
-    ast.is.IsTypeLiteralNode(node);
-}
-
-function getObservedRuntimeCarrierSyntaxTargetTypeRef(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  node: Node,
-  selectedSurfaceIds: ReadonlySet<string>,
-): TargetTypeRef | undefined {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || !compiler.ast.is.IsRegularExpressionLiteral(node)) {
-    return undefined;
-  }
-  const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
-    type: node,
-    sourceTypeReference: node,
-    target: csharpTargetId,
-  }, selectedSurfaceIds);
-  return result.kind === "accept" ? result.value.carrier : undefined;
-}
-
-function resolveCsharpRuntimeCarrierFromLifecycle(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  request: RuntimeCarrierFactRequest,
-  selectedSurfaceIds: ReadonlySet<string>,
-): ExtensionObservation<RuntimeCarrierFactResult> {
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const jsSurface = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpNativeProviderExtensionId, {
-    getTargetTypeRefForSubject,
-    getCsharpObjectShapeFactForSubject,
-    mapRuntimeCarrier,
-  }));
-  return useObservationOrWhenDeferred(
-    mapRuntimeCarrier(request, context),
-    () => selectedSurfaceIds.has("js") ? jsSurface.mapRuntimeCarrier(request, context) : deferObservation,
-  );
-}
-
-function createRuntimeCarrierLifecycleObservationContext(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-): ExtensionObservationContext<typeof ExtensionObservationPoint.resolveRuntimeCarrier> {
-  return {
-    observation: ExtensionObservationPoint.resolveRuntimeCarrier,
-    extensionId: csharpNativeProviderExtensionId,
-    host: lifecycleContext.host,
-    facts: lifecycleContext.host.facts,
-    factResolver: lifecycleContext.host.factResolver,
-    diagnostics: lifecycleContext.host.diagnostics,
-    ...(lifecycleContext.compiler !== undefined ? { compiler: lifecycleContext.compiler } : {}),
-  };
-}
-
-function getRuntimeCarrierSyntaxTargetTypeRef(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  node: Node,
-): TargetTypeRef | undefined {
-  const ast = lifecycleContext.compiler?.ast;
-  if (ast === undefined) {
-    return undefined;
-  }
-  if (!ast.is.IsNewExpression(node)) {
-    return undefined;
-  }
-  const selected = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey);
-  const declaringType = selected?.member.returnType ?? selected?.member.declaringType;
-  if (declaringType?.kind !== "target-named") {
-    return undefined;
-  }
-  const typeArguments = ast.typeArguments(node)
-    .map((argument) => getTargetTypeRefForSyntaxNode(argument, lifecycleContext.host.facts, ast));
-  if (typeArguments.some((argument) => argument === undefined)) {
-    return undefined;
-  }
-  return {
-    ...declaringType,
-    ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly TargetTypeRef[] } : {}),
-  };
-}
-
-function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  sourceFile: SourceFile,
-  node: Node,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || compiler.ast.kindName(node) !== "KindVariableDeclaration") {
-    return;
-  }
-  const initializer = asNodeSubject(getNodeField(node, "Initializer"));
-  const name = asNodeSubject(getNodeField(node, "Name"));
-  const initializerFact = lifecycleContext.host.facts.get(initializer, runtimeCarrierFactKey);
-  if (initializerFact === undefined) {
-    return;
-  }
-  const evidence = [{ message: "C# runtime carrier propagated from checked initializer syntax." }];
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, initializerFact, evidence);
-  if (name !== undefined) {
-    lifecycleContext.host.facts.set(name, runtimeCarrierFactKey, initializerFact, evidence);
-    const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
-    if (symbol !== undefined) {
-      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, initializerFact, evidence);
-    }
-  }
-}
-
-function isRuntimeCarrierTypeSyntaxNode(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): boolean {
-  return isTypeSyntaxNode(ast, node);
-}
-
-function getRuntimeCarrierSubjectType(
-  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
-  sourceFile: SourceFile,
-  node: Node,
-): Type | undefined {
-  return isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)
-    ? compiler.checker.getTypeFromTypeNode(node, { sourceFile }) ?? compiler.checker.getTypeAtLocation(node, { sourceFile })
-    : compiler.checker.getTypeAtLocation(node, { sourceFile });
-}
-
-function getRuntimeCarrierSubjectSymbol(
-  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
-  sourceFile: SourceFile,
-  node: Node,
-): Symbol | undefined {
-  return compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
-    compiler.checker.getResolvedSymbol(node, { sourceFile });
 }
 
 function getTargetTypeRefForSubject(
@@ -1371,74 +1108,6 @@ function isSourceLibraryType(type: Type, context: ExtensionObservationContext, n
   return declarations.some((declaration) =>
     ast.text(ast.name(declaration)) === name &&
     ast.getFileName(ast.getSourceFile(declaration)).startsWith("bundled:///libs/"));
-}
-
-function mapRuntimeCarrier(
-  request: RuntimeCarrierFactRequest,
-  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
-) {
-  const primitive = (request.sourceTypeReference === undefined ? undefined : context.factResolver.resolve(request.sourceTypeReference, sourcePrimitiveFactKey)) ??
-    (request.sourceTypeSymbol === undefined ? undefined : context.factResolver.resolve(request.sourceTypeSymbol, sourcePrimitiveFactKey)) ??
-    context.factResolver.resolve(request.type, sourcePrimitiveFactKey);
-  const syntaxCarrier = request.sourceTypeReference === undefined
-    ? undefined
-    : getTargetTypeRefForSubject(request.sourceTypeReference, context, { allowRuntimeCarrier: false, allowSemanticTypeQuery: false });
-  if (syntaxCarrier !== undefined) {
-    recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, syntaxCarrier);
-    return acceptObservation<RuntimeCarrierFactResult>({
-      carrier: syntaxCarrier,
-    }, [{ message: "C# runtime carrier mapped from source syntax/provider facts." }]);
-  }
-  if (primitive === undefined) {
-      const objectShape = getRecordedCsharpObjectShapeFactForSubject(request.sourceTypeReference, context) ??
-      getRecordedCsharpObjectShapeFactForSubject(request.type, context);
-    if (objectShape !== undefined) {
-      recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, objectShape);
-      return acceptObservation<RuntimeCarrierFactResult>({
-        carrier: objectShape.targetType,
-      }, [{ message: "C# runtime carrier mapped from finalized structural object-shape facts." }]);
-    }
-    const carrier = getTargetTypeRefForType(asType(request.type), context, { allowRuntimeCarrier: false });
-    return carrier === undefined
-      ? deferObservation
-      : acceptObservation<RuntimeCarrierFactResult>({
-          carrier,
-        }, [{ message: "C# runtime carrier mapped from checked TSTS type shape." }]);
-  }
-  return acceptObservation<RuntimeCarrierFactResult>({
-    carrier: csharpSourcePrimitiveTargetType(primitive.kind),
-  }, [{ message: "C# runtime carrier mapped from source primitive fact." }]);
-}
-
-function recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(
-  request: RuntimeCarrierFactRequest,
-  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
-  carrier: TargetTypeRef,
-): void {
-  const objectShape = getRecordedCsharpObjectShapeFactForSubject(request.sourceTypeReference, context) ??
-    getRecordedCsharpObjectShapeFactForSubject(request.type, context);
-  if (objectShape === undefined || !targetTypeRefEquals(objectShape.targetType, carrier)) {
-    return;
-  }
-  recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, objectShape);
-}
-
-function recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(
-  request: RuntimeCarrierFactRequest,
-  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
-  objectShape: CsharpObjectShapeFact,
-): void {
-  context.facts.set(request.type, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to runtime carrier type." }]);
-  if (request.sourceTypeReference !== undefined) {
-    context.facts.set(request.sourceTypeReference, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type reference." }]);
-  }
-  if (request.sourceTypeSymbol !== undefined) {
-    context.facts.set(request.sourceTypeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
-  }
-  const typeSymbol = asType(request.type)?.symbol;
-  if (typeSymbol !== undefined) {
-    context.facts.set(typeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
-  }
 }
 
 function recordCsharpSourceFileFacts(
