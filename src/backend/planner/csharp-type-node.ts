@@ -41,11 +41,6 @@ import {
   getCsharpTypeFromSelectedTargetCall,
   isUnionTypeNode,
 } from "./csharp-type-facts.js";
-import {
-  getCsharpTypeFromTstsSourceType,
-  getSemanticTypeForNode,
-  sourceTypeHasProviderEvidence,
-} from "./csharp-type-source.js";
 
 export function getCsharpTypeForNode(
   node: Node | undefined,
@@ -113,15 +108,6 @@ export function getCsharpTypeForNode(
     }
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned target type reference requires a renderable target identity before C# emission."));
     return invalidCsharpType("provider target binding");
-  }
-  const sourceType = getSemanticTypeForNode(input, node, sourceFile);
-  if (sourceTypeHasProviderEvidence(sourceType, input)) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned semantic type requires finalized provider runtime-carrier or target-binding facts before C# emission."));
-    return invalidCsharpType("provider semantic type");
-  }
-  const sourceOwnedType = getCsharpTypeFromTstsSourceType(sourceType, sourceFile, input, diagnostics, node);
-  if (sourceOwnedType !== undefined) {
-    return sourceOwnedType;
   }
   const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
