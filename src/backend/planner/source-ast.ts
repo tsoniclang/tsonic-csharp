@@ -322,7 +322,7 @@ function nodeField(node: Node | undefined, upperName: string, lowerName: string)
   return isAstNode(lowerValue) ? lowerValue : undefined;
 }
 
-function isAstNode(value: unknown): value is Node {
+export function isAstNode(value: unknown): value is Node {
   const kind = (value as { readonly Kind?: unknown } | undefined)?.Kind;
   return typeof value === "object" &&
     value !== null &&

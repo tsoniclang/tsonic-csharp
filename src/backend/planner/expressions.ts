@@ -2,7 +2,6 @@ import {
   AsAsExpression,
   AsAwaitExpression,
   AsConditionalExpression,
-  AsNewExpression,
   AsNonNullExpression,
   AsNoSubstitutionTemplateLiteral,
   AsNumericLiteral,
@@ -11,13 +10,10 @@ import {
   AsPrefixUnaryExpression,
   AsStringLiteral,
   AsSatisfiesExpression,
-  AsTemplateExpression,
-  AsTemplateSpan,
   AsTypeAssertion,
   KindArrowFunction,
   KindAsExpression,
   KindCallExpression,
-  KindClassDeclaration,
   KindArrayLiteralExpression,
   KindAwaitExpression,
   KindConditionalExpression,
@@ -46,25 +42,21 @@ import {
   KindTypeAssertionExpression,
   Node_Text,
   SourceKind,
+  isAstNode,
 } from "./source-ast.js";
-import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpArgument, CsharpExpression, CsharpInterpolatedStringPart, CsharpTypeNode } from "../roslyn/syntax.js";
+import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
   planArrayLiteralExpressionFromFacts,
 } from "./array-literals.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
-import { getTargetTypeRefForNode } from "./runtime-carriers.js";
 import {
-  getCallableSemanticOwnership,
   getProviderOperationOwnership,
-  isSourceOwnedProjectConstructibleObjectSubject,
   pushMissingTargetFactDiagnostic,
 } from "./semantic-guards.js";
-import { csharpTypeFromTargetTypeRef } from "./target-types.js";
-import { instantiateSelectedTargetMember } from "./target-member-instantiation.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
 import { applyTargetConversionFact } from "./target-conversions.js";
 import {
@@ -84,10 +76,17 @@ import {
   planCallExpression,
   planElementAccessExpression,
   planPropertyAccessExpression,
-  planSelectedTargetCallArguments,
 } from "./expression-target-members.js";
-import { isProjectSourceTypeRef } from "./project-source-types.js";
 import { planExpressionWithExpectedTypeCore } from "./expression-expected-types.js";
+import {
+  planCallArgumentCore,
+} from "./expression-call-arguments.js";
+import {
+  planNewExpression,
+} from "./expression-new.js";
+import {
+  planTemplateExpression,
+} from "./expression-template-strings.js";
 
 export function planExpression(
   node: Node,
@@ -109,13 +108,13 @@ function planExpressionCore(
   if (defaultValue !== undefined) {
     return {
       kind: "DefaultExpression",
-      type: isNode(defaultValue.type)
+      type: isAstNode(defaultValue.type)
         ? getCsharpTypeForNode(defaultValue.type, sourceFile, input, undefined, diagnostics)
         : unsupportedFactExpressionType(node, diagnostics),
     };
   }
   const argumentPassing = input.facts.getArgumentPassingFact(node);
-  if (argumentPassing !== undefined && argumentPassing.targetExpression !== node && isNode(argumentPassing.targetExpression)) {
+  if (argumentPassing !== undefined && argumentPassing.targetExpression !== node && isAstNode(argumentPassing.targetExpression)) {
     return planExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics);
   }
   switch (SourceKind(input.ast, node)) {
@@ -166,7 +165,7 @@ function planExpressionCore(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Object literals require an explicit target type before C# emission."));
       return invalidExpression("object literal without target type");
     case KindTemplateExpression:
-      return planTemplateExpression(node, sourceFile, input, diagnostics);
+      return planTemplateExpression(node, sourceFile, input, diagnostics, planExpression);
     case KindPropertyAccessExpression:
       return planPropertyAccessExpression(node, sourceFile, input, diagnostics, planExpression);
     case KindElementAccessExpression:
@@ -188,53 +187,8 @@ function planExpressionCore(
     }
     case KindCallExpression:
       return planCallExpression(node, sourceFile, input, diagnostics, planExpression, planCallArgument);
-    case KindNewExpression: {
-      const expression = AsNewExpression(node)!;
-      const selectedTargetCall = input.facts.getSelectedTargetCall(node);
-      if (selectedTargetCall !== undefined && selectedTargetCall.member.kind !== "constructor") {
-        diagnostics.push(unsupportedNodeDiagnostic(node, `New expression expected a provider constructor fact, but provider selected a ${selectedTargetCall.member.kind} member.`));
-        return invalidExpression("selected target constructor");
-      }
-      if (selectedTargetCall === undefined) {
-        const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
-        const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
-        const sourceConstructible = isProjectSourceClassReference(expression.Expression, sourceFile, input) ||
-          isSourceOwnedProjectConstructibleObjectSubject(expression.Expression, sourceFile, input) ||
-          isProjectSourceTypeRef(expressionCarrier);
-        if (!sourceConstructible) {
-          pushMissingTargetFactDiagnostic(diagnostics, node, "C# construction emission requires a source-owned constructor or a selected target constructor fact.", {
-            requiresTargetFact: true,
-            sourceOwned: false,
-            reasons: ownership.sourceOwned && ownership.reasons.length === 0 ? ["non-project constructor"] : ownership.reasons,
-          });
-          return invalidExpression("missing target constructor fact");
-        }
-      }
-      const member = selectedTargetCall === undefined
-        ? undefined
-        : instantiateSelectedTargetMember(node, selectedTargetCall, diagnostics);
-      if (selectedTargetCall !== undefined && member === undefined) {
-        return invalidExpression("selected target constructor type arguments");
-      }
-      const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
-      const selectedConstructorTypeRef = member?.returnType ??
-        member?.declaringType ??
-        expressionCarrier ??
-        selectedTargetCall?.member.returnType ??
-        selectedTargetCall?.member.declaringType;
-      const selectedConstructorType = selectedConstructorTypeRef === undefined
-        ? undefined
-        : csharpTypeFromTargetTypeRef(selectedConstructorTypeRef);
-      return {
-        kind: "ObjectCreationExpression",
-        type: selectedConstructorType ?? getCsharpTypeForNode(node, sourceFile, input, undefined, diagnostics),
-        arguments: member === undefined
-          ? (expression.Arguments?.Nodes ?? [])
-            .filter((argument): argument is Node => argument !== undefined)
-            .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics))
-          : planSelectedTargetCallArguments(expression.Expression, expression, member, sourceFile, input, diagnostics, planCallArgument),
-      };
-    }
+    case KindNewExpression:
+      return planNewExpression(node, sourceFile, input, diagnostics, planCallArgument);
     case KindConditionalExpression: {
       const expression = AsConditionalExpression(node)!;
       return {
@@ -297,20 +251,6 @@ function planExpressionCore(
   }
 }
 
-function isProjectSourceClassReference(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
-  if (node === undefined) {
-    return false;
-  }
-  const reference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile });
-  if (reference === undefined || input.facts.getTargetBindingFact(reference.symbol) !== undefined) {
-    return false;
-  }
-  const fileName = input.ast.getFileName(reference.sourceFile);
-  return !reference.sourceFile.IsDeclarationFile &&
-    !fileName.startsWith("tsts-provider://") &&
-    input.ast.kindName(reference.declaration) === KindClassDeclaration;
-}
-
 export function planCallArgument(
   node: Node,
   sourceFile: SourceFile,
@@ -318,81 +258,7 @@ export function planCallArgument(
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
 ): CsharpArgument {
-  const argumentPassing = input.facts.getArgumentPassingFact(node);
-  if (argumentPassing === undefined) {
-    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, expectedType) };
-  }
-  if (!isNode(argumentPassing.targetExpression)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
-    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, expectedType) };
-  }
-  return {
-    kind: "Argument",
-    expression: planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, expectedType),
-    passing: getCsharpArgumentPassing(argumentPassing.mode),
-  };
-}
-
-function planCallArgumentExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  expectedType?: CsharpTypeNode,
-): CsharpExpression {
-  const conversion = input.facts.getTargetConversionFact(node);
-  if (conversion?.operation !== undefined) {
-    return planExpression(node, sourceFile, input, diagnostics);
-  }
-  if (expectedType !== undefined) {
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType);
-  }
-  if (conversion?.convertedType !== undefined) {
-    const convertedType = csharpTypeFromTargetTypeRef(conversion.convertedType);
-    if (convertedType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion requires a renderable target type before C# emission."));
-      return invalidExpression("target argument conversion type");
-    }
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, convertedType);
-  }
-  return planExpression(node, sourceFile, input, diagnostics);
-}
-
-function planTemplateExpression(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression {
-  const expression = AsTemplateExpression(node)!;
-  const parts: CsharpInterpolatedStringPart[] = [
-    { kind: "InterpolatedStringText", text: Node_Text(expression.Head) },
-  ];
-  for (const spanNode of expression.TemplateSpans?.Nodes ?? []) {
-    if (spanNode === undefined) {
-      continue;
-    }
-    const span = AsTemplateSpan(spanNode)!;
-    parts.push({
-      kind: "Interpolation",
-      expression: planExpression(span.Expression!, sourceFile, input, diagnostics),
-    });
-    parts.push({ kind: "InterpolatedStringText", text: Node_Text(span.Literal) });
-  }
-  return { kind: "InterpolatedStringExpression", parts };
-}
-
-function getCsharpArgumentPassing(mode: ArgumentPassingFact["mode"]): CsharpArgument["passing"] {
-  switch (mode) {
-    case "byref-writeonly-must-init":
-      return "out";
-    case "byref-readwrite":
-      return "ref";
-    case "byref-readonly":
-      return "in";
-    default:
-      return undefined;
-  }
+  return planCallArgumentCore(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType);
 }
 
 export function planExpressionWithExpectedType(
@@ -407,12 +273,6 @@ export function planExpressionWithExpectedType(
     planExpression,
     planExpressionWithExpectedType,
   });
-}
-
-function isNode(value: unknown): value is Node {
-  return typeof value === "object"
-    && value !== null
-    && typeof (value as { readonly Kind?: unknown }).Kind === "number";
 }
 
 function unsupportedFactExpressionType(node: Node, diagnostics: TargetDiagnostic[]): CsharpTypeNode {
