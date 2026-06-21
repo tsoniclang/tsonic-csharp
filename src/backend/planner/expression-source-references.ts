@@ -16,6 +16,7 @@ import type { CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import { sanitizeIdentifier } from "./identifiers.js";
+import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "./source-paths.js";
 
 export function planIdentifierExpression(
@@ -26,7 +27,7 @@ export function planIdentifierExpression(
 ): CsharpExpression {
   const sourceName = Node_Text(AsIdentifier(identifier));
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
-  if (isExternalDeclarationReference(sourceReference, sourceFile)) {
+  if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return invalidExpression("declaration identifier expression");
   }
@@ -56,13 +57,11 @@ export function planIdentifierExpression(
 export function isExternalDeclarationReference(
   reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
   sourceFile: SourceFile,
+  input: TargetCompileInput,
 ): boolean {
   return reference !== undefined &&
     reference.sourceFile !== sourceFile &&
-    (reference.sourceFile.IsDeclarationFile ||
-      SourceFile_FileName(reference.sourceFile).startsWith("tsts-provider://") ||
-      SourceFile_FileName(reference.sourceFile).includes("/node_modules/") ||
-      SourceFile_FileName(reference.sourceFile).endsWith(".d.ts"));
+    (reference.sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, reference.sourceFile));
 }
 
 export function planProjectSourceModuleMemberReference(
@@ -76,7 +75,7 @@ export function planProjectSourceModuleMemberReference(
   if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
     return undefined;
   }
-  if (isExternalDeclarationReference(sourceReference, sourceFile)) {
+  if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
     return undefined;
   }
   if (!isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
@@ -112,7 +111,7 @@ function isProviderVirtualDeclarationIdentifier(
     const declarations = getSymbolDeclarations(symbol);
     return declarations.some((declaration) =>
       input.facts.getFact(declaration, providerVirtualDeclarationFactKey) !== undefined ||
-      isProviderVirtualSourceFile(input.ast.getSourceFile(declaration)));
+      isProviderVirtualSourceFile(input, input.ast.getSourceFile(declaration)));
   });
 }
 
@@ -121,11 +120,6 @@ function getSymbolDeclarations(symbol: unknown): readonly Node[] {
     ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined
       ? []
       : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
-}
-
-function isProviderVirtualSourceFile(sourceFile: SourceFile | undefined): boolean {
-  return sourceFile !== undefined &&
-    (sourceFile.IsDeclarationFile || SourceFile_FileName(sourceFile).startsWith("tsts-provider://"));
 }
 
 function isModuleStaticValueDeclaration(declaration: Node, input: TargetCompileInput): boolean {

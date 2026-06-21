@@ -33,6 +33,9 @@ import {
   isProjectSourceTypeRef,
 } from "./project-source-types.js";
 import {
+  isProviderVirtualSourceFile,
+} from "./provider-virtual-source-files.js";
+import {
   planSelectedTargetCallArguments,
 } from "./expression-target-members.js";
 import {
@@ -114,8 +117,7 @@ function isProjectSourceClassReference(node: Node | undefined, sourceFile: Sourc
   if (reference === undefined || input.facts.getTargetBindingFact(reference.symbol) !== undefined) {
     return false;
   }
-  const fileName = input.ast.getFileName(reference.sourceFile);
   return !reference.sourceFile.IsDeclarationFile &&
-    !fileName.startsWith("tsts-provider://") &&
+    !isProviderVirtualSourceFile(input, reference.sourceFile) &&
     input.ast.kindName(reference.declaration) === KindClassDeclaration;
 }

@@ -40,6 +40,7 @@ import { planExpression } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { beginObjectShapePlanning, takeObjectShapeDeclarations } from "./object-shapes.js";
 import { readNamespace } from "./project-artifacts.js";
+import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 import { sourceFileClassName } from "./source-paths.js";
 import { planStatements } from "./statements.js";
 import { compilationUnitRequiresUnsafe, markCompilationUnitUnsafe } from "./unsafe.js";
@@ -57,7 +58,7 @@ export function planSourceFile(
   diagnostics: TargetDiagnostic[],
 ): PlannedCsharpSourceFile | undefined {
   const fileName = SourceFile_FileName(sourceFile);
-  if (sourceFile.IsDeclarationFile || fileName.startsWith("tsts-provider://")) {
+  if (sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, sourceFile)) {
     return undefined;
   }
   beginObjectShapePlanning(input);

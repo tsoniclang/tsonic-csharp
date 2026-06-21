@@ -36,6 +36,9 @@ import {
 import {
   invalidCsharpType,
 } from "./csharp-type-primitives.js";
+import {
+  isProviderVirtualSourceFile,
+} from "./provider-virtual-source-files.js";
 
 export function expressionToCsharpType(
   node: Node | undefined,
@@ -107,8 +110,7 @@ function getProjectSourceReferenceTypeName(
   if (input.facts.getTargetBindingFact(reference.symbol) !== undefined) {
     return undefined;
   }
-  const referenceFileName = input.ast.getFileName(reference.sourceFile);
-  if (reference.sourceFile.IsDeclarationFile || referenceFileName.startsWith("tsts-provider://")) {
+  if (reference.sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, reference.sourceFile)) {
     return undefined;
   }
   if (

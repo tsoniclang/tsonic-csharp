@@ -78,7 +78,7 @@ export function planSelectedTargetReceiverExpression(
     return planExpression(receiver, sourceFile, input, diagnostics);
   }
   const sourceName = Node_Text(AsIdentifier(receiver));
-  if (isExternalDeclarationReference(input.semantics.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile)) {
+  if (isExternalDeclarationReference(input.semantics.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
     return invalidExpression("provider declaration receiver");
   }
