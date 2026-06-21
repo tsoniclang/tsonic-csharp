@@ -128,9 +128,6 @@ export function getTargetTypeRefForType(
   if (callable !== undefined) {
     return callable;
   }
-  if (isSourceLibraryType(input, type, "RegExp", sourceFile)) {
-    return { kind: "target-named", id: "Tsonic.CSharp.Js.RegExp" };
-  }
   return getTargetTypeRefForProjectSourceType(input, type, sourceFile);
 }
 

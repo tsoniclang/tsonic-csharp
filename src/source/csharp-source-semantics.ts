@@ -67,7 +67,7 @@ import type {
   Type,
   Symbol,
 } from "@tsonic/tsts";
-import type { TargetExtensionContext } from "@tsonic/target-api";
+import type { TargetProviderContext } from "@tsonic/target-api";
 import {
   csharpObjectShapeFactKey,
   csharpTargetIterationFactKey,
@@ -87,16 +87,19 @@ export const dotnetCollectionsModule = "@tsonic/dotnet/System.Collections.Generi
 
 const csharpTargetId = "csharp";
 const csharpProviderVersion = "0.0.1";
+const csharpNativeProviderExtensionId = "tsonic.csharp.native-provider";
 const noNodeTypeQuery = { allowNodeTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
 const noNodeRuntimeCarrierTypeQuery = { allowRuntimeCarrier: false, allowNodeTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
+const jsSurfaceTypeQuery = { allowNodeTypeQuery: false, allowJsSourceLibraryTypes: true } satisfies TargetTypeRefResolutionOptions;
 
 interface TargetTypeRefResolutionOptions {
   readonly allowRuntimeCarrier?: boolean;
   readonly allowNodeTypeQuery?: boolean;
+  readonly allowJsSourceLibraryTypes?: boolean;
   readonly sourceFile?: SourceFile;
 }
 
-export function createCsharpSourceSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
+export function createCsharpSourceSemanticsExtension(_context: TargetProviderContext): CompilerExtension {
   return createSourceSemanticsExtension({
     identity: {
       id: "tsonic.csharp.source-semantics",
@@ -107,12 +110,13 @@ export function createCsharpSourceSemanticsExtension(_context: TargetExtensionCo
   });
 }
 
-export function createCsharpTargetSemanticsExtension(_context: TargetExtensionContext): CompilerExtension {
+export function createCsharpNativeProviderExtension(context: TargetProviderContext): CompilerExtension {
+  const selectedSurfaceIds = new Set(context.selectedSurfaces.map((surface) => surface.id));
   return {
     identity: {
-      id: "tsonic.csharp.target-semantics",
+      id: csharpNativeProviderExtensionId,
       version: csharpProviderVersion,
-      capabilityNamespace: "tsonic.csharp.target",
+      capabilityNamespace: "tsonic.csharp.native",
     },
     composition: {
       kind: "target",
@@ -120,13 +124,13 @@ export function createCsharpTargetSemanticsExtension(_context: TargetExtensionCo
     },
     initialize(context): void {
       context.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
-      const provider = createCsharpSurfaceOperationsProvider();
+      const provider = createCsharpOperationsProvider(selectedSurfaceIds);
       context.registerTargetSemanticProvider(provider);
       context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext) => {
         recordCsharpSourceFileFacts(request, context.facts, lifecycleContext.compiler?.ast);
       });
       context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId);
+        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         const primitive = resolverContext.facts.get(subject, sourcePrimitiveFactKey);
@@ -146,6 +150,7 @@ export function createCsharpTargetSemanticsExtension(_context: TargetExtensionCo
 function recordCsharpRuntimeCarrierFactsBeforeFinalization(
   lifecycleContext: Parameters<NonNullable<CompilerExtension["initialize"]>>[0] extends never ? never : { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   targetId: string,
+  selectedSurfaceIds: ReadonlySet<string>,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -155,8 +160,8 @@ function recordCsharpRuntimeCarrierFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, true, targetId);
-    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, false, targetId);
+    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, true, targetId, selectedSurfaceIds);
+    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, false, targetId, selectedSurfaceIds);
   }
 }
 
@@ -166,6 +171,7 @@ function walkCsharpRuntimeCarrierFacts(
   node: Node | undefined,
   typeSyntaxOnly: boolean,
   targetId: string,
+  selectedSurfaceIds: ReadonlySet<string>,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined || node === undefined) {
@@ -173,17 +179,17 @@ function walkCsharpRuntimeCarrierFacts(
   }
   if (typeSyntaxOnly) {
     for (const child of getRuntimeCarrierChildNodes(compiler.ast, node)) {
-      walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId);
+      walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId, selectedSurfaceIds);
     }
     if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)) {
-      recordCsharpRuntimeCarrierFact(lifecycleContext, sourceFile, node, targetId);
+      recordCsharpRuntimeCarrierFact(lifecycleContext, sourceFile, node, targetId, selectedSurfaceIds);
     }
     return;
   }
   for (const child of getRuntimeCarrierChildNodes(compiler.ast, node)) {
-    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId);
+    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId, selectedSurfaceIds);
   }
-  recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, node);
+  recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, node, selectedSurfaceIds);
   propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
 }
 
@@ -217,6 +223,7 @@ function recordCsharpRuntimeCarrierFact(
   sourceFile: SourceFile,
   node: Node,
   targetId: string,
+  selectedSurfaceIds: ReadonlySet<string>,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
@@ -227,16 +234,12 @@ function recordCsharpRuntimeCarrierFact(
     return;
   }
   const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, node);
-  const result = lifecycleContext.host.runObservation(
-    ExtensionObservationPoint.resolveRuntimeCarrier,
-    {
-      type,
-      sourceTypeReference: node,
-      ...(symbol !== undefined ? { sourceTypeSymbol: symbol } : {}),
-      target: targetId,
-    },
-    () => undefined as unknown as RuntimeCarrierFactResult,
-  );
+  const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
+    type,
+    sourceTypeReference: node,
+    ...(symbol !== undefined ? { sourceTypeSymbol: symbol } : {}),
+    target: targetId,
+  }, selectedSurfaceIds);
   if (result.kind !== "accept") {
     return;
   }
@@ -257,18 +260,73 @@ function recordCsharpRuntimeCarrierFact(
 function recordCsharpRuntimeCarrierSyntaxFact(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   node: Node,
+  selectedSurfaceIds: ReadonlySet<string>,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
     return;
   }
-  const carrier = getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node);
+  const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, selectedSurfaceIds) ??
+    getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node);
   if (carrier === undefined) {
     return;
   }
   const fact = { carrier };
   const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+}
+
+function getObservedRuntimeCarrierSyntaxTargetTypeRef(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node,
+  selectedSurfaceIds: ReadonlySet<string>,
+): TargetTypeRef | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || !compiler.ast.is.IsRegularExpressionLiteral(node)) {
+    return undefined;
+  }
+  const sourceFile = compiler.ast.getSourceFile(node);
+  let type: Type | undefined;
+  try {
+    type = compiler.checker.getTypeAtLocation(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
+  if (type === undefined) {
+    return undefined;
+  }
+  const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
+    type,
+    sourceTypeReference: node,
+    target: csharpTargetId,
+  }, selectedSurfaceIds);
+  return result.kind === "accept" ? result.value.carrier : undefined;
+}
+
+function resolveCsharpRuntimeCarrierFromLifecycle(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  request: RuntimeCarrierFactRequest,
+  selectedSurfaceIds: ReadonlySet<string>,
+): ExtensionObservation<RuntimeCarrierFactResult> {
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  return preferPrimaryObservation(
+    mapRuntimeCarrier(request, context),
+    () => selectedSurfaceIds.has("js") ? mapCsharpJsSurfaceRuntimeCarrier(request, context) : deferObservation,
+  );
+}
+
+function createRuntimeCarrierLifecycleObservationContext(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+): ExtensionObservationContext<typeof ExtensionObservationPoint.resolveRuntimeCarrier> {
+  return {
+    observation: ExtensionObservationPoint.resolveRuntimeCarrier,
+    extensionId: csharpNativeProviderExtensionId,
+    host: lifecycleContext.host,
+    facts: lifecycleContext.host.facts,
+    factResolver: lifecycleContext.host.factResolver,
+    diagnostics: lifecycleContext.host.diagnostics,
+    ...(lifecycleContext.compiler !== undefined ? { compiler: lifecycleContext.compiler } : {}),
+  };
 }
 
 function getRuntimeCarrierSyntaxTargetTypeRef(
@@ -278,9 +336,6 @@ function getRuntimeCarrierSyntaxTargetTypeRef(
   const ast = lifecycleContext.compiler?.ast;
   if (ast === undefined) {
     return undefined;
-  }
-  if (ast.is.IsRegularExpressionLiteral(node)) {
-    return csharpTargetNamedType("Tsonic.CSharp.Js.RegExp");
   }
   if (!ast.is.IsNewExpression(node)) {
     return undefined;
@@ -361,37 +416,53 @@ function getRuntimeCarrierSubjectSymbol(
   }
 }
 
-function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
+function createCsharpOperationsProvider(selectedSurfaceIds: ReadonlySet<string>): TargetSemanticProvider {
   const identity: ProviderIdentity = {
-    id: "tsonic.csharp.surface-operations",
+    id: "tsonic.csharp.operations",
     version: csharpProviderVersion,
     target: csharpTargetId,
     extensionContractVersion: TstsProviderContractVersion,
     providerKind: "semantic",
     displayName: "Tsonic C# semantic mapper",
   };
+  const jsSurfaceEnabled = selectedSurfaceIds.has("js");
   return {
     identity,
     resolveRuntimeCarrier(request, context) {
       if (request.target !== undefined && request.target !== csharpTargetId) {
         return deferObservation;
       }
-      return mapRuntimeCarrier(request, context);
+      return preferPrimaryObservation(
+        mapRuntimeCarrier(request, context),
+        () => jsSurfaceEnabled ? mapCsharpJsSurfaceRuntimeCarrier(request, context) : deferObservation,
+      );
     },
     mapCheckedCall(request, context) {
-      return mapCsharpCheckedCall(request, context, identity.id);
+      return preferPrimaryObservation(
+        mapCsharpCheckedCall(request, context, identity.id),
+        () => jsSurfaceEnabled ? mapCsharpJsSurfaceCheckedCall(request, context, identity.id) : deferObservation,
+      );
     },
     mapCheckedPropertyAccess(request, context) {
-      return mapCsharpCheckedPropertyAccess(request, context, identity.id);
+      return preferPrimaryObservation(
+        mapCsharpCheckedPropertyAccess(request, context, identity.id),
+        () => jsSurfaceEnabled ? mapCsharpJsSurfaceCheckedPropertyAccess(request, context) : deferObservation,
+      );
     },
     mapCheckedElementAccess(request, context) {
-      return mapCsharpCheckedElementAccess(request, context, identity.id);
+      return preferPrimaryObservation(
+        mapCsharpCheckedElementAccess(request, context, identity.id),
+        () => jsSurfaceEnabled ? mapCsharpJsSurfaceCheckedElementAccess(request, context) : deferObservation,
+      );
     },
     mapCheckedOperator(request, context) {
       return mapCsharpCheckedOperator(request, context, identity.id);
     },
     mapCheckedIteration(request, context) {
-      return mapCsharpCheckedIteration(request, context, identity.id);
+      return preferPrimaryObservation(
+        mapCsharpNativeCheckedIteration(request, context),
+        () => jsSurfaceEnabled ? mapCsharpJsSurfaceCheckedIteration(request, context) : deferObservation,
+      );
     },
     recordContextualTargetType(request, context) {
       return mapCsharpContextualTargetType(request, context);
@@ -403,6 +474,13 @@ function createCsharpSurfaceOperationsProvider(): TargetSemanticProvider {
       return mapCsharpParameterPassing(request, context);
     },
   };
+}
+
+function preferPrimaryObservation<T>(
+  primary: ExtensionObservation<T>,
+  fallback: () => ExtensionObservation<T>,
+): ExtensionObservation<T> {
+  return primary.kind === "defer" ? fallback() : primary;
 }
 
 function mapCsharpCheckedCall(
@@ -423,10 +501,6 @@ function mapCsharpCheckedCall(
     return acceptObservation<CheckedCallMappingResult>({
       selectedSignature: { member: erasedSourceSemanticsMember(virtualDeclaration, request) },
     }, [{ message: "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure." }]);
-  }
-  const sourceLibraryCall = mapCsharpSourceLibraryCheckedCall(request, context);
-  if (sourceLibraryCall !== undefined) {
-    return sourceLibraryCall;
   }
   const binding = findTargetBinding(context, [
     request.sourceSelectedContainerSymbol,
@@ -515,16 +589,8 @@ function mapCsharpCheckedPropertyAccess(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  const sourceLibraryProperty = mapCsharpDirectSourceLibraryCheckedPropertyAccess(request, context);
-  if (sourceLibraryProperty !== undefined) {
-    return sourceLibraryProperty;
-  }
   if (!hasCsharpOwnedPropertyAccessSubject(request, context)) {
     return deferObservation;
-  }
-  const receiverSourceLibraryProperty = mapCsharpReceiverSourceLibraryCheckedPropertyAccess(request, context);
-  if (receiverSourceLibraryProperty !== undefined) {
-    return receiverSourceLibraryProperty;
   }
   const binding = findTargetBinding(context, [
     request.sourceSelectedContainerSymbol,
@@ -601,10 +667,6 @@ function mapCsharpCheckedElementAccess(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  const sourceLibraryElement = mapCsharpSourceLibraryCheckedElementAccess(request, context);
-  if (sourceLibraryElement !== undefined) {
-    return sourceLibraryElement;
-  }
   const binding = findTargetBinding(context, [
     request.receiverTypeSymbol,
     request.receiverType,
@@ -680,10 +742,9 @@ function mapCsharpCheckedOperator(
   }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
 }
 
-function mapCsharpCheckedIteration(
+function mapCsharpNativeCheckedIteration(
   request: CheckedIterationMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedIteration">,
-  _extensionId: string,
 ): ExtensionObservation<CheckedOperationMappingResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
@@ -691,18 +752,6 @@ function mapCsharpCheckedIteration(
   const expressionType = getTargetTypeRefForSubject(request.sourceElementType, context, noNodeRuntimeCarrierTypeQuery) ??
     getTargetTypeRefForSubject(request.expression, context, noNodeRuntimeCarrierTypeQuery);
   if (request.kind === "for-of") {
-    if (isCsharpStringType(expressionType)) {
-      const fact = {
-        operationId: "tsonic.csharp.string.codePoints",
-        iterationKind: "sync",
-        targetOperation: "string-code-points",
-        elementType: csharpTargetNamedType("System.String"),
-      } satisfies CsharpTargetIterationFact;
-      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# string for-of maps to string code-point iteration." }]);
-      return acceptObservation<CheckedOperationMappingResult>({
-        operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
-      }, [{ message: "C# string iteration fact recorded after TSTS accepted for-of." }]);
-    }
     if (expressionType?.kind === "array") {
       const fact = {
         operationId: "tsonic.csharp.array.foreach",
@@ -717,31 +766,58 @@ function mapCsharpCheckedIteration(
     }
     return deferObservation;
   }
+  return deferObservation;
+}
+
+function mapCsharpJsSurfaceCheckedIteration(
+  request: CheckedIterationMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedIteration">,
+): ExtensionObservation<CheckedOperationMappingResult> {
+  if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  const expressionType = getTargetTypeRefForSubject(request.sourceElementType, context, jsSurfaceTypeQuery) ??
+    getTargetTypeRefForSubject(request.expression, context, jsSurfaceTypeQuery);
+  if (request.kind === "for-of") {
+    if (isCsharpStringType(expressionType)) {
+      const fact = {
+        operationId: "tsonic.csharp.js.string.codePoints",
+        iterationKind: "sync",
+        targetOperation: "string-code-points",
+        elementType: csharpTargetNamedType("System.String"),
+      } satisfies CsharpTargetIterationFact;
+      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# JS surface string for-of maps to string code-point iteration." }]);
+      return acceptObservation<CheckedOperationMappingResult>({
+        operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
+      }, [{ message: "C# JS surface string iteration fact recorded after TSTS accepted for-of." }]);
+    }
+    return deferObservation;
+  }
   if (request.kind === "for-in") {
     const objectShape = getCsharpObjectShapeFactForSubject(request.expression, context);
     if (objectShape !== undefined) {
       const fact = {
-        operationId: "tsonic.csharp.objectShape.keys",
+        operationId: "tsonic.csharp.js.objectShape.keys",
         iterationKind: "property-key",
         targetOperation: "object-shape-keys",
         elementType: csharpTargetNamedType("System.String"),
       } satisfies CsharpTargetIterationFact;
-      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# object-shape for-in maps to finalized object-shape key storage." }]);
+      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# JS surface object-shape for-in maps to finalized object-shape key storage." }]);
       return acceptObservation<CheckedOperationMappingResult>({
         operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
-      }, [{ message: "C# object-shape key iteration fact recorded after TSTS accepted for-in." }]);
+      }, [{ message: "C# JS surface object-shape key iteration fact recorded after TSTS accepted for-in." }]);
     }
     if (expressionType?.kind === "array" || isCsharpStringType(expressionType)) {
       const fact = {
-        operationId: "tsonic.csharp.indexable.keys",
+        operationId: "tsonic.csharp.js.indexable.keys",
         iterationKind: "property-key",
         targetOperation: "array-index-keys",
         elementType: csharpTargetNamedType("System.String"),
       } satisfies CsharpTargetIterationFact;
-      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# indexable for-in maps to string index keys." }]);
+      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# JS surface indexable for-in maps to string index keys." }]);
       return acceptObservation<CheckedOperationMappingResult>({
         operation: targetOperation(fact.operationId, "iteration", fact.targetOperation),
-      }, [{ message: "C# index-key iteration fact recorded after TSTS accepted for-in." }]);
+      }, [{ message: "C# JS surface index-key iteration fact recorded after TSTS accepted for-in." }]);
     }
   }
   return deferObservation;
@@ -805,6 +881,66 @@ function mapCsharpParameterPassing(
       ...(request.argument !== undefined ? { targetExpression: request.argument } : {}),
     },
   }, [{ message: "C# argument passing recorded from selected target parameter." }]);
+}
+
+function mapCsharpJsSurfaceRuntimeCarrier(
+  request: RuntimeCarrierFactRequest,
+  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
+): ExtensionObservation<RuntimeCarrierFactResult> {
+  const syntaxCarrier = request.sourceTypeReference === undefined
+    ? undefined
+    : getTargetTypeRefForSubject(request.sourceTypeReference, context, {
+        allowRuntimeCarrier: false,
+        allowJsSourceLibraryTypes: true,
+      });
+  const carrier = isCsharpJsSurfaceRuntimeCarrier(syntaxCarrier)
+    ? syntaxCarrier
+    : getTargetTypeRefForType(asType(request.type), context, {
+        allowRuntimeCarrier: false,
+        allowJsSourceLibraryTypes: true,
+      });
+  return isCsharpJsSurfaceRuntimeCarrier(carrier)
+    ? acceptObservation<RuntimeCarrierFactResult>({
+        carrier,
+      }, [{ message: "C# JS surface runtime carrier mapped from checked JavaScript library type." }])
+    : deferObservation;
+}
+
+function mapCsharpJsSurfaceCheckedCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  extensionId: string,
+): ExtensionObservation<CheckedCallMappingResult> {
+  if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  return mapCsharpSourceLibraryCheckedCall(request, context, extensionId) ?? deferObservation;
+}
+
+function mapCsharpJsSurfaceCheckedPropertyAccess(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
+): ExtensionObservation<CheckedOperationMappingResult> {
+  if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  return mapCsharpDirectSourceLibraryCheckedPropertyAccess(request, context) ??
+    mapCsharpReceiverSourceLibraryCheckedPropertyAccess(request, context) ??
+    deferObservation;
+}
+
+function mapCsharpJsSurfaceCheckedElementAccess(
+  request: CheckedElementAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
+): ExtensionObservation<CheckedOperationMappingResult> {
+  if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  return mapCsharpSourceLibraryCheckedElementAccess(request, context) ?? deferObservation;
+}
+
+function isCsharpJsSurfaceRuntimeCarrier(type: TargetTypeRef | undefined): type is TargetTypeRef {
+  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Js.RegExp";
 }
 
 function targetOperation(
@@ -1657,7 +1793,7 @@ function getTargetTypeRefForType(
     const element = getTargetTypeRefForType(getFirstTypeArgument(type, context, options), context, options);
     return element === undefined ? undefined : { kind: "array", element };
   }
-  if (isSourceLibraryType(type, context, "RegExp")) {
+  if (options.allowJsSourceLibraryTypes === true && isSourceLibraryType(type, context, "RegExp")) {
     return csharpTargetNamedType("Tsonic.CSharp.Js.RegExp");
   }
   return undefined;
@@ -1810,7 +1946,7 @@ function getTargetTypeRefFromSyntax(
   if (keywordType !== undefined) {
     return keywordType;
   }
-  if (ast.is.IsRegularExpressionLiteral(node)) {
+  if (options.allowJsSourceLibraryTypes === true && ast.is.IsRegularExpressionLiteral(node)) {
     return csharpTargetNamedType("Tsonic.CSharp.Js.RegExp");
   }
   if (ast.is.IsNewExpression(node)) {
@@ -2215,6 +2351,7 @@ interface SourceLibraryMember {
 function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  extensionId: string,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
   const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, request.calleePropertyName, context) ??
     getSourceLibraryMemberFromReceiver(request.calleeReceiverType, request.calleePropertyName, context) ??
@@ -2228,11 +2365,11 @@ function mapCsharpSourceLibraryCheckedCall(
   }
   const member = selectTargetMember(candidates, request.arguments, context);
   if (member === undefined) {
-    return rejectObservation(csharpProviderDiagnostic("tsonic.csharp.surface-operations", "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# provider could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));
   }
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
-  }, [{ message: `C# target call selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+  }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
 }
 
 function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
@@ -2264,7 +2401,7 @@ function mapCsharpSourceLibraryPropertyOperation(
   }
   return acceptObservation<CheckedOperationMappingResult>({
     operation,
-  }, [{ message: `C# target property selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+  }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
 }
 
 function getSourceLibraryMemberFromReceiver(
@@ -2275,7 +2412,7 @@ function getSourceLibraryMemberFromReceiver(
   if (memberName === undefined || memberName.length === 0) {
     return undefined;
   }
-  const receiverType = unwrapNullableTargetType(getTargetTypeRefForSubject(receiver, context, noNodeTypeQuery));
+  const receiverType = unwrapNullableTargetType(getTargetTypeRefForSubject(receiver, context, jsSurfaceTypeQuery));
   if (receiverType?.kind === "array") {
     return {
       declaringName: "Array",
@@ -2305,36 +2442,36 @@ function mapCsharpSourceLibraryCheckedElementAccess(
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const receiverType = unwrapNullableTargetType(
-    getTargetTypeRefForSubject(request.receiverType, context, noNodeTypeQuery) ??
-      getTargetTypeRefForSubject(request.receiver, context, noNodeTypeQuery),
+    getTargetTypeRefForSubject(request.receiverType, context, jsSurfaceTypeQuery) ??
+      getTargetTypeRefForSubject(request.receiver, context, jsSurfaceTypeQuery),
   );
   if (receiverType?.kind === "array") {
     const indexType = getTargetTypeRefForSubject(request.argument, context, noNodeTypeQuery);
     if (!isIntegralTargetTypeRef(indexType) && scoreLiteralTargetTypeMatch(csharpSourcePrimitiveTargetType("int32"), request.argument, context) === undefined) {
-      return rejectObservation(csharpProviderDiagnostic("tsonic.csharp.surface-operations", "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100111, "C# array element access requires an integral provider-backed index type."));
+      return rejectObservation(csharpProviderDiagnostic("tsonic.csharp.js-surface-operations", "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100111, "C# JS surface array element access requires an integral provider-backed index type."));
     }
     return acceptObservation<CheckedOperationMappingResult>({
       operation: {
-        operationId: "tsonic.csharp.source.array.indexer",
+        operationId: "tsonic.csharp.js.array.indexer",
         operationKind: "indexer",
         targetOperation: "System.Array.Item",
         resultType: receiverType.element,
       },
-    }, [{ message: "C# target array indexer selected from checked TypeScript element access." }]);
+    }, [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);
   }
   if (receiverType?.kind === "target-named" && receiverType.id === "System.String") {
     const indexType = getTargetTypeRefForSubject(request.argument, context, noNodeTypeQuery);
     if (!isIntegralTargetTypeRef(indexType) && scoreLiteralTargetTypeMatch(csharpSourcePrimitiveTargetType("int32"), request.argument, context) === undefined) {
-      return rejectObservation(csharpProviderDiagnostic("tsonic.csharp.surface-operations", "CSHARP_NON_INTEGRAL_STRING_INDEX", 9100112, "C# string element access requires an integral provider-backed index type."));
+      return rejectObservation(csharpProviderDiagnostic("tsonic.csharp.js-surface-operations", "CSHARP_NON_INTEGRAL_STRING_INDEX", 9100112, "C# JS surface string element access requires an integral provider-backed index type."));
     }
     return acceptObservation<CheckedOperationMappingResult>({
       operation: {
-        operationId: "tsonic.csharp.source.string.codeUnit",
+        operationId: "tsonic.csharp.js.string.codeUnit",
         operationKind: "indexer",
         targetOperation: "string-code-unit",
         resultType: csharpTargetNamedType("System.String"),
       },
-    }, [{ message: "C# target string code-unit access selected from checked TypeScript element access." }]);
+    }, [{ message: "C# JS surface string code-unit access selected from checked TypeScript element access." }]);
   }
   return undefined;
 }
@@ -2386,7 +2523,7 @@ function getSourceLibraryCallMembers(sourceMember: SourceLibraryMember): readonl
 function getSourceLibraryPropertyOperation(sourceMember: SourceLibraryMember) {
   if ((sourceMember.declaringName === "String" || sourceMember.declaringName === "Array" || sourceMember.declaringName === "ReadonlyArray") && sourceMember.memberName === "length") {
     return {
-      operationId: `tsonic.csharp.source.${sourceMember.declaringName}.length`,
+      operationId: `tsonic.csharp.js.${sourceMember.declaringName}.length`,
       operationKind: "property" as const,
       targetOperation: "Length",
       resultType: csharpSourcePrimitiveTargetType("int32"),

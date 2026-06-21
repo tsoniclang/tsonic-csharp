@@ -76,7 +76,7 @@ import { isErasedAttributeExpressionStatement } from "./attributes.js";
 import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
-import { getRuntimeCarrierForExpression, getTargetTypeRefForType } from "./runtime-carriers.js";
+import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
@@ -317,8 +317,7 @@ function planForInStatement(
   if (binding === undefined) {
     return [];
   }
-  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey) ??
-    getSourceOwnedForInIterationFact(statement.Expression, sourceFile, input);
+  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey);
   if (selectedIteration === undefined) {
     const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires finalized TSTS/provider enumeration facts before C# emission."));
@@ -512,26 +511,6 @@ function planObjectShapeForInStatement(
   }];
 }
 
-function getSourceOwnedForInIterationFact(
-  expression: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): CsharpTargetIterationFact | undefined {
-  if (expression === undefined) {
-    return undefined;
-  }
-  const type = input.semantics.getTypeAtLocation(expression, { sourceFile });
-  if (type === undefined || (!input.types.isStringLike(type) && !input.types.isArrayLike(type, { sourceFile }))) {
-    return undefined;
-  }
-  return {
-    operationId: "source.indexable.keys",
-    iterationKind: "property-key",
-    targetOperation: "array-index-keys",
-    elementType: { kind: "target-named", id: "System.String" },
-  };
-}
-
 function getObjectShapeForForInExpression(
   expression: Node,
   sourceFile: SourceFile,
@@ -717,8 +696,7 @@ function planForOfStatement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
 ): readonly CsharpStatement[] {
-  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey) ??
-    getSourceOwnedForOfIterationFact(statement.Expression, sourceFile, input);
+  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey);
   if (selectedIteration === undefined) {
     const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
     diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of emission requires finalized TSTS/provider iteration facts."));
@@ -748,40 +726,6 @@ function planForOfStatement(
       ],
     },
   }];
-}
-
-function getSourceOwnedForOfIterationFact(
-  expression: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): CsharpTargetIterationFact | undefined {
-  if (expression === undefined) {
-    return undefined;
-  }
-  const type = input.semantics.getTypeAtLocation(expression, { sourceFile });
-  if (type === undefined) {
-    return undefined;
-  }
-  if (input.types.isStringLike(type)) {
-    return {
-      operationId: "source.string.codePoints",
-      iterationKind: "sync",
-      targetOperation: "string-code-points",
-      elementType: { kind: "target-named", id: "System.String" },
-    };
-  }
-  if (!input.types.isArrayLike(type, { sourceFile })) {
-    return undefined;
-  }
-  const elementType = input.types.isTypeReference(type)
-    ? getTargetTypeRefForType(input, input.types.getTypeArguments(type, { sourceFile })[0], sourceFile)
-    : undefined;
-  return {
-    operationId: "source.array.foreach",
-    iterationKind: "sync",
-    targetOperation: "ForEachStatement",
-    ...(elementType === undefined ? {} : { elementType }),
-  };
 }
 
 function planForOfCollectionExpression(
