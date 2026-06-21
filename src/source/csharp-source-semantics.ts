@@ -89,6 +89,26 @@ import {
   targetOperationFromMember,
 } from "./csharp-source-semantics/operations.js";
 import {
+  asNodeSubject,
+  getNodeField,
+  getNodeList,
+  getNodeNameText,
+  getStructuralChildNodes,
+  isTypeLiteralLikeNode,
+  isTypeSyntaxNode,
+  visitStructuralNodes,
+} from "./csharp-source-semantics/ast-utils.js";
+import {
+  asTargetParameter,
+  asTargetTypeRef,
+  asType,
+  hashString,
+  sourceNameToCsharpMemberName,
+  stripMetadataArity,
+  targetTypeRefEquals,
+  targetTypeRefKey,
+} from "./csharp-source-semantics/target-ref-utils.js";
+import {
   createCsharpJsSurfaceMappers,
 } from "./csharp-source-semantics/surfaces/js/index.js";
 import {
@@ -2518,109 +2538,6 @@ function getFunctionTargetTypeRefFromSignatureLikeSubject(
   return csharpTargetNamedType(`System.Func\`${parameters.length + 1}`, [...(parameters as readonly TargetTypeRef[]), returnType]);
 }
 
-function asNodeSubject(subject: unknown): Node | undefined {
-  return typeof subject === "object" &&
-    subject !== null &&
-    typeof (subject as { readonly Kind?: unknown }).Kind === "number"
-    ? subject as Node
-    : undefined;
-}
-
-function isTypeSyntaxNode(ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"], node: Node): boolean {
-  const kind = ast.kindName(node);
-  if (
-    kind === "KindAnyKeyword" ||
-    kind === "KindUnknownKeyword" ||
-    kind === "KindBooleanKeyword" ||
-    kind === "KindNumberKeyword" ||
-    kind === "KindStringKeyword" ||
-    kind === "KindBigIntKeyword" ||
-    kind === "KindVoidKeyword" ||
-    kind === "KindNeverKeyword" ||
-    kind === "KindObjectKeyword" ||
-    kind === "KindSymbolKeyword" ||
-    kind === "KindTypeReference" ||
-    kind === "KindUnionType" ||
-    kind === "KindIntersectionType" ||
-    kind === "KindArrayType" ||
-    kind === "KindTupleType" ||
-    kind === "KindTypeLiteral" ||
-    kind === "KindFunctionType" ||
-    kind === "KindConstructorType" ||
-    kind === "KindLiteralType" ||
-    kind === "KindIndexedAccessType" ||
-    kind === "KindConditionalType" ||
-    kind === "KindInferType" ||
-    kind === "KindMappedType" ||
-    kind === "KindOptionalType" ||
-    kind === "KindRestType" ||
-    kind === "KindParenthesizedType" ||
-    kind === "KindTemplateLiteralType" ||
-    kind === "KindImportType" ||
-    kind === "KindThisType"
-  ) {
-    return true;
-  }
-  return ast.is.IsKeywordTypeNode(node) ||
-    ast.is.IsTypeReferenceNode(node) ||
-    ast.is.IsUnionTypeNode(node) ||
-    ast.is.IsIntersectionTypeNode(node) ||
-    ast.is.IsConditionalTypeNode(node) ||
-    ast.is.IsInferTypeNode(node) ||
-    ast.is.IsArrayTypeNode(node) ||
-    ast.is.IsIndexedAccessTypeNode(node) ||
-    ast.is.IsLiteralTypeNode(node) ||
-    ast.is.IsThisTypeNode(node) ||
-    ast.is.IsMappedTypeNode(node) ||
-    ast.is.IsTupleTypeNode(node) ||
-    ast.is.IsOptionalTypeNode(node) ||
-    ast.is.IsRestTypeNode(node) ||
-    ast.is.IsParenthesizedTypeNode(node) ||
-    ast.is.IsFunctionTypeNode(node) ||
-    ast.is.IsConstructorTypeNode(node) ||
-    ast.is.IsTemplateLiteralTypeNode(node) ||
-    ast.is.IsImportTypeNode(node);
-}
-
-function asType(subject: unknown): Type | undefined {
-  return typeof subject === "object" && subject !== null && "flags" in subject ? subject as Type : undefined;
-}
-
-function asTargetParameter(subject: ExtensionFactSubject | undefined): TargetParameter | undefined {
-  if (typeof subject !== "object" || subject === null) {
-    return undefined;
-  }
-  const parameter = subject as { readonly name?: unknown; readonly type?: unknown; readonly passingMode?: unknown };
-  return typeof parameter.name === "string" &&
-    typeof parameter.passingMode === "string" &&
-    asTargetTypeRef(parameter.type) !== undefined
-    ? subject as TargetParameter
-    : undefined;
-}
-
-function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
-  if (typeof subject !== "object" || subject === null) {
-    return undefined;
-  }
-  const kind = (subject as { readonly kind?: unknown }).kind;
-  switch (kind) {
-    case "source-primitive":
-    case "target-named":
-    case "type-parameter":
-    case "array":
-    case "tuple":
-    case "pointer":
-    case "function-pointer":
-    case "opaque":
-    case "associated-type":
-    case "lifetime":
-    case "target-specific":
-      return subject as TargetTypeRef;
-    default:
-      return undefined;
-  }
-}
-
 function getTargetTypeArgumentsForType(
   type: Type,
   context: ExtensionObservationContext,
@@ -2667,58 +2584,6 @@ function isSourceLibraryType(type: Type, context: ExtensionObservationContext, n
   return declarations.some((declaration) =>
     ast.text(ast.name(declaration)) === name &&
     ast.getFileName(ast.getSourceFile(declaration)).startsWith("bundled:///libs/"));
-}
-
-function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): boolean {
-  if (left.kind !== right.kind) {
-    return false;
-  }
-  switch (left.kind) {
-    case "source-primitive":
-      return right.kind === "source-primitive" && left.name === right.name;
-    case "target-named":
-      return right.kind === "target-named" &&
-        left.id === right.id &&
-        targetTypeRefListEquals(left.typeArguments ?? [], right.typeArguments ?? []);
-    case "type-parameter":
-      return right.kind === "type-parameter" && left.name === right.name;
-    case "array":
-      return right.kind === "array" &&
-        (left.rank ?? 1) === (right.rank ?? 1) &&
-        targetTypeRefEquals(left.element, right.element);
-    case "tuple":
-      return right.kind === "tuple" && targetTypeRefListEquals(left.elements, right.elements);
-    case "pointer":
-      return right.kind === "pointer" &&
-        left.mutability === right.mutability &&
-        targetTypeRefEquals(left.pointee, right.pointee);
-    case "function-pointer":
-      return right.kind === "function-pointer" &&
-        targetTypeRefListEquals(left.args, right.args) &&
-        targetTypeRefEquals(left.result, right.result);
-    case "opaque":
-      return right.kind === "opaque" && left.id === right.id;
-    case "associated-type":
-      return right.kind === "associated-type" &&
-        left.name === right.name &&
-        targetTypeRefEquals(left.owner, right.owner);
-    case "lifetime":
-      return right.kind === "lifetime" && left.name === right.name;
-    case "target-specific":
-      return right.kind === "target-specific" &&
-        left.target === right.target &&
-        left.name === right.name &&
-        Object.is(left.value, right.value);
-  }
-}
-
-function targetTypeRefListEquals(left: readonly TargetTypeRef[], right: readonly TargetTypeRef[]): boolean {
-  return left.length === right.length && left.every((item, index) => targetTypeRefEquals(item, right[index]!));
-}
-
-function stripMetadataArity(name: string): string {
-  const tick = name.indexOf("`");
-  return tick < 0 ? name : name.slice(0, tick);
 }
 
 function mapRuntimeCarrier(
@@ -3152,42 +3017,6 @@ function getObjectShapeTargetName(
   return `${prefix}_${hashString(key)}`;
 }
 
-function targetTypeRefKey(type: TargetTypeRef): string {
-  switch (type.kind) {
-    case "source-primitive":
-      return `source:${type.name}`;
-    case "target-named":
-      return `target:${type.id}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
-    case "type-parameter":
-      return `type-param:${type.name}`;
-    case "array":
-      return `array:${targetTypeRefKey(type.element)}`;
-    case "tuple":
-      return `tuple:${type.elements.map(targetTypeRefKey).join(",")}`;
-    case "pointer":
-      return `pointer:${type.mutability}:${targetTypeRefKey(type.pointee)}`;
-    case "function-pointer":
-      return `fnptr:${type.abi ?? ""}:${type.args.map(targetTypeRefKey).join(",")}=>${targetTypeRefKey(type.result)}`;
-    case "opaque":
-      return `opaque:${type.id}`;
-    case "associated-type":
-      return `associated:${type.name}:${targetTypeRefKey(type.owner)}`;
-    case "lifetime":
-      return `lifetime:${type.name}`;
-    case "target-specific":
-      return `target-specific:${type.target}:${type.name}:${String(type.value)}`;
-  }
-}
-
-function hashString(value: string): string {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
-}
-
 function deriveCsharpObjectShapeMemberFactForSubject(
   member: Node,
   context: ExtensionObservationContext,
@@ -3287,93 +3116,4 @@ function getAliasedSymbolIfAvailable(
 function getSymbolDeclarations(symbol: ExtensionFactSubject | undefined): readonly Node[] {
   return (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
     ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
-}
-
-function isTypeLiteralLikeNode(node: Node): boolean {
-  return getNodeList(getNodeField(node, "Members")).length > 0 &&
-    getNodeField(node, "Name") === undefined &&
-    getNodeField(node, "name") === undefined &&
-    getNodeField(node, "HeritageClauses") === undefined;
-}
-
-function visitStructuralNodes(
-  node: Node,
-  visitor: (node: Node) => void,
-  seen: WeakSet<object> = new WeakSet(),
-): void {
-  if (seen.has(node)) {
-    return;
-  }
-  seen.add(node);
-  visitor(node);
-  for (const child of getStructuralChildNodes(node)) {
-    visitStructuralNodes(child, visitor, seen);
-  }
-}
-
-function getStructuralChildNodes(node: Node): readonly Node[] {
-  const children: Node[] = [];
-  const listFields = ["Statements", "Members", "Parameters", "TypeParameters", "TypeArguments", "Types", "Arguments", "Elements", "Properties", "Declarations"];
-  for (const key of listFields) {
-    children.push(...getNodeList(getNodeField(node, key)));
-  }
-  const nodeFields = [
-    "Name",
-    "name",
-    "Body",
-    "Type",
-    "ElementType",
-    "Constraint",
-    "Expression",
-    "Initializer",
-    "Left",
-    "Right",
-    "ThenStatement",
-    "ElseStatement",
-    "Statement",
-    "DeclarationList",
-    "ImportClause",
-    "NamedBindings",
-    "ModuleSpecifier",
-    "TypeName",
-  ];
-  for (const key of nodeFields) {
-    const value = getNodeField(node, key);
-    const direct = asNodeSubject(value);
-    if (direct !== undefined) {
-      children.push(direct);
-    }
-  }
-  return children;
-}
-
-function getNodeList(value: unknown): readonly Node[] {
-  const nodes = (value as { readonly Nodes?: readonly unknown[] } | undefined)?.Nodes;
-  return nodes === undefined
-    ? []
-    : nodes.map(asNodeSubject).filter((node): node is Node => node !== undefined);
-}
-
-function getNodeField(node: Node | undefined, field: string): unknown {
-  if (node === undefined) {
-    return undefined;
-  }
-  const record = node as unknown as Record<string, unknown>;
-  const exact = Object.prototype.hasOwnProperty.call(record, field) ? record[field] : undefined;
-  if (exact !== undefined) {
-    return exact;
-  }
-  const alternate = `${field[0]!.toLowerCase()}${field.slice(1)}`;
-  return Object.prototype.hasOwnProperty.call(record, alternate) ? record[alternate] : undefined;
-}
-
-function getNodeNameText(node: Node): string {
-  const name = asNodeSubject(getNodeField(node, "Name") ?? getNodeField(node, "name"));
-  const text = (name as { readonly Text?: unknown; readonly text?: unknown } | undefined)?.Text ??
-    (name as { readonly text?: unknown } | undefined)?.text;
-  return typeof text === "function" || text === undefined ? "" : String(text);
-}
-
-function sourceNameToCsharpMemberName(name: string): string {
-  return name.replace(/[^A-Za-z0-9_]/g, "_");
 }
