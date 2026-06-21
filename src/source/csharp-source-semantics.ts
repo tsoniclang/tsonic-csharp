@@ -106,10 +106,8 @@ import {
   asTargetParameter,
   asTargetTypeRef,
   asType,
-  hashString,
   sourceNameToCsharpMemberName,
   targetTypeRefEquals,
-  targetTypeRefKey,
 } from "./csharp-source-semantics/target-ref-utils.js";
 import {
   findTargetMember,
@@ -130,6 +128,9 @@ import {
   isCheckedAttributeBuilderCall,
   isErasedSourceSemanticsCall,
 } from "./csharp-source-semantics/erased-source-markers.js";
+import {
+  getObjectShapeTargetName,
+} from "./csharp-source-semantics/object-shape-identity.js";
 import {
   getDeclarationTypeNode,
   getSymbolDeclarations,
@@ -2294,28 +2295,6 @@ function deriveCsharpObjectShapeFactForSubject(
     targetType: csharpTargetNamedType(getObjectShapeTargetName("__TsonicShape", shapeMembers)),
     members: shapeMembers,
   };
-}
-
-function objectShapeMemberKey(member: CsharpObjectShapeMemberFact): string {
-  return [
-    member.sourceName,
-    member.targetName,
-    member.memberKind,
-    member.optional === true ? "optional" : "required",
-    targetTypeRefKey(member.type),
-  ].join(":");
-}
-
-function getObjectShapeTargetName(
-  prefix: string,
-  members: readonly CsharpObjectShapeMemberFact[],
-  implementsTypes: readonly TargetTypeRef[] | undefined = undefined,
-): string {
-  const key = [
-    ...members.map(objectShapeMemberKey).sort(),
-    ...(implementsTypes ?? []).map((type) => `implements:${targetTypeRefKey(type)}`),
-  ].join("|");
-  return `${prefix}_${hashString(key)}`;
 }
 
 function deriveCsharpObjectShapeMemberFactForSubject(
