@@ -1,8 +1,6 @@
 import {
   AsBlock,
   AsBreakStatement,
-  AsCaseBlock,
-  AsCaseOrDefaultClause,
   AsCatchClause,
   AsContinueStatement,
   AsDoStatement,
@@ -13,7 +11,6 @@ import {
   AsIfStatement,
   AsLabeledStatement,
   AsReturnStatement,
-  AsSwitchStatement,
   AsThrowStatement,
   AsTryStatement,
   AsVariableDeclaration,
@@ -27,7 +24,6 @@ import {
   KindBreakStatement,
   KindContinueStatement,
   KindDebuggerStatement,
-  KindDefaultClause,
   KindDoStatement,
   KindEmptyStatement,
   KindExpressionStatement,
@@ -58,7 +54,6 @@ import type {
   CsharpForInitializer,
   CsharpLocalDeclaration,
   CsharpStatement,
-  CsharpSwitchSection,
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import { getCsharpTypeForNode, invalidCsharpType, predefined, sameCsharpType } from "./csharp-types.js";
@@ -77,6 +72,13 @@ import { planExpression, planExpressionWithExpectedType } from "./expressions.js
 import { sanitizeIdentifier } from "./identifiers.js";
 import { planLocalDeclaration, planLocalDeclarationStatements } from "./locals.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
+import {
+  expressionStatement,
+  isCsharpExceptionCarrier,
+  isVoidCsharpType,
+  planDiscardedExpression,
+} from "./statement-output.js";
+import { planSwitchStatement } from "./switch-statements.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
@@ -202,7 +204,10 @@ export function planStatements(
       return [planLabeledStatement(statement, sourceFile, input, diagnostics, state)];
     }
     case KindSwitchStatement:
-      return [planSwitchStatement(node, sourceFile, input, diagnostics, state)];
+      return [planSwitchStatement(node, sourceFile, input, diagnostics, state, {
+        planExpression,
+        planStatements,
+      })];
     case KindTryStatement:
       return [planTryStatement(node, sourceFile, input, diagnostics, state)];
     case KindExpressionStatement:
@@ -1168,97 +1173,6 @@ function controlLabelStatement(label: string): CsharpStatement {
   };
 }
 
-function planSwitchStatement(
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-): CsharpStatement {
-  const statement = AsSwitchStatement(node)!;
-  return {
-    kind: "SwitchStatement",
-    expression: planExpression(statement.Expression!, sourceFile, input, diagnostics),
-    sections: planSwitchSections(statement.CaseBlock, sourceFile, input, diagnostics, state),
-  };
-}
-
-function planSwitchSections(
-  caseBlockNode: Node | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-): readonly CsharpSwitchSection[] {
-  if (caseBlockNode === undefined) {
-    return [];
-  }
-  const caseBlock = AsCaseBlock(caseBlockNode)!;
-  const sections = (caseBlock.Clauses?.Nodes ?? [])
-    .filter((clause): clause is Node => clause !== undefined)
-    .map((clause) => planSwitchSection(clause, sourceFile, input, diagnostics, state));
-  return sections.map((section, index) => {
-    const last = section.statements[section.statements.length - 1];
-    const next = sections[index + 1];
-    if (next !== undefined && (last === undefined || !statementTerminatesSwitchSection(last))) {
-      return {
-        ...section,
-        statements: [
-          ...section.statements,
-          { kind: "GotoSwitchStatement" as const, label: next.label },
-        ],
-      };
-    }
-    if (next === undefined && (last === undefined || !statementTerminatesSwitchSection(last))) {
-      return {
-        ...section,
-        statements: [
-          ...section.statements,
-          { kind: "BreakStatement" as const },
-        ],
-      };
-    }
-    return section;
-  });
-}
-
-function planSwitchSection(
-  clauseNode: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  state: DestructuringPlannerState,
-): CsharpSwitchSection {
-  const clause = AsCaseOrDefaultClause(clauseNode)!;
-  return {
-    kind: "SwitchSection",
-    label: HasSourceKind(input.ast, clauseNode, KindDefaultClause)
-      ? { kind: "DefaultSwitchLabel" }
-      : { kind: "CaseSwitchLabel", expression: planExpression(clause.Expression!, sourceFile, input, diagnostics) },
-    statements: (clause.Statements?.Nodes ?? [])
-      .filter((statement): statement is Node => statement !== undefined)
-      .flatMap((statement) => planStatements(statement, sourceFile, input, diagnostics, state)),
-  };
-}
-
-function statementTerminatesSwitchSection(statement: CsharpStatement): boolean {
-  switch (statement.kind) {
-    case "BreakStatement":
-    case "ContinueStatement":
-    case "GotoStatement":
-    case "GotoSwitchStatement":
-    case "ReturnStatement":
-    case "ThrowStatement":
-      return true;
-    case "Block": {
-      const last = statement.body.statements[statement.body.statements.length - 1];
-      return last !== undefined && statementTerminatesSwitchSection(last);
-    }
-    default:
-      return false;
-  }
-}
-
 function planTryStatement(
   node: Node,
   sourceFile: SourceFile,
@@ -1404,66 +1318,4 @@ function planNestedStatementBody(
     return planBlockStatements(node, sourceFile, input, diagnostics, state);
   }
   return planStatements(node, sourceFile, input, diagnostics, state);
-}
-
-function expressionStatement(expression: CsharpExpression): CsharpStatement {
-  return {
-    kind: "ExpressionStatement",
-    expression,
-  };
-}
-
-function isCsharpExceptionCarrier(carrier: TargetTypeRef | undefined): boolean {
-  return carrier?.kind === "target-named" && carrier.id === "System.Exception";
-}
-
-function isVoidCsharpType(type: CsharpTypeNode): boolean {
-  return type.kind === "PredefinedType" && type.name === "void";
-}
-
-function planDiscardedExpression(expression: CsharpExpression): CsharpExpression {
-  return isValidCsharpExpressionStatement(expression)
-    ? expression
-    : {
-        kind: "BinaryExpression",
-        left: { kind: "IdentifierName", name: "_" },
-        operator: "=",
-        right: expression,
-      };
-}
-
-function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean {
-  switch (expression.kind) {
-    case "InvocationExpression":
-    case "ObjectCreationExpression":
-    case "ObjectCreationExpression":
-    case "PostfixUnaryExpression":
-      return true;
-    case "PrefixUnaryExpression":
-      return expression.operator === "++" || expression.operator === "--";
-    case "BinaryExpression":
-      return isAssignmentOperator(expression.operator);
-    default:
-      return false;
-  }
-}
-
-function isAssignmentOperator(operator: string): boolean {
-  switch (operator) {
-    case "=":
-    case "+=":
-    case "-=":
-    case "*=":
-    case "/=":
-    case "%=":
-    case "&=":
-    case "|=":
-    case "^=":
-    case "<<=":
-    case ">>=":
-    case ">>>=":
-      return true;
-    default:
-      return false;
-  }
 }
