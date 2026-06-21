@@ -26,7 +26,6 @@ import {
 } from "./operations.js";
 import {
   findTargetBinding,
-  getKnownTargetBindingForTypeRef,
 } from "./provider-bindings.js";
 import {
   csharpSourcePrimitiveTargetType,
@@ -47,7 +46,6 @@ import type {
 } from "./operations-provider.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
-const checkedOperationSyntaxFactQuery = { allowSemanticTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
 
 export function mapCsharpCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -67,10 +65,7 @@ export function mapCsharpCheckedPropertyAccess(
     request.receiverAliasedSymbol,
     request.receiverResolvedSymbol,
     request.receiverSymbol,
-  ]) ?? getKnownTargetBindingForTypeRef(
-    host.getTargetTypeRefForSubject(request.receiverType, context) ??
-      host.getTargetTypeRefForSubject(request.receiver, context, checkedOperationSyntaxFactQuery),
-  );
+  ]);
   if (binding === undefined) {
     const arrayOperation = mapCsharpNativeArrayCheckedPropertyAccess(request, context, host);
     if (arrayOperation !== undefined) {
@@ -101,10 +96,7 @@ export function mapCsharpCheckedElementAccess(
     request.receiverTypeSymbol,
     request.receiverType,
     request.receiver,
-  ]) ?? getKnownTargetBindingForTypeRef(
-    host.getTargetTypeRefForSubject(request.receiverType, context) ??
-      host.getTargetTypeRefForSubject(request.receiver, context, checkedOperationSyntaxFactQuery),
-  );
+  ]);
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
   }

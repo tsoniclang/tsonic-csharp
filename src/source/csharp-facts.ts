@@ -1,5 +1,5 @@
 import { defineExtensionFactKey } from "@tsonic/tsts";
-import type { ExtensionEvidence, ExtensionFactSubject, TargetConstraint, TargetTypeRef } from "@tsonic/tsts";
+import type { ExtensionEvidence, ExtensionFactSubject, TargetConstraint, TargetMember, TargetParameter, TargetTypeParameter, TargetTypeRef } from "@tsonic/tsts";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint";
 
@@ -74,6 +74,7 @@ export interface CsharpTargetMemberOperationFact {
   readonly declaringType?: TargetTypeRef;
   readonly resultType?: TargetTypeRef;
   readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
+  readonly selectedMember?: TargetMember;
 }
 
 export type CsharpTargetOperationArgument =
@@ -226,7 +227,62 @@ function csharpTargetMemberOperationFactEquals(left: CsharpTargetMemberOperation
     && left.static === right.static
     && targetTypeRefEquals(left.declaringType, right.declaringType)
     && targetTypeRefEquals(left.resultType, right.resultType)
-    && csharpTargetOperationArgumentArrayEquals(left.argumentProjection, right.argumentProjection);
+    && csharpTargetOperationArgumentArrayEquals(left.argumentProjection, right.argumentProjection)
+    && targetMemberEquals(left.selectedMember, right.selectedMember);
+}
+
+function targetMemberEquals(left: TargetMember | undefined, right: TargetMember | undefined): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left === undefined || right === undefined) {
+    return false;
+  }
+  return left.id === right.id
+    && left.sourceName === right.sourceName
+    && left.targetName === right.targetName
+    && left.kind === right.kind
+    && left.static === right.static
+    && left.receiverPassing === right.receiverPassing
+    && left.overloadGroup === right.overloadGroup
+    && targetTypeRefEquals(left.declaringType, right.declaringType)
+    && targetTypeRefEquals(left.returnType, right.returnType)
+    && targetParameterArrayEquals(left.parameters, right.parameters)
+    && targetTypeParameterArrayEquals(left.typeParameters, right.typeParameters);
+}
+
+function targetParameterArrayEquals(left: readonly TargetParameter[] | undefined, right: readonly TargetParameter[] | undefined): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left === undefined || right === undefined || left.length !== right.length) {
+    return false;
+  }
+  return left.every((parameter, index) => {
+    const other = right[index];
+    return other !== undefined
+      && parameter.name === other.name
+      && parameter.passingMode === other.passingMode
+      && parameter.optional === other.optional
+      && parameter.paramsArray === other.paramsArray
+      && targetTypeRefEquals(parameter.type, other.type);
+  });
+}
+
+function targetTypeParameterArrayEquals(left: readonly TargetTypeParameter[] | undefined, right: readonly TargetTypeParameter[] | undefined): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left === undefined || right === undefined || left.length !== right.length) {
+    return false;
+  }
+  return left.every((parameter, index) => {
+    const other = right[index];
+    return other !== undefined
+      && parameter.name === other.name
+      && parameter.variance === other.variance
+      && targetConstraintArrayEquals(parameter.constraints, other.constraints);
+  });
 }
 
 function objectShapeMemberArrayEquals(left: readonly CsharpObjectShapeMemberFact[] | undefined, right: readonly CsharpObjectShapeMemberFact[] | undefined): boolean {

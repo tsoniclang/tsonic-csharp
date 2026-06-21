@@ -82,6 +82,9 @@ import type {
   CsharpCheckedOperatorLifecycleHost,
 } from "./checked-operator-lifecycle.js";
 import {
+  recordCsharpSelectedCallOperationFactsBeforeFinalization,
+} from "./csharp-operation-lifecycle.js";
+import {
   createCsharpDotnetSystemTypeDataProvider,
   createDotnetTargetBindingProvider,
 } from "../../providers/dotnet/index.js";
@@ -157,6 +160,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, checkedOperatorLifecycleHost);
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds, runtimeCarrierHost);
+        recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         const primitive = resolverContext.facts.get(subject, sourcePrimitiveFactKey);

@@ -30,9 +30,6 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
-  instantiateSelectedTargetMember,
-} from "./target-member-instantiation.js";
-import {
   isProjectSourceTypeRef,
 } from "./project-source-types.js";
 import {
@@ -88,12 +85,7 @@ export function planNewExpression(
       return invalidExpression("missing target constructor fact");
     }
   }
-  const member = selectedTargetCall === undefined
-    ? undefined
-    : instantiateSelectedTargetMember(node, selectedTargetCall, diagnostics);
-  if (selectedTargetCall !== undefined && member === undefined) {
-    return invalidExpression("selected target constructor type arguments");
-  }
+  const member = csharpOperation?.selectedMember;
   const expressionCarrier = getTargetTypeRefForNode(input, node, sourceFile);
   const selectedConstructorTypeRef = csharpOperation?.resultType ??
     csharpOperation?.declaringType ??

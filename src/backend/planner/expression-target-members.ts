@@ -15,7 +15,6 @@ import {
   getSemanticOwnership,
   pushMissingTargetFactDiagnostic,
 } from "./semantic-guards.js";
-import { instantiateSelectedTargetMember } from "./target-member-instantiation.js";
 import {
   planProjectSourceModuleMemberReference,
 } from "./expression-source-references.js";
@@ -203,13 +202,13 @@ export function planCallExpression(
   const expression = AsCallExpression(node)!;
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
   if (selectedTargetCall !== undefined) {
-    const member = instantiateSelectedTargetMember(node, selectedTargetCall, diagnostics);
-    if (member === undefined) {
-      return invalidExpression("selected target call type arguments");
-    }
     const csharpOperation = getRequiredCsharpTargetMemberOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");
     if (csharpOperation === undefined) {
       return invalidExpression("missing C# target call operation fact");
+    }
+    const member = csharpOperation.selectedMember;
+    if (member === undefined) {
+      return invalidExpression("missing selected target call member");
     }
     return {
       kind: "InvocationExpression",

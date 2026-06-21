@@ -27,7 +27,6 @@ import {
   selectSingleTargetMember,
 } from "./members.js";
 import {
-  csharpTargetOperationFromMember,
   recordCsharpTargetOperation,
 } from "../../operations.js";
 import {
@@ -67,7 +66,6 @@ export function createCsharpNodejsSurfaceMappers(extensionId: string): CsharpNod
       if (member === undefined) {
         return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_CALL_NOT_MAPPED", 9100200, `C# NodeJS surface could not map checked '${declaration.moduleSpecifier}' export '${declaration.exportName}' to a target member.`));
       }
-      recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# NodeJS surface target call operation recorded from checked provider module '${declaration.moduleSpecifier}'.` }]);
       return acceptObservation<CheckedCallMappingResult>({
         selectedSignature: { member },
       }, [{ message: `C# NodeJS surface target call selected from checked provider module '${declaration.moduleSpecifier}'.` }]);

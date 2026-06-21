@@ -51,6 +51,7 @@ export function csharpTargetOperationFromMember(member: TargetMember): CsharpTar
     ...(member.static === true ? { static: true } : {}),
     ...(member.declaringType !== undefined ? { declaringType: member.declaringType } : {}),
     ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
+    selectedMember: member,
   };
 }
 
@@ -63,6 +64,7 @@ export function csharpTargetMemberOperation(
     readonly declaringType?: TargetTypeRef;
     readonly resultType?: TargetTypeRef;
     readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
+    readonly selectedMember?: TargetMember;
   } = {},
 ): CsharpTargetMemberOperationFact {
   return {
@@ -74,6 +76,7 @@ export function csharpTargetMemberOperation(
     ...(options.declaringType !== undefined ? { declaringType: options.declaringType } : {}),
     ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
     ...(options.argumentProjection !== undefined ? { argumentProjection: options.argumentProjection } : {}),
+    ...(options.selectedMember !== undefined ? { selectedMember: options.selectedMember } : {}),
   };
 }
 

@@ -18,7 +18,6 @@ import {
 } from "./identity.js";
 import {
   findTargetBinding,
-  getKnownTargetBindingForTypeRef,
 } from "./provider-bindings.js";
 import {
   findTargetMemberForCall,
@@ -28,18 +27,9 @@ import {
   isCheckedAttributeBuilderCall,
   isErasedSourceSemanticsCall,
 } from "./erased-source-markers.js";
-import {
-  csharpTargetOperationFromMember,
-  recordCsharpTargetOperation,
-} from "./operations.js";
-import type {
-  TargetTypeRefResolutionOptions,
-} from "./target-member-selection.js";
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
-
-const checkedOperationSyntaxFactQuery = { allowSemanticTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
 
 export function mapCsharpCheckedCall(
   request: CheckedCallMappingRequest,
@@ -73,10 +63,7 @@ export function mapCsharpCheckedCall(
     request.calleeReceiverAliasedSymbol,
     request.calleeReceiverResolvedSymbol,
     request.calleeReceiverSymbol,
-  ]) ?? getKnownTargetBindingForTypeRef(
-    host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
-      host.getTargetTypeRefForSubject(request.calleeReceiver, context, checkedOperationSyntaxFactQuery),
-  );
+  ]);
   if (binding === undefined) {
     return deferObservation;
   }
@@ -94,7 +81,6 @@ export function mapCsharpCheckedCall(
   if (member.kind !== "method" && member.kind !== "constructor") {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_CALLABLE", 9100101, `C# provider mapped checked call '${request.calleePropertyName ?? "<anonymous>"}' to non-callable target member '${member.id}'.`));
   }
-  recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: "C# target call operation recorded from checked TSTS provider declaration." }]);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
