@@ -23,10 +23,7 @@ import type {
   SourceLibraryMember,
 } from "./source-library.js";
 import {
-  csharpJsCheckedTypeQuery,
   getSourceLibraryMember,
-  getSourceLibraryMemberFromReceiverType,
-  getSourceLibraryMemberFromTargetReceiverType,
 } from "./source-library.js";
 import {
   getStringTargetMembers,
@@ -37,11 +34,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const receiverTargetType = host.getTargetTypeRefForSubject(request.calleeReceiverType, context, csharpJsCheckedTypeQuery) ??
-    host.getTargetTypeRefForSubject(request.calleeReceiver, context, csharpJsCheckedTypeQuery);
-  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context) ??
-    getSourceLibraryMemberFromReceiverType(request.calleeReceiverType, request.calleePropertyName, context) ??
-    getSourceLibraryMemberFromTargetReceiverType(receiverTargetType, request.calleePropertyName, host);
+  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
     return undefined;
   }

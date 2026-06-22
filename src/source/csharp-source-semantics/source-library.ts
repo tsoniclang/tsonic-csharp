@@ -9,7 +9,6 @@ import {
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
-  asSemanticType,
 } from "../fact-subjects.js";
 
 export interface SourceLibraryMember {
@@ -41,22 +40,6 @@ export function getSourceLibraryMember(
     : { declaringName, memberName };
 }
 
-export function getSourceLibraryMemberFromReceiverType(
-  receiverTypeSubject: ExtensionFactSubject | undefined,
-  memberName: string | undefined,
-  context: ExtensionObservationContext,
-): SourceLibraryMember | undefined {
-  if (memberName === undefined || memberName === "") {
-    return undefined;
-  }
-  const type = asSemanticType(receiverTypeSubject);
-  if (type === undefined) {
-    return undefined;
-  }
-  const declaringName = getSourceLibraryDeclaringNameForType(type, context);
-  return declaringName === undefined ? undefined : { declaringName, memberName };
-}
-
 export function isSourceLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryDeclaringName): boolean {
   const ast = context.compiler?.ast;
   const types = context.compiler?.types;
@@ -70,32 +53,6 @@ export function isSourceLibraryType(type: Type, context: ExtensionObservationCon
   return declarations.some((declaration) =>
     ast.text(ast.name(declaration)) === name &&
     isTstsBundledStandardLibraryFile(ast.getFileName(ast.getSourceFile(declaration))));
-}
-
-function getSourceLibraryDeclaringNameForType(
-  type: Type,
-  context: ExtensionObservationContext,
-): SourceLibraryDeclaringName | undefined {
-  const types = context.compiler?.types;
-  if (types?.isStringLike(type) === true) {
-    return "String";
-  }
-  if (types?.isArrayLike(type) === true) {
-    return "Array";
-  }
-  if (isSourceLibraryType(type, context, "Array")) {
-    return "Array";
-  }
-  if (isSourceLibraryType(type, context, "ReadonlyArray")) {
-    return "ReadonlyArray";
-  }
-  if (isSourceLibraryType(type, context, "RegExp")) {
-    return "RegExp";
-  }
-  if (isSourceLibraryType(type, context, "Promise")) {
-    return "Promise";
-  }
-  return undefined;
 }
 
 function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringName | undefined {
