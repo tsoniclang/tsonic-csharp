@@ -24,8 +24,9 @@ import {
   unwrapNullableTargetType,
 } from "./target-rules.js";
 import {
+  csharpBigIntegerTargetType,
   csharpSourcePrimitiveTargetType,
-  csharpTargetNamedType,
+  csharpStringTargetType,
 } from "./target-types.js";
 import type {
   CsharpTargetTypeResolutionHost,
@@ -132,10 +133,10 @@ function getTargetTypeRefFromLiteralSyntax(
     case "KindNumericLiteral":
       return csharpSourcePrimitiveTargetType("float64");
     case "KindBigIntLiteral":
-      return csharpTargetNamedType("System.Numerics.BigInteger");
+      return csharpBigIntegerTargetType();
     case "KindStringLiteral":
     case "KindNoSubstitutionTemplateLiteral":
-      return csharpTargetNamedType("System.String");
+      return csharpStringTargetType();
     default:
       return undefined;
   }

@@ -23,10 +23,13 @@ import {
   visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
+  csharpBigIntegerTargetType,
   csharpDelegateTargetType,
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpTargetNamedType,
   csharpTargetTypeFromBinding,
+  csharpVoidTargetType,
 } from "./target-types.js";
 import {
   isVoidTargetType,
@@ -314,11 +317,11 @@ function getTargetTypeRefFromKeywordTypeSyntax(
     case "KindNumberKeyword":
       return csharpSourcePrimitiveTargetType("float64");
     case "KindStringKeyword":
-      return csharpTargetNamedType("System.String");
+      return csharpStringTargetType();
     case "KindBigIntKeyword":
-      return csharpTargetNamedType("System.Numerics.BigInteger");
+      return csharpBigIntegerTargetType();
     case "KindVoidKeyword":
-      return csharpTargetNamedType("System.Void");
+      return csharpVoidTargetType();
     default:
       return undefined;
   }

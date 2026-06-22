@@ -15,8 +15,9 @@ import {
   type CsharpTypeofRuntimeKind,
 } from "../csharp-facts.js";
 import {
+  csharpBigIntegerTargetType,
   csharpSourcePrimitiveTargetType,
-  csharpTargetNamedType,
+  csharpStringTargetType,
   getCsharpTypeofRuntimeKindForTargetType,
 } from "./target-types.js";
 import {
@@ -51,13 +52,13 @@ export function getTypeofComparisonOperation(
 function getTypeofComparisonTargetType(kind: CsharpTypeofRuntimeKind): TargetTypeRef | undefined {
   switch (kind) {
     case "string":
-      return csharpTargetNamedType("System.String");
+      return csharpStringTargetType();
     case "number":
       return csharpSourcePrimitiveTargetType("float64");
     case "boolean":
       return csharpSourcePrimitiveTargetType("bool");
     case "bigint":
-      return csharpTargetNamedType("System.Numerics.BigInteger");
+      return csharpBigIntegerTargetType();
   }
 }
 

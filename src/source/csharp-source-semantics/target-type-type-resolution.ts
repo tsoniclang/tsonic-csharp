@@ -7,8 +7,9 @@ import {
   resolveTargetBinding,
 } from "./provider-bindings.js";
 import {
+  csharpBigIntegerTargetType,
   csharpSourcePrimitiveTargetType,
-  csharpTargetNamedType,
+  csharpStringTargetType,
 } from "./target-types.js";
 import {
   enrichCsharpTargetTypeRef,
@@ -109,10 +110,10 @@ export function resolveTargetTypeRefForTypeCore(
     return csharpSourcePrimitiveTargetType("float64");
   }
   if (types.isStringLike(type)) {
-    return csharpTargetNamedType("System.String");
+    return csharpStringTargetType();
   }
   if (types.isBigIntLike(type)) {
-    return csharpTargetNamedType("System.Numerics.BigInteger");
+    return csharpBigIntegerTargetType();
   }
   if (types.isUnion(type)) {
     const nullable = getNullableUnionTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);

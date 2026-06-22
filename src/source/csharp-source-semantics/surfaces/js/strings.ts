@@ -14,7 +14,9 @@ import type {
 import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
   csharpJsCheckedTypeQuery,
+  csharpNullableValueTargetType,
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpTargetNamedType,
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
@@ -37,7 +39,7 @@ export function mapCsharpJsStringElementAccess(
     return rejectObservation(host.csharpProviderDiagnostic("tsonic.csharp.js-surface-operations", "CSHARP_NON_INTEGRAL_STRING_INDEX", 9100112, "C# JS surface string element access requires an integral provider-backed index type."));
   }
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.js.string.codeUnit", "method", "Substring", {
-    resultType: csharpTargetNamedType("System.String"),
+    resultType: csharpStringTargetType(),
     argumentProjection: [
       { kind: "source-argument", index: 0 },
       { kind: "literal", value: 1 },
@@ -45,7 +47,7 @@ export function mapCsharpJsStringElementAccess(
   }), [{ message: "C# JS surface string code-unit operation recorded from checked TypeScript element access." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation("tsonic.csharp.js.string.codeUnit", "indexer", "String.Substring", {
-      resultType: csharpTargetNamedType("System.String"),
+      resultType: csharpStringTargetType(),
     }),
   }, [{ message: "C# JS surface string code-unit access selected from checked TypeScript element access." }]);
 }
@@ -57,7 +59,7 @@ export function getStringLengthOperation(declaringName: string): CheckedOperatio
 }
 
 export function getStringTargetMembers(sourceName: string): readonly TargetMember[] {
-  const stringType = csharpTargetNamedType("System.String");
+  const stringType = csharpStringTargetType();
   const intType = csharpSourcePrimitiveTargetType("int32");
   const doubleType = csharpSourcePrimitiveTargetType("float64");
   const boolType = csharpSourcePrimitiveTargetType("bool");
@@ -70,7 +72,7 @@ export function getStringTargetMembers(sourceName: string): readonly TargetMembe
       targetParameter("value", stringType),
       targetParameter("values", stringType, { paramsArray: true }),
     ], stringType, {
-      declaringType: csharpTargetNamedType("System.String"),
+      declaringType: stringType,
       static: true,
       receiverPassing: "first-argument",
     })];
@@ -135,7 +137,7 @@ function getStringHelperReturnType(sourceName: string, stringType: TargetTypeRef
     case "charCodeAt":
       return doubleType;
     case "codePointAt":
-      return csharpTargetNamedType("System.Nullable`1", [intType]);
+      return csharpNullableValueTargetType(intType);
     case "split":
       return { kind: "array", element: stringType };
     default:

@@ -48,6 +48,20 @@ export function selectTargetMember(
   return best.length === 1 ? best[0]?.member : undefined;
 }
 
+export function selectExactTargetMember(
+  member: TargetMember,
+  request: TargetMemberSelectionRequest,
+  options: TargetMemberSelectionOptions = {},
+): TargetMember | undefined {
+  if (getTargetArgumentSubjectsForMember(member, request) === undefined) {
+    return undefined;
+  }
+  return substituteTargetMemberTypeParameters(
+    member,
+    getDeclaringTypeParameterBindings(options),
+  );
+}
+
 function targetMemberMatch(
   member: TargetMember,
   request: TargetMemberSelectionRequest,

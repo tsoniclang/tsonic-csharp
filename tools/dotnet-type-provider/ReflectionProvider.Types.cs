@@ -29,6 +29,7 @@ sealed partial class ReflectionProvider
             baseType,
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,
             sourceShape,
+            throwable = typeof(Exception).IsAssignableFrom(type) ? true : (bool?)null,
             members = members.Length == 0 ? null : members,
         };
     }

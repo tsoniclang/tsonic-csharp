@@ -20,6 +20,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpTypeofRuntimeKind?: CsharpTypeofRuntimeKind;
   readonly csharpSpecialType?: "string" | "void" | "nullable";
   readonly csharpSourceDeclarationKind?: "class" | "interface" | "enum";
+  readonly csharpValueType?: true;
   readonly csharpArrayLiteralElementType?: TargetTypeRef;
 };
 
@@ -109,6 +110,11 @@ export function csharpTargetNamedType(
   renderShape: CsharpTargetTypeRenderShape | undefined = knownCsharpTargetTypeRenderShape(id),
   metadata: {
     readonly arrayLiteralElementType?: TargetTypeRef;
+    readonly specialType?: CsharpTargetNamedTypeRef["csharpSpecialType"];
+    readonly sourceDeclarationKind?: CsharpTargetNamedTypeRef["csharpSourceDeclarationKind"];
+    readonly throwable?: true;
+    readonly typeofRuntimeKind?: CsharpTypeofRuntimeKind;
+    readonly valueType?: true;
   } = {},
 ): CsharpTargetNamedTypeRef {
   return {
@@ -117,10 +123,52 @@ export function csharpTargetNamedType(
     ...(typeArguments !== undefined && typeArguments.length > 0 ? { typeArguments } : {}),
     ...(renderShape !== undefined ? { csharpRender: renderShape } : {}),
     ...(metadata.arrayLiteralElementType !== undefined ? { csharpArrayLiteralElementType: metadata.arrayLiteralElementType } : {}),
-    ...(knownCsharpThrowableTypeIds.has(id) ? { csharpThrowable: true } : {}),
-    ...knownCsharpSpecialType(id),
-    ...knownCsharpTypeofRuntimeKind(id),
+    ...(metadata.specialType !== undefined ? { csharpSpecialType: metadata.specialType } : {}),
+    ...(metadata.sourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: metadata.sourceDeclarationKind } : {}),
+    ...(metadata.throwable === true ? { csharpThrowable: true } : {}),
+    ...(metadata.typeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: metadata.typeofRuntimeKind } : {}),
+    ...(metadata.valueType === true ? { csharpValueType: true } : {}),
   } satisfies CsharpTargetNamedTypeRef;
+}
+
+export function csharpStringTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("System.String", undefined, undefined, {
+    specialType: "string",
+    typeofRuntimeKind: "string",
+  });
+}
+
+export function csharpVoidTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("System.Void", undefined, undefined, {
+    specialType: "void",
+  });
+}
+
+export function csharpBooleanTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("System.Boolean", undefined, undefined, {
+    typeofRuntimeKind: "boolean",
+    valueType: true,
+  });
+}
+
+export function csharpBigIntegerTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("System.Numerics.BigInteger", undefined, csharpQualifiedTypeRenderShape("System.Numerics", "BigInteger"), {
+    typeofRuntimeKind: "bigint",
+    valueType: true,
+  });
+}
+
+export function csharpNullableValueTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("System.Nullable`1", [elementType], undefined, {
+    specialType: "nullable",
+    valueType: true,
+  });
+}
+
+export function csharpExceptionTargetType(): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType("System.Exception", undefined, undefined, {
+    throwable: true,
+  });
 }
 
 export function csharpTargetTypeFromBinding(
@@ -299,7 +347,7 @@ export function csharpNullableTargetType(type: TargetTypeRef): TargetTypeRef {
     return type;
   }
   if (isCsharpValueTypeTargetType(type)) {
-    return csharpTargetNamedType("System.Nullable`1", [type]);
+    return csharpNullableValueTargetType(type);
   }
   const nullableReference: CsharpNullableReferenceTargetTypeRef = {
     ...type,
@@ -326,6 +374,7 @@ function isCsharpValueTypeTargetType(type: TargetTypeRef): boolean {
   }
   const csharpType = type as CsharpTargetNamedTypeRef;
   return csharpType.csharpSpecialType === "nullable" ||
+    csharpType.csharpValueType === true ||
     csharpType.csharpSourceDeclarationKind === "enum";
 }
 
@@ -424,33 +473,3 @@ const genericRenderShapes = new Map<string, CsharpTargetTypeRenderShape>([
   ["Tsonic.CSharp.Node.path", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "path" }],
   ["Tsonic.CSharp.Node.process", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "process" }],
 ]);
-
-const knownCsharpThrowableTypeIds = new Set<string>([
-  "System.Exception",
-]);
-
-function knownCsharpTypeofRuntimeKind(id: string): { readonly csharpTypeofRuntimeKind: CsharpTypeofRuntimeKind } | {} {
-  switch (id) {
-    case "System.String":
-      return { csharpTypeofRuntimeKind: "string" };
-    case "System.Boolean":
-      return { csharpTypeofRuntimeKind: "boolean" };
-    case "System.Numerics.BigInteger":
-      return { csharpTypeofRuntimeKind: "bigint" };
-    default:
-      return {};
-  }
-}
-
-function knownCsharpSpecialType(id: string): { readonly csharpSpecialType: CsharpTargetNamedTypeRef["csharpSpecialType"] } | {} {
-  switch (id) {
-    case "System.String":
-      return { csharpSpecialType: "string" };
-    case "System.Void":
-      return { csharpSpecialType: "void" };
-    case "System.Nullable`1":
-      return { csharpSpecialType: "nullable" };
-    default:
-      return {};
-  }
-}

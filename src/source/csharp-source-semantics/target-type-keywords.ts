@@ -4,8 +4,10 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  csharpBigIntegerTargetType,
   csharpSourcePrimitiveTargetType,
-  csharpTargetNamedType,
+  csharpStringTargetType,
+  csharpVoidTargetType,
 } from "./target-types.js";
 
 export function resolveTargetTypeRefFromKeywordTypeSyntax(
@@ -18,11 +20,11 @@ export function resolveTargetTypeRefFromKeywordTypeSyntax(
     case "KindNumberKeyword":
       return csharpSourcePrimitiveTargetType("float64");
     case "KindStringKeyword":
-      return csharpTargetNamedType("System.String");
+      return csharpStringTargetType();
     case "KindBigIntKeyword":
-      return csharpTargetNamedType("System.Numerics.BigInteger");
+      return csharpBigIntegerTargetType();
     case "KindVoidKeyword":
-      return csharpTargetNamedType("System.Void");
+      return csharpVoidTargetType();
     default:
       return undefined;
   }

@@ -19,9 +19,13 @@ import type {
 } from "./model-types.js";
 import {
   type CsharpTargetBindingFact,
+  csharpBigIntegerTargetType,
+  csharpBooleanTargetType,
   csharpDelegateTargetType,
   csharpQualifiedTypeRenderShape,
+  csharpStringTargetType,
   csharpTargetNamedType,
+  csharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 
 export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint): TargetConstraint {
@@ -58,6 +62,7 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     declaration.metadataName,
     declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
     declaration.displayName === undefined ? undefined : dotnetDisplayNameRenderShape(declaration.displayName),
+    csharpTargetMetadataFromDotnetTypeDeclaration(declaration),
   );
   const baseType = declaration.baseType === undefined
     ? undefined
@@ -175,20 +180,20 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
 export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef {
   switch (type.kind) {
     case "void":
-      return csharpTargetNamedType("System.Void");
+      return csharpVoidTargetType();
     case "any":
     case "unknown":
       return { kind: "opaque", id: type.kind };
     case "object":
       return csharpTargetNamedType("System.Object");
     case "string":
-      return csharpTargetNamedType("System.String");
+      return csharpStringTargetType();
     case "boolean":
-      return csharpTargetNamedType("System.Boolean");
+      return csharpBooleanTargetType();
     case "number":
       return csharpTargetNamedType("System.Double");
     case "bigint":
-      return csharpTargetNamedType("System.Numerics.BigInteger", undefined, csharpQualifiedTypeRenderShape("System.Numerics", "BigInteger"));
+      return csharpBigIntegerTargetType();
     case "source-primitive":
       return { kind: "source-primitive", name: type.name };
     case "type-parameter":
@@ -239,20 +244,54 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
 
 function csharpTargetMetadataFromDotnetTypeRef(
   type: Extract<DotnetTypeRef, { readonly kind: "named" }>,
-): { readonly arrayLiteralElementType?: TargetTypeRef } {
+): Parameters<typeof csharpTargetNamedType>[3] {
   const sourceShape = type.sourceShape;
+  const base = csharpTargetMetadataFromDotnetMetadataName(type.metadataName);
   if (sourceShape?.kind !== "array") {
-    return {};
+    return base;
   }
   const elementType = type.typeArguments?.length === 1
     ? type.typeArguments[0]
     : sourceShape.elementType;
   if (elementType === undefined) {
-    return {};
+    return base;
   }
   return {
+    ...base,
     arrayLiteralElementType: dotnetTypeRefToTargetTypeRef(elementType),
   };
+}
+
+function csharpTargetMetadataFromDotnetTypeDeclaration(
+  declaration: DotnetTypeDeclaration,
+): Parameters<typeof csharpTargetNamedType>[3] {
+  return {
+    ...csharpTargetMetadataFromDotnetMetadataName(declaration.metadataName),
+    ...(declaration.typeKind === "struct" || declaration.typeKind === "enum" ? { valueType: true as const } : {}),
+    ...(declaration.typeKind === "class" || declaration.typeKind === "interface" || declaration.typeKind === "enum"
+      ? { sourceDeclarationKind: declaration.typeKind }
+      : {}),
+    ...(declaration.throwable === true ? { throwable: true as const } : {}),
+  };
+}
+
+function csharpTargetMetadataFromDotnetMetadataName(
+  metadataName: string,
+): Parameters<typeof csharpTargetNamedType>[3] {
+  switch (metadataName) {
+    case "System.String":
+      return { specialType: "string", typeofRuntimeKind: "string" };
+    case "System.Void":
+      return { specialType: "void" };
+    case "System.Boolean":
+      return { typeofRuntimeKind: "boolean", valueType: true };
+    case "System.Numerics.BigInteger":
+      return { typeofRuntimeKind: "bigint", valueType: true };
+    case "System.Nullable`1":
+      return { specialType: "nullable", valueType: true };
+    default:
+      return {};
+  }
 }
 
 function dotnetDisplayNameRenderShape(displayName: string): ReturnType<typeof csharpQualifiedTypeRenderShape> {

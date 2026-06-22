@@ -5,6 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpTargetNamedType,
   targetMethod,
   targetParameter,
@@ -12,7 +13,7 @@ import {
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
-const stringTargetType = csharpTargetNamedType("System.String");
+const stringTargetType = csharpStringTargetType();
 const boolTargetType = csharpSourcePrimitiveTargetType("bool");
 const fsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.fs");
 

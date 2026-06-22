@@ -21,6 +21,7 @@ import {
   asType,
   csharpTargetMemberOperation,
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpTargetNamedType,
   isSourceLibraryType,
   recordCsharpTargetOperation,
@@ -145,7 +146,7 @@ export function isCsharpJsRegExpRuntimeCarrier(type: TargetTypeRef | undefined):
 
 export function getRegExpTargetMembers(sourceName: string): readonly TargetMember[] {
   const regExpType = csharpJsRegExpTargetType();
-  const stringType = csharpTargetNamedType("System.String");
+  const stringType = csharpStringTargetType();
   const boolType = csharpSourcePrimitiveTargetType("bool");
   if (sourceName === "constructor") {
     return [{

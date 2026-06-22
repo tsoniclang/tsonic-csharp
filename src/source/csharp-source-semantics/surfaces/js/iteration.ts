@@ -20,6 +20,7 @@ import type {
 import {
   csharpJsCheckedTypeQuery,
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpTargetMemberOperation,
   csharpTargetNamedType,
   targetOperation,
@@ -51,7 +52,7 @@ export function mapCsharpJsSurfaceCheckedIteration(
             resultType: csharpSourcePrimitiveTargetType("bool"),
           }),
         },
-        elementType: csharpTargetNamedType("System.String"),
+        elementType: csharpStringTargetType(),
       } satisfies CsharpTargetIterationFact;
       context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# JS surface string for-of maps to string code-point iteration." }]);
       return acceptObservation<CheckedOperationMappingResult>({
@@ -67,7 +68,7 @@ export function mapCsharpJsSurfaceCheckedIteration(
         operationId: "tsonic.csharp.js.objectShape.keys",
         iterationKind: "property-key",
         lowering: { kind: "object-shape-keys" },
-        elementType: csharpTargetNamedType("System.String"),
+        elementType: csharpStringTargetType(),
       } satisfies CsharpTargetIterationFact;
       context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# JS surface object-shape for-in maps to finalized object-shape key storage." }]);
       return acceptObservation<CheckedOperationMappingResult>({
@@ -83,7 +84,7 @@ export function mapCsharpJsSurfaceCheckedIteration(
           lengthMember: "Length",
           keyConversion: "invariant-string",
         },
-        elementType: csharpTargetNamedType("System.String"),
+        elementType: csharpStringTargetType(),
       } satisfies CsharpTargetIterationFact;
       context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# JS surface indexable for-in maps to string index keys." }]);
       return acceptObservation<CheckedOperationMappingResult>({

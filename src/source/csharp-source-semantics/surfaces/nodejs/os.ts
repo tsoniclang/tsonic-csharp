@@ -4,12 +4,13 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
+  csharpStringTargetType,
   csharpTargetNamedType,
   targetMethod,
 } from "../js/source-library.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
-const stringTargetType = csharpTargetNamedType("System.String");
+const stringTargetType = csharpStringTargetType();
 const osTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.os");
 
 export const nodeOsModuleSpecifier = "node:os";

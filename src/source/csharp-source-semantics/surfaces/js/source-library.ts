@@ -34,8 +34,11 @@ export {
 export {
   type CsharpTargetNamedTypeRef,
   csharpDelegateTargetType,
+  csharpNullableValueTargetType,
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpTargetNamedType,
+  csharpVoidTargetType,
   targetMethod,
   targetParameter,
 } from "../../target-types.js";

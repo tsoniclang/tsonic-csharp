@@ -11,7 +11,13 @@ import {
 } from "../dist/source/csharp-source-semantics/target-rules.js";
 import { getTypeofRuntimeKind } from "../dist/source/csharp-source-semantics/typeof-operators.js";
 import {
+  csharpBigIntegerTargetType,
+  csharpBooleanTargetType,
+  csharpExceptionTargetType,
+  csharpNullableValueTargetType,
+  csharpStringTargetType,
   csharpTargetNamedType,
+  csharpVoidTargetType,
   getCsharpArrayLiteralElementTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 import {
@@ -21,14 +27,16 @@ import {
 
 test("throwable carriers require explicit C# target capability metadata", () => {
   assert.equal(isCsharpThrowableCarrier({ kind: "target-named", id: "System.Exception" }), false);
-  assert.equal(isCsharpThrowableCarrier(csharpTargetNamedType("System.Exception")), true);
+  assert.equal(isCsharpThrowableCarrier(csharpTargetNamedType("System.Exception")), false);
+  assert.equal(isCsharpThrowableCarrier(csharpExceptionTargetType()), true);
 });
 
 test("typeof runtime mapping requires explicit C# target metadata", () => {
   assert.equal(getTypeofRuntimeKind({ kind: "target-named", id: "System.String" }, { allowNullableUnwrap: false }), undefined);
-  assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.String"), { allowNullableUnwrap: false }), "string");
-  assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.Boolean"), { allowNullableUnwrap: false }), "boolean");
-  assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.Numerics.BigInteger"), { allowNullableUnwrap: false }), "bigint");
+  assert.equal(getTypeofRuntimeKind(csharpTargetNamedType("System.String"), { allowNullableUnwrap: false }), undefined);
+  assert.equal(getTypeofRuntimeKind(csharpStringTargetType(), { allowNullableUnwrap: false }), "string");
+  assert.equal(getTypeofRuntimeKind(csharpBooleanTargetType(), { allowNullableUnwrap: false }), "boolean");
+  assert.equal(getTypeofRuntimeKind(csharpBigIntegerTargetType(), { allowNullableUnwrap: false }), "bigint");
 });
 
 test("special C# target types require explicit metadata", () => {
@@ -37,11 +45,14 @@ test("special C# target types require explicit metadata", () => {
   const intType = { kind: "source-primitive", name: "int32" };
   const rawNullable = { kind: "target-named", id: "System.Nullable`1", typeArguments: [intType] };
   assert.equal(isCsharpStringType(rawString), false);
-  assert.equal(isCsharpStringType(csharpTargetNamedType("System.String")), true);
+  assert.equal(isCsharpStringType(csharpTargetNamedType("System.String")), false);
+  assert.equal(isCsharpStringType(csharpStringTargetType()), true);
   assert.equal(isVoidTargetType(rawVoid), false);
-  assert.equal(isVoidTargetType(csharpTargetNamedType("System.Void")), true);
+  assert.equal(isVoidTargetType(csharpTargetNamedType("System.Void")), false);
+  assert.equal(isVoidTargetType(csharpVoidTargetType()), true);
   assert.equal(unwrapNullableTargetType(rawNullable), rawNullable);
-  assert.deepEqual(unwrapNullableTargetType(csharpTargetNamedType("System.Nullable`1", [intType])), intType);
+  assert.deepEqual(unwrapNullableTargetType(csharpTargetNamedType("System.Nullable`1", [intType])), csharpTargetNamedType("System.Nullable`1", [intType]));
+  assert.deepEqual(unwrapNullableTargetType(csharpNullableValueTargetType(intType)), intType);
 });
 
 test("collection literal acceptance requires explicit C# target metadata", () => {

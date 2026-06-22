@@ -41,10 +41,12 @@ import {
   getTargetTypeRefForType,
 } from "./runtime-carriers.js";
 import {
+  csharpBigIntegerTargetType,
   csharpDelegateTargetType,
-  csharpTargetNamedType,
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpTargetTypeFromBinding,
+  csharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
   sourcePrimitiveTargetBindingId,
@@ -405,13 +407,13 @@ export function getCsharpTypeFromSemanticType(
     return csharpTypeFromTargetTypeRef(csharpSourcePrimitiveTargetType("float64"));
   }
   if (input.types.isStringLike(type)) {
-    return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.String"));
+    return csharpTypeFromTargetTypeRef(csharpStringTargetType());
   }
   if (input.types.isBigIntLike(type)) {
-    return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.Numerics.BigInteger"));
+    return csharpTypeFromTargetTypeRef(csharpBigIntegerTargetType());
   }
   if (input.types.isVoidLike(type)) {
-    return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.Void"));
+    return csharpTypeFromTargetTypeRef(csharpVoidTargetType());
   }
   return undefined;
 }
@@ -468,13 +470,13 @@ function getCsharpTargetTypeRefFromSemanticType(
     return csharpSourcePrimitiveTargetType("float64");
   }
   if (input.types.isStringLike(type)) {
-    return csharpTargetNamedType("System.String");
+    return csharpStringTargetType();
   }
   if (input.types.isBigIntLike(type)) {
-    return csharpTargetNamedType("System.Numerics.BigInteger");
+    return csharpBigIntegerTargetType();
   }
   if (input.types.isVoidLike(type)) {
-    return csharpTargetNamedType("System.Void");
+    return csharpVoidTargetType();
   }
   return undefined;
 }
@@ -637,12 +639,12 @@ function getCsharpTypeFromKeywordTypeNode(node: Node, input: TargetCompileInput)
     case "KindNumberKeyword":
       return csharpTypeFromTargetTypeRef(csharpSourcePrimitiveTargetType("float64"));
     case "KindStringKeyword":
-      return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.String"));
+      return csharpTypeFromTargetTypeRef(csharpStringTargetType());
     case "KindBigIntKeyword":
-      return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.Numerics.BigInteger"));
+      return csharpTypeFromTargetTypeRef(csharpBigIntegerTargetType());
     case "KindVoidKeyword":
     case "KindNeverKeyword":
-      return csharpTypeFromTargetTypeRef(csharpTargetNamedType("System.Void"));
+      return csharpTypeFromTargetTypeRef(csharpVoidTargetType());
     default:
       return undefined;
   }

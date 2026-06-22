@@ -72,6 +72,7 @@ export interface DotnetTypeDeclaration {
   readonly implementedContracts?: readonly DotnetConstraint[];
   readonly members?: readonly DotnetMemberDeclaration[];
   readonly sourceShape?: DotnetTypeRef;
+  readonly throwable?: boolean;
 }
 
 export interface DotnetNamespaceDeclaration {

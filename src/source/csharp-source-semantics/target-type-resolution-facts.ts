@@ -17,7 +17,7 @@ import {
   getSymbolForDeclarationLookup,
 } from "./symbol-utils.js";
 import {
-  csharpTargetNamedType,
+  csharpExceptionTargetType,
 } from "./target-types.js";
 import type {
   TargetTypeRefResolutionOptions,
@@ -52,7 +52,7 @@ export function getCatchVariableTargetTypeRef(
       const parent = asNodeSubject(getNodeField(declaration, "Parent"));
       return parent !== undefined && ast.is.IsCatchClause(parent);
     })
-    ? csharpTargetNamedType("System.Exception")
+    ? csharpExceptionTargetType()
     : undefined;
 }
 

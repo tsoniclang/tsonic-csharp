@@ -6,6 +6,7 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
+  selectExactTargetMember,
   selectTargetMember,
 } from "./target-member-arguments.js";
 import type {
@@ -38,6 +39,16 @@ export function findTargetMemberForCall(
   options: TargetMemberSelectionOptions = {},
 ): TargetMember | undefined {
   const candidates = getTargetMemberCandidatesForCall(binding, declaration);
+  if (candidates.length === 1 && declaration?.signatureId !== undefined) {
+    return selectExactTargetMember(
+      candidates[0]!,
+      {
+        arguments: request.arguments,
+        receiver: request.calleeReceiver,
+      },
+      options,
+    );
+  }
   return selectTargetMember(candidates, {
     arguments: request.arguments,
     receiver: request.calleeReceiver,

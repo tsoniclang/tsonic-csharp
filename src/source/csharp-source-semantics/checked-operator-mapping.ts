@@ -27,7 +27,7 @@ import {
 } from "./operations.js";
 import {
   csharpSourcePrimitiveTargetType,
-  csharpTargetNamedType,
+  csharpStringTargetType,
 } from "./target-types.js";
 import {
   getCsharpOperatorTargetOperation,
@@ -212,7 +212,7 @@ export function getCsharpOperatorResultTypeRefForOperator(
     case "||":
       return csharpSourcePrimitiveTargetType("bool");
     case "typeof":
-      return csharpTargetNamedType("System.String");
+      return csharpStringTargetType();
     case "??":
       return unwrapNullableTargetType(left) ?? right ?? left;
     default:

@@ -16,7 +16,9 @@ import {
   csharpJsCheckedTypeQuery,
   csharpDelegateTargetType,
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpTargetNamedType,
+  csharpVoidTargetType,
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
   targetMethod,
@@ -58,7 +60,7 @@ export function getArrayTargetMembers(sourceName: string): readonly TargetMember
   const arrayType: TargetTypeRef = { kind: "array", element: itemType };
   const intType = csharpSourcePrimitiveTargetType("int32");
   const boolType = csharpSourcePrimitiveTargetType("bool");
-  const stringType = csharpTargetNamedType("System.String");
+  const stringType = csharpStringTargetType();
   const helperType = csharpTargetNamedType("Tsonic.CSharp.Runtime.ArrayHelpers");
   switch (sourceName) {
     case "includes":
@@ -72,7 +74,7 @@ export function getArrayTargetMembers(sourceName: string): readonly TargetMember
     case "slice":
       return [arrayHelper(sourceName, "Slice", [targetParameter("array", arrayType), targetParameter("start", intType, { optional: true }), targetParameter("end", intType, { optional: true })], arrayType, helperType)];
     case "forEach":
-      return arrayCallbackHelpers(sourceName, "ForEach", "System.Action", itemType, arrayType, csharpTargetNamedType("System.Void"), csharpTargetNamedType("System.Void"), helperType);
+      return arrayCallbackHelpers(sourceName, "ForEach", "System.Action", itemType, arrayType, csharpVoidTargetType(), csharpVoidTargetType(), helperType);
     case "some":
       return arrayCallbackHelpers(sourceName, "Some", "System.Func", itemType, arrayType, boolType, boolType, helperType);
     case "every":

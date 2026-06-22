@@ -229,7 +229,7 @@ test("C# provider includes virtual declaration signature id as candidate evidenc
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
-test("C# provider honors exact selected signature id before target argument matching", () => {
+test("C# provider honors exact selected signature id without target argument reselection", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -277,8 +277,8 @@ test("C# provider honors exact selected signature id before target argument matc
     },
   }));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
