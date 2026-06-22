@@ -29,6 +29,7 @@ import {
 } from "./identity.js";
 import {
   csharpBaseTargetTypeFromBinding,
+  csharpExceptionTargetType,
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
 import {
@@ -116,6 +117,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
   let objectShapeSemanticsHost: CsharpObjectShapeSemanticsHost;
   const targetTypeResolutionHost = {
     getCsharpTargetBindingByTargetId: (targetId: string) => dotnetProvider.findTargetBindingByTargetId(targetId),
+    getCatchExceptionTargetTypeRef: () => csharpExceptionTargetType(),
     getBaseTargetTypeRef: (type: TargetTypeRef) => {
       if (type.kind !== "target-named") {
         return undefined;
@@ -206,6 +208,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         getTargetTypeRefForSubject,
         getTargetTypeRefForType,
         getTargetTypeRefForSyntaxNode,
+        getCatchExceptionTargetTypeRef: targetTypeResolutionHost.getCatchExceptionTargetTypeRef,
         getCsharpObjectShapeFactForSubject,
         getRecordedCsharpObjectShapeFactForSubject,
       } satisfies CsharpRuntimeCarrierSemanticsHost;

@@ -1,4 +1,6 @@
 import type {
+  ProviderSymbolIdentity,
+  TargetIdentity,
   TargetMember,
   TargetOperationFact,
 } from "@tsonic/tsts";
@@ -10,28 +12,51 @@ import {
   targetOperationFromMember,
 } from "../../operations.js";
 import {
-  getNodeCryptoTargetMembers,
+  csharpTargetId,
+} from "../../identity.js";
+import {
+  getNodeCryptoRandomUuidTargetMember,
+  nodeCryptoRandomUuidExportName,
   nodeCryptoModuleSpecifier,
+  nodeCryptoRandomUuidSignatureId,
 } from "./crypto.js";
 import {
-  getNodeFsTargetMembers,
+  nodeFsExistsSyncExportName,
+  getNodeFsExistsSyncTargetMember,
+  nodeFsExistsSyncSignatureId,
   nodeFsModuleSpecifier,
 } from "./filesystem.js";
 import {
-  getNodeOsPropertyMembers,
-  getNodeOsTargetMembers,
+  getNodeOsHomedirTargetMember,
+  getNodeOsPlatformTargetMember,
+  nodeOsHomedirExportName,
+  nodeOsHomedirSignatureId,
   nodeOsModuleSpecifier,
+  nodeOsPlatformExportName,
+  nodeOsPlatformSignatureId,
 } from "./os.js";
 import {
-  getNodePathPropertyMembers,
-  getNodePathTargetMembers,
+  nodePathJoinExportName,
+  getNodePathJoinTargetMember,
+  nodePathJoinSignatureId,
   nodePathModuleSpecifier,
 } from "./path.js";
 import {
-  getNodeProcessPropertyMembers,
-  getNodeProcessTargetMembers,
+  getNodeProcessCwdTargetMember,
+  getNodeProcessPlatformTargetMember,
+  nodeProcessCwdExportName,
+  nodeProcessCwdSignatureId,
   nodeProcessModuleSpecifier,
+  nodeProcessPlatformExportName,
 } from "./process.js";
+import {
+  nodejsExportDeclarationIdentity,
+  nodejsExportSignatureDeclarationIdentity,
+  nodejsProviderDeclarationIdentityKey,
+} from "./identity.js";
+import type {
+  NodejsProviderDeclarationIdentity,
+} from "./identity.js";
 
 export function isNodejsProviderModule(moduleSpecifier: string | undefined): boolean {
   return moduleSpecifier === nodePathModuleSpecifier ||
@@ -41,28 +66,14 @@ export function isNodejsProviderModule(moduleSpecifier: string | undefined): boo
     moduleSpecifier === nodeProcessModuleSpecifier;
 }
 
-export function getNodejsCallTargetMembers(moduleSpecifier: string, exportName: string): readonly TargetMember[] {
-  switch (moduleSpecifier) {
-    case nodePathModuleSpecifier:
-      return getNodePathTargetMembers(exportName);
-    case nodeFsModuleSpecifier:
-      return getNodeFsTargetMembers(exportName);
-    case nodeCryptoModuleSpecifier:
-      return getNodeCryptoTargetMembers(exportName);
-    case nodeOsModuleSpecifier:
-      return getNodeOsTargetMembers(exportName);
-    case nodeProcessModuleSpecifier:
-      return getNodeProcessTargetMembers(exportName);
-    default:
-      return [];
-  }
+export function getNodejsCallTargetMember(declaration: NodejsProviderDeclarationIdentity): TargetMember | undefined {
+  return nodejsCallTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(declaration));
 }
 
 export function getCsharpNodejsStaticPropertyOperation(
-  moduleSpecifier: string,
-  exportName: string,
+  declaration: NodejsProviderDeclarationIdentity,
 ): { readonly operation: TargetOperationFact; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
-  const member = selectSingleTargetMember(getNodejsPropertyTargetMembers(moduleSpecifier, exportName));
+  const member = nodejsPropertyTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(declaration));
   return member === undefined
     ? undefined
     : {
@@ -71,19 +82,83 @@ export function getCsharpNodejsStaticPropertyOperation(
       };
 }
 
-export function selectSingleTargetMember(candidates: readonly TargetMember[]): TargetMember | undefined {
-  return candidates.length === 1 ? candidates[0] : undefined;
+export function getNodejsTargetIdentity(symbol: ProviderSymbolIdentity): TargetIdentity | undefined {
+  const member = nodejsTargetMembersByProviderSymbolIdentity.get(nodejsProviderSymbolIdentityKey(symbol));
+  return member === undefined
+    ? undefined
+    : {
+        target: csharpTargetId,
+        id: member.id,
+        displayName: member.targetName,
+      };
 }
 
-function getNodejsPropertyTargetMembers(moduleSpecifier: string, exportName: string): readonly TargetMember[] {
-  switch (moduleSpecifier) {
-    case nodePathModuleSpecifier:
-      return getNodePathPropertyMembers(exportName);
-    case nodeOsModuleSpecifier:
-      return getNodeOsPropertyMembers(exportName);
-    case nodeProcessModuleSpecifier:
-      return getNodeProcessPropertyMembers(exportName);
-    default:
-      return [];
-  }
+const nodejsCallTargetMembersByDeclarationIdentity = new Map<string, TargetMember>([
+  ...nodejsCallTargetMemberEntries(nodePathModuleSpecifier, nodePathJoinExportName, nodePathJoinSignatureId, getNodePathJoinTargetMember()),
+  ...nodejsCallTargetMemberEntries(nodeFsModuleSpecifier, nodeFsExistsSyncExportName, nodeFsExistsSyncSignatureId, getNodeFsExistsSyncTargetMember()),
+  ...nodejsCallTargetMemberEntries(nodeCryptoModuleSpecifier, nodeCryptoRandomUuidExportName, nodeCryptoRandomUuidSignatureId, getNodeCryptoRandomUuidTargetMember()),
+  ...nodejsCallTargetMemberEntries(nodeOsModuleSpecifier, nodeOsHomedirExportName, nodeOsHomedirSignatureId, getNodeOsHomedirTargetMember()),
+  ...nodejsCallTargetMemberEntries(nodeOsModuleSpecifier, nodeOsPlatformExportName, nodeOsPlatformSignatureId, getNodeOsPlatformTargetMember()),
+  ...nodejsCallTargetMemberEntries(nodeProcessModuleSpecifier, nodeProcessCwdExportName, nodeProcessCwdSignatureId, getNodeProcessCwdTargetMember()),
+]);
+
+const nodejsPropertyTargetMembersByDeclarationIdentity = new Map<string, TargetMember>([
+  [nodejsProviderDeclarationIdentityKey(nodejsExportDeclarationIdentity(nodeProcessModuleSpecifier, nodeProcessPlatformExportName)), getNodeProcessPlatformTargetMember()],
+]);
+
+const nodejsTargetMembersByProviderSymbolIdentity = new Map<string, TargetMember>([
+  ...nodejsProviderSymbolTargetMemberEntries(nodePathModuleSpecifier, nodePathJoinExportName, nodePathJoinSignatureId, getNodePathJoinTargetMember()),
+  ...nodejsProviderSymbolTargetMemberEntries(nodeFsModuleSpecifier, nodeFsExistsSyncExportName, nodeFsExistsSyncSignatureId, getNodeFsExistsSyncTargetMember()),
+  ...nodejsProviderSymbolTargetMemberEntries(nodeCryptoModuleSpecifier, nodeCryptoRandomUuidExportName, nodeCryptoRandomUuidSignatureId, getNodeCryptoRandomUuidTargetMember()),
+  ...nodejsProviderSymbolTargetMemberEntries(nodeOsModuleSpecifier, nodeOsHomedirExportName, nodeOsHomedirSignatureId, getNodeOsHomedirTargetMember()),
+  ...nodejsProviderSymbolTargetMemberEntries(nodeOsModuleSpecifier, nodeOsPlatformExportName, nodeOsPlatformSignatureId, getNodeOsPlatformTargetMember()),
+  ...nodejsProviderSymbolTargetMemberEntries(nodeProcessModuleSpecifier, nodeProcessCwdExportName, nodeProcessCwdSignatureId, getNodeProcessCwdTargetMember()),
+  ...nodejsProviderSymbolTargetMemberEntries(nodeProcessModuleSpecifier, nodeProcessPlatformExportName, undefined, getNodeProcessPlatformTargetMember()),
+]);
+
+function nodejsCallTargetMemberEntries(
+  moduleSpecifier: string,
+  exportName: string,
+  signatureId: string,
+  member: TargetMember,
+): readonly (readonly [string, TargetMember])[] {
+  return [
+    [nodejsProviderDeclarationIdentityKey(nodejsExportDeclarationIdentity(moduleSpecifier, exportName)), member],
+    [nodejsProviderDeclarationIdentityKey(nodejsExportSignatureDeclarationIdentity(moduleSpecifier, exportName, signatureId)), member],
+  ];
+}
+
+function nodejsProviderSymbolTargetMemberEntries(
+  moduleSpecifier: string,
+  exportName: string,
+  signatureId: string | undefined,
+  member: TargetMember,
+): readonly (readonly [string, TargetMember])[] {
+  return [
+    [nodejsProviderExportSymbolIdentityKey(moduleSpecifier, exportName, undefined), member],
+    ...(signatureId === undefined ? [] : [[nodejsProviderExportSymbolIdentityKey(moduleSpecifier, exportName, signatureId), member] as const]),
+  ];
+}
+
+function nodejsProviderSymbolIdentityKey(
+  symbol: ProviderSymbolIdentity,
+): string {
+  return [
+    symbol.moduleSpecifier,
+    symbol.exportName ?? "",
+    symbol.memberName ?? "",
+    symbol.signatureId ?? "",
+  ].join("\u0000");
+}
+
+function nodejsProviderExportSymbolIdentityKey(
+  moduleSpecifier: string,
+  exportName: string,
+  signatureId: string | undefined,
+): string {
+  return nodejsProviderSymbolIdentityKey({
+    moduleSpecifier,
+    exportName,
+    ...(signatureId !== undefined ? { signatureId } : {}),
+  });
 }

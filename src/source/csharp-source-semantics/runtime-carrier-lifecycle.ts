@@ -163,7 +163,7 @@ function recordCsharpRuntimeCarrierSyntaxFact(
     return;
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const catchVariableCarrier = getCatchVariableTargetTypeRef(node, context);
+  const catchVariableCarrier = getCatchVariableTargetTypeRef(node, context, host.getCatchExceptionTargetTypeRef?.());
   if (catchVariableCarrier !== undefined) {
     const fact = { carrier: catchVariableCarrier };
     const evidence = [{ message: "C# catch variable runtime carrier recorded from finalized provider exception policy." }];

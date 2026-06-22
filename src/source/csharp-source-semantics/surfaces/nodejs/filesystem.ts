@@ -19,15 +19,17 @@ const boolTargetType = csharpSourcePrimitiveTargetType("bool");
 const fsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.fs", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "fs"));
 
 export const nodeFsModuleSpecifier = "node:fs";
+export const nodeFsExistsSyncExportName = "existsSync";
+export const nodeFsExistsSyncSignatureId = "node:fs.existsSync(System.String)";
 
 export function nodeFsExports(): readonly ProviderExportDeclaration[] {
   return [
     {
       id: "node:fs.existsSync",
-      name: "existsSync",
+      name: nodeFsExistsSyncExportName,
       kind: "function",
       signatures: [{
-        id: "node:fs.existsSync(System.String)",
+        id: nodeFsExistsSyncSignatureId,
         parameters: [{ name: "path", type: stringProviderType }],
         returnType: boolProviderType,
       }],
@@ -35,23 +37,16 @@ export function nodeFsExports(): readonly ProviderExportDeclaration[] {
   ];
 }
 
-export function getNodeFsTargetMembers(exportName: string): readonly TargetMember[] {
-  switch (exportName) {
-    case "existsSync":
-      return [
-        targetMethod(
-          "Tsonic.CSharp.Node.fs.existsSync(System.String)",
-          "existsSync",
-          "existsSync",
-          [targetParameter("path", stringTargetType)],
-          boolTargetType,
-          {
-            declaringType: fsTargetType,
-            static: true,
-          },
-        ),
-      ];
-    default:
-      return [];
-  }
+export function getNodeFsExistsSyncTargetMember(): TargetMember {
+  return targetMethod(
+    "Tsonic.CSharp.Node.fs.existsSync(System.String)",
+    nodeFsExistsSyncExportName,
+    nodeFsExistsSyncExportName,
+    [targetParameter("path", stringTargetType)],
+    boolTargetType,
+    {
+      declaringType: fsTargetType,
+      static: true,
+    },
+  );
 }

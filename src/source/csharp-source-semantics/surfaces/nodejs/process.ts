@@ -18,65 +18,54 @@ const stringTargetType = csharpStringTargetType();
 const processTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.process", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "process"));
 
 export const nodeProcessModuleSpecifier = "node:process";
+export const nodeProcessCwdExportName = "cwd";
+export const nodeProcessCwdSignatureId = "node:process.cwd()";
+export const nodeProcessPlatformExportName = "platform";
 
 export function nodeProcessExports(): readonly ProviderExportDeclaration[] {
   return [
     {
       id: "node:process.cwd",
-      name: "cwd",
+      name: nodeProcessCwdExportName,
       kind: "function",
       signatures: [{
-        id: "node:process.cwd()",
+        id: nodeProcessCwdSignatureId,
         parameters: [],
         returnType: stringProviderType,
       }],
     },
     {
       id: "node:process.platform",
-      name: "platform",
+      name: nodeProcessPlatformExportName,
       kind: "value",
       type: stringProviderType,
     },
   ];
 }
 
-export function getNodeProcessTargetMembers(exportName: string): readonly TargetMember[] {
-  switch (exportName) {
-    case "cwd":
-      return [
-        targetMethod(
-          "Tsonic.CSharp.Node.process.cwd()",
-          "cwd",
-          "cwd",
-          [],
-          stringTargetType,
-          {
-            declaringType: processTargetType,
-            static: true,
-          },
-        ),
-      ];
-    default:
-      return [];
-  }
+export function getNodeProcessCwdTargetMember(): TargetMember {
+  return targetMethod(
+    "Tsonic.CSharp.Node.process.cwd()",
+    nodeProcessCwdExportName,
+    nodeProcessCwdExportName,
+    [],
+    stringTargetType,
+    {
+      declaringType: processTargetType,
+      static: true,
+    },
+  );
 }
 
-export function getNodeProcessPropertyMembers(exportName: string): readonly TargetMember[] {
-  switch (exportName) {
-    case "platform":
-      return [
-        targetProperty(
-          "Tsonic.CSharp.Node.process.platform",
-          "platform",
-          "platform",
-          stringTargetType,
-          {
-            declaringType: processTargetType,
-            static: true,
-          },
-        ),
-      ];
-    default:
-      return [];
-  }
+export function getNodeProcessPlatformTargetMember(): TargetMember {
+  return targetProperty(
+    "Tsonic.CSharp.Node.process.platform",
+    nodeProcessPlatformExportName,
+    nodeProcessPlatformExportName,
+    stringTargetType,
+    {
+      declaringType: processTargetType,
+      static: true,
+    },
+  );
 }

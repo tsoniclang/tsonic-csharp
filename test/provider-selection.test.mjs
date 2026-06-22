@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
+import { attributeFactKey, providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
 import { createCsharpNativeProviderExtension } from "../dist/index.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
@@ -126,6 +126,58 @@ test("C# provider defers when no provider target binding proves ownership", () =
   }));
 
   assert.equal(result.kind, "defer");
+});
+
+test("C# erased source marker rejects missing provider member identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "out",
+    sourceSelectedDeclaration: selectedDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "@tsonic/core/lang.js",
+      virtualFileName: "tsts-provider://test",
+      exportName: "out",
+    },
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_ERASED_SOURCE_MARKER_IDENTITY_NOT_PROVEN");
+  assert.equal("value" in result, false);
+});
+
+test("C# attribute builder marker identity comes from finalized attribute facts", () => {
+  const provider = getNativeSemanticProvider();
+  const call = {};
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    calleePropertyName: "add",
+    arguments: [],
+  }, fakeObservationContext({
+    attributeSubject: call,
+    attribute: {
+      target: {},
+      attributeName: "RouteAttribute",
+      arguments: [],
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "source-semantics.attribute:RouteAttribute");
+  assert.equal(result.value.selectedSignature.member.sourceName, "attribute");
 });
 
 test("C# provider rejects provider virtual declarations without member or signature identity", () => {
@@ -595,6 +647,9 @@ function fakeObservationContext(options) {
       get(subject, key) {
         if (subject === options.virtualDeclarationSubject && key === providerVirtualDeclarationFactKey) {
           return options.virtualDeclaration;
+        }
+        if (subject === options.attributeSubject && key === attributeFactKey) {
+          return options.attribute;
         }
         return undefined;
       },

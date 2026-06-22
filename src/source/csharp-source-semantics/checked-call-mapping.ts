@@ -40,8 +40,9 @@ import {
   targetMemberIsClosed,
 } from "./target-ref-utils.js";
 import {
+  erasedAttributeFactMember,
   erasedSourceSemanticsMember,
-  isCheckedAttributeBuilderCall,
+  getCheckedAttributeBuilderFact,
   isErasedSourceSemanticsCall,
 } from "./erased-source-markers.js";
 import type {
@@ -57,16 +58,27 @@ export function mapCsharpCheckedCall(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  if (isCheckedAttributeBuilderCall(request, context)) {
-    return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member: erasedSourceSemanticsMember(undefined, request) },
-    }, [{ message: "C# attribute builder marker call was checked by TSTS and marked for fact-driven erasure." }]);
-  }
+  const attributeFact = getCheckedAttributeBuilderFact(request, context);
   const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
   if (isErasedSourceSemanticsCall(virtualDeclaration)) {
+    const member = erasedSourceSemanticsMember(virtualDeclaration) ??
+      (attributeFact === undefined ? undefined : erasedAttributeFactMember(attributeFact));
+    if (member === undefined) {
+      return rejectObservation(csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_ERASED_SOURCE_MARKER_IDENTITY_NOT_PROVEN",
+        9100111,
+        "C# source-semantics marker call was checked by TSTS, but no provider virtual member or signature identity proves the erased marker selection.",
+      ));
+    }
     return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member: erasedSourceSemanticsMember(virtualDeclaration, request) },
+      selectedSignature: { member },
     }, [{ message: "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure." }]);
+  }
+  if (attributeFact !== undefined) {
+    return acceptObservation<CheckedCallMappingResult>({
+      selectedSignature: { member: erasedAttributeFactMember(attributeFact) },
+    }, [{ message: "C# attribute builder marker call was checked by finalized TSTS attribute facts and marked for fact-driven erasure." }]);
   }
   const binding = findTargetBinding(context, [
     request.sourceSelectedDeclaration,

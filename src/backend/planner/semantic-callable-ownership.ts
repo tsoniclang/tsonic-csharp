@@ -19,6 +19,7 @@ import {
 import {
   isSourceDeclaredCallableReference,
   isSourceOwnedCallableRuntimeCarrierSubject,
+  isSourceOwnedProjectReference,
   isSourceOwnedProjectShapeSubject,
 } from "./semantic-source-ownership.js";
 
@@ -42,8 +43,10 @@ export function getCallableSemanticOwnership(
   const sourceOwned = !requiresSelectedTargetFact &&
     (isSourceDeclaredCallableReference(sourceReference, input) ||
       isSourceOwnedCallableRuntimeCarrierSubject(callee, sourceFile, input) ||
-      isSourceOwnedProjectShapeSubject(callee, sourceFile, input));
+      (isSourceOwnedProjectReference(sourceReference, input) &&
+        isSourceOwnedProjectShapeSubject(callee, sourceFile, input)));
   if (!sourceOwned) {
+    appendSourceReferenceFactReasons(reasons, input, sourceReference);
     appendSemanticNodeFactReasons(reasons, input, callee, sourceFile, "callee semantic node");
     appendTargetFactReasons(reasons, input, input.semantics.getResolvedSymbol(callee, { sourceFile }), "callee resolved symbol");
   }
@@ -52,6 +55,25 @@ export function getCallableSemanticOwnership(
     sourceOwned,
     reasons,
   };
+}
+
+function appendSourceReferenceFactReasons(
+  reasons: string[],
+  input: TargetCompileInput,
+  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+): void {
+  if (reference === undefined) {
+    return;
+  }
+  appendTargetFactReasons(reasons, input, reference.sourceFile, "callee source file");
+  appendTargetFactReasons(reasons, input, reference.declaration, "callee source declaration");
+  appendTargetFactReasons(reasons, input, reference.symbol, "callee source symbol");
+  if (reference.sourceFile.IsDeclarationFile) {
+    reasons.push("callee source declaration file");
+  }
+  if (!input.sourceFiles.some((sourceFile) => sourceFile === reference.sourceFile)) {
+    reasons.push("callee external source file");
+  }
 }
 
 function appendPropertyAccessReceiverFactReasons(

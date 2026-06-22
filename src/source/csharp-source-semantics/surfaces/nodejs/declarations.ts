@@ -8,21 +8,27 @@ import type {
   ExtensionObservationContext,
 } from "@tsonic/tsts";
 import {
-  isNodejsProviderModule,
-} from "./members.js";
-
-export interface NodejsProviderDeclarationReference {
-  readonly moduleSpecifier: string;
-  readonly exportName: string;
-}
+  isCsharpNodejsProviderDeclaration,
+} from "./identity.js";
+import type {
+  NodejsProviderDeclarationIdentity,
+} from "./identity.js";
 
 export function getNodejsCheckedCallDeclaration(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): NodejsProviderDeclarationReference | undefined {
-  const direct = getProviderExportDeclaration(context, request.sourceSelectedDeclaration);
-  if (direct !== undefined) {
-    return direct;
+): NodejsProviderDeclarationIdentity | undefined {
+  for (const subject of [
+    request.sourceSelectedSignature,
+    request.sourceSelectedDeclaration,
+    request.calleeAliasedSymbol,
+    request.calleeResolvedSymbol,
+    request.calleeSymbol,
+  ]) {
+    const declaration = getProviderExportDeclaration(context, subject);
+    if (declaration !== undefined) {
+      return declaration;
+    }
   }
   return undefined;
 }
@@ -30,10 +36,14 @@ export function getNodejsCheckedCallDeclaration(
 export function getNodejsCheckedPropertyDeclaration(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-): NodejsProviderDeclarationReference | undefined {
-  const direct = getProviderExportDeclaration(context, request.sourceSelectedDeclaration);
-  if (direct !== undefined) {
-    return direct;
+): NodejsProviderDeclarationIdentity | undefined {
+  for (const subject of [
+    request.sourceSelectedDeclaration,
+  ]) {
+    const declaration = getProviderExportDeclaration(context, subject);
+    if (declaration !== undefined) {
+      return declaration;
+    }
   }
   return undefined;
 }
@@ -41,12 +51,9 @@ export function getNodejsCheckedPropertyDeclaration(
 function getProviderExportDeclaration(
   context: ExtensionObservationContext,
   subject: ExtensionFactSubject | undefined,
-): NodejsProviderDeclarationReference | undefined {
+): NodejsProviderDeclarationIdentity | undefined {
   const declaration = context.facts.get(subject, providerVirtualDeclarationFactKey);
-  return declaration?.exportName === undefined || !isNodejsProviderModule(declaration.moduleSpecifier)
+  return declaration === undefined || !isCsharpNodejsProviderDeclaration(declaration)
     ? undefined
-    : {
-        moduleSpecifier: declaration.moduleSpecifier,
-        exportName: declaration.exportName,
-      };
+    : declaration;
 }

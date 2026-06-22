@@ -15,15 +15,17 @@ const stringTargetType = csharpStringTargetType();
 const cryptoTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.crypto", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "crypto"));
 
 export const nodeCryptoModuleSpecifier = "node:crypto";
+export const nodeCryptoRandomUuidExportName = "randomUUID";
+export const nodeCryptoRandomUuidSignatureId = "node:crypto.randomUUID()";
 
 export function nodeCryptoExports(): readonly ProviderExportDeclaration[] {
   return [
     {
       id: "node:crypto.randomUUID",
-      name: "randomUUID",
+      name: nodeCryptoRandomUuidExportName,
       kind: "function",
       signatures: [{
-        id: "node:crypto.randomUUID()",
+        id: nodeCryptoRandomUuidSignatureId,
         parameters: [],
         returnType: stringProviderType,
       }],
@@ -31,23 +33,16 @@ export function nodeCryptoExports(): readonly ProviderExportDeclaration[] {
   ];
 }
 
-export function getNodeCryptoTargetMembers(exportName: string): readonly TargetMember[] {
-  switch (exportName) {
-    case "randomUUID":
-      return [
-        targetMethod(
-          "Tsonic.CSharp.Node.crypto.randomUUID()",
-          "randomUUID",
-          "randomUUID",
-          [],
-          stringTargetType,
-          {
-            declaringType: cryptoTargetType,
-            static: true,
-          },
-        ),
-      ];
-    default:
-      return [];
-  }
+export function getNodeCryptoRandomUuidTargetMember(): TargetMember {
+  return targetMethod(
+    "Tsonic.CSharp.Node.crypto.randomUUID()",
+    nodeCryptoRandomUuidExportName,
+    nodeCryptoRandomUuidExportName,
+    [],
+    stringTargetType,
+    {
+      declaringType: cryptoTargetType,
+      static: true,
+    },
+  );
 }

@@ -1,8 +1,8 @@
 import {
   attributeFactKey,
-  providerVirtualDeclarationFactKey,
 } from "@tsonic/tsts";
 import type {
+  AttributeFact,
   CheckedCallMappingRequest,
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
@@ -34,22 +34,32 @@ export function isErasedSourceSemanticsCall(declaration: ProviderVirtualDeclarat
     declaration.exportName === "__TsonicAttributeMemberBuilder";
 }
 
-export function isCheckedAttributeBuilderCall(
+export function getCheckedAttributeBuilderFact(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): boolean {
-  return context.facts.get(request.call, attributeFactKey) !== undefined ||
-    context.facts.get(request.calleeReceiver, attributeFactKey) !== undefined ||
-    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey)?.exportName === "__TsonicAttributeBuilder";
+): AttributeFact | undefined {
+  return context.facts.get(request.call, attributeFactKey) ??
+    context.facts.get(request.calleeReceiver, attributeFactKey);
 }
 
 export function erasedSourceSemanticsMember(
   declaration: ProviderVirtualDeclarationFact | undefined,
-  request: CheckedCallMappingRequest,
-): TargetMember {
-  const sourceName = declaration?.memberName ?? declaration?.exportName ?? request.calleePropertyName ?? "sourceMarker";
+): TargetMember | undefined {
+  const sourceName = declaration?.memberName ?? declaration?.exportName;
+  const id = declaration?.signatureId ?? declaration?.memberId;
+  if (sourceName === undefined || id === undefined) {
+    return undefined;
+  }
+  return erasedMarkerMember(id, sourceName);
+}
+
+export function erasedAttributeFactMember(attribute: AttributeFact): TargetMember {
+  return erasedMarkerMember(`source-semantics.attribute:${attribute.attributeName}`, "attribute");
+}
+
+function erasedMarkerMember(id: string, sourceName: string): TargetMember {
   return {
-    id: declaration?.signatureId ?? `${declaration?.providerModuleId ?? "source-semantics"}.${sourceName}`,
+    id,
     sourceName,
     targetName: "__tsonic_erased_source_marker",
     kind: "method",

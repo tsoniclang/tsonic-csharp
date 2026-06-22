@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership } from "../dist/backend/planner/semantic-guards.js";
-import { KindIdentifier, KindPropertyAccessExpression, KindVariableDeclaration } from "../dist/backend/planner/source-ast.js";
+import { KindArrowFunction, KindFunctionDeclaration, KindIdentifier, KindPropertyAccessExpression, KindVariableDeclaration } from "../dist/backend/planner/source-ast.js";
 
 test("provider-owned operator operands require selected target operator facts", () => {
   const operand = node(KindIdentifier);
@@ -121,11 +122,13 @@ test("provider-owned property-access callees require selected target call facts"
 });
 
 test("source-declared callable references stay source-owned with runtime-carrier facts", () => {
+  const sourceFile = sourceFileNode("/src/main.ts");
   const callee = node(KindIdentifier);
   const sourceSymbol = { Name: "handler" };
-  const sourceDeclaration = node(KindVariableDeclaration);
+  const sourceDeclaration = { Kind: KindVariableDeclaration, Initializer: node(KindArrowFunction) };
   const input = fakeInput({
-    sourceReferenceByNode: new Map([[callee, { symbol: sourceSymbol, declaration: sourceDeclaration }]]),
+    sourceFiles: [sourceFile],
+    sourceReferenceByNode: new Map([[callee, { symbol: sourceSymbol, declaration: sourceDeclaration, sourceFile }]]),
     runtimeCarrierSubject: callee,
     runtimeCarrier: {
       carrier: {
@@ -139,32 +142,39 @@ test("source-declared callable references stay source-owned with runtime-carrier
     },
   });
 
-  const ownership = getCallableSemanticOwnership(callee, {}, input);
+  const ownership = getCallableSemanticOwnership(callee, sourceFile, input);
 
   assert.equal(ownership.requiresTargetFact, false);
   assert.equal(ownership.sourceOwned, true);
   assert.deepEqual(ownership.reasons, ["callee node runtime carrier"]);
 });
 
-test("delegate runtime carrier expressions are source-owned callables", () => {
-  const callee = node(KindIdentifier);
+test("direct lambda runtime carrier expressions are source-owned callables", () => {
+  const sourceFile = sourceFileNode("/src/main.ts");
+  const callee = node(KindArrowFunction);
   const input = fakeInput({
+    sourceFiles: [sourceFile],
     runtimeCarrierSubject: callee,
     runtimeCarrier: {
       carrier: delegateCarrier([{ kind: "source-primitive", name: "int32" }], { kind: "source-primitive", name: "int32" }),
     },
   });
 
-  const ownership = getCallableSemanticOwnership(callee, {}, input);
+  const ownership = getCallableSemanticOwnership(callee, sourceFile, input);
 
   assert.equal(ownership.requiresTargetFact, false);
   assert.equal(ownership.sourceOwned, true);
   assert.deepEqual(ownership.reasons, ["callee node runtime carrier"]);
 });
 
-test("Func target identity runtime carrier expressions are source-owned callables", () => {
+test("local provider aliases are not source-owned from callable runtime carrier shape", () => {
+  const sourceFile = sourceFileNode("/src/main.ts");
   const callee = node(KindIdentifier);
+  const sourceSymbol = { Name: "providerAlias" };
+  const sourceDeclaration = { Kind: KindVariableDeclaration, Initializer: node(KindPropertyAccessExpression) };
   const input = fakeInput({
+    sourceFiles: [sourceFile],
+    sourceReferenceByNode: new Map([[callee, { symbol: sourceSymbol, declaration: sourceDeclaration, sourceFile }]]),
     runtimeCarrierSubject: callee,
     runtimeCarrier: {
       carrier: {
@@ -178,15 +188,78 @@ test("Func target identity runtime carrier expressions are source-owned callable
     },
   });
 
-  const ownership = getCallableSemanticOwnership(callee, {}, input);
+  const ownership = getCallableSemanticOwnership(callee, sourceFile, input);
 
-  assert.equal(ownership.requiresTargetFact, false);
-  assert.equal(ownership.sourceOwned, true);
+  assert.equal(ownership.requiresTargetFact, true);
+  assert.equal(ownership.sourceOwned, false);
   assert.deepEqual(ownership.reasons, ["callee node runtime carrier"]);
+});
+
+test("provider virtual callable declarations are not source-owned from declaration shape", () => {
+  const sourceFile = sourceFileNode("/src/main.ts");
+  const providerSourceFile = sourceFileNode("/virtual/provider.ts");
+  const callee = node(KindIdentifier);
+  const providerDeclaration = node(KindFunctionDeclaration);
+  const providerSymbol = { Name: "providerCall" };
+  const input = fakeInput({
+    sourceFiles: [sourceFile, providerSourceFile],
+    sourceReferenceByNode: new Map([[callee, { symbol: providerSymbol, declaration: providerDeclaration, sourceFile: providerSourceFile }]]),
+    providerVirtualSubjects: new Set([providerSourceFile, providerDeclaration, providerSymbol]),
+  });
+
+  const ownership = getCallableSemanticOwnership(callee, sourceFile, input);
+
+  assert.equal(ownership.requiresTargetFact, true);
+  assert.equal(ownership.sourceOwned, false);
+  assert.deepEqual(ownership.reasons, [
+    "callee source file provider virtual declaration",
+    "callee source declaration provider virtual declaration",
+    "callee source symbol provider virtual declaration",
+  ]);
+});
+
+test("declaration-file callable references are not source-owned from declaration shape", () => {
+  const sourceFile = sourceFileNode("/src/main.ts");
+  const declarationFile = sourceFileNode("/types/provider.d.ts", true);
+  const callee = node(KindIdentifier);
+  const declaration = node(KindFunctionDeclaration);
+  const symbol = { Name: "declaredCall" };
+  const input = fakeInput({
+    sourceFiles: [sourceFile, declarationFile],
+    sourceReferenceByNode: new Map([[callee, { symbol, declaration, sourceFile: declarationFile }]]),
+  });
+
+  const ownership = getCallableSemanticOwnership(callee, sourceFile, input);
+
+  assert.equal(ownership.requiresTargetFact, true);
+  assert.equal(ownership.sourceOwned, false);
+  assert.deepEqual(ownership.reasons, ["callee source declaration file"]);
+});
+
+test("external callable references outside project sources are not source-owned from declaration shape", () => {
+  const sourceFile = sourceFileNode("/src/main.ts");
+  const externalSourceFile = sourceFileNode("/external/pkg/index.ts");
+  const callee = node(KindIdentifier);
+  const declaration = node(KindFunctionDeclaration);
+  const symbol = { Name: "externalCall" };
+  const input = fakeInput({
+    sourceFiles: [sourceFile],
+    sourceReferenceByNode: new Map([[callee, { symbol, declaration, sourceFile: externalSourceFile }]]),
+  });
+
+  const ownership = getCallableSemanticOwnership(callee, sourceFile, input);
+
+  assert.equal(ownership.requiresTargetFact, true);
+  assert.equal(ownership.sourceOwned, false);
+  assert.deepEqual(ownership.reasons, ["callee external source file"]);
 });
 
 function node(kind) {
   return { Kind: kind };
+}
+
+function sourceFileNode(fileName, isDeclarationFile = false) {
+  return { IsDeclarationFile: isDeclarationFile, FileName: fileName };
 }
 
 function sourcePrimitiveCarrier(name) {
@@ -213,7 +286,7 @@ function delegateCarrier(parameters, returnType) {
 function fakeInput(options = {}) {
   return {
     ast: fakeAst,
-    sourceFiles: [],
+    sourceFiles: options.sourceFiles ?? [],
     types: {
       isAny: () => false,
       isUnknown: () => false,
@@ -243,7 +316,15 @@ function fakeInput(options = {}) {
       getTargetBindingFact: (subject) => subject !== undefined && subject === options.targetBindingSubject
         ? { target: "csharp", id: "Example.TargetType" }
         : undefined,
-      getFact: () => undefined,
+      getFact: (subject, key) => options.providerVirtualSubjects?.has(subject) === true && key === providerVirtualDeclarationFactKey
+        ? {
+            providerId: "test-provider",
+            providerVersion: "1.0.0",
+            providerModuleId: "test-provider/module",
+            moduleSpecifier: "@provider/module",
+            virtualFileName: "/virtual/provider.ts",
+          }
+        : undefined,
       getRuntimeCarrierFact: (subject) => subject !== undefined && subject === options.runtimeCarrierSubject
         ? options.runtimeCarrier
         : undefined,

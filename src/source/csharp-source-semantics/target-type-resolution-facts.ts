@@ -16,9 +16,6 @@ import {
   getSymbolDeclarations,
   getSymbolForDeclarationLookup,
 } from "./symbol-utils.js";
-import {
-  csharpExceptionTargetType,
-} from "./target-types.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -36,7 +33,11 @@ export type TargetTypeSubjectResolver = (
 export function getCatchVariableTargetTypeRef(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
+  exceptionCarrier: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
+  if (exceptionCarrier === undefined) {
+    return undefined;
+  }
   const ast = context.compiler?.ast;
   const checker = context.compiler?.checker;
   const node = asNodeSubject(subject);
@@ -52,7 +53,7 @@ export function getCatchVariableTargetTypeRef(
       const parent = asNodeSubject(getNodeField(declaration, "Parent"));
       return parent !== undefined && ast.is.IsCatchClause(parent);
     })
-    ? csharpExceptionTargetType()
+    ? exceptionCarrier
     : undefined;
 }
 

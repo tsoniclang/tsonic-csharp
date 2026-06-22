@@ -1,10 +1,6 @@
-import {
-  TstsProviderContractVersion,
-} from "@tsonic/tsts";
 import type {
   ExtensionDiagnostic,
   ProviderDeclarationModel,
-  ProviderIdentity,
   ProviderModuleContext,
   ProviderModuleResolution,
   ProviderOwnership,
@@ -13,9 +9,12 @@ import type {
   TargetIdentity,
 } from "@tsonic/tsts";
 import {
-  csharpProviderVersion,
-  csharpTargetId,
-} from "../../identity.js";
+  csharpNodejsSurfaceProviderIdentity,
+  csharpNodejsVirtualDeclarationFileName,
+} from "./identity.js";
+import {
+  getNodejsTargetIdentity,
+} from "./members.js";
 import {
   nodeCryptoExports,
   nodeCryptoModuleSpecifier,
@@ -36,15 +35,6 @@ import {
   nodeProcessExports,
   nodeProcessModuleSpecifier,
 } from "./process.js";
-
-const providerIdentity = {
-  id: "tsonic.csharp.nodejs-surface-provider",
-  version: csharpProviderVersion,
-  target: csharpTargetId,
-  extensionContractVersion: TstsProviderContractVersion,
-  providerKind: "binding",
-  displayName: "Tsonic C# NodeJS surface provider",
-} satisfies ProviderIdentity;
 
 const supportedModules = new Map<string, ProviderDeclarationModel>([
   [nodePathModuleSpecifier, {
@@ -81,7 +71,7 @@ const supportedModules = new Map<string, ProviderDeclarationModel>([
 
 export function createCsharpNodejsSurfaceBindingProvider(): TargetBindingProvider {
   return {
-    identity: providerIdentity,
+    identity: csharpNodejsSurfaceProviderIdentity,
     ownsModule(specifier: string, _context: ProviderModuleContext): ProviderOwnership {
       return supportedModules.has(specifier) ? { kind: "owned" } : { kind: "unowned" };
     },
@@ -102,14 +92,10 @@ export function createCsharpNodejsSurfaceBindingProvider(): TargetBindingProvide
       return supportedModules.get(module.moduleSpecifier) ??
         nodejsProviderDiagnostic("NODEJS_SURFACE_MODULE_MISSING", 9300002, `C# NodeJS surface provider has no declaration model for '${module.moduleSpecifier}'.`);
     },
-    getTargetIdentity(_symbol: ProviderSymbolIdentity): TargetIdentity | undefined {
-      return undefined;
+    getTargetIdentity(symbol: ProviderSymbolIdentity): TargetIdentity | undefined {
+      return getNodejsTargetIdentity(symbol);
     },
   };
-}
-
-function csharpNodejsVirtualDeclarationFileName(specifier: string): string {
-  return `tsts-provider://csharp-nodejs/${encodeURIComponent(specifier)}.d.ts`;
 }
 
 function nodejsProviderDiagnostic(
@@ -118,7 +104,7 @@ function nodejsProviderDiagnostic(
   message: string,
 ): ExtensionDiagnostic {
   return {
-    extensionId: providerIdentity.id,
+    extensionId: csharpNodejsSurfaceProviderIdentity.id,
     extensionCode,
     numericCode,
     category: "error",
