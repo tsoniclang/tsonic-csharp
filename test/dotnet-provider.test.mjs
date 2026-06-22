@@ -146,6 +146,27 @@ test(".NET target binding uses provider-owned target member names", () => {
   assert.equal(item?.targetName, "Item");
 });
 
+test(".NET reflection provider rejects unsupported target frameworks instead of drifting", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ targetFramework: "net9.0" });
+  const module = provider.getModule("@tsonic/dotnet/System.js", {});
+
+  assert.equal(module.code, "DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED");
+  assert.match(module.message, /target framework is not supported/);
+  assert.match(JSON.stringify(module.evidence), /net10\.0/);
+  assert.match(JSON.stringify(module.evidence), /net9\.0/);
+});
+
+test(".NET reflection provider rejects missing explicit references instead of silently omitting them", () => {
+  const provider = createDotnetReflectionTypeDataProvider({
+    references: ["missing-reference-for-provider-test.dll"],
+  });
+  const module = provider.getModule("@tsonic/dotnet/System.js", {});
+
+  assert.equal(module.code, "DOTNET_REFLECTION_PROVIDER_FAILED");
+  assert.match(JSON.stringify(module.evidence), /missing-reference-for-provider-test\.dll/);
+  assert.match(JSON.stringify(module.evidence), /does not exist/);
+});
+
 test(".NET reflection provider exposes contracts, operators, and nested public types", () => {
   const provider = createDotnetReflectionTypeDataProvider();
 

@@ -30,6 +30,10 @@ import {
   findTargetBinding,
 } from "./provider-bindings.js";
 import {
+  isAttributeSelectorApplicationTarget,
+  isAttributeSelectorBodyExpression,
+} from "./source-marker-selectors.js";
+import {
   instantiateSelectedTargetMember,
 } from "./selected-target-member-instantiation.js";
 import {
@@ -62,6 +66,12 @@ export function mapCsharpCheckedPropertyAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  if (isAttributeSelectorApplicationTarget(request.expression, context)) {
+    return deferObservation;
+  }
+  if (isAttributeSelectorBodyExpression(request.expression, context)) {
     return deferObservation;
   }
   const binding = findTargetBinding(context, [

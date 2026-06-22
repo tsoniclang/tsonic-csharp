@@ -35,6 +35,9 @@ import {
 } from "./target-member-selection.js";
 import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type { CsharpOperationsProviderHost } from "./operations-provider.js";
+import {
+  isAttributeSelectorCallbackExpression,
+} from "./source-marker-selectors.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
 
@@ -71,6 +74,9 @@ export function mapCsharpContextualTargetType(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<ContextualTargetTypeResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  if (isAttributeSelectorCallbackExpression(request.expression, context)) {
     return deferObservation;
   }
   const targetType = host.getTargetTypeRefForSubject(request.context, context);

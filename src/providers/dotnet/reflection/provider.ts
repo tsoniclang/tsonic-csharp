@@ -39,6 +39,7 @@ const providerIdentity: DotnetProviderIdentity = {
   target: "csharp",
   displayName: "Tsonic C# .NET reflection provider",
 };
+const supportedTargetFramework = "net10.0";
 
 export function createDotnetReflectionTypeDataProvider(
   options: DotnetReflectionTypeDataProviderOptions = {},
@@ -85,6 +86,15 @@ export function createDotnetReflectionTypeDataProvider(
     const existingDiagnostic = diagnostics.get("*");
     if (existingDiagnostic !== undefined) {
       return existingDiagnostic;
+    }
+    const targetFramework = context.targetFramework ?? options.targetFramework;
+    if (targetFramework !== undefined && targetFramework !== supportedTargetFramework) {
+      const error = diagnostic("DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED", ".NET reflection provider target framework is not supported by the active provider runtime.", {
+        supportedTargetFramework,
+        targetFramework,
+      });
+      diagnostics.set("*", error);
+      return error;
     }
     const args = [
       "run",
