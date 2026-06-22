@@ -33,8 +33,27 @@ export function getNullableUnionTargetTypeRefFromSyntax(
   if (nonNullish.length !== 1 || nonNullish.length === members.length) {
     return undefined;
   }
-  const inner = resolver.resolveSubject(nonNullish[0], context, options, host);
+  const inner = resolveUnionMemberTargetType(nonNullish[0]!, context, options, host, resolver);
   return inner === undefined ? undefined : csharpNullableTargetType(inner);
+}
+
+function resolveUnionMemberTargetType(
+  node: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolver: CsharpRecursiveTargetTypeResolver,
+): TargetTypeRef | undefined {
+  const syntaxType = resolver.resolveSubject(node, context, options, host);
+  if (syntaxType !== undefined) {
+    return syntaxType;
+  }
+  const sourceFile = context.compiler?.ast.getSourceFile(node);
+  const semanticType = sourceFile === undefined
+    ? undefined
+    : context.compiler?.checker.getTypeFromTypeNode(node, { sourceFile });
+  return resolver.resolveType(semanticType, context, options, host) ??
+    resolver.resolveType(semanticType, context, { ...options, allowRuntimeCarrier: true }, host);
 }
 
 function isNullishTypeSyntax(node: Node, context: ExtensionObservationContext): boolean {

@@ -11,6 +11,8 @@ import {
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 
+const symbolFlagsAlias = 1 << 21;
+
 export function getDeclarationTypeNode(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
@@ -90,7 +92,15 @@ export function getAliasedSymbolIfAvailable(
   if (symbol === undefined) {
     return undefined;
   }
-  return checker.getAliasedSymbol(symbol as Symbol, { sourceFile });
+  const candidate = symbol as Symbol;
+  if ((candidate.Flags & symbolFlagsAlias) === 0) {
+    return undefined;
+  }
+  try {
+    return checker.getAliasedSymbol(candidate, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }
 
 export function getSymbolDeclarations(symbol: ExtensionFactSubject | undefined): readonly Node[] {

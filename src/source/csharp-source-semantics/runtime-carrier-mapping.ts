@@ -14,6 +14,7 @@ import {
 } from "./target-types.js";
 import {
   asNodeSubject,
+  isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
   asType,
@@ -46,10 +47,12 @@ export function mapRuntimeCarrier(
   const syntaxCarrier = request.sourceTypeReference === undefined
     ? undefined
     : host.getTargetTypeRefForSubject(request.sourceTypeReference, context, { allowRuntimeCarrier: false, allowSemanticTypeQuery: false });
-  if (syntaxCarrier !== undefined) {
-    recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, syntaxCarrier, host);
+  const typeSyntaxCarrier = syntaxCarrier ??
+    getTypeSyntaxCarrierFromFinalizedTypeFacts(request, context, host);
+  if (typeSyntaxCarrier !== undefined) {
+    recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, typeSyntaxCarrier, host);
     return acceptObservation<RuntimeCarrierFactResult>({
-      carrier: syntaxCarrier,
+      carrier: typeSyntaxCarrier,
     }, [{ message: "C# runtime carrier mapped from source syntax/provider facts." }]);
   }
   if (primitive === undefined) {
@@ -74,6 +77,18 @@ export function mapRuntimeCarrier(
   return acceptObservation<RuntimeCarrierFactResult>({
     carrier: csharpSourcePrimitiveTargetType(primitive.kind),
   }, [{ message: "C# runtime carrier mapped from source primitive fact." }]);
+}
+
+function getTypeSyntaxCarrierFromFinalizedTypeFacts(
+  request: RuntimeCarrierFactRequest,
+  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): RuntimeCarrierFactResult["carrier"] | undefined {
+  const ast = context.compiler?.ast;
+  const node = asNodeSubject(request.sourceTypeReference);
+  return ast !== undefined && node !== undefined && isTypeSyntaxNode(ast, node)
+    ? host.getTargetTypeRefForSubject(node, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false })
+    : undefined;
 }
 
 function isCallableTypeWithoutCarrierEvidence(

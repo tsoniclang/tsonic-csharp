@@ -86,7 +86,27 @@ export function visitStructuralNodes(
   seen.add(node);
   visitor(node);
   for (const child of getStructuralChildNodes(node)) {
-    visitStructuralNodes(child, visitor, seen);
+    if (child !== undefined) {
+      visitStructuralNodes(child, visitor, seen);
+    }
+  }
+}
+
+export function visitAstReaderNodes(
+  ast: AstReader,
+  node: Node,
+  visitor: (node: Node) => void,
+  seen: WeakSet<object> = new WeakSet(),
+): void {
+  if (seen.has(node)) {
+    return;
+  }
+  seen.add(node);
+  visitor(node);
+  for (const child of getAstReaderChildNodes(ast, node)) {
+    if (child !== undefined) {
+      visitAstReaderNodes(ast, child, visitor, seen);
+    }
   }
 }
 

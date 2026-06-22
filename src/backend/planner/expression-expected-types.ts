@@ -24,6 +24,7 @@ import {
   KindTypeAssertionExpression,
   Node_Text,
   SourceKind,
+  KindNullKeyword,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -109,6 +110,9 @@ export function planExpressionWithExpectedTypeCore(
       planners.planExpression,
       planners.planExpressionWithExpectedType,
     );
+  }
+  if (expectedType.kind === "NullableType" && !HasSourceKind(input.ast, node, KindNullKeyword)) {
+    return planners.planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType.inner, expectedTypeSubject);
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners);

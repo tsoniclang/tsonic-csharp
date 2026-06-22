@@ -64,46 +64,36 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, true, targetId, selectedSurfaceIds, host);
-    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, sourceFile, false, targetId, selectedSurfaceIds, host);
+    const nodes = collectRuntimeCarrierNodes(compiler.ast, sourceFile);
+    for (const node of [...nodes].reverse()) {
+      if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)) {
+        recordCsharpRuntimeCarrierFact(lifecycleContext, sourceFile, node, targetId, selectedSurfaceIds, host);
+      }
+    }
+    for (const node of [...nodes].reverse()) {
+      recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, sourceFile, node, selectedSurfaceIds, host);
+      propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
+      propagateCsharpRuntimeCarrierFactFromDeclarationType(lifecycleContext, sourceFile, node, host);
+    }
   }
 }
 
-function walkCsharpRuntimeCarrierFacts(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  sourceFile: SourceFile,
-  node: Node | undefined,
-  typeSyntaxOnly: boolean,
-  targetId: string,
-  selectedSurfaceIds: ReadonlySet<string>,
-  host: CsharpRuntimeCarrierSemanticsHost,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || node === undefined) {
-    return;
-  }
-  if (typeSyntaxOnly) {
-    for (const child of getRuntimeCarrierChildNodes(compiler.ast, node)) {
-      walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId, selectedSurfaceIds, host);
-    }
-    if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)) {
-      recordCsharpRuntimeCarrierFact(lifecycleContext, sourceFile, node, targetId, selectedSurfaceIds, host);
-    }
-    return;
-  }
-  for (const child of getRuntimeCarrierChildNodes(compiler.ast, node)) {
-    walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId, selectedSurfaceIds, host);
-  }
-  recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, sourceFile, node, selectedSurfaceIds, host);
-  propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
-  propagateCsharpRuntimeCarrierFactFromDeclarationType(lifecycleContext, sourceFile, node, host);
-}
-
-function getRuntimeCarrierChildNodes(
+function collectRuntimeCarrierNodes(
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
   node: Node,
-): readonly (Node | undefined)[] {
-  return Array.from(new Set(getAstReaderChildNodes(ast, node)));
+  seen: WeakSet<object> = new WeakSet(),
+): readonly Node[] {
+  if (seen.has(node)) {
+    return [];
+  }
+  seen.add(node);
+  const nodes: Node[] = [node];
+  for (const child of getAstReaderChildNodes(ast, node)) {
+    if (child !== undefined) {
+      nodes.push(...collectRuntimeCarrierNodes(ast, child, seen));
+    }
+  }
+  return nodes;
 }
 
 function recordCsharpRuntimeCarrierFact(

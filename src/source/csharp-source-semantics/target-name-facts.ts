@@ -5,7 +5,7 @@ import {
   csharpTargetNameFactKey,
 } from "../csharp-facts.js";
 import {
-  visitStructuralNodes,
+  visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
   hashString,
@@ -25,7 +25,7 @@ export function recordCsharpTargetNameFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    visitStructuralNodes(sourceFile, (node) => {
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       if (!compiler.ast.is.IsPrivateIdentifier(node)) {
         return;
       }

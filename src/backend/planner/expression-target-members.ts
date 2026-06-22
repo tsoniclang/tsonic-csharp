@@ -247,6 +247,13 @@ function getResolvedSourceCallArgumentRenderType(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): CsharpTypeNode | undefined {
+  const carrier = input.semantics.getResolvedCallParameterRuntimeCarriers(call, { sourceFile })?.[argumentIndex];
+  if (carrier !== undefined) {
+    const targetType = csharpTypeFromTargetTypeRef(carrier);
+    if (targetType !== undefined) {
+      return targetType;
+    }
+  }
   const parameterType = input.semantics.getResolvedCallParameterTypes(call, { sourceFile })?.[argumentIndex];
   const targetType = getTargetTypeRefForType(input, parameterType, sourceFile);
   return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);

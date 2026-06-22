@@ -1,4 +1,5 @@
 import {
+  runtimeCarrierFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -12,7 +13,7 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
-  visitStructuralNodes,
+  visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
   getBinaryOperatorText,
@@ -65,7 +66,7 @@ export function recordCsharpCheckedOperatorFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    visitStructuralNodes(sourceFile, (node) => {
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       if (lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
         return;
       }
@@ -106,6 +107,9 @@ function getCsharpCheckedOperatorFactsFromSyntax(
   const sourceFile = ast.getSourceFile(node);
   let left = getTargetTypeRefForCheckedOperand(leftSubject, sourceFile, context, operandQuery, host);
   let right = getTargetTypeRefForCheckedOperand(rightSubject, sourceFile, context, operandQuery, host);
+  if (!ast.is.IsBinaryExpression(node) && left === undefined) {
+    left = context.factResolver.resolve(node, runtimeCarrierFactKey)?.carrier;
+  }
   if (right === undefined) {
     right = getLiteralTargetTypeRefForKnownOperatorOperand(left, rightSubject, context) ??
       getNullishTargetTypeRefForKnownOperatorOperand(left, rightSubject, sourceFile, context);

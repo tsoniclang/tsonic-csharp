@@ -1,6 +1,7 @@
 import {
   acceptObservation,
   deferObservation,
+  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedOperationMappingResult,
@@ -129,6 +130,9 @@ function getCheckedOperatorOperandTargetTypeRefs(
 ): { readonly left: TargetTypeRef | undefined; readonly right: TargetTypeRef | undefined } {
   let left = getCheckedOperatorOperandTargetTypeRef(request.leftType, request.left, sourceFile, context, operandQuery, host);
   let right = getCheckedOperatorOperandTargetTypeRef(request.rightType, request.right, sourceFile, context, operandQuery, host);
+  if (request.right === undefined && left === undefined) {
+    left = context.factResolver.resolve(request.expression, runtimeCarrierFactKey)?.carrier;
+  }
   if (right === undefined) {
     right = getLiteralTargetTypeRefForKnownOperatorOperand(left, request.right, context) ??
       getNullishTargetTypeRefForKnownOperatorOperand(left, request.right, sourceFile, context);

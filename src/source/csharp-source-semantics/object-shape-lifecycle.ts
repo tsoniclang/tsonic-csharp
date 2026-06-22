@@ -19,7 +19,7 @@ import {
   asNodeSubject,
   getNodeField,
   getNodeList,
-  visitStructuralNodes,
+  visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
   getObjectShapeTargetName,
@@ -63,7 +63,7 @@ export function recordCsharpObjectRestBindingFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    visitStructuralNodes(sourceFile, (node) => {
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       if (!isObjectRestBindingElement(node, compiler.ast)) {
         return;
       }
@@ -104,7 +104,7 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    visitStructuralNodes(sourceFile, (node) => {
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       if (!compiler.ast.is.IsPropertyAccessExpression(node) || lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
         return;
       }

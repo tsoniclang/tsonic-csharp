@@ -7,6 +7,9 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../../../csharp-facts.js";
+import type {
+  SourceLibraryMember,
+} from "../../source-library.js";
 export type {
   SourceLibraryDeclaringName,
   SourceLibraryMember,
@@ -80,6 +83,24 @@ export interface CsharpJsSurfaceHost {
 }
 
 export const csharpJsCheckedTypeQuery = { allowSemanticTypeQuery: false } satisfies CsharpJsTargetTypeRefResolutionOptions;
+
+export function getSourceLibraryMemberFromTargetReceiverType(
+  receiverType: TargetTypeRef | undefined,
+  memberName: string | undefined,
+  host: CsharpJsSurfaceHost,
+): SourceLibraryMember | undefined {
+  if (memberName === undefined || memberName === "") {
+    return undefined;
+  }
+  const unwrapped = host.unwrapNullableTargetType(receiverType);
+  if (host.isCsharpStringType(unwrapped)) {
+    return { declaringName: "String", memberName };
+  }
+  if (unwrapped?.kind === "array") {
+    return { declaringName: "Array", memberName };
+  }
+  return undefined;
+}
 
 export function range(count: number): readonly number[] {
   return Array.from({ length: count }, (_value, index) => index);

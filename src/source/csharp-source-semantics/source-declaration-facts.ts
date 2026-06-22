@@ -12,7 +12,7 @@ import {
   asNodeSubject,
   getNodeField,
   getNodeNameText,
-  visitStructuralNodes,
+  visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
   csharpTargetNamedType,
@@ -32,7 +32,7 @@ export function recordCsharpSourceDeclarationFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    visitStructuralNodes(sourceFile, (node) => {
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       const declarationTarget = getSourceDeclarationTargetType(compiler.ast, node);
       if (declarationTarget !== undefined) {
         recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, declarationTarget);

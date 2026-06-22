@@ -21,6 +21,7 @@ import {
   getNodeField,
   getNodeList,
   getNodeNameText,
+  visitAstReaderNodes,
   visitStructuralNodes,
 } from "./ast-utils.js";
 import {
@@ -43,7 +44,10 @@ export function recordCsharpTypeParameterConstraintFacts(
   if (sourceFile === undefined || request.providerVirtualModule !== undefined) {
     return;
   }
-  visitStructuralNodes(sourceFile, (node) => {
+  const visitNodes = ast === undefined
+    ? visitStructuralNodes
+    : (node: Node, visitor: (node: Node) => void) => visitAstReaderNodes(ast, node, visitor);
+  visitNodes(sourceFile, (node) => {
     recordCsharpTypeParameterConstraintFact(node, facts, ast);
   });
 }

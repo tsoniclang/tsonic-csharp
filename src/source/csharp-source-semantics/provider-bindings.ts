@@ -16,6 +16,9 @@ import {
   isControlFlowLabelIdentifier,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
+import {
+  getAliasedSymbolIfAvailable,
+} from "./symbol-utils.js";
 
 export function findTargetBinding(
   context: ExtensionObservationContext,
@@ -58,9 +61,9 @@ export function resolveTargetBindingForReference(
   const resolvedSymbol = getResolvedSymbolForReferenceNode(node, context, sourceFile);
   const referenceBinding = resolveTargetBinding(node, context) ??
     resolveTargetBinding(symbol, context) ??
-    resolveTargetBinding(getAliasedSymbolIfAlias(symbol, context, sourceFile), context) ??
+    resolveTargetBinding(getAliasedSymbolForReference(symbol, context, sourceFile), context) ??
     resolveTargetBinding(resolvedSymbol, context) ??
-    resolveTargetBinding(getAliasedSymbolIfAlias(resolvedSymbol, context, sourceFile), context);
+    resolveTargetBinding(getAliasedSymbolForReference(resolvedSymbol, context, sourceFile), context);
   if (isTypeReferenceQueryNode(node, context)) {
     return referenceBinding ?? typeBinding;
   }
@@ -152,14 +155,11 @@ function isTypeReferenceQueryNode(
   return asNodeSubject(getNodeField(parent, "TypeName")) === current;
 }
 
-const symbolFlagsAlias = 1 << 21;
-
-function getAliasedSymbolIfAlias(
+function getAliasedSymbolForReference(
   symbol: Symbol | undefined,
   context: ExtensionObservationContext,
   sourceFile: SourceFile | undefined,
 ): Symbol | undefined {
-  return symbol !== undefined && (symbol.Flags & symbolFlagsAlias) !== 0
-    ? context.compiler?.checker.getAliasedSymbol(symbol, { sourceFile })
-    : undefined;
+  const checker = context.compiler?.checker;
+  return checker === undefined ? undefined : getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
 }

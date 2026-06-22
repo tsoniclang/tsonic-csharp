@@ -15,7 +15,7 @@ import type {
 import {
   asNodeSubject,
   isControlFlowLabelIdentifier,
-  visitStructuralNodes,
+  visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
   getDeclarationTypeNode,
@@ -88,7 +88,7 @@ export function recordCsharpObjectShapeFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    visitStructuralNodes(sourceFile, (node) => {
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       getCsharpObjectShapeFactForSubject(node, context, host);
     });
   }

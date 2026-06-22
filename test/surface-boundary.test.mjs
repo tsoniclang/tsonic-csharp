@@ -28,11 +28,24 @@ test("JS surface maps Array.length only from the selected standard-library decla
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
 });
 
-test("JS surface does not recover Array.length from receiver type and property text", () => {
+test("JS surface maps Array.length from a finalized receiver carrier", () => {
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
   const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(receiverType));
+
+  const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, undefined), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "tsonic.csharp.js.Array.length");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
+});
+
+test("JS surface does not recover Array.length from property text without a finalized receiver carrier", () => {
+  const expression = {};
+  const receiverType = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined));
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, undefined), fakeContext(facts));
 
