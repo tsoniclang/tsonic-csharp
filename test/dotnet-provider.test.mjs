@@ -231,6 +231,32 @@ test(".NET target binding uses provider-owned target member names", () => {
   assert.equal(item?.targetName, "Item");
 });
 
+test(".NET target bindings preserve provider-proven extension-method receiver passing", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.Linq.js", {});
+  assert.equal("exports" in module, true);
+
+  const enumerable = module.exports.find((declaration) => declaration.sourceName === "Enumerable");
+  assert.ok(enumerable);
+  const rawAverage = enumerable.members.find((member) =>
+    member.kind === "method" &&
+    member.sourceName === "average" &&
+    member.receiverPassing === "first-argument"
+  );
+  assert.ok(rawAverage);
+
+  const binding = provider.findTargetBindingByTargetId("System.Linq.Enumerable");
+  assert.ok(binding);
+  const average = binding.members.find((member) =>
+    member.kind === "method" &&
+    member.sourceName === "average" &&
+    member.receiverPassing === "first-argument"
+  );
+  assert.ok(average);
+  assert.equal(average.static, true);
+  assert.equal(average.parameters[0].passingMode, "by-value");
+});
+
 test(".NET reflection provider proves collection constructor array-literal element metadata", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const binding = provider.findTargetBindingByTargetId("System.Collections.Generic.List`1");

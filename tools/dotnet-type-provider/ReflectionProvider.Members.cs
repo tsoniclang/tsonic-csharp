@@ -41,6 +41,7 @@ sealed partial class ReflectionProvider
                 targetName = first.Name,
                 metadataName = $"{MetadataName(type)}.{first.Name}",
                 @static = first.IsStatic ? true : (bool?)null,
+                receiverPassing = IsExtensionMethod(first) ? "first-argument" : null,
                 signatures,
             };
         }
@@ -195,6 +196,12 @@ sealed partial class ReflectionProvider
             .Where(method => method.Name.StartsWith("op_", StringComparison.Ordinal))
             .Where(method => !UsesDeclaringTypeParameter(method, type))
             .OrderBy(MethodId, StringComparer.Ordinal);
+    }
+
+    static bool IsExtensionMethod(MethodInfo method)
+    {
+        return method.IsStatic &&
+            method.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), inherit: false);
     }
 
     object? MethodSignature(MethodInfo method)

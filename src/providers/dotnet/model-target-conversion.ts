@@ -131,6 +131,7 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
             kind: member.kind,
             declaringType,
             ...(member.static === true ? { static: true } : {}),
+            ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
             parameters: [],
             returnType: dotnetTypeRefToTargetTypeRef(member.type),
           }];
@@ -149,6 +150,7 @@ function dotnetSignatureToTargetMember(
     kind: member.kind,
     declaringType,
     ...(member.static === true ? { static: true } : {}),
+    ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
     parameters: signature.parameters.map(dotnetParameterToTargetParameter),
     ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToTargetTypeRef(signature.returnType) } : {}),
     ...(signature.typeParameters !== undefined && signature.typeParameters.length > 0
