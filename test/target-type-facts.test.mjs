@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { planTypeParameters } from "../dist/backend/planner/type-parameters.js";
 import { KindIdentifier } from "../dist/backend/planner/source-ast.js";
 import { isCsharpThrowableCarrier } from "../dist/backend/planner/statement-output.js";
-import { printCsharpType } from "../dist/print/csharp-printer.js";
 import { csharpTargetTypeParameterConstraintFactKey } from "../dist/source/csharp-facts.js";
 import {
   isCsharpStringType,
@@ -83,8 +82,39 @@ test("type parameter constraints render finalized C# type facts", () => {
   assert.deepEqual(diagnostics, []);
   assert.equal(parameters.length, 1);
   assert.equal(parameters[0].name, "T");
-  assert.equal(parameters[0].constraints.length, 1);
-  assert.equal(printCsharpType(parameters[0].constraints[0]), "System.Numerics.INumber<T>");
+  assert.deepEqual(parameters[0].constraints, [{
+    kind: "TypeConstraint",
+    type: {
+      kind: "QualifiedName",
+      left: {
+        kind: "QualifiedName",
+        left: { kind: "IdentifierName", name: "System" },
+        name: "Numerics",
+      },
+      name: "INumber",
+      typeArguments: [{ kind: "IdentifierName", name: "T" }],
+    },
+  }]);
+});
+
+test("type parameter constraints render finalized C# keyword facts", () => {
+  const node = typeParameterNode("T");
+  const diagnostics = [];
+  const parameters = planTypeParameters([node], {}, fakeInput({
+    subject: node,
+    constraintFact: {
+      constraints: [{
+        kind: "csharp-keyword",
+        keyword: "class",
+      }],
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(parameters[0].constraints, [{
+    kind: "KeywordConstraint",
+    keyword: "class",
+  }]);
 });
 
 test("type parameter constraints reject old target-specific mini protocols", () => {

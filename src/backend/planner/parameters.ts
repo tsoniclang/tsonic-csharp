@@ -20,9 +20,6 @@ import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpressionWithExpectedType } from "./expressions.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "./target-types.js";
 
 export interface PlannedParameterList {
   readonly parameters: readonly CsharpParameter[];
@@ -53,7 +50,7 @@ export function planParametersWithPrelude(
     diagnoseTypeScriptOnlyRuntimeShapeModifiers(parameterNode!, "parameter declaration", diagnostics);
     if (HasSourceKind(input.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
-      const type = getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
+      const type = getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics);
       const defaultValue = planParameterDefaultValue(parameter.Initializer, parameterQuestionToken(parameter), sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
@@ -72,7 +69,7 @@ export function planParametersWithPrelude(
     const bindingName = parameter.name;
     if (bindingName !== undefined && (HasSourceKind(input.ast, bindingName, KindObjectBindingPattern) || HasSourceKind(input.ast, bindingName, KindArrayBindingPattern))) {
       const typeSubject = getParameterTypeSubject(parameter) ?? bindingName;
-      const type = getCsharpTypeForNode(typeSubject, sourceFile, input, invalidCsharpType("destructured parameter type"), diagnostics);
+      const type = getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
       const defaultValue = planParameterDefaultValue(parameter.Initializer, parameterQuestionToken(parameter), sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
@@ -91,7 +88,7 @@ export function planParametersWithPrelude(
       continue;
     }
     const typeSubject = getParameterTypeSubject(parameter);
-    const type = getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
+    const type = getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics);
     const defaultValue = planParameterDefaultValue(parameter.Initializer, parameterQuestionToken(parameter), sourceFile, input, diagnostics, type, typeSubject, state);
     if (defaultValue !== undefined) {
       hasDefaultParameter = true;
@@ -110,13 +107,25 @@ export function planParametersWithPrelude(
 }
 
 function getParameterTypeSubject(parameter: NonNullable<ReturnType<typeof AsParameterDeclaration>>): Node | undefined {
-  return parameterQuestionToken(parameter) === undefined
-    ? parameter.Type ?? parameter.name
-    : parameter.name ?? parameter.Type;
+  return parameter.Type ?? parameter.name;
 }
 
 function parameterQuestionToken(parameter: NonNullable<ReturnType<typeof AsParameterDeclaration>>): Node | undefined {
   return (parameter as { readonly QuestionToken?: Node }).QuestionToken;
+}
+
+function getParameterType(
+  typeSubject: Node | undefined,
+  questionToken: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  errorType?: CsharpTypeNode,
+): CsharpTypeNode {
+  const type = getCsharpTypeForNode(typeSubject, sourceFile, input, errorType, diagnostics);
+  return questionToken === undefined || type.kind === "NullableType" || type.kind === "InvalidType"
+    ? type
+    : { kind: "NullableType", inner: type };
 }
 
 function planParameterDefaultValue(
@@ -129,12 +138,8 @@ function planParameterDefaultValue(
   expectedTypeSubject: Node | undefined,
   state: DestructuringPlannerState,
 ): CsharpExpression | undefined {
-  if (initializer === undefined && questionToken !== undefined) {
-    const carrier = expectedTypeSubject === undefined ? undefined : input.facts.getRuntimeCarrierFact(expectedTypeSubject)?.carrier;
-    const rendered = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
-    if (rendered !== undefined) {
-      return { kind: "LiteralExpression", value: null };
-    }
+  if (initializer === undefined && questionToken !== undefined && expectedType.kind !== "InvalidType") {
+    return { kind: "LiteralExpression", value: null };
   }
   if (initializer === undefined) {
     return undefined;

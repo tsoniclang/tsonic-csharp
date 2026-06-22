@@ -175,6 +175,7 @@ function printMethodLines(method: CsharpMethodDeclaration, context: CsharpPrintC
 
 function printPropertyLines(property: CsharpPropertyDeclaration, context: CsharpPrintContext): string[] {
   const modifiers = property.modifiers.length === 0 ? "" : `${property.modifiers.join(" ")} `;
+  const initializer = property.initializer === undefined ? "" : ` = ${context.printExpression(property.initializer)};`;
   const accessors: string[] = [];
   if (property.autoGetter === true) {
     accessors.push("get;");
@@ -191,6 +192,6 @@ function printPropertyLines(property: CsharpPropertyDeclaration, context: Csharp
     `${modifiers}${context.printType(property.type)} ${property.name}`,
     "{",
     ...indentLines(accessors),
-    "}",
+    `}${initializer}`,
   ];
 }

@@ -1,7 +1,6 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
-  CsharpFieldDeclaration,
   CsharpParameter,
   CsharpPropertyDeclaration,
   CsharpStatement,
@@ -52,16 +51,18 @@ export function planPropertyDeclaration(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): CsharpFieldDeclaration {
+): CsharpPropertyDeclaration {
   const declaration = AsPropertyDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "property declaration", diagnostics);
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("property type"), diagnostics);
   return {
-    kind: "FieldDeclaration",
-    name: planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Property name"),
+    kind: "PropertyDeclaration",
+    name: planIdentifierName(declaration.name, "PropertyDeclaration", input, diagnostics, "Property name"),
     modifiers: planClassMemberModifiers(node, declaration.name, input),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
+    autoGetter: true,
+    autoSetter: true,
     ...(declaration.Initializer !== undefined
       ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
       : {}),

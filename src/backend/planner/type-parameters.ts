@@ -2,8 +2,7 @@ import { AsTypeParameterDeclaration } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
 import type { TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpTypeNode, CsharpTypeParameter } from "../roslyn/syntax.js";
-import { getCsharpTypeForNode } from "./csharp-types.js";
+import type { CsharpGenericConstraint, CsharpTypeParameter } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planIdentifierName } from "./names.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
@@ -48,49 +47,49 @@ function planTypeParameter(
 
 function planTypeParameterConstraints(
   node: Node,
-  sourceFile: SourceFile,
+  _sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): readonly CsharpTypeNode[] {
+): readonly CsharpGenericConstraint[] {
   const fact = input.facts.getFact(node, csharpTargetTypeParameterConstraintFactKey);
   if (fact !== undefined) {
     const constraints = fact.constraints
-      .map((constraint) => csharpTypeFromTargetTypeParameterConstraint(constraint, node, diagnostics))
-      .filter((constraint): constraint is CsharpTypeNode => constraint !== undefined);
+      .map((constraint) => csharpGenericConstraintFromTargetTypeParameterConstraint(constraint, node, diagnostics))
+      .filter((constraint): constraint is CsharpGenericConstraint => constraint !== undefined);
     return constraints;
   }
   const declaration = AsTypeParameterDeclaration(node)!;
   if (declaration.Constraint === undefined) {
     return [];
   }
-  const constraint = getCsharpTypeForNode(declaration.Constraint, sourceFile, input, undefined, diagnostics);
-  if (constraint.kind === "IdentifierName" || constraint.kind === "QualifiedName") {
-    return [constraint];
-  }
-  if (constraint.kind !== "InvalidType") {
-    diagnostics.push(unsupportedNodeDiagnostic(
-      declaration.Constraint,
-      "Generic constraints require a named target type; primitive and structural constraints require provider constraint facts before C# emission.",
-    ));
-  }
+  diagnostics.push(unsupportedNodeDiagnostic(
+    declaration.Constraint,
+    "Generic constraints require finalized target constraint facts before C# emission.",
+  ));
   return [];
 }
 
-function csharpTypeFromTargetTypeParameterConstraint(
+function csharpGenericConstraintFromTargetTypeParameterConstraint(
   constraint: CsharpTypeParameterConstraint,
   sourceNode: Node,
   diagnostics: TargetDiagnostic[],
-): CsharpTypeNode | undefined {
+): CsharpGenericConstraint | undefined {
   if (constraint.kind === "csharp-type") {
     const csharpType = csharpTypeFromTargetTypeRef(constraint.type);
     if (csharpType !== undefined) {
-      return csharpType;
+      return { kind: "TypeConstraint", type: csharpType };
     }
     diagnostics.push(unsupportedNodeDiagnostic(
       sourceNode,
       "C# emission could not render finalized provider type-parameter constraint facts.",
     ));
     return undefined;
+  }
+  if (constraint.kind === "csharp-keyword") {
+    return { kind: "KeywordConstraint", keyword: constraint.keyword };
+  }
+  if (constraint.kind === "csharp-constructor") {
+    return { kind: "ConstructorConstraint" };
   }
   diagnostics.push(unsupportedNodeDiagnostic(
     sourceNode,
@@ -102,6 +101,12 @@ function csharpTypeFromTargetTypeParameterConstraint(
 function targetConstraintLabel(constraint: CsharpTypeParameterConstraint): string {
   if (constraint.kind === "csharp-type") {
     return "csharp-type";
+  }
+  if (constraint.kind === "csharp-keyword") {
+    return `csharp-keyword:${constraint.keyword}`;
+  }
+  if (constraint.kind === "csharp-constructor") {
+    return "csharp-constructor";
   }
   if (constraint.kind === "target-specific") {
     return `${constraint.target}:${constraint.name}`;

@@ -10,7 +10,6 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
-  SourceFileBoundLifecycleRequest,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -64,7 +63,7 @@ import {
   getSemanticTypeDeclarationShape as resolveSemanticTypeDeclarationShape,
   getTargetTypeRefForSyntaxNode as resolveTargetTypeRefForSyntaxNode,
   recordCsharpObjectShapeFactsBeforeFinalization,
-  recordCsharpTypeParameterConstraintFacts,
+  recordCsharpTypeParameterConstraintFactsBeforeFinalization,
 } from "./object-shape-facts.js";
 import type {
   CsharpObjectShapeSemanticsHost,
@@ -212,13 +211,11 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         mapRuntimeCarrier: (request, observationContext) => mapCsharpRuntimeCarrier(request, observationContext, runtimeCarrierHost),
       });
       context.registerTargetSemanticProvider(provider);
-      context.registerLifecycleHook<SourceFileBoundLifecycleRequest>(ExtensionLifecycleEvent.afterSourceFileBound, (request, lifecycleContext) => {
-        recordCsharpTypeParameterConstraintFacts(request, context.facts, lifecycleContext.compiler?.ast);
-      });
       context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
         recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext);
         recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, objectShapeSemanticsHost);
+        recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, objectShapeSemanticsHost);
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds, runtimeCarrierHost);

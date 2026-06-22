@@ -14,6 +14,7 @@ export type {
   CsharpAttribute,
   CsharpConstructorDeclaration,
   CsharpFieldDeclaration,
+  CsharpGenericConstraint,
   CsharpInterfaceIndexerDeclaration,
   CsharpInterfaceMember,
   CsharpInterfaceMethodDeclaration,

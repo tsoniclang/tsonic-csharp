@@ -60,8 +60,13 @@ export interface CsharpMethodDeclaration {
 
 export interface CsharpTypeParameter {
   readonly name: string;
-  readonly constraints?: readonly CsharpTypeNode[];
+  readonly constraints?: readonly CsharpGenericConstraint[];
 }
+
+export type CsharpGenericConstraint =
+  | { readonly kind: "TypeConstraint"; readonly type: CsharpTypeNode }
+  | { readonly kind: "KeywordConstraint"; readonly keyword: "class" | "struct" | "notnull" | "unmanaged" }
+  | { readonly kind: "ConstructorConstraint" };
 
 export interface CsharpFieldDeclaration {
   readonly kind: "FieldDeclaration";
@@ -78,6 +83,7 @@ export interface CsharpPropertyDeclaration {
   readonly modifiers: readonly CsharpModifier[];
   readonly attributes?: readonly CsharpAttribute[];
   readonly type: CsharpTypeNode;
+  readonly initializer?: CsharpExpression;
   readonly autoGetter?: boolean;
   readonly autoSetter?: boolean;
   readonly getter?: CsharpBlock;

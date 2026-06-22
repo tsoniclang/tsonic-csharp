@@ -1,6 +1,7 @@
 import type {
   CsharpArgument,
   CsharpAttribute,
+  CsharpGenericConstraint,
   CsharpParameter,
   CsharpTypeParameter,
 } from "../../backend/roslyn/syntax.js";
@@ -62,5 +63,19 @@ function printTypeParameterConstraint(
   const constraints = typeParameter.constraints ?? [];
   return constraints.length === 0
     ? []
-    : [`where ${typeParameter.name} : ${constraints.map(context.printType).join(", ")}`];
+    : [`where ${typeParameter.name} : ${constraints.map((constraint) => printGenericConstraint(constraint, context)).join(", ")}`];
+}
+
+function printGenericConstraint(
+  constraint: CsharpGenericConstraint,
+  context: CsharpPrintContext,
+): string {
+  switch (constraint.kind) {
+    case "TypeConstraint":
+      return context.printType(constraint.type);
+    case "KeywordConstraint":
+      return constraint.keyword;
+    case "ConstructorConstraint":
+      return "new()";
+  }
 }

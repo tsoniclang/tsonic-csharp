@@ -38,7 +38,7 @@ import type {
 
 export {
   getTargetTypeRefForSyntaxNode,
-  recordCsharpTypeParameterConstraintFacts,
+  recordCsharpTypeParameterConstraintFactsBeforeFinalization,
 } from "./object-shape-syntax-facts.js";
 export type {
   CsharpObjectShapeSemanticsHost,

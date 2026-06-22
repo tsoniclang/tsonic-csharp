@@ -34,11 +34,22 @@ export interface CsharpTargetNameFact {
 
 export type CsharpTypeParameterConstraint =
   | TargetConstraint
-  | CsharpExplicitTypeParameterConstraint;
+  | CsharpExplicitTypeParameterConstraint
+  | CsharpKeywordTypeParameterConstraint
+  | CsharpConstructorTypeParameterConstraint;
 
 export interface CsharpExplicitTypeParameterConstraint {
   readonly kind: "csharp-type";
   readonly type: TargetTypeRef;
+}
+
+export interface CsharpKeywordTypeParameterConstraint {
+  readonly kind: "csharp-keyword";
+  readonly keyword: "class" | "struct" | "notnull" | "unmanaged";
+}
+
+export interface CsharpConstructorTypeParameterConstraint {
+  readonly kind: "csharp-constructor";
 }
 
 export interface CsharpTargetTypeParameterConstraintFact {
@@ -333,7 +344,16 @@ function csharpTypeParameterConstraintEquals(
   if (left.kind === "csharp-type") {
     return right.kind === "csharp-type" && targetTypeRefEquals(left.type, right.type);
   }
-  return right.kind !== "csharp-type" && targetConstraintEquals(left, right);
+  if (left.kind === "csharp-keyword") {
+    return right.kind === "csharp-keyword" && left.keyword === right.keyword;
+  }
+  if (left.kind === "csharp-constructor") {
+    return right.kind === "csharp-constructor";
+  }
+  return right.kind !== "csharp-type" &&
+    right.kind !== "csharp-keyword" &&
+    right.kind !== "csharp-constructor" &&
+    targetConstraintEquals(left, right);
 }
 
 function objectShapeMemberArrayEquals(left: readonly CsharpObjectShapeMemberFact[] | undefined, right: readonly CsharpObjectShapeMemberFact[] | undefined): boolean {

@@ -7,7 +7,6 @@ import type {
   ExtensionFactStore,
   ExtensionObservationContext,
   Node,
-  SourceFileBoundLifecycleRequest,
   SourcePrimitiveKind,
   TargetTypeRef,
 } from "@tsonic/tsts";
@@ -22,7 +21,6 @@ import {
   getNodeList,
   getNodeNameText,
   visitAstReaderNodes,
-  visitStructuralNodes,
 } from "./ast-utils.js";
 import {
   csharpDelegateTargetType,
@@ -34,22 +32,35 @@ import {
   isVoidTargetType,
   sourcePrimitiveRuntimeKind,
 } from "./target-rules.js";
+import type {
+  CsharpObjectShapeSemanticsHost,
+} from "./object-shape-types.js";
 
-export function recordCsharpTypeParameterConstraintFacts(
-  request: SourceFileBoundLifecycleRequest,
-  facts: ExtensionFactStore,
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
+export function recordCsharpTypeParameterConstraintFactsBeforeFinalization(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  host: CsharpObjectShapeSemanticsHost,
 ): void {
-  const sourceFile = asNodeSubject(request.sourceFile);
-  if (sourceFile === undefined || request.providerVirtualModule !== undefined) {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
     return;
   }
-  const visitNodes = ast === undefined
-    ? visitStructuralNodes
-    : (node: Node, visitor: (node: Node) => void) => visitAstReaderNodes(ast, node, visitor);
-  visitNodes(sourceFile, (node) => {
-    recordCsharpTypeParameterConstraintFact(node, facts, ast);
-  });
+  const context = {
+    observation: "type.resolveRuntimeCarrier",
+    extensionId: "",
+    host: lifecycleContext.host,
+    facts: lifecycleContext.host.facts,
+    factResolver: lifecycleContext.host.factResolver,
+    diagnostics: lifecycleContext.host.diagnostics,
+    compiler,
+  } satisfies ExtensionObservationContext;
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+      recordCsharpTypeParameterConstraintFact(node, context, host);
+    });
+  }
 }
 
 export function getTargetTypeRefForSyntaxNode(
@@ -96,25 +107,67 @@ export function getTargetTypeRefForSyntaxNode(
 
 function recordCsharpTypeParameterConstraintFact(
   node: Node,
-  facts: ExtensionFactStore,
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
+  context: ExtensionObservationContext,
+  host: CsharpObjectShapeSemanticsHost,
 ): void {
+  const ast = context.compiler?.ast;
   const constraintNode = asNodeSubject(getNodeField(node, "Constraint"));
-  if (constraintNode === undefined || getNodeNameText(node).length === 0) {
+  if (ast === undefined || constraintNode === undefined || getNodeNameText(node).length === 0 || ast.kindName(node) !== "KindTypeParameter") {
     return;
   }
-  const constraintType = getTargetTypeRefForSyntaxNode(constraintNode, facts, ast);
-  if (constraintType?.kind !== "source-primitive") {
+  const constraints = getCsharpTypeParameterConstraintsForSyntaxNode(constraintNode, getNodeNameText(node), context, host);
+  if (constraints.length === 0) {
     return;
   }
-  const typeParameterName = getNodeNameText(node);
-  const constraint = getCsharpTypeParameterConstraintForPrimitive(constraintType.name, typeParameterName);
-  if (constraint === undefined) {
-    return;
+  context.facts.set(node, csharpTargetTypeParameterConstraintFactKey, {
+    constraints,
+  }, [{ message: "C# type-parameter constraint fact recorded from finalized source/provider constraint semantics." }]);
+}
+
+function getCsharpTypeParameterConstraintsForSyntaxNode(
+  node: Node,
+  typeParameterName: string,
+  context: ExtensionObservationContext,
+  host: CsharpObjectShapeSemanticsHost,
+): readonly CsharpTypeParameterConstraint[] {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return [];
   }
-  facts.set(node, csharpTargetTypeParameterConstraintFactKey, {
-    constraints: [constraint],
-  }, [{ message: "C# type-parameter constraint fact recorded from source primitive constraint." }]);
+  if (ast.kindName(node) === "KindObjectKeyword") {
+    return [{ kind: "csharp-keyword", keyword: "class" }];
+  }
+  if (ast.is.IsParenthesizedTypeNode(node)) {
+    return getCsharpTypeParameterConstraintsForSyntaxNode(
+      asNodeSubject(getNodeField(node, "Type")) ?? node,
+      typeParameterName,
+      context,
+      host,
+    );
+  }
+  if (ast.is.IsIntersectionTypeNode(node)) {
+    return uniqueAndOrderConstraints(getNodeList(getNodeField(node, "Types"))
+      .flatMap((constraint) => getCsharpTypeParameterConstraintsForSyntaxNode(constraint, typeParameterName, context, host)));
+  }
+  const targetType = host.getTargetTypeRefForSubject(node, context, {}) ??
+    getTargetTypeRefForSyntaxNode(node, context.facts, ast);
+  const constraint = targetType === undefined
+    ? undefined
+    : getCsharpTypeParameterConstraintForTargetType(targetType, typeParameterName);
+  return constraint === undefined ? [] : [constraint];
+}
+
+function getCsharpTypeParameterConstraintForTargetType(
+  type: TargetTypeRef,
+  typeParameterName: string,
+): CsharpTypeParameterConstraint | undefined {
+  if (type.kind === "source-primitive") {
+    return getCsharpTypeParameterConstraintForPrimitive(type.name, typeParameterName);
+  }
+  if (type.kind === "target-named" || type.kind === "type-parameter") {
+    return { kind: "csharp-type", type };
+  }
+  return undefined;
 }
 
 function getCsharpTypeParameterConstraintForPrimitive(
@@ -127,6 +180,86 @@ function getCsharpTypeParameterConstraintForPrimitive(
         type: csharpTargetNamedType("System.Numerics.INumber`1", [{ kind: "type-parameter", name: typeParameterName }]),
       }
     : undefined;
+}
+
+function uniqueAndOrderConstraints(
+  constraints: readonly CsharpTypeParameterConstraint[],
+): readonly CsharpTypeParameterConstraint[] {
+  const byKey = new Map<string, CsharpTypeParameterConstraint>();
+  for (const constraint of constraints) {
+    byKey.set(csharpTypeParameterConstraintKey(constraint), constraint);
+  }
+  return [...byKey.values()].sort(compareCsharpTypeParameterConstraints);
+}
+
+function compareCsharpTypeParameterConstraints(
+  left: CsharpTypeParameterConstraint,
+  right: CsharpTypeParameterConstraint,
+): number {
+  return csharpTypeParameterConstraintOrder(left) - csharpTypeParameterConstraintOrder(right);
+}
+
+function csharpTypeParameterConstraintOrder(constraint: CsharpTypeParameterConstraint): number {
+  if (constraint.kind === "csharp-keyword") {
+    return 0;
+  }
+  if (constraint.kind === "csharp-constructor") {
+    return 2;
+  }
+  return 1;
+}
+
+function csharpTypeParameterConstraintKey(constraint: CsharpTypeParameterConstraint): string {
+  switch (constraint.kind) {
+    case "csharp-type":
+      return `type:${targetTypeRefKey(constraint.type)}`;
+    case "csharp-keyword":
+      return `keyword:${constraint.keyword}`;
+    case "csharp-constructor":
+      return "constructor";
+    case "implements":
+      return `implements:${constraint.contract}<${(constraint.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
+    case "lifetime":
+      return `lifetime:${constraint.name}`;
+    case "target-specific":
+      return `target-specific:${constraint.target}:${constraint.name}`;
+    case "value-type":
+    case "reference-type":
+    case "constructible":
+    case "unmanaged":
+    case "copy":
+    case "clone":
+    case "default":
+    case "sized":
+      return constraint.kind;
+  }
+}
+
+function targetTypeRefKey(type: TargetTypeRef): string {
+  switch (type.kind) {
+    case "target-named":
+      return `target:${type.id}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
+    case "source-primitive":
+      return `source-primitive:${type.name}`;
+    case "type-parameter":
+      return `type-parameter:${type.name}`;
+    case "array":
+      return `array:${targetTypeRefKey(type.element)}`;
+    case "tuple":
+      return `tuple:${type.elements.map(targetTypeRefKey).join(",")}`;
+    case "pointer":
+      return `pointer:${targetTypeRefKey(type.pointee)}`;
+    case "function-pointer":
+      return `function-pointer:${type.args.map(targetTypeRefKey).join(",")}=>${targetTypeRefKey(type.result)}`;
+    case "opaque":
+      return `opaque:${type.id}`;
+    case "associated-type":
+      return `associated-type:${targetTypeRefKey(type.owner)}.${type.name}`;
+    case "lifetime":
+      return `lifetime:${type.name}`;
+    case "target-specific":
+      return `target-specific:${type.target}:${type.name}`;
+  }
 }
 
 function getFunctionTargetTypeRefFromSignatureLikeNode(

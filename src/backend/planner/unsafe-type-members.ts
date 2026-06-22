@@ -1,5 +1,6 @@
 import type {
   CsharpExpression,
+  CsharpGenericConstraint,
   CsharpLambdaParameter,
   CsharpParameter,
   CsharpTypeNode,
@@ -10,7 +11,7 @@ import {
 } from "./target-types.js";
 
 export function typeParametersRequireUnsafe(typeParameters: readonly CsharpTypeParameter[] | undefined): boolean {
-  return (typeParameters ?? []).some((typeParameter) => (typeParameter.constraints ?? []).some(csharpTypeRequiresUnsafe));
+  return (typeParameters ?? []).some((typeParameter) => (typeParameter.constraints ?? []).some(genericConstraintRequiresUnsafe));
 }
 
 export function parameterRequiresUnsafe(
@@ -26,4 +27,8 @@ export function lambdaParameterRequiresUnsafe(parameter: CsharpLambdaParameter):
 
 export function optionalTypeRequiresUnsafe(type: CsharpTypeNode | undefined): boolean {
   return type !== undefined && csharpTypeRequiresUnsafe(type);
+}
+
+function genericConstraintRequiresUnsafe(constraint: CsharpGenericConstraint): boolean {
+  return constraint.kind === "TypeConstraint" && csharpTypeRequiresUnsafe(constraint.type);
 }
