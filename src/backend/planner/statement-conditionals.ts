@@ -2,6 +2,9 @@ import {
   AsDoStatement,
   AsIfStatement,
   AsWhileStatement,
+  HasSourceKind,
+  KindFalseKeyword,
+  KindTrueKeyword,
 } from "./source-ast.js";
 import type {
   Node,
@@ -12,7 +15,9 @@ import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
+  CsharpExpression,
   CsharpStatement,
+  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import type {
   DestructuringPlannerState,
@@ -20,6 +25,18 @@ import type {
 import {
   planExpression,
 } from "./expressions.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
+import {
+  invalidExpression,
+} from "./invalid-expression.js";
+import {
+  getRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
@@ -35,7 +52,7 @@ export function planIfStatement(
   const statement = AsIfStatement(node)!;
   return [{
     kind: "IfStatement",
-    condition: planExpression(statement.Expression!, sourceFile, input, diagnostics, state),
+    condition: planConditionExpression(statement.Expression, "If statement", sourceFile, input, diagnostics, state),
     thenBody: {
       kind: "Block",
       statements: planNestedStatementBody(statement.ThenStatement, sourceFile, input, diagnostics, state),
@@ -57,7 +74,7 @@ export function planWhileStatement(
   const statement = AsWhileStatement(node)!;
   return [{
     kind: "WhileStatement",
-    condition: planExpression(statement.Expression!, sourceFile, input, diagnostics, state),
+    condition: planConditionExpression(statement.Expression, "While statement", sourceFile, input, diagnostics, state),
     body: {
       kind: "Block",
       statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
@@ -80,6 +97,41 @@ export function planDoStatement(
       kind: "Block",
       statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
     },
-    condition: planExpression(statement.Expression!, sourceFile, input, diagnostics, state),
+    condition: planConditionExpression(statement.Expression, "Do statement", sourceFile, input, diagnostics, state),
   }];
+}
+
+function planConditionExpression(
+  expression: Node | undefined,
+  statementKind: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): CsharpExpression {
+  if (expression === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(sourceFile, `${statementKind} requires a condition expression.`));
+    return invalidExpression("missing condition expression");
+  }
+  if (!hasBooleanConditionCarrier(expression, sourceFile, input)) {
+    diagnostics.push(unsupportedNodeDiagnostic(expression, `${statementKind} condition requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission.`));
+    return invalidExpression("non-bool condition expression");
+  }
+  return planExpression(expression, sourceFile, input, diagnostics, state);
+}
+
+function hasBooleanConditionCarrier(
+  expression: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  if (HasSourceKind(input.ast, expression, KindTrueKeyword) || HasSourceKind(input.ast, expression, KindFalseKeyword)) {
+    return true;
+  }
+  const carrier = getRuntimeCarrierForExpression(input, expression, sourceFile);
+  return carrier === undefined ? false : isCsharpBoolType(csharpTypeFromTargetTypeRef(carrier));
+}
+
+function isCsharpBoolType(type: CsharpTypeNode | undefined): boolean {
+  return type?.kind === "PredefinedType" && type.name === "bool";
 }

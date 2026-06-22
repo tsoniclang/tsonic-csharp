@@ -31,6 +31,7 @@ import {
 export function planClassMembers(
   members: readonly (Node | undefined)[],
   className: string,
+  autoPropertyNames: ReadonlySet<string>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -52,7 +53,7 @@ export function planClassMembers(
         planned.push(planMethodDeclaration(member, sourceFile, input, diagnostics));
         break;
       case KindPropertyDeclaration:
-        planned.push(planPropertyDeclaration(member, sourceFile, input, diagnostics));
+        planned.push(planPropertyDeclaration(member, autoPropertyNames, sourceFile, input, diagnostics));
         break;
       case KindGetAccessor:
       case KindSetAccessor:

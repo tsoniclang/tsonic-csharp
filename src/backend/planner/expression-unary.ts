@@ -4,7 +4,11 @@ import {
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpExpression } from "../roslyn/syntax.js";
+import type {
+  CsharpExpression,
+  CsharpPrefixUnaryOperatorToken,
+  CsharpTypeNode,
+} from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import {
@@ -21,6 +25,12 @@ import {
   csharpPostfixUnaryOperatorTokenFromText,
   csharpPrefixUnaryOperatorTokenFromText,
 } from "./csharp-operator-tokens.js";
+import {
+  getRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
@@ -49,6 +59,10 @@ export function planPrefixUnaryExpression(
   if (operatorToken === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, `C# prefix unary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
     return invalidExpression("unsupported C# prefix operator token");
+  }
+  if (!isSupportedPrefixUnaryOperand(expression.Operand, operatorToken, sourceFile, input)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# prefix unary operator '${csharpOperator.operator}' requires operand runtime-carrier facts that prove the finalized C# token is valid.`));
+    return invalidExpression("unsupported C# prefix operator operand");
   }
   return {
     kind: "PrefixUnaryExpression",
@@ -90,4 +104,27 @@ export function planPostfixUnaryExpression(
     operand: planExpression(expression.Operand!, sourceFile, input, diagnostics),
     operatorToken,
   };
+}
+
+function isSupportedPrefixUnaryOperand(
+  operand: Node | undefined,
+  operatorToken: CsharpPrefixUnaryOperatorToken,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  if (operatorToken.kind !== "ExclamationToken") {
+    return true;
+  }
+  const carrier = getRuntimeCarrierForExpression(input, operand, sourceFile);
+  if (carrier === undefined) {
+    return false;
+  }
+  if (carrier.kind !== "source-primitive") {
+    return true;
+  }
+  return isCsharpBoolType(csharpTypeFromTargetTypeRef(carrier));
+}
+
+function isCsharpBoolType(type: CsharpTypeNode | undefined): boolean {
+  return type?.kind === "PredefinedType" && type.name === "bool";
 }

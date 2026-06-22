@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { FieldFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpFieldDeclaration,
@@ -46,22 +46,55 @@ import {
 import {
   planAttributesForSubject,
 } from "./attributes.js";
+import {
+  getCsharpTypeForFieldFact,
+} from "./value-types.js";
 
 export function planPropertyDeclaration(
   node: Node,
+  autoPropertyNames: ReadonlySet<string>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): CsharpFieldDeclaration {
+): CsharpFieldDeclaration | CsharpPropertyDeclaration {
   const declaration = AsPropertyDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "property declaration", diagnostics);
+  const fieldFact = getClassPropertyFieldFact(node, declaration, input);
+  if (fieldFact !== undefined) {
+    const type = getCsharpTypeForFieldFact(fieldFact, node, "Class field", sourceFile, input, diagnostics);
+    return {
+      kind: "FieldDeclaration",
+      name: planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name"),
+      modifiers: planClassMemberModifiers(node, declaration.name, input),
+      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      type,
+      ...(declaration.Initializer !== undefined
+        ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
+        : {}),
+    };
+  }
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("property type"), diagnostics);
+  const propertyName = planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name");
+  if (!autoPropertyNames.has(propertyName)) {
+    return {
+      kind: "FieldDeclaration",
+      name: propertyName,
+      modifiers: planClassMemberModifiers(node, declaration.name, input),
+      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      type,
+      ...(declaration.Initializer !== undefined
+        ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
+        : {}),
+    };
+  }
   return {
-    kind: "FieldDeclaration",
-    name: planIdentifierName(declaration.name, "FieldDeclaration", input, diagnostics, "Field name"),
+    kind: "PropertyDeclaration",
+    name: propertyName,
     modifiers: planClassMemberModifiers(node, declaration.name, input),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
+    autoGetter: true,
+    autoSetter: true,
     ...(declaration.Initializer !== undefined
       ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
       : {}),
@@ -94,6 +127,17 @@ export function mergeAccessorProperty(
   if (index >= 0) {
     planned[index] = next;
   }
+}
+
+function getClassPropertyFieldFact(
+  node: Node,
+  declaration: NonNullable<ReturnType<typeof AsPropertyDeclaration>>,
+  input: TargetCompileInput,
+): FieldFact | undefined {
+  return input.facts.getFieldFact(node) ??
+    input.facts.getFieldFact(declaration.name) ??
+    input.facts.getFieldFact(declaration.Type) ??
+    input.facts.getFieldFact(declaration.Initializer);
 }
 
 function mergeGetterAccessor(
