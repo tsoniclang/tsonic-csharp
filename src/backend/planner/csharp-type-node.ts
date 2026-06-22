@@ -121,6 +121,12 @@ export function getCsharpTypeForNode(
   if (targetBindingType !== undefined) {
     return targetBindingType;
   }
+  const callableSemanticType = nodeType === undefined
+    ? undefined
+    : getCsharpCallableTypeFromSemanticType(nodeType, sourceFile, input, new Set());
+  if (callableSemanticType !== undefined) {
+    return callableSemanticType;
+  }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (nodeCarrierType !== undefined) {
     return nodeCarrierType;
