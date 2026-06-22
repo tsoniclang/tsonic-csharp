@@ -208,7 +208,8 @@ export function planCallExpression(
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression {
   const expression = AsCallExpression(node)!;
-  const selectedTargetCall = input.facts.getSelectedTargetCall(node);
+  const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
+  const selectedTargetCall = ownership.sourceOwned ? undefined : input.facts.getSelectedTargetCall(node);
   if (selectedTargetCall !== undefined) {
     const csharpOperation = getRequiredCsharpTargetMemberOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");
     if (csharpOperation === undefined) {
@@ -224,7 +225,6 @@ export function planCallExpression(
       arguments: planSelectedTargetCallArguments(expression.Expression, expression, member, sourceFile, input, diagnostics, planCallArgument),
     };
   }
-  const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
   if (ownership.requiresTargetFact || !ownership.sourceOwned) {
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# call emission requires a source-owned callable or a selected target signature fact.", ownership);
     return invalidExpression("missing target call fact");

@@ -50,7 +50,7 @@ export function planMethodDeclaration(
   return {
     kind: "MethodDeclaration",
     name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Method name"),
-    modifiers: planMethodModifiers(node, declaration.name, input),
+    modifiers: planMethodModifiers(node, declaration.name, sourceFile, input),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType,

@@ -98,4 +98,4 @@ export interface CsharpAttribute {
   readonly arguments?: readonly CsharpArgument[];
 }
 
-export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "async" | "unsafe";
+export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "virtual" | "override" | "async" | "unsafe";
