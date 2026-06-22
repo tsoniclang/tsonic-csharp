@@ -33,11 +33,15 @@ test("planner emits finalized source attribute facts on supported declaration pl
     attribute<User>().constructor().add(ObsoleteAttribute, "constructor");
     attribute<User>().constructor().parameter("id").add(ObsoleteAttribute, "id");
     attribute<User>().property((target) => target.name).add(ObsoleteAttribute, "field");
+    attribute<User>().property((target) => target.name).target("field").add(ObsoleteAttribute, "backing-field");
     attribute<User>().property((target) => target.display).add(ObsoleteAttribute, "property");
+    attribute<User>().property((target) => target.display).target("property").add(ObsoleteAttribute, "property-target");
     attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method");
+    attribute<User>().method((target) => target.save).target("return").add(ObsoleteAttribute, "return");
     attribute<User>().method((target) => target.save).parameter("route").add(ObsoleteAttribute, "route");
+    attribute<User>().method((target) => target.save).parameter("route").target("param").add(ObsoleteAttribute, "param");
   `;
-  assert.match(sourceExample, /attribute<User>\(\)\.method/);
+  assert.match(sourceExample, /attribute<User>\(\)\.method\(\(target\) => target\.save\)\.target\("return"\)/);
 
   const sourceFile = sourceFileNode("/src/index.ts");
   const stringType = node("KindStringKeyword");
@@ -70,17 +74,25 @@ test("planner emits finalized source attribute facts on supported declaration pl
   const fieldArgument = stringLiteral("field");
   const propertyArgument = stringLiteral("property");
   const methodArgument = stringLiteral("method");
+  const methodReturnArgument = stringLiteral("return");
   const routeArgument = stringLiteral("route");
+  const routeParamArgument = stringLiteral("param");
   const constructorArgument = stringLiteral("constructor");
   const idArgument = stringLiteral("id");
+  const backingFieldArgument = stringLiteral("backing-field");
+  const propertyTargetArgument = stringLiteral("property-target");
   const classSerializableCall = node("KindCallExpression");
   const classObsoleteCall = node("KindCallExpression");
   const constructorAttributeCall = node("KindCallExpression");
   const constructorParameterAttributeCall = node("KindCallExpression");
   const fieldAttributeCall = node("KindCallExpression");
+  const backingFieldAttributeCall = node("KindCallExpression");
   const propertyAttributeCall = node("KindCallExpression");
+  const propertyTargetAttributeCall = node("KindCallExpression");
   const methodAttributeCall = node("KindCallExpression");
+  const methodReturnAttributeCall = node("KindCallExpression");
   const parameterAttributeCall = node("KindCallExpression");
+  const parameterTargetAttributeCall = node("KindCallExpression");
   sourceFile.Statements = {
     Nodes: [
       classDeclaration,
@@ -89,9 +101,13 @@ test("planner emits finalized source attribute facts on supported declaration pl
       constructorAttributeCall,
       constructorParameterAttributeCall,
       fieldAttributeCall,
+      backingFieldAttributeCall,
       propertyAttributeCall,
+      propertyTargetAttributeCall,
       methodAttributeCall,
+      methodReturnAttributeCall,
       parameterAttributeCall,
+      parameterTargetAttributeCall,
     ],
   };
 
@@ -119,11 +135,28 @@ test("planner emits finalized source attribute facts on supported declaration pl
         applicationParameterName: "id",
       }],
       [fieldAttributeCall, attributeFact(obsoleteAttribute, fieldTarget, [fieldArgument])],
+      [backingFieldAttributeCall, {
+        ...attributeFact(obsoleteAttribute, fieldTarget, [backingFieldArgument]),
+        applicationTargetSpecifier: "field",
+      }],
       [propertyAttributeCall, attributeFact(obsoleteAttribute, propertyTarget, [propertyArgument])],
+      [propertyTargetAttributeCall, {
+        ...attributeFact(obsoleteAttribute, propertyTarget, [propertyTargetArgument]),
+        applicationTargetSpecifier: "property",
+      }],
       [methodAttributeCall, attributeFact(obsoleteAttribute, methodTarget, [methodArgument])],
+      [methodReturnAttributeCall, {
+        ...attributeFact(obsoleteAttribute, methodTarget, [methodReturnArgument]),
+        applicationTargetSpecifier: "return",
+      }],
       [parameterAttributeCall, {
         ...attributeFact(obsoleteAttribute, methodTarget, [routeArgument]),
         applicationParameterName: "route",
+      }],
+      [parameterTargetAttributeCall, {
+        ...attributeFact(obsoleteAttribute, methodTarget, [routeParamArgument]),
+        applicationParameterName: "route",
+        applicationTargetSpecifier: "param",
       }],
     ]),
   });
@@ -139,9 +172,9 @@ test("planner emits finalized source attribute facts on supported declaration pl
   assert.deepEqual(diagnostics, []);
   assert.match(printed, /\[System\.SerializableAttribute\]\n\[System\.ObsoleteAttribute\("class"\)\]\npublic class User/);
   assert.match(printed, /\[System\.ObsoleteAttribute\("constructor"\)\]\n    public User\(\[System\.ObsoleteAttribute\("id"\)\] string id\)/);
-  assert.match(printed, /\[System\.ObsoleteAttribute\("field"\)\]\n    public string name;/);
-  assert.match(printed, /\[System\.ObsoleteAttribute\("property"\)\]\n    public string display/);
-  assert.match(printed, /\[System\.ObsoleteAttribute\("method"\)\]\n    public void save\(\[System\.ObsoleteAttribute\("route"\)\] string route\)/);
+  assert.match(printed, /\[System\.ObsoleteAttribute\("field"\)\]\n    \[field: System\.ObsoleteAttribute\("backing-field"\)\]\n    public string name;/);
+  assert.match(printed, /\[System\.ObsoleteAttribute\("property"\)\]\n    \[property: System\.ObsoleteAttribute\("property-target"\)\]\n    public string display/);
+  assert.match(printed, /\[System\.ObsoleteAttribute\("method"\)\]\n    \[return: System\.ObsoleteAttribute\("return"\)\]\n    public void save\(\[System\.ObsoleteAttribute\("route"\)\] \[param: System\.ObsoleteAttribute\("param"\)\] string route\)/);
   assert.doesNotMatch(printed, /__tsonic_erased_source_marker|attribute<User>/);
 });
 
@@ -177,6 +210,47 @@ test("planner diagnoses constructor attributes without an explicit source constr
   assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0].code, "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION");
   assert.match(diagnostics[0].message, /implicit default constructors have no finalized source declaration/);
+});
+
+test("planner diagnoses unsupported explicit attribute target specifiers from finalized facts", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const stringType = node("KindStringKeyword");
+  const method = node(KindMethodDeclaration, {
+    name: identifier("save"),
+    Type: stringType,
+    Parameters: { Nodes: [] },
+    Body: block(),
+  });
+  const classDeclaration = node(KindClassDeclaration, {
+    name: identifier("User"),
+    Members: { Nodes: [method] },
+  });
+  const methodTarget = propertyAccess("save");
+  const obsoleteAttribute = identifier("ObsoleteAttribute");
+  const methodAttributeCall = node("KindCallExpression");
+  sourceFile.Statements = {
+    Nodes: [
+      classDeclaration,
+      methodAttributeCall,
+    ],
+  };
+  const input = fakeInput(sourceFile, {
+    references: new Map([[methodTarget, method]]),
+    targetBindings: new Map([[obsoleteAttribute, attributeBinding("ObsoleteAttribute")]]),
+    attributeFacts: new Map([
+      [methodAttributeCall, {
+        ...attributeFact(obsoleteAttribute, methodTarget),
+        applicationTargetSpecifier: "assembly",
+      }],
+    ]),
+  });
+  const diagnostics = [];
+
+  planClassDeclaration(classDeclaration, sourceFile, input, diagnostics);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION");
+  assert.match(diagnostics[0].message, /unsupported explicit target specifier 'assembly'/);
 });
 
 function node(kind, properties = {}) {

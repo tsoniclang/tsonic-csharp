@@ -12,6 +12,7 @@ export type {
 } from "./syntax/declarations.js";
 export type {
   CsharpAttribute,
+  CsharpAttributeTargetSpecifier,
   CsharpConstructorDeclaration,
   CsharpFieldDeclaration,
   CsharpGenericConstraint,

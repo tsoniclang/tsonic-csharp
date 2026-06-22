@@ -100,8 +100,11 @@ export interface CsharpParameter {
 }
 
 export interface CsharpAttribute {
+  readonly targetSpecifier?: CsharpAttributeTargetSpecifier;
   readonly type: CsharpTypeNode;
   readonly arguments?: readonly CsharpArgument[];
 }
+
+export type CsharpAttributeTargetSpecifier = "field" | "property" | "param" | "return";
 
 export type CsharpModifier = "public" | "internal" | "private" | "static" | "readonly" | "virtual" | "override" | "async" | "unsafe";

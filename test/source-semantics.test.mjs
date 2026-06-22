@@ -32,6 +32,7 @@ test("source-semantics records provider-backed attribute selector facts from use
 
     class User {
       name = "";
+      get display(): string { return this.name; }
       constructor(id: string) {}
       save(route: string): void {}
     }
@@ -40,8 +41,12 @@ test("source-semantics records provider-backed attribute selector facts from use
     attribute<User>().constructor().add(ObsoleteAttribute, "constructor");
     attribute<User>().constructor().parameter("id").add(ObsoleteAttribute, "id");
     attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method");
+    attribute<User>().method((target) => target.save).target("return").add(ObsoleteAttribute, "return");
     attribute<User>().method((target) => target.save).parameter("route").add(ObsoleteAttribute, "route");
+    attribute<User>().method((target) => target.save).parameter("route").target("param").add(ObsoleteAttribute, "param");
     attribute<User>().property((target) => target.name).add(NonSerializedAttribute, "field");
+    attribute<User>().property((target) => target.name).target("field").add(NonSerializedAttribute, "backing-field");
+    attribute<User>().property((target) => target.display).target("property").add(ObsoleteAttribute, "property");
   `;
   const session = createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -78,19 +83,26 @@ test("source-semantics records provider-backed attribute selector facts from use
     fact.attributeName,
     fact.applicationPlacement,
     fact.applicationParameterName,
+    fact.applicationTargetSpecifier,
     fact.arguments?.length ?? 0,
   ]), [
-    ["SerializableAttribute", undefined, undefined, 0],
-    ["ObsoleteAttribute", "constructor", undefined, 1],
-    ["ObsoleteAttribute", "constructor", "id", 1],
-    ["ObsoleteAttribute", undefined, undefined, 1],
-    ["ObsoleteAttribute", undefined, "route", 1],
-    ["NonSerializedAttribute", undefined, undefined, 1],
+    ["SerializableAttribute", undefined, undefined, undefined, 0],
+    ["ObsoleteAttribute", "constructor", undefined, undefined, 1],
+    ["ObsoleteAttribute", "constructor", "id", undefined, 1],
+    ["ObsoleteAttribute", undefined, undefined, undefined, 1],
+    ["ObsoleteAttribute", undefined, undefined, "return", 1],
+    ["ObsoleteAttribute", undefined, "route", undefined, 1],
+    ["ObsoleteAttribute", undefined, "route", "param", 1],
+    ["NonSerializedAttribute", undefined, undefined, undefined, 1],
+    ["NonSerializedAttribute", undefined, undefined, "field", 1],
+    ["ObsoleteAttribute", undefined, undefined, "property", 1],
   ]);
   assert.equal(session.ast.kindName(applicationFacts[0].applicationTarget), "KindTypeReference");
   assert.equal(session.ast.kindName(applicationFacts[1].applicationTarget), "KindTypeReference");
   assert.equal(session.ast.text(session.ast.name(applicationFacts[3].applicationTarget)), "save");
-  assert.equal(session.ast.text(session.ast.name(applicationFacts[5].applicationTarget)), "name");
+  assert.equal(session.ast.text(session.ast.name(applicationFacts[6].applicationTarget)), "save");
+  assert.equal(session.ast.text(session.ast.name(applicationFacts[8].applicationTarget)), "name");
+  assert.equal(session.ast.text(session.ast.name(applicationFacts[9].applicationTarget)), "display");
 });
 
 function collectFacts(sourceFile, ast, extensionHost) {

@@ -15,7 +15,8 @@ export function printCsharpAttributes(
     const argumentsText = attribute.arguments === undefined || attribute.arguments.length === 0
       ? ""
       : `(${attribute.arguments.map(context.printArgument).join(", ")})`;
-    return `[${context.printType(attribute.type)}${argumentsText}]`;
+    const targetPrefix = attribute.targetSpecifier === undefined ? "" : `${attribute.targetSpecifier}: `;
+    return `[${targetPrefix}${context.printType(attribute.type)}${argumentsText}]`;
   });
 }
 

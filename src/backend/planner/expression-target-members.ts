@@ -45,6 +45,7 @@ import {
   getCsharpObjectShapeFactForNode,
 } from "./csharp-fact-queries.js";
 import {
+  getRuntimeCarrierForExpression,
   getTargetTypeRefForType,
 } from "./runtime-carriers.js";
 import {
@@ -143,6 +144,10 @@ export function planElementAccessExpression(
   planExpression: ExpressionPlanner,
 ): CsharpExpression {
   const expression = AsElementAccessExpression(elementAccess)!;
+  const tupleElementAccess = planTupleElementAccessExpression(elementAccess, expression.Expression, expression.ArgumentExpression, expression.QuestionDotToken !== undefined, sourceFile, input, diagnostics, planExpression);
+  if (tupleElementAccess !== undefined) {
+    return tupleElementAccess;
+  }
   if (!ensureElementAccessCanBeRendered(elementAccess, expression.Expression, sourceFile, input, diagnostics)) {
     return invalidExpression("missing target element access fact");
   }
@@ -185,6 +190,66 @@ export function planElementAccessExpression(
       : planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression),
     argument: planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics),
   };
+}
+
+function planTupleElementAccessExpression(
+  elementAccess: Node,
+  receiverNode: Node | undefined,
+  argumentNode: Node | undefined,
+  optional: boolean,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  const receiverCarrier = getRuntimeCarrierForExpression(input, receiverNode, sourceFile);
+  if (receiverCarrier?.kind !== "tuple") {
+    return undefined;
+  }
+  if (optional) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Optional tuple element access requires finalized nullable tuple carrier facts before C# emission."));
+    return invalidExpression("optional tuple element access");
+  }
+  if (receiverNode === undefined || argumentNode === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires finalized receiver and argument facts before C# emission."));
+    return invalidExpression("tuple element access source facts");
+  }
+  const index = getFinalizedTupleElementIndex(argumentNode, sourceFile, input);
+  if (index === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires a finalized numeric-literal index type before C# emission."));
+    return invalidExpression("tuple element access index fact");
+  }
+  const elementCarrier = receiverCarrier.elements[index];
+  if (elementCarrier === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `Tuple element access index ${index} requires a finalized tuple element carrier before C# emission.`));
+    return invalidExpression("tuple element access carrier fact");
+  }
+  if (csharpTypeFromTargetTypeRef(elementCarrier) === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `Tuple element access index ${index} requires a renderable tuple element carrier type before C# emission.`));
+    return invalidExpression("tuple element access element type");
+  }
+  return {
+    kind: "SimpleMemberAccessExpression",
+    receiver: planExpression(receiverNode, sourceFile, input, diagnostics),
+    name: `Item${index + 1}`,
+  };
+}
+
+function getFinalizedTupleElementIndex(
+  argumentNode: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): number | undefined {
+  const argumentType = input.semantics.getTypeAtLocation(argumentNode, { sourceFile });
+  if (argumentType === undefined) {
+    return undefined;
+  }
+  const typeName = input.types.typeToString(argumentType, { sourceFile });
+  if (!/^(0|[1-9]\d*)$/.test(typeName)) {
+    return undefined;
+  }
+  const index = Number(typeName);
+  return Number.isSafeInteger(index) ? index : undefined;
 }
 
 function planCsharpTargetOperationArguments(

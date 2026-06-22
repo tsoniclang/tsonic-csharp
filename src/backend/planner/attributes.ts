@@ -4,13 +4,21 @@ import {
   HasSourceKind,
   KindConstructor,
   KindExpressionStatement,
+  KindFunctionDeclaration,
+  KindGetAccessor,
+  KindMethodDeclaration,
+  KindMethodSignature,
+  KindParameter,
+  KindPropertyDeclaration,
+  KindPropertySignature,
+  KindSetAccessor,
   Node_Symbol,
   SourceKind,
   isAstNode,
 } from "./source-ast.js";
 import type { AttributeFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpArgument, CsharpAttribute } from "../roslyn/syntax.js";
+import type { CsharpArgument, CsharpAttribute, CsharpAttributeTargetSpecifier } from "../roslyn/syntax.js";
 import { expressionToCsharpType } from "./csharp-types.js";
 import { planExpression } from "./expressions.js";
 
@@ -74,7 +82,9 @@ function planAttribute(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpAttribute {
+  const targetSpecifier = planAttributeTargetSpecifier(attribute, sourceFile, input, diagnostics);
   return {
+    ...(targetSpecifier === undefined ? {} : { targetSpecifier }),
     type: isAstNode(attribute.target)
       ? expressionToCsharpType(attribute.target, sourceFile, input, diagnostics)
       : unsupportedAttributeTarget(attribute, diagnostics),
@@ -85,6 +95,68 @@ function planAttribute(
         : unsupportedAttributeArgument(attribute, diagnostics),
     })),
   };
+}
+
+function planAttributeTargetSpecifier(
+  attribute: AttributeFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpAttributeTargetSpecifier | undefined {
+  const specifier = attribute.applicationTargetSpecifier;
+  if (specifier === undefined) {
+    return undefined;
+  }
+  const csharpSpecifier = csharpAttributeTargetSpecifier(specifier);
+  if (csharpSpecifier === undefined) {
+    diagnostics.push(attributeApplicationDiagnostic(attribute, `uses unsupported explicit target specifier '${specifier}'. Supported C# attribute target specifiers are 'field', 'property', 'param', and 'return'.`));
+    return undefined;
+  }
+  const resolution = resolveAttributeApplication(attribute, sourceFile, input);
+  const subject = attribute.applicationParameterName === undefined ? resolution.declaration : resolution.parameter;
+  if (!attributeTargetSpecifierSupportsSubject(csharpSpecifier, subject, input)) {
+    diagnostics.push(attributeApplicationDiagnostic(attribute, `uses explicit target specifier '${specifier}' on ${attributeSubjectDescription(subject, input)}, which is outside the finalized C# attribute placement surface.`));
+    return undefined;
+  }
+  return csharpSpecifier;
+}
+
+function csharpAttributeTargetSpecifier(specifier: string): CsharpAttributeTargetSpecifier | undefined {
+  switch (specifier) {
+    case "field":
+    case "property":
+    case "param":
+    case "return":
+      return specifier;
+    default:
+      return undefined;
+  }
+}
+
+function attributeTargetSpecifierSupportsSubject(
+  specifier: CsharpAttributeTargetSpecifier,
+  subject: Node | undefined,
+  input: TargetCompileInput,
+): boolean {
+  const kind = SourceKind(input.ast, subject);
+  switch (specifier) {
+    case "field":
+      return kind === KindPropertyDeclaration;
+    case "property":
+      return kind === KindPropertyDeclaration || kind === KindGetAccessor || kind === KindSetAccessor || kind === KindPropertySignature;
+    case "param":
+      return kind === KindParameter;
+    case "return":
+      return kind === KindMethodDeclaration || kind === KindFunctionDeclaration || kind === KindMethodSignature;
+  }
+  return false;
+}
+
+function attributeSubjectDescription(
+  subject: Node | undefined,
+  input: TargetCompileInput,
+): string {
+  return subject === undefined ? "an unresolved source declaration" : input.ast.kindName(subject);
 }
 
 function unsupportedAttributeTarget(

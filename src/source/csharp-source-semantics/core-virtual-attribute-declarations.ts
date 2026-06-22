@@ -62,6 +62,9 @@ export function attributeMemberBuilderDeclaration(): ProviderExportDeclaration {
       methodMember("__TsonicAttributeMemberBuilder.parameter", "parameter", [
         { name: "name", type: { kind: "string" } },
       ], self),
+      methodMember("__TsonicAttributeMemberBuilder.target", "target", [
+        { name: "specifier", type: { kind: "string" } },
+      ], self),
     ],
   };
 }

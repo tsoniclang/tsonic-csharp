@@ -190,7 +190,7 @@ function recordCsharpRuntimeCarrierSyntaxFact(
     getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, selectedSurfaceIds, host) ??
     getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
     getReferencedRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node) ??
-    getCheckedExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host);
+    getCheckedExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, selectedSurfaceIds, host);
   if (carrier === undefined) {
     return;
   }
@@ -230,6 +230,7 @@ function getCheckedExpressionRuntimeCarrierTargetTypeRef(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   sourceFile: SourceFile,
   node: Node,
+  selectedSurfaceIds: ReadonlySet<string>,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): TargetTypeRef | undefined {
   const compiler = lifecycleContext.compiler;
@@ -243,10 +244,23 @@ function getCheckedExpressionRuntimeCarrierTargetTypeRef(
   }
   try {
     const type = getCheckedRuntimeCarrierType(compiler, node, sourceFile);
-    return host.getTargetTypeRefForType(type, createRuntimeCarrierLifecycleObservationContext(lifecycleContext), {
+    const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+    const directCarrier = host.getTargetTypeRefForType(type, context, {
       allowRuntimeCarrier: false,
       sourceFile,
     });
+    if (directCarrier !== undefined) {
+      return directCarrier;
+    }
+    if (type === undefined || !compiler.types.isUnion(type)) {
+      return undefined;
+    }
+    const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
+      type,
+      sourceTypeReference: node,
+      target: csharpTargetId,
+    }, selectedSurfaceIds, host);
+    return result.kind === "accept" ? result.value.carrier : undefined;
   } catch {
     return undefined;
   }
