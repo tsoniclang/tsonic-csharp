@@ -101,6 +101,7 @@ export interface CsharpTargetMemberOperationFact {
   readonly declaringType?: TargetTypeRef;
   readonly resultType?: TargetTypeRef;
   readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
+  readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];
   readonly selectedMember?: TargetMember;
 }
 
@@ -261,7 +262,23 @@ function csharpTargetMemberOperationFactEquals(left: CsharpTargetMemberOperation
     && targetTypeRefEquals(left.declaringType, right.declaringType)
     && targetTypeRefEquals(left.resultType, right.resultType)
     && csharpTargetOperationArgumentArrayEquals(left.argumentProjection, right.argumentProjection)
+    && optionalTargetTypeRefArrayWithUndefinedEquals(left.argumentArrayLiteralElementTypes, right.argumentArrayLiteralElementTypes)
     && targetMemberEquals(left.selectedMember, right.selectedMember);
+}
+
+function optionalTargetTypeRefArrayWithUndefinedEquals(left: readonly (TargetTypeRef | undefined)[] | undefined, right: readonly (TargetTypeRef | undefined)[] | undefined): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left === undefined || right === undefined || left.length !== right.length) {
+    return false;
+  }
+  return left.every((item, index) => {
+    const other = right[index];
+    return item === undefined || other === undefined
+      ? item === other
+      : targetTypeRefEquals(item, other);
+  });
 }
 
 function targetMemberEquals(left: TargetMember | undefined, right: TargetMember | undefined): boolean {

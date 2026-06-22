@@ -10,10 +10,10 @@ sealed partial class ReflectionProvider
     {
         var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
         if (definition == typeof(IEnumerable<>) ||
-            definition.FullName == "System.Collections.Generic.IReadOnlyList`1" ||
-            definition.FullName == "System.Collections.Generic.ICollection`1" ||
-            definition.FullName == "System.Collections.Generic.IList`1" ||
-            definition.FullName == "System.Collections.Generic.IReadOnlyCollection`1")
+            definition == typeof(IReadOnlyCollection<>) ||
+            definition == typeof(IReadOnlyList<>) ||
+            definition == typeof(ICollection<>) ||
+            definition == typeof(IList<>))
         {
             element = type.GetGenericArguments()[0];
             return true;

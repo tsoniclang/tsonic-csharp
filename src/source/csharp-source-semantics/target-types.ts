@@ -20,6 +20,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpTypeofRuntimeKind?: CsharpTypeofRuntimeKind;
   readonly csharpSpecialType?: "string" | "void" | "nullable";
   readonly csharpSourceDeclarationKind?: "class" | "interface" | "enum";
+  readonly csharpArrayLiteralElementType?: TargetTypeRef;
 };
 
 export type CsharpNullableReferenceTargetTypeRef = TargetTypeRef & {
@@ -106,12 +107,16 @@ export function csharpTargetNamedType(
   id: string,
   typeArguments?: readonly TargetTypeRef[],
   renderShape: CsharpTargetTypeRenderShape | undefined = knownCsharpTargetTypeRenderShape(id),
+  metadata: {
+    readonly arrayLiteralElementType?: TargetTypeRef;
+  } = {},
 ): CsharpTargetNamedTypeRef {
   return {
     kind: "target-named",
     id,
     ...(typeArguments !== undefined && typeArguments.length > 0 ? { typeArguments } : {}),
     ...(renderShape !== undefined ? { csharpRender: renderShape } : {}),
+    ...(metadata.arrayLiteralElementType !== undefined ? { csharpArrayLiteralElementType: metadata.arrayLiteralElementType } : {}),
     ...(knownCsharpThrowableTypeIds.has(id) ? { csharpThrowable: true } : {}),
     ...knownCsharpSpecialType(id),
     ...knownCsharpTypeofRuntimeKind(id),
@@ -129,11 +134,14 @@ export function csharpTargetTypeFromBinding(
   if (declaredType?.kind === "target-named") {
     const renderShape = knownCsharpTargetTypeRenderShape(declaredType.id) ??
       (declaredType as CsharpTargetNamedTypeRef).csharpRender;
-    return {
+    const withArguments = {
       ...declaredType,
       ...(typeArguments.length > 0 ? { typeArguments } : {}),
       ...(renderShape !== undefined ? { csharpRender: renderShape } : {}),
     };
+    return typeArguments.length === 0
+      ? withArguments
+      : substituteTargetTypeParameters(withArguments, targetBindingTypeArgumentMap(binding, typeArguments));
   }
   if (declaredType !== undefined) {
     return typeArguments.length === 0 ? declaredType : undefined;
@@ -148,6 +156,22 @@ export function csharpTargetTypeFromBinding(
   return providerRenderShape === undefined
     ? undefined
     : csharpTargetNamedType(binding.id, typeArguments, providerRenderShape);
+}
+
+function targetBindingTypeArgumentMap(
+  binding: TargetBindingFact,
+  typeArguments: readonly TargetTypeRef[],
+): ReadonlyMap<string, TargetTypeRef> {
+  const substitutions = new Map<string, TargetTypeRef>();
+  const typeParameters = binding.typeParameters ?? [];
+  for (let index = 0; index < typeParameters.length; index += 1) {
+    const parameter = typeParameters[index];
+    const argument = typeArguments[index];
+    if (parameter !== undefined && argument !== undefined) {
+      substitutions.set(parameter.name, argument);
+    }
+  }
+  return substitutions;
 }
 
 export function csharpBaseTargetTypeFromBinding(
@@ -177,9 +201,13 @@ function substituteTargetTypeParameters(
     case "type-parameter":
       return substitutions.get(type.name) ?? type;
     case "target-named":
+      const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
       return {
         ...type,
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }),
+        ...(arrayLiteralElementType === undefined
+          ? {}
+          : { csharpArrayLiteralElementType: substituteTargetTypeParameters(arrayLiteralElementType, substitutions) }),
       };
     case "array":
       return { ...type, element: substituteTargetTypeParameters(type.element, substitutions) };
@@ -302,13 +330,9 @@ function isCsharpValueTypeTargetType(type: TargetTypeRef): boolean {
 }
 
 export function getCsharpArrayLiteralElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
-  if (
-    type?.kind !== "target-named" ||
-    !knownCsharpArrayLiteralAssignableTargetIds.has(type.id)
-  ) {
-    return undefined;
-  }
-  return type.typeArguments?.[0];
+  return type?.kind === "target-named"
+    ? (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType
+    : undefined;
 }
 
 export function csharpQualifiedTypeRenderShape(namespaceName: string, name: string): CsharpTargetTypeRenderShape {
@@ -430,12 +454,3 @@ function knownCsharpSpecialType(id: string): { readonly csharpSpecialType: Cshar
       return {};
   }
 }
-
-const knownCsharpArrayLiteralAssignableTargetIds = new Set<string>([
-  "System.Collections.Generic.IEnumerable`1",
-  "System.Collections.Generic.IReadOnlyCollection`1",
-  "System.Collections.Generic.IReadOnlyList`1",
-  "System.Collections.Generic.ICollection`1",
-  "System.Collections.Generic.IList`1",
-  "System.Collections.Generic.List`1",
-]);

@@ -12,6 +12,9 @@ import {
 import {
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
+import {
+  getCsharpArrayLiteralElementTargetType,
+} from "./target-types.js";
 import type {
   CsharpTargetOperationArgument,
   CsharpTargetMemberOperationFact,
@@ -46,6 +49,7 @@ export function csharpTargetOperationFromMember(member: TargetMember): CsharpTar
   const resultType = member.kind === "constructor"
     ? member.declaringType
     : member.returnType;
+  const argumentArrayLiteralElementTypes = getArgumentArrayLiteralElementTypes(member);
   return {
     kind: "member",
     operationId: member.id,
@@ -54,6 +58,7 @@ export function csharpTargetOperationFromMember(member: TargetMember): CsharpTar
     ...(member.static === true ? { static: true } : {}),
     ...(member.declaringType !== undefined ? { declaringType: member.declaringType } : {}),
     ...(resultType !== undefined ? { resultType } : {}),
+    ...(argumentArrayLiteralElementTypes !== undefined ? { argumentArrayLiteralElementTypes } : {}),
     selectedMember: member,
   };
 }
@@ -67,6 +72,7 @@ export function csharpTargetMemberOperation(
     readonly declaringType?: TargetTypeRef;
     readonly resultType?: TargetTypeRef;
     readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
+    readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];
     readonly selectedMember?: TargetMember;
   } = {},
 ): CsharpTargetMemberOperationFact {
@@ -79,8 +85,16 @@ export function csharpTargetMemberOperation(
     ...(options.declaringType !== undefined ? { declaringType: options.declaringType } : {}),
     ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
     ...(options.argumentProjection !== undefined ? { argumentProjection: options.argumentProjection } : {}),
+    ...(options.argumentArrayLiteralElementTypes !== undefined ? { argumentArrayLiteralElementTypes: options.argumentArrayLiteralElementTypes } : {}),
     ...(options.selectedMember !== undefined ? { selectedMember: options.selectedMember } : {}),
   };
+}
+
+function getArgumentArrayLiteralElementTypes(member: TargetMember): readonly (TargetTypeRef | undefined)[] | undefined {
+  const elementTypes = member.parameters.map((parameter) => getCsharpArrayLiteralElementTargetType(parameter.type));
+  return elementTypes.some((elementType) => elementType !== undefined)
+    ? elementTypes
+    : undefined;
 }
 
 export function csharpTargetIntrinsicOperatorOperation(

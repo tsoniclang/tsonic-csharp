@@ -55,6 +55,8 @@ test("collection literal acceptance requires explicit C# target metadata", () =>
     kind: "named",
     namespace: ["System", "Collections", "Generic"],
     name: "IEnumerable",
+  }, {
+    arrayLiteralElementType: intType,
   });
 
   assert.equal(getCsharpArrayLiteralElementTargetType(rawEnumerable), undefined);

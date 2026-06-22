@@ -85,15 +85,18 @@ export function mapCsharpCheckedCall(
   if (binding === undefined) {
     return deferObservation;
   }
-  const constructorDeclaringTargetType = request.calleePropertyName === undefined && binding.members?.some((candidate) => candidate.kind === "constructor") === true
-    ? getConstructorDeclaringTargetType(binding, request, context, host)
+  const targetBinding = binding.target === csharpTargetId
+    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    : binding;
+  const constructorDeclaringTargetType = request.calleePropertyName === undefined && targetBinding.members?.some((candidate) => candidate.kind === "constructor") === true
+    ? getConstructorDeclaringTargetType(targetBinding, request, context, host)
     : undefined;
   const receiverDeclaringTargetType = constructorDeclaringTargetType === undefined
     ? host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
       host.getTargetTypeRefForSubject(request.calleeReceiver, context)
     : constructorDeclaringTargetType;
   const member = findTargetMemberForCall(
-    binding,
+    targetBinding,
     context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey),
     request,
     context,
@@ -101,11 +104,11 @@ export function mapCsharpCheckedCall(
     {
       getBaseTargetTypeRef: host.getBaseTargetTypeRef,
       ...(receiverDeclaringTargetType !== undefined ? { declaringTargetType: receiverDeclaringTargetType } : {}),
-      ...(binding.typeParameters !== undefined ? { declaringTypeParameters: binding.typeParameters } : {}),
+      ...(targetBinding.typeParameters !== undefined ? { declaringTypeParameters: targetBinding.typeParameters } : {}),
     },
   );
   if (member === undefined) {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_FOUND", 9100100, `C# provider could not map checked call '${request.calleePropertyName ?? "<anonymous>"}' on target '${binding.id}'.`));
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_FOUND", 9100100, `C# provider could not map checked call '${request.calleePropertyName ?? "<anonymous>"}' on target '${targetBinding.id}'.`));
   }
   if (member.kind !== "method" && member.kind !== "constructor") {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_CALLABLE", 9100101, `C# provider mapped checked call '${request.calleePropertyName ?? "<anonymous>"}' to non-callable target member '${member.id}'.`));

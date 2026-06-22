@@ -10,6 +10,7 @@ import {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-literals.js";
 import {
+  type CsharpTargetNamedTypeRef,
   getCsharpArrayLiteralElementTargetType,
 } from "./target-types.js";
 import {
@@ -272,6 +273,9 @@ function substituteTargetTypeRef(type: TargetTypeRef, typeParameterBindings: Rea
         ...(type.typeArguments !== undefined
           ? { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeParameterBindings)) }
           : {}),
+        ...((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType === undefined
+          ? {}
+          : { csharpArrayLiteralElementType: substituteTargetTypeRef((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType!, typeParameterBindings) }),
       };
     case "array":
       return { ...type, element: substituteTargetTypeRef(type.element, typeParameterBindings) };

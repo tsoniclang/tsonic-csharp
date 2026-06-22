@@ -134,6 +134,28 @@ test(".NET target refs do not promote any or unknown to CLR object", () => {
   });
 });
 
+test(".NET target refs carry provider-proven collection literal element metadata", () => {
+  const raw = dotnetTypeRefToTargetTypeRef({
+    kind: "named",
+    metadataName: "System.Collections.Generic.IEnumerable`1",
+    displayName: "System.Collections.Generic.IEnumerable`1",
+    typeArguments: [{ kind: "source-primitive", name: "int32" }],
+  });
+  const providerProven = dotnetTypeRefToTargetTypeRef({
+    kind: "named",
+    metadataName: "System.Collections.Generic.IEnumerable`1",
+    displayName: "System.Collections.Generic.IEnumerable`1",
+    typeArguments: [{ kind: "source-primitive", name: "int32" }],
+    sourceShape: {
+      kind: "array",
+      elementType: { kind: "source-primitive", name: "int32" },
+    },
+  });
+
+  assert.equal(raw.csharpArrayLiteralElementType, undefined);
+  assert.deepEqual(providerProven.csharpArrayLiteralElementType, { kind: "source-primitive", name: "int32" });
+});
+
 test(".NET target binding uses provider-owned target member names", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const binding = provider.findTargetBindingByTargetId("System.Collections.Generic.List`1");
@@ -144,6 +166,23 @@ test(".NET target binding uses provider-owned target member names", () => {
 
   assert.equal(count?.targetName, "Count");
   assert.equal(item?.targetName, "Item");
+});
+
+test(".NET reflection provider proves collection constructor array-literal element metadata", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const binding = provider.findTargetBindingByTargetId("System.Collections.Generic.List`1");
+  assert.ok(binding);
+
+  const collectionConstructor = binding.members.find((member) =>
+    member.kind === "constructor" &&
+    member.parameters[0]?.type.kind === "target-named" &&
+    member.parameters[0].type.id === "System.Collections.Generic.IEnumerable`1"
+  );
+
+  assert.ok(collectionConstructor);
+  const parameterType = collectionConstructor.parameters[0].type;
+  assert.equal(parameterType.kind, "target-named");
+  assert.deepEqual(parameterType.csharpArrayLiteralElementType, { kind: "type-parameter", name: "T" });
 });
 
 test(".NET reflection provider rejects unsupported target frameworks instead of drifting", () => {

@@ -363,6 +363,7 @@ test("target member selection applies declaring generics before literal collecti
         kind: "target-named",
         id: "System.Collections.Generic.IEnumerable`1",
         typeArguments: [{ kind: "type-parameter", name: "T" }],
+        csharpArrayLiteralElementType: { kind: "type-parameter", name: "T" },
       },
       passingMode: "by-value",
     }],
@@ -405,9 +406,63 @@ test("target member selection applies declaring generics before literal collecti
           kind: "target-named",
           id: "System.Collections.Generic.IEnumerable`1",
           typeArguments: [int32Type],
+          csharpArrayLiteralElementType: int32Type,
         },
       }],
     },
+  );
+});
+
+test("target member selection rejects collection literal matching without provider metadata", () => {
+  const arrayLiteral = { Kind: 2, Elements: [{ Kind: 1, Text: "1" }] };
+  const int32Type = { kind: "source-primitive", name: "int32" };
+  const member = {
+    id: "System.Collections.Generic.List`1..ctor(System.Collections.Generic.IEnumerable`1<T>)",
+    sourceName: "constructor",
+    targetName: "constructor",
+    kind: "constructor",
+    parameters: [{
+      name: "collection",
+      type: {
+        kind: "target-named",
+        id: "System.Collections.Generic.IEnumerable`1",
+        typeArguments: [{ kind: "type-parameter", name: "T" }],
+      },
+      passingMode: "by-value",
+    }],
+  };
+  const context = {
+    compiler: {
+      ast: {
+        kindName: (node) => node?.Kind === 2 ? "KindArrayLiteralExpression" : node?.Kind === 1 ? "KindNumericLiteral" : "Unknown",
+        elements: (node) => node.Elements ?? [],
+        text: (node) => node.Text ?? "",
+        is: {
+          IsStringLiteral: () => false,
+        },
+      },
+    },
+  };
+  const resolveTargetTypeRef = (subject) => subject === arrayLiteral
+    ? { kind: "array", element: int32Type }
+    : undefined;
+
+  assert.equal(
+    selectTargetMember(
+      [member],
+      { arguments: [arrayLiteral] },
+      context,
+      resolveTargetTypeRef,
+      {
+        declaringTargetType: {
+          kind: "target-named",
+          id: "System.Collections.Generic.List`1",
+          typeArguments: [int32Type],
+        },
+        declaringTypeParameters: [{ name: "T" }],
+      },
+    ),
+    undefined,
   );
 });
 

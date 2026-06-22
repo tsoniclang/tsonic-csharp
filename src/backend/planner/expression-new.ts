@@ -96,7 +96,7 @@ export function planNewExpression(
       ? (expression.Arguments?.Nodes ?? [])
         .filter((argument): argument is Node => argument !== undefined)
         .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics))
-      : planSelectedTargetCallArguments(expression.Expression, expression, member, sourceFile, input, diagnostics, planCallArgument),
+      : planSelectedTargetCallArguments(expression.Expression, expression, member, csharpOperation?.argumentArrayLiteralElementTypes, sourceFile, input, diagnostics, planCallArgument),
   };
 }
 

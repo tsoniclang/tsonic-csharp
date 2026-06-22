@@ -5,6 +5,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  type CsharpTargetNamedTypeRef,
   csharpRenderShapeForTargetNamedType,
   csharpTargetNamedType,
   csharpTargetTypeFromBinding,
@@ -46,7 +47,11 @@ export function enrichCsharpTargetTypeRef(
       }
       const binding = host.getCsharpTargetBindingByTargetId(type.id);
       if (binding !== undefined) {
-        return csharpTargetTypeFromBinding(binding, typeArguments);
+        return preserveCsharpTargetNamedMetadata(
+          csharpTargetTypeFromBinding(binding, typeArguments),
+          type,
+          host,
+        );
       }
       const known = csharpTargetNamedType(type.id, typeArguments);
       const candidate = {
@@ -104,6 +109,29 @@ export function enrichCsharpTargetTypeRef(
           };
     }
   }
+}
+
+function preserveCsharpTargetNamedMetadata(
+  enriched: TargetTypeRef | undefined,
+  original: Extract<TargetTypeRef, { readonly kind: "target-named" }>,
+  host: CsharpTargetEnrichmentHost,
+): TargetTypeRef | undefined {
+  if (enriched?.kind !== "target-named") {
+    return enriched;
+  }
+  const arrayLiteralElementType = (original as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
+  if (arrayLiteralElementType === undefined) {
+    return enriched;
+  }
+  const enrichedArrayLiteralElementType = enrichCsharpTargetTypeRef(arrayLiteralElementType, host);
+  if (enrichedArrayLiteralElementType === undefined) {
+    return enriched;
+  }
+  const preserved = {
+    ...enriched,
+    csharpArrayLiteralElementType: enrichedArrayLiteralElementType,
+  } satisfies CsharpTargetNamedTypeRef;
+  return preserved;
 }
 
 export function enrichCsharpTargetMember(
@@ -242,6 +270,9 @@ function substituteTargetTypeRef(type: TargetTypeRef, typeArgumentMap: ReadonlyM
         ...(type.typeArguments !== undefined
           ? { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeArgumentMap)) }
           : {}),
+        ...((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType === undefined
+          ? {}
+          : { csharpArrayLiteralElementType: substituteTargetTypeRef((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType!, typeArgumentMap) }),
       };
     case "array":
       return { ...type, element: substituteTargetTypeRef(type.element, typeArgumentMap) };

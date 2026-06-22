@@ -200,6 +200,7 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
         type.metadataName,
         type.typeArguments?.map(dotnetTypeRefToTargetTypeRef),
         type.displayName === undefined ? undefined : dotnetDisplayNameRenderShape(type.displayName),
+        csharpTargetMetadataFromDotnetTypeRef(type),
       );
     case "array":
       return {
@@ -234,6 +235,24 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "opaque":
       return { kind: "opaque", id: type.id };
   }
+}
+
+function csharpTargetMetadataFromDotnetTypeRef(
+  type: Extract<DotnetTypeRef, { readonly kind: "named" }>,
+): { readonly arrayLiteralElementType?: TargetTypeRef } {
+  const sourceShape = type.sourceShape;
+  if (sourceShape?.kind !== "array") {
+    return {};
+  }
+  const elementType = type.typeArguments?.length === 1
+    ? type.typeArguments[0]
+    : sourceShape.elementType;
+  if (elementType === undefined) {
+    return {};
+  }
+  return {
+    arrayLiteralElementType: dotnetTypeRefToTargetTypeRef(elementType),
+  };
 }
 
 function dotnetDisplayNameRenderShape(displayName: string): ReturnType<typeof csharpQualifiedTypeRenderShape> {

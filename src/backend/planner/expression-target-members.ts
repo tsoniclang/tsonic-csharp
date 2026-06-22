@@ -222,7 +222,7 @@ export function planCallExpression(
     return {
       kind: "InvocationExpression",
       callee: planSelectedTargetCallee(expression.Expression, csharpOperation, sourceFile, input, diagnostics, planExpression),
-      arguments: planSelectedTargetCallArguments(expression.Expression, expression, member, sourceFile, input, diagnostics, planCallArgument),
+      arguments: planSelectedTargetCallArguments(expression.Expression, expression, member, csharpOperation.argumentArrayLiteralElementTypes, sourceFile, input, diagnostics, planCallArgument),
     };
   }
   if (ownership.requiresTargetFact || !ownership.sourceOwned) {

@@ -56,18 +56,19 @@ export function planSelectedTargetCallArguments(
   callee: Node | undefined,
   expression: { readonly Arguments?: { readonly Nodes?: readonly (Node | undefined)[] } } | undefined,
   member: TargetMember,
+  argumentArrayLiteralElementTypes: readonly (TargetTypeRef | undefined)[] | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planCallArgument: CallArgumentPlanner,
 ): readonly CsharpArgument[] {
-  const receiverArgument = planSelectedTargetReceiverArgument(callee, member, sourceFile, input, diagnostics, planCallArgument);
+  const receiverArgument = planSelectedTargetReceiverArgument(callee, member, argumentArrayLiteralElementTypes, sourceFile, input, diagnostics, planCallArgument);
   const parameterOffset = receiverArgument === undefined ? 0 : 1;
   const argumentsList = (expression?.Arguments?.Nodes ?? [])
     .filter((argument): argument is Node => argument !== undefined)
     .map((argument, index) => {
       const parameter = member.parameters[index + parameterOffset];
-      const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(argument, parameter.type, input);
+      const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(argument, parameter.type, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
       return planCallArgument(argument, sourceFile, input, diagnostics, expectedType);
     });
   return receiverArgument === undefined ? argumentsList : [receiverArgument, ...argumentsList];
@@ -156,6 +157,7 @@ function planSelectedStaticTargetCallee(
 function planSelectedTargetReceiverArgument(
   callee: Node | undefined,
   member: TargetMember,
+  argumentArrayLiteralElementTypes: readonly (TargetTypeRef | undefined)[] | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -184,7 +186,7 @@ function planSelectedTargetReceiverArgument(
     return undefined;
   }
   const parameter = member.parameters[0];
-  const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(receiver, parameter.type, input);
+  const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(receiver, parameter.type, input, argumentArrayLiteralElementTypes?.[0]);
   return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType);
 }
 
@@ -192,9 +194,10 @@ function getExpectedArgumentRenderType(
   argument: Node,
   targetType: TargetTypeRef,
   input: TargetCompileInput,
+  arrayLiteralElementType: TargetTypeRef | undefined,
 ): CsharpTypeNode | undefined {
   if (HasSourceKind(input.ast, argument, KindArrayLiteralExpression)) {
-    const collectionElementType = getEnumerableCollectionElementType(targetType);
+    const collectionElementType = arrayLiteralElementType ?? getEnumerableCollectionElementType(targetType);
     if (collectionElementType !== undefined) {
       return csharpTypeFromTargetTypeRef({ kind: "array", element: collectionElementType });
     }
