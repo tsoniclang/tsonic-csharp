@@ -44,7 +44,7 @@ test("target type rendering requires explicit C# render shape for non-predefined
       namespace: ["System", "Collections", "Generic"],
       name: "List",
     },
-    typeArguments: [{ kind: "target-named", id: "System.Int32" }],
+    typeArguments: [{ kind: "source-primitive", name: "int32" }],
   });
 
   assert.ok(rendered);

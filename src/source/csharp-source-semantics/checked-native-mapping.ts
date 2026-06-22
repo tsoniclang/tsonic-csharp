@@ -31,8 +31,8 @@ import {
   targetOperation,
 } from "./operations.js";
 import {
-  csharpTargetTypeRefEquals,
   asTargetParameter,
+  targetTypeRefEquals,
 } from "./target-ref-utils.js";
 import {
   isLiteralRepresentableAsTargetType,
@@ -102,18 +102,18 @@ export function mapCsharpCheckedConversion(
     return deferObservation;
   }
   const selectedSignatureReturn = context.facts.get(request.source, selectedTargetSignatureFactKey)?.member.returnType;
-  if (selectedSignatureReturn !== undefined && csharpTargetTypeRefEquals(selectedSignatureReturn, target)) {
+  if (selectedSignatureReturn !== undefined && targetTypeRefEquals(selectedSignatureReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# selected target operation already returns the selected target type." }]);
   }
   const csharpOperationReturn = context.facts.get(request.source, csharpTargetOperationFactKey)?.resultType;
-  if (csharpOperationReturn !== undefined && csharpTargetTypeRefEquals(csharpOperationReturn, target)) {
+  if (csharpOperationReturn !== undefined && targetTypeRefEquals(csharpOperationReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# finalized target operation already returns the selected target type." }]);
   }
-  if (source !== undefined && csharpTargetTypeRefEquals(source, target)) {
+  if (source !== undefined && targetTypeRefEquals(source, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);

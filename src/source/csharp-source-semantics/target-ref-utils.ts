@@ -1,6 +1,5 @@
 import type {
   ExtensionFactSubject,
-  SourcePrimitiveKind,
   TargetParameter,
   TargetTypeRef,
   Type,
@@ -81,49 +80,6 @@ export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): 
         Object.is(left.value, right.value);
   }
 }
-
-export function csharpTargetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): boolean {
-  if (targetTypeRefEquals(left, right)) {
-    return true;
-  }
-  if (isCsharpNullableReferenceTargetType(left) !== isCsharpNullableReferenceTargetType(right)) {
-    return false;
-  }
-  const leftPrimitive = csharpPrimitiveIdentity(left);
-  const rightPrimitive = csharpPrimitiveIdentity(right);
-  return leftPrimitive !== undefined && leftPrimitive === rightPrimitive;
-}
-
-function csharpPrimitiveIdentity(type: TargetTypeRef): SourcePrimitiveKind | undefined {
-  if (type.kind === "source-primitive") {
-    return type.name;
-  }
-  if (type.kind !== "target-named" || (type.typeArguments ?? []).length > 0) {
-    return undefined;
-  }
-  return csharpPrimitiveIdentityByTargetId.get(type.id);
-}
-
-const csharpPrimitiveIdentityByTargetId = new Map<string, SourcePrimitiveKind>([
-  ["System.Boolean", "bool"],
-  ["System.Char", "char"],
-  ["System.SByte", "int8"],
-  ["System.Byte", "uint8"],
-  ["System.Int16", "int16"],
-  ["System.UInt16", "uint16"],
-  ["System.Int32", "int32"],
-  ["System.UInt32", "uint32"],
-  ["System.Int64", "int64"],
-  ["System.UInt64", "uint64"],
-  ["System.IntPtr", "native-int"],
-  ["System.UIntPtr", "native-uint"],
-  ["System.Half", "float16"],
-  ["System.Single", "float32"],
-  ["System.Double", "float64"],
-  ["System.Decimal", "decimal"],
-  ["System.Int128", "int128"],
-  ["System.UInt128", "uint128"],
-]);
 
 export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
   switch (type.kind) {

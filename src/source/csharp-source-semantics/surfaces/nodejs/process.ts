@@ -5,6 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpStringTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
   targetMethod,
 } from "../js/source-library.js";
@@ -14,7 +15,7 @@ import {
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
-const processTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.process");
+const processTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.process", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "process"));
 
 export const nodeProcessModuleSpecifier = "node:process";
 

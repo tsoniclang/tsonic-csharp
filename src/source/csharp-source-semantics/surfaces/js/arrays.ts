@@ -15,6 +15,7 @@ import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
   csharpJsCheckedTypeQuery,
   csharpDelegateTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -61,7 +62,7 @@ export function getArrayTargetMembers(sourceName: string): readonly TargetMember
   const intType = csharpSourcePrimitiveTargetType("int32");
   const boolType = csharpSourcePrimitiveTargetType("bool");
   const stringType = csharpStringTargetType();
-  const helperType = csharpTargetNamedType("Tsonic.CSharp.Runtime.ArrayHelpers");
+  const helperType = csharpTargetNamedType("Tsonic.CSharp.Runtime.ArrayHelpers", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "ArrayHelpers"));
   switch (sourceName) {
     case "includes":
       return [arrayHelper(sourceName, "Includes", [targetParameter("array", arrayType), targetParameter("value", itemType), targetParameter("fromIndex", intType, { optional: true })], boolType, helperType)];

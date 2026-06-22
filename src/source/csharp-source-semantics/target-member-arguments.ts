@@ -14,7 +14,7 @@ import {
   getCsharpArrayLiteralElementTargetType,
 } from "./target-types.js";
 import {
-  csharpTargetTypeRefEquals,
+  targetTypeRefEquals,
   targetTypeRefKey,
 } from "./target-ref-utils.js";
 import type {
@@ -177,7 +177,7 @@ function targetTypeMatchesExpected(
   if (expected.kind === "type-parameter") {
     return bindTargetTypeParameter(expected.name, actual, typeParameterBindings);
   }
-  if (csharpTargetTypeRefEquals(expected, actual)) {
+  if (targetTypeRefEquals(expected, actual)) {
     return true;
   }
   if (expected.kind === "array" && actual.kind === "array" && (expected.rank ?? 1) === (actual.rank ?? 1)) {
@@ -256,7 +256,7 @@ function bindTargetTypeParameter(
     typeParameterBindings.set(name, actual);
     return true;
   }
-  return csharpTargetTypeRefEquals(existing, actual);
+  return targetTypeRefEquals(existing, actual);
 }
 
 function substituteTargetMemberTypeParameters(

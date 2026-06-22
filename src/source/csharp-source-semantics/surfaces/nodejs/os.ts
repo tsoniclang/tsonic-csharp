@@ -5,13 +5,14 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpStringTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
   targetMethod,
 } from "../js/source-library.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
-const osTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.os");
+const osTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.os", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "os"));
 
 export const nodeOsModuleSpecifier = "node:os";
 

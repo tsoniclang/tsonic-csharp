@@ -107,7 +107,7 @@ export function targetParameter(
 export function csharpTargetNamedType(
   id: string,
   typeArguments?: readonly TargetTypeRef[],
-  renderShape: CsharpTargetTypeRenderShape | undefined = knownCsharpTargetTypeRenderShape(id),
+  renderShape?: CsharpTargetTypeRenderShape,
   metadata: {
     readonly arrayLiteralElementType?: TargetTypeRef;
     readonly specialType?: CsharpTargetNamedTypeRef["csharpSpecialType"];
@@ -132,20 +132,20 @@ export function csharpTargetNamedType(
 }
 
 export function csharpStringTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("System.String", undefined, undefined, {
+  return csharpTargetNamedType("System.String", undefined, { kind: "predefined", name: "string" }, {
     specialType: "string",
     typeofRuntimeKind: "string",
   });
 }
 
 export function csharpVoidTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("System.Void", undefined, undefined, {
+  return csharpTargetNamedType("System.Void", undefined, { kind: "predefined", name: "void" }, {
     specialType: "void",
   });
 }
 
 export function csharpBooleanTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("System.Boolean", undefined, undefined, {
+  return csharpTargetNamedType("System.Boolean", undefined, { kind: "predefined", name: "bool" }, {
     typeofRuntimeKind: "boolean",
     valueType: true,
   });
@@ -159,14 +159,14 @@ export function csharpBigIntegerTargetType(): CsharpTargetNamedTypeRef {
 }
 
 export function csharpNullableValueTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("System.Nullable`1", [elementType], undefined, {
+  return csharpTargetNamedType("System.Nullable`1", [elementType], { kind: "nullable" }, {
     specialType: "nullable",
     valueType: true,
   });
 }
 
 export function csharpExceptionTargetType(): CsharpTargetNamedTypeRef {
-  return csharpTargetNamedType("System.Exception", undefined, undefined, {
+  return csharpTargetNamedType("System.Exception", undefined, csharpQualifiedTypeRenderShape("System", "Exception"), {
     throwable: true,
   });
 }
@@ -180,8 +180,7 @@ export function csharpTargetTypeFromBinding(
   }
   const declaredType = (binding as CsharpTargetBindingFact).csharpType;
   if (declaredType?.kind === "target-named") {
-    const renderShape = knownCsharpTargetTypeRenderShape(declaredType.id) ??
-      (declaredType as CsharpTargetNamedTypeRef).csharpRender;
+    const renderShape = (declaredType as CsharpTargetNamedTypeRef).csharpRender;
     const withArguments = {
       ...declaredType,
       ...(typeArguments.length > 0 ? { typeArguments } : {}),
@@ -276,7 +275,7 @@ function substituteTargetTypeParameters(
 export function csharpRenderShapeForTargetNamedType(
   type: Extract<TargetTypeRef, { readonly kind: "target-named" }>,
 ): CsharpTargetTypeRenderShape | undefined {
-  return (type as CsharpTargetNamedTypeRef).csharpRender ?? knownCsharpTargetTypeRenderShape(type.id);
+  return (type as CsharpTargetNamedTypeRef).csharpRender;
 }
 
 export function csharpDelegateTargetType(
@@ -290,7 +289,7 @@ export function csharpDelegateTargetType(
   const id = kind === "System.Action"
     ? parameters.length === 0 ? "System.Action" : `System.Action\`${parameters.length}`
     : `System.Func\`${parameters.length + 1}`;
-  const targetType = csharpTargetNamedType(id, typeArguments);
+  const targetType = csharpTargetNamedType(id, typeArguments, { kind: "named", name: kind === "System.Action" ? "Action" : "Func" });
   return {
     kind: "target-named",
     id: targetType.id,
@@ -385,69 +384,3 @@ export function csharpQualifiedTypeRenderShape(namespaceName: string, name: stri
     name,
   };
 }
-
-function knownCsharpTargetTypeRenderShape(id: string): CsharpTargetTypeRenderShape | undefined {
-  const predefined = predefinedRenderShapes.get(id);
-  if (predefined !== undefined) {
-    return predefined;
-  }
-  const generic = genericRenderShapes.get(id);
-  if (generic !== undefined) {
-    return generic;
-  }
-  return undefined;
-}
-
-const predefinedRenderShapes = new Map<string, CsharpTargetTypeRenderShape>([
-  ["System.Boolean", { kind: "predefined", name: "bool" }],
-  ["System.Char", { kind: "predefined", name: "char" }],
-  ["System.SByte", { kind: "predefined", name: "sbyte" }],
-  ["System.Byte", { kind: "predefined", name: "byte" }],
-  ["System.Int16", { kind: "predefined", name: "short" }],
-  ["System.UInt16", { kind: "predefined", name: "ushort" }],
-  ["System.Int32", { kind: "predefined", name: "int" }],
-  ["System.UInt32", { kind: "predefined", name: "uint" }],
-  ["System.Int64", { kind: "predefined", name: "long" }],
-  ["System.UInt64", { kind: "predefined", name: "ulong" }],
-  ["System.IntPtr", { kind: "predefined", name: "nint" }],
-  ["System.UIntPtr", { kind: "predefined", name: "nuint" }],
-  ["System.Half", { kind: "named", name: "Half" }],
-  ["System.Single", { kind: "predefined", name: "float" }],
-  ["System.Double", { kind: "predefined", name: "double" }],
-  ["System.Decimal", { kind: "predefined", name: "decimal" }],
-  ["System.Int128", { kind: "named", name: "Int128" }],
-  ["System.UInt128", { kind: "named", name: "UInt128" }],
-  ["System.String", { kind: "predefined", name: "string" }],
-  ["System.Object", { kind: "predefined", name: "object" }],
-  ["System.Void", { kind: "predefined", name: "void" }],
-  ["System.Nullable`1", { kind: "nullable" }],
-]);
-
-const genericRenderShapes = new Map<string, CsharpTargetTypeRenderShape>([
-  ["System.Numerics.BigInteger", { kind: "named", namespace: ["System", "Numerics"], name: "BigInteger" }],
-  ["System.Numerics.INumber`1", { kind: "named", namespace: ["System", "Numerics"], name: "INumber" }],
-  ["System.Func`1", { kind: "named", name: "Func" }],
-  ["System.Func`2", { kind: "named", name: "Func" }],
-  ["System.Func`3", { kind: "named", name: "Func" }],
-  ["System.Func`4", { kind: "named", name: "Func" }],
-  ["System.Func`5", { kind: "named", name: "Func" }],
-  ["System.Action", { kind: "named", name: "Action" }],
-  ["System.Action`1", { kind: "named", name: "Action" }],
-  ["System.Action`2", { kind: "named", name: "Action" }],
-  ["System.Action`3", { kind: "named", name: "Action" }],
-  ["System.Action`4", { kind: "named", name: "Action" }],
-  ["System.Predicate`1", { kind: "named", name: "Predicate" }],
-  ["System.Threading.Tasks.Task", { kind: "named", namespace: ["System", "Threading", "Tasks"], name: "Task" }],
-  ["System.Threading.Tasks.Task`1", { kind: "named", namespace: ["System", "Threading", "Tasks"], name: "Task" }],
-  ["System.Convert", { kind: "named", namespace: ["System"], name: "Convert" }],
-  ["System.Math", { kind: "named", namespace: ["System"], name: "Math" }],
-  ["System.Exception", { kind: "named", namespace: ["System"], name: "Exception" }],
-  ["Tsonic.CSharp.Runtime.ArrayHelpers", { kind: "named", namespace: ["Tsonic", "CSharp", "Runtime"], name: "ArrayHelpers" }],
-  ["Tsonic.CSharp.Js.RegExp", { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "RegExp" }],
-  ["Tsonic.CSharp.Js.String", { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "String" }],
-  ["Tsonic.CSharp.Node.crypto", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "crypto" }],
-  ["Tsonic.CSharp.Node.fs", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "fs" }],
-  ["Tsonic.CSharp.Node.os", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "os" }],
-  ["Tsonic.CSharp.Node.path", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "path" }],
-  ["Tsonic.CSharp.Node.process", { kind: "named", namespace: ["Tsonic", "CSharp", "Node"], name: "process" }],
-]);

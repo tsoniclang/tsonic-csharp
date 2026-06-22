@@ -43,12 +43,12 @@ export function mapCsharpJsSurfaceCheckedIteration(
           substringMember: "Substring",
           highSurrogateOperation: csharpTargetMemberOperation("System.Char.IsHighSurrogate", "method", "IsHighSurrogate", {
             static: true,
-            declaringType: csharpTargetNamedType("System.Char"),
+            declaringType: csharpTargetNamedType("System.Char", undefined, { kind: "predefined", name: "char" }),
             resultType: csharpSourcePrimitiveTargetType("bool"),
           }),
           lowSurrogateOperation: csharpTargetMemberOperation("System.Char.IsLowSurrogate", "method", "IsLowSurrogate", {
             static: true,
-            declaringType: csharpTargetNamedType("System.Char"),
+            declaringType: csharpTargetNamedType("System.Char", undefined, { kind: "predefined", name: "char" }),
             resultType: csharpSourcePrimitiveTargetType("bool"),
           }),
         },

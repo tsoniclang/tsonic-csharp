@@ -31,6 +31,7 @@ export {
   type CsharpTargetNamedTypeRef,
   csharpDelegateTargetType,
   csharpNullableValueTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,

@@ -25,6 +25,7 @@ import {
 import {
   csharpBigIntegerTargetType,
   csharpDelegateTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -205,7 +206,7 @@ function getCsharpTypeParameterConstraintForPrimitive(
   return sourcePrimitiveRuntimeKind(kind) === "number" || sourcePrimitiveRuntimeKind(kind) === "bigint"
     ? {
         kind: "csharp-type",
-        type: csharpTargetNamedType("System.Numerics.INumber`1", [{ kind: "type-parameter", name: typeParameterName }]),
+        type: csharpTargetNamedType("System.Numerics.INumber`1", [{ kind: "type-parameter", name: typeParameterName }], csharpQualifiedTypeRenderShape("System.Numerics", "INumber")),
       }
     : undefined;
 }

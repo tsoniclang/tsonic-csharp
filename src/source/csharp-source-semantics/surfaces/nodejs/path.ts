@@ -5,6 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpStringTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
   targetMethod,
   targetParameter,
@@ -12,7 +13,7 @@ import {
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
-const pathTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.path");
+const pathTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.path", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "path"));
 
 export const nodePathModuleSpecifier = "node:path";
 

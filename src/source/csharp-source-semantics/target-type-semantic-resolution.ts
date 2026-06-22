@@ -9,6 +9,7 @@ import type {
 import {
   csharpNullableTargetType,
   csharpDelegateTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
 } from "./target-types.js";
 import {
@@ -59,8 +60,8 @@ export function getSourcePromiseTargetTypeRef(
   }
   const result = resolver.resolveType(getFirstTypeArgument(type, context, options), context, options, host);
   return result === undefined || isVoidTargetType(result)
-    ? csharpTargetNamedType("System.Threading.Tasks.Task")
-    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [result]);
+    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"))
+    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [result], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"));
 }
 
 export function getCallableTargetTypeRefForSemanticType(

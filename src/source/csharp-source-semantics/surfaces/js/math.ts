@@ -3,6 +3,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpSourcePrimitiveTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
   range,
   targetMethod,
@@ -17,7 +18,7 @@ export function getMathTargetMembers(sourceName: string): readonly TargetMember[
   const doubleType = csharpSourcePrimitiveTargetType("float64");
   const parameterCount = sourceName === "atan2" || sourceName === "max" || sourceName === "min" || sourceName === "pow" ? 2 : 1;
   return [targetMethod(`System.Math.${targetName}`, sourceName, targetName, range(parameterCount).map((index) => targetParameter(`value${index}`, doubleType)), doubleType, {
-    declaringType: csharpTargetNamedType("System.Math"),
+    declaringType: csharpTargetNamedType("System.Math", undefined, csharpQualifiedTypeRenderShape("System", "Math")),
     static: true,
   })];
 }

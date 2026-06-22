@@ -5,13 +5,14 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpStringTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
   targetMethod,
 } from "../js/source-library.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
-const cryptoTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.crypto");
+const cryptoTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.crypto", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "crypto"));
 
 export const nodeCryptoModuleSpecifier = "node:crypto";
 

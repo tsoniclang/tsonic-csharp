@@ -15,6 +15,7 @@ import {
   isCsharpStringTargetType,
   isCsharpVoidTargetType,
   csharpTargetNamedType,
+  csharpQualifiedTypeRenderShape,
 } from "./target-types.js";
 import type {
   CsharpTargetNamedTypeRef,
@@ -138,7 +139,7 @@ export function getCsharpConversionOperation(source: TargetTypeRef | undefined, 
           operation: targetOperation(`System.Convert.${methodName}`, "method", methodName),
           csharpOperation: csharpTargetMemberOperation(`System.Convert.${methodName}`, "method", methodName, {
             static: true,
-            declaringType: csharpTargetNamedType("System.Convert"),
+            declaringType: csharpTargetNamedType("System.Convert", undefined, csharpQualifiedTypeRenderShape("System", "Convert")),
           }),
         };
   }

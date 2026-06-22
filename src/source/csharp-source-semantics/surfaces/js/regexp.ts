@@ -19,6 +19,7 @@ import {
   type CsharpTargetNamedTypeRef,
   asNodeSubject,
   asType,
+  csharpQualifiedTypeRenderShape,
   csharpTargetMemberOperation,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -37,7 +38,7 @@ type CsharpJsRegExpTargetTypeRef = CsharpTargetNamedTypeRef & {
 
 export function csharpJsRegExpTargetType(): CsharpJsRegExpTargetTypeRef {
   return {
-    ...csharpTargetNamedType(csharpJsRegExpTypeId),
+    ...csharpTargetNamedType(csharpJsRegExpTypeId, undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExp")),
     csharpJsSurfaceKind: "regexp",
   } satisfies CsharpJsRegExpTargetTypeRef;
 }

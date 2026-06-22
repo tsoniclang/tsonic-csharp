@@ -15,6 +15,7 @@ import {
   csharpBooleanTargetType,
   csharpExceptionTargetType,
   csharpNullableValueTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
@@ -87,7 +88,7 @@ test("type parameter constraints render finalized C# type facts", () => {
     constraintFact: {
       constraints: [{
         kind: "csharp-type",
-        type: csharpTargetNamedType("System.Numerics.INumber`1", [{ kind: "type-parameter", name: "T" }]),
+        type: csharpTargetNamedType("System.Numerics.INumber`1", [{ kind: "type-parameter", name: "T" }], csharpQualifiedTypeRenderShape("System.Numerics", "INumber")),
       }],
     },
   }), diagnostics);

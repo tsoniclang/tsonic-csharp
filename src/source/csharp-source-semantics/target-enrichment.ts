@@ -119,18 +119,28 @@ function preserveCsharpTargetNamedMetadata(
   if (enriched?.kind !== "target-named") {
     return enriched;
   }
+  const originalCsharp = original as CsharpTargetNamedTypeRef;
+  let preserved: CsharpTargetNamedTypeRef = {
+    ...enriched,
+    ...(originalCsharp.csharpRender !== undefined ? { csharpRender: originalCsharp.csharpRender } : {}),
+    ...(originalCsharp.csharpSpecialType !== undefined ? { csharpSpecialType: originalCsharp.csharpSpecialType } : {}),
+    ...(originalCsharp.csharpTypeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: originalCsharp.csharpTypeofRuntimeKind } : {}),
+    ...(originalCsharp.csharpThrowable === true ? { csharpThrowable: true as const } : {}),
+    ...(originalCsharp.csharpValueType === true ? { csharpValueType: true as const } : {}),
+    ...(originalCsharp.csharpSourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: originalCsharp.csharpSourceDeclarationKind } : {}),
+  };
   const arrayLiteralElementType = (original as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
   if (arrayLiteralElementType === undefined) {
-    return enriched;
+    return preserved;
   }
   const enrichedArrayLiteralElementType = enrichCsharpTargetTypeRef(arrayLiteralElementType, host);
   if (enrichedArrayLiteralElementType === undefined) {
-    return enriched;
+    return preserved;
   }
-  const preserved = {
-    ...enriched,
+  preserved = {
+    ...preserved,
     csharpArrayLiteralElementType: enrichedArrayLiteralElementType,
-  } satisfies CsharpTargetNamedTypeRef;
+  };
   return preserved;
 }
 

@@ -6,6 +6,7 @@ import type {
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
   targetMethod,
   targetParameter,
@@ -15,7 +16,7 @@ const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
 const boolTargetType = csharpSourcePrimitiveTargetType("bool");
-const fsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.fs");
+const fsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.fs", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "fs"));
 
 export const nodeFsModuleSpecifier = "node:fs";
 

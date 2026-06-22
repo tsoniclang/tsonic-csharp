@@ -186,13 +186,13 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "unknown":
       return { kind: "opaque", id: type.kind };
     case "object":
-      return csharpTargetNamedType("System.Object");
+      return csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
     case "string":
       return csharpStringTargetType();
     case "boolean":
       return csharpBooleanTargetType();
     case "number":
-      return csharpTargetNamedType("System.Double");
+      return csharpTargetNamedType("System.Double", undefined, { kind: "predefined", name: "double" });
     case "bigint":
       return csharpBigIntegerTargetType();
     case "source-primitive":

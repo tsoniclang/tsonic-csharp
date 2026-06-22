@@ -15,6 +15,7 @@ import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
   csharpJsCheckedTypeQuery,
   csharpNullableValueTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -80,7 +81,7 @@ export function getStringTargetMembers(sourceName: string): readonly TargetMembe
   if (!stringHelperNames.has(sourceName)) {
     return [];
   }
-  const helperType = csharpTargetNamedType("Tsonic.CSharp.Js.String");
+  const helperType = csharpTargetNamedType("Tsonic.CSharp.Js.String", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "String"));
   const returnType = getStringHelperReturnType(sourceName, stringType, intType, doubleType, boolType);
   const parameters = getStringHelperParameters(sourceName, stringType, intType);
   const isStaticConstructor = sourceName === "fromCharCode" || sourceName === "fromCodePoint";
