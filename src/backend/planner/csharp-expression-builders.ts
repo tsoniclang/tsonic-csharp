@@ -1,4 +1,5 @@
 import type {
+  CsharpBinaryOperatorToken,
   CsharpExpression,
   CsharpStatement,
   CsharpTypeNode,
@@ -20,24 +21,24 @@ export function assign(left: CsharpExpression, right: CsharpExpression): CsharpS
   return {
     kind: "ExpressionStatement",
     expression: {
-      kind: "BinaryExpression",
+      kind: "AssignmentExpression",
       left,
-      operator: "=",
+      operatorToken: { kind: "EqualsToken" },
       right,
     },
   };
 }
 
 export function and(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
-  return binary(left, "&&", right);
+  return binary(left, { kind: "AmpersandAmpersandToken" }, right);
 }
 
 export function lessThan(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
-  return binary(left, "<", right);
+  return binary(left, { kind: "LessThanToken" }, right);
 }
 
 export function add(left: CsharpExpression, right: CsharpExpression): CsharpExpression {
-  return binary(left, "+", right);
+  return binary(left, { kind: "PlusToken" }, right);
 }
 
 export function member(receiver: CsharpExpression, name: string): CsharpExpression {
@@ -63,11 +64,11 @@ export function literalNumber(value: number): CsharpExpression {
   };
 }
 
-function binary(left: CsharpExpression, operator: string, right: CsharpExpression): CsharpExpression {
+function binary(left: CsharpExpression, operatorToken: CsharpBinaryOperatorToken, right: CsharpExpression): CsharpExpression {
   return {
     kind: "BinaryExpression",
     left,
-    operator,
+    operatorToken,
     right,
   };
 }

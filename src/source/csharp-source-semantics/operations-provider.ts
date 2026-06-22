@@ -49,6 +49,9 @@ import {
   mapCsharpNativeCheckedIteration,
   mapCsharpParameterPassing,
 } from "./checked-native-mapping.js";
+import {
+  observeCsharpPostCheckAssignability,
+} from "./checked-assignability-validation.js";
 
 export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
@@ -121,6 +124,9 @@ export function createCsharpOperationsProvider(
     },
     mapCheckedOperator(request, context) {
       return mapCsharpCheckedOperator(request, context, host);
+    },
+    observePostCheckAssignability(request, context) {
+      return observeCsharpPostCheckAssignability(request, context, host);
     },
     mapCheckedIteration(request, context) {
       return useObservationOrWhenDeferred(

@@ -137,7 +137,7 @@ function planArrayElementDefaultProjection(
         receiver: sourceExpression,
         name: "Length",
       },
-      operator: ">",
+      operatorToken: { kind: "GreaterThanToken" },
       right: {
         kind: "LiteralExpression",
         value: index,

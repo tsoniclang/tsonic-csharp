@@ -46,6 +46,7 @@ import {
 } from "./target-ref-utils.js";
 import {
   findTargetMember,
+  findTargetMemberForElementAccess,
   isLiteralRepresentableAsTargetType,
 } from "./target-member-selection.js";
 import type {
@@ -119,15 +120,26 @@ export function mapCsharpCheckedElementAccess(
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
   }
   const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
-  const member = findTargetMember(binding, virtualDeclaration);
+  const declaringTargetType = host.getTargetTypeRefForSubject(request.receiverType, context) ??
+    host.getTargetTypeRefForSubject(request.receiver, context);
+  const member = findTargetMemberForElementAccess(
+    binding,
+    virtualDeclaration,
+    request,
+    context,
+    host.getTargetTypeRefForSubject,
+    {
+      getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+      ...(declaringTargetType !== undefined ? { declaringTargetType } : {}),
+      ...(binding.typeParameters !== undefined ? { declaringTypeParameters: binding.typeParameters } : {}),
+    },
+  );
   if (member === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, `C# provider could not map checked element access on target '${binding.id}' from selected TSTS provider index declaration identity.`));
   }
   if (member.kind !== "indexer") {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, `C# provider selected non-indexer member '${member.id}' for checked element access on target '${binding.id}'.`));
   }
-  const declaringTargetType = host.getTargetTypeRefForSubject(request.receiverType, context) ??
-    host.getTargetTypeRefForSubject(request.receiver, context);
   const csharpMember = instantiateSelectedTargetMember({ member }, host, { declaringTargetType });
   if (csharpMember === undefined || !targetMemberIsClosed(csharpMember)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_RENDERABLE", 9100106, `C# provider selected indexer '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`));

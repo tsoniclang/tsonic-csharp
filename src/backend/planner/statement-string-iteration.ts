@@ -134,7 +134,7 @@ export function planStringCodePointForOfStatement(
                       expression: {
                         kind: "PostfixUnaryExpression",
                         operand: indexIdentifier,
-                        operator: "++",
+                        operatorToken: { kind: "PlusPlusToken" },
                       },
                     },
                   ],

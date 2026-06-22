@@ -23,9 +23,9 @@ export function planDiscardedExpression(expression: CsharpExpression): CsharpExp
   return isValidCsharpExpressionStatement(expression)
     ? expression
     : {
-        kind: "BinaryExpression",
+        kind: "AssignmentExpression",
         left: { kind: "IdentifierName", name: "_" },
-        operator: "=",
+        operatorToken: { kind: "EqualsToken" },
         right: expression,
       };
 }
@@ -37,28 +37,8 @@ function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean
     case "PostfixUnaryExpression":
       return true;
     case "PrefixUnaryExpression":
-      return expression.operator === "++" || expression.operator === "--";
-    case "BinaryExpression":
-      return isAssignmentOperator(expression.operator);
-    default:
-      return false;
-  }
-}
-
-function isAssignmentOperator(operator: string): boolean {
-  switch (operator) {
-    case "=":
-    case "+=":
-    case "-=":
-    case "*=":
-    case "/=":
-    case "%=":
-    case "&=":
-    case "|=":
-    case "^=":
-    case "<<=":
-    case ">>=":
-    case ">>>=":
+      return expression.operatorToken.kind === "PlusPlusToken" || expression.operatorToken.kind === "MinusMinusToken";
+    case "AssignmentExpression":
       return true;
     default:
       return false;

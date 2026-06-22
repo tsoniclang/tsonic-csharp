@@ -53,6 +53,7 @@ export function expressionRequiresUnsafe(
       return expressionRequiresUnsafe(expression.receiver, blockRequiresUnsafe) ||
         expressionRequiresUnsafe(expression.argument, blockRequiresUnsafe);
     case "BinaryExpression":
+    case "AssignmentExpression":
       return expressionRequiresUnsafe(expression.left, blockRequiresUnsafe) ||
         expressionRequiresUnsafe(expression.right, blockRequiresUnsafe);
     case "IsPatternExpression":

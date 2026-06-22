@@ -44,7 +44,61 @@ test("binary expression emission uses the finalized selected target operator fac
   }), diagnostics);
 
   assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output.operatorToken, { kind: "PlusToken" });
   assert.equal(printCsharpExpression(output), "left + right");
+});
+
+test("assignment expression emission uses canonical assignment AST", () => {
+  const left = identifier("left");
+  const right = identifier("right");
+  const expression = binary(left, right);
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.assign",
+      operationKind: "operator",
+      targetOperation: "=",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.assign",
+      operator: "=",
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "AssignmentExpression");
+  assert.deepEqual(output.operatorToken, { kind: "EqualsToken" });
+  assert.equal(printCsharpExpression(output), "left = right");
+});
+
+test("operator token facts must map to supported Roslyn tokens", () => {
+  const left = identifier("left");
+  const right = identifier("right");
+  const expression = binary(left, right);
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "example.raw",
+      operationKind: "operator",
+      targetOperation: "raw",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "example.raw",
+      operator: "raw C# fragment",
+    },
+  }), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /unsupported finalized operator token 'raw C# fragment'/);
 });
 
 test("prefix unary expression emission requires selected target operator fact", () => {

@@ -16,15 +16,64 @@ export type CsharpExpression =
   | { readonly kind: "ConditionalAccessExpression"; readonly receiver: CsharpExpression; readonly name: string }
   | { readonly kind: "ElementAccessExpression"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
   | { readonly kind: "ConditionalElementAccessExpression"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
-  | { readonly kind: "BinaryExpression"; readonly left: CsharpExpression; readonly operator: string; readonly right: CsharpExpression }
+  | { readonly kind: "BinaryExpression"; readonly left: CsharpExpression; readonly operatorToken: CsharpBinaryOperatorToken; readonly right: CsharpExpression }
+  | { readonly kind: "AssignmentExpression"; readonly left: CsharpExpression; readonly operatorToken: CsharpAssignmentOperatorToken; readonly right: CsharpExpression }
   | { readonly kind: "IsPatternExpression"; readonly expression: CsharpExpression; readonly type: CsharpTypeNode; readonly negated?: boolean }
-  | { readonly kind: "PrefixUnaryExpression"; readonly operator: string; readonly operand: CsharpExpression }
-  | { readonly kind: "PostfixUnaryExpression"; readonly operand: CsharpExpression; readonly operator: string }
+  | { readonly kind: "PrefixUnaryExpression"; readonly operatorToken: CsharpPrefixUnaryOperatorToken; readonly operand: CsharpExpression }
+  | { readonly kind: "PostfixUnaryExpression"; readonly operand: CsharpExpression; readonly operatorToken: CsharpPostfixUnaryOperatorToken }
   | { readonly kind: "ConditionalExpression"; readonly condition: CsharpExpression; readonly whenTrue: CsharpExpression; readonly whenFalse: CsharpExpression }
   | { readonly kind: "ArrayCreationExpression"; readonly elements: readonly CsharpExpression[]; readonly elementType?: CsharpTypeNode }
   | { readonly kind: "TupleExpression"; readonly elements: readonly CsharpExpression[] }
   | { readonly kind: "DefaultExpression"; readonly type: CsharpTypeNode }
   | { readonly kind: "LambdaExpression"; readonly async?: boolean; readonly parameters: readonly CsharpLambdaParameter[]; readonly body: CsharpExpression | CsharpBlock };
+
+export type CsharpBinaryOperatorToken =
+  | { readonly kind: "AmpersandAmpersandToken" }
+  | { readonly kind: "BarBarToken" }
+  | { readonly kind: "QuestionQuestionToken" }
+  | { readonly kind: "AmpersandToken" }
+  | { readonly kind: "BarToken" }
+  | { readonly kind: "CaretToken" }
+  | { readonly kind: "EqualsEqualsToken" }
+  | { readonly kind: "ExclamationEqualsToken" }
+  | { readonly kind: "LessThanToken" }
+  | { readonly kind: "LessThanEqualsToken" }
+  | { readonly kind: "GreaterThanToken" }
+  | { readonly kind: "GreaterThanEqualsToken" }
+  | { readonly kind: "LessThanLessThanToken" }
+  | { readonly kind: "GreaterThanGreaterThanToken" }
+  | { readonly kind: "GreaterThanGreaterThanGreaterThanToken" }
+  | { readonly kind: "PlusToken" }
+  | { readonly kind: "MinusToken" }
+  | { readonly kind: "AsteriskToken" }
+  | { readonly kind: "SlashToken" }
+  | { readonly kind: "PercentToken" };
+
+export type CsharpAssignmentOperatorToken =
+  | { readonly kind: "EqualsToken" }
+  | { readonly kind: "PlusEqualsToken" }
+  | { readonly kind: "MinusEqualsToken" }
+  | { readonly kind: "AsteriskEqualsToken" }
+  | { readonly kind: "SlashEqualsToken" }
+  | { readonly kind: "PercentEqualsToken" }
+  | { readonly kind: "AmpersandEqualsToken" }
+  | { readonly kind: "BarEqualsToken" }
+  | { readonly kind: "CaretEqualsToken" }
+  | { readonly kind: "LessThanLessThanEqualsToken" }
+  | { readonly kind: "GreaterThanGreaterThanEqualsToken" }
+  | { readonly kind: "GreaterThanGreaterThanGreaterThanEqualsToken" };
+
+export type CsharpPrefixUnaryOperatorToken =
+  | { readonly kind: "PlusToken" }
+  | { readonly kind: "MinusToken" }
+  | { readonly kind: "TildeToken" }
+  | { readonly kind: "ExclamationToken" }
+  | { readonly kind: "PlusPlusToken" }
+  | { readonly kind: "MinusMinusToken" };
+
+export type CsharpPostfixUnaryOperatorToken =
+  | { readonly kind: "PlusPlusToken" }
+  | { readonly kind: "MinusMinusToken" };
 
 export interface CsharpLambdaParameter {
   readonly kind: "Parameter";

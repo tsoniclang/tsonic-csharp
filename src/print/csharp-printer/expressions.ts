@@ -1,8 +1,12 @@
 import type {
+  CsharpAssignmentOperatorToken,
+  CsharpBinaryOperatorToken,
   CsharpExpression,
   CsharpInterpolatedStringPart,
   CsharpLambdaParameter,
   CsharpObjectInitializerAssignment,
+  CsharpPostfixUnaryOperatorToken,
+  CsharpPrefixUnaryOperatorToken,
   CsharpTypeNode,
 } from "../../backend/roslyn/syntax.js";
 import type { CsharpPrintContext } from "./context.js";
@@ -52,13 +56,15 @@ export function printCsharpExpression(
         ? `new ${context.printType(expression.type)}(${(expression.arguments ?? []).map(context.printArgument).join(", ")})`
         : printCsharpObjectInitializer(expression.type, expression.assignments, context);
     case "BinaryExpression":
-      return `${context.printExpression(expression.left)} ${expression.operator} ${context.printExpression(expression.right)}`;
+      return `${context.printExpression(expression.left)} ${printCsharpBinaryOperatorToken(expression.operatorToken)} ${context.printExpression(expression.right)}`;
+    case "AssignmentExpression":
+      return `${context.printExpression(expression.left)} ${printCsharpAssignmentOperatorToken(expression.operatorToken)} ${context.printExpression(expression.right)}`;
     case "IsPatternExpression":
       return `${context.printExpression(expression.expression)} is ${expression.negated === true ? "not " : ""}${context.printType(expression.type)}`;
     case "PrefixUnaryExpression":
-      return `${expression.operator}${context.printExpression(expression.operand)}`;
+      return `${printCsharpPrefixUnaryOperatorToken(expression.operatorToken)}${context.printExpression(expression.operand)}`;
     case "PostfixUnaryExpression":
-      return `${context.printExpression(expression.operand)}${expression.operator}`;
+      return `${context.printExpression(expression.operand)}${printCsharpPostfixUnaryOperatorToken(expression.operatorToken)}`;
     case "ConditionalExpression":
       return `${context.printExpression(expression.condition)} ? ${context.printExpression(expression.whenTrue)} : ${context.printExpression(expression.whenFalse)}`;
     case "ArrayCreationExpression": {
@@ -74,6 +80,106 @@ export function printCsharpExpression(
       return `default(${context.printType(expression.type)})`;
     case "LambdaExpression":
       return printCsharpLambda(expression, context);
+  }
+}
+
+function printCsharpBinaryOperatorToken(token: CsharpBinaryOperatorToken): string {
+  switch (token.kind) {
+    case "AmpersandAmpersandToken":
+      return "&&";
+    case "BarBarToken":
+      return "||";
+    case "QuestionQuestionToken":
+      return "??";
+    case "AmpersandToken":
+      return "&";
+    case "BarToken":
+      return "|";
+    case "CaretToken":
+      return "^";
+    case "EqualsEqualsToken":
+      return "==";
+    case "ExclamationEqualsToken":
+      return "!=";
+    case "LessThanToken":
+      return "<";
+    case "LessThanEqualsToken":
+      return "<=";
+    case "GreaterThanToken":
+      return ">";
+    case "GreaterThanEqualsToken":
+      return ">=";
+    case "LessThanLessThanToken":
+      return "<<";
+    case "GreaterThanGreaterThanToken":
+      return ">>";
+    case "GreaterThanGreaterThanGreaterThanToken":
+      return ">>>";
+    case "PlusToken":
+      return "+";
+    case "MinusToken":
+      return "-";
+    case "AsteriskToken":
+      return "*";
+    case "SlashToken":
+      return "/";
+    case "PercentToken":
+      return "%";
+  }
+}
+
+function printCsharpAssignmentOperatorToken(token: CsharpAssignmentOperatorToken): string {
+  switch (token.kind) {
+    case "EqualsToken":
+      return "=";
+    case "PlusEqualsToken":
+      return "+=";
+    case "MinusEqualsToken":
+      return "-=";
+    case "AsteriskEqualsToken":
+      return "*=";
+    case "SlashEqualsToken":
+      return "/=";
+    case "PercentEqualsToken":
+      return "%=";
+    case "AmpersandEqualsToken":
+      return "&=";
+    case "BarEqualsToken":
+      return "|=";
+    case "CaretEqualsToken":
+      return "^=";
+    case "LessThanLessThanEqualsToken":
+      return "<<=";
+    case "GreaterThanGreaterThanEqualsToken":
+      return ">>=";
+    case "GreaterThanGreaterThanGreaterThanEqualsToken":
+      return ">>>=";
+  }
+}
+
+function printCsharpPrefixUnaryOperatorToken(token: CsharpPrefixUnaryOperatorToken): string {
+  switch (token.kind) {
+    case "PlusToken":
+      return "+";
+    case "MinusToken":
+      return "-";
+    case "TildeToken":
+      return "~";
+    case "ExclamationToken":
+      return "!";
+    case "PlusPlusToken":
+      return "++";
+    case "MinusMinusToken":
+      return "--";
+  }
+}
+
+function printCsharpPostfixUnaryOperatorToken(token: CsharpPostfixUnaryOperatorToken): string {
+  switch (token.kind) {
+    case "PlusPlusToken":
+      return "++";
+    case "MinusMinusToken":
+      return "--";
   }
 }
 

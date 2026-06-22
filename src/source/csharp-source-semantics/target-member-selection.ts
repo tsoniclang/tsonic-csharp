@@ -1,5 +1,6 @@
 import type {
   CheckedCallMappingRequest,
+  CheckedElementAccessMappingRequest,
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
@@ -38,7 +39,7 @@ export function findTargetMemberForCall(
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
 ): TargetMember | undefined {
-  const candidates = getTargetMemberCandidatesForCall(binding, declaration);
+  const candidates = getTargetMemberCandidates(binding, declaration);
   if (candidates.length === 1) {
     return selectExactTargetMember(
       candidates[0]!,
@@ -64,6 +65,38 @@ export function findTargetMemberForCall(
   return undefined;
 }
 
+export function findTargetMemberForElementAccess(
+  binding: TargetBindingFact,
+  declaration: ProviderVirtualDeclarationFact | undefined,
+  request: CheckedElementAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
+  resolveTargetTypeRef: TargetTypeRefResolver,
+  options: TargetMemberSelectionOptions = {},
+): TargetMember | undefined {
+  const candidates = getTargetMemberCandidates(binding, declaration);
+  if (candidates.length === 1) {
+    return selectExactTargetMember(
+      candidates[0]!,
+      {
+        arguments: [request.argument],
+      },
+      options,
+    );
+  }
+  if (declaration?.signatureId !== undefined && candidates.length > 1) {
+    return selectTargetMember(
+      candidates,
+      {
+        arguments: [request.argument],
+      },
+      context,
+      resolveTargetTypeRef,
+      options,
+    );
+  }
+  return undefined;
+}
+
 export function findTargetMember(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
@@ -78,7 +111,7 @@ export function findTargetMember(
   return undefined;
 }
 
-function getTargetMemberCandidatesForCall(
+function getTargetMemberCandidates(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
 ): readonly TargetMember[] {
@@ -88,17 +121,25 @@ function getTargetMemberCandidatesForCall(
     if (signatureMember === undefined) {
       return [];
     }
-    if (signatureMember.overloadGroup === undefined) {
-      return [signatureMember];
-    }
-    const overloadGroup = members.filter((member) => member.overloadGroup === signatureMember.overloadGroup);
-    return overloadGroup.length === 0 ? [signatureMember] : overloadGroup;
+    return getTargetMemberCandidatesForSelectedMember(members, signatureMember);
   }
   if (declaration?.memberId !== undefined) {
-    return members.filter((member) =>
-      member.id === declaration.memberId ||
-      member.overloadGroup === declaration.memberId
-    );
+    const selectedMember = members.find((member) => member.id === declaration.memberId);
+    if (selectedMember !== undefined) {
+      return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
+    }
+    return members.filter((member) => member.overloadGroup === declaration.memberId);
   }
   return [];
+}
+
+function getTargetMemberCandidatesForSelectedMember(
+  members: readonly TargetMember[],
+  selectedMember: TargetMember,
+): readonly TargetMember[] {
+  if (selectedMember.overloadGroup === undefined) {
+    return [selectedMember];
+  }
+  const overloadGroup = members.filter((member) => member.overloadGroup === selectedMember.overloadGroup);
+  return overloadGroup.length === 0 ? [selectedMember] : overloadGroup;
 }

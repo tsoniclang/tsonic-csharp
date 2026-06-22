@@ -436,6 +436,133 @@ test("C# provider does not search target members outside the selected provider o
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
+test("C# provider rejects same-spelling call members without selected provider identity membership", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.other(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "m", overloadGroup: "Example.Target.other" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.m", "renamed"),
+      signatureId: "Example.Target.m(System.Int32)",
+    },
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+});
+
+test("C# provider maps property access from selected provider member identity instead of property text", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const expression = {};
+  const receiver = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      property("Example.Target.unrelated", "m", "Unrelated"),
+      property("Example.Target.actual", "renamed", "Actual"),
+    ],
+  };
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    propertyName: "m",
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target.actual", "renamed"),
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "Example.Target.actual");
+});
+
+test("C# provider refines selected indexer overload groups from provider signature identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      indexer("Example.Target.other(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "Item", overloadGroup: "Example.Target.other" }),
+      indexer("Example.Target.Item(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "renamed" }),
+      indexer("Example.Target.Item(System.Int64)", { kind: "source-primitive", name: "int64" }, { sourceName: "renamed" }),
+    ],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedDeclaration: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.Item", "renamed"),
+      signatureId: "Example.Target.Item(System.Int64)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "Example.Target.Item(System.Int32)");
+});
+
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
   const receiver = {};
   const validArgument = {};
@@ -665,11 +792,11 @@ function getNativeSemanticProvider() {
   return semanticProviders[0];
 }
 
-function method(id, parameterType) {
+function method(id, parameterType, options = {}) {
   return {
     id,
-    sourceName: "m",
-    targetName: "M",
+    sourceName: options.sourceName ?? "m",
+    targetName: options.targetName ?? "M",
     kind: "method",
     parameters: [{
       name: "value",
@@ -677,18 +804,45 @@ function method(id, parameterType) {
       passingMode: "by-value",
     }],
     returnType: { kind: "target-named", id: "System.Void" },
-    overloadGroup: "Example.Target.m",
+    overloadGroup: options.overloadGroup ?? "Example.Target.m",
   };
 }
 
-function virtualMember(memberId) {
+function property(id, sourceName, targetName) {
+  return {
+    id,
+    sourceName,
+    targetName,
+    kind: "property",
+    parameters: [],
+    returnType: { kind: "source-primitive", name: "int32" },
+  };
+}
+
+function indexer(id, parameterType, options = {}) {
+  return {
+    id,
+    sourceName: options.sourceName ?? "Item",
+    targetName: options.targetName ?? "Item",
+    kind: "indexer",
+    parameters: [{
+      name: "index",
+      type: parameterType,
+      passingMode: "by-value",
+    }],
+    returnType: { kind: "target-named", id: "System.String" },
+    overloadGroup: options.overloadGroup ?? "Example.Target.Item",
+  };
+}
+
+function virtualMember(memberId, memberName = "m") {
   return {
     providerId: "test",
     providerVersion: "0",
     providerModuleId: "test",
     moduleSpecifier: "test",
     virtualFileName: "tsts-provider://test",
-    memberName: "m",
+    memberName,
     memberId,
   };
 }

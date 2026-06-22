@@ -11,7 +11,7 @@ import {
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpExpression } from "../roslyn/syntax.js";
+import type { CsharpBinaryOperatorToken, CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import {
@@ -33,6 +33,10 @@ import {
 import {
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
+import {
+  csharpAssignmentOperatorTokenFromText,
+  csharpBinaryOperatorTokenFromText,
+} from "./csharp-operator-tokens.js";
 
 export {
   planTypeofExpression,
@@ -76,34 +80,52 @@ export function tryPlanBinaryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# binary operator emission requires a finalized C# operator-token fact matching the selected TSTS/provider operator."));
     return invalidExpression("missing C# operator token fact");
   }
+  const binaryOperatorToken = csharpBinaryOperatorTokenFromText(csharpOperator.operator);
+  const assignmentOperatorToken = csharpAssignmentOperatorTokenFromText(csharpOperator.operator);
+  if (binaryOperatorToken === undefined && assignmentOperatorToken === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# binary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
+    return invalidExpression("unsupported C# operator token");
+  }
+  if (assignmentOperatorToken !== undefined) {
+    return {
+      kind: "AssignmentExpression",
+      left: planExpression(left!, sourceFile, input, diagnostics),
+      operatorToken: assignmentOperatorToken,
+      right: planExpression(right!, sourceFile, input, diagnostics),
+    };
+  }
+  if (binaryOperatorToken === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# binary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
+    return invalidExpression("unsupported C# binary operator token");
+  }
   return {
     kind: "BinaryExpression",
-    left: planBinaryOperand(left!, csharpOperator.operator, sourceFile, input, diagnostics, planExpression),
-    operator: csharpOperator.operator,
-    right: planBinaryOperand(right!, csharpOperator.operator, sourceFile, input, diagnostics, planExpression),
+    left: planBinaryOperand(left!, binaryOperatorToken, sourceFile, input, diagnostics, planExpression),
+    operatorToken: binaryOperatorToken,
+    right: planBinaryOperand(right!, binaryOperatorToken, sourceFile, input, diagnostics, planExpression),
   };
 }
 
 function planBinaryOperand(
   operand: Node,
-  operator: string,
+  operatorToken: CsharpBinaryOperatorToken,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression {
-  return isNullishEqualityOperand(operand, operator, sourceFile, input)
+  return isNullishEqualityOperand(operand, operatorToken, sourceFile, input)
     ? { kind: "LiteralExpression", value: null }
     : planExpression(operand, sourceFile, input, diagnostics);
 }
 
 function isNullishEqualityOperand(
   operand: Node,
-  operator: string,
+  operatorToken: CsharpBinaryOperatorToken,
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {
-  if (operator !== "==" && operator !== "!=") {
+  if (operatorToken.kind !== "EqualsEqualsToken" && operatorToken.kind !== "ExclamationEqualsToken") {
     return false;
   }
   const kind = SourceKind(input.ast, operand);

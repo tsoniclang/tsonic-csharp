@@ -23,6 +23,9 @@ test("C# backend exposes Roslyn syntax as the only output AST boundary", async (
   assert.match(declarations, /kind: "CompilationUnit"/);
   assert.match(members, /kind: "MethodDeclaration"/);
   assert.match(expressions, /kind: "InvocationExpression"/);
+  assert.match(expressions, /kind: "AssignmentExpression"/);
+  assert.match(expressions, /operatorToken: CsharpBinaryOperatorToken/);
+  assert.doesNotMatch(expressions, /operator: string/);
   assert.match(statements, /kind: "LocalDeclarationStatement"/);
 
   const sources = await collectSourceFiles(join(root, "src"));

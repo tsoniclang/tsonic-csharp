@@ -152,9 +152,9 @@ export function planForInKeyBindingStatementFromExpression(
     };
   }
   return expressionStatement({
-    kind: "BinaryExpression",
+    kind: "AssignmentExpression",
     left: { kind: "IdentifierName", name: binding.name },
-    operator: "=",
+    operatorToken: { kind: "EqualsToken" },
     right: keyExpression,
   });
 }

@@ -18,9 +18,11 @@ import {
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
+  CsharpBinaryOperatorToken,
   CsharpEnumDeclaration,
   CsharpEnumMember,
   CsharpExpression,
+  CsharpPrefixUnaryOperatorToken,
 } from "../roslyn/syntax.js";
 import { planAttributesForSubject } from "./attributes.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -109,58 +111,58 @@ function planEnumConstantExpression(
     case KindPrefixUnaryExpression: {
       const expression = AsPrefixUnaryExpression(node);
       const operand = expression?.Operand === undefined ? undefined : planEnumConstantExpression(expression.Operand, sourceFile, input, diagnostics);
-      const operator = getEnumConstantPrefixOperator(SourceTokenKind(input.ast, expression?.OperatorToken?.Kind));
-      return operand === undefined || operator === undefined ? undefined : { kind: "PrefixUnaryExpression", operator, operand };
+      const operatorToken = getEnumConstantPrefixOperatorToken(SourceTokenKind(input.ast, expression?.OperatorToken?.Kind));
+      return operand === undefined || operatorToken === undefined ? undefined : { kind: "PrefixUnaryExpression", operatorToken, operand };
     }
     case "KindBinaryExpression": {
       const expression = AsBinaryExpression(node);
       const left = expression?.Left === undefined ? undefined : planEnumConstantExpression(expression.Left, sourceFile, input, diagnostics);
       const right = expression?.Right === undefined ? undefined : planEnumConstantExpression(expression.Right, sourceFile, input, diagnostics);
-      const operator = getEnumConstantBinaryOperator(SourceTokenKind(input.ast, expression?.OperatorToken?.Kind));
-      return left === undefined || right === undefined || operator === undefined
+      const operatorToken = getEnumConstantBinaryOperatorToken(SourceTokenKind(input.ast, expression?.OperatorToken?.Kind));
+      return left === undefined || right === undefined || operatorToken === undefined
         ? undefined
-        : { kind: "BinaryExpression", left, operator, right };
+        : { kind: "BinaryExpression", left, operatorToken, right };
     }
     default:
       return undefined;
   }
 }
 
-function getEnumConstantPrefixOperator(tokenKind: string | undefined): string | undefined {
+function getEnumConstantPrefixOperatorToken(tokenKind: string | undefined): CsharpPrefixUnaryOperatorToken | undefined {
   switch (tokenKind) {
     case "KindPlusToken":
-      return "+";
+      return { kind: "PlusToken" };
     case "KindMinusToken":
-      return "-";
+      return { kind: "MinusToken" };
     case "KindTildeToken":
-      return "~";
+      return { kind: "TildeToken" };
     default:
       return undefined;
   }
 }
 
-function getEnumConstantBinaryOperator(tokenKind: string | undefined): string | undefined {
+function getEnumConstantBinaryOperatorToken(tokenKind: string | undefined): CsharpBinaryOperatorToken | undefined {
   switch (tokenKind) {
     case "KindLessThanLessThanToken":
-      return "<<";
+      return { kind: "LessThanLessThanToken" };
     case "KindGreaterThanGreaterThanToken":
-      return ">>";
+      return { kind: "GreaterThanGreaterThanToken" };
     case "KindBarToken":
-      return "|";
+      return { kind: "BarToken" };
     case "KindAmpersandToken":
-      return "&";
+      return { kind: "AmpersandToken" };
     case "KindCaretToken":
-      return "^";
+      return { kind: "CaretToken" };
     case "KindPlusToken":
-      return "+";
+      return { kind: "PlusToken" };
     case "KindMinusToken":
-      return "-";
+      return { kind: "MinusToken" };
     case "KindAsteriskToken":
-      return "*";
+      return { kind: "AsteriskToken" };
     case "KindSlashToken":
-      return "/";
+      return { kind: "SlashToken" };
     case "KindPercentToken":
-      return "%";
+      return { kind: "PercentToken" };
     default:
       return undefined;
   }

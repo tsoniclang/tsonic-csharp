@@ -17,6 +17,10 @@ import type {
 import {
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
+import {
+  csharpPostfixUnaryOperatorTokenFromText,
+  csharpPrefixUnaryOperatorTokenFromText,
+} from "./csharp-operator-tokens.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
@@ -41,9 +45,14 @@ export function planPrefixUnaryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# prefix unary operator emission requires a finalized C# operator-token fact matching the selected TSTS/provider operator."));
     return invalidExpression("missing C# prefix operator token fact");
   }
+  const operatorToken = csharpPrefixUnaryOperatorTokenFromText(csharpOperator.operator);
+  if (operatorToken === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# prefix unary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
+    return invalidExpression("unsupported C# prefix operator token");
+  }
   return {
     kind: "PrefixUnaryExpression",
-    operator: csharpOperator.operator,
+    operatorToken,
     operand: planExpression(expression.Operand!, sourceFile, input, diagnostics),
   };
 }
@@ -71,9 +80,14 @@ export function planPostfixUnaryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# postfix unary operator emission requires a finalized C# operator-token fact matching the selected TSTS/provider operator."));
     return invalidExpression("missing C# postfix operator token fact");
   }
+  const operatorToken = csharpPostfixUnaryOperatorTokenFromText(csharpOperator.operator);
+  if (operatorToken === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# postfix unary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
+    return invalidExpression("unsupported C# postfix operator token");
+  }
   return {
     kind: "PostfixUnaryExpression",
     operand: planExpression(expression.Operand!, sourceFile, input, diagnostics),
-    operator: csharpOperator.operator,
+    operatorToken,
   };
 }

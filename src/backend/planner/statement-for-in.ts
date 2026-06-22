@@ -89,7 +89,7 @@ export function planForInStatement(
     condition: {
       kind: "BinaryExpression",
       left: { kind: "IdentifierName", name: indexName },
-      operator: "<",
+      operatorToken: { kind: "LessThanToken" },
       right: {
         kind: "SimpleMemberAccessExpression",
         receiver: { kind: "IdentifierName", name: collectionName },
@@ -99,7 +99,7 @@ export function planForInStatement(
     incrementor: {
       kind: "PostfixUnaryExpression",
       operand: { kind: "IdentifierName", name: indexName },
-      operator: "++",
+      operatorToken: { kind: "PlusPlusToken" },
     },
     body: {
       kind: "Block",

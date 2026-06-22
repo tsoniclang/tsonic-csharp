@@ -106,7 +106,7 @@ export function planObjectShapeForInStatement(
     condition: {
       kind: "BinaryExpression",
       left: { kind: "IdentifierName", name: indexName },
-      operator: "<",
+      operatorToken: { kind: "LessThanToken" },
       right: {
         kind: "SimpleMemberAccessExpression",
         receiver: { kind: "IdentifierName", name: keysName },
@@ -116,7 +116,7 @@ export function planObjectShapeForInStatement(
     incrementor: {
       kind: "PostfixUnaryExpression",
       operand: { kind: "IdentifierName", name: indexName },
-      operator: "++",
+      operatorToken: { kind: "PlusPlusToken" },
     },
     body: {
       kind: "Block",

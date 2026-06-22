@@ -38,8 +38,12 @@ export type {
 } from "./syntax/statements.js";
 export type {
   CsharpArgument,
+  CsharpAssignmentOperatorToken,
+  CsharpBinaryOperatorToken,
   CsharpExpression,
   CsharpInterpolatedStringPart,
   CsharpLambdaParameter,
   CsharpObjectInitializerAssignment,
+  CsharpPostfixUnaryOperatorToken,
+  CsharpPrefixUnaryOperatorToken,
 } from "./syntax/expressions.js";
