@@ -8,6 +8,7 @@ import type {
   Node,
   TargetBindingFact,
   TargetTypeRef,
+  Type,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -17,6 +18,10 @@ import {
 import {
   sourceDeclarationTargetType,
 } from "./source-declaration-facts.js";
+import {
+  getSourceLibraryDeclarationName,
+  isSourceLibraryType,
+} from "./source-library.js";
 import {
   getAliasedSymbolIfAvailable,
   getSymbolDeclarations,
@@ -29,7 +34,12 @@ import {
 } from "./target-ref-utils.js";
 import {
   csharpSourcePrimitiveTargetType,
+  csharpTaskTargetType,
+  csharpVoidTargetType,
 } from "./target-types.js";
+import {
+  isVoidTargetType,
+} from "./target-rules.js";
 import {
   getSourceArrayTargetTypeRef,
   getSourcePromiseTargetTypeRef,
@@ -37,6 +47,9 @@ import {
 import {
   getCsharpTargetTypeFromBinding,
 } from "./target-enrichment.js";
+import {
+  getCsharpRecordDictionaryTargetType,
+} from "./dictionaries.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -86,9 +99,21 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     }
     return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
   }
+  const recordDictionaryType = getRecordDictionaryTypeRefFromTypeReference(
+    [typeNameSymbol, getAliasedSymbolIfAvailable(checker, typeNameSymbol, sourceFile)],
+    node,
+    context,
+    options,
+    host,
+    resolver,
+  );
+  if (recordDictionaryType !== undefined) {
+    return recordDictionaryType;
+  }
   const sourceLibraryType = type === undefined
     ? undefined
     : getSourceArrayTargetTypeRef(type, context, options, host, resolver) ??
+      getSourcePromiseTargetTypeRefFromSyntax(node, type, context, options, host, resolver) ??
       getSourcePromiseTargetTypeRef(type, context, options, host, resolver);
   if (sourceLibraryType !== undefined) {
     return sourceLibraryType;
@@ -102,6 +127,53 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return aliasedType;
   }
   return undefined;
+}
+
+function getRecordDictionaryTypeRefFromTypeReference(
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  currentNode: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolver: CsharpRecursiveTargetTypeResolver,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined || !subjects.some((subject) => isRecordDeclarationSubject(subject, context))) {
+    return undefined;
+  }
+  const typeArguments = ast.typeArguments(currentNode).map((argument) => resolver.resolveSubject(argument, context, options, host));
+  if (typeArguments.length !== 2 || typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  return getCsharpRecordDictionaryTargetType(typeArguments[0]!, typeArguments[1]!, host);
+}
+
+function isRecordDeclarationSubject(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): boolean {
+  return getSymbolDeclarations(subject).some((declaration) =>
+    getSourceLibraryDeclarationName(declaration, context) === "Record");
+}
+
+function getSourcePromiseTargetTypeRefFromSyntax(
+  node: Node,
+  type: Type | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolver: CsharpRecursiveTargetTypeResolver,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined || type === undefined || !isSourceLibraryType(type, context, "Promise")) {
+    return undefined;
+  }
+  const resultTypeNode = ast.typeArguments(node)[0];
+  const result = resolver.resolveSubject(resultTypeNode, context, options, host);
+  if (result === undefined) {
+    return undefined;
+  }
+  return csharpTaskTargetType(isVoidTargetType(result) ? csharpVoidTargetType() : result);
 }
 
 function resolveTargetBindingFact(

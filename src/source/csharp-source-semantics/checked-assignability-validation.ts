@@ -1,12 +1,14 @@
 import {
   acceptObservation,
   deferObservation,
-  rejectObservation,
+  ExtensionObservationPoint,
 } from "@tsonic/tsts";
 import type {
   ExtensionEvidence,
+  ExtensionLifecycleContext,
   ExtensionObservation,
   ExtensionObservationContext,
+  Node,
   PostCheckAssignabilityObservationRequest,
   TargetBindingFact,
   TargetConstraint,
@@ -22,6 +24,12 @@ import {
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
+import {
+  csharpObservedTargetAssignabilityFactKey,
+} from "../csharp-facts.js";
+import {
+  getAstReaderChildNodes,
+} from "./ast-utils.js";
 import {
   getCsharpNullableElementTargetType,
 } from "./target-types.js";
@@ -50,25 +58,77 @@ export function observeCsharpPostCheckAssignability(
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<undefined> {
+  void host;
   if (request.targetPlatform !== undefined && request.targetPlatform !== csharpTargetId) {
     return deferObservation;
   }
-  const source = host.getTargetTypeRefForSubject(request.source, context);
-  const target = host.getTargetTypeRefForSubject(request.target, context);
+  const subject = request.expression ?? request.errorNode ?? request.target;
+  context.facts.set(subject, csharpObservedTargetAssignabilityFactKey, {
+    source: request.source,
+    target: request.target,
+    ...(request.relation !== undefined ? { relation: request.relation } : {}),
+    ...(request.errorNode !== undefined ? { errorNode: request.errorNode } : {}),
+    ...(request.expression !== undefined ? { expression: request.expression } : {}),
+  }, [{ message: "C# target assignability observation recorded after TSTS accepted the TypeScript relation; target validation is deferred until semantic finalization." }]);
+  return acceptObservation(undefined, [{ message: "C# post-check target assignability observed without querying or changing the TSTS assignability relation." }]);
+}
+
+export function validateCsharpObservedAssignabilityFactsBeforeFinalization(
+  lifecycleContext: Pick<ExtensionLifecycleContext, "extensionId" | "host" | "compiler">,
+  host: CsharpOperationsProviderHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const context = {
+    observation: ExtensionObservationPoint.observePostCheckAssignability,
+    extensionId: lifecycleContext.extensionId,
+    host: lifecycleContext.host,
+    facts: lifecycleContext.host.facts,
+    factResolver: lifecycleContext.host.factResolver,
+    diagnostics: lifecycleContext.host.diagnostics,
+    compiler,
+  } satisfies ExtensionObservationContext<"target.observePostCheckAssignability">;
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    validateObservedAssignabilityFactsForNode(sourceFile, context, host);
+  }
+}
+
+function validateObservedAssignabilityFactsForNode(
+  node: Node | undefined,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  host: CsharpOperationsProviderHost,
+): void {
+  if (node === undefined) {
+    return;
+  }
+  for (const child of getAstReaderChildNodes(context.compiler!.ast, node)) {
+    validateObservedAssignabilityFactsForNode(child, context, host);
+  }
+  const fact = context.facts.get(node, csharpObservedTargetAssignabilityFactKey);
+  if (fact === undefined) {
+    return;
+  }
+  const source = host.getTargetTypeRefForSubject(fact.source, context);
+  const target = host.getTargetTypeRefForSubject(fact.target, context);
   const validation = validateCsharpTargetAssignability(source, target, host, new Set());
   if (validation.kind !== "invalid") {
-    return acceptObservation(undefined, validation.evidence);
+    return;
   }
-  return rejectObservation({
+  context.diagnostics.append({
     ...csharpProviderDiagnostic(
       context.extensionId,
       "CSHARP_TARGET_ASSIGNABILITY_INVALID",
       9100120,
       validation.message,
     ),
-    nodeOrSpan: request.expression ?? request.errorNode,
+    nodeOrSpan: fact.expression ?? fact.errorNode,
     evidence: validation.evidence,
-    identity: `csharp-target-assignability:${subjectIdentity(request.expression ?? request.errorNode ?? request.target)}`,
+    identity: `csharp-target-assignability:${subjectIdentity(fact.expression ?? fact.errorNode ?? fact.target)}`,
   });
 }
 

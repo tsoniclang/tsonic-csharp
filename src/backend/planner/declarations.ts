@@ -18,7 +18,7 @@ import { planIdentifierName } from "./names.js";
 import { planParametersWithPrelude } from "./parameters.js";
 import { planBlockStatements } from "./statements.js";
 import { planTypeParameters } from "./type-parameters.js";
-import { getExplicitReturnType } from "./declaration-return-types.js";
+import { getAsyncReturnExpressionExpectedType, getExplicitReturnType } from "./declaration-return-types.js";
 import {
   planClassMembers,
 } from "./declaration-class-members.js";
@@ -62,6 +62,11 @@ export function planFunctionDeclaration(
   const returnType = getExplicitReturnType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
   state.currentReturnType = returnType;
   state.currentReturnTypeSubject = declaration.Type;
+  if (isAsyncNode(node)) {
+    const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "function declaration", sourceFile, input, diagnostics);
+    state.currentReturnExpressionType = returnExpressionType?.type;
+    state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
+  }
   return {
     kind: "MethodDeclaration",
     name,

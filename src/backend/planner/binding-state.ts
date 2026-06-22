@@ -24,6 +24,8 @@ export interface DestructuringPlannerState {
   controlLabels: ControlLabelTarget[];
   currentReturnType?: CsharpTypeNode;
   currentReturnTypeSubject?: Node;
+  currentReturnExpressionType?: CsharpTypeNode;
+  currentReturnExpressionTypeSubject?: Node;
 }
 
 export interface ControlLabelTarget {

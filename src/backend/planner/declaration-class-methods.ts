@@ -25,6 +25,7 @@ import {
   planTypeParameters,
 } from "./type-parameters.js";
 import {
+  getAsyncReturnExpressionExpectedType,
   getExplicitReturnType,
 } from "./declaration-return-types.js";
 import {
@@ -45,12 +46,18 @@ export function planMethodDeclaration(
   const state = createDestructuringPlannerState(node, input.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
   const returnType = getExplicitReturnType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
+  const modifiers = planMethodModifiers(node, declaration.name, sourceFile, input);
   state.currentReturnType = returnType;
   state.currentReturnTypeSubject = declaration.Type;
+  if (modifiers.includes("async")) {
+    const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
+    state.currentReturnExpressionType = returnExpressionType?.type;
+    state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
+  }
   return {
     kind: "MethodDeclaration",
     name: planIdentifierName(declaration.name, "MethodDeclaration", input, diagnostics, "Method name"),
-    modifiers: planMethodModifiers(node, declaration.name, sourceFile, input),
+    modifiers,
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     typeParameters: planTypeParameters(declaration.TypeParameters?.Nodes ?? [], sourceFile, input, diagnostics),
     returnType,

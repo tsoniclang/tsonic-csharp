@@ -10,6 +10,7 @@ import {
   csharpBigIntegerTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpVoidTargetType,
 } from "./target-types.js";
 import {
   enrichCsharpTargetTypeRef,
@@ -23,6 +24,7 @@ import {
   getNullableUnionTargetTypeRef,
   getSourceArrayTargetTypeRef,
   getSourcePromiseTargetTypeRef,
+  getSourceRecordTargetTypeRef,
   getTupleTargetTypeRef,
   getTypeParameterName,
 } from "./target-type-semantic-resolution.js";
@@ -75,6 +77,10 @@ export function resolveTargetTypeRefForTypeCore(
   if (sourcePromise !== undefined) {
     return sourcePromise;
   }
+  const sourceRecord = getSourceRecordTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
+  if (sourceRecord !== undefined) {
+    return sourceRecord;
+  }
   const binding = resolveTargetBinding(type.symbol, context);
   if (binding !== undefined) {
     const targetTypeArguments = resolveTargetTypeArgumentsForType(type, context, options, host);
@@ -114,6 +120,9 @@ export function resolveTargetTypeRefForTypeCore(
   }
   if (types.isBigIntLike(type)) {
     return csharpBigIntegerTargetType();
+  }
+  if (types.isVoidLike(type)) {
+    return csharpVoidTargetType();
   }
   if (types.isUnion(type)) {
     const nullable = getNullableUnionTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);

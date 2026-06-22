@@ -115,6 +115,33 @@ test("JS surface maps multi-target calls from exact selected signature identity"
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Runtime.ArrayHelpers.forEach:1");
 });
 
+test("JS surface maps Record element access through provider-owned Dictionary indexer facts", () => {
+  const expression = {};
+  const receiverType = {};
+  const key = {};
+  const facts = new TestFactStore();
+  const dictionaryType = recordDictionaryType(stringType(), int32Type());
+  const targetTypes = new Map([
+    [receiverType, dictionaryType],
+    [key, stringType()],
+  ]);
+  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver: {},
+    receiverType,
+    argument: key,
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationKind, "indexer");
+  assert.equal(result.value.operation.targetOperation, "Item");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationKind, "indexer");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.memberName, "Item");
+});
+
 test("NodeJS surface maps calls from the selected provider signature identity", () => {
   const call = {};
   const selectedDeclaration = {};
@@ -212,8 +239,9 @@ function arrayMemberDeclaration(memberName) {
   };
 }
 
-function fakeHost(receiverType, targetTypes = new Map()) {
+function fakeHost(receiverType, targetTypes = new Map(), targetBinding) {
   return {
+    ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByTargetId: (targetId) => targetId === targetBinding.id ? targetBinding : undefined }),
     getTargetTypeRefForSubject: (subject) => targetTypes.get(subject) ?? (subject === receiverType
       ? { kind: "array", element: { kind: "source-primitive", name: "int32" } }
       : undefined),
@@ -289,8 +317,52 @@ function int32Type() {
   return { kind: "source-primitive", name: "int32" };
 }
 
+function stringType() {
+  return {
+    kind: "target-named",
+    id: "System.String",
+    csharpRender: { kind: "predefined", name: "string" },
+    csharpSpecialType: "string",
+  };
+}
+
 function int32ArrayType() {
   return { kind: "array", element: int32Type() };
+}
+
+function recordDictionaryType(keyType, valueType) {
+  return {
+    kind: "target-named",
+    id: "System.Collections.Generic.Dictionary`2",
+    typeArguments: [keyType, valueType],
+    csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "Dictionary" },
+    csharpCollectionSurface: "record",
+  };
+}
+
+function dictionaryBinding() {
+  const declarationType = {
+    kind: "target-named",
+    id: "System.Collections.Generic.Dictionary`2",
+    typeArguments: [{ kind: "type-parameter", name: "TKey" }, { kind: "type-parameter", name: "TValue" }],
+    csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "Dictionary" },
+  };
+  return {
+    target: "csharp",
+    id: "System.Collections.Generic.Dictionary`2",
+    typeParameters: [{ name: "TKey" }, { name: "TValue" }],
+    csharpType: declarationType,
+    members: [{
+      id: "System.Collections.Generic.Dictionary`2.Item(TKey)",
+      sourceName: "item",
+      targetName: "Item",
+      kind: "indexer",
+      declaringType: declarationType,
+      parameters: [{ name: "key", type: { kind: "type-parameter", name: "TKey" }, passingMode: "by-value" }],
+      returnType: { kind: "type-parameter", name: "TValue" },
+      overloadGroup: "System.Collections.Generic.Dictionary`2.Item(TKey)",
+    }],
+  };
 }
 
 function actionOfInt32Type() {

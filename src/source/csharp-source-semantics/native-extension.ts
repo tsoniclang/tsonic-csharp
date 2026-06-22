@@ -85,12 +85,18 @@ import type {
 import {
   recordCsharpCheckedOperatorFactsBeforeFinalization,
 } from "./checked-operator-lifecycle.js";
+import {
+  recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization,
+} from "./surfaces/js/dictionary-lifecycle.js";
 import type {
   CsharpCheckedOperatorLifecycleHost,
 } from "./checked-operator-lifecycle.js";
 import {
   recordCsharpSelectedCallOperationFactsBeforeFinalization,
 } from "./csharp-operation-lifecycle.js";
+import {
+  validateCsharpObservedAssignabilityFactsBeforeFinalization,
+} from "./checked-assignability-validation.js";
 import {
   recordCsharpTargetNameFactsBeforeFinalization,
 } from "./target-name-facts.js";
@@ -217,9 +223,10 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         getBaseTargetTypeRef: targetTypeResolutionHost.getBaseTargetTypeRef,
         getSemanticTypeDeclarationShape: targetTypeResolutionHost.getSemanticTypeDeclarationShape,
         getTargetTypeRefForSubject,
+        getTargetTypeRefForType,
         getCsharpObjectShapeFactForSubject,
         mapRuntimeCarrier: (request, observationContext) => mapCsharpRuntimeCarrier(request, observationContext, runtimeCarrierHost),
-      } satisfies CsharpOperationsProviderHost & CsharpTargetTypeResolutionHost;
+      } satisfies CsharpOperationsProviderHost & CsharpTargetTypeResolutionHost & { readonly getTargetTypeRefForType: typeof getTargetTypeRefForType };
       const provider = createCsharpOperationsProvider(selectedSurfaceIds, operationsProviderHost);
       context.registerTargetSemanticProvider(provider);
       context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
@@ -230,8 +237,10 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds, runtimeCarrierHost);
+        recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, selectedSurfaceIds, operationsProviderHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, checkedOperatorLifecycleHost);
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, selectedSurfaceIds, operationsProviderHost);
+        validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, operationsProviderHost);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         if (asType(subject) !== undefined) {

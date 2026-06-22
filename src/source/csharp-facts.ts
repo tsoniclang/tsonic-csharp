@@ -56,6 +56,14 @@ export interface CsharpTargetTypeParameterConstraintFact {
   readonly constraints: readonly CsharpTypeParameterConstraint[];
 }
 
+export interface CsharpObservedTargetAssignabilityFact {
+  readonly source: ExtensionFactSubject;
+  readonly target: ExtensionFactSubject;
+  readonly relation?: "assignment" | "constraint" | "return" | "argument";
+  readonly errorNode?: ExtensionFactSubject;
+  readonly expression?: ExtensionFactSubject;
+}
+
 export interface CsharpTargetIterationFact {
   readonly operationId: string;
   readonly iterationKind: "sync" | "async" | "property-key";
@@ -159,6 +167,17 @@ export const csharpTargetTypeParameterConstraintFactKey = defineExtensionFactKey
   extensionId: "tsonic.csharp",
   name: "typeParameterConstraint",
   equals: (left, right) => csharpTypeParameterConstraintArrayEquals(left.constraints, right.constraints),
+});
+
+export const csharpObservedTargetAssignabilityFactKey = defineExtensionFactKey<CsharpObservedTargetAssignabilityFact>({
+  extensionId: "tsonic.csharp",
+  name: "observedTargetAssignability",
+  equals: (left, right) =>
+    left.source === right.source
+    && left.target === right.target
+    && left.relation === right.relation
+    && left.errorNode === right.errorNode
+    && left.expression === right.expression,
 });
 
 export const csharpTargetIterationFactKey = defineExtensionFactKey<CsharpTargetIterationFact>({

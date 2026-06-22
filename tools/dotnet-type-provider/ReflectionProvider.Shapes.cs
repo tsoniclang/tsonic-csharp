@@ -78,14 +78,4 @@ sealed partial class ReflectionProvider
         return args.Length > 0;
     }
 
-    static bool IsIndexSignatureParameterType(Type type)
-    {
-        type = UnwrapByRef(type);
-        if (type == typeof(string) || type == typeof(char))
-        {
-            return true;
-        }
-        var primitive = SourcePrimitiveName(type);
-        return primitive is not null && primitive != "bool" && primitive != "char";
-    }
 }

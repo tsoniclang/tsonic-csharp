@@ -40,7 +40,11 @@ export function resolveFunctionTargetTypeRefFromSignatureLikeSubject(
   if (parameters.some((parameter) => parameter === undefined)) {
     return undefined;
   }
-  const returnType = resolver.resolveSubject(asNodeSubject(getNodeField(node, "Type")), context, childOptions, host);
+  const returnTypeNode = getNodeField(node, "Type");
+  const returnType = resolver.resolveSubject(asNodeSubject(returnTypeNode), context, childOptions, host);
+  if (returnType === undefined && returnTypeNode !== undefined) {
+    return undefined;
+  }
   if (returnType === undefined || isVoidTargetType(returnType)) {
     return csharpDelegateTargetType("System.Action", parameters as readonly TargetTypeRef[]);
   }

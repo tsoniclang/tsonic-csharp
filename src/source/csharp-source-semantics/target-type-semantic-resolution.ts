@@ -9,9 +9,12 @@ import type {
 import {
   csharpNullableTargetType,
   csharpDelegateTargetType,
-  csharpQualifiedTypeRenderShape,
-  csharpTargetNamedType,
+  csharpTaskTargetType,
+  csharpVoidTargetType,
 } from "./target-types.js";
+import {
+  getCsharpRecordDictionaryTargetType,
+} from "./dictionaries.js";
 import {
   isVoidTargetType,
 } from "./target-rules.js";
@@ -59,9 +62,35 @@ export function getSourcePromiseTargetTypeRef(
     return undefined;
   }
   const result = resolver.resolveType(getFirstTypeArgument(type, context, options), context, options, host);
-  return result === undefined || isVoidTargetType(result)
-    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"))
-    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [result], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"));
+  if (result === undefined) {
+    return undefined;
+  }
+  return csharpTaskTargetType(isVoidTargetType(result) ? csharpVoidTargetType() : result);
+}
+
+export function getSourceRecordTargetTypeRef(
+  type: Type,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolver: CsharpRecursiveTargetTypeResolver,
+): TargetTypeRef | undefined {
+  if (!isSourceLibraryType(type, context, "Record")) {
+    return undefined;
+  }
+  const types = context.compiler?.types;
+  if (types === undefined || !types.isTypeReference(type)) {
+    return undefined;
+  }
+  const typeArguments = types.getTypeArguments(type, typeShapeOptions(options));
+  if (typeArguments.length !== 2) {
+    return undefined;
+  }
+  const keyType = resolver.resolveType(typeArguments[0], context, options, host);
+  const valueType = resolver.resolveType(typeArguments[1], context, options, host);
+  return keyType === undefined || valueType === undefined
+    ? undefined
+    : getCsharpRecordDictionaryTargetType(keyType, valueType, host);
 }
 
 export function getCallableTargetTypeRefForSemanticType(
@@ -87,7 +116,10 @@ export function getCallableTargetTypeRefForSemanticType(
     return undefined;
   }
   const returnType = resolver.resolveType(types.getReturnTypeOfSignature(signature), context, options, host);
-  if (returnType === undefined || isVoidTargetType(returnType)) {
+  if (returnType === undefined) {
+    return undefined;
+  }
+  if (isVoidTargetType(returnType)) {
     return csharpDelegateTargetType("System.Action", parameterTypes as readonly TargetTypeRef[]);
   }
   return csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);

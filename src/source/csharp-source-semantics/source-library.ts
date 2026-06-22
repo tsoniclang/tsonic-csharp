@@ -18,6 +18,8 @@ export interface SourceLibraryMember {
 
 export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "RegExp" | "Math" | "Promise";
 
+export type SourceLibraryTypeName = SourceLibraryDeclaringName | "Record";
+
 export function getSourceLibraryMember(
   declarationSubject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
@@ -40,7 +42,7 @@ export function getSourceLibraryMember(
     : { declaringName, memberName };
 }
 
-export function isSourceLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryDeclaringName): boolean {
+export function isSourceLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
   const ast = context.compiler?.ast;
   const types = context.compiler?.types;
   if (ast === undefined || types === undefined) {
@@ -53,6 +55,23 @@ export function isSourceLibraryType(type: Type, context: ExtensionObservationCon
   return declarations.some((declaration) =>
     ast.text(ast.name(declaration)) === name &&
     isTstsBundledStandardLibraryFile(ast.getFileName(ast.getSourceFile(declaration))));
+}
+
+export function getSourceLibraryDeclarationName(
+  declarationSubject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): SourceLibraryTypeName | undefined {
+  const ast = context.compiler?.ast;
+  const declaration = asNodeSubject(declarationSubject);
+  if (ast === undefined || declaration === undefined) {
+    return undefined;
+  }
+  const sourceFile = ast.getSourceFile(declaration);
+  const fileName = ast.getFileName(sourceFile);
+  const name = ast.text(ast.name(declaration));
+  return isTstsBundledStandardLibraryFile(fileName) && isSourceLibraryTypeName(name)
+    ? name
+    : undefined;
 }
 
 function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringName | undefined {
@@ -73,7 +92,11 @@ function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclar
     name === "Promise";
 }
 
-function isTstsBundledStandardLibraryFile(fileName: string): boolean {
+function isSourceLibraryTypeName(name: string): name is SourceLibraryTypeName {
+  return isSourceLibraryDeclaringName(name) || name === "Record";
+}
+
+export function isTstsBundledStandardLibraryFile(fileName: string): boolean {
   const libraryPath = normalizePathPrefix(getBundledLibraryPath());
   const normalizedFileName = normalizePathPrefix(fileName);
   return normalizedFileName.startsWith(`${libraryPath}/`);

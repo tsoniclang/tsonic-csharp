@@ -7,6 +7,9 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../../../csharp-facts.js";
+import type {
+  CsharpTargetEnrichmentHost,
+} from "../../target-enrichment.js";
 export type {
   SourceLibraryDeclaringName,
   SourceLibraryMember,
@@ -21,6 +24,7 @@ export {
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
   targetOperation,
+  targetOperationFromMember,
 } from "../../operations.js";
 export {
   asNodeSubject,
@@ -54,6 +58,7 @@ export interface CsharpJsSurfaceHost {
     context: ExtensionObservationContext,
     options?: CsharpJsTargetTypeRefResolutionOptions,
   ) => TargetTypeRef | undefined;
+  readonly getCsharpTargetBindingByTargetId?: CsharpTargetEnrichmentHost["getCsharpTargetBindingByTargetId"];
   readonly unwrapNullableTargetType: (type: TargetTypeRef | undefined) => TargetTypeRef | undefined;
   readonly isCsharpStringType: (type: TargetTypeRef | undefined) => boolean;
   readonly isIntegralTargetTypeRef: (type: TargetTypeRef | undefined) => boolean;

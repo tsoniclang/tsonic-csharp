@@ -97,7 +97,7 @@ sealed partial class ReflectionProvider
             var indexParameters = property.GetIndexParameters();
             if (indexParameters.Length > 0)
             {
-                if (indexParameters.Length != 1 || !IsIndexSignatureParameterType(indexParameters[0].ParameterType))
+                if (indexParameters.Length != 1)
                 {
                     continue;
                 }

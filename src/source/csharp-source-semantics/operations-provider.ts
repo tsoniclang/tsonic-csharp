@@ -151,11 +151,12 @@ export function createCsharpJsSurfaceHost(
   host: Pick<
     CsharpOperationsProviderHost,
     "getTargetTypeRefForSubject" | "getBaseTargetTypeRef" | "getCsharpObjectShapeFactForSubject" | "mapRuntimeCarrier"
-  >,
+  > & Partial<Pick<CsharpOperationsProviderHost, "getCsharpTargetBindingByTargetId">>,
 ) {
   return {
     targetId: csharpTargetId,
     extensionId,
+    ...(host.getCsharpTargetBindingByTargetId === undefined ? {} : { getCsharpTargetBindingByTargetId: host.getCsharpTargetBindingByTargetId }),
     getTargetTypeRefForSubject: host.getTargetTypeRefForSubject,
     unwrapNullableTargetType,
     isCsharpStringType,

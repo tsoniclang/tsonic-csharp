@@ -405,6 +405,30 @@ test(".NET provider source declarations keep only TS-compatible numeric indexers
   assert.deepEqual(indexers[0].signatures[0].parameters[0].type, { kind: "source-primitive", name: "int32" });
 });
 
+test(".NET target bindings retain generic Dictionary indexers as target-only facts", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const collectionsModule = provider.getModule("@tsonic/dotnet/System.Collections.Generic.js", {});
+  assert.equal("exports" in collectionsModule, true);
+
+  const rawDictionary = collectionsModule.exports.find((declaration) => declaration.sourceName === "Dictionary");
+  assert.ok(rawDictionary);
+  const rawIndexers = rawDictionary.members.filter((member) => member.kind === "indexer");
+  assert.equal(rawIndexers.length, 1);
+  assert.equal(rawIndexers[0].targetName, "Item");
+  assert.deepEqual(rawIndexers[0].signatures[0].parameters[0].type, { kind: "type-parameter", name: "TKey" });
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(collectionsModule);
+  const sourceDictionary = sourceModel.exports.find((declaration) => declaration.name === "Dictionary");
+  assert.ok(sourceDictionary);
+  assert.equal(sourceDictionary.members.some((member) => member.kind === "indexer"), false);
+
+  const binding = provider.findTargetBindingByTargetId("System.Collections.Generic.Dictionary`2");
+  assert.ok(binding);
+  const targetIndexers = binding.members.filter((member) => member.kind === "indexer");
+  assert.equal(targetIndexers.length, 1);
+  assert.deepEqual(targetIndexers[0].parameters[0].type, { kind: "type-parameter", name: "TKey" });
+});
+
 test(".NET provider source declarations omit constructor-named non-constructor members", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const reflectionModule = provider.getModule("@tsonic/dotnet/System.Reflection.js", {});

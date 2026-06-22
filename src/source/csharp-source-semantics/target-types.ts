@@ -43,6 +43,10 @@ export type CsharpDelegateTargetTypeRef = CsharpTargetNamedTypeRef & {
   readonly csharpDelegateSignature: CsharpDelegateSignatureShape;
 };
 
+export type CsharpTaskTargetTypeRef = CsharpTargetNamedTypeRef & {
+  readonly csharpTaskResultType: TargetTypeRef;
+};
+
 export function targetMethod(
   id: string,
   sourceName: string,
@@ -243,12 +247,16 @@ function substituteTargetTypeParameters(
       return substitutions.get(type.name) ?? type;
     case "target-named":
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
+      const taskResultType = (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType;
       return {
         ...type,
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }),
         ...(arrayLiteralElementType === undefined
           ? {}
           : { csharpArrayLiteralElementType: substituteTargetTypeParameters(arrayLiteralElementType, substitutions) }),
+        ...(taskResultType === undefined
+          ? {}
+          : { csharpTaskResultType: substituteTargetTypeParameters(taskResultType, substitutions) }),
       };
     case "array":
       return { ...type, element: substituteTargetTypeParameters(type.element, substitutions) };
@@ -300,6 +308,25 @@ export function csharpDelegateTargetType(
       ...(returnType !== undefined ? { returnType } : {}),
     },
   } satisfies CsharpDelegateTargetTypeRef;
+}
+
+export function csharpTaskTargetType(resultType: TargetTypeRef): CsharpTaskTargetTypeRef {
+  const targetType = isCsharpVoidTargetType(resultType)
+    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"))
+    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [resultType], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"));
+  return {
+    kind: "target-named",
+    id: targetType.id,
+    ...(targetType.typeArguments !== undefined ? { typeArguments: targetType.typeArguments } : {}),
+    ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
+    csharpTaskResultType: resultType,
+  } satisfies CsharpTaskTargetTypeRef;
+}
+
+export function getCsharpTaskResultTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  return type?.kind === "target-named"
+    ? (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType
+    : undefined;
 }
 
 export function csharpSourcePrimitiveTargetType(kind: SourcePrimitiveKind): TargetTypeRef {

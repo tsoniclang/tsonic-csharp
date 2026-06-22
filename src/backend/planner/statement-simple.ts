@@ -65,13 +65,15 @@ export function planReturnStatement(
       { kind: "ReturnStatement" },
     ];
   }
+  const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
+  const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
   return [{
     kind: "ReturnStatement",
     ...(statement.Expression !== undefined
       ? {
-          expression: state.currentReturnType === undefined
+          expression: expectedReturnExpressionType === undefined
             ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
-            : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, state.currentReturnType, state.currentReturnTypeSubject, state),
+            : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state),
         }
       : {}),
   }];

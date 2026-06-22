@@ -41,6 +41,9 @@ import {
 } from "./expression-lambdas.js";
 import { planObjectLiteralExpressionWithExpectedType } from "./expression-object-literals.js";
 import {
+  tryPlanRecordDictionaryLiteralWithExpectedType,
+} from "./expression-dictionary-literals.js";
+import {
   parseFiniteNumberLiteral,
 } from "../../source/source-literal-values.js";
 
@@ -100,6 +103,10 @@ export function planExpressionWithExpectedTypeCore(
     return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
   }
   if (HasSourceKind(input.ast, node, KindObjectLiteralExpression)) {
+    const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics, expectedTypeSubject);
+    if (dictionaryLiteral !== undefined) {
+      return dictionaryLiteral;
+    }
     return planObjectLiteralExpressionWithExpectedType(
       node,
       sourceFile,

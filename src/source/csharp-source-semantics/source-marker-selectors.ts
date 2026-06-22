@@ -48,6 +48,23 @@ export function isAttributeSelectorBodyExpression(
     isAttributeSelectorCallbackExpression(arrowFunction, context);
 }
 
+export function isAttributeBuilderMemberAccess(
+  subject: unknown,
+  context: SelectorObservationContext,
+): boolean {
+  const ast = context.compiler?.ast;
+  const expression = asNodeSubject(subject);
+  if (ast === undefined || expression === undefined || !ast.is.IsPropertyAccessExpression(expression)) {
+    return false;
+  }
+  const parent = asNodeSubject(getNodeField(expression, "Parent"));
+  if (parent === undefined || !ast.is.IsCallExpression(parent) || asNodeSubject(getNodeField(parent, "Expression")) !== expression) {
+    return false;
+  }
+  return context.facts.get(parent, attributeFactKey) !== undefined ||
+    isAttributeBuilderExpression(parent, context);
+}
+
 export function isAttributeSelectorCallbackExpression(
   subject: unknown,
   context: SelectorObservationContext,

@@ -28,6 +28,7 @@ import {
   findTargetBinding,
 } from "./provider-bindings.js";
 import {
+  isAttributeBuilderMemberAccess,
   isAttributeSelectorApplicationTarget,
   isAttributeSelectorBodyExpression,
 } from "./source-marker-selectors.js";
@@ -68,10 +69,19 @@ export function mapCsharpCheckedPropertyAccess(
     return deferObservation;
   }
   if (isAttributeSelectorApplicationTarget(request.expression, context)) {
-    return deferObservation;
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation("source-semantics.attribute-selector.target", "property", "__tsonic_erased_source_marker"),
+    }, [{ message: "C# attribute selector target member access was checked by TSTS and marked for fact-driven erasure." }]);
   }
   if (isAttributeSelectorBodyExpression(request.expression, context)) {
-    return deferObservation;
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation("source-semantics.attribute-selector.body", "property", "__tsonic_erased_source_marker"),
+    }, [{ message: "C# attribute selector body member access was checked by TSTS and marked for fact-driven erasure." }]);
+  }
+  if (isAttributeBuilderMemberAccess(request.expression, context)) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation("source-semantics.attribute-builder.member", "property", "__tsonic_erased_source_marker"),
+    }, [{ message: "C# attribute builder member access was checked by TSTS and marked for fact-driven erasure." }]);
   }
   const binding = findTargetBinding(context, [
     request.sourceSelectedContainerSymbol,

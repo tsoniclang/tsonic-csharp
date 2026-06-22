@@ -65,13 +65,18 @@ test("C# post-check target assignability reports target invalidity without chang
 
   const diagnostics = session.ensureChecked(session.getSourceFile("/src/index.ts"));
   assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 2322), false, formatDiagnostics(diagnostics));
+  assert.equal(session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
+  ).length, 0);
+
+  session.finalizeExtensions();
 
   const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
     diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
   ) ?? [];
   assert.equal(targetDiagnostics.length, 1);
   assert.match(targetDiagnostics[0].message, /after TSTS accepted the TypeScript relation/);
-  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === targetDiagnostics[0].numericCode), true);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
 });
 
 function createProviderBackedSearchValuesExtension() {
