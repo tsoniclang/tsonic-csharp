@@ -107,15 +107,18 @@ function getCsharpCheckedOperatorFactsFromSyntax(
   const sourceFile = ast.getSourceFile(node);
   let left = getTargetTypeRefForCheckedOperand(leftSubject, sourceFile, context, operandQuery, host);
   let right = getTargetTypeRefForCheckedOperand(rightSubject, sourceFile, context, operandQuery, host);
+  const expectedResult = context.factResolver.resolve(node, runtimeCarrierFactKey)?.carrier;
   if (!ast.is.IsBinaryExpression(node) && left === undefined) {
-    left = context.factResolver.resolve(node, runtimeCarrierFactKey)?.carrier;
+    left = expectedResult;
   }
   if (right === undefined) {
     right = getLiteralTargetTypeRefForKnownOperatorOperand(left, rightSubject, context) ??
+      getLiteralTargetTypeRefForKnownOperatorOperand(expectedResult, rightSubject, context) ??
       getNullishTargetTypeRefForKnownOperatorOperand(left, rightSubject, sourceFile, context);
   }
   if (left === undefined) {
     left = getLiteralTargetTypeRefForKnownOperatorOperand(right, leftSubject, context) ??
+      getLiteralTargetTypeRefForKnownOperatorOperand(expectedResult, leftSubject, context) ??
       getNullishTargetTypeRefForKnownOperatorOperand(right, leftSubject, sourceFile, context);
   }
   if (left === undefined || (rightSubject !== undefined && right === undefined)) {

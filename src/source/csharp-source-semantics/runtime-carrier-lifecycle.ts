@@ -49,6 +49,9 @@ import {
 import {
   csharpNullableTargetType,
 } from "./target-types.js";
+import {
+  getBinaryOperatorText,
+} from "./operator-syntax.js";
 
 export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
   lifecycleContext: CsharpLifecycleObservationContext,
@@ -74,6 +77,9 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
       recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, sourceFile, node, selectedSurfaceIds, host);
       propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
       propagateCsharpRuntimeCarrierFactFromDeclarationType(lifecycleContext, sourceFile, node, host);
+    }
+    for (const node of nodes) {
+      propagateCsharpExpectedRuntimeCarrierFactFromContext(lifecycleContext, sourceFile, node, host);
     }
   }
 }
@@ -402,6 +408,100 @@ function propagateCsharpRuntimeCarrierFactFromDeclarationType(
       lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, typeFact, evidence);
     }
   }
+}
+
+function propagateCsharpExpectedRuntimeCarrierFactFromContext(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const ast = compiler.ast;
+  const kind = ast.kindName(node);
+  if (kind === "KindReturnStatement") {
+    const expression = asNodeSubject(getNodeField(node, "Expression"));
+    const returnFact = getEnclosingReturnRuntimeCarrierFact(lifecycleContext, sourceFile, node, host);
+    setRuntimeCarrierFactIfAbsent(lifecycleContext, expression, returnFact, "C# expected runtime carrier propagated from source return type.");
+    return;
+  }
+  if (kind === "KindVariableDeclaration" || kind === "KindPropertyDeclaration") {
+    const initializer = asNodeSubject(getNodeField(node, "Initializer"));
+    const declarationFact = lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) ??
+      lifecycleContext.host.facts.get(asNodeSubject(getNodeField(node, "Type")), runtimeCarrierFactKey);
+    setRuntimeCarrierFactIfAbsent(lifecycleContext, initializer, declarationFact, "C# expected runtime carrier propagated from source declaration type.");
+    return;
+  }
+  if (ast.is.IsBinaryExpression(node) && getBinaryOperatorText(ast, node) === "=") {
+    const leftFact = lifecycleContext.host.facts.get(asNodeSubject(getNodeField(node, "Left")), runtimeCarrierFactKey);
+    setRuntimeCarrierFactIfAbsent(lifecycleContext, asNodeSubject(getNodeField(node, "Right")), leftFact, "C# expected runtime carrier propagated from assignment target.");
+    return;
+  }
+  const nodeFact = lifecycleContext.host.facts.get(node, runtimeCarrierFactKey);
+  if (nodeFact === undefined) {
+    return;
+  }
+  if (kind === "KindConditionalExpression") {
+    setRuntimeCarrierFactIfAbsent(lifecycleContext, asNodeSubject(getNodeField(node, "WhenTrue")), nodeFact, "C# expected runtime carrier propagated into conditional true branch.");
+    setRuntimeCarrierFactIfAbsent(lifecycleContext, asNodeSubject(getNodeField(node, "WhenFalse")), nodeFact, "C# expected runtime carrier propagated into conditional false branch.");
+    return;
+  }
+  if (kind === "KindParenthesizedExpression" || kind === "KindAsExpression" || kind === "KindSatisfiesExpression" || kind === "KindNonNullExpression" || kind === "KindTypeAssertionExpression") {
+    setRuntimeCarrierFactIfAbsent(lifecycleContext, asNodeSubject(getNodeField(node, "Expression")), nodeFact, "C# expected runtime carrier propagated through transparent expression syntax.");
+    return;
+  }
+  if (!ast.is.IsBinaryExpression(node)) {
+    return;
+  }
+  const operator = getBinaryOperatorText(ast, node);
+  if (operator === "??") {
+    setRuntimeCarrierFactIfAbsent(lifecycleContext, asNodeSubject(getNodeField(node, "Right")), nodeFact, "C# expected runtime carrier propagated into nullish fallback.");
+  }
+}
+
+function getEnclosingReturnRuntimeCarrierFact(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  returnStatement: Node,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): { readonly carrier: TargetTypeRef } | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  let current = compiler.ast.parent(returnStatement);
+  while (current !== undefined) {
+    const kind = compiler.ast.kindName(current);
+    if (
+      kind === "KindFunctionDeclaration" ||
+      kind === "KindMethodDeclaration" ||
+      kind === "KindFunctionExpression" ||
+      kind === "KindArrowFunction" ||
+      kind === "KindGetAccessor"
+    ) {
+      const typeNode = asNodeSubject(getNodeField(current, "Type"));
+      return lifecycleContext.host.facts.get(typeNode, runtimeCarrierFactKey) ??
+        resolveDeclarationTypeRuntimeCarrierFact(lifecycleContext, typeNode, host);
+    }
+    current = compiler.ast.parent(current);
+  }
+  void sourceFile;
+  return undefined;
+}
+
+function setRuntimeCarrierFactIfAbsent(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"] },
+  node: Node | undefined,
+  fact: { readonly carrier: TargetTypeRef } | undefined,
+  message: string,
+): void {
+  if (node === undefined || fact === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
+    return;
+  }
+  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, [{ message }]);
 }
 
 function isOptionalParameterDeclaration(
