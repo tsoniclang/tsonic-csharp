@@ -12,7 +12,7 @@ import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
 import {
-  csharpTargetNamedType,
+  csharpNullableTargetType,
 } from "./target-types.js";
 import type {
   CsharpTargetTypeResolutionHost,
@@ -34,7 +34,7 @@ export function getNullableUnionTargetTypeRefFromSyntax(
     return undefined;
   }
   const inner = resolver.resolveSubject(nonNullish[0], context, options, host);
-  return inner === undefined ? undefined : csharpTargetNamedType("System.Nullable`1", [inner]);
+  return inner === undefined ? undefined : csharpNullableTargetType(inner);
 }
 
 function isNullishTypeSyntax(node: Node, context: ExtensionObservationContext): boolean {

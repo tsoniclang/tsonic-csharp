@@ -59,10 +59,13 @@ export function resolveTargetTypeRefForTypeCore(
     return undefined;
   }
   if (options.allowRuntimeCarrier !== false) {
-    const direct = resolveRuntimeCarrier(type, context) ??
-      resolveRuntimeCarrier(type.symbol, context);
+    const direct = resolveRuntimeCarrier(type, context);
     if (direct !== undefined) {
       return direct;
+    }
+    const symbolCarrier = resolveRuntimeCarrier(type.symbol, context);
+    if (symbolCarrier !== undefined) {
+      return instantiateSemanticRuntimeCarrier(symbolCarrier, type, context, options, host, resolveTargetTypeArgumentsForType);
     }
   }
   const primitive = context.factResolver.resolve(type, sourcePrimitiveFactKey) ??
@@ -138,6 +141,29 @@ export function resolveTargetTypeRefForTypeCore(
     return tuple;
   }
   return undefined;
+}
+
+function instantiateSemanticRuntimeCarrier(
+  carrier: TargetTypeRef,
+  type: Type,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolveTargetTypeArgumentsForType: CsharpTargetTypeArgumentsResolver,
+): TargetTypeRef | undefined {
+  if (carrier.kind !== "target-named") {
+    return carrier;
+  }
+  const typeArguments = resolveTargetTypeArgumentsForType(type, context, options, host);
+  if (typeArguments === undefined) {
+    return undefined;
+  }
+  return typeArguments.length === 0
+    ? carrier
+    : {
+        ...carrier,
+        typeArguments,
+      };
 }
 
 function targetTypeArgumentArityMatches(typeParameterCount: number, typeArgumentCount: number): boolean {

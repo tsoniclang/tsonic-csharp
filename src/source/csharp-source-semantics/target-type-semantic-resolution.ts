@@ -7,6 +7,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
+  csharpNullableTargetType,
   csharpDelegateTargetType,
   csharpTargetNamedType,
 } from "./target-types.js";
@@ -110,7 +111,7 @@ export function getNullableUnionTargetTypeRef(
   const inner = resolver.resolveType(nonNullish[0], context, options, host);
   return inner === undefined
     ? undefined
-    : csharpTargetNamedType("System.Nullable`1", [inner]);
+    : csharpNullableTargetType(inner);
 }
 
 export function getTupleTargetTypeRef(

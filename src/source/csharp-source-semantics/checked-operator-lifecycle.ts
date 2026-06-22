@@ -35,6 +35,7 @@ import {
   getCheckedOperatorOperandQuery,
   getCsharpOperatorResultTypeRefForOperator,
   getLiteralTargetTypeRefForKnownOperatorOperand,
+  getNullishTargetTypeRefForKnownOperatorOperand,
 } from "./checked-operator-mapping.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
@@ -103,9 +104,16 @@ function getCsharpCheckedOperatorFactsFromSyntax(
     : undefined;
   const operandQuery = getCheckedOperatorOperandQuery(operator);
   const sourceFile = ast.getSourceFile(node);
-  const left = getTargetTypeRefForCheckedOperand(leftSubject, sourceFile, context, operandQuery, host);
-  const right = getTargetTypeRefForCheckedOperand(rightSubject, sourceFile, context, operandQuery, host) ??
-    getLiteralTargetTypeRefForKnownOperatorOperand(left, rightSubject, context);
+  let left = getTargetTypeRefForCheckedOperand(leftSubject, sourceFile, context, operandQuery, host);
+  let right = getTargetTypeRefForCheckedOperand(rightSubject, sourceFile, context, operandQuery, host);
+  if (right === undefined) {
+    right = getLiteralTargetTypeRefForKnownOperatorOperand(left, rightSubject, context) ??
+      getNullishTargetTypeRefForKnownOperatorOperand(left, rightSubject, sourceFile, context);
+  }
+  if (left === undefined) {
+    left = getLiteralTargetTypeRefForKnownOperatorOperand(right, leftSubject, context) ??
+      getNullishTargetTypeRefForKnownOperatorOperand(right, leftSubject, sourceFile, context);
+  }
   if (left === undefined || (rightSubject !== undefined && right === undefined)) {
     return undefined;
   }

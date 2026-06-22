@@ -101,15 +101,16 @@ function getEnumMemberTargetType(
     : sourceDeclarationTargetType(getNodeNameText(enumDeclaration), "KindEnumDeclaration");
 }
 
-function sourceDeclarationTargetType(
+export function sourceDeclarationTargetType(
   name: string,
   kind: "KindClassDeclaration" | "KindInterfaceDeclaration" | "KindEnumDeclaration",
+  typeArguments?: readonly TargetTypeRef[],
 ): TargetTypeRef | undefined {
   if (name.length === 0) {
     return undefined;
   }
   return {
-    ...csharpTargetNamedType(name, undefined, { kind: "named", name }),
+    ...csharpTargetNamedType(name, typeArguments, { kind: "named", name }),
     csharpSourceDeclarationKind: kind === "KindClassDeclaration"
       ? "class" as const
       : kind === "KindInterfaceDeclaration"

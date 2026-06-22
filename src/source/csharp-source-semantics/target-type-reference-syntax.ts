@@ -12,8 +12,13 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
+  getNodeNameText,
 } from "./ast-utils.js";
 import {
+  sourceDeclarationTargetType,
+} from "./source-declaration-facts.js";
+import {
+  getAliasedSymbolIfAvailable,
   getSymbolDeclarations,
 } from "./symbol-utils.js";
 import type {
@@ -48,10 +53,14 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
   if (ast === undefined || checker === undefined || typeName === undefined) {
     return undefined;
   }
+  const sourceFile = ast.getSourceFile(node);
+  const typeNameSymbol = checker.getSymbolAtLocation(typeName, { sourceFile });
   const type = asType(checker.getTypeFromTypeNode(node));
   const candidateSubjects: readonly (ExtensionFactSubject | undefined)[] = [
     node,
     typeName,
+    typeNameSymbol,
+    getAliasedSymbolIfAvailable(checker, typeNameSymbol, sourceFile),
     type?.symbol,
   ];
   for (const candidate of candidateSubjects) {
@@ -83,6 +92,10 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     }
     return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
   }
+  const sourceDeclarationType = getTargetTypeRefFromSourceDeclarationReference(candidateSubjects, node, context, options, host, resolver);
+  if (sourceDeclarationType !== undefined) {
+    return sourceDeclarationType;
+  }
   const aliasedType = getTargetTypeRefFromTypeAliasDeclarations(candidateSubjects, node, context, options, host, resolver);
   if (aliasedType !== undefined) {
     return aliasedType;
@@ -95,6 +108,38 @@ function resolveTargetBindingFact(
   subject: ExtensionFactSubject | undefined,
 ): TargetBindingFact | undefined {
   return subject === undefined ? undefined : context.factResolver.resolve(subject, targetBindingFactKey);
+}
+
+function getTargetTypeRefFromSourceDeclarationReference(
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  currentNode: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolver: CsharpRecursiveTargetTypeResolver,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  const typeArguments = ast.typeArguments(currentNode).map((argument) => resolver.resolveSubject(argument, context, options, host));
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  for (const subject of subjects) {
+    for (const declaration of getSymbolDeclarations(subject)) {
+      const kind = ast.kindName(declaration);
+      if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
+        continue;
+      }
+      return sourceDeclarationTargetType(
+        getNodeNameText(declaration),
+        kind,
+        typeArguments as readonly TargetTypeRef[],
+      );
+    }
+  }
+  return undefined;
 }
 
 function getTargetTypeRefFromTypeAliasDeclarations(

@@ -95,9 +95,9 @@ export function mapCsharpCheckedOperator(
   }
   const operandQuery = getCheckedOperatorOperandQuery(request.operator);
   const sourceFile = getOperatorSourceFile(request.expression, context);
-  const left = getCheckedOperatorOperandTargetTypeRef(request.leftType, request.left, sourceFile, context, operandQuery, host);
-  const right = getCheckedOperatorOperandTargetTypeRef(request.rightType, request.right, sourceFile, context, operandQuery, host) ??
-    getLiteralTargetTypeRefForKnownOperatorOperand(left, request.right, context);
+  const operands = getCheckedOperatorOperandTargetTypeRefs(request, sourceFile, context, operandQuery, host);
+  const left = operands.left;
+  const right = operands.right;
   if (left === undefined || (request.right !== undefined && right === undefined)) {
     return deferObservation;
   }
@@ -118,6 +118,26 @@ export function mapCsharpCheckedOperator(
       { resultType },
     ),
   }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
+}
+
+function getCheckedOperatorOperandTargetTypeRefs(
+  request: CheckedOperatorMappingRequest,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+  operandQuery: TargetTypeRefResolutionOptions,
+  host: CsharpOperationsProviderHost,
+): { readonly left: TargetTypeRef | undefined; readonly right: TargetTypeRef | undefined } {
+  let left = getCheckedOperatorOperandTargetTypeRef(request.leftType, request.left, sourceFile, context, operandQuery, host);
+  let right = getCheckedOperatorOperandTargetTypeRef(request.rightType, request.right, sourceFile, context, operandQuery, host);
+  if (right === undefined) {
+    right = getLiteralTargetTypeRefForKnownOperatorOperand(left, request.right, context) ??
+      getNullishTargetTypeRefForKnownOperatorOperand(left, request.right, sourceFile, context);
+  }
+  if (left === undefined) {
+    left = getLiteralTargetTypeRefForKnownOperatorOperand(right, request.left, context) ??
+      getNullishTargetTypeRefForKnownOperatorOperand(right, request.left, sourceFile, context);
+  }
+  return { left, right };
 }
 
 function getOperatorSourceFile(
@@ -209,6 +229,43 @@ export function getLiteralTargetTypeRefForKnownOperatorOperand(
   return unwrappedExpected !== undefined && isLiteralRepresentableAsTargetType(unwrappedExpected, operand, context)
     ? unwrappedExpected
     : undefined;
+}
+
+export function getNullishTargetTypeRefForKnownOperatorOperand(
+  expectedOperandType: TargetTypeRef | undefined,
+  operand: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  return expectedOperandType !== undefined && isNullishExpressionOperand(operand, sourceFile, context)
+    ? expectedOperandType
+    : undefined;
+}
+
+function isNullishExpressionOperand(
+  operand: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+): boolean {
+  const node = asNodeSubject(operand);
+  const compiler = context.compiler;
+  if (node === undefined || compiler === undefined) {
+    return false;
+  }
+  const kind = compiler.ast.kindName(node);
+  if (kind === "KindNullKeyword" || kind === "KindVoidExpression") {
+    return true;
+  }
+  if (kind !== "KindIdentifier" || compiler.ast.text(node) !== "undefined") {
+    return false;
+  }
+  try {
+    const checkedSourceFile = sourceFile ?? compiler.ast.getSourceFile(node);
+    const type = compiler.checker.getTypeAtLocation(node, { sourceFile: checkedSourceFile });
+    return type === undefined ? false : compiler.types.isNullish(type);
+  } catch {
+    return false;
+  }
 }
 
 function getCsharpOperatorResultTypeRef(

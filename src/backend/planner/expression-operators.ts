@@ -1,7 +1,13 @@
 import {
   AsBinaryExpression,
+  AsIdentifier,
   HasSourceKind,
   KindBinaryExpression,
+  KindIdentifier,
+  KindNullKeyword,
+  KindVoidExpression,
+  Node_Text,
+  SourceKind,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -72,10 +78,43 @@ export function tryPlanBinaryExpression(
   }
   return {
     kind: "BinaryExpression",
-    left: planExpression(left!, sourceFile, input, diagnostics),
+    left: planBinaryOperand(left!, csharpOperator.operator, sourceFile, input, diagnostics, planExpression),
     operator: csharpOperator.operator,
-    right: planExpression(right!, sourceFile, input, diagnostics),
+    right: planBinaryOperand(right!, csharpOperator.operator, sourceFile, input, diagnostics, planExpression),
   };
+}
+
+function planBinaryOperand(
+  operand: Node,
+  operator: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression {
+  return isNullishEqualityOperand(operand, operator, sourceFile, input)
+    ? { kind: "LiteralExpression", value: null }
+    : planExpression(operand, sourceFile, input, diagnostics);
+}
+
+function isNullishEqualityOperand(
+  operand: Node,
+  operator: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  if (operator !== "==" && operator !== "!=") {
+    return false;
+  }
+  const kind = SourceKind(input.ast, operand);
+  if (kind === KindNullKeyword || kind === KindVoidExpression) {
+    return true;
+  }
+  if (kind !== KindIdentifier || Node_Text(AsIdentifier(operand)) !== "undefined") {
+    return false;
+  }
+  const type = input.semantics.getTypeAtLocation(operand, { sourceFile });
+  return type === undefined ? false : input.types.isNullish(type);
 }
 
 function combineOwnership(left: OperationSemanticOwnership, right: OperationSemanticOwnership): OperationSemanticOwnership {

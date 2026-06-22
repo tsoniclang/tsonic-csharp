@@ -1,6 +1,12 @@
 import type { TargetTypeRef } from "@tsonic/tsts";
+import {
+  isCsharpNullableReferenceTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 export function targetTypeRefsMatch(left: TargetTypeRef, right: TargetTypeRef): boolean {
+  if (isCsharpNullableReferenceTargetType(left) !== isCsharpNullableReferenceTargetType(right)) {
+    return false;
+  }
   if (left.kind !== right.kind) {
     return false;
   }

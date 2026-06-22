@@ -71,6 +71,9 @@ export function getTargetTypeRefFromSyntax(
     const element = resolver.resolveSubject(asNodeSubject(getNodeField(node, "ElementType")), context, options, host);
     return element === undefined ? undefined : { kind: "array", element };
   }
+  if (ast.is.IsParenthesizedTypeNode(node)) {
+    return resolver.resolveSubject(asNodeSubject(getNodeField(node, "Type")), context, options, host);
+  }
   if (ast.is.IsUnionTypeNode(node)) {
     const nullable = getNullableUnionTargetTypeRefFromSyntax(node, context, options, host, resolver);
     if (nullable !== undefined) {

@@ -46,6 +46,9 @@ import {
 import {
   csharpTargetId,
 } from "./identity.js";
+import {
+  csharpNullableTargetType,
+} from "./target-types.js";
 
 export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
   lifecycleContext: CsharpLifecycleObservationContext,
@@ -392,11 +395,14 @@ function propagateCsharpRuntimeCarrierFactFromDeclarationType(
   }
   const typeNode = asNodeSubject(getNodeField(node, "Type"));
   const name = asNodeSubject(getNodeField(node, "name"));
-  const typeFact = lifecycleContext.host.facts.get(typeNode, runtimeCarrierFactKey) ??
+  const resolvedTypeFact = lifecycleContext.host.facts.get(typeNode, runtimeCarrierFactKey) ??
     resolveDeclarationTypeRuntimeCarrierFact(lifecycleContext, typeNode, host);
-  if (typeFact === undefined) {
+  if (resolvedTypeFact === undefined) {
     return;
   }
+  const typeFact = isOptionalParameterDeclaration(compiler.ast, node)
+    ? { carrier: csharpNullableTargetType(resolvedTypeFact.carrier) }
+    : resolvedTypeFact;
   const evidence = [{ message: "C# runtime carrier propagated from checked declaration type annotation." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, typeFact, evidence);
   if (name !== undefined) {
@@ -406,6 +412,14 @@ function propagateCsharpRuntimeCarrierFactFromDeclarationType(
       lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, typeFact, evidence);
     }
   }
+}
+
+function isOptionalParameterDeclaration(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  return ast.kindName(node) === "KindParameter" &&
+    asNodeSubject(getNodeField(node, "QuestionToken")) !== undefined;
 }
 
 function resolveDeclarationTypeRuntimeCarrierFact(

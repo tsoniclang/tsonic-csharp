@@ -11,6 +11,9 @@ import {
 import {
   isPlainCsharpIdentifier,
 } from "../../csharp-identifiers.js";
+import {
+  isCsharpNullableReferenceTargetType,
+} from "./target-types.js";
 
 export function asType(subject: unknown): Type | undefined {
   return asSemanticType(subject);
@@ -33,6 +36,9 @@ export function asTargetTypeRef(subject: unknown): TargetTypeRef | undefined {
 }
 
 export function targetTypeRefEquals(left: TargetTypeRef, right: TargetTypeRef): boolean {
+  if (isCsharpNullableReferenceTargetType(left) !== isCsharpNullableReferenceTargetType(right)) {
+    return false;
+  }
   if (left.kind !== right.kind) {
     return false;
   }
@@ -112,29 +118,30 @@ export function generatedObjectShapeMemberName(sourceName: string): string {
 }
 
 export function targetTypeRefKey(type: TargetTypeRef): string {
+  const nullablePrefix = isCsharpNullableReferenceTargetType(type) ? "nullable-reference:" : "";
   switch (type.kind) {
     case "source-primitive":
-      return `source:${type.name}`;
+      return `${nullablePrefix}source:${type.name}`;
     case "target-named":
-      return `target:${type.id}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
+      return `${nullablePrefix}target:${type.id}<${(type.typeArguments ?? []).map(targetTypeRefKey).join(",")}>`;
     case "type-parameter":
-      return `type-param:${type.name}`;
+      return `${nullablePrefix}type-param:${type.name}`;
     case "array":
-      return `array:${targetTypeRefKey(type.element)}`;
+      return `${nullablePrefix}array:${targetTypeRefKey(type.element)}`;
     case "tuple":
-      return `tuple:${type.elements.map(targetTypeRefKey).join(",")}`;
+      return `${nullablePrefix}tuple:${type.elements.map(targetTypeRefKey).join(",")}`;
     case "pointer":
-      return `pointer:${type.mutability}:${targetTypeRefKey(type.pointee)}`;
+      return `${nullablePrefix}pointer:${type.mutability}:${targetTypeRefKey(type.pointee)}`;
     case "function-pointer":
-      return `fnptr:${type.abi ?? ""}:${type.args.map(targetTypeRefKey).join(",")}=>${targetTypeRefKey(type.result)}`;
+      return `${nullablePrefix}fnptr:${type.abi ?? ""}:${type.args.map(targetTypeRefKey).join(",")}=>${targetTypeRefKey(type.result)}`;
     case "opaque":
-      return `opaque:${type.id}`;
+      return `${nullablePrefix}opaque:${type.id}`;
     case "associated-type":
-      return `associated:${type.name}:${targetTypeRefKey(type.owner)}`;
+      return `${nullablePrefix}associated:${type.name}:${targetTypeRefKey(type.owner)}`;
     case "lifetime":
-      return `lifetime:${type.name}`;
+      return `${nullablePrefix}lifetime:${type.name}`;
     case "target-specific":
-      return `target-specific:${type.target}:${type.name}:${String(type.value)}`;
+      return `${nullablePrefix}target-specific:${type.target}:${type.name}:${String(type.value)}`;
   }
 }
 

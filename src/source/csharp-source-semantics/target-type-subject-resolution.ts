@@ -49,9 +49,8 @@ import {
   getSymbolDeclarations,
 } from "./symbol-utils.js";
 import {
-  type CsharpTargetNamedTypeRef,
-  csharpTargetNamedType,
-} from "./target-types.js";
+  sourceDeclarationTargetType,
+} from "./source-declaration-facts.js";
 
 export type CsharpTargetTypeResolver = (
   type: Type | undefined,
@@ -123,13 +122,13 @@ export function resolveTargetTypeRefForSubjectCore(
   if (providerVirtualTarget !== undefined) {
     return enrichCsharpTargetTypeRef(providerVirtualTarget, host);
   }
-  const sourceDeclarationTarget = getSourceDeclarationTargetTypeRef(subject, context);
-  if (sourceDeclarationTarget !== undefined) {
-    return sourceDeclarationTarget;
-  }
   const syntaxType = getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
   if (syntaxType !== undefined) {
     return syntaxType;
+  }
+  const sourceDeclarationTarget = getSourceDeclarationTargetTypeRef(subject, context);
+  if (sourceDeclarationTarget !== undefined) {
+    return sourceDeclarationTarget;
   }
   const declarationType = getTargetTypeRefFromDeclarationAnnotation(
     subject,
@@ -187,15 +186,7 @@ function getSourceDeclarationTargetTypeRef(
     if (name.length === 0) {
       continue;
     }
-    const targetType = {
-      ...csharpTargetNamedType(name, undefined, { kind: "named", name }),
-      csharpSourceDeclarationKind: kind === "KindClassDeclaration"
-        ? "class" as const
-        : kind === "KindInterfaceDeclaration"
-          ? "interface" as const
-          : "enum" as const,
-    } as CsharpTargetNamedTypeRef;
-    return targetType;
+    return sourceDeclarationTargetType(name, kind);
   }
   return undefined;
 }

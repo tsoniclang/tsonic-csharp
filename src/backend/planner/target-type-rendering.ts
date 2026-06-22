@@ -6,6 +6,7 @@ import type {
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
   csharpRenderShapeForTargetNamedType,
+  isCsharpNullableReferenceTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 
 const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
@@ -30,7 +31,12 @@ const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
 ]);
 
 export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
-  return csharpTypeFromEnrichedTargetTypeRef(type);
+  const rendered = csharpTypeFromEnrichedTargetTypeRef(type);
+  return rendered === undefined
+    ? undefined
+    : isCsharpNullableReferenceTargetType(type) && rendered.kind !== "NullableType"
+      ? { kind: "NullableType", inner: rendered }
+      : rendered;
 }
 
 function csharpTypeFromEnrichedTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {

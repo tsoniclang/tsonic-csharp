@@ -1,5 +1,8 @@
 import { defineExtensionFactKey } from "@tsonic/tsts";
 import type { ExtensionEvidence, ExtensionFactSubject, TargetConstraint, TargetMember, TargetParameter, TargetTypeParameter, TargetTypeRef } from "@tsonic/tsts";
+import {
+  isCsharpNullableReferenceTargetType,
+} from "./csharp-source-semantics/target-types.js";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint";
 
@@ -408,6 +411,9 @@ function targetTypeRefEquals(left: TargetTypeRef | undefined, right: TargetTypeR
     return true;
   }
   if (left === undefined || right === undefined || left.kind !== right.kind) {
+    return false;
+  }
+  if (isCsharpNullableReferenceTargetType(left) !== isCsharpNullableReferenceTargetType(right)) {
     return false;
   }
   switch (left.kind) {
