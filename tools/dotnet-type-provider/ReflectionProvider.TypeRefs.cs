@@ -20,7 +20,7 @@ sealed partial class ReflectionProvider
         }
         if (type == typeof(string))
         {
-            return new { kind = "named", metadataName = "System.String", displayName = "System.String", sourceShape = new { kind = "string" } };
+            return new { kind = "named", metadataName = "System.String", displayName = "System.String", renderShape = RenderShape(typeof(string)), sourceShape = new { kind = "string" } };
         }
         if (type == typeof(object))
         {
@@ -56,6 +56,7 @@ sealed partial class ReflectionProvider
             kind = "named",
             metadataName = MetadataName(definition),
             displayName = DisplayName(definition),
+            renderShape = RenderShape(definition),
             typeArguments = typeArguments.Length == 0 ? null : typeArguments,
             sourceShape,
         };

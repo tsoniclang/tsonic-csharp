@@ -6,8 +6,8 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
-  selectExactTargetMember,
   selectTargetMember,
+  selectExactTargetMember,
 } from "./target-member-arguments.js";
 import type {
   TargetMemberSelectionOptions,
@@ -39,7 +39,7 @@ export function findTargetMemberForCall(
   options: TargetMemberSelectionOptions = {},
 ): TargetMember | undefined {
   const candidates = getTargetMemberCandidatesForCall(binding, declaration);
-  if (candidates.length === 1 && declaration?.signatureId !== undefined) {
+  if (candidates.length === 1) {
     return selectExactTargetMember(
       candidates[0]!,
       {
@@ -49,10 +49,19 @@ export function findTargetMemberForCall(
       options,
     );
   }
-  return selectTargetMember(candidates, {
-    arguments: request.arguments,
-    receiver: request.calleeReceiver,
-  }, context, resolveTargetTypeRef, options);
+  if (declaration?.signatureId !== undefined && candidates.length > 1) {
+    return selectTargetMember(
+      candidates,
+      {
+        arguments: request.arguments,
+        receiver: request.calleeReceiver,
+      },
+      context,
+      resolveTargetTypeRef,
+      options,
+    );
+  }
+  return undefined;
 }
 
 export function findTargetMember(
@@ -74,11 +83,18 @@ function getTargetMemberCandidatesForCall(
   declaration: ProviderVirtualDeclarationFact | undefined,
 ): readonly TargetMember[] {
   const members = binding.members ?? [];
-  const signatureMember = declaration?.signatureId === undefined
-    ? undefined
-    : members.find((member) => member.id === declaration.signatureId);
-  if (signatureMember !== undefined && signatureMember.overloadGroup !== declaration?.memberId) {
-    return [signatureMember];
+  if (declaration?.signatureId !== undefined) {
+    const signatureMember = members.find((member) => member.id === declaration.signatureId);
+    if (signatureMember === undefined) {
+      return [];
+    }
+    if (signatureMember.overloadGroup === undefined) {
+      return [signatureMember];
+    }
+    return members.filter((member) =>
+      member.id === signatureMember.id ||
+      member.overloadGroup === signatureMember.overloadGroup
+    );
   }
   if (declaration?.memberId !== undefined) {
     return members.filter((member) =>

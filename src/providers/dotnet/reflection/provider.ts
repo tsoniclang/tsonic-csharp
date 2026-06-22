@@ -10,7 +10,6 @@ import {
   dotnetExportToTargetBinding,
 } from "../model.js";
 import {
-  createDotnetModuleSpecifier,
   dotnetModulePrefix,
   parseDotnetModuleSpecifier,
 } from "../module-specifier.js";
@@ -154,17 +153,11 @@ export function createDotnetReflectionTypeDataProvider(
       if (existing !== undefined) {
         return existing;
       }
-      for (const namespaceName of namespaceCandidatesFromTargetId(targetId)) {
-        const moduleResult = loadModule(createDotnetModuleSpecifier(namespaceName), {});
-        if (isDotnetProviderDiagnostic(moduleResult)) {
-          continue;
-        }
-        const binding = findTargetBindingInModule(moduleResult, targetId);
-        if (binding !== undefined) {
-          return binding;
-        }
+      const batchDiagnostic = loadAllModules({});
+      if (batchDiagnostic !== undefined) {
+        return undefined;
       }
-      return undefined;
+      return findTargetBindingInLoadedModules(modules, targetId);
     },
   };
 }
@@ -189,19 +182,6 @@ function findTargetBindingInModule(module: DotnetModuleModel, targetId: string):
     }
   }
   return undefined;
-}
-
-function namespaceCandidatesFromTargetId(targetId: string): readonly string[] {
-  const parts = targetId.split(".");
-  const candidates: string[] = [];
-  for (let count = parts.length - 1; count >= 1; count -= 1) {
-    candidates.push(parts.slice(0, count).join("."));
-  }
-  return candidates;
-}
-
-function isDotnetProviderDiagnostic(value: DotnetProviderModuleResult): value is DotnetProviderDiagnostic {
-  return "code" in value && "message" in value;
 }
 
 function diagnostic(

@@ -126,21 +126,44 @@ sealed partial class ReflectionProvider
         return MetadataName(type).Replace('+', '.');
     }
 
+    static object RenderShape(Type type)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(type.Namespace))
+        {
+            parts.AddRange(type.Namespace.Split('.', StringSplitOptions.RemoveEmptyEntries));
+        }
+        var declaringTypes = new Stack<string>();
+        for (var current = type.DeclaringType; current is not null; current = current.DeclaringType)
+        {
+            declaringTypes.Push(StripGenericArity(current.Name));
+        }
+        parts.AddRange(declaringTypes);
+        parts.Add(StripGenericArity(type.Name));
+        var name = parts[^1];
+        var namespaceParts = parts.Count > 1 ? parts.Take(parts.Count - 1).ToArray() : Array.Empty<string>();
+        return new
+        {
+            kind = "named",
+            @namespace = namespaceParts.Length == 0 ? null : namespaceParts,
+            name,
+        };
+    }
+
+    static string StripGenericArity(string name)
+    {
+        var tick = name.IndexOf('`');
+        return tick < 0 ? name : name[..tick];
+    }
+
     static string SourceTypeName(Type type)
     {
-        var name = type.Name;
-        var tick = name.IndexOf('`');
-        return Identifier(tick < 0 ? name : name[..tick]);
+        return Identifier(StripGenericArity(type.Name));
     }
 
     static string LowerCamel(string name)
     {
-        var source = name;
-        var tick = source.IndexOf('`');
-        if (tick >= 0)
-        {
-            source = source[..tick];
-        }
+        var source = StripGenericArity(name);
         if (source.Length == 0)
         {
             return source;

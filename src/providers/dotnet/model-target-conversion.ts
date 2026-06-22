@@ -11,6 +11,7 @@ import type {
   DotnetExportDeclaration,
   DotnetMemberDeclaration,
   DotnetParameterDeclaration,
+  DotnetRenderShape,
   DotnetSignatureDeclaration,
   DotnetTypeDeclaration,
   DotnetTypeKind,
@@ -22,7 +23,7 @@ import {
   csharpBigIntegerTargetType,
   csharpBooleanTargetType,
   csharpDelegateTargetType,
-  csharpQualifiedTypeRenderShape,
+  type CsharpTargetTypeRenderShape,
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
@@ -61,7 +62,7 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
   const declaredCsharpType = csharpTargetNamedType(
     declaration.metadataName,
     declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
-    declaration.displayName === undefined ? undefined : dotnetDisplayNameRenderShape(declaration.displayName),
+    declaration.renderShape === undefined ? undefined : dotnetRenderShapeToCsharpRenderShape(declaration.renderShape),
     csharpTargetMetadataFromDotnetTypeDeclaration(declaration),
   );
   const baseType = declaration.baseType === undefined
@@ -204,7 +205,7 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
       return csharpTargetNamedType(
         type.metadataName,
         type.typeArguments?.map(dotnetTypeRefToTargetTypeRef),
-        type.displayName === undefined ? undefined : dotnetDisplayNameRenderShape(type.displayName),
+        type.renderShape === undefined ? undefined : dotnetRenderShapeToCsharpRenderShape(type.renderShape),
         csharpTargetMetadataFromDotnetTypeRef(type),
       );
     case "array":
@@ -294,15 +295,13 @@ function csharpTargetMetadataFromDotnetMetadataName(
   }
 }
 
-function dotnetDisplayNameRenderShape(displayName: string): ReturnType<typeof csharpQualifiedTypeRenderShape> {
-  const lastSeparator = displayName.lastIndexOf(".");
-  const name = stripGenericArity(lastSeparator < 0 ? displayName : displayName.slice(lastSeparator + 1));
-  return lastSeparator < 0
-    ? { kind: "named", name }
-    : csharpQualifiedTypeRenderShape(displayName.slice(0, lastSeparator), name);
-}
-
-function stripGenericArity(name: string): string {
-  const tick = name.indexOf("`");
-  return tick < 0 ? name : name.slice(0, tick);
+function dotnetRenderShapeToCsharpRenderShape(shape: DotnetRenderShape): CsharpTargetTypeRenderShape {
+  switch (shape.kind) {
+    case "named":
+      return {
+        kind: "named",
+        ...(shape.namespace !== undefined && shape.namespace.length > 0 ? { namespace: shape.namespace } : {}),
+        name: shape.name,
+      };
+  }
 }

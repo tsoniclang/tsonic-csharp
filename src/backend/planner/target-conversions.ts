@@ -6,7 +6,7 @@ import { invalidExpression } from "./invalid-expression.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
   csharpStaticMemberExpression,
-  getRequiredCsharpTargetOperation,
+  getRequiredCsharpTargetConversionOperation,
 } from "./csharp-target-operations.js";
 
 type TargetConversion = NonNullable<ReturnType<TargetCompileInput["facts"]["getTargetConversionFact"]>>;
@@ -70,7 +70,7 @@ function targetConversionStaticMethodCallee(
   diagnostics: TargetDiagnostic[],
   node: Node,
 ): CsharpExpression | undefined {
-  const csharpOperation = getRequiredCsharpTargetOperation(input, node, operation, diagnostics, "C# target conversion method emission");
+  const csharpOperation = getRequiredCsharpTargetConversionOperation(input, node, operation, diagnostics, "C# target conversion method emission");
   if (csharpOperation === undefined) {
     return undefined;
   }

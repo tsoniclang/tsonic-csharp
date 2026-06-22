@@ -8,6 +8,7 @@ import type {
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import {
+  csharpTargetConversionOperationFactKey,
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
 import type {
@@ -41,6 +42,25 @@ export function getRequiredCsharpTargetOperation(
   }
   if (operation.operationId !== selectedOperation.operationId) {
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched target operation facts: generic '${selectedOperation.operationId}', C# '${operation.operationId}'.`));
+    return undefined;
+  }
+  return operation;
+}
+
+export function getRequiredCsharpTargetConversionOperation(
+  input: TargetCompileInput,
+  subject: Node,
+  selectedOperation: TargetOperationFact,
+  diagnostics: TargetDiagnostic[],
+  purpose: string,
+): CsharpTargetOperationFact | undefined {
+  const operation = input.facts.getFact(subject, csharpTargetConversionOperationFactKey);
+  if (operation === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a finalized C# target conversion operation fact; the generic TSTS target conversion '${selectedOperation.operationId}' is not enough for C# emission.`));
+    return undefined;
+  }
+  if (operation.operationId !== selectedOperation.operationId) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched target conversion operation facts: generic '${selectedOperation.operationId}', C# '${operation.operationId}'.`));
     return undefined;
   }
   return operation;
@@ -89,6 +109,10 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
   }
   if (operation.selectedMember === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a closed selected C# member in the finalized operation fact.`));
+    return undefined;
+  }
+  if (operation.selectedMember.id !== selectedSignature.member.id) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member facts: generic selected member '${selectedSignature.member.id}', C# selected member '${operation.selectedMember.id}'.`));
     return undefined;
   }
   return operation;

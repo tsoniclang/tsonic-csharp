@@ -10,6 +10,12 @@ export interface DotnetProviderIdentity {
   readonly displayName: string;
 }
 
+export interface DotnetRenderShape {
+  readonly kind: "named";
+  readonly namespace?: readonly string[];
+  readonly name: string;
+}
+
 export interface DotnetAssemblyReference {
   readonly name: string;
   readonly version?: string;
@@ -67,6 +73,7 @@ export interface DotnetTypeDeclaration {
   readonly namespaceName: string;
   readonly metadataName: string;
   readonly displayName?: string;
+  readonly renderShape?: DotnetRenderShape;
   readonly typeParameters?: readonly DotnetTypeParameterDeclaration[];
   readonly baseType?: DotnetTypeRef;
   readonly implementedContracts?: readonly DotnetConstraint[];
@@ -158,7 +165,7 @@ export type DotnetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "type-parameter"; readonly name: string }
   | { readonly kind: "provider-ref"; readonly name: string; readonly moduleSpecifier?: string; readonly typeArguments?: readonly DotnetTypeRef[] }
-  | { readonly kind: "named"; readonly metadataName: string; readonly displayName?: string; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef }
+  | { readonly kind: "named"; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef }
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly DotnetTypeRef[] }
   | { readonly kind: "union"; readonly types: readonly DotnetTypeRef[] }

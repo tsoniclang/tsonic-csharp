@@ -229,7 +229,7 @@ test("C# provider includes virtual declaration signature id as candidate evidenc
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
-test("C# provider honors exact selected signature id without target argument reselection", () => {
+test("C# provider rejects overloaded member selections without exact signature identity", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -241,8 +241,59 @@ test("C# provider honors exact selected signature id without target argument res
     target: "csharp",
     kind: "class",
     members: [
-      exactMethod("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
-      { ...exactMethod("Example.Target.m(System.Int64)", { kind: "source-primitive", name: "int64" }), sourceName: "renamed" },
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      method("Example.Target.m(System.Int64)", { kind: "source-primitive", name: "int64" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int64",
+      runtimeBase: "number",
+      signed: true,
+      width: 64,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+    },
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+});
+
+test("C# provider refines selected overload groups using provider target argument facts", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      { ...method("Example.Target.m(System.Int64)", { kind: "source-primitive", name: "int64" }), sourceName: "renamed" },
     ],
   };
 
@@ -278,7 +329,7 @@ test("C# provider honors exact selected signature id without target argument res
   }));
 
   assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
@@ -523,21 +574,6 @@ function method(id, parameterType) {
     }],
     returnType: { kind: "target-named", id: "System.Void" },
     overloadGroup: "Example.Target.m",
-  };
-}
-
-function exactMethod(id, parameterType) {
-  return {
-    id,
-    sourceName: "m",
-    targetName: "M",
-    kind: "method",
-    parameters: [{
-      name: "value",
-      type: parameterType,
-      passingMode: "by-value",
-    }],
-    returnType: { kind: "target-named", id: "System.Void" },
   };
 }
 

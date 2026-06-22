@@ -134,13 +134,13 @@ export function getCsharpTypeForNode(
   if (keywordType !== undefined) {
     return keywordType;
   }
-  const targetBindingType = getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
-  if (targetBindingType !== undefined) {
-    return targetBindingType;
-  }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (nodeCarrierType !== undefined) {
     return nodeCarrierType;
+  }
+  const targetBindingType = getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
+  if (targetBindingType !== undefined) {
+    return targetBindingType;
   }
   const callableSemanticType = nodeType === undefined
     ? undefined
@@ -597,11 +597,11 @@ function getCsharpTypeFromTargetBindingForReference(
   if (typeArguments === undefined) {
     return invalidCsharpType("provider target type arguments");
   }
-  const targetType = csharpTargetTypeFromBinding(targetBinding, typeArguments) ?? {
-    kind: "target-named" as const,
-    id: targetBinding.id,
-    ...(typeArguments.length > 0 ? { typeArguments } : {}),
-  };
+  const targetType = csharpTargetTypeFromBinding(targetBinding, typeArguments);
+  if (targetType === undefined) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "Provider-owned target type reference requires explicit C# render metadata before C# emission."));
+    return invalidCsharpType("provider target binding");
+  }
   const csharpType = csharpTypeFromTargetTypeRef(targetType);
   if (csharpType !== undefined) {
     return csharpType;

@@ -28,6 +28,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
+  getTargetTypeRefForNode,
+} from "./runtime-carriers.js";
+import {
   csharpTargetTypeFromBinding,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
@@ -90,12 +93,16 @@ function getCsharpTypeForExpressionReference(
       ? { kind: "IdentifierName", name: sourceReferenceName }
       : { kind: "IdentifierName", name: requireCsharpIdentifier(sourceReferenceName, diagnostics, "Project source type reference") };
   }
+  const targetCarrier = getTargetTypeRefForNode(input, node, sourceFile);
+  if (targetCarrier !== undefined) {
+    const csharpType = csharpTypeFromTargetTypeRef(targetCarrier);
+    if (csharpType !== undefined) {
+      return csharpType;
+    }
+  }
   const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding !== undefined) {
-    const targetType = csharpTargetTypeFromBinding(targetBinding) ?? {
-      kind: "target-named" as const,
-      id: targetBinding.id,
-    };
+    const targetType = csharpTargetTypeFromBinding(targetBinding);
     const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
     if (csharpType !== undefined) {
       return csharpType;

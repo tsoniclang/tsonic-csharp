@@ -177,6 +177,12 @@ export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetO
   equals: csharpTargetOperationFactEquals,
 });
 
+export const csharpTargetConversionOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
+  extensionId: "tsonic.csharp",
+  name: "targetConversionOperation",
+  equals: csharpTargetOperationFactEquals,
+});
+
 export const csharpRegularExpressionLiteralFactKey = defineExtensionFactKey<CsharpRegularExpressionLiteralFact>({
   extensionId: "tsonic.csharp",
   name: "regularExpressionLiteral",

@@ -1,6 +1,7 @@
 import {
   acceptObservation,
   deferObservation,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedConversionMappingRequest,
@@ -14,7 +15,11 @@ import type {
   ParameterPassingRequest,
   ParameterPassingResult,
 } from "@tsonic/tsts";
-import { csharpTargetIterationFactKey } from "../csharp-facts.js";
+import {
+  csharpTargetConversionOperationFactKey,
+  csharpTargetIterationFactKey,
+  csharpTargetOperationFactKey,
+} from "../csharp-facts.js";
 import type { CsharpTargetIterationFact } from "../csharp-facts.js";
 import {
   csharpTargetId,
@@ -24,11 +29,10 @@ import {
 } from "./target-rules.js";
 import {
   targetOperation,
-  recordCsharpTargetOperation,
 } from "./operations.js";
 import {
+  csharpTargetTypeRefEquals,
   asTargetParameter,
-  targetTypeRefEquals,
 } from "./target-ref-utils.js";
 import {
   isLiteralRepresentableAsTargetType,
@@ -97,7 +101,19 @@ export function mapCsharpCheckedConversion(
   if (target === undefined) {
     return deferObservation;
   }
-  if (source !== undefined && targetTypeRefEquals(source, target)) {
+  const selectedSignatureReturn = context.facts.get(request.source, selectedTargetSignatureFactKey)?.member.returnType;
+  if (selectedSignatureReturn !== undefined && csharpTargetTypeRefEquals(selectedSignatureReturn, target)) {
+    return acceptObservation<CheckedConversionMappingResult>({
+      convertedType: target,
+    }, [{ message: "C# selected target operation already returns the selected target type." }]);
+  }
+  const csharpOperationReturn = context.facts.get(request.source, csharpTargetOperationFactKey)?.resultType;
+  if (csharpOperationReturn !== undefined && csharpTargetTypeRefEquals(csharpOperationReturn, target)) {
+    return acceptObservation<CheckedConversionMappingResult>({
+      convertedType: target,
+    }, [{ message: "C# finalized target operation already returns the selected target type." }]);
+  }
+  if (source !== undefined && csharpTargetTypeRefEquals(source, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);
@@ -109,7 +125,7 @@ export function mapCsharpCheckedConversion(
   }
   const operation = getCsharpConversionOperation(source, target);
   if (operation !== undefined) {
-    recordCsharpTargetOperation(context, request.source, operation.csharpOperation, [{ message: "C# target conversion static member recorded from selected target conversion." }]);
+    context.facts.set(request.source, csharpTargetConversionOperationFactKey, operation.csharpOperation, [{ message: "C# target conversion static member recorded from selected target conversion." }]);
   }
   return acceptObservation<CheckedConversionMappingResult>({
     convertedType: target,

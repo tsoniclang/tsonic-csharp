@@ -25,6 +25,7 @@ sealed partial class ReflectionProvider
             namespaceName = activeNamespaceName,
             metadataName = MetadataName(type),
             displayName = DisplayName(type),
+            renderShape = RenderShape(type),
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
             baseType,
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,

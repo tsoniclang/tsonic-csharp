@@ -3,7 +3,6 @@ import {
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
-  CheckedCallMappingRequest,
   ExtensionObservationContext,
   Node,
   SelectedTargetSignatureFact,
@@ -29,18 +28,9 @@ import {
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
-import {
-  mapCsharpSourceLibraryCheckedCall,
-} from "./surfaces/js/calls.js";
-import {
-  createCsharpJsSurfaceHost,
-} from "./operations-provider.js";
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
-import {
-  csharpTargetId,
-} from "./identity.js";
 
 type CsharpFinalizedCallOperationHost = CsharpTargetTypeResolutionHost & CsharpOperationsProviderHost;
 
@@ -53,18 +43,18 @@ export function recordCsharpSelectedCallOperationFactsBeforeFinalization(
   if (compiler === undefined) {
     return;
   }
+  void selectedSurfaceIds;
   for (const sourceFile of compiler.getSourceFiles()) {
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    walkSelectedCallOperationFacts(lifecycleContext, sourceFile, selectedSurfaceIds, host);
+    walkSelectedCallOperationFacts(lifecycleContext, sourceFile, host);
   }
 }
 
 function walkSelectedCallOperationFacts(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   node: Node | undefined,
-  selectedSurfaceIds: ReadonlySet<string>,
   host: CsharpFinalizedCallOperationHost,
 ): void {
   const compiler = lifecycleContext.compiler;
@@ -72,13 +62,12 @@ function walkSelectedCallOperationFacts(
     return;
   }
   for (const child of getCsharpOperationChildNodes(compiler.ast, node)) {
-    walkSelectedCallOperationFacts(lifecycleContext, child, selectedSurfaceIds, host);
+    walkSelectedCallOperationFacts(lifecycleContext, child, host);
   }
   if (lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined) {
     return;
   }
-  const selectedSignature = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey) ??
-    getSelectedTargetSignatureFromFinalizedJsSurfaceCall(lifecycleContext, node, selectedSurfaceIds, host);
+  const selectedSignature = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey);
   if (selectedSignature === undefined) {
     return;
   }
@@ -124,64 +113,6 @@ function getSelectedCallDeclaringTargetType(
   }
   return lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
     member.declaringType;
-}
-
-function getSelectedTargetSignatureFromFinalizedJsSurfaceCall(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  node: Node,
-  selectedSurfaceIds: ReadonlySet<string>,
-  host: CsharpFinalizedCallOperationHost,
-): SelectedTargetSignatureFact | undefined {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || !selectedSurfaceIds.has("js") || !compiler.ast.is.IsCallExpression(node)) {
-    return undefined;
-  }
-  const expression = asNodeSubject(getNodeField(node, "Expression"));
-  if (expression === undefined || !compiler.ast.is.IsPropertyAccessExpression(expression)) {
-    return undefined;
-  }
-  const receiver = asNodeSubject(getNodeField(expression, "Expression"));
-  const propertyName = compiler.ast.text(compiler.ast.name(expression));
-  if (receiver === undefined || propertyName.length === 0) {
-    return undefined;
-  }
-  const sourceFile = compiler.ast.getSourceFile(node);
-  const receiverType = sourceFile === undefined
-    ? undefined
-    : compiler.checker.getTypeAtLocation(receiver, { sourceFile });
-  const sourceSelectedSignature = sourceFile === undefined
-    ? undefined
-    : compiler.checker.getResolvedSignature(node, { sourceFile });
-  const sourceSelectedDeclaration = (sourceSelectedSignature as { readonly declaration?: Node } | undefined)?.declaration;
-  const sourceSelectedDeclarationContainer = sourceSelectedDeclaration?.Parent;
-  const context = {
-    observation: "operation.mapCheckedCall",
-    extensionId: "tsonic.csharp.operations.finalized-js-surface",
-    host: lifecycleContext.host,
-    facts: lifecycleContext.host.facts,
-    factResolver: lifecycleContext.host.factResolver,
-    diagnostics: lifecycleContext.host.diagnostics,
-    compiler,
-  } satisfies ExtensionObservationContext<"operation.mapCheckedCall">;
-  const request = {
-    call: node,
-    callee: expression,
-    calleeReceiver: receiver,
-    ...(receiverType !== undefined ? { calleeReceiverType: receiverType } : {}),
-    ...(receiverType?.symbol !== undefined ? { calleeReceiverTypeSymbol: receiverType.symbol } : {}),
-    calleePropertyName: propertyName,
-    arguments: compiler.ast.arguments(node).filter((argument): argument is Node => argument !== undefined),
-    ...(sourceSelectedSignature !== undefined ? { sourceSelectedSignature } : {}),
-    ...(sourceSelectedDeclaration !== undefined ? { sourceSelectedDeclaration } : {}),
-    ...(sourceSelectedDeclarationContainer !== undefined ? { sourceSelectedDeclarationContainer } : {}),
-    target: csharpTargetId,
-  } satisfies CheckedCallMappingRequest;
-  const result = mapCsharpSourceLibraryCheckedCall(
-    request,
-    context,
-    createCsharpJsSurfaceHost("tsonic.csharp.operations.finalized-js-surface", host),
-  );
-  return result?.kind === "accept" ? result.value.selectedSignature : undefined;
 }
 
 function getCsharpOperationChildNodes(
