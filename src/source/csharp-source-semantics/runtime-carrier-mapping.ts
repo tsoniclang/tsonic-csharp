@@ -41,9 +41,9 @@ export function mapRuntimeCarrier(
       carrier: callableCarrier,
     }, [{ message: "C# callable runtime carrier mapped from checked TSTS signature and source parameter facts." }]);
   }
+  const requestType = asType(request.type);
   const primitive = (request.sourceTypeReference === undefined ? undefined : context.factResolver.resolve(request.sourceTypeReference, sourcePrimitiveFactKey)) ??
-    (request.sourceTypeSymbol === undefined ? undefined : context.factResolver.resolve(request.sourceTypeSymbol, sourcePrimitiveFactKey)) ??
-    context.factResolver.resolve(request.type, sourcePrimitiveFactKey);
+    (request.sourceTypeSymbol === undefined ? undefined : context.factResolver.resolve(request.sourceTypeSymbol, sourcePrimitiveFactKey));
   const syntaxCarrier = request.sourceTypeReference === undefined
     ? undefined
     : host.getTargetTypeRefForSubject(request.sourceTypeReference, context, { allowRuntimeCarrier: false, allowSemanticTypeQuery: false });
@@ -67,7 +67,7 @@ export function mapRuntimeCarrier(
         carrier: objectShape.targetType,
       }, [{ message: "C# runtime carrier mapped from finalized structural object-shape facts." }]);
     }
-    const carrier = host.getTargetTypeRefForType(asType(request.type), context, { allowRuntimeCarrier: false });
+    const carrier = host.getTargetTypeRefForType(requestType, context, { allowRuntimeCarrier: false });
     return carrier === undefined
       ? deferObservation
       : acceptObservation<RuntimeCarrierFactResult>({

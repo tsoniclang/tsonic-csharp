@@ -9,18 +9,17 @@ test("binary expression emission requires selected target operator fact even for
   const left = identifier("left");
   const right = identifier("right");
   const expression = binary(left, right);
-  const primitiveType = {};
   const diagnostics = [];
 
   const output = planExpression(expression, {}, fakeInput({
-    typeAtLocation: primitiveType,
-    sourcePrimitiveSubject: primitiveType,
+    runtimeCarrierSubject: left,
+    runtimeCarrier: sourcePrimitiveCarrier("int32"),
   }), diagnostics);
 
   assert.equal(output.kind, "InvalidExpression");
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# binary operator emission requires a selected provider operator fact/);
-  assert.match(diagnostics[0].message, /operand semantic node source primitive/);
+  assert.match(diagnostics[0].message, /operand node runtime carrier/);
 });
 
 test("binary expression emission uses the finalized selected target operator fact", () => {
@@ -54,12 +53,11 @@ test("prefix unary expression emission requires selected target operator fact", 
     Kind: KindPrefixUnaryExpression,
     Operand: operand,
   };
-  const primitiveType = {};
   const diagnostics = [];
 
   const output = planExpression(expression, {}, fakeInput({
-    typeAtLocation: primitiveType,
-    sourcePrimitiveSubject: primitiveType,
+    runtimeCarrierSubject: operand,
+    runtimeCarrier: sourcePrimitiveCarrier("int32"),
   }), diagnostics);
 
   assert.equal(output.kind, "InvalidExpression");
@@ -83,6 +81,15 @@ function identifier(name) {
   };
 }
 
+function sourcePrimitiveCarrier(name) {
+  return {
+    carrier: {
+      kind: "source-primitive",
+      name,
+    },
+  };
+}
+
 function fakeInput(options = {}) {
   return {
     ast: fakeAst,
@@ -96,7 +103,9 @@ function fakeInput(options = {}) {
       getSelectedTargetCall: () => undefined,
       getSelectedTargetOperator: (subject) => subject === options.selectedOperatorSubject ? options.selectedOperator : undefined,
       getContextualTargetTypeFact: () => undefined,
-      getRuntimeCarrierFact: () => undefined,
+      getRuntimeCarrierFact: (subject) => subject === options.runtimeCarrierSubject
+        ? options.runtimeCarrier
+        : undefined,
       getObjectShapeFact: () => undefined,
       getTargetBindingFact: () => undefined,
       getSourcePrimitiveFact: (subject) => subject === options.sourcePrimitiveSubject
@@ -115,9 +124,7 @@ function fakeInput(options = {}) {
     semantics: {
       getTargetBindingForReference: () => undefined,
       getProjectSourceReferenceForNode: () => undefined,
-      getRuntimeCarrierForNode: () => options.sourcePrimitiveSubject === options.typeAtLocation
-        ? { kind: "source-primitive", name: "int32" }
-        : undefined,
+      getRuntimeCarrierForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,

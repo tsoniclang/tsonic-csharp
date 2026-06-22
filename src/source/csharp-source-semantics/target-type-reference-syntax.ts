@@ -61,18 +61,8 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     typeName,
     typeNameSymbol,
     getAliasedSymbolIfAvailable(checker, typeNameSymbol, sourceFile),
-    type?.symbol,
   ];
   for (const candidate of candidateSubjects) {
-    if (candidate === undefined) {
-      continue;
-    }
-    const primitive = context.factResolver.resolve(candidate, sourcePrimitiveFactKey);
-    if (primitive !== undefined) {
-      return csharpSourcePrimitiveTargetType(primitive.kind);
-    }
-  }
-  for (const candidate of [type, type?.symbol]) {
     if (candidate === undefined) {
       continue;
     }

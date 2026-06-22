@@ -1,6 +1,3 @@
-import {
-  sourcePrimitiveFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionObservationContext,
   TargetTypeRef,
@@ -67,11 +64,6 @@ export function resolveTargetTypeRefForTypeCore(
     if (symbolCarrier !== undefined) {
       return instantiateSemanticRuntimeCarrier(symbolCarrier, type, context, options, host, resolveTargetTypeArgumentsForType);
     }
-  }
-  const primitive = context.factResolver.resolve(type, sourcePrimitiveFactKey) ??
-    (type.symbol === undefined ? undefined : context.factResolver.resolve(type.symbol, sourcePrimitiveFactKey));
-  if (primitive !== undefined) {
-    return csharpSourcePrimitiveTargetType(primitive.kind);
   }
   const types = context.compiler?.types;
   if (types === undefined) {

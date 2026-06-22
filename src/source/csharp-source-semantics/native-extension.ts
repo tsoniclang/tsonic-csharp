@@ -31,6 +31,9 @@ import {
   csharpBaseTargetTypeFromBinding,
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
+import {
+  asType,
+} from "./target-ref-utils.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -223,6 +226,9 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, targetTypeResolutionHost);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
+        if (asType(subject) !== undefined) {
+          return undefined;
+        }
         const primitive = resolverContext.facts.get(subject, sourcePrimitiveFactKey);
         return primitive === undefined
           ? undefined

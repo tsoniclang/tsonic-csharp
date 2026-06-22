@@ -19,6 +19,20 @@ test("provider-owned operator operands require selected target operator facts", 
 
 test("source primitive operator operands require selected target operator facts", () => {
   const operand = node(KindIdentifier);
+  const input = fakeInput({
+    runtimeCarrierSubject: operand,
+    runtimeCarrier: sourcePrimitiveCarrier("int32"),
+  });
+
+  const ownership = getProviderOperationOwnership(operand, {}, input);
+
+  assert.equal(ownership.requiresTargetFact, true);
+  assert.equal(ownership.sourceOwned, false);
+  assert.deepEqual(ownership.reasons, ["operand node runtime carrier"]);
+});
+
+test("source primitive facts on shared semantic Type identity are ignored", () => {
+  const operand = node(KindIdentifier);
   const primitiveType = {};
   const input = fakeInput({
     typeAtLocation: primitiveType,
@@ -27,9 +41,9 @@ test("source primitive operator operands require selected target operator facts"
 
   const ownership = getProviderOperationOwnership(operand, {}, input);
 
-  assert.equal(ownership.requiresTargetFact, true);
+  assert.equal(ownership.requiresTargetFact, false);
   assert.equal(ownership.sourceOwned, false);
-  assert.deepEqual(ownership.reasons, ["operand semantic node source primitive"]);
+  assert.deepEqual(ownership.reasons, []);
 });
 
 test("unowned non-scalar operator operands are not direct source operations", () => {
@@ -47,17 +61,16 @@ test("unowned non-scalar operator operands are not direct source operations", ()
 
 test("primitive member access still requires selected target member facts", () => {
   const receiver = node(KindIdentifier);
-  const primitiveType = {};
   const input = fakeInput({
-    typeAtLocation: primitiveType,
-    sourcePrimitiveSubject: primitiveType,
+    runtimeCarrierSubject: receiver,
+    runtimeCarrier: sourcePrimitiveCarrier("int32"),
   });
 
   const ownership = getSemanticOwnership(receiver, {}, input);
 
   assert.equal(ownership.requiresTargetFact, true);
   assert.equal(ownership.sourceOwned, false);
-  assert.deepEqual(ownership.reasons, ["semantic node source primitive"]);
+  assert.deepEqual(ownership.reasons, ["node runtime carrier"]);
 });
 
 test("type parameter operands are classified from finalized runtime carrier facts", () => {
@@ -73,7 +86,7 @@ test("type parameter operands are classified from finalized runtime carrier fact
 
   assert.equal(ownership.requiresTargetFact, true);
   assert.equal(ownership.sourceOwned, false);
-  assert.deepEqual(ownership.reasons, ["operand type parameter", "operand semantic node runtime carrier"]);
+  assert.deepEqual(ownership.reasons, ["operand semantic node runtime carrier"]);
 });
 
 test("provider-owned constructor callees require selected target constructor facts", () => {
@@ -137,6 +150,15 @@ function node(kind) {
   return { Kind: kind };
 }
 
+function sourcePrimitiveCarrier(name) {
+  return {
+    carrier: {
+      kind: "source-primitive",
+      name,
+    },
+  };
+}
+
 function fakeInput(options = {}) {
   return {
     ast: fakeAst,
@@ -194,12 +216,6 @@ function fakeInput(options = {}) {
       getTypeAtLocation: () => options.typeAtLocation,
       getResolvedSymbol: () => undefined,
       getRuntimeCarrierForNode: () => {
-        if (options.runtimeCarrierSubject !== undefined && options.runtimeCarrierSubject === options.typeAtLocation) {
-          return options.runtimeCarrier?.carrier;
-        }
-        if (options.sourcePrimitiveSubject !== undefined && options.sourcePrimitiveSubject === options.typeAtLocation) {
-          return { kind: "source-primitive", name: "int32" };
-        }
         return undefined;
       },
       getObjectShapeForNode: () => undefined,

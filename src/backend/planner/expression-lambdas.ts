@@ -137,6 +137,9 @@ export function diagnoseMissingLambdaTargetContext(
 }
 
 export function isCsharpDelegateType(type: CsharpTypeNode): boolean {
+  if (type.kind === "NullableType") {
+    return isCsharpDelegateType(type.inner);
+  }
   return csharpTypeName(type) === "Func" || csharpTypeName(type) === "Action" || csharpTypeName(type) === "Predicate";
 }
 
