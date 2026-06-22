@@ -304,8 +304,7 @@ function isCsharpValueTypeTargetType(type: TargetTypeRef): boolean {
 export function getCsharpArrayLiteralElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
   if (
     type?.kind !== "target-named" ||
-    !knownCsharpArrayLiteralAssignableTargetIds.has(type.id) ||
-    (type as CsharpTargetNamedTypeRef).csharpRender === undefined
+    !knownCsharpArrayLiteralAssignableTargetIds.has(type.id)
   ) {
     return undefined;
   }

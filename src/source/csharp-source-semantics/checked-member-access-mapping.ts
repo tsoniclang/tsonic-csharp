@@ -10,8 +10,6 @@ import type {
   CheckedPropertyAccessMappingRequest,
   ExtensionObservation,
   ExtensionObservationContext,
-  TargetBindingFact,
-  TargetMember,
 } from "@tsonic/tsts";
 import {
   csharpProviderDiagnostic,
@@ -87,12 +85,8 @@ export function mapCsharpCheckedPropertyAccess(
   if (binding === undefined) {
     return mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ?? deferObservation;
   }
-  const member = findTargetMember(binding, context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey)) ??
-    findTargetPropertyLikeMember(binding, request.propertyName);
+  const member = findTargetMember(binding, context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey));
   if (member === undefined) {
-    if (hasTargetCallableMember(binding, request.propertyName)) {
-      return deferObservation;
-    }
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_PROPERTY_NOT_FOUND", 9100102, `C# provider could not map checked property '${request.propertyName}' on target '${binding.id}'.`));
   }
   const declaringTargetType = host.getTargetTypeRefForSubject(request.receiverType, context) ??
@@ -105,21 +99,6 @@ export function mapCsharpCheckedPropertyAccess(
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(csharpMember),
   }, [{ message: "C# target property/member access selected from checked TSTS provider declaration." }]);
-}
-
-function findTargetPropertyLikeMember(binding: TargetBindingFact, propertyName: string): TargetMember | undefined {
-  const members = (binding.members ?? []).filter((member) =>
-    member.sourceName === propertyName &&
-    (member.kind === "property" || member.kind === "field" || member.kind === "indexer")
-  );
-  return members.length === 1 ? members[0] : undefined;
-}
-
-function hasTargetCallableMember(binding: TargetBindingFact, propertyName: string): boolean {
-  return (binding.members ?? []).some((member) =>
-    member.sourceName === propertyName &&
-    (member.kind === "method" || member.kind === "constructor" || member.kind === "operator")
-  );
 }
 
 export function mapCsharpCheckedElementAccess(
@@ -139,10 +118,13 @@ export function mapCsharpCheckedElementAccess(
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
   }
-  const indexers = (binding.members ?? []).filter((member) => member.kind === "indexer");
-  const member = indexers.length === 1 ? indexers[0] : undefined;
+  const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  const member = findTargetMember(binding, virtualDeclaration);
   if (member === undefined) {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, `C# provider could not map checked element access on target '${binding.id}' to a unique indexer.`));
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, `C# provider could not map checked element access on target '${binding.id}' from selected TSTS provider index declaration identity.`));
+  }
+  if (member.kind !== "indexer") {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, `C# provider selected non-indexer member '${member.id}' for checked element access on target '${binding.id}'.`));
   }
   const declaringTargetType = host.getTargetTypeRefForSubject(request.receiverType, context) ??
     host.getTargetTypeRefForSubject(request.receiver, context);

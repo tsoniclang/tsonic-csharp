@@ -147,8 +147,19 @@ function dotnetSignatureToTargetMember(
     ...(signature.typeParameters !== undefined && signature.typeParameters.length > 0
       ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
-    overloadGroup: member.metadataName,
+    overloadGroup: dotnetTargetMemberOverloadGroup(member),
   };
+}
+
+function dotnetTargetMemberOverloadGroup(member: DotnetMemberDeclaration): string {
+  return member.kind === "constructor"
+    ? dotnetMetadataNameWithoutSignature(member.metadataName)
+    : member.metadataName;
+}
+
+function dotnetMetadataNameWithoutSignature(metadataName: string): string {
+  const signatureStart = metadataName.indexOf("(");
+  return signatureStart === -1 ? metadataName : metadataName.slice(0, signatureStart);
 }
 
 function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration): TargetParameter {

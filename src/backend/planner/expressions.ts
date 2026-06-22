@@ -141,12 +141,12 @@ function planExpressionCore(
         diagnostics,
         (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
           planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType) =>
-          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, state),
+        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject) =>
+          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, state),
       );
     case KindNewExpression:
       return planNewExpression(node, sourceFile, input, diagnostics, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType) =>
-        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, state));
+        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, undefined, state));
     case KindPrefixUnaryExpression: {
       return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
@@ -171,6 +171,7 @@ export function planCallArgument(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
+  expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
 ): CsharpArgument {
   return planCallArgumentCore(
@@ -183,6 +184,7 @@ export function planCallArgument(
     (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject) =>
       planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state),
     expectedType,
+    expectedTypeSubject,
   );
 }
 

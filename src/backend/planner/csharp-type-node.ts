@@ -136,15 +136,15 @@ export function getCsharpTypeForNode(
   if (targetBindingType !== undefined) {
     return targetBindingType;
   }
+  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
+  if (nodeCarrierType !== undefined) {
+    return nodeCarrierType;
+  }
   const callableSemanticType = nodeType === undefined
     ? undefined
     : getCsharpCallableTypeFromSemanticType(nodeType, sourceFile, input, new Set());
   if (callableSemanticType !== undefined) {
     return callableSemanticType;
-  }
-  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
-  if (nodeCarrierType !== undefined) {
-    return nodeCarrierType;
   }
   if (input.ast.kindName(node) === KindObjectBindingPattern || input.ast.kindName(node) === KindArrayBindingPattern) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));

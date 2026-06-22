@@ -127,9 +127,9 @@ function dotnetTypeSourceMembers(
   if (cached !== undefined) {
     return cached;
   }
-  const ownMembers = declaration.members
+  const ownMembers = mergeProviderMemberList(declaration.members
     ?.map(dotnetMemberToProviderMember)
-    .filter((member): member is ProviderMemberDeclaration => member !== undefined) ?? [];
+    .filter((member): member is ProviderMemberDeclaration => member !== undefined) ?? []);
   const baseMembers = dotnetLocalBaseSourceMembers(declaration, context);
   const members = baseMembers.length === 0
     ? ownMembers
@@ -205,8 +205,9 @@ function mergeProviderMemberList(members: readonly ProviderMemberDeclaration[]):
     const index = merged.findIndex((candidate) =>
       candidate.name === member.name &&
       candidate.static === member.static &&
-      candidate.kind === "method" &&
-      member.kind === "method"
+      candidate.kind === member.kind &&
+      candidate.signatures !== undefined &&
+      member.signatures !== undefined
     );
     if (index < 0) {
       merged.push(member);
@@ -221,6 +222,17 @@ function mergeProviderMemberList(members: readonly ProviderMemberDeclaration[]):
     };
   }
   return merged;
+}
+
+function dotnetProviderMemberId(member: DotnetMemberDeclaration): string {
+  return member.kind === "constructor"
+    ? dotnetMetadataNameWithoutSignature(member.metadataName)
+    : member.metadataName;
+}
+
+function dotnetMetadataNameWithoutSignature(metadataName: string): string {
+  const signatureStart = metadataName.indexOf("(");
+  return signatureStart === -1 ? metadataName : metadataName.slice(0, signatureStart);
 }
 
 function getBaseTypeParameterSubstitutions(
@@ -418,7 +430,7 @@ function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): Provider
     return undefined;
   }
   return {
-    id: member.metadataName,
+    id: dotnetProviderMemberId(member),
     name: member.sourceName,
     kind: dotnetMemberKindToProviderKind(member.kind),
     ...(member.static !== undefined ? { static: member.static } : {}),

@@ -77,9 +77,13 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
       }
     }
     for (const node of [...nodes].reverse()) {
-      recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, sourceFile, node, selectedSurfaceIds, host);
-      propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
       propagateCsharpRuntimeCarrierFactFromDeclarationType(lifecycleContext, sourceFile, node, host);
+    }
+    for (const node of [...nodes].reverse()) {
+      recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, sourceFile, node, selectedSurfaceIds, host);
+    }
+    for (const node of [...nodes].reverse()) {
+      propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
     }
     for (const node of nodes) {
       propagateCsharpExpectedRuntimeCarrierFactFromContext(lifecycleContext, sourceFile, node, host);
@@ -349,15 +353,15 @@ function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
   const initializer = asNodeSubject(getNodeField(node, "Initializer"));
   const name = asNodeSubject(getNodeField(node, "name"));
   const initializerFact = lifecycleContext.host.facts.get(initializer, runtimeCarrierFactKey);
-  if (initializerFact === undefined) {
+  if (initializerFact === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
     return;
   }
   const evidence = [{ message: "C# runtime carrier propagated from checked initializer syntax." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, initializerFact, evidence);
-  if (name !== undefined) {
+  if (name !== undefined && lifecycleContext.host.facts.get(name, runtimeCarrierFactKey) === undefined) {
     lifecycleContext.host.facts.set(name, runtimeCarrierFactKey, initializerFact, evidence);
     const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
-    if (symbol !== undefined) {
+    if (symbol !== undefined && lifecycleContext.host.facts.get(symbol, runtimeCarrierFactKey) === undefined) {
       lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, initializerFact, evidence);
     }
   }

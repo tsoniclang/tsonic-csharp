@@ -31,6 +31,10 @@ import {
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
 import {
+  getSourceArrayTargetTypeRef,
+  getSourcePromiseTargetTypeRef,
+} from "./target-type-semantic-resolution.js";
+import {
   getCsharpTargetTypeFromBinding,
 } from "./target-enrichment.js";
 import type {
@@ -81,6 +85,13 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
       return undefined;
     }
     return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
+  }
+  const sourceLibraryType = type === undefined
+    ? undefined
+    : getSourceArrayTargetTypeRef(type, context, options, host, resolver) ??
+      getSourcePromiseTargetTypeRef(type, context, options, host, resolver);
+  if (sourceLibraryType !== undefined) {
+    return sourceLibraryType;
   }
   const sourceDeclarationType = getTargetTypeRefFromSourceDeclarationReference(candidateSubjects, node, context, options, host, resolver);
   if (sourceDeclarationType !== undefined) {

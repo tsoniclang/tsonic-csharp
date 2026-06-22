@@ -9,7 +9,6 @@ import type {
   CheckedCallMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
-  TargetMember,
 } from "@tsonic/tsts";
 import {
   csharpProviderDiagnostic,
@@ -26,13 +25,13 @@ import {
 } from "./ast-utils.js";
 import {
   findTargetBinding,
+  resolveTargetBindingForReference,
 } from "./provider-bindings.js";
 import {
   instantiateSelectedTargetMember,
 } from "./selected-target-member-instantiation.js";
 import {
   findTargetMemberForCall,
-  selectTargetMember,
 } from "./target-member-selection.js";
 import {
   getCsharpTargetTypeFromBinding,
@@ -70,6 +69,7 @@ export function mapCsharpCheckedCall(
     }, [{ message: "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure." }]);
   }
   const binding = findTargetBinding(context, [
+    request.sourceSelectedDeclaration,
     request.sourceSelectedContainerSymbol,
     request.sourceSelectedDeclarationContainer,
     request.calleeAliasedSymbol,
@@ -81,32 +81,39 @@ export function mapCsharpCheckedCall(
     request.calleeReceiverAliasedSymbol,
     request.calleeReceiverResolvedSymbol,
     request.calleeReceiverSymbol,
-  ]);
+  ]) ?? resolveTargetBindingForReference(request.callee, context);
   if (binding === undefined) {
     return deferObservation;
   }
-  const member = request.calleePropertyName === undefined && binding.members?.some((candidate) => candidate.kind === "constructor") === true
-    ? findTargetConstructorForCall(binding, request, context, host)
-    : findTargetMemberForCall(
-      binding,
-      context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey),
-      request,
-      context,
-      host.getTargetTypeRefForSubject,
-      { getBaseTargetTypeRef: host.getBaseTargetTypeRef },
-    );
+  const constructorDeclaringTargetType = request.calleePropertyName === undefined && binding.members?.some((candidate) => candidate.kind === "constructor") === true
+    ? getConstructorDeclaringTargetType(binding, request, context, host)
+    : undefined;
+  const receiverDeclaringTargetType = constructorDeclaringTargetType === undefined
+    ? host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
+      host.getTargetTypeRefForSubject(request.calleeReceiver, context)
+    : constructorDeclaringTargetType;
+  const member = findTargetMemberForCall(
+    binding,
+    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey),
+    request,
+    context,
+    host.getTargetTypeRefForSubject,
+    {
+      getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+      ...(receiverDeclaringTargetType !== undefined ? { declaringTargetType: receiverDeclaringTargetType } : {}),
+      ...(binding.typeParameters !== undefined ? { declaringTypeParameters: binding.typeParameters } : {}),
+    },
+  );
   if (member === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_FOUND", 9100100, `C# provider could not map checked call '${request.calleePropertyName ?? "<anonymous>"}' on target '${binding.id}'.`));
   }
   if (member.kind !== "method" && member.kind !== "constructor") {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_CALLABLE", 9100101, `C# provider mapped checked call '${request.calleePropertyName ?? "<anonymous>"}' to non-callable target member '${member.id}'.`));
   }
-  const declaringTargetType = member.kind === "constructor" ? member.declaringType : host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
+  const declaringTargetType = member.kind === "constructor" ? constructorDeclaringTargetType ?? member.declaringType : host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
     host.getTargetTypeRefForSubject(request.calleeReceiver, context) ??
     host.getTargetTypeRefForSubject(request.call, context);
-  const csharpMember = member.kind === "constructor"
-    ? member
-    : instantiateSelectedTargetMember({ member }, host, { declaringTargetType });
+  const csharpMember = instantiateSelectedTargetMember({ member }, host, { declaringTargetType });
   if (csharpMember === undefined || !targetMemberIsClosed(csharpMember)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_RENDERABLE", 9100104, `C# provider selected '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`));
   }
@@ -116,12 +123,12 @@ export function mapCsharpCheckedCall(
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
 }
 
-function findTargetConstructorForCall(
+function getConstructorDeclaringTargetType(
   binding: NonNullable<ReturnType<typeof findTargetBinding>>,
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
-): TargetMember | undefined {
+): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
   const callNode = asNodeSubject(request.call);
   const ast = context.compiler?.ast;
   if (callNode === undefined || ast === undefined) {
@@ -136,13 +143,5 @@ function findTargetConstructorForCall(
   if (declaringTargetType === undefined) {
     return undefined;
   }
-  const candidates = (binding.members ?? [])
-    .filter((member) => member.kind === "constructor")
-    .map((member) => instantiateSelectedTargetMember({ member }, host, { declaringTargetType }))
-    .filter((member): member is TargetMember => member !== undefined);
-  return selectTargetMember(candidates, {
-    arguments: request.arguments,
-  }, context, host.getTargetTypeRefForSubject, {
-    getBaseTargetTypeRef: host.getBaseTargetTypeRef,
-  });
+  return declaringTargetType;
 }

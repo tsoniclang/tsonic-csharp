@@ -43,6 +43,9 @@ import {
 import {
   createCsharpOperationsProvider,
 } from "./operations-provider.js";
+import type {
+  CsharpOperationsProviderHost,
+} from "./operations-provider.js";
 import {
   mapRuntimeCarrier as mapCsharpRuntimeCarrier,
   recordCsharpRuntimeCarrierFactsBeforeFinalization,
@@ -206,13 +209,15 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         getCsharpObjectShapeFactForSubject,
         getRecordedCsharpObjectShapeFactForSubject,
       } satisfies CsharpRuntimeCarrierSemanticsHost;
-      const provider = createCsharpOperationsProvider(selectedSurfaceIds, {
+      const operationsProviderHost = {
         getCsharpTargetBindingByTargetId: targetTypeResolutionHost.getCsharpTargetBindingByTargetId,
         getBaseTargetTypeRef: targetTypeResolutionHost.getBaseTargetTypeRef,
+        getSemanticTypeDeclarationShape: targetTypeResolutionHost.getSemanticTypeDeclarationShape,
         getTargetTypeRefForSubject,
         getCsharpObjectShapeFactForSubject,
         mapRuntimeCarrier: (request, observationContext) => mapCsharpRuntimeCarrier(request, observationContext, runtimeCarrierHost),
-      });
+      } satisfies CsharpOperationsProviderHost & CsharpTargetTypeResolutionHost;
+      const provider = createCsharpOperationsProvider(selectedSurfaceIds, operationsProviderHost);
       context.registerTargetSemanticProvider(provider);
       context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
@@ -223,7 +228,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds, runtimeCarrierHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, checkedOperatorLifecycleHost);
-        recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, targetTypeResolutionHost);
+        recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, selectedSurfaceIds, operationsProviderHost);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         if (asType(subject) !== undefined) {

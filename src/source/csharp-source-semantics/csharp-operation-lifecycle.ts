@@ -3,6 +3,7 @@ import {
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
+  CheckedCallMappingRequest,
   ExtensionObservationContext,
   Node,
   SelectedTargetSignatureFact,
@@ -20,34 +21,33 @@ import {
   csharpTargetOperationFromMember,
 } from "./operations.js";
 import {
-  resolveTargetBinding,
-  resolveTargetBindingForReference,
-} from "./provider-bindings.js";
-import {
   instantiateSelectedTargetMember,
 } from "./selected-target-member-instantiation.js";
 import {
-  selectTargetMember,
-} from "./target-member-selection.js";
-import {
-  getCsharpTargetTypeFromBinding,
-} from "./target-enrichment.js";
-import {
-  resolveTargetTypeRefForSubject,
-} from "./target-type-resolution.js";
-import {
   targetMemberIsClosed,
 } from "./target-ref-utils.js";
-import {
-  createRuntimeCarrierLifecycleObservationContext,
-} from "./runtime-carrier-context.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
+import {
+  mapCsharpSourceLibraryCheckedCall,
+} from "./surfaces/js/calls.js";
+import {
+  createCsharpJsSurfaceHost,
+} from "./operations-provider.js";
+import type {
+  CsharpOperationsProviderHost,
+} from "./operations-provider.js";
+import {
+  csharpTargetId,
+} from "./identity.js";
+
+type CsharpFinalizedCallOperationHost = CsharpTargetTypeResolutionHost & CsharpOperationsProviderHost;
 
 export function recordCsharpSelectedCallOperationFactsBeforeFinalization(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  host: CsharpTargetTypeResolutionHost,
+  selectedSurfaceIds: ReadonlySet<string>,
+  host: CsharpFinalizedCallOperationHost,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -57,27 +57,28 @@ export function recordCsharpSelectedCallOperationFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    walkSelectedCallOperationFacts(lifecycleContext, sourceFile, host);
+    walkSelectedCallOperationFacts(lifecycleContext, sourceFile, selectedSurfaceIds, host);
   }
 }
 
 function walkSelectedCallOperationFacts(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   node: Node | undefined,
-  host: CsharpTargetTypeResolutionHost,
+  selectedSurfaceIds: ReadonlySet<string>,
+  host: CsharpFinalizedCallOperationHost,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined || node === undefined) {
     return;
   }
   for (const child of getCsharpOperationChildNodes(compiler.ast, node)) {
-    walkSelectedCallOperationFacts(lifecycleContext, child, host);
+    walkSelectedCallOperationFacts(lifecycleContext, child, selectedSurfaceIds, host);
   }
   if (lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined) {
     return;
   }
   const selectedSignature = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey) ??
-    getSelectedTargetSignatureFromFinalizedProviderOperation(lifecycleContext, node, host);
+    getSelectedTargetSignatureFromFinalizedJsSurfaceCall(lifecycleContext, node, selectedSurfaceIds, host);
   if (selectedSignature === undefined) {
     return;
   }
@@ -125,19 +126,14 @@ function getSelectedCallDeclaringTargetType(
     member.declaringType;
 }
 
-function getSelectedTargetSignatureFromFinalizedProviderOperation(
+function getSelectedTargetSignatureFromFinalizedJsSurfaceCall(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   node: Node,
-  host: CsharpTargetTypeResolutionHost,
+  selectedSurfaceIds: ReadonlySet<string>,
+  host: CsharpFinalizedCallOperationHost,
 ): SelectedTargetSignatureFact | undefined {
   const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return undefined;
-  }
-  if (compiler.ast.is.IsNewExpression(node)) {
-    return getSelectedTargetSignatureFromFinalizedProviderConstruction(lifecycleContext, node, host);
-  }
-  if (!compiler.ast.is.IsCallExpression(node)) {
+  if (compiler === undefined || !selectedSurfaceIds.has("js") || !compiler.ast.is.IsCallExpression(node)) {
     return undefined;
   }
   const expression = asNodeSubject(getNodeField(node, "Expression"));
@@ -149,90 +145,43 @@ function getSelectedTargetSignatureFromFinalizedProviderOperation(
   if (receiver === undefined || propertyName.length === 0) {
     return undefined;
   }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   const sourceFile = compiler.ast.getSourceFile(node);
   const receiverType = sourceFile === undefined
     ? undefined
     : compiler.checker.getTypeAtLocation(receiver, { sourceFile });
-  const binding = resolveTargetBindingForReference(receiver, context) ??
-    resolveTargetBinding(receiverType, context) ??
-    resolveTargetBinding(receiverType?.symbol, context);
-  if (binding === undefined) {
-    return undefined;
-  }
-  const candidates = (binding.members ?? []).filter((member) =>
-    member.sourceName === propertyName &&
-    (member.kind === "method" || member.kind === "constructor")
+  const sourceSelectedSignature = sourceFile === undefined
+    ? undefined
+    : compiler.checker.getResolvedSignature(node, { sourceFile });
+  const sourceSelectedDeclaration = (sourceSelectedSignature as { readonly declaration?: Node } | undefined)?.declaration;
+  const sourceSelectedDeclarationContainer = sourceSelectedDeclaration?.Parent;
+  const context = {
+    observation: "operation.mapCheckedCall",
+    extensionId: "tsonic.csharp.operations.finalized-js-surface",
+    host: lifecycleContext.host,
+    facts: lifecycleContext.host.facts,
+    factResolver: lifecycleContext.host.factResolver,
+    diagnostics: lifecycleContext.host.diagnostics,
+    compiler,
+  } satisfies ExtensionObservationContext<"operation.mapCheckedCall">;
+  const request = {
+    call: node,
+    callee: expression,
+    calleeReceiver: receiver,
+    ...(receiverType !== undefined ? { calleeReceiverType: receiverType } : {}),
+    ...(receiverType?.symbol !== undefined ? { calleeReceiverTypeSymbol: receiverType.symbol } : {}),
+    calleePropertyName: propertyName,
+    arguments: compiler.ast.arguments(node).filter((argument): argument is Node => argument !== undefined),
+    ...(sourceSelectedSignature !== undefined ? { sourceSelectedSignature } : {}),
+    ...(sourceSelectedDeclaration !== undefined ? { sourceSelectedDeclaration } : {}),
+    ...(sourceSelectedDeclarationContainer !== undefined ? { sourceSelectedDeclarationContainer } : {}),
+    target: csharpTargetId,
+  } satisfies CheckedCallMappingRequest;
+  const result = mapCsharpSourceLibraryCheckedCall(
+    request,
+    context,
+    createCsharpJsSurfaceHost("tsonic.csharp.operations.finalized-js-surface", host),
   );
-  if (candidates.length === 0) {
-    return undefined;
-  }
-  const member = selectTargetMember(candidates, {
-    arguments: compiler.ast.arguments(node).filter((argument): argument is Node => argument !== undefined),
-    receiver,
-  }, context, (subject, observationContext, options = {}) =>
-    resolveTargetTypeRefForSubject(subject, observationContext, options, host), {
-    getBaseTargetTypeRef: host.getBaseTargetTypeRef,
-  });
-  return member === undefined ? undefined : { member };
-}
-
-function getSelectedTargetSignatureFromFinalizedProviderConstruction(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  node: Node,
-  host: CsharpTargetTypeResolutionHost,
-): SelectedTargetSignatureFact | undefined {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return undefined;
-  }
-  const expression = asNodeSubject(getNodeField(node, "Expression"));
-  if (expression === undefined) {
-    return undefined;
-  }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const sourceFile = compiler.ast.getSourceFile(node);
-  const constructedType = sourceFile === undefined
-    ? undefined
-    : compiler.checker.getTypeAtLocation(node, { sourceFile });
-  const binding = resolveTargetBindingForReference(node, context) ??
-    resolveTargetBindingForReference(expression, context) ??
-    resolveTargetBinding(constructedType, context) ??
-    resolveTargetBinding(constructedType?.symbol, context);
-  if (binding === undefined) {
-    return undefined;
-  }
-  const typeArguments = compiler.ast.typeArguments(node)
-    .map((argument) => resolveTargetTypeRefForSubject(argument, context, {}, host));
-  if (typeArguments.some((argument) => argument === undefined)) {
-    return undefined;
-  }
-  const declaringTargetType = getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
-  if (declaringTargetType === undefined) {
-    return undefined;
-  }
-  const candidates = (binding.members ?? [])
-    .filter((member) => member.kind === "constructor")
-    .map((member) => instantiateSelectedTargetMember({ member }, host, { declaringTargetType }))
-    .filter((member): member is NonNullable<typeof member> => member !== undefined);
-  if (candidates.length === 0) {
-    return undefined;
-  }
-  const member = selectTargetMember(candidates, {
-    arguments: compiler.ast.arguments(node).filter((argument): argument is Node => argument !== undefined),
-  }, context, (subject, observationContext, options = {}) =>
-    resolveTargetTypeRefForSubject(subject, observationContext, options, host), {
-    getBaseTargetTypeRef: host.getBaseTargetTypeRef,
-  });
-  return member === undefined
-    ? undefined
-    : {
-        member: {
-          ...member,
-          declaringType: declaringTargetType,
-          returnType: declaringTargetType,
-        },
-      };
+  return result?.kind === "accept" ? result.value.selectedSignature : undefined;
 }
 
 function getCsharpOperationChildNodes(

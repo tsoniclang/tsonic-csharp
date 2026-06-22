@@ -209,7 +209,7 @@ export function planCallExpression(
 ): CsharpExpression {
   const expression = AsCallExpression(node)!;
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
-  const selectedTargetCall = ownership.sourceOwned ? undefined : input.facts.getSelectedTargetCall(node);
+  const selectedTargetCall = input.facts.getSelectedTargetCall(node);
   if (selectedTargetCall !== undefined) {
     const csharpOperation = getRequiredCsharpTargetMemberOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");
     if (csharpOperation === undefined) {
@@ -235,26 +235,36 @@ export function planCallExpression(
     arguments: (expression.Arguments?.Nodes ?? [])
       .filter((argument): argument is Node => argument !== undefined)
       .map((argument, index) => {
-        const expectedType = getResolvedSourceCallArgumentRenderType(node, index, sourceFile, input);
-        return planCallArgument(argument, sourceFile, input, diagnostics, expectedType);
+        const expected = getResolvedSourceCallArgumentExpectation(node, index, sourceFile, input);
+        return planCallArgument(argument, sourceFile, input, diagnostics, expected?.type, expected?.subject);
       }),
   };
 }
 
-function getResolvedSourceCallArgumentRenderType(
+function getResolvedSourceCallArgumentExpectation(
   call: Node,
   argumentIndex: number,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): CsharpTypeNode | undefined {
+): { readonly type?: CsharpTypeNode; readonly subject?: Node } | undefined {
+  const declaration = input.semantics.getResolvedCallParameterDeclarations(call, { sourceFile })?.[argumentIndex];
+  const declarationType = getNodeType(declaration);
   const carrier = input.semantics.getResolvedCallParameterRuntimeCarriers(call, { sourceFile })?.[argumentIndex];
   if (carrier !== undefined) {
     const targetType = csharpTypeFromTargetTypeRef(carrier);
     if (targetType !== undefined) {
-      return targetType;
+      return { type: targetType, subject: declarationType ?? declaration };
     }
   }
   const parameterType = input.semantics.getResolvedCallParameterTypes(call, { sourceFile })?.[argumentIndex];
   const targetType = getTargetTypeRefForType(input, parameterType, sourceFile);
-  return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+  const renderedType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+  const subject = declarationType ?? declaration;
+  return renderedType === undefined && declaration === undefined
+    ? undefined
+    : { ...(renderedType !== undefined ? { type: renderedType } : {}), ...(subject !== undefined ? { subject } : {}) };
+}
+
+function getNodeType(node: Node | undefined): Node | undefined {
+  return (node as { readonly Type?: Node } | undefined)?.Type;
 }

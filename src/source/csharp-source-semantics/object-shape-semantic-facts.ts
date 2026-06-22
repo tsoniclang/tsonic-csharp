@@ -251,8 +251,10 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
     ? "method"
     : "property";
   const type = memberKind === "method"
-    ? getFunctionTargetTypeRefFromSemanticSignature(signatures[0], context, sourceFile, host)
-    : host.getTargetTypeRefForType(propertyType, context);
+    ? getExplicitMethodTargetTypeRef(property, context, host) ??
+      getFunctionTargetTypeRefFromSemanticSignature(signatures[0], context, sourceFile, host)
+    : getExplicitPropertyTargetTypeRef(property, context, host) ??
+      host.getTargetTypeRefForType(propertyType, context);
   if (type === undefined) {
     return undefined;
   }
@@ -262,6 +264,46 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
     memberKind,
     type,
   };
+}
+
+function getExplicitMethodTargetTypeRef(
+  property: Symbol,
+  context: ExtensionObservationContext,
+  host: CsharpObjectShapeSemanticsHost,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  for (const declaration of getSymbolDeclarations(property)) {
+    const kind = ast.kindName(declaration);
+    if (kind !== "KindMethodSignature" && kind !== "KindMethodDeclaration") {
+      continue;
+    }
+    const targetType = host.getFunctionTargetTypeRefFromSignatureLikeSubject(declaration, context, {});
+    if (targetType !== undefined) {
+      return targetType;
+    }
+  }
+  return undefined;
+}
+
+function getExplicitPropertyTargetTypeRef(
+  property: Symbol,
+  context: ExtensionObservationContext,
+  host: CsharpObjectShapeSemanticsHost,
+): TargetTypeRef | undefined {
+  for (const declaration of getSymbolDeclarations(property)) {
+    const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
+    if (typeNode === undefined) {
+      continue;
+    }
+    const targetType = host.getTargetTypeRefForSubject(typeNode, context, {});
+    if (targetType !== undefined) {
+      return targetType;
+    }
+  }
+  return undefined;
 }
 
 function isMethodLikeObjectShapeProperty(

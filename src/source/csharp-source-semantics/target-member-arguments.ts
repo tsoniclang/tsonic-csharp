@@ -3,11 +3,15 @@ import type {
   ExtensionObservationContext,
   TargetMember,
   TargetParameter,
+  TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-literals.js";
+import {
+  getCsharpArrayLiteralElementTargetType,
+} from "./target-types.js";
 import {
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -23,6 +27,8 @@ export interface TargetMemberSelectionRequest {
 
 export interface TargetMemberSelectionOptions {
   readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
+  readonly declaringTargetType?: TargetTypeRef;
+  readonly declaringTypeParameters?: readonly TargetTypeParameter[];
 }
 
 export function selectTargetMember(
@@ -56,7 +62,7 @@ function targetMemberMatch(
   if (!targetArityMatches(parameters, arguments_.length)) {
     return undefined;
   }
-  const typeParameterBindings = new Map<string, TargetTypeRef>();
+  const typeParameterBindings = getDeclaringTypeParameterBindings(options);
   for (let index = 0; index < arguments_.length; index += 1) {
     const parameter = getParameterForArgument(parameters, index);
     const argument = arguments_[index];
@@ -133,10 +139,11 @@ function targetTypeAcceptsArgument(
   typeParameterBindings: Map<string, TargetTypeRef>,
   options: TargetMemberSelectionOptions,
 ): boolean {
-  if (actual !== undefined && targetTypeMatchesExpected(expected, actual, typeParameterBindings, options)) {
+  const effectiveExpected = substituteTargetTypeRef(expected, typeParameterBindings);
+  if (actual !== undefined && targetTypeMatchesExpected(effectiveExpected, actual, typeParameterBindings, options)) {
     return true;
   }
-  if (isLiteralRepresentableAsTargetType(expected, subject, context)) {
+  if (isLiteralRepresentableAsTargetType(effectiveExpected, subject, context)) {
     return true;
   }
   if (actual === undefined) {
@@ -160,6 +167,10 @@ function targetTypeMatchesExpected(
   }
   if (expected.kind === "array" && actual.kind === "array" && (expected.rank ?? 1) === (actual.rank ?? 1)) {
     return targetTypeMatchesExpected(expected.element, actual.element, typeParameterBindings, options, seenActualTypes);
+  }
+  const expectedCollectionElement = getCsharpArrayLiteralElementTargetType(expected);
+  if (expectedCollectionElement !== undefined && actual.kind === "array") {
+    return targetTypeMatchesExpected(expectedCollectionElement, actual.element, typeParameterBindings, options, seenActualTypes);
   }
   if (expected.kind === "tuple" && actual.kind === "tuple" && expected.elements.length === actual.elements.length) {
     return expected.elements.every((element, index) => {
@@ -198,6 +209,26 @@ function targetTypeMatchesExpected(
       });
   }
   return false;
+}
+
+function getDeclaringTypeParameterBindings(
+  options: TargetMemberSelectionOptions,
+): Map<string, TargetTypeRef> {
+  const bindings = new Map<string, TargetTypeRef>();
+  const targetType = options.declaringTargetType;
+  const typeParameters = options.declaringTypeParameters ?? [];
+  if (targetType?.kind !== "target-named" || typeParameters.length === 0) {
+    return bindings;
+  }
+  const typeArguments = targetType.typeArguments ?? [];
+  for (let index = 0; index < typeParameters.length; index += 1) {
+    const parameter = typeParameters[index];
+    const argument = typeArguments[index];
+    if (parameter !== undefined && argument !== undefined) {
+      bindings.set(parameter.name, argument);
+    }
+  }
+  return bindings;
 }
 
 function bindTargetTypeParameter(

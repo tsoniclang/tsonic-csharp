@@ -18,7 +18,7 @@ export function planLocalDeclaration(
   state: DestructuringPlannerState,
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
-  const typeSubject = variable.Type ?? variable.Initializer ?? variable.name;
+  const typeSubject = variable.Type ?? variable.name ?? variable.Initializer;
   const type = getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   return {

@@ -149,12 +149,37 @@ function getCsharpTypeParameterConstraintsForSyntaxNode(
     return uniqueAndOrderConstraints(getNodeList(getNodeField(node, "Types"))
       .flatMap((constraint) => getCsharpTypeParameterConstraintsForSyntaxNode(constraint, typeParameterName, context, host)));
   }
+  const keywordConstraint = getCsharpTypeParameterConstraintForKeywordTypeSyntax(ast, node, typeParameterName);
+  if (keywordConstraint.handled) {
+    return keywordConstraint.constraint === undefined ? [] : [keywordConstraint.constraint];
+  }
   const targetType = host.getTargetTypeRefForSubject(node, context, {}) ??
     getTargetTypeRefForSyntaxNode(node, context.facts, ast);
   const constraint = targetType === undefined
     ? undefined
     : getCsharpTypeParameterConstraintForTargetType(targetType, typeParameterName);
   return constraint === undefined ? [] : [constraint];
+}
+
+function getCsharpTypeParameterConstraintForKeywordTypeSyntax(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+  typeParameterName: string,
+): { readonly handled: true; readonly constraint?: CsharpTypeParameterConstraint } | { readonly handled: false } {
+  switch (ast.kindName(node)) {
+    case "KindNumberKeyword":
+      return {
+        handled: true,
+        constraint: getCsharpTypeParameterConstraintForPrimitive("float64", typeParameterName),
+      };
+    case "KindBigIntKeyword":
+    case "KindBooleanKeyword":
+    case "KindStringKeyword":
+    case "KindVoidKeyword":
+      return { handled: true };
+    default:
+      return { handled: false };
+  }
 }
 
 function getCsharpTypeParameterConstraintForTargetType(
