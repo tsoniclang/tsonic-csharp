@@ -6,10 +6,12 @@ import {
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpArgument, CsharpExpression } from "../roslyn/syntax.js";
+import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
-import { requireCsharpIdentifier } from "./identifiers.js";
+import {
+  planIdentifierName,
+} from "./names.js";
 import {
   getCallableSemanticOwnership,
   getSemanticOwnership,
@@ -39,6 +41,12 @@ import {
   getRequiredCsharpTargetOperation,
   getRequiredCsharpTargetMemberOperationForSelectedSignature,
 } from "./csharp-target-operations.js";
+import {
+  getTargetTypeRefForType,
+} from "./runtime-carriers.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 
 export {
   planSelectedTargetCallArguments,
@@ -90,7 +98,7 @@ export function planPropertyAccessExpression(
   return {
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
     receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
-    name: requireCsharpIdentifier(sourceName, diagnostics, "Source-owned property name"),
+    name: planIdentifierName(expression.name, "InvalidPropertyName", input, diagnostics, "Source-owned property name"),
   };
 }
 
@@ -226,6 +234,20 @@ export function planCallExpression(
     callee: planExpression(expression.Expression!, sourceFile, input, diagnostics),
     arguments: (expression.Arguments?.Nodes ?? [])
       .filter((argument): argument is Node => argument !== undefined)
-      .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
+      .map((argument, index) => {
+        const expectedType = getResolvedSourceCallArgumentRenderType(node, index, sourceFile, input);
+        return planCallArgument(argument, sourceFile, input, diagnostics, expectedType);
+      }),
   };
+}
+
+function getResolvedSourceCallArgumentRenderType(
+  call: Node,
+  argumentIndex: number,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const parameterType = input.semantics.getResolvedCallParameterTypes(call, { sourceFile })?.[argumentIndex];
+  const targetType = getTargetTypeRefForType(input, parameterType, sourceFile);
+  return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
 }

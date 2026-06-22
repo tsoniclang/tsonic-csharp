@@ -6,7 +6,9 @@ import type {
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
+  getNodeNameText,
   isControlFlowLabelIdentifier,
+  isSemanticTypeQueryableValueExpressionNode,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
@@ -44,7 +46,12 @@ import {
 import {
   getAliasedSymbolIfAvailable,
   getSymbolForDeclarationLookup,
+  getSymbolDeclarations,
 } from "./symbol-utils.js";
+import {
+  type CsharpTargetNamedTypeRef,
+  csharpTargetNamedType,
+} from "./target-types.js";
 
 export type CsharpTargetTypeResolver = (
   type: Type | undefined,
@@ -116,6 +123,10 @@ export function resolveTargetTypeRefForSubjectCore(
   if (providerVirtualTarget !== undefined) {
     return enrichCsharpTargetTypeRef(providerVirtualTarget, host);
   }
+  const sourceDeclarationTarget = getSourceDeclarationTargetTypeRef(subject, context);
+  if (sourceDeclarationTarget !== undefined) {
+    return sourceDeclarationTarget;
+  }
   const syntaxType = getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
   if (syntaxType !== undefined) {
     return syntaxType;
@@ -147,11 +158,46 @@ export function resolveTargetTypeRefForSubjectCore(
       ? undefined
     : ast !== undefined && isTypeSyntaxNode(ast, node)
       ? asType(checker.getTypeFromTypeNode(node))
+    : ast !== undefined && !isSemanticTypeQueryableValueExpressionNode(ast, node)
+      ? undefined
       : asType(checker.getTypeAtLocation(node));
   return resolveTargetTypeRefForType(type, context, {
     ...options,
     ...(ast !== undefined && node !== undefined ? { sourceFile: ast.getSourceFile(node) } : {}),
   }, host);
+}
+
+function getSourceDeclarationTargetTypeRef(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  const checker = context.compiler?.checker;
+  if (node === undefined || ast === undefined || checker === undefined) {
+    return undefined;
+  }
+  const symbol = getSymbolForDeclarationLookup(ast, checker, node, ast.getSourceFile(node));
+  for (const declaration of getSymbolDeclarations(symbol)) {
+    const kind = ast.kindName(declaration);
+    if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
+      continue;
+    }
+    const name = getNodeNameText(declaration);
+    if (name.length === 0) {
+      continue;
+    }
+    const targetType = {
+      ...csharpTargetNamedType(name, undefined, { kind: "named", name }),
+      csharpSourceDeclarationKind: kind === "KindClassDeclaration"
+        ? "class" as const
+        : kind === "KindInterfaceDeclaration"
+          ? "interface" as const
+          : "enum" as const,
+    } as CsharpTargetNamedTypeRef;
+    return targetType;
+  }
+  return undefined;
 }
 
 function resolveTargetTypeRefFromReferenceFacts(

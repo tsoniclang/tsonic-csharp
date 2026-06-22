@@ -4,6 +4,7 @@ import {
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
+  Node,
   Symbol,
   TargetTypeRef,
   Type,
@@ -14,6 +15,8 @@ import type {
 } from "../csharp-facts.js";
 import {
   asNodeSubject,
+  getNodeField,
+  getNodeList,
   getNodeNameText,
   isControlFlowLabelIdentifier,
   isTypeSyntaxNode,
@@ -65,7 +68,14 @@ export function getSemanticTypeDeclarationShape(
     if (targetTypeArguments === undefined) {
       return undefined;
     }
-    const targetType = csharpTargetNamedType(name, targetTypeArguments, { kind: "named", name });
+    const targetType = {
+      ...csharpTargetNamedType(name, targetTypeArguments, { kind: "named", name }),
+      csharpSourceDeclarationKind: kind === "KindClassDeclaration"
+        ? "class" as const
+        : kind === "KindInterfaceDeclaration"
+          ? "interface" as const
+          : "enum" as const,
+    };
     if (kind === "KindClassDeclaration") {
       return { kind: "class", name, targetType };
     }
@@ -103,22 +113,30 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
   }
   const contextualTargetType = asType(node === undefined ? undefined : context.facts.get(node, contextualTargetTypeFactKey)?.type);
   const declaredShape = getSemanticTypeDeclarationShape(contextualTargetType ?? semanticType, context, host);
-  if (declaredShape?.kind === "class" || declaredShape?.kind === "enum") {
+  const isObjectLiteral = node !== undefined && compiler.ast.is.IsObjectLiteralExpression(node);
+  if (declaredShape?.kind === "class") {
+    if (!isObjectLiteral) {
+      return undefined;
+    }
+    const classType = contextualTargetType ?? semanticType;
+    const members = deriveCsharpObjectShapeMembersForSemanticType(classType, context, sourceFile, host, "property");
+    return members === undefined
+      ? undefined
+      : {
+          targetType: declaredShape.targetType,
+          members,
+          constructible: isClassObjectInitializerConstructible(classType, context),
+        };
+  }
+  if (declaredShape?.kind === "enum") {
     return undefined;
   }
   if (declaredShape?.kind === "interface" &&
     (node === undefined || (!compiler.ast.is.IsObjectLiteralExpression(node) && compiler.ast.kindName(node) !== "KindObjectLiteralExpression"))) {
     return undefined;
   }
-  const properties = compiler.types.getProperties(semanticType, { sourceFile })
-    .filter((property): property is Symbol => property !== undefined);
-  if (properties.length === 0) {
-    return undefined;
-  }
-  const members = properties
-    .map((property) => deriveCsharpObjectShapeMemberFactForSemanticProperty(semanticType, property, context, sourceFile, host))
-    .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
-  if (members.length !== properties.length) {
+  const members = deriveCsharpObjectShapeMembersForSemanticType(semanticType, context, sourceFile, host, "callable-property-as-method");
+  if (members === undefined) {
     return undefined;
   }
   const implementsTypes = declaredShape?.kind === "interface"
@@ -133,6 +151,63 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     members,
     ...(implementsTypes === undefined ? {} : { implements: implementsTypes }),
   };
+}
+
+function deriveCsharpObjectShapeMembersForSemanticType(
+  type: Type,
+  context: ExtensionObservationContext,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+  host: CsharpObjectShapeSemanticsHost,
+  callableMemberMode: "property" | "callable-property-as-method",
+): readonly CsharpObjectShapeMemberFact[] | undefined {
+  const compiler = context.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  const properties = compiler.types.getProperties(type, { sourceFile })
+    .filter((property): property is Symbol => property !== undefined);
+  if (properties.length === 0) {
+    return undefined;
+  }
+  const members = properties
+    .map((property) => deriveCsharpObjectShapeMemberFactForSemanticProperty(type, property, context, sourceFile, host, callableMemberMode))
+    .filter((member): member is CsharpObjectShapeMemberFact => member !== undefined);
+  return members.length === properties.length ? members : undefined;
+}
+
+function isClassObjectInitializerConstructible(
+  type: Type,
+  context: ExtensionObservationContext,
+): boolean {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return false;
+  }
+  const classDeclarations = getSymbolDeclarations(type.symbol)
+    .filter((declaration) => ast.kindName(declaration) === "KindClassDeclaration");
+  if (classDeclarations.length === 0) {
+    return false;
+  }
+  return classDeclarations.some((declaration) => {
+    const constructors = getNodeList(getNodeField(declaration, "Members"))
+      .filter((member) => ast.kindName(member) === "KindConstructor");
+    return constructors.length === 0 ||
+      constructors.some(constructorAllowsParameterlessCall);
+  });
+}
+
+function constructorAllowsParameterlessCall(
+  constructorDeclaration: Node,
+): boolean {
+  return getNodeList(getNodeField(constructorDeclaration, "Parameters"))
+    .every(parameterAllowsOmission);
+}
+
+function parameterAllowsOmission(
+  parameter: Node,
+): boolean {
+  return getNodeField(parameter, "Initializer") !== undefined ||
+    getNodeField(parameter, "QuestionToken") !== undefined;
 }
 
 function getSemanticTypeForObjectShapeSubject(
@@ -162,6 +237,7 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   context: ExtensionObservationContext,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
   host: CsharpObjectShapeSemanticsHost,
+  callableMemberMode: "property" | "callable-property-as-method",
 ): CsharpObjectShapeMemberFact | undefined {
   const sourceName = property.Name;
   if (sourceName.length === 0 || context.compiler === undefined) {
@@ -169,7 +245,7 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   }
   const propertyType = context.compiler.types.getPropertyType(ownerType, sourceName, { sourceFile });
   const signatures = context.compiler.types.getCallSignatures(propertyType, { sourceFile });
-  const memberKind = signatures.length > 0 ? "method" : "property";
+  const memberKind = callableMemberMode === "callable-property-as-method" && signatures.length > 0 ? "method" : "property";
   const type = memberKind === "method"
     ? getFunctionTargetTypeRefFromSemanticSignature(signatures[0], context, sourceFile, host)
     : host.getTargetTypeRefForType(propertyType, context);

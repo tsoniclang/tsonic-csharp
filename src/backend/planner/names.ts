@@ -1,6 +1,5 @@
 import {
   AsIdentifier,
-  AsPrivateIdentifier,
   HasSourceKind,
   KindIdentifier,
   KindPrivateIdentifier,
@@ -10,6 +9,9 @@ import {
 import type { Node } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { requireCsharpIdentifier } from "./identifiers.js";
+import {
+  csharpTargetNameFactKey,
+} from "../../source/csharp-facts.js";
 
 export function planIdentifierName(
   node: Node | undefined,
@@ -31,11 +33,15 @@ export function planIdentifierName(
     return requireCsharpIdentifier(Node_Text(AsIdentifier(node)), diagnostics, description);
   }
   if (HasSourceKind(input.ast, node, KindPrivateIdentifier)) {
+    const targetName = getFinalizedTargetName(node, input);
+    if (targetName !== undefined) {
+      return targetName;
+    }
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_NAME",
       category: "error",
       source: "tsonic-csharp",
-      message: `${description} '${Node_Text(AsPrivateIdentifier(node))}' is a private JavaScript identifier and requires an explicit target name/fact before C# emission.`,
+      message: `${description} is a private JavaScript identifier and requires a finalized C# target-name fact before emission.`,
     });
     return errorName;
   }
@@ -46,4 +52,21 @@ export function planIdentifierName(
     message: `${description} must be an identifier for direct C# source emission. Node kind: ${KindString(node.Kind)}.`,
   });
   return errorName;
+}
+
+function getFinalizedTargetName(
+  node: Node,
+  input: TargetCompileInput,
+): string | undefined {
+  const direct = input.facts.getFact(node, csharpTargetNameFactKey)?.name;
+  if (direct !== undefined) {
+    return direct;
+  }
+  const sourceFile = input.ast.getSourceFile(node);
+  if (sourceFile === undefined) {
+    return undefined;
+  }
+  const symbol = input.semantics.getSymbolAtLocation(node, { sourceFile }) ??
+    input.semantics.getResolvedSymbol(node, { sourceFile });
+  return input.facts.getFact(symbol, csharpTargetNameFactKey)?.name;
 }

@@ -6,6 +6,7 @@ import type {
   Node,
   SourceFile,
   TargetTypeRef,
+  Type,
 } from "@tsonic/tsts";
 import {
   csharpObjectShapeFactKey,
@@ -14,6 +15,7 @@ import {
   asNodeSubject,
   getAstReaderChildNodes,
   getNodeField,
+  isSemanticTypeQueryableValueExpressionNode,
 } from "./ast-utils.js";
 import {
   getCallableExpressionTargetTypeRef,
@@ -89,8 +91,9 @@ function walkCsharpRuntimeCarrierFacts(
   for (const child of getRuntimeCarrierChildNodes(compiler.ast, node)) {
     walkCsharpRuntimeCarrierFacts(lifecycleContext, sourceFile, child, typeSyntaxOnly, targetId, selectedSurfaceIds, host);
   }
-  recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, node, selectedSurfaceIds, host);
+  recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, sourceFile, node, selectedSurfaceIds, host);
   propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
+  propagateCsharpRuntimeCarrierFactFromDeclarationType(lifecycleContext, sourceFile, node, host);
 }
 
 function getRuntimeCarrierChildNodes(
@@ -164,6 +167,7 @@ function targetTypeRefContainsSourcePrimitive(type: TargetTypeRef): boolean {
 
 function recordCsharpRuntimeCarrierSyntaxFact(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
   node: Node,
   selectedSurfaceIds: ReadonlySet<string>,
   host: CsharpRuntimeCarrierSemanticsHost,
@@ -198,13 +202,111 @@ function recordCsharpRuntimeCarrierSyntaxFact(
   }
   const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, selectedSurfaceIds, host) ??
     getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, selectedSurfaceIds, host) ??
-    getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host);
+    getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
+    getReferencedRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node) ??
+    getCheckedExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host);
   if (carrier === undefined) {
     return;
   }
   const fact = { carrier };
   const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+}
+
+function getReferencedRuntimeCarrierTargetTypeRef(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node,
+): TargetTypeRef | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (
+    compiler === undefined ||
+    isRuntimeCarrierTypeSyntaxNode(compiler.ast, node) ||
+    !isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
+  ) {
+    return undefined;
+  }
+  const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, node);
+  const direct = lifecycleContext.host.facts.get(symbol, runtimeCarrierFactKey)?.carrier;
+  if (direct !== undefined) {
+    return direct;
+  }
+  try {
+    const resolved = compiler.checker.getResolvedSymbol(node, { sourceFile });
+    return lifecycleContext.host.facts.get(resolved, runtimeCarrierFactKey)?.carrier;
+  } catch {
+    return undefined;
+  }
+}
+
+function getCheckedExpressionRuntimeCarrierTargetTypeRef(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): TargetTypeRef | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (
+    compiler === undefined ||
+    isRuntimeCarrierTypeSyntaxNode(compiler.ast, node) ||
+    isControlFlowOnlyRuntimeCarrierSubject(compiler.ast, node) ||
+    !isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
+  ) {
+    return undefined;
+  }
+  try {
+    const type = getCheckedRuntimeCarrierType(compiler, node, sourceFile);
+    return host.getTargetTypeRefForType(type, createRuntimeCarrierLifecycleObservationContext(lifecycleContext), {
+      allowRuntimeCarrier: false,
+      sourceFile,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function getCheckedRuntimeCarrierType(
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+  node: Node,
+  sourceFile: SourceFile,
+): Type | undefined {
+  const typeReference = getContainingTypeReferenceNode(compiler.ast, node);
+  if (typeReference !== undefined) {
+    return compiler.checker.getTypeFromTypeNode(typeReference, { sourceFile });
+  }
+  return compiler.checker.getTypeAtLocation(node, { sourceFile });
+}
+
+function getContainingTypeReferenceNode(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): Node | undefined {
+  const parent = ast.parent(node);
+  return parent !== undefined &&
+    ast.is.IsTypeReferenceNode(parent) &&
+    asNodeSubject(getNodeField(parent, "TypeName")) === node
+    ? parent
+    : undefined;
+}
+
+function isControlFlowOnlyRuntimeCarrierSubject(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  switch (ast.kindName(node)) {
+    case "KindSourceFile":
+    case "KindVariableDeclaration":
+    case "KindParameter":
+    case "KindPropertyDeclaration":
+    case "KindMethodDeclaration":
+    case "KindFunctionDeclaration":
+    case "KindClassDeclaration":
+    case "KindInterfaceDeclaration":
+    case "KindEnumDeclaration":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function getCallableExpressionRuntimeCarrierTargetTypeRef(
@@ -275,5 +377,68 @@ function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
     if (symbol !== undefined) {
       lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, initializerFact, evidence);
     }
+  }
+}
+
+function propagateCsharpRuntimeCarrierFactFromDeclarationType(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || !isTypedRuntimeCarrierDeclaration(compiler.ast, node)) {
+    return;
+  }
+  const typeNode = asNodeSubject(getNodeField(node, "Type"));
+  const name = asNodeSubject(getNodeField(node, "name"));
+  const typeFact = lifecycleContext.host.facts.get(typeNode, runtimeCarrierFactKey) ??
+    resolveDeclarationTypeRuntimeCarrierFact(lifecycleContext, typeNode, host);
+  if (typeFact === undefined) {
+    return;
+  }
+  const evidence = [{ message: "C# runtime carrier propagated from checked declaration type annotation." }];
+  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, typeFact, evidence);
+  if (name !== undefined) {
+    lifecycleContext.host.facts.set(name, runtimeCarrierFactKey, typeFact, evidence);
+    const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
+    if (symbol !== undefined) {
+      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, typeFact, evidence);
+    }
+  }
+}
+
+function resolveDeclarationTypeRuntimeCarrierFact(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  typeNode: Node | undefined,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): { readonly carrier: TargetTypeRef } | undefined {
+  if (typeNode === undefined) {
+    return undefined;
+  }
+  const carrier = host.getTargetTypeRefForSubject(
+    typeNode,
+    createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
+    { allowRuntimeCarrier: false },
+  );
+  if (carrier === undefined) {
+    return undefined;
+  }
+  const fact = { carrier };
+  lifecycleContext.host.facts.set(typeNode, runtimeCarrierFactKey, fact, [{ message: "C# declaration runtime carrier resolved from source type annotation semantics." }]);
+  return fact;
+}
+
+function isTypedRuntimeCarrierDeclaration(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  switch (ast.kindName(node)) {
+    case "KindVariableDeclaration":
+    case "KindParameter":
+    case "KindPropertyDeclaration":
+      return true;
+    default:
+      return false;
   }
 }

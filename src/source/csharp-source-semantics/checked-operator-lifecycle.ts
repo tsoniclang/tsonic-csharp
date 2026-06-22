@@ -6,6 +6,7 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
+  SourceFile,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -28,6 +29,7 @@ import {
   getCsharpOperatorTargetOperation,
   isCsharpBitwiseOperator,
   isIntegralTargetTypeRef,
+  isSourceEnumTargetTypeRef,
 } from "./target-rules.js";
 import {
   getCheckedOperatorOperandQuery,
@@ -100,16 +102,17 @@ function getCsharpCheckedOperatorFactsFromSyntax(
     ? asNodeSubject(getNodeField(node, "Right"))
     : undefined;
   const operandQuery = getCheckedOperatorOperandQuery(operator);
-  const left = host.getTargetTypeRefForSubject(leftSubject, context, operandQuery);
-  const right = host.getTargetTypeRefForSubject(rightSubject, context, operandQuery) ??
+  const sourceFile = ast.getSourceFile(node);
+  const left = getTargetTypeRefForCheckedOperand(leftSubject, sourceFile, context, operandQuery, host);
+  const right = getTargetTypeRefForCheckedOperand(rightSubject, sourceFile, context, operandQuery, host) ??
     getLiteralTargetTypeRefForKnownOperatorOperand(left, rightSubject, context);
   if (left === undefined || (rightSubject !== undefined && right === undefined)) {
     return undefined;
   }
-  if (left.kind === "type-parameter" || right?.kind === "type-parameter") {
+  if (operator !== "=" && (left.kind === "type-parameter" || right?.kind === "type-parameter")) {
     return undefined;
   }
-  if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left)) {
+  if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
     return undefined;
   }
   const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right);
@@ -123,4 +126,33 @@ function getCsharpCheckedOperatorFactsFromSyntax(
     ),
     csharpOperation: csharpTargetTokenOperatorOperation(operationId, targetOperator, resultType),
   };
+}
+
+function getTargetTypeRefForCheckedOperand(
+  subject: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpCheckedOperatorLifecycleHost,
+): TargetTypeRef | undefined {
+  const direct = host.getTargetTypeRefForSubject(subject, context, {
+    ...options,
+    ...(sourceFile === undefined ? {} : { sourceFile }),
+  });
+  if (direct !== undefined || sourceFile === undefined) {
+    return direct;
+  }
+  const node = asNodeSubject(subject);
+  const checker = context.compiler?.checker;
+  if (node === undefined || checker === undefined) {
+    return undefined;
+  }
+  try {
+    return host.getTargetTypeRefForSubject(checker.getTypeAtLocation(node, { sourceFile }), context, {
+      ...options,
+      sourceFile,
+    });
+  } catch {
+    return undefined;
+  }
 }

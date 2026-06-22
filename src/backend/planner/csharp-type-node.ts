@@ -7,6 +7,7 @@ import {
   KindTypeLiteral,
   KindTypeReference,
   KindUnknownKeyword,
+  IsTypeSyntaxNode,
 } from "./source-ast.js";
 import type {
   Node,
@@ -96,6 +97,15 @@ export function getCsharpTypeForNode(
   if (isUnionTypeNode(input, node)) {
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
   }
+  const nodeType = IsTypeSyntaxNode(input.ast, node)
+    ? input.semantics.getTypeFromTypeNode(node, { sourceFile })
+    : input.semantics.getTypeAtLocation(node, { sourceFile });
+  const nodeTypeParameterName = nodeType === undefined
+    ? undefined
+    : getCsharpTypeParameterName(nodeType, input);
+  if (nodeTypeParameterName !== undefined) {
+    return { kind: "IdentifierName", name: nodeTypeParameterName };
+  }
   if (input.ast.kindName(node) === KindArrayType) {
     const elementTypeNode = (node as { readonly ElementType?: Node }).ElementType;
     const elementType = getCsharpTypeForNode(elementTypeNode, sourceFile, input, invalidCsharpType("array element type"), diagnostics);
@@ -133,11 +143,7 @@ export function getCsharpTypeForNode(
       return csharpType;
     }
   }
-  const semanticType = getCsharpTypeFromSemanticType(
-    input.semantics.getTypeAtLocation(node, { sourceFile }),
-    sourceFile,
-    input,
-  );
+  const semanticType = getCsharpTypeFromSemanticType(nodeType, sourceFile, input);
   if (semanticType !== undefined) {
     return semanticType;
   }
@@ -161,16 +167,16 @@ export function getCsharpTypeFromSemanticType(
     return undefined;
   }
   const nextSeen = new Set(seen).add(type);
+  const typeParameterName = getCsharpTypeParameterName(type, input);
+  if (typeParameterName !== undefined) {
+    return { kind: "IdentifierName", name: typeParameterName };
+  }
   const directTargetType = getTargetTypeRefForType(input, type, sourceFile);
   const directCsharpType = directTargetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(directTargetType);
   if (directCsharpType !== undefined) {
     return directCsharpType;
-  }
-  const typeParameterName = getCsharpTypeParameterName(type, input);
-  if (typeParameterName !== undefined) {
-    return { kind: "IdentifierName", name: typeParameterName };
   }
   const callable = getCsharpCallableTypeFromSemanticType(type, sourceFile, input, nextSeen);
   if (callable !== undefined) {

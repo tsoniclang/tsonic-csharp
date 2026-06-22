@@ -42,6 +42,15 @@ export function csharpTypeFromObjectShapeFact(
     }
     return undefined;
   }
+  if (fact.constructible === false) {
+    if (diagnostics !== undefined && diagnosticSubject !== undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, "Class object literal emission requires a finalized constructible source class fact with a parameterless constructor."));
+    }
+    return undefined;
+  }
+  if (fact.constructible === true) {
+    return targetType;
+  }
   registerObjectShapeDeclaration(input, targetType.name, fact, diagnostics, diagnosticSubject);
   return targetType;
 }

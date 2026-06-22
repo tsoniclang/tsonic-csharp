@@ -86,6 +86,12 @@ import {
   recordCsharpSelectedCallOperationFactsBeforeFinalization,
 } from "./csharp-operation-lifecycle.js";
 import {
+  recordCsharpTargetNameFactsBeforeFinalization,
+} from "./target-name-facts.js";
+import {
+  recordCsharpSourceDeclarationFactsBeforeFinalization,
+} from "./source-declaration-facts.js";
+import {
   createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
 } from "../../providers/dotnet/index.js";
@@ -210,11 +216,13 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         recordCsharpTypeParameterConstraintFacts(request, context.facts, lifecycleContext.compiler?.ast);
       });
       context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
+        recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
+        recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext);
         recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, objectShapeSemanticsHost);
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
-        recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, checkedOperatorLifecycleHost);
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds, runtimeCarrierHost);
+        recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, checkedOperatorLifecycleHost);
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, targetTypeResolutionHost);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {

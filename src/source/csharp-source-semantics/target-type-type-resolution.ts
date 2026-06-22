@@ -74,6 +74,10 @@ export function resolveTargetTypeRefForTypeCore(
   if (types === undefined) {
     return undefined;
   }
+  const typeParameterName = getTypeParameterName(type, context);
+  if (typeParameterName !== undefined) {
+    return { kind: "type-parameter", name: typeParameterName };
+  }
   const sourceArray = getSourceArrayTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (sourceArray !== undefined) {
     return sourceArray;
@@ -101,10 +105,6 @@ export function resolveTargetTypeRefForTypeCore(
       ...providerVirtualTarget,
       ...(targetTypeArguments.length > 0 ? { typeArguments: targetTypeArguments } : {}),
     }, host);
-  }
-  const typeParameterName = getTypeParameterName(type, context);
-  if (typeParameterName !== undefined) {
-    return { kind: "type-parameter", name: typeParameterName };
   }
   if (types.isBooleanLike(type)) {
     return csharpSourcePrimitiveTargetType("bool");

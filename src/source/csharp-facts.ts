@@ -25,6 +25,10 @@ export interface CsharpObjectShapeFact {
   readonly constructible?: boolean;
 }
 
+export interface CsharpTargetNameFact {
+  readonly name: string;
+}
+
 export type CsharpTypeParameterConstraint =
   | TargetConstraint
   | CsharpExplicitTypeParameterConstraint;
@@ -128,6 +132,12 @@ export const csharpObjectShapeFactKey = defineExtensionFactKey<CsharpObjectShape
     && objectShapeMemberArrayEquals(left.members, right.members)
     && targetTypeRefArrayEquals(left.implements, right.implements)
     && left.constructible === right.constructible,
+});
+
+export const csharpTargetNameFactKey = defineExtensionFactKey<CsharpTargetNameFact>({
+  extensionId: "tsonic.csharp",
+  name: "targetName",
+  equals: (left, right) => left.name === right.name,
 });
 
 export const csharpTargetTypeParameterConstraintFactKey = defineExtensionFactKey<CsharpTargetTypeParameterConstraintFact>({

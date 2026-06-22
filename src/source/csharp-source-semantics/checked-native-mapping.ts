@@ -67,13 +67,16 @@ export function mapCsharpNativeCheckedIteration(
 
 export function mapCsharpContextualTargetType(
   request: ContextualTargetTypeRequest,
-  _context: ExtensionObservationContext<"type.recordContextualTargetType">,
+  context: ExtensionObservationContext<"type.recordContextualTargetType">,
+  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<ContextualTargetTypeResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const targetType = host.getTargetTypeRefForSubject(request.context, context);
   return acceptObservation<ContextualTargetTypeResult>({
     type: request.context,
+    ...(targetType !== undefined ? { targetType } : {}),
   }, [{ message: "C# contextual target type recorded from checked TSTS contextual type." }]);
 }
 

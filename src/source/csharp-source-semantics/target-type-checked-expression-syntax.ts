@@ -1,6 +1,7 @@
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
+  Node,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -24,6 +25,7 @@ import {
 } from "./target-rules.js";
 import {
   csharpSourcePrimitiveTargetType,
+  csharpTargetNamedType,
 } from "./target-types.js";
 import type {
   CsharpTargetTypeResolutionHost,
@@ -43,6 +45,10 @@ export function getTargetTypeRefFromCheckedExpressionSyntax(
   const node = asNodeSubject(subject);
   if (ast === undefined || node === undefined) {
     return undefined;
+  }
+  const literal = getTargetTypeRefFromLiteralSyntax(node, context);
+  if (literal !== undefined) {
+    return literal;
   }
   if (ast.is.IsParenthesizedExpression(node)) {
     return resolver.resolveSubject(asNodeSubject(getNodeField(node, "Expression")), context, {
@@ -109,4 +115,28 @@ export function getTargetTypeRefFromCheckedExpressionSyntax(
     return undefined;
   }
   return left;
+}
+
+function getTargetTypeRefFromLiteralSyntax(
+  node: Node,
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  switch (ast.kindName(node)) {
+    case "KindTrueKeyword":
+    case "KindFalseKeyword":
+      return csharpSourcePrimitiveTargetType("bool");
+    case "KindNumericLiteral":
+      return csharpSourcePrimitiveTargetType("float64");
+    case "KindBigIntLiteral":
+      return csharpTargetNamedType("System.Numerics.BigInteger");
+    case "KindStringLiteral":
+    case "KindNoSubstitutionTemplateLiteral":
+      return csharpTargetNamedType("System.String");
+    default:
+      return undefined;
+  }
 }

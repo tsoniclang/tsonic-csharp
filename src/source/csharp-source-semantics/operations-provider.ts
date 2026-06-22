@@ -129,7 +129,7 @@ export function createCsharpOperationsProvider(
       );
     },
     recordContextualTargetType(request, context) {
-      return mapCsharpContextualTargetType(request, context);
+      return mapCsharpContextualTargetType(request, context, host);
     },
     mapCheckedConversion(request, context) {
       return mapCsharpCheckedConversion(request, context, host);

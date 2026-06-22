@@ -19,6 +19,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpThrowable?: true;
   readonly csharpTypeofRuntimeKind?: CsharpTypeofRuntimeKind;
   readonly csharpSpecialType?: "string" | "void" | "nullable";
+  readonly csharpSourceDeclarationKind?: "class" | "interface" | "enum";
 };
 
 export type CsharpTargetBindingFact = TargetBindingFact & {

@@ -16,6 +16,9 @@ import {
   isCsharpVoidTargetType,
   csharpTargetNamedType,
 } from "./target-types.js";
+import type {
+  CsharpTargetNamedTypeRef,
+} from "./target-types.js";
 
 export interface CsharpConversionOperation {
   readonly operation: CheckedOperationMappingResult["operation"];
@@ -119,6 +122,11 @@ export function isIntegralTargetTypeRef(type: TargetTypeRef | undefined): boolea
     default:
       return false;
   }
+}
+
+export function isSourceEnumTargetTypeRef(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" &&
+    (type as CsharpTargetNamedTypeRef).csharpSourceDeclarationKind === "enum";
 }
 
 export function getCsharpConversionOperation(source: TargetTypeRef | undefined, target: TargetTypeRef): CsharpConversionOperation | undefined {

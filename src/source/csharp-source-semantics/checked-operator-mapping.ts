@@ -8,6 +8,7 @@ import type {
   ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
+  SourceFile,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -31,6 +32,7 @@ import {
   getCsharpOperatorTargetOperation,
   isCsharpBitwiseOperator,
   isIntegralTargetTypeRef,
+  isSourceEnumTargetTypeRef,
   unwrapNullableTargetType,
 } from "./target-rules.js";
 import {
@@ -46,6 +48,10 @@ import {
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
+import {
+  asNodeSubject,
+  isSemanticTypeQueryableValueExpressionNode,
+} from "./ast-utils.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
 
@@ -88,18 +94,17 @@ export function mapCsharpCheckedOperator(
     return deferObservation;
   }
   const operandQuery = getCheckedOperatorOperandQuery(request.operator);
-  const left = host.getTargetTypeRefForSubject(request.leftType, context) ??
-    host.getTargetTypeRefForSubject(request.left, context, operandQuery);
-  const right = host.getTargetTypeRefForSubject(request.rightType, context) ??
-    host.getTargetTypeRefForSubject(request.right, context, operandQuery) ??
+  const sourceFile = getOperatorSourceFile(request.expression, context);
+  const left = getCheckedOperatorOperandTargetTypeRef(request.leftType, request.left, sourceFile, context, operandQuery, host);
+  const right = getCheckedOperatorOperandTargetTypeRef(request.rightType, request.right, sourceFile, context, operandQuery, host) ??
     getLiteralTargetTypeRefForKnownOperatorOperand(left, request.right, context);
   if (left === undefined || (request.right !== undefined && right === undefined)) {
     return deferObservation;
   }
-  if (left.kind === "type-parameter" || right?.kind === "type-parameter") {
+  if (request.operator !== "=" && (left.kind === "type-parameter" || right?.kind === "type-parameter")) {
     return deferObservation;
   }
-  if (isCsharpBitwiseOperator(request.operator) && !isIntegralTargetTypeRef(left)) {
+  if (isCsharpBitwiseOperator(request.operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
     return deferObservation;
   }
   const resultType = getCsharpOperatorResultTypeRef(request, left, right);
@@ -113,6 +118,56 @@ export function mapCsharpCheckedOperator(
       { resultType },
     ),
   }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
+}
+
+function getOperatorSourceFile(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+): SourceFile | undefined {
+  const node = asNodeSubject(subject);
+  return node === undefined ? undefined : context.compiler?.ast.getSourceFile(node);
+}
+
+function getCheckedOperatorOperandTargetTypeRef(
+  typeSubject: ExtensionFactSubject | undefined,
+  expressionSubject: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  const typed = host.getTargetTypeRefForSubject(typeSubject, context, {
+    ...options,
+    ...(sourceFile === undefined ? {} : { sourceFile }),
+  });
+  if (typed !== undefined) {
+    return typed;
+  }
+  const direct = host.getTargetTypeRefForSubject(expressionSubject, context, {
+    ...options,
+    ...(sourceFile === undefined ? {} : { sourceFile }),
+  });
+  if (direct !== undefined || sourceFile === undefined) {
+    return direct;
+  }
+  const node = asNodeSubject(expressionSubject);
+  const checker = context.compiler?.checker;
+  if (
+    node === undefined ||
+    checker === undefined ||
+    context.compiler?.ast === undefined ||
+    !isSemanticTypeQueryableValueExpressionNode(context.compiler.ast, node)
+  ) {
+    return undefined;
+  }
+  try {
+    return host.getTargetTypeRefForSubject(checker.getTypeAtLocation(node, { sourceFile }), context, {
+      ...options,
+      sourceFile,
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 export function getCsharpOperatorResultTypeRefForOperator(
