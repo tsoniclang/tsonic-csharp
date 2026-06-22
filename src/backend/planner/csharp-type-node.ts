@@ -387,7 +387,7 @@ export function getCsharpTypeFromSemanticType(
     return callable;
   }
   if (input.types.isArrayLike(type, { sourceFile })) {
-    const elementType = input.types.getTypeArguments(type, { sourceFile })[0];
+    const elementType = getArrayLikeElementType(type, sourceFile, input);
     const csharpElementType = getCsharpTypeFromSemanticType(elementType, sourceFile, input, nextSeen);
     return csharpElementType === undefined
       ? undefined
@@ -450,7 +450,7 @@ function getCsharpTargetTypeRefFromSemanticType(
     return callable;
   }
   if (input.types.isArrayLike(type, { sourceFile })) {
-    const elementType = input.types.getTypeArguments(type, { sourceFile })[0];
+    const elementType = getArrayLikeElementType(type, sourceFile, input);
     const elementTargetType = getCsharpTargetTypeRefFromSemanticType(elementType, sourceFile, input, nextSeen);
     return elementTargetType === undefined
       ? undefined
@@ -479,6 +479,16 @@ function getCsharpTargetTypeRefFromSemanticType(
     return csharpVoidTargetType();
   }
   return undefined;
+}
+
+function getArrayLikeElementType(
+  type: Type,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): Type | undefined {
+  return input.types.isTypeReference(type)
+    ? input.types.getTypeArguments(type, { sourceFile })[0]
+    : undefined;
 }
 
 function instantiateSemanticTargetNamedType(

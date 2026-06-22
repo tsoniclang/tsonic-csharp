@@ -115,6 +115,7 @@ export function mapCsharpCheckedCall(
     host.getTargetTypeRefForSubject,
     {
       getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+      ...(isProviderStaticContainerReceiver(request, context, targetBinding) ? { firstArgumentReceiver: false as const } : {}),
       ...(receiverDeclaringTargetType !== undefined ? { declaringTargetType: receiverDeclaringTargetType } : {}),
       ...(targetBinding.typeParameters !== undefined ? { declaringTypeParameters: targetBinding.typeParameters } : {}),
     },
@@ -159,4 +160,18 @@ function getConstructorDeclaringTargetType(
     return undefined;
   }
   return declaringTargetType;
+}
+
+function isProviderStaticContainerReceiver(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  targetBinding: NonNullable<ReturnType<typeof findTargetBinding>>,
+): boolean {
+  const receiverBinding = findTargetBinding(context, [
+    request.calleeReceiver,
+    request.calleeReceiverAliasedSymbol,
+    request.calleeReceiverResolvedSymbol,
+    request.calleeReceiverSymbol,
+  ]) ?? resolveTargetBindingForReference(request.calleeReceiver, context);
+  return receiverBinding?.target === targetBinding.target && receiverBinding.id === targetBinding.id;
 }

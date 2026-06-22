@@ -185,9 +185,26 @@ function planSelectedTargetReceiverArgument(
     });
     return undefined;
   }
+  if (isProviderStaticContainerReceiver(receiver, member, sourceFile, input)) {
+    return undefined;
+  }
   const parameter = member.parameters[0];
   const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(receiver, parameter.type, input, argumentArrayLiteralElementTypes?.[0]);
   return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType);
+}
+
+function isProviderStaticContainerReceiver(
+  receiver: Node,
+  member: TargetMember,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  const declaringType = member.declaringType;
+  if (declaringType?.kind !== "target-named") {
+    return false;
+  }
+  const binding = input.semantics.getTargetBindingForReference(receiver, { sourceFile });
+  return binding?.target === "csharp" && binding.id === declaringType.id;
 }
 
 function getExpectedArgumentRenderType(

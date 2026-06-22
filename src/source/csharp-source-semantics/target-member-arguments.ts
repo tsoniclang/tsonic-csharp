@@ -30,6 +30,7 @@ export interface TargetMemberSelectionOptions {
   readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
   readonly declaringTargetType?: TargetTypeRef;
   readonly declaringTypeParameters?: readonly TargetTypeParameter[];
+  readonly firstArgumentReceiver?: ExtensionFactSubject | false;
 }
 
 export function selectTargetMember(
@@ -53,7 +54,7 @@ export function selectExactTargetMember(
   request: TargetMemberSelectionRequest,
   options: TargetMemberSelectionOptions = {},
 ): TargetMember | undefined {
-  if (getTargetArgumentSubjectsForMember(member, request) === undefined) {
+  if (getTargetArgumentSubjectsForMember(member, request, options) === undefined) {
     return undefined;
   }
   return substituteTargetMemberTypeParameters(
@@ -69,7 +70,7 @@ function targetMemberMatch(
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions,
 ): { readonly member: TargetMember; readonly score: number } | undefined {
-  const arguments_ = getTargetArgumentSubjectsForMember(member, request);
+  const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
   if (arguments_ === undefined) {
     return undefined;
   }
@@ -98,13 +99,18 @@ function targetMemberMatch(
 function getTargetArgumentSubjectsForMember(
   member: TargetMember,
   request: TargetMemberSelectionRequest,
+  options: TargetMemberSelectionOptions = {},
 ): readonly ExtensionFactSubject[] | undefined {
   if (member.receiverPassing !== "first-argument") {
     return request.arguments;
   }
-  return request.receiver === undefined
+  if (options.firstArgumentReceiver === false) {
+    return request.arguments;
+  }
+  const receiver = options.firstArgumentReceiver ?? request.receiver;
+  return receiver === undefined
     ? undefined
-    : [request.receiver, ...request.arguments];
+    : [receiver, ...request.arguments];
 }
 
 function getExpectedTargetTypeForArgument(parameter: TargetParameter): TargetTypeRef {

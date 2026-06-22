@@ -6,13 +6,10 @@ export function objectShapeStorageMemberName(objectShape: CsharpObjectShapeFact,
   if (member.memberKind !== "method") {
     return member.targetName;
   }
-  if (!objectShape.members.some((candidate) => candidate === member || candidate.sourceName === member.sourceName && candidate.targetName === member.targetName && candidate.memberKind === member.memberKind)) {
+  if (!objectShape.members.some((candidate) => candidate === member)) {
     throw new Error("Object-shape storage member must belong to its object-shape fact.");
   }
-  const memberIndex = objectShape.members.findIndex((candidate) => candidate === member ||
-    candidate.sourceName === member.sourceName &&
-      candidate.targetName === member.targetName &&
-      candidate.memberKind === member.memberKind);
+  const memberIndex = objectShape.members.findIndex((candidate) => candidate === member);
   const baseName = `__tsonic_shape_method_${memberIndex}_${member.targetName}`;
   const reservedNames = new Set(objectShape.members.map((candidate) => candidate.targetName));
   let candidate = baseName;

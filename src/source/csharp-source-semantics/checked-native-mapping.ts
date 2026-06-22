@@ -44,6 +44,7 @@ import {
 } from "./source-marker-selectors.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
+const expressionEvidenceQuery = { allowSemanticTypeQuery: false } satisfies TargetTypeRefResolutionOptions;
 
 export function mapCsharpNativeCheckedIteration(
   request: CheckedIterationMappingRequest,
@@ -53,7 +54,8 @@ export function mapCsharpNativeCheckedIteration(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  const expressionType = host.getTargetTypeRefForSubject(request.sourceExpressionType, context, noRuntimeCarrierQuery);
+  const expressionType = host.getTargetTypeRefForSubject(request.expression, context, expressionEvidenceQuery) ??
+    host.getTargetTypeRefForSubject(request.sourceExpressionType, context, noRuntimeCarrierQuery);
   if (request.kind === "for-of") {
     if (expressionType?.kind === "array") {
       const fact = {

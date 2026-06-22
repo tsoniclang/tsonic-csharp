@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { getCsharpTypeForNode, getCsharpTypeFromSemanticType, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -21,11 +21,19 @@ export function getExplicitReturnType(
 ): ReturnType<typeof getCsharpTypeForNode> {
   if (typeNode === undefined) {
     const returnCarrier = input.semantics.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile });
+    const returnType = returnCarrier === undefined
+      ? getInferredSignatureReturnType(declarationNode, sourceFile, input)
+      : undefined;
     const inferred = returnCarrier === undefined
-      ? getCsharpTypeFromInferredSignatureReturnType(declarationNode, sourceFile, input)
+      ? getCsharpTypeFromSemanticType(returnType, sourceFile, input)
       : csharpTypeFromTargetTypeRef(returnCarrier);
     if (inferred === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(declarationNode, `C# ${context} emission requires a return type, but the TSTS semantic session did not return a finalized signature return carrier.`));
+      diagnostics.push(unsupportedNodeDiagnostic(
+        declarationNode,
+        isMissingInferredArrayElementTypeEvidence(returnType, sourceFile, input)
+          ? `C# ${context} emission requires finalized array element type evidence for inferred array returns. Add a return type annotation or contextual target that records an array runtime carrier.`
+          : `C# ${context} emission requires a return type, but the TSTS semantic session did not return a finalized signature return carrier.`,
+      ));
       return invalidCsharpType(`${context} return type`);
     }
     return inferred;
@@ -62,15 +70,6 @@ export function getAsyncReturnExpressionExpectedType(
   return { type, ...(subject === undefined ? {} : { subject }) };
 }
 
-function getCsharpTypeFromInferredSignatureReturnType(
-  declarationNode: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): ReturnType<typeof getCsharpTypeForNode> | undefined {
-  const returnType = getInferredSignatureReturnType(declarationNode, sourceFile, input);
-  return getCsharpTypeFromSemanticType(returnType, sourceFile, input);
-}
-
 function getDeclarationReturnTargetType(
   typeNode: Node | undefined,
   declarationNode: Node,
@@ -88,10 +87,23 @@ function getInferredSignatureReturnType(
   declarationNode: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-) {
+): Type | undefined {
   const declarationType = input.semantics.getTypeAtLocation(declarationNode, { sourceFile });
   const signature = input.types.getCallSignatures(declarationType, { sourceFile })[0];
+  if (signature === undefined) {
+    return undefined;
+  }
   return input.types.getReturnTypeOfSignature(signature, { sourceFile });
+}
+
+function isMissingInferredArrayElementTypeEvidence(
+  returnType: Type | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  return returnType !== undefined &&
+    input.types.isArrayLike(returnType, { sourceFile }) &&
+    (!input.types.isTypeReference(returnType) || input.types.getTypeArguments(returnType, { sourceFile })[0] === undefined);
 }
 
 function getAsyncReturnExpressionSubject(typeNode: Node | undefined, input: TargetCompileInput): Node | undefined {

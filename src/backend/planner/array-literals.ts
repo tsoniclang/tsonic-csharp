@@ -49,7 +49,7 @@ export function planArrayLiteralExpressionFromFacts(
   if (carrier?.kind === "tuple") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planner);
   }
-  diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires finalized TSTS/provider array or tuple runtime-carrier facts before C# emission."));
+  diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires finalized TSTS/provider array runtime-carrier facts with array element type evidence before C# emission."));
   return invalidExpression("array literal without runtime carrier");
 }
 

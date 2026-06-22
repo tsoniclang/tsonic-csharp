@@ -630,6 +630,57 @@ test("target member selection binds first-argument receiver generics before expl
   );
 });
 
+test("target member selection does not prepend provider static container for explicit extension calls", () => {
+  const staticContainer = {};
+  const value = {};
+  const start = {};
+  const stringType = { kind: "target-named", id: "System.String" };
+  const int32Type = { kind: "source-primitive", name: "int32" };
+  const member = {
+    id: "System.MemoryExtensions.AsSpan(System.String,System.Int32)",
+    sourceName: "asSpan",
+    targetName: "AsSpan",
+    kind: "method",
+    static: true,
+    receiverPassing: "first-argument",
+    parameters: [
+      {
+        name: "text",
+        type: stringType,
+        passingMode: "by-value",
+      },
+      {
+        name: "start",
+        type: int32Type,
+        passingMode: "by-value",
+      },
+    ],
+    returnType: { kind: "target-named", id: "System.ReadOnlySpan`1", typeArguments: [{ kind: "source-primitive", name: "char" }] },
+  };
+  const context = {};
+  const resolveTargetTypeRef = (subject) => {
+    if (subject === staticContainer) {
+      return { kind: "target-named", id: "System.MemoryExtensions" };
+    }
+    if (subject === value) {
+      return stringType;
+    }
+    if (subject === start) {
+      return int32Type;
+    }
+    return undefined;
+  };
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [value, start], receiver: staticContainer }, context, resolveTargetTypeRef),
+    undefined,
+  );
+  assert.deepEqual(
+    selectTargetMember([member], { arguments: [value, start], receiver: staticContainer }, context, resolveTargetTypeRef, { firstArgumentReceiver: false }),
+    member,
+  );
+});
+
 test("target member selection applies declaring generics before literal collection matching", () => {
   const arrayLiteral = { Kind: 2, Elements: [{ Kind: 1, Text: "1" }, { Kind: 1, Text: "2" }] };
   const int32Type = { kind: "source-primitive", name: "int32" };

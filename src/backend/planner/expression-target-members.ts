@@ -42,6 +42,9 @@ import {
   getRequiredCsharpTargetMemberOperationForSelectedSignature,
 } from "./csharp-target-operations.js";
 import {
+  getCsharpObjectShapeFactForNode,
+} from "./csharp-fact-queries.js";
+import {
   getTargetTypeRefForType,
 } from "./runtime-carriers.js";
 import {
@@ -63,6 +66,12 @@ export function planPropertyAccessExpression(
   const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
   if (sourceModuleMemberReference !== undefined) {
     return sourceModuleMemberReference;
+  }
+  const sourceName = Node_Text(expression.name!);
+  const receiver = expression.Expression;
+  const objectShape = getCsharpObjectShapeFactForNode(receiver, sourceFile, input);
+  if (objectShape !== undefined) {
+    return planObjectShapePropertyAccess(propertyAccess, sourceName, objectShape, sourceFile, input, diagnostics, planExpression);
   }
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   if (targetOperation !== undefined && targetOperation.operationKind === "property") {
@@ -88,8 +97,6 @@ export function planPropertyAccessExpression(
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
     return invalidExpression("selected target property");
   }
-  const sourceName = Node_Text(expression.name!);
-  const receiver = expression.Expression;
   const ownership = getSemanticOwnership(receiver, sourceFile, input);
   if (ownership.requiresTargetFact || !ownership.sourceOwned) {
     pushMissingTargetFactDiagnostic(diagnostics, propertyAccess, `C# property access '${sourceName}' must be selected by TSTS/provider facts before emission.`, ownership);
@@ -99,6 +106,32 @@ export function planPropertyAccessExpression(
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
     receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
     name: planIdentifierName(expression.name, "InvalidPropertyName", input, diagnostics, "Source-owned property name"),
+  };
+}
+
+function planObjectShapePropertyAccess(
+  propertyAccess: Node,
+  sourceName: string,
+  objectShape: NonNullable<ReturnType<typeof getCsharpObjectShapeFactForNode>>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression {
+  const expression = AsPropertyAccessExpression(propertyAccess)!;
+  const member = objectShape.members.find((candidate) => candidate.sourceName === sourceName);
+  if (member === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Object-shape property access '${sourceName}' must match a finalized object-shape member before C# emission.`));
+    return invalidExpression("missing object-shape member fact");
+  }
+  if (csharpTypeFromTargetTypeRef(member.type) === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
+    return invalidExpression("unrenderable object-shape member type");
+  }
+  return {
+    kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
+    receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
+    name: member.targetName,
   };
 }
 
