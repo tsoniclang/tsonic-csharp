@@ -4,8 +4,12 @@ import test from "node:test";
 import {
   createDotnetReflectionTypeDataProvider,
   dotnetModuleToProviderDeclarationModel,
+  dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
 } from "../dist/index.js";
+import {
+  dotnetExportToTargetBinding,
+} from "../dist/providers/dotnet/model.js";
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
@@ -132,6 +136,65 @@ test(".NET target refs do not promote any or unknown to CLR object", () => {
     id: "System.Object",
     csharpRender: { kind: "predefined", name: "object" },
   });
+});
+
+test(".NET explicit type-ref kinds carry special target semantics without metadata-name guessing", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+
+  const stringType = dotnetTypeRefToTargetTypeRef({ kind: "string" });
+  assert.equal(stringType.csharpSpecialType, "string");
+  assert.equal(stringType.csharpTypeofRuntimeKind, "string");
+
+  const nullableType = dotnetTypeRefToTargetTypeRef({ kind: "nullable", elementType: intType });
+  assert.equal(nullableType.csharpSpecialType, "nullable");
+  assert.equal(nullableType.csharpValueType, true);
+  assert.deepEqual(nullableType.typeArguments, [intType]);
+
+  assert.deepEqual(dotnetTypeRefToProviderType({ kind: "nullable", elementType: intType }), {
+    kind: "union",
+    types: [intType, { kind: "literal", value: null }],
+  });
+});
+
+test(".NET named target refs do not derive C# special semantics from metadata names", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const namedRefs = [
+    dotnetTypeRefToTargetTypeRef({ kind: "named", metadataName: "System.String" }),
+    dotnetTypeRefToTargetTypeRef({ kind: "named", metadataName: "System.Void" }),
+    dotnetTypeRefToTargetTypeRef({ kind: "named", metadataName: "System.Boolean" }),
+    dotnetTypeRefToTargetTypeRef({ kind: "named", metadataName: "System.Numerics.BigInteger" }),
+    dotnetTypeRefToTargetTypeRef({ kind: "named", metadataName: "System.Nullable`1", typeArguments: [intType] }),
+  ];
+
+  for (const type of namedRefs) {
+    assert.equal(type.csharpSpecialType, undefined);
+    assert.equal(type.csharpTypeofRuntimeKind, undefined);
+    assert.equal(type.csharpValueType, undefined);
+  }
+});
+
+test(".NET target declarations do not derive C# special semantics from metadata names", () => {
+  const stringBinding = dotnetExportToTargetBinding({
+    kind: "type",
+    typeKind: "class",
+    sourceName: "String",
+    namespaceName: "System",
+    metadataName: "System.String",
+  });
+  const booleanBinding = dotnetExportToTargetBinding({
+    kind: "type",
+    typeKind: "struct",
+    sourceName: "Boolean",
+    namespaceName: "System",
+    metadataName: "System.Boolean",
+  });
+
+  assert.equal(stringBinding.csharpType.csharpSpecialType, undefined);
+  assert.equal(stringBinding.csharpType.csharpTypeofRuntimeKind, undefined);
+  assert.equal(stringBinding.csharpType.csharpValueType, undefined);
+  assert.equal(booleanBinding.csharpType.csharpSpecialType, undefined);
+  assert.equal(booleanBinding.csharpType.csharpTypeofRuntimeKind, undefined);
+  assert.equal(booleanBinding.csharpType.csharpValueType, true);
 });
 
 test(".NET target refs carry provider-proven collection literal element metadata", () => {

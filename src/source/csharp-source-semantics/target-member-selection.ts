@@ -91,10 +91,8 @@ function getTargetMemberCandidatesForCall(
     if (signatureMember.overloadGroup === undefined) {
       return [signatureMember];
     }
-    return members.filter((member) =>
-      member.id === signatureMember.id ||
-      member.overloadGroup === signatureMember.overloadGroup
-    );
+    const overloadGroup = members.filter((member) => member.overloadGroup === signatureMember.overloadGroup);
+    return overloadGroup.length === 0 ? [signatureMember] : overloadGroup;
   }
   if (declaration?.memberId !== undefined) {
     return members.filter((member) =>

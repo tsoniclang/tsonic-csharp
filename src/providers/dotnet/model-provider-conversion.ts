@@ -26,6 +26,8 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
     case "number":
     case "bigint":
       return { kind: type.kind };
+    case "literal":
+      return { kind: "literal", value: type.value };
     case "source-primitive":
       return { kind: "source-primitive", name: type.name };
     case "type-parameter":
@@ -63,6 +65,12 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
     case "array": {
       const elementType = tryDotnetTypeRefToProviderType(type.elementType);
       return elementType === undefined ? undefined : { kind: "array", elementType };
+    }
+    case "nullable": {
+      const elementType = tryDotnetTypeRefToProviderType(type.elementType);
+      return elementType === undefined
+        ? undefined
+        : { kind: "union", types: [elementType, { kind: "literal", value: null }] };
     }
     case "tuple": {
       const elementTypes = mapDotnetProviderTypes(type.elements);

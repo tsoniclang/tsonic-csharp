@@ -53,6 +53,68 @@ test("JS surface does not recover Array.length from property text without a fina
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
+test("JS surface maps single-target calls from selected declaration identity without selected signature identity", () => {
+  const call = {};
+  const receiver = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, int32ArrayType()],
+    [value, int32Type()],
+  ]);
+  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("includes"), {
+    arguments: [value],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Runtime.ArrayHelpers.includes");
+});
+
+test("JS surface rejects multi-target calls without exact selected signature identity", () => {
+  const call = {};
+  const receiver = {};
+  const callback = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, int32ArrayType()],
+    [callback, actionOfInt32Type()],
+  ]);
+  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("forEach"), {
+    arguments: [callback],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE");
+});
+
+test("JS surface maps multi-target calls from exact selected signature identity", () => {
+  const call = {};
+  const receiver = {};
+  const callback = {};
+  const selectedSignature = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, int32ArrayType()],
+    [callback, actionOfInt32Type()],
+  ]);
+  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("forEach"), {
+    arguments: [callback],
+    calleeReceiver: receiver,
+    sourceSelectedSignature: selectedSignature,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Runtime.ArrayHelpers.forEach:1");
+});
+
 test("NodeJS surface maps calls from the selected provider signature identity", () => {
   const call = {};
   const selectedDeclaration = {};
@@ -136,21 +198,25 @@ function arrayLengthRequest(expression, receiverType, sourceSelectedDeclaration)
 }
 
 function arrayLengthDeclaration() {
+  return arrayMemberDeclaration("length");
+}
+
+function arrayMemberDeclaration(memberName) {
   const sourceFile = { FileName: "bundled:///libs/lib.es5.d.ts" };
   const arrayDeclaration = { Kind: 1, Name: { Text: "Array" }, SourceFile: sourceFile };
   return {
     Kind: 1,
-    Name: { Text: "length" },
+    Name: { Text: memberName },
     Parent: arrayDeclaration,
     SourceFile: sourceFile,
   };
 }
 
-function fakeHost(receiverType) {
+function fakeHost(receiverType, targetTypes = new Map()) {
   return {
-    getTargetTypeRefForSubject: (subject) => subject === receiverType
+    getTargetTypeRefForSubject: (subject) => targetTypes.get(subject) ?? (subject === receiverType
       ? { kind: "array", element: { kind: "source-primitive", name: "int32" } }
-      : undefined,
+      : undefined),
     getCsharpObjectShapeFactForSubject: () => undefined,
     mapRuntimeCarrier: () => ({ kind: "defer" }),
   };
@@ -171,6 +237,18 @@ function fakeContext(facts) {
         text: (node) => node?.Text ?? "",
       },
     },
+  };
+}
+
+function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
+  return {
+    target: "csharp",
+    call,
+    callee: {},
+    arguments: options.arguments ?? [],
+    sourceSelectedDeclaration,
+    ...(options.calleeReceiver !== undefined ? { calleeReceiver: options.calleeReceiver } : {}),
+    ...(options.sourceSelectedSignature !== undefined ? { sourceSelectedSignature: options.sourceSelectedSignature } : {}),
   };
 }
 
@@ -204,6 +282,22 @@ function nodejsVirtualDeclaration(moduleSpecifier, exportName, signatureId) {
     virtualFileName: `tsts-provider://csharp-nodejs/${encodeURIComponent(moduleSpecifier)}.d.ts`,
     exportName,
     ...(signatureId !== undefined ? { signatureId } : {}),
+  };
+}
+
+function int32Type() {
+  return { kind: "source-primitive", name: "int32" };
+}
+
+function int32ArrayType() {
+  return { kind: "array", element: int32Type() };
+}
+
+function actionOfInt32Type() {
+  return {
+    kind: "target-named",
+    id: "System.Action`1",
+    typeArguments: [int32Type()],
   };
 }
 

@@ -20,7 +20,7 @@ sealed partial class ReflectionProvider
         }
         if (type == typeof(string))
         {
-            return new { kind = "named", metadataName = "System.String", displayName = "System.String", renderShape = RenderShape(typeof(string)), sourceShape = new { kind = "string" } };
+            return new { kind = "string" };
         }
         if (type == typeof(object))
         {
@@ -36,6 +36,13 @@ sealed partial class ReflectionProvider
             return elementType is null
                 ? null
                 : new { kind = "array", elementType, rank = type.GetArrayRank() == 1 ? null : (int?)type.GetArrayRank() };
+        }
+        if (IsNullableShape(type, out var nullableElement))
+        {
+            var elementType = TypeRef(nullableElement);
+            return elementType is null
+                ? null
+                : new { kind = "nullable", elementType };
         }
         if (type.IsPointer)
         {
@@ -99,14 +106,14 @@ sealed partial class ReflectionProvider
             var element = SourceShape(nullableElement);
             return element is null
                 ? null
-                : new { kind = "union", types = new[] { element, new { kind = "literal", value = (object?)null } } };
+                : new { kind = "union", types = new[] { element, NullLiteralTypeRef() } };
         }
         if (TryValueTupleElementTypes(type, out var tupleElements))
         {
             var elements = tupleElements.Select(SourceShape).ToArray();
             return elements.Any(element => element is null)
                 ? null
-                : new { kind = "tuple", elementTypes = elements };
+                : new { kind = "tuple", elements };
         }
         if (IsKeyValuePairShape(type, out var keyType, out var valueType))
         {
@@ -114,7 +121,7 @@ sealed partial class ReflectionProvider
             var value = SourceShape(valueType);
             return key is null || value is null
                 ? null
-                : new { kind = "tuple", elementTypes = new[] { key, value } };
+                : new { kind = "tuple", elements = new[] { key, value } };
         }
         if (IsEnumerableShape(type, out var enumerableElement))
         {
@@ -140,6 +147,24 @@ sealed partial class ReflectionProvider
             };
         }
         return null;
+    }
+
+    static object NullLiteralTypeRef()
+    {
+        return new LiteralTypeRef(null);
+    }
+
+    sealed class LiteralTypeRef
+    {
+        public string kind => "literal";
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+        public object? value { get; }
+
+        public LiteralTypeRef(object? value)
+        {
+            this.value = value;
+        }
     }
 
     Dictionary<string, SourceReference> SourceReferencesByMetadataName(IEnumerable<Type> loadedTypes)

@@ -8,6 +8,8 @@ export function dotnetTypeRefKey(type: DotnetTypeRef): string {
       return `${type.metadataName}<${(type.typeArguments ?? []).map(dotnetTypeRefKey).join(",")}>`;
     case "array":
       return `${dotnetTypeRefKey(type.elementType)}[]`;
+    case "nullable":
+      return `${dotnetTypeRefKey(type.elementType)}?`;
     case "tuple":
       return `[${type.elements.map(dotnetTypeRefKey).join(",")}]`;
     case "union":
@@ -20,6 +22,8 @@ export function dotnetTypeRefKey(type: DotnetTypeRef): string {
       return `fnptr(${type.args.map(dotnetTypeRefKey).join(",")})=>${dotnetTypeRefKey(type.result)}`;
     case "opaque":
       return type.id;
+    case "literal":
+      return JSON.stringify(type.value);
     case "source-primitive":
     case "type-parameter":
       return type.name;

@@ -159,6 +159,7 @@ export type DotnetTypeRef =
   | { readonly kind: "unknown" }
   | { readonly kind: "object" }
   | { readonly kind: "string" }
+  | { readonly kind: "literal"; readonly value: string | number | boolean | null }
   | { readonly kind: "boolean" }
   | { readonly kind: "number" }
   | { readonly kind: "bigint" }
@@ -166,6 +167,7 @@ export type DotnetTypeRef =
   | { readonly kind: "type-parameter"; readonly name: string }
   | { readonly kind: "provider-ref"; readonly name: string; readonly moduleSpecifier?: string; readonly typeArguments?: readonly DotnetTypeRef[] }
   | { readonly kind: "named"; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef }
+  | { readonly kind: "nullable"; readonly elementType: DotnetTypeRef }
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly DotnetTypeRef[] }
   | { readonly kind: "union"; readonly types: readonly DotnetTypeRef[] }

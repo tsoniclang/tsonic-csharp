@@ -468,8 +468,8 @@ function isNumericSourcePrimitive(name: string): boolean {
     case "uint32":
     case "int64":
     case "uint64":
-    case "nativeint":
-    case "nativeuint":
+    case "native-int":
+    case "native-uint":
     case "float32":
     case "float64":
     case "decimal":

@@ -42,6 +42,9 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (candidates.length === 0) {
     return undefined;
   }
+  if (candidates.length > 1 && request.sourceSelectedSignature === undefined) {
+    return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE", 9100113, `C# JS surface call '${sourceMember.declaringName}.${sourceMember.memberName}' requires exact selected TypeScript library signature identity because the declaration maps to multiple target members.`));
+  }
   const member = host.selectTargetMember(candidates, {
     arguments: request.arguments,
     receiver: request.calleeReceiver,

@@ -23,6 +23,7 @@ import {
   csharpBigIntegerTargetType,
   csharpBooleanTargetType,
   csharpDelegateTargetType,
+  csharpNullableValueTargetType,
   type CsharpTargetTypeRenderShape,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -189,6 +190,8 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
       return csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
     case "string":
       return csharpStringTargetType();
+    case "literal":
+      throw new Error("Literal is a source declaration shape only and cannot be emitted as a target type.");
     case "boolean":
       return csharpBooleanTargetType();
     case "number":
@@ -214,6 +217,8 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
         element: dotnetTypeRefToTargetTypeRef(type.elementType),
         ...(type.rank !== undefined ? { rank: type.rank } : {}),
       };
+    case "nullable":
+      return csharpNullableValueTargetType(dotnetTypeRefToTargetTypeRef(type.elementType));
     case "tuple":
       return { kind: "tuple", elements: type.elements.map(dotnetTypeRefToTargetTypeRef) };
     case "union":
@@ -247,18 +252,16 @@ function csharpTargetMetadataFromDotnetTypeRef(
   type: Extract<DotnetTypeRef, { readonly kind: "named" }>,
 ): Parameters<typeof csharpTargetNamedType>[3] {
   const sourceShape = type.sourceShape;
-  const base = csharpTargetMetadataFromDotnetMetadataName(type.metadataName);
   if (sourceShape?.kind !== "array") {
-    return base;
+    return {};
   }
   const elementType = type.typeArguments?.length === 1
     ? type.typeArguments[0]
     : sourceShape.elementType;
   if (elementType === undefined) {
-    return base;
+    return {};
   }
   return {
-    ...base,
     arrayLiteralElementType: dotnetTypeRefToTargetTypeRef(elementType),
   };
 }
@@ -267,32 +270,12 @@ function csharpTargetMetadataFromDotnetTypeDeclaration(
   declaration: DotnetTypeDeclaration,
 ): Parameters<typeof csharpTargetNamedType>[3] {
   return {
-    ...csharpTargetMetadataFromDotnetMetadataName(declaration.metadataName),
     ...(declaration.typeKind === "struct" || declaration.typeKind === "enum" ? { valueType: true as const } : {}),
     ...(declaration.typeKind === "class" || declaration.typeKind === "interface" || declaration.typeKind === "enum"
       ? { sourceDeclarationKind: declaration.typeKind }
       : {}),
     ...(declaration.throwable === true ? { throwable: true as const } : {}),
   };
-}
-
-function csharpTargetMetadataFromDotnetMetadataName(
-  metadataName: string,
-): Parameters<typeof csharpTargetNamedType>[3] {
-  switch (metadataName) {
-    case "System.String":
-      return { specialType: "string", typeofRuntimeKind: "string" };
-    case "System.Void":
-      return { specialType: "void" };
-    case "System.Boolean":
-      return { typeofRuntimeKind: "boolean", valueType: true };
-    case "System.Numerics.BigInteger":
-      return { typeofRuntimeKind: "bigint", valueType: true };
-    case "System.Nullable`1":
-      return { specialType: "nullable", valueType: true };
-    default:
-      return {};
-  }
 }
 
 function dotnetRenderShapeToCsharpRenderShape(shape: DotnetRenderShape): CsharpTargetTypeRenderShape {

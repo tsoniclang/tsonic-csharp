@@ -8,6 +8,12 @@ import {
   csharpStaticMemberExpression,
   getRequiredCsharpTargetConversionOperation,
 } from "./csharp-target-operations.js";
+import {
+  csharpTargetOperationFactKey,
+} from "../../source/csharp-facts.js";
+import {
+  targetTypeRefEquals,
+} from "../../source/csharp-source-semantics/target-ref-utils.js";
 
 type TargetConversion = NonNullable<ReturnType<TargetCompileInput["facts"]["getTargetConversionFact"]>>;
 
@@ -21,7 +27,33 @@ export function applyTargetConversionFact(
   if (conversion === undefined || conversion.operation === undefined) {
     return expression;
   }
+  if (isAlreadyTargetTypedOperation(node, input, conversion)) {
+    return expression;
+  }
   return planTargetConversionOperation(node, input, conversion, expression, diagnostics);
+}
+
+function isAlreadyTargetTypedOperation(
+  node: Node,
+  input: TargetCompileInput,
+  conversion: TargetConversion,
+): boolean {
+  const operation = input.facts.getFact(node, csharpTargetOperationFactKey);
+  if (operation !== undefined && operation.operationId === conversion.operation?.operationId) {
+    return true;
+  }
+  const convertedType = conversion.convertedType;
+  if (convertedType === undefined) {
+    return false;
+  }
+  const operationResult = operation?.resultType;
+  if (operationResult === undefined) {
+    return false;
+  }
+  if (targetTypeRefEquals(operationResult, convertedType)) {
+    return true;
+  }
+  return false;
 }
 
 function planTargetConversionOperation(
