@@ -13,6 +13,7 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
+  isControlFlowLabelIdentifier,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 
@@ -76,6 +77,9 @@ function getSemanticTypeForNode(
   if (ast === undefined || checker === undefined) {
     return undefined;
   }
+  if (isControlFlowLabelIdentifier(ast, node)) {
+    return undefined;
+  }
   return isTypeSyntaxNode(ast, node)
     ? checker.getTypeFromTypeNode(node, { sourceFile })
     : checker.getTypeAtLocation(node, { sourceFile });
@@ -105,6 +109,9 @@ function getReferenceQueryNode(
 ): Node | undefined {
   const ast = context.compiler?.ast;
   if (ast === undefined || node === undefined) {
+    return undefined;
+  }
+  if (isControlFlowLabelIdentifier(ast, node)) {
     return undefined;
   }
   if (ast.is.IsIdentifier(node) ||

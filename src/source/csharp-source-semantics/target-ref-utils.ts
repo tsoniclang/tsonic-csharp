@@ -8,6 +8,9 @@ import {
   asSemanticType,
   asTargetTypeRef as asCanonicalTargetTypeRef,
 } from "../fact-subjects.js";
+import {
+  isPlainCsharpIdentifier,
+} from "../../csharp-identifiers.js";
 
 export function asType(subject: unknown): Type | undefined {
   return asSemanticType(subject);
@@ -103,7 +106,9 @@ export function targetMemberIsClosed(member: { readonly declaringType?: TargetTy
 }
 
 export function generatedObjectShapeMemberName(sourceName: string): string {
-  return `__tsonic_member_${hashString(sourceName)}`;
+  return isPlainCsharpIdentifier(sourceName)
+    ? sourceName
+    : `__tsonic_member_${hashString(sourceName)}`;
 }
 
 export function targetTypeRefKey(type: TargetTypeRef): string {

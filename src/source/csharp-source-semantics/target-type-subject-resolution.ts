@@ -6,6 +6,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
+  isControlFlowLabelIdentifier,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
@@ -142,6 +143,8 @@ export function resolveTargetTypeRefForSubjectCore(
   const ast = context.compiler?.ast;
   const type = node === undefined || checker === undefined || options.allowSemanticTypeQuery === false
     ? undefined
+    : ast !== undefined && isControlFlowLabelIdentifier(ast, node)
+      ? undefined
     : ast !== undefined && isTypeSyntaxNode(ast, node)
       ? asType(checker.getTypeFromTypeNode(node))
       : asType(checker.getTypeAtLocation(node));

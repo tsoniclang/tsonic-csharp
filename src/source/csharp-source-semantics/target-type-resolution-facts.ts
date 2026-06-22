@@ -43,6 +43,9 @@ export function getCatchVariableTargetTypeRef(
   if (ast === undefined || checker === undefined || node === undefined || !ast.is.IsIdentifier(node)) {
     return undefined;
   }
+  if (!isCatchVariableIdentifier(node, ast)) {
+    return undefined;
+  }
   const symbol = checker.getSymbolAtLocation(node) ?? checker.getResolvedSymbol(node);
   const declarations = getSymbolDeclarations(symbol);
   return declarations.some((declaration) => {
@@ -51,6 +54,18 @@ export function getCatchVariableTargetTypeRef(
     })
     ? csharpTargetNamedType("System.Exception")
     : undefined;
+}
+
+function isCatchVariableIdentifier(
+  node: NonNullable<ReturnType<typeof asNodeSubject>>,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+): boolean {
+  const parent = ast.parent(node);
+  if (parent === undefined || !ast.is.IsVariableDeclaration(parent) || asNodeSubject(getNodeField(parent, "name")) !== node) {
+    return false;
+  }
+  const grandparent = ast.parent(parent);
+  return grandparent !== undefined && ast.is.IsCatchClause(grandparent);
 }
 
 export function resolveRuntimeCarrier(

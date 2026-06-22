@@ -14,6 +14,7 @@ import type {
 } from "../csharp-facts.js";
 import {
   asNodeSubject,
+  isControlFlowLabelIdentifier,
   visitStructuralNodes,
 } from "./ast-utils.js";
 import {
@@ -162,6 +163,9 @@ function getSafeObjectShapeSymbol(
     return undefined;
   }
   try {
+    if (isControlFlowLabelIdentifier(compiler.ast, node)) {
+      return undefined;
+    }
     const symbol = compiler.checker.getSymbolAtLocation(node, { sourceFile });
     if (symbol !== undefined || !isResolvedObjectShapeSymbolLookupNode(compiler.ast, node)) {
       return symbol;
@@ -197,6 +201,9 @@ function getTypeSubject(
     return undefined;
   }
   try {
+    if (isControlFlowLabelIdentifier(compiler.ast, node)) {
+      return undefined;
+    }
     return isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)
       ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
       : compiler.checker.getTypeAtLocation(node, { sourceFile });

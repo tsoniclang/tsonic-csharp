@@ -2,6 +2,7 @@ export {
   expressionToCsharpType,
 } from "./csharp-type-expression.js";
 export {
+  getCsharpTypeFromSemanticType,
   getCsharpTypeForNode,
 } from "./csharp-type-node.js";
 export {

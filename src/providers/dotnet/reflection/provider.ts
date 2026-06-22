@@ -26,6 +26,7 @@ export interface DotnetReflectionTypeDataProviderOptions {
   readonly toolProjectPath?: string;
   readonly referenceDirectory?: string;
   readonly references?: readonly string[];
+  readonly targetFramework?: string;
 }
 
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {

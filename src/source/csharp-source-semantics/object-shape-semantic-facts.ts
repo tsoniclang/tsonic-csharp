@@ -15,6 +15,7 @@ import type {
 import {
   asNodeSubject,
   getNodeNameText,
+  isControlFlowLabelIdentifier,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
@@ -141,6 +142,9 @@ function getSemanticTypeForObjectShapeSubject(
 ): Type | undefined {
   const compiler = context.compiler;
   if (compiler === undefined || node === undefined) {
+    return undefined;
+  }
+  if (isControlFlowLabelIdentifier(compiler.ast, node)) {
     return undefined;
   }
   try {

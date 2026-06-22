@@ -2,6 +2,7 @@ import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
 import {
   KindConstructor,
+  KindBindingElement,
   KindFunctionDeclaration,
   KindFunctionExpression,
   KindMethodDeclaration,
@@ -49,6 +50,7 @@ export function isSourceDeclaredCallableReference(
 function isSourceCallableDeclaration(declaration: Node | undefined, input: TargetCompileInput): boolean {
   switch (SourceKind(input.ast, declaration)) {
     case KindVariableDeclaration:
+    case KindBindingElement:
     case KindParameter:
     case KindFunctionDeclaration:
     case KindFunctionExpression:

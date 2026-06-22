@@ -10,13 +10,16 @@ import {
   readOptionalStringOption,
   readStringOption,
 } from "./project-option-values.js";
+import {
+  readCsharpTargetFramework,
+} from "../../options/csharp-target-options.js";
 
 export function readCsharpProjectProperties(
   input: TargetCompileInput,
   options: { readonly allowUnsafeBlocks?: boolean },
 ): readonly CsharpProjectProperty[] {
   const properties = new Map<string, string>();
-  properties.set("TargetFramework", readStringOption(input, "targetFramework", "net10.0"));
+  properties.set("TargetFramework", readCsharpTargetFramework(input.target));
   properties.set("Nullable", readStringOption(input, "nullable", "enable"));
   properties.set("ImplicitUsings", readStringOption(input, "implicitUsings", "disable"));
   if (options.allowUnsafeBlocks === true) {

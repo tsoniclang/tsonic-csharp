@@ -104,6 +104,25 @@ export function getNodeField(node: Node | undefined, field: string): unknown {
   return Object.getOwnPropertyDescriptor(node, field)?.value;
 }
 
+export function isControlFlowLabelIdentifier(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  if (!ast.is.IsIdentifier(node)) {
+    return false;
+  }
+  const parent = ast.parent(node);
+  if (parent === undefined) {
+    return false;
+  }
+  const parentKind = ast.kindName(parent);
+  return (
+    parentKind === "KindLabeledStatement" ||
+    parentKind === "KindBreakStatement" ||
+    parentKind === "KindContinueStatement"
+  ) && asNodeSubject(getNodeField(parent, "Label")) === node;
+}
+
 export function getNodeNameText(node: Node): string {
   const name = asNodeSubject(getNodeField(node, "name"));
   const text = (name as { readonly Text?: unknown } | undefined)?.Text;

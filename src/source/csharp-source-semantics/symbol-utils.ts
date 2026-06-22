@@ -7,6 +7,7 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
+  isControlFlowLabelIdentifier,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 
@@ -41,6 +42,9 @@ export function getSymbolForDeclarationLookup(
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
 ): Symbol | undefined {
   if (!isSymbolLookupNode(ast, node) || isTypeOnlySymbolLookupPosition(ast, node)) {
+    return undefined;
+  }
+  if (isControlFlowLabelIdentifier(ast, node)) {
     return undefined;
   }
   const symbol = checker.getSymbolAtLocation(node, { sourceFile });

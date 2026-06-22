@@ -6,6 +6,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
+  isControlFlowLabelIdentifier,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
@@ -17,6 +18,9 @@ export function getRuntimeCarrierSubjectType(
   sourceFile: SourceFile,
   node: Node,
 ): Type | undefined {
+  if (isControlFlowLabelIdentifier(compiler.ast, node)) {
+    return undefined;
+  }
   return isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)
     ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
     : compiler.checker.getTypeAtLocation(node, { sourceFile });
@@ -27,7 +31,7 @@ export function getRuntimeCarrierSubjectSymbol(
   sourceFile: SourceFile,
   node: Node,
 ): Symbol | undefined {
-  if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)) {
+  if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node) || isControlFlowLabelIdentifier(compiler.ast, node)) {
     return undefined;
   }
   return getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile);

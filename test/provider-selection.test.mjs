@@ -304,11 +304,14 @@ test("target member selection does not treat opaque any or unknown as wildcard t
 
 function getNativeSemanticProvider() {
   const semanticProviders = [];
+  const target = { id: "csharp" };
   const extension = createCsharpNativeProviderExtension({
-    selectedSurfaces: [],
-    facts: {
-      set() {},
+    project: {
+      entryPoint: "index.ts",
+      targets: [target],
     },
+    target,
+    selectedSurfaces: [],
   });
   extension.initialize({
     registerTargetBindingProvider: () => true,

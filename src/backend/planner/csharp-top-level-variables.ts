@@ -1,8 +1,6 @@
 import {
   AsVariableDeclarationList,
   AsVariableStatement,
-  HasSyntacticModifier,
-  ModifierFlagsExport,
   NodeFlagsConst,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -26,18 +24,13 @@ export function planTopLevelVariableStatement(
   moduleMembers: CsharpTypeMember[],
   topLevelStatements: CsharpStatement[],
   state: DestructuringPlannerState,
-  executableTopLevelSourceFile: boolean,
+  _executableTopLevelSourceFile: boolean,
 ): void {
   const declarationList = AsVariableStatement(statement)!.DeclarationList;
   const variableDeclarationList = AsVariableDeclarationList(declarationList)!;
   const declarations = variableDeclarationList.Declarations?.Nodes ?? [];
   const isConst = (variableDeclarationList.Flags & NodeFlagsConst) !== 0;
-  const isExported = HasSyntacticModifier(statement, ModifierFlagsExport);
   if (declarations.length === 0) {
-    topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, state));
-    return;
-  }
-  if (executableTopLevelSourceFile && !isExported) {
     topLevelStatements.push(...planStatements(statement, sourceFile, input, diagnostics, state));
     return;
   }

@@ -118,18 +118,41 @@ export function allocateForOfItem(state: DestructuringPlannerState): string {
 }
 
 export function allocateStringIterationNames(state: DestructuringPlannerState): StringIterationSyntheticNames {
-  return {
-    collectionName: allocateSyntheticName(state, "__tsonic_forOfString", "nextForOfIndex"),
-    indexName: allocateSyntheticName(state, "__tsonic_forOfIndex", "nextForOfIndex"),
-  };
+  for (;;) {
+    const index = state.nextForOfIndex;
+    state.nextForOfIndex += 1;
+    const names = {
+      collectionName: `__tsonic_forOfString${index}`,
+      indexName: `__tsonic_forOfIndex${index}`,
+    };
+    if (!state.usedNames.has(names.collectionName) && !state.usedNames.has(names.indexName)) {
+      state.usedNames.add(names.collectionName);
+      state.usedNames.add(names.indexName);
+      return names;
+    }
+  }
 }
 
 export function allocateForInNames(state: DestructuringPlannerState): ForInSyntheticNames {
-  return {
-    indexName: allocateSyntheticName(state, "__tsonic_forInIndex", "nextForInIndex"),
-    collectionName: allocateSyntheticName(state, "__tsonic_forInTarget", "nextForInIndex"),
-    keysName: allocateSyntheticName(state, "__tsonic_forInKeys", "nextForInIndex"),
-  };
+  for (;;) {
+    const index = state.nextForInIndex;
+    state.nextForInIndex += 1;
+    const names = {
+      indexName: `__tsonic_forInIndex${index}`,
+      collectionName: `__tsonic_forInTarget${index}`,
+      keysName: `__tsonic_forInKeys${index}`,
+    };
+    if (
+      !state.usedNames.has(names.indexName) &&
+      !state.usedNames.has(names.collectionName) &&
+      !state.usedNames.has(names.keysName)
+    ) {
+      state.usedNames.add(names.indexName);
+      state.usedNames.add(names.collectionName);
+      state.usedNames.add(names.keysName);
+      return names;
+    }
+  }
 }
 
 export function allocateCatchValue(state: DestructuringPlannerState): string {

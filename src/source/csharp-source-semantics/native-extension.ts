@@ -89,10 +89,19 @@ import {
   createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
 } from "../../providers/dotnet/index.js";
+import {
+  readCsharpReflectionReferencePaths,
+  readCsharpTargetFramework,
+} from "../../options/csharp-target-options.js";
 
 export function createCsharpNativeProviderExtension(context: TargetProviderContext): CompilerExtension {
   const selectedSurfaceIds = new Set(context.selectedSurfaces.map((surface) => surface.id));
-  const dotnetProvider = createDotnetReflectionTypeDataProvider();
+  const dotnetReflectionReferences = readCsharpReflectionReferencePaths(context.target);
+  const dotnetTargetFramework = readCsharpTargetFramework(context.target);
+  const dotnetProvider = createDotnetReflectionTypeDataProvider({
+    references: dotnetReflectionReferences,
+    targetFramework: dotnetTargetFramework,
+  });
   let objectShapeSemanticsHost: CsharpObjectShapeSemanticsHost;
   const targetTypeResolutionHost = {
     getCsharpTargetBindingByTargetId: (targetId: string) => dotnetProvider.findTargetBindingByTargetId(targetId),
@@ -176,6 +185,8 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       context.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
       context.registerTargetBindingProvider(createDotnetTargetBindingProvider({
         provider: dotnetProvider,
+        references: dotnetReflectionReferences,
+        targetFramework: dotnetTargetFramework,
       }));
       if (selectedSurfaceIds.has("nodejs")) {
         context.registerTargetBindingProvider(createCsharpNodejsSurfaceBindingProvider());
