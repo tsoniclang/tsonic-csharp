@@ -20,8 +20,8 @@ export function getTargetTypeRefForNode(
   if (sourceNode === undefined) {
     return undefined;
   }
-  return getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-    input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile }) ??
+  return input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile }) ??
+    getTargetTypeRefFromDirectFacts(input, sourceNode) ??
     getTargetTypeRefFromDirectFacts(input, input.semantics.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.semantics.getResolvedSymbol(sourceNode, { sourceFile }));
 }
