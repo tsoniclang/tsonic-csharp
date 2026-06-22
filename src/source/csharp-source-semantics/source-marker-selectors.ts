@@ -111,7 +111,7 @@ function isAttributeBuilderExpression(
     return false;
   }
   const builderMethodName = ast.text(ast.name(callee));
-  if (builderMethodName !== "property" && builderMethodName !== "method" && builderMethodName !== "parameter") {
+  if (builderMethodName !== "property" && builderMethodName !== "method" && builderMethodName !== "constructor" && builderMethodName !== "parameter") {
     return false;
   }
   return isAttributeBuilderExpression(asNodeSubject(getNodeField(callee, "Expression")), context);

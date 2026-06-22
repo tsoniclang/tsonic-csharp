@@ -1,10 +1,12 @@
 import {
   attributeFactKey,
+  fieldFactKey,
 } from "@tsonic/tsts";
 import type {
   AttributeFact,
   CheckedCallMappingRequest,
   ExtensionObservationContext,
+  FieldFact,
   ProviderVirtualDeclarationFact,
   TargetMember,
 } from "@tsonic/tsts";
@@ -21,7 +23,6 @@ export function isErasedSourceSemanticsCall(declaration: ProviderVirtualDeclarat
     return false;
   }
   return declaration.exportName === "attribute" ||
-    declaration.exportName === "field" ||
     declaration.exportName === "struct" ||
     declaration.exportName === "defaultof" ||
     declaration.exportName === "out" ||
@@ -34,12 +35,29 @@ export function isErasedSourceSemanticsCall(declaration: ProviderVirtualDeclarat
     declaration.exportName === "__TsonicAttributeMemberBuilder";
 }
 
+export function isErasedFieldSourceSemanticsCall(declaration: ProviderVirtualDeclarationFact | undefined): declaration is ProviderVirtualDeclarationFact {
+  if (declaration === undefined) {
+    return false;
+  }
+  if (declaration.moduleSpecifier !== neutralLangModule && declaration.moduleSpecifier !== csharpLangModule) {
+    return false;
+  }
+  return declaration.exportName === "field";
+}
+
 export function getCheckedAttributeBuilderFact(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): AttributeFact | undefined {
   return context.facts.get(request.call, attributeFactKey) ??
     context.facts.get(request.calleeReceiver, attributeFactKey);
+}
+
+export function getCheckedFieldFact(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): FieldFact | undefined {
+  return context.facts.get(request.call, fieldFactKey);
 }
 
 export function erasedSourceSemanticsMember(
@@ -55,6 +73,10 @@ export function erasedSourceSemanticsMember(
 
 export function erasedAttributeFactMember(attribute: AttributeFact): TargetMember {
   return erasedMarkerMember(`source-semantics.attribute:${attribute.attributeName}`, "attribute");
+}
+
+export function erasedFieldFactMember(field: FieldFact): TargetMember {
+  return erasedMarkerMember(`source-semantics.field:${field.name}`, "field");
 }
 
 function erasedMarkerMember(id: string, sourceName: string): TargetMember {

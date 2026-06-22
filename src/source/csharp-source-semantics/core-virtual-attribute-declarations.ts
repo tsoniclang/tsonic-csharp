@@ -37,6 +37,7 @@ export function attributeBuilderDeclaration(): ProviderExportDeclaration {
           returnType: { kind: "unknown" },
         },
       }], memberBuilder),
+      methodMember("__TsonicAttributeBuilder.constructor", "constructor", [], memberBuilder),
     ],
   };
 }

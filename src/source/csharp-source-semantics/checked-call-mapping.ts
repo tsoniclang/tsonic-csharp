@@ -41,8 +41,11 @@ import {
 } from "./target-ref-utils.js";
 import {
   erasedAttributeFactMember,
+  erasedFieldFactMember,
   erasedSourceSemanticsMember,
   getCheckedAttributeBuilderFact,
+  getCheckedFieldFact,
+  isErasedFieldSourceSemanticsCall,
   isErasedSourceSemanticsCall,
 } from "./erased-source-markers.js";
 import type {
@@ -60,6 +63,20 @@ export function mapCsharpCheckedCall(
   }
   const attributeFact = getCheckedAttributeBuilderFact(request, context);
   const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  if (isErasedFieldSourceSemanticsCall(virtualDeclaration)) {
+    const fieldFact = getCheckedFieldFact(request, context);
+    if (fieldFact === undefined) {
+      return rejectObservation(csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_FIELD_MARKER_FACT_NOT_PROVEN",
+        9100112,
+        "C# field marker call requires a finalized TSTS FieldFact with field type evidence before erasure.",
+      ));
+    }
+    return acceptObservation<CheckedCallMappingResult>({
+      selectedSignature: { member: erasedFieldFactMember(fieldFact) },
+    }, [{ message: "C# field marker call was checked by finalized TSTS field facts and marked for fact-driven erasure." }]);
+  }
   if (isErasedSourceSemanticsCall(virtualDeclaration)) {
     const member = erasedSourceSemanticsMember(virtualDeclaration) ??
       (attributeFact === undefined ? undefined : erasedAttributeFactMember(attributeFact));

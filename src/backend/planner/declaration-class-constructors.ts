@@ -33,6 +33,9 @@ import {
   planBlockStatements,
   planStatements,
 } from "./statements.js";
+import {
+  planAttributesForSubject,
+} from "./attributes.js";
 
 export function planClassStaticBlockDeclaration(
   node: Node,
@@ -75,6 +78,7 @@ export function planConstructorDeclaration(
     kind: "ConstructorDeclaration",
     name: className,
     modifiers: ["public"],
+    attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     parameters: parameters.parameters,
     ...(leadingSuperCall === undefined
       ? {}

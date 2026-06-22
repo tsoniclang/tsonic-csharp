@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   KindClassDeclaration,
+  KindConstructor,
   KindGetAccessor,
   KindIdentifier,
   KindMethodDeclaration,
@@ -11,6 +12,7 @@ import {
   KindStringLiteral,
   KindTypeReference,
 } from "../dist/backend/planner/source-ast.js";
+import { diagnoseUnresolvedAttributeApplications } from "../dist/backend/planner/attributes.js";
 import { planClassDeclaration } from "../dist/backend/planner/declarations.js";
 import { printCsharpCompilationUnit } from "../dist/print/csharp-printer.js";
 
@@ -20,6 +22,7 @@ test("planner emits finalized source attribute facts on supported declaration pl
     import { ObsoleteAttribute, SerializableAttribute } from "@example/attributes/index.js";
 
     export class User {
+      constructor(id: string) {}
       name = "";
       get display(): string { return this.name; }
       save(route: string): void {}
@@ -27,6 +30,8 @@ test("planner emits finalized source attribute facts on supported declaration pl
 
     attribute<User>().add(SerializableAttribute);
     attribute<User>().add(ObsoleteAttribute, "class");
+    attribute<User>().constructor().add(ObsoleteAttribute, "constructor");
+    attribute<User>().constructor().parameter("id").add(ObsoleteAttribute, "id");
     attribute<User>().property((target) => target.name).add(ObsoleteAttribute, "field");
     attribute<User>().property((target) => target.display).add(ObsoleteAttribute, "property");
     attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method");
@@ -37,7 +42,12 @@ test("planner emits finalized source attribute facts on supported declaration pl
   const sourceFile = sourceFileNode("/src/index.ts");
   const stringType = node("KindStringKeyword");
   const voidType = node("KindVoidKeyword");
+  const idParameter = node(KindParameter, { name: identifier("id"), Type: stringType });
   const routeParameter = node(KindParameter, { name: identifier("route"), Type: stringType });
+  const constructor = node(KindConstructor, {
+    Parameters: { Nodes: [idParameter] },
+    Body: block(),
+  });
   const field = node(KindPropertyDeclaration, { name: identifier("name"), Type: stringType });
   const property = node(KindGetAccessor, { name: identifier("display"), Type: stringType, Body: block() });
   const method = node(KindMethodDeclaration, {
@@ -48,7 +58,7 @@ test("planner emits finalized source attribute facts on supported declaration pl
   });
   const classDeclaration = node(KindClassDeclaration, {
     name: identifier("User"),
-    Members: { Nodes: [field, property, method] },
+    Members: { Nodes: [constructor, field, property, method] },
   });
   const classTarget = typeReference("User");
   const fieldTarget = propertyAccess("name");
@@ -61,8 +71,12 @@ test("planner emits finalized source attribute facts on supported declaration pl
   const propertyArgument = stringLiteral("property");
   const methodArgument = stringLiteral("method");
   const routeArgument = stringLiteral("route");
+  const constructorArgument = stringLiteral("constructor");
+  const idArgument = stringLiteral("id");
   const classSerializableCall = node("KindCallExpression");
   const classObsoleteCall = node("KindCallExpression");
+  const constructorAttributeCall = node("KindCallExpression");
+  const constructorParameterAttributeCall = node("KindCallExpression");
   const fieldAttributeCall = node("KindCallExpression");
   const propertyAttributeCall = node("KindCallExpression");
   const methodAttributeCall = node("KindCallExpression");
@@ -72,6 +86,8 @@ test("planner emits finalized source attribute facts on supported declaration pl
       classDeclaration,
       classSerializableCall,
       classObsoleteCall,
+      constructorAttributeCall,
+      constructorParameterAttributeCall,
       fieldAttributeCall,
       propertyAttributeCall,
       methodAttributeCall,
@@ -93,6 +109,15 @@ test("planner emits finalized source attribute facts on supported declaration pl
     attributeFacts: new Map([
       [classSerializableCall, attributeFact(serializableAttribute, classTarget)],
       [classObsoleteCall, attributeFact(obsoleteAttribute, classTarget, [classArgument])],
+      [constructorAttributeCall, {
+        ...attributeFact(obsoleteAttribute, classTarget, [constructorArgument]),
+        applicationPlacement: "constructor",
+      }],
+      [constructorParameterAttributeCall, {
+        ...attributeFact(obsoleteAttribute, classTarget, [idArgument]),
+        applicationPlacement: "constructor",
+        applicationParameterName: "id",
+      }],
       [fieldAttributeCall, attributeFact(obsoleteAttribute, fieldTarget, [fieldArgument])],
       [propertyAttributeCall, attributeFact(obsoleteAttribute, propertyTarget, [propertyArgument])],
       [methodAttributeCall, attributeFact(obsoleteAttribute, methodTarget, [methodArgument])],
@@ -113,10 +138,45 @@ test("planner emits finalized source attribute facts on supported declaration pl
 
   assert.deepEqual(diagnostics, []);
   assert.match(printed, /\[System\.SerializableAttribute\]\n\[System\.ObsoleteAttribute\("class"\)\]\npublic class User/);
+  assert.match(printed, /\[System\.ObsoleteAttribute\("constructor"\)\]\n    public User\(\[System\.ObsoleteAttribute\("id"\)\] string id\)/);
   assert.match(printed, /\[System\.ObsoleteAttribute\("field"\)\]\n    public string name;/);
   assert.match(printed, /\[System\.ObsoleteAttribute\("property"\)\]\n    public string display/);
   assert.match(printed, /\[System\.ObsoleteAttribute\("method"\)\]\n    public void save\(\[System\.ObsoleteAttribute\("route"\)\] string route\)/);
   assert.doesNotMatch(printed, /__tsonic_erased_source_marker|attribute<User>/);
+});
+
+test("planner diagnoses constructor attributes without an explicit source constructor", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const classDeclaration = node(KindClassDeclaration, {
+    name: identifier("User"),
+    Members: { Nodes: [] },
+  });
+  const classTarget = typeReference("User");
+  const obsoleteAttribute = identifier("ObsoleteAttribute");
+  const constructorAttributeCall = node("KindCallExpression");
+  sourceFile.Statements = {
+    Nodes: [
+      classDeclaration,
+      constructorAttributeCall,
+    ],
+  };
+  const input = fakeInput(sourceFile, {
+    references: new Map([[classTarget, classDeclaration]]),
+    targetBindings: new Map([[obsoleteAttribute, attributeBinding("ObsoleteAttribute")]]),
+    attributeFacts: new Map([
+      [constructorAttributeCall, {
+        ...attributeFact(obsoleteAttribute, classTarget),
+        applicationPlacement: "constructor",
+      }],
+    ]),
+  });
+  const diagnostics = [];
+
+  diagnoseUnresolvedAttributeApplications(sourceFile, input, diagnostics);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION");
+  assert.match(diagnostics[0].message, /implicit default constructors have no finalized source declaration/);
 });
 
 function node(kind, properties = {}) {

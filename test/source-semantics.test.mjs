@@ -32,10 +32,13 @@ test("source-semantics records provider-backed attribute selector facts from use
 
     class User {
       name = "";
+      constructor(id: string) {}
       save(route: string): void {}
     }
 
     attribute<User>().add(SerializableAttribute);
+    attribute<User>().constructor().add(ObsoleteAttribute, "constructor");
+    attribute<User>().constructor().parameter("id").add(ObsoleteAttribute, "id");
     attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method");
     attribute<User>().method((target) => target.save).parameter("route").add(ObsoleteAttribute, "route");
     attribute<User>().property((target) => target.name).add(NonSerializedAttribute, "field");
@@ -73,17 +76,21 @@ test("source-semantics records provider-backed attribute selector facts from use
 
   assert.deepEqual(applicationFacts.map((fact) => [
     fact.attributeName,
+    fact.applicationPlacement,
     fact.applicationParameterName,
     fact.arguments?.length ?? 0,
   ]), [
-    ["SerializableAttribute", undefined, 0],
-    ["ObsoleteAttribute", undefined, 1],
-    ["ObsoleteAttribute", "route", 1],
-    ["NonSerializedAttribute", undefined, 1],
+    ["SerializableAttribute", undefined, undefined, 0],
+    ["ObsoleteAttribute", "constructor", undefined, 1],
+    ["ObsoleteAttribute", "constructor", "id", 1],
+    ["ObsoleteAttribute", undefined, undefined, 1],
+    ["ObsoleteAttribute", undefined, "route", 1],
+    ["NonSerializedAttribute", undefined, undefined, 1],
   ]);
   assert.equal(session.ast.kindName(applicationFacts[0].applicationTarget), "KindTypeReference");
-  assert.equal(session.ast.text(session.ast.name(applicationFacts[1].applicationTarget)), "save");
-  assert.equal(session.ast.text(session.ast.name(applicationFacts[3].applicationTarget)), "name");
+  assert.equal(session.ast.kindName(applicationFacts[1].applicationTarget), "KindTypeReference");
+  assert.equal(session.ast.text(session.ast.name(applicationFacts[3].applicationTarget)), "save");
+  assert.equal(session.ast.text(session.ast.name(applicationFacts[5].applicationTarget)), "name");
 });
 
 function collectFacts(sourceFile, ast, extensionHost) {

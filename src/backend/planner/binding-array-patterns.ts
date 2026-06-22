@@ -66,11 +66,7 @@ function planArrayBindingElement(
   if (name === undefined) {
     return [];
   }
-  const projected: CsharpExpression = {
-    kind: "ElementAccessExpression",
-    receiver: sourceExpression,
-    argument: { kind: "LiteralExpression", value: index },
-  };
+  const projected = planArrayBindingProjection(sourceExpression, index, sourceCarrier);
   const projectedType = elementCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(elementCarrier);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array destructuring element requires a renderable provider element carrier type before C# emission."));
@@ -84,6 +80,25 @@ function planArrayBindingElement(
     ? projected
     : planArrayElementDefaultProjection(projected, sourceExpression, index, element.Initializer, projectedType, sourceFile, input, diagnostics);
   return planBindingNameFromProjection(name, projectedWithDefault, projectedType, elementNode, sourceFile, input, diagnostics, state);
+}
+
+function planArrayBindingProjection(
+  sourceExpression: CsharpExpression,
+  index: number,
+  sourceCarrier: Extract<TargetTypeRef, { readonly kind: "array" | "tuple" }>,
+): CsharpExpression {
+  if (sourceCarrier.kind === "tuple") {
+    return {
+      kind: "SimpleMemberAccessExpression",
+      receiver: sourceExpression,
+      name: `Item${index + 1}`,
+    };
+  }
+  return {
+    kind: "ElementAccessExpression",
+    receiver: sourceExpression,
+    argument: { kind: "LiteralExpression", value: index },
+  };
 }
 
 function planArrayRestBindingElement(

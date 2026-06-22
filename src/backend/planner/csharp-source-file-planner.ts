@@ -31,7 +31,7 @@ import type {
   CsharpTypeDeclaration,
   CsharpTypeMember,
 } from "../roslyn/syntax.js";
-import { isErasedAttributeExpressionStatement } from "./attributes.js";
+import { diagnoseUnresolvedAttributeApplications, isErasedAttributeExpressionStatement } from "./attributes.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { planTopLevelVariableStatement } from "./csharp-top-level-variables.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
@@ -120,8 +120,9 @@ export function planSourceFile(
       default:
         diagnostics.push(unsupportedNodeDiagnostic(statement, "Top-level statement is outside the current C# planning surface."));
         break;
-    }
+      }
   }
+  diagnoseUnresolvedAttributeApplications(sourceFile, input, diagnostics);
   if (topLevelStatements.length > 0) {
     members.unshift({
       kind: "MethodDeclaration",

@@ -68,9 +68,6 @@ export function planPropertyDeclaration(
       modifiers: planClassMemberModifiers(node, declaration.name, input),
       attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
       type,
-      ...(declaration.Initializer !== undefined
-        ? { initializer: planExpressionWithExpectedType(declaration.Initializer, sourceFile, input, diagnostics, type, declaration.Type ?? declaration.name) }
-        : {}),
     };
   }
   const type = getCsharpTypeForNode(declaration.Type ?? declaration.name, sourceFile, input, invalidCsharpType("property type"), diagnostics);
