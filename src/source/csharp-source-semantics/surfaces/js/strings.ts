@@ -66,7 +66,7 @@ export function getStringTargetMembers(sourceName: string): readonly TargetMembe
     return [targetMethod(`System.String.${instanceName}`, sourceName, instanceName, [], stringType)];
   }
   if (sourceName === "concat") {
-    return [targetMethod("System.String.Concat(System.String[])", sourceName, "Concat", [
+    return [targetMethod("tsonic.csharp.js.String.concat", sourceName, "Concat", [
       targetParameter("value", stringType),
       targetParameter("values", stringType, { paramsArray: true }),
     ], stringType, {

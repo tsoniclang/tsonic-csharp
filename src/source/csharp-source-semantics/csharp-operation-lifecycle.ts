@@ -81,8 +81,7 @@ function walkSelectedCallOperationFacts(
   if (selectedSignature === undefined) {
     return;
   }
-  const declaringTargetType = lifecycleContext.host.factResolver.resolve(node, runtimeCarrierFactKey)?.carrier ??
-    selectedSignature.member.declaringType;
+  const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, selectedSignature);
   const member = instantiateSelectedTargetMember(selectedSignature, host, { declaringTargetType });
   if (member === undefined || !targetMemberIsClosed(member)) {
     return;
@@ -99,6 +98,31 @@ function walkSelectedCallOperationFacts(
     csharpTargetOperationFromMember(member),
     [{ message: "C# selected call operation finalized from closed TSTS selected target signature." }],
   );
+}
+
+function getSelectedCallDeclaringTargetType(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  node: Node,
+  selectedSignature: SelectedTargetSignatureFact,
+): TargetTypeRef | undefined {
+  const member = selectedSignature.member;
+  if (member.kind === "constructor" || member.static === true) {
+    return member.declaringType;
+  }
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || !compiler.ast.is.IsCallExpression(node)) {
+    return member.declaringType;
+  }
+  const expression = asNodeSubject(getNodeField(node, "Expression"));
+  if (expression === undefined || !compiler.ast.is.IsPropertyAccessExpression(expression)) {
+    return member.declaringType;
+  }
+  const receiver = asNodeSubject(getNodeField(expression, "Expression"));
+  if (receiver === undefined) {
+    return member.declaringType;
+  }
+  return lifecycleContext.host.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
+    member.declaringType;
 }
 
 function getSelectedTargetSignatureFromFinalizedProviderOperation(

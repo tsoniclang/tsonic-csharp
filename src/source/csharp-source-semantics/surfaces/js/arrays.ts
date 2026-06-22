@@ -72,15 +72,15 @@ export function getArrayTargetMembers(sourceName: string): readonly TargetMember
     case "slice":
       return [arrayHelper(sourceName, "Slice", [targetParameter("array", arrayType), targetParameter("start", intType, { optional: true }), targetParameter("end", intType, { optional: true })], arrayType, helperType)];
     case "forEach":
-      return arrayCallbackHelpers(sourceName, "ForEach", "System.Action", itemType, arrayType, csharpTargetNamedType("System.Void"), helperType);
+      return arrayCallbackHelpers(sourceName, "ForEach", "System.Action", itemType, arrayType, csharpTargetNamedType("System.Void"), csharpTargetNamedType("System.Void"), helperType);
     case "some":
-      return arrayCallbackHelpers(sourceName, "Some", "System.Func", itemType, arrayType, boolType, helperType);
+      return arrayCallbackHelpers(sourceName, "Some", "System.Func", itemType, arrayType, boolType, boolType, helperType);
     case "every":
-      return arrayCallbackHelpers(sourceName, "Every", "System.Func", itemType, arrayType, boolType, helperType);
+      return arrayCallbackHelpers(sourceName, "Every", "System.Func", itemType, arrayType, boolType, boolType, helperType);
     case "findIndex":
-      return arrayCallbackHelpers(sourceName, "FindIndex", "System.Func", itemType, arrayType, intType, helperType);
+      return arrayCallbackHelpers(sourceName, "FindIndex", "System.Func", itemType, arrayType, boolType, intType, helperType);
     case "findLastIndex":
-      return arrayCallbackHelpers(sourceName, "FindLastIndex", "System.Func", itemType, arrayType, intType, helperType);
+      return arrayCallbackHelpers(sourceName, "FindLastIndex", "System.Func", itemType, arrayType, boolType, intType, helperType);
     default:
       return [];
   }
@@ -92,7 +92,8 @@ function arrayCallbackHelpers(
   delegateKind: "System.Action" | "System.Func",
   itemType: TargetTypeRef,
   arrayType: TargetTypeRef,
-  returnType: TargetTypeRef,
+  callbackReturnType: TargetTypeRef,
+  memberReturnType: TargetTypeRef,
   helperType: TargetTypeRef,
 ): readonly TargetMember[] {
   const intType = csharpSourcePrimitiveTargetType("int32");
@@ -103,14 +104,14 @@ function arrayCallbackHelpers(
         csharpDelegateTargetType("System.Action", [itemType, intType, arrayType]),
       ]
     : [
-        csharpDelegateTargetType("System.Func", [itemType], returnType),
-        csharpDelegateTargetType("System.Func", [itemType, intType], returnType),
-        csharpDelegateTargetType("System.Func", [itemType, intType, arrayType], returnType),
+        csharpDelegateTargetType("System.Func", [itemType], callbackReturnType),
+        csharpDelegateTargetType("System.Func", [itemType, intType], callbackReturnType),
+        csharpDelegateTargetType("System.Func", [itemType, intType, arrayType], callbackReturnType),
       ];
   return callbackShapes.map((callback, index) => arrayHelper(`${sourceName}:${index + 1}`, targetName, [
     targetParameter("array", arrayType),
     targetParameter("callback", callback),
-  ], returnType, helperType, sourceName));
+  ], memberReturnType, helperType, sourceName));
 }
 
 function arrayHelper(

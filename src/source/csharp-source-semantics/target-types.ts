@@ -122,15 +122,19 @@ export function csharpTargetTypeFromBinding(
   }
   const declaredType = (binding as CsharpTargetBindingFact).csharpType;
   if (declaredType?.kind === "target-named") {
+    const renderShape = knownCsharpTargetTypeRenderShape(declaredType.id) ??
+      (declaredType as CsharpTargetNamedTypeRef).csharpRender;
     return {
       ...declaredType,
       ...(typeArguments.length > 0 ? { typeArguments } : {}),
+      ...(renderShape !== undefined ? { csharpRender: renderShape } : {}),
     };
   }
   if (declaredType !== undefined) {
     return typeArguments.length === 0 ? declaredType : undefined;
   }
-  const renderShape = (binding as CsharpTargetBindingFact).csharpRender;
+  const renderShape = knownCsharpTargetTypeRenderShape(binding.id) ??
+    (binding as CsharpTargetBindingFact).csharpRender;
   const known = csharpTargetNamedType(binding.id, typeArguments, renderShape);
   if (csharpRenderShapeForTargetNamedType(known) !== undefined) {
     return known;

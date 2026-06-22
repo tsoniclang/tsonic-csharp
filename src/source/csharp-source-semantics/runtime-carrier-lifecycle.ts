@@ -15,6 +15,10 @@ import {
   getAstReaderChildNodes,
   getNodeField,
 } from "./ast-utils.js";
+import {
+  getCallableExpressionTargetTypeRef,
+  isCallableExpressionNode,
+} from "./callable-target-types.js";
 import type {
   CsharpLifecycleObservationContext,
 } from "./runtime-carrier-context.js";
@@ -222,20 +226,22 @@ function getCallableExpressionRuntimeCarrierTargetTypeRef(
   if (type === undefined) {
     return undefined;
   }
+  const checkedCallable = getCallableExpressionTargetTypeRef(
+    node,
+    type,
+    sourceFile,
+    createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
+    host,
+  );
+  if (checkedCallable !== undefined) {
+    return checkedCallable;
+  }
   const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
     type,
     sourceTypeReference: node,
     target: csharpTargetId,
   }, selectedSurfaceIds, host);
   return result.kind === "accept" ? result.value.carrier : undefined;
-}
-
-function isCallableExpressionNode(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): boolean {
-  return ast.kindName(node) === "KindArrowFunction" ||
-    ast.kindName(node) === "KindFunctionExpression";
 }
 
 function isObjectShapeRuntimeCarrierSyntaxNode(

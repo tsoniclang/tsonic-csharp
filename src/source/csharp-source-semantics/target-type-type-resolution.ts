@@ -106,17 +106,6 @@ export function resolveTargetTypeRefForTypeCore(
   if (typeParameterName !== undefined) {
     return { kind: "type-parameter", name: typeParameterName };
   }
-  if (types.isUnion(type)) {
-    const nullable = getNullableUnionTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
-    if (nullable !== undefined) {
-      return nullable;
-    }
-    return undefined;
-  }
-  const declaredShape = host.getSemanticTypeDeclarationShape(type, context);
-  if (declaredShape !== undefined) {
-    return declaredShape.targetType;
-  }
   if (types.isBooleanLike(type)) {
     return csharpSourcePrimitiveTargetType("bool");
   }
@@ -128,6 +117,17 @@ export function resolveTargetTypeRefForTypeCore(
   }
   if (types.isBigIntLike(type)) {
     return csharpTargetNamedType("System.Numerics.BigInteger");
+  }
+  if (types.isUnion(type)) {
+    const nullable = getNullableUnionTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
+    if (nullable !== undefined) {
+      return nullable;
+    }
+    return undefined;
+  }
+  const declaredShape = host.getSemanticTypeDeclarationShape(type, context);
+  if (declaredShape !== undefined) {
+    return declaredShape.targetType;
   }
   const callable = getCallableTargetTypeRefForSemanticType(type, context, options, host, recursiveTargetTypeResolver);
   if (callable !== undefined) {

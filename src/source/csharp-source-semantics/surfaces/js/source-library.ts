@@ -13,6 +13,7 @@ export type {
 } from "../../source-library.js";
 export {
   getSourceLibraryMember,
+  getSourceLibraryMemberFromReceiverType,
   isSourceLibraryType,
 } from "../../source-library.js";
 export {
