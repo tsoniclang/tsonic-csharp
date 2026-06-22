@@ -44,6 +44,9 @@ import {
   getCatchVariableTargetTypeRef,
 } from "./target-type-resolution-facts.js";
 import {
+  targetTypeRefContainsSourcePrimitive,
+} from "./target-ref-utils.js";
+import {
   csharpTargetId,
 } from "./identity.js";
 import {
@@ -144,26 +147,6 @@ function recordCsharpRuntimeCarrierFact(
   }
 }
 
-function targetTypeRefContainsSourcePrimitive(type: TargetTypeRef): boolean {
-  switch (type.kind) {
-    case "source-primitive":
-      return true;
-    case "array":
-      return targetTypeRefContainsSourcePrimitive(type.element);
-    case "tuple":
-      return type.elements.some(targetTypeRefContainsSourcePrimitive);
-    case "target-named":
-      return (type.typeArguments ?? []).some(targetTypeRefContainsSourcePrimitive);
-    case "pointer":
-      return targetTypeRefContainsSourcePrimitive(type.pointee);
-    case "function-pointer":
-      return targetTypeRefContainsSourcePrimitive(type.result) ||
-        type.args.some(targetTypeRefContainsSourcePrimitive);
-    default:
-      return false;
-  }
-}
-
 function recordCsharpRuntimeCarrierSyntaxFact(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   sourceFile: SourceFile,
@@ -221,7 +204,8 @@ function getReferencedRuntimeCarrierTargetTypeRef(
   if (
     compiler === undefined ||
     isRuntimeCarrierTypeSyntaxNode(compiler.ast, node) ||
-    !isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
+    !isSemanticTypeQueryableValueExpressionNode(compiler.ast, node) ||
+    !compiler.ast.is.IsIdentifier(node)
   ) {
     return undefined;
   }

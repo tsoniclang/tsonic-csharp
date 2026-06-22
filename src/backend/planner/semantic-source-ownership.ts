@@ -18,6 +18,22 @@ export function isTypeParameterTargetRef(type: TargetTypeRef | undefined): boole
   return type?.kind === "type-parameter";
 }
 
+export function isCsharpDelegateTargetRef(type: TargetTypeRef | undefined): boolean {
+  return typeof (type as { readonly csharpDelegateSignature?: unknown } | undefined)?.csharpDelegateSignature === "object" ||
+    (type?.kind === "target-named" && isKnownCsharpDelegateTargetId(type.id));
+}
+
+export function isSourceOwnedCallableRuntimeCarrierSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
+  const carrier = getTargetTypeRefForNode(input, node, sourceFile);
+  return isCsharpDelegateTargetRef(carrier);
+}
+
+function isKnownCsharpDelegateTargetId(id: string): boolean {
+  return id === "System.Action" ||
+    id.startsWith("System.Action`") ||
+    id.startsWith("System.Func`");
+}
+
 export function isSourceOwnedProjectShapeSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
   if (node === undefined) {
     return false;

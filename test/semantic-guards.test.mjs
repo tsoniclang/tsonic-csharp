@@ -146,6 +146,45 @@ test("source-declared callable references stay source-owned with runtime-carrier
   assert.deepEqual(ownership.reasons, ["callee node runtime carrier"]);
 });
 
+test("delegate runtime carrier expressions are source-owned callables", () => {
+  const callee = node(KindIdentifier);
+  const input = fakeInput({
+    runtimeCarrierSubject: callee,
+    runtimeCarrier: {
+      carrier: delegateCarrier([{ kind: "source-primitive", name: "int32" }], { kind: "source-primitive", name: "int32" }),
+    },
+  });
+
+  const ownership = getCallableSemanticOwnership(callee, {}, input);
+
+  assert.equal(ownership.requiresTargetFact, false);
+  assert.equal(ownership.sourceOwned, true);
+  assert.deepEqual(ownership.reasons, ["callee node runtime carrier"]);
+});
+
+test("Func target identity runtime carrier expressions are source-owned callables", () => {
+  const callee = node(KindIdentifier);
+  const input = fakeInput({
+    runtimeCarrierSubject: callee,
+    runtimeCarrier: {
+      carrier: {
+        kind: "target-named",
+        id: "System.Func`2",
+        typeArguments: [
+          { kind: "source-primitive", name: "int32" },
+          { kind: "source-primitive", name: "int32" },
+        ],
+      },
+    },
+  });
+
+  const ownership = getCallableSemanticOwnership(callee, {}, input);
+
+  assert.equal(ownership.requiresTargetFact, false);
+  assert.equal(ownership.sourceOwned, true);
+  assert.deepEqual(ownership.reasons, ["callee node runtime carrier"]);
+});
+
 function node(kind) {
   return { Kind: kind };
 }
@@ -155,6 +194,18 @@ function sourcePrimitiveCarrier(name) {
     carrier: {
       kind: "source-primitive",
       name,
+    },
+  };
+}
+
+function delegateCarrier(parameters, returnType) {
+  return {
+    kind: "target-named",
+    id: `System.Func\`${parameters.length + 1}`,
+    typeArguments: [...parameters, returnType],
+    csharpDelegateSignature: {
+      parameters,
+      returnType,
     },
   };
 }

@@ -245,7 +245,11 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   }
   const propertyType = context.compiler.types.getPropertyType(ownerType, sourceName, { sourceFile });
   const signatures = context.compiler.types.getCallSignatures(propertyType, { sourceFile });
-  const memberKind = callableMemberMode === "callable-property-as-method" && signatures.length > 0 ? "method" : "property";
+  const memberKind = callableMemberMode === "callable-property-as-method" &&
+    signatures.length > 0 &&
+    isMethodLikeObjectShapeProperty(property, context)
+    ? "method"
+    : "property";
   const type = memberKind === "method"
     ? getFunctionTargetTypeRefFromSemanticSignature(signatures[0], context, sourceFile, host)
     : host.getTargetTypeRefForType(propertyType, context);
@@ -258,6 +262,20 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
     memberKind,
     type,
   };
+}
+
+function isMethodLikeObjectShapeProperty(
+  property: Symbol,
+  context: ExtensionObservationContext,
+): boolean {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return false;
+  }
+  return getSymbolDeclarations(property).some((declaration) => {
+    const kind = ast.kindName(declaration);
+    return kind === "KindMethodSignature" || kind === "KindMethodDeclaration";
+  });
 }
 
 function getFunctionTargetTypeRefFromSemanticSignature(

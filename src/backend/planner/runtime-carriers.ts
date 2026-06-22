@@ -3,6 +3,9 @@ import type { TargetCompileInput } from "@tsonic/target-api";
 import {
   getTargetTypeRefFromDirectFacts,
 } from "./runtime-carrier-direct-facts.js";
+import {
+  targetTypeRefContainsSourcePrimitive,
+} from "../../source/csharp-source-semantics/target-ref-utils.js";
 
 export function getRuntimeCarrierForExpression(
   input: TargetCompileInput,
@@ -48,29 +51,4 @@ function getTargetTypeRefFromSemanticTypeFacts(
   return fact === undefined || targetTypeRefContainsSourcePrimitive(fact)
     ? undefined
     : fact;
-}
-
-function targetTypeRefContainsSourcePrimitive(type: TargetTypeRef): boolean {
-  switch (type.kind) {
-    case "source-primitive":
-      return true;
-    case "array":
-      return targetTypeRefContainsSourcePrimitive(type.element);
-    case "tuple":
-      return type.elements.some(targetTypeRefContainsSourcePrimitive);
-    case "target-named":
-      return (type.typeArguments ?? []).some(targetTypeRefContainsSourcePrimitive);
-    case "pointer":
-      return targetTypeRefContainsSourcePrimitive(type.pointee);
-    case "function-pointer":
-      return type.args.some(targetTypeRefContainsSourcePrimitive) ||
-        targetTypeRefContainsSourcePrimitive(type.result);
-    case "associated-type":
-      return targetTypeRefContainsSourcePrimitive(type.owner);
-    case "type-parameter":
-    case "opaque":
-    case "lifetime":
-    case "target-specific":
-      return false;
-  }
 }

@@ -105,6 +105,31 @@ export function targetTypeRefIsClosed(type: TargetTypeRef): boolean {
   }
 }
 
+export function targetTypeRefContainsSourcePrimitive(type: TargetTypeRef): boolean {
+  switch (type.kind) {
+    case "source-primitive":
+      return true;
+    case "array":
+      return targetTypeRefContainsSourcePrimitive(type.element);
+    case "tuple":
+      return type.elements.some(targetTypeRefContainsSourcePrimitive);
+    case "pointer":
+      return targetTypeRefContainsSourcePrimitive(type.pointee);
+    case "function-pointer":
+      return targetTypeRefContainsSourcePrimitive(type.result) ||
+        type.args.some(targetTypeRefContainsSourcePrimitive);
+    case "target-named":
+      return (type.typeArguments ?? []).some(targetTypeRefContainsSourcePrimitive);
+    case "associated-type":
+      return targetTypeRefContainsSourcePrimitive(type.owner);
+    case "type-parameter":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
+      return false;
+  }
+}
+
 export function targetMemberIsClosed(member: { readonly declaringType?: TargetTypeRef; readonly returnType?: TargetTypeRef; readonly parameters: readonly TargetParameter[] }): boolean {
   return (member.declaringType === undefined || targetTypeRefIsClosed(member.declaringType)) &&
     (member.returnType === undefined || targetTypeRefIsClosed(member.returnType)) &&

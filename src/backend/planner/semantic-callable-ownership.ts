@@ -18,6 +18,7 @@ import {
 } from "./semantic-queryable-symbols.js";
 import {
   isSourceDeclaredCallableReference,
+  isSourceOwnedCallableRuntimeCarrierSubject,
   isSourceOwnedProjectShapeSubject,
 } from "./semantic-source-ownership.js";
 
@@ -40,6 +41,7 @@ export function getCallableSemanticOwnership(
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(callee, { sourceFile });
   const sourceOwned = !requiresSelectedTargetFact &&
     (isSourceDeclaredCallableReference(sourceReference, input) ||
+      isSourceOwnedCallableRuntimeCarrierSubject(callee, sourceFile, input) ||
       isSourceOwnedProjectShapeSubject(callee, sourceFile, input));
   if (!sourceOwned) {
     appendSemanticNodeFactReasons(reasons, input, callee, sourceFile, "callee semantic node");
