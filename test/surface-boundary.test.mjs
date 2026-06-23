@@ -213,6 +213,26 @@ test("NodeJS surface maps static properties from the selected provider declarati
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.platform");
 });
 
+test("NodeJS surface maps namespace property access from selected provider property symbol identity", () => {
+  const expression = {};
+  const selectedPropertySymbol = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpOperationsProvider(new Set(["nodejs"]), fakeHost(undefined));
+  facts.set(selectedPropertySymbol, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "platform"));
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression,
+    receiver: {},
+    sourceSelectedPropertySymbol: selectedPropertySymbol,
+    propertyName: "platform",
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "Tsonic.CSharp.Node.process.platform");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.platform");
+});
+
 function arrayLengthRequest(expression, receiverType, sourceSelectedDeclaration) {
   return {
     target: "csharp",

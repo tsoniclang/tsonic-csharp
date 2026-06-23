@@ -100,12 +100,17 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
     return;
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  const projectSourceFiles = compiler.getSourceFiles().filter((sourceFile): sourceFile is SourceFile =>
+    sourceFile !== undefined && sourceFile.IsDeclarationFile !== true);
   for (const sourceFile of compiler.getSourceFiles()) {
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       if (!compiler.ast.is.IsPropertyAccessExpression(node) || lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
+        return;
+      }
+      if (isProjectSourceModuleStaticValuePropertyAccess(node, sourceFile, projectSourceFiles, compiler)) {
         return;
       }
       const receiver = asNodeSubject(getNodeField(node, "Expression"));
@@ -131,6 +136,39 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
       }), [{ message: "C# object-shape member operation recorded from finalized structural shape fact." }]);
     });
   }
+}
+
+function isProjectSourceModuleStaticValuePropertyAccess(
+  node: Node,
+  sourceFile: SourceFile,
+  projectSourceFiles: readonly SourceFile[],
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+): boolean {
+  const symbols = [
+    compiler.checker.getSymbolAtLocation(node, { sourceFile }),
+    compiler.checker.getResolvedSymbol(node, { sourceFile }),
+  ];
+  return symbols.some((symbol) =>
+    (symbol?.Declarations ?? [])
+      .some((declaration) => {
+        if (declaration === undefined) {
+          return false;
+        }
+        const declarationSourceFile = compiler.ast.getSourceFile(declaration);
+        return declarationSourceFile !== undefined &&
+          declarationSourceFile !== sourceFile &&
+          projectSourceFiles.some((candidate) => candidate === declarationSourceFile) &&
+          isModuleStaticValueDeclaration(declaration, compiler);
+      }));
+}
+
+function isModuleStaticValueDeclaration(
+  declaration: Node,
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+): boolean {
+  return compiler.ast.is.IsFunctionDeclaration(declaration) ||
+    compiler.ast.is.IsVariableDeclaration(declaration) ||
+    compiler.ast.is.IsExportAssignment(declaration);
 }
 
 function isObjectRestBindingElement(

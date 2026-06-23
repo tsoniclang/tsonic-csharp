@@ -19,6 +19,7 @@ import {
 } from "./semantic-guards.js";
 import {
   planProjectSourceModuleMemberReference,
+  tryPlanProjectSourceModuleStaticMemberReference,
 } from "./expression-source-references.js";
 import {
   ensureElementAccessCanBeRendered,
@@ -64,15 +65,10 @@ export function planPropertyAccessExpression(
   planExpression: ExpressionPlanner,
 ): CsharpExpression {
   const expression = AsPropertyAccessExpression(propertyAccess)!;
-  const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
-  if (sourceModuleMemberReference !== undefined) {
-    return sourceModuleMemberReference;
-  }
   const sourceName = Node_Text(expression.name!);
-  const receiver = expression.Expression;
-  const objectShape = getCsharpObjectShapeFactForNode(receiver, sourceFile, input);
-  if (objectShape !== undefined) {
-    return planObjectShapePropertyAccess(propertyAccess, sourceName, objectShape, sourceFile, input, diagnostics, planExpression);
+  const sourceModuleStaticMemberReference = tryPlanProjectSourceModuleStaticMemberReference(propertyAccess, sourceFile, input, diagnostics);
+  if (sourceModuleStaticMemberReference !== undefined) {
+    return sourceModuleStaticMemberReference;
   }
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   if (targetOperation !== undefined && targetOperation.operationKind === "property") {
@@ -97,6 +93,15 @@ export function planPropertyAccessExpression(
   if (targetOperation !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
     return invalidExpression("selected target property");
+  }
+  const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
+  if (sourceModuleMemberReference !== undefined) {
+    return sourceModuleMemberReference;
+  }
+  const receiver = expression.Expression;
+  const objectShape = getCsharpObjectShapeFactForNode(receiver, sourceFile, input);
+  if (objectShape !== undefined) {
+    return planObjectShapePropertyAccess(propertyAccess, sourceName, objectShape, sourceFile, input, diagnostics, planExpression);
   }
   const ownership = getSemanticOwnership(receiver, sourceFile, input);
   if (ownership.requiresTargetFact || !ownership.sourceOwned) {

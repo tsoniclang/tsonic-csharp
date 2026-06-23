@@ -96,7 +96,9 @@ export function mapCsharpCheckedPropertyAccess(
   if (binding === undefined) {
     return mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ?? deferObservation;
   }
-  const member = findTargetMember(binding, context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey));
+  const selectedDeclarationFact = context.facts.get(request.sourceSelectedPropertySymbol, providerVirtualDeclarationFactKey) ??
+    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  const member = findTargetMember(binding, selectedDeclarationFact);
   if (member === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_PROPERTY_NOT_FOUND", 9100102, `C# provider could not map checked property '${request.propertyName}' on target '${binding.id}'.`));
   }

@@ -81,8 +81,7 @@ export function planProjectSourceModuleMemberReference(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
-  const sourceReference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }) ??
-    getProjectSourceReferenceForPropertyAccessName(node, sourceFile, input);
+  const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
   if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
     return undefined;
   }
@@ -101,6 +100,38 @@ export function planProjectSourceModuleMemberReference(
     },
     name: requireCsharpIdentifier(sourceReference.symbol.Name, diagnostics, "Cross-file source reference"),
   };
+}
+
+export function tryPlanProjectSourceModuleStaticMemberReference(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
+  if (sourceReference === undefined ||
+    sourceReference.sourceFile === sourceFile ||
+    isExternalDeclarationReference(sourceReference, sourceFile, input) ||
+    !isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
+    return undefined;
+  }
+  return {
+    kind: "SimpleMemberAccessExpression",
+    receiver: {
+      kind: "IdentifierName",
+      name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
+    },
+    name: requireCsharpIdentifier(sourceReference.symbol.Name, diagnostics, "Cross-file source reference"),
+  };
+}
+
+function getProjectSourceReferenceForModuleMemberNode(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]> {
+  return input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }) ??
+    getProjectSourceReferenceForPropertyAccessName(node, sourceFile, input);
 }
 
 function isProviderVirtualDeclarationIdentifier(

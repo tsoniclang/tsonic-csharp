@@ -38,6 +38,7 @@ export function getNodejsCheckedPropertyDeclaration(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): NodejsProviderDeclarationIdentity | undefined {
   for (const subject of [
+    request.sourceSelectedPropertySymbol,
     request.sourceSelectedDeclaration,
   ]) {
     const declaration = getProviderExportDeclaration(context, subject);
