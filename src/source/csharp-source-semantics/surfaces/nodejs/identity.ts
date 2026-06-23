@@ -60,6 +60,19 @@ export function nodejsExportSignatureDeclarationIdentity(
   };
 }
 
+export function nodejsExportMemberDeclarationIdentity(
+  moduleSpecifier: string,
+  exportName: string,
+  memberName: string,
+  memberId: string,
+): NodejsProviderDeclarationIdentity {
+  return {
+    ...nodejsExportDeclarationIdentity(moduleSpecifier, exportName),
+    memberName,
+    memberId,
+  };
+}
+
 export function nodejsProviderDeclarationIdentityKey(declaration: NodejsProviderDeclarationIdentity): string {
   return [
     declaration.providerId,

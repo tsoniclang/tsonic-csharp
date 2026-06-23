@@ -53,12 +53,6 @@ export function mapCsharpJsStringElementAccess(
   }, [{ message: "C# JS surface string code-unit access selected from checked TypeScript element access." }]);
 }
 
-export function getStringLengthOperation(declaringName: string): CheckedOperationMappingResult["operation"] {
-  return targetOperation(`tsonic.csharp.js.${declaringName}.length`, "property", "Length", {
-    resultType: csharpSourcePrimitiveTargetType("int32"),
-  });
-}
-
 export function getStringTargetMembers(sourceName: string): readonly TargetMember[] {
   const stringType = csharpStringTargetType();
   const intType = csharpSourcePrimitiveTargetType("int32");

@@ -92,6 +92,41 @@ test("JS surface maps single-target calls from selected declaration identity wit
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Runtime.ArrayHelpers.includes");
 });
 
+test("JS surface maps Math.random through the selected JS runtime declaration", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Math", "random")), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Math.random");
+  assert.equal(result.value.selectedSignature.member.declaringType.id, "Tsonic.CSharp.Js.Math");
+});
+
+test("JS surface maps Math.PI through the selected JS runtime declaration", () => {
+  const expression = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("Math", "PI"), "not-the-selected-name"), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "Tsonic.CSharp.Js.Math.PI");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.Math.PI");
+});
+
+test("JS surface rejects Math.max without provider-proven runtime-compatible arguments", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Math", "max")), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+});
+
 test("JS surface rejects multi-target calls without exact selected signature identity", () => {
   const call = {};
   const receiver = {};
@@ -288,6 +323,50 @@ test("NodeJS surface maps calls from the selected provider signature identity", 
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Node.path.join(System.String[])");
+});
+
+test("NodeJS surface maps Buffer static calls from selected provider member signature identity", () => {
+  const call = {};
+  const selectedSignature = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  facts.set(selectedSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:buffer",
+    "Buffer",
+    "from",
+    "node:buffer.Buffer.from",
+    "node:buffer.Buffer.from(System.String,System.String)",
+  ));
+
+  const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedSignature), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Buffer.from(System.String,System.String)");
+});
+
+test("NodeJS surface maps Buffer instance properties from selected provider member identity", () => {
+  const expression = {};
+  const selectedPropertySymbol = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  facts.set(selectedPropertySymbol, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:buffer",
+    "Buffer",
+    "length",
+    "node:buffer.Buffer.length",
+  ));
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression,
+    receiver: {},
+    sourceSelectedPropertySymbol: selectedPropertySymbol,
+    propertyName: "not-the-selected-name",
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "Tsonic.CSharp.Node.Buffer.length");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.Buffer.length");
 });
 
 test("NodeJS surface rejects provider declarations whose selected identity is not mapped", () => {
@@ -571,6 +650,15 @@ function nodejsVirtualDeclaration(moduleSpecifier, exportName, signatureId) {
     moduleSpecifier,
     virtualFileName: `tsts-provider://csharp-nodejs/${encodeURIComponent(moduleSpecifier)}.d.ts`,
     exportName,
+    ...(signatureId !== undefined ? { signatureId } : {}),
+  };
+}
+
+function nodejsVirtualMemberDeclaration(moduleSpecifier, exportName, memberName, memberId, signatureId) {
+  return {
+    ...nodejsVirtualDeclaration(moduleSpecifier, exportName),
+    memberName,
+    memberId,
     ...(signatureId !== undefined ? { signatureId } : {}),
   };
 }

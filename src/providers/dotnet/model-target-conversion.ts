@@ -28,6 +28,7 @@ import type {
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
   DotnetUnsupportedAttributeDeclaration,
+  DotnetUnsupportedConstraintDeclaration,
   DotnetUnsupportedDefaultValueDeclaration,
 } from "./model-types.js";
 import {
@@ -47,8 +48,19 @@ export type DotnetTargetParameter = TargetParameter & {
   readonly unsupportedDefaultValue?: DotnetUnsupportedDefaultValueDeclaration;
 };
 
+export type DotnetTargetTypeParameter = TargetTypeParameter & {
+  readonly unsupportedConstraints?: readonly DotnetUnsupportedConstraintDeclaration[];
+};
+
 export type DotnetTargetMember = TargetMember & {
   readonly parameters: readonly DotnetTargetParameter[];
+  readonly typeParameters?: readonly DotnetTargetTypeParameter[];
+};
+
+export type DotnetTargetBindingFact = CsharpTargetBindingFact & {
+  readonly typeParameters?: readonly DotnetTargetTypeParameter[];
+  readonly members?: readonly DotnetTargetMember[];
+  readonly unsupportedImplementedContracts?: readonly DotnetUnsupportedConstraintDeclaration[];
 };
 
 export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint): TargetConstraint {
@@ -111,13 +123,16 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     ...(declaration.implementedContracts !== undefined && declaration.implementedContracts.length > 0
       ? { implementedContracts: declaration.implementedContracts.map(dotnetConstraintToTargetConstraint) }
       : {}),
+    ...(declaration.unsupportedImplementedContracts !== undefined && declaration.unsupportedImplementedContracts.length > 0
+      ? { unsupportedImplementedContracts: declaration.unsupportedImplementedContracts }
+      : {}),
     ...(declaration.members !== undefined && declaration.members.length > 0
       ? { members: declaration.members.flatMap((member) => dotnetMemberToTargetMembers(member, declaredCsharpType)) }
       : {}),
     ...(declaration.conversionOperators !== undefined && declaration.conversionOperators.length > 0
       ? { conversionOperators: declaration.conversionOperators.map((operator) => dotnetConversionOperatorToTargetConversionOperator(operator, declaredCsharpType)) }
       : {}),
-  } satisfies CsharpTargetBindingFact;
+  } satisfies DotnetTargetBindingFact;
   return binding;
 }
 
@@ -133,11 +148,14 @@ function dotnetTypeKindToTargetBindingKind(kind: DotnetTypeKind): TargetBindingF
   }
 }
 
-function dotnetTypeParameterToTargetTypeParameter(parameter: DotnetTypeParameterDeclaration): TargetTypeParameter {
+function dotnetTypeParameterToTargetTypeParameter(parameter: DotnetTypeParameterDeclaration): DotnetTargetTypeParameter {
   return {
     name: parameter.name,
     ...(parameter.constraints !== undefined && parameter.constraints.length > 0
       ? { constraints: parameter.constraints.map(dotnetConstraintToTargetConstraint) }
+      : {}),
+    ...(parameter.unsupportedConstraints !== undefined && parameter.unsupportedConstraints.length > 0
+      ? { unsupportedConstraints: parameter.unsupportedConstraints }
       : {}),
     ...(parameter.variance !== undefined ? { variance: parameter.variance } : {}),
   };

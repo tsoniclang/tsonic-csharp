@@ -131,12 +131,6 @@ function recordCsharpJsArrayElementAccessFact(
     : mapped.value.operation, mapped.evidence ?? [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);
 }
 
-export function getArrayLengthOperation(declaringName: string): CheckedOperationMappingResult["operation"] {
-  return targetOperation(`tsonic.csharp.js.${declaringName}.length`, "property", "Length", {
-    resultType: csharpSourcePrimitiveTargetType("int32"),
-  });
-}
-
 export function getArrayTargetMembers(sourceName: string): readonly TargetMember[] {
   const itemType: TargetTypeRef = { kind: "type-parameter", name: "T" };
   const arrayType: TargetTypeRef = { kind: "array", element: itemType };

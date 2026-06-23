@@ -14,12 +14,9 @@ sealed partial class ReflectionProvider
         var unsupportedMembers = UnsupportedMembers(type);
         var baseType = BaseType(type);
         var implementedContracts = ImplementedContracts(type);
+        var unsupportedImplementedContracts = UnsupportedImplementedContracts(type);
         var sourceShape = ExportSourceShape(type);
         var attributes = AttributeFacts(type.GetCustomAttributesData(), "type", TargetId(type));
-        if (IsDelegate(type) && sourceShape is null)
-        {
-            return null;
-        }
         return new
         {
             kind = "type",
@@ -35,12 +32,22 @@ sealed partial class ReflectionProvider
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
             baseType,
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,
+            unsupportedImplementedContracts = unsupportedImplementedContracts.Length == 0 ? null : unsupportedImplementedContracts,
             sourceShape,
             throwable = typeof(Exception).IsAssignableFrom(type) ? true : (bool?)null,
             members = members.Length == 0 ? null : members,
             conversionOperators = conversionOperators.Length == 0 ? null : conversionOperators,
             unsupportedMembers = unsupportedMembers.Length == 0 ? null : unsupportedMembers,
         };
+    }
+
+    string? UnsupportedSourceExportReason(Type type)
+    {
+        if (IsDelegate(type) && DelegateSourceShape(type) is null)
+        {
+            return "Delegate invoke signature cannot be represented as provider source declarations; the type is retained as target-only .NET data.";
+        }
+        return null;
     }
 
     object? BaseType(Type type)
@@ -62,6 +69,23 @@ sealed partial class ReflectionProvider
             targetIds = group.Select(TargetId).OrderBy(name => name, StringComparer.Ordinal).ToArray(),
             metadataNames = group.Select(MetadataName).OrderBy(name => name, StringComparer.Ordinal).ToArray(),
             assemblies = group.Select(type => AssemblyReference(type.Assembly)).ToArray(),
+        };
+    }
+
+    static object? ToUnsupportedTypeExport(Type type, string? reason)
+    {
+        if (reason is null)
+        {
+            return null;
+        }
+        return new
+        {
+            kind = "unsupported-type-export",
+            sourceName = SourceTypeName(type),
+            targetId = TargetId(type),
+            metadataName = MetadataName(type),
+            assembly = AssemblyReference(type.Assembly),
+            reason,
         };
     }
 

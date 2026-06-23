@@ -2,9 +2,11 @@ export {
   expressionToCsharpType,
 } from "./csharp-type-expression.js";
 export {
-  getCsharpTypeFromSemanticType,
   getCsharpTypeForNode,
 } from "./csharp-type-node.js";
+export {
+  getCsharpTypeFromSemanticType,
+} from "./csharp-semantic-types.js";
 export {
   sameCsharpType,
 } from "./csharp-type-equality.js";

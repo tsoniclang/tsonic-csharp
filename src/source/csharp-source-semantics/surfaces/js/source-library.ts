@@ -42,6 +42,7 @@ export {
   csharpVoidTargetType,
   targetMethod,
   targetParameter,
+  targetProperty,
 } from "../../target-types.js";
 
 export interface CsharpJsTargetTypeRefResolutionOptions {

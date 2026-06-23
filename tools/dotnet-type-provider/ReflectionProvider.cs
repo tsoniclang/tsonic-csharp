@@ -64,14 +64,21 @@ sealed partial class ReflectionProvider
             .GroupBy(SourceTypeName, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .ToArray();
-        var exportTypes = sourceGroups
+        var exportCandidates = sourceGroups
             .Where(group => group.Count() == 1)
             .Select(group => group.First())
+            .ToArray();
+        var exportTypes = exportCandidates
+            .Where(type => UnsupportedSourceExportReason(type) is null)
             .ToArray();
         var exportTypeNames = exportTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
         var unsupportedExports = sourceGroups
             .Where(group => group.Count() > 1)
             .Select(ToUnsupportedTypeFamilyExport)
+            .Concat(exportCandidates
+                .Select(type => ToUnsupportedTypeExport(type, UnsupportedSourceExportReason(type)))
+                .Where(export => export is not null)
+                .Cast<object>())
             .ToArray();
         var targetOnlyTypes = allTypes
             .Where(type => !exportTypeNames.Contains(TargetId(type)))

@@ -42,6 +42,8 @@ public unsafe sealed class PointerSignatures
     }
 }
 
+public unsafe delegate int PointerDelegate(int* pointer);
+
 public readonly struct GenericNumber<T>
 {
     public static GenericNumber<T> operator +(GenericNumber<T> left, GenericNumber<T> right)

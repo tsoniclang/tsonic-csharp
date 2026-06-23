@@ -23,6 +23,7 @@ export type {
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
   DotnetUnsupportedAttributeDeclaration,
+  DotnetUnsupportedConstraintDeclaration,
   DotnetValueDeclaration,
 } from "./model.js";
 export {

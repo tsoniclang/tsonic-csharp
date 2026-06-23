@@ -155,9 +155,7 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedConstructorReason(ConstructorInfo constructor)
     {
-        return Parameters(constructor.GetParameters()) is null
-            ? "Constructor signature contains a parameter type that cannot be represented as closed .NET target type facts."
-            : null;
+        return UnsupportedParametersReason(constructor.GetParameters(), "Constructor signature");
     }
 
     IEnumerable<object> Properties(Type type)
@@ -284,16 +282,16 @@ sealed partial class ReflectionProvider
             }
             if (Parameters(indexParameters) is null)
             {
-                return "Indexer parameter type cannot be represented as closed .NET target type facts.";
+                return UnsupportedParametersReason(indexParameters, "Indexer signature")!;
             }
             if (TypeRef(property.PropertyType) is null)
             {
-                return "Indexer return type cannot be represented as closed .NET target type facts.";
+                return $"Indexer return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
             }
         }
         if (TypeRef(property.PropertyType) is null)
         {
-            return "Property type cannot be represented as closed .NET target type facts.";
+            return $"Property type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
         }
         var isStatic = accessors[0].IsStatic;
         if (type.IsInterface && isStatic)
@@ -374,7 +372,7 @@ sealed partial class ReflectionProvider
         }
         if (TypeRef(field.FieldType) is null)
         {
-            return "Field type cannot be represented as closed .NET target type facts.";
+            return $"Field type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(field.FieldType)}";
         }
         if (type.IsInterface && field.IsStatic)
         {
@@ -457,7 +455,7 @@ sealed partial class ReflectionProvider
         }
         if (TypeRef(eventHandlerType) is null)
         {
-            return "Event handler type cannot be represented as closed .NET target type facts.";
+            return $"Event handler type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(eventHandlerType)}";
         }
         if (EventAccessor(eventInfo) is null)
         {
@@ -528,10 +526,10 @@ sealed partial class ReflectionProvider
         }
         if (Parameters(method.GetParameters()) is null)
         {
-            return "Method signature contains a parameter type that cannot be represented as closed .NET target type facts.";
+            return UnsupportedParametersReason(method.GetParameters(), "Method signature")!;
         }
         return TypeRef(method.ReturnType) is null
-            ? "Method return type cannot be represented as closed .NET target type facts."
+            ? $"Method return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(method.ReturnType)}"
             : null;
     }
 
@@ -560,16 +558,20 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedOperatorReason(Type type, MethodInfo method)
     {
+        if (IsConversionOperator(method) && method.GetParameters().Length != 1)
+        {
+            return "Conversion operators require exactly one source parameter before provider conversion facts can be exposed safely.";
+        }
         if (UsesDeclaringTypeParameter(method, type))
         {
             return "Operators that use declaring generic type parameters require a provider generic-operator declaration model before they can be exposed safely.";
         }
         if (Parameters(method.GetParameters()) is null)
         {
-            return "Operator signature contains a parameter type that cannot be represented as closed .NET target type facts.";
+            return UnsupportedParametersReason(method.GetParameters(), "Operator signature")!;
         }
         return TypeRef(method.ReturnType) is null
-            ? "Operator return type cannot be represented as closed .NET target type facts."
+            ? $"Operator return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(method.ReturnType)}"
             : null;
     }
 
@@ -599,6 +601,19 @@ sealed partial class ReflectionProvider
             @static = isStatic ? true : (bool?)null,
             reason,
         };
+    }
+
+    string? UnsupportedParametersReason(ParameterInfo[] parameters, string context)
+    {
+        foreach (var parameter in parameters)
+        {
+            var parameterType = UnwrapByRef(parameter.ParameterType);
+            if (TypeRef(parameterType) is null)
+            {
+                return $"{context} contains parameter '{parameter.Name ?? ""}' with type '{TypeMetadataName(parameterType)}' that cannot be represented as closed .NET target type facts. {TypeRefFailureReason(parameterType)}";
+            }
+        }
+        return null;
     }
 
     static bool IsExtensionMethod(MethodInfo method)

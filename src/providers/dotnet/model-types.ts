@@ -33,7 +33,9 @@ export interface DotnetModuleModel {
   readonly unsupportedExports?: readonly DotnetUnsupportedExportDeclaration[];
 }
 
-export type DotnetUnsupportedExportDeclaration = DotnetUnsupportedTypeFamilyExportDeclaration;
+export type DotnetUnsupportedExportDeclaration =
+  | DotnetUnsupportedTypeFamilyExportDeclaration
+  | DotnetUnsupportedTypeExportDeclaration;
 
 export interface DotnetUnsupportedTypeFamilyExportDeclaration {
   readonly kind: "unsupported-type-family";
@@ -42,6 +44,15 @@ export interface DotnetUnsupportedTypeFamilyExportDeclaration {
   readonly targetIds?: readonly string[];
   readonly metadataNames: readonly string[];
   readonly assemblies?: readonly DotnetAssemblyReference[];
+}
+
+export interface DotnetUnsupportedTypeExportDeclaration {
+  readonly kind: "unsupported-type-export";
+  readonly sourceName: string;
+  readonly targetId: string;
+  readonly metadataName: string;
+  readonly assembly?: DotnetAssemblyReference;
+  readonly reason: string;
 }
 
 export type DotnetExportDeclaration =
@@ -73,6 +84,7 @@ export interface DotnetTypeDeclaration {
   readonly typeParameters?: readonly DotnetTypeParameterDeclaration[];
   readonly baseType?: DotnetTypeRef;
   readonly implementedContracts?: readonly DotnetConstraint[];
+  readonly unsupportedImplementedContracts?: readonly DotnetUnsupportedConstraintDeclaration[];
   readonly members?: readonly DotnetMemberDeclaration[];
   readonly conversionOperators?: readonly DotnetConversionOperatorDeclaration[];
   readonly unsupportedMembers?: readonly DotnetUnsupportedMemberDeclaration[];

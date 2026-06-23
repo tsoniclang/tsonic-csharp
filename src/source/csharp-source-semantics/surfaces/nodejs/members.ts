@@ -15,6 +15,25 @@ import {
   csharpTargetId,
 } from "../../identity.js";
 import {
+  getNodeBufferLengthTargetMember,
+  getNodeBufferTargetMember,
+  nodeBufferAllocExportName,
+  nodeBufferAllocMemberId,
+  nodeBufferAllocSignatureId,
+  nodeBufferByteLengthExportName,
+  nodeBufferByteLengthMemberId,
+  nodeBufferByteLengthSignatureId,
+  nodeBufferExportName,
+  nodeBufferFromExportName,
+  nodeBufferFromStringMemberId,
+  nodeBufferFromStringSignatureId,
+  nodeBufferLengthMemberId,
+  nodeBufferModuleSpecifier,
+  nodeBufferToStringExportName,
+  nodeBufferToStringMemberId,
+  nodeBufferToStringSignatureId,
+} from "./buffer.js";
+import {
   getNodeCryptoRandomUuidTargetMember,
   nodeCryptoRandomUuidExportName,
   nodeCryptoModuleSpecifier,
@@ -51,6 +70,7 @@ import {
 } from "./process.js";
 import {
   nodejsExportDeclarationIdentity,
+  nodejsExportMemberDeclarationIdentity,
   nodejsExportSignatureDeclarationIdentity,
   nodejsProviderDeclarationIdentityKey,
 } from "./identity.js";
@@ -59,7 +79,8 @@ import type {
 } from "./identity.js";
 
 export function isNodejsProviderModule(moduleSpecifier: string | undefined): boolean {
-  return moduleSpecifier === nodePathModuleSpecifier ||
+  return moduleSpecifier === nodeBufferModuleSpecifier ||
+    moduleSpecifier === nodePathModuleSpecifier ||
     moduleSpecifier === nodeFsModuleSpecifier ||
     moduleSpecifier === nodeCryptoModuleSpecifier ||
     moduleSpecifier === nodeOsModuleSpecifier ||
@@ -67,6 +88,12 @@ export function isNodejsProviderModule(moduleSpecifier: string | undefined): boo
 }
 
 export function getNodejsCallTargetMember(declaration: NodejsProviderDeclarationIdentity): TargetMember | undefined {
+  const bufferMember = declaration.moduleSpecifier === nodeBufferModuleSpecifier
+    ? getNodeBufferTargetMember(declaration.memberId, declaration.signatureId)
+    : undefined;
+  if (bufferMember !== undefined) {
+    return bufferMember;
+  }
   return nodejsCallTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(declaration));
 }
 
@@ -104,6 +131,10 @@ export function getNodejsTargetIdentity(symbol: ProviderSymbolIdentity): TargetI
 }
 
 const nodejsCallTargetMembersByDeclarationIdentity = new Map<string, TargetMember>([
+  ...nodejsCallTargetMemberEntries(nodeBufferModuleSpecifier, "atob", "node:buffer.atob(System.String)", requiredNodeBufferTargetMember(undefined, "node:buffer.atob(System.String)")),
+  ...nodejsCallTargetMemberEntries(nodeBufferModuleSpecifier, "btoa", "node:buffer.btoa(System.String)", requiredNodeBufferTargetMember(undefined, "node:buffer.btoa(System.String)")),
+  ...nodejsCallTargetMemberEntries(nodeBufferModuleSpecifier, "isAscii", "node:buffer.isAscii(Tsonic.CSharp.Node.Buffer)", requiredNodeBufferTargetMember(undefined, "node:buffer.isAscii(Tsonic.CSharp.Node.Buffer)")),
+  ...nodejsCallTargetMemberEntries(nodeBufferModuleSpecifier, "isUtf8", "node:buffer.isUtf8(Tsonic.CSharp.Node.Buffer)", requiredNodeBufferTargetMember(undefined, "node:buffer.isUtf8(Tsonic.CSharp.Node.Buffer)")),
   ...nodejsCallTargetMemberEntries(nodePathModuleSpecifier, nodePathJoinExportName, nodePathJoinSignatureId, getNodePathJoinTargetMember()),
   ...nodejsCallTargetMemberEntries(nodeFsModuleSpecifier, nodeFsExistsSyncExportName, nodeFsExistsSyncSignatureId, getNodeFsExistsSyncTargetMember()),
   ...nodejsCallTargetMemberEntries(nodeCryptoModuleSpecifier, nodeCryptoRandomUuidExportName, nodeCryptoRandomUuidSignatureId, getNodeCryptoRandomUuidTargetMember()),
@@ -113,10 +144,16 @@ const nodejsCallTargetMembersByDeclarationIdentity = new Map<string, TargetMembe
 ]);
 
 const nodejsPropertyTargetMembersByDeclarationIdentity = new Map<string, TargetMember>([
+  [nodejsProviderDeclarationIdentityKey(nodejsExportMemberDeclarationIdentity(nodeBufferModuleSpecifier, nodeBufferExportName, "length", nodeBufferLengthMemberId)), getNodeBufferLengthTargetMember()],
   [nodejsProviderDeclarationIdentityKey(nodejsExportDeclarationIdentity(nodeProcessModuleSpecifier, nodeProcessPlatformExportName)), getNodeProcessPlatformTargetMember()],
 ]);
 
 const nodejsTargetMembersByProviderSymbolIdentity = new Map<string, TargetMember>([
+  ...nodejsProviderMemberSymbolTargetMemberEntries(nodeBufferModuleSpecifier, nodeBufferExportName, nodeBufferFromExportName, nodeBufferFromStringSignatureId, requiredNodeBufferTargetMember(nodeBufferFromStringMemberId, nodeBufferFromStringSignatureId)),
+  ...nodejsProviderMemberSymbolTargetMemberEntries(nodeBufferModuleSpecifier, nodeBufferExportName, nodeBufferAllocExportName, nodeBufferAllocSignatureId, requiredNodeBufferTargetMember(nodeBufferAllocMemberId, nodeBufferAllocSignatureId)),
+  ...nodejsProviderMemberSymbolTargetMemberEntries(nodeBufferModuleSpecifier, nodeBufferExportName, nodeBufferByteLengthExportName, nodeBufferByteLengthSignatureId, requiredNodeBufferTargetMember(nodeBufferByteLengthMemberId, nodeBufferByteLengthSignatureId)),
+  ...nodejsProviderMemberSymbolTargetMemberEntries(nodeBufferModuleSpecifier, nodeBufferExportName, nodeBufferToStringExportName, nodeBufferToStringSignatureId, requiredNodeBufferTargetMember(nodeBufferToStringMemberId, nodeBufferToStringSignatureId)),
+  [nodejsProviderSymbolIdentityKey({ moduleSpecifier: nodeBufferModuleSpecifier, exportName: nodeBufferExportName, memberName: "length" }), getNodeBufferLengthTargetMember()],
   ...nodejsProviderSymbolTargetMemberEntries(nodePathModuleSpecifier, nodePathJoinExportName, nodePathJoinSignatureId, getNodePathJoinTargetMember()),
   ...nodejsProviderSymbolTargetMemberEntries(nodeFsModuleSpecifier, nodeFsExistsSyncExportName, nodeFsExistsSyncSignatureId, getNodeFsExistsSyncTargetMember()),
   ...nodejsProviderSymbolTargetMemberEntries(nodeCryptoModuleSpecifier, nodeCryptoRandomUuidExportName, nodeCryptoRandomUuidSignatureId, getNodeCryptoRandomUuidTargetMember()),
@@ -136,6 +173,30 @@ function nodejsCallTargetMemberEntries(
     [nodejsProviderDeclarationIdentityKey(nodejsExportDeclarationIdentity(moduleSpecifier, exportName)), member],
     [nodejsProviderDeclarationIdentityKey(nodejsExportSignatureDeclarationIdentity(moduleSpecifier, exportName, signatureId)), member],
   ];
+}
+
+function nodejsProviderMemberSymbolTargetMemberEntries(
+  moduleSpecifier: string,
+  exportName: string,
+  memberName: string,
+  signatureId: string,
+  member: TargetMember,
+): readonly (readonly [string, TargetMember])[] {
+  return [
+    [nodejsProviderSymbolIdentityKey({ moduleSpecifier, exportName, memberName }), member],
+    [nodejsProviderSymbolIdentityKey({ moduleSpecifier, exportName, memberName, signatureId }), member],
+  ];
+}
+
+function requiredNodeBufferTargetMember(
+  memberId: string | undefined,
+  signatureId: string | undefined,
+): TargetMember {
+  const member = getNodeBufferTargetMember(memberId, signatureId);
+  if (member === undefined) {
+    throw new Error(`Missing C# NodeJS Buffer target member '${signatureId ?? memberId ?? ""}'.`);
+  }
+  return member;
 }
 
 function nodejsProviderSymbolTargetMemberEntries(

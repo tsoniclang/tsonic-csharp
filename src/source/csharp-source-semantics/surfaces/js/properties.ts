@@ -6,23 +6,23 @@ import type {
   CheckedPropertyAccessMappingRequest,
   ExtensionObservation,
   ExtensionObservationContext,
+  TargetMember,
 } from "@tsonic/tsts";
-import {
-  getArrayLengthOperation,
-} from "./arrays.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
 } from "./source-library.js";
 import {
+  csharpTargetOperationFromMember,
   csharpSourcePrimitiveTargetType,
-  csharpTargetMemberOperation,
   getSourceLibraryMember,
   recordCsharpTargetOperation,
+  targetOperationFromMember,
+  targetProperty,
 } from "./source-library.js";
 import {
-  getStringLengthOperation,
-} from "./strings.js";
+  getMathPropertyTargetMember,
+} from "./math.js";
 import {
   rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
 } from "./unsupported.js";
@@ -49,26 +49,33 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  const operation = getSourceLibraryPropertyOperation(sourceMember);
-  if (operation === undefined) {
+  const member = getSourceLibraryPropertyMember(sourceMember);
+  if (member === undefined) {
     return undefined;
   }
-  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operation.operationId, "property", "Length", {
-    resultType: csharpSourcePrimitiveTargetType("int32"),
-  }), [{ message: `C# JS surface length property operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+  recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation,
+    operation: targetOperationFromMember(member),
   }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
 }
 
-function getSourceLibraryPropertyOperation(sourceMember: SourceLibraryMember): CheckedOperationMappingResult["operation"] | undefined {
+function getSourceLibraryPropertyMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
   if (sourceMember.memberName !== "length") {
-    return undefined;
+    return sourceMember.declaringName === "Math"
+      ? getMathPropertyTargetMember(sourceMember.memberName)
+      : undefined;
   }
-  if (sourceMember.declaringName === "String") {
-    return getStringLengthOperation(sourceMember.declaringName);
+  if (
+    sourceMember.declaringName === "String" ||
+    sourceMember.declaringName === "Array" ||
+    sourceMember.declaringName === "ReadonlyArray"
+  ) {
+    return targetProperty(
+      `tsonic.csharp.js.${sourceMember.declaringName}.length`,
+      sourceMember.memberName,
+      "Length",
+      csharpSourcePrimitiveTargetType("int32"),
+    );
   }
-  return sourceMember.declaringName === "Array" || sourceMember.declaringName === "ReadonlyArray"
-    ? getArrayLengthOperation(sourceMember.declaringName)
-    : undefined;
+  return undefined;
 }

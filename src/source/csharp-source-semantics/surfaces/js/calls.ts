@@ -49,6 +49,9 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (candidates.length === 0) {
     return undefined;
   }
+  if (mathVariadicRuntimeRequiresAtLeastOneArgument(sourceMember) && request.arguments.length === 0) {
+    return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));
+  }
   if (candidates.length > 1 && request.sourceSelectedSignature === undefined) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE", 9100113, `C# JS surface call '${sourceMember.declaringName}.${sourceMember.memberName}' requires exact selected TypeScript library signature identity because the declaration maps to multiple target members.`));
   }
@@ -62,6 +65,11 @@ export function mapCsharpSourceLibraryCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
   }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+}
+
+function mathVariadicRuntimeRequiresAtLeastOneArgument(sourceMember: SourceLibraryMember): boolean {
+  return sourceMember.declaringName === "Math" &&
+    (sourceMember.memberName === "max" || sourceMember.memberName === "min");
 }
 
 function getSourceLibraryCallMembers(sourceMember: SourceLibraryMember): readonly TargetMember[] {

@@ -1340,11 +1340,13 @@ test(".NET reflection provider records unsupported members instead of silently d
   const multiIndexer = typeByName.get("MultiIndexer");
   const pointerSignatures = typeByName.get("PointerSignatures");
   const genericNumber = typeByName.get("GenericNumber");
+  const pointerDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "PointerDelegate");
   assert.ok(staticInterface);
   assert.ok(genericHolder);
   assert.ok(multiIndexer);
   assert.ok(pointerSignatures);
   assert.ok(genericNumber);
+  assert.ok(pointerDelegate);
 
   const staticInterfaceUnsupported = unsupportedMembersByMetadataName(staticInterface);
   assert.equal(staticInterface.members?.some((member) => member.targetName === "Create") ?? false, false);
@@ -1383,22 +1385,26 @@ test(".NET reflection provider records unsupported members instead of silently d
   assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerField") ?? false, false);
   assert.ok(pointerUnsupported.some((member) =>
     member.memberKind === "constructor" &&
-    /parameter type/u.test(member.reason)
+    /parameter 'pointer'/u.test(member.reason) &&
+    /System\.Int32\*/u.test(member.reason)
   ));
   assert.ok(pointerUnsupported.some((member) =>
     member.memberKind === "field" &&
     member.targetName === "PointerField" &&
-    /Field type/u.test(member.reason)
+    /Field type/u.test(member.reason) &&
+    /System\.Int32\*/u.test(member.reason)
   ));
   assert.ok(pointerUnsupported.some((member) =>
     member.memberKind === "method" &&
     member.targetName === "PointerReturn" &&
-    /return type/u.test(member.reason)
+    /return type/u.test(member.reason) &&
+    /System\.Int32\*/u.test(member.reason)
   ));
   assert.ok(pointerUnsupported.some((member) =>
     member.memberKind === "method" &&
     member.targetName === "ReadPointer" &&
-    /parameter type/u.test(member.reason)
+    /parameter 'pointer'/u.test(member.reason) &&
+    /System\.Int32\*/u.test(member.reason)
   ));
 
   const genericNumberUnsupported = unsupportedMembersByMetadataName(genericNumber);
@@ -1408,6 +1414,55 @@ test(".NET reflection provider records unsupported members instead of silently d
     member.targetName === "op_Addition" &&
     /generic-operator/u.test(member.reason)
   ));
+
+  assert.equal(module.exports.some((declaration) => declaration.sourceName === "PointerDelegate"), false);
+  const unsupportedPointerDelegate = module.unsupportedExports?.find((declaration) =>
+    declaration.kind === "unsupported-type-export" &&
+    declaration.sourceName === "PointerDelegate"
+  );
+  assert.ok(unsupportedPointerDelegate);
+  assert.equal(unsupportedPointerDelegate.metadataName, "ProviderUnsupportedMemberFixtures.PointerDelegate");
+  assert.match(unsupportedPointerDelegate.reason, /Delegate invoke signature/u);
+  assert.equal(pointerDelegate.metadataName, "ProviderUnsupportedMemberFixtures.PointerDelegate");
+});
+
+test(".NET target binding facts preserve unsupported target-only constraint evidence", () => {
+  const declaration = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "Constrained",
+    namespaceName: "ProviderModelFixtures",
+    targetId: testTargetId("ProviderModelFixtures.Constrained`1"),
+    metadataName: "ProviderModelFixtures.Constrained`1",
+    typeParameters: [
+      {
+        name: "T",
+        constraints: [{ kind: "reference-type" }],
+        unsupportedConstraints: [
+          {
+            targetId: testTargetId("ProviderModelFixtures.PointerContract"),
+            metadataName: "ProviderModelFixtures.PointerContract",
+            reason: "Constraint uses a provider type-ref that is not representable.",
+          },
+        ],
+      },
+    ],
+    implementedContracts: [{ kind: "implements", contract: namedDotnetTypeRef("ProviderModelFixtures.IRepresentable") }],
+    unsupportedImplementedContracts: [
+      {
+        targetId: testTargetId("ProviderModelFixtures.IUnrepresentable"),
+        metadataName: "ProviderModelFixtures.IUnrepresentable",
+        reason: "Implemented contract uses a provider type-ref that is not representable.",
+      },
+    ],
+  };
+
+  const binding = dotnetExportToTargetBinding(declaration);
+
+  assert.equal(binding.typeParameters[0].constraints[0].kind, "reference-type");
+  assert.deepEqual(binding.typeParameters[0].unsupportedConstraints, declaration.typeParameters[0].unsupportedConstraints);
+  assert.equal(binding.implementedContracts[0].kind, "implements");
+  assert.deepEqual(binding.unsupportedImplementedContracts, declaration.unsupportedImplementedContracts);
 });
 
 function unsupportedMembersByMetadataName(declaration) {

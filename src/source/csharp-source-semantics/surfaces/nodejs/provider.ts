@@ -16,6 +16,10 @@ import {
   getNodejsTargetIdentity,
 } from "./members.js";
 import {
+  nodeBufferExports,
+  nodeBufferModuleSpecifier,
+} from "./buffer.js";
+import {
   nodeCryptoExports,
   nodeCryptoModuleSpecifier,
 } from "./crypto.js";
@@ -37,6 +41,12 @@ import {
 } from "./process.js";
 
 const supportedModules = new Map<string, ProviderDeclarationModel>([
+  [nodeBufferModuleSpecifier, {
+    moduleSpecifier: nodeBufferModuleSpecifier,
+    providerModuleId: nodeBufferModuleSpecifier,
+    exports: nodeBufferExports(),
+    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
+  }],
   [nodePathModuleSpecifier, {
     moduleSpecifier: nodePathModuleSpecifier,
     providerModuleId: nodePathModuleSpecifier,

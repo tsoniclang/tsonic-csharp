@@ -44,6 +44,7 @@ test("strict-native hard-rejects opaque any operations without carrier operation
     value.name = 1;
     value["name"];
     value();
+    new value();
     value + 1;
   `);
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -52,7 +53,7 @@ test("strict-native hard-rejects opaque any operations without carrier operation
   const extensionHost = session.finalizeExtensions();
   const anyDiagnostics = anyOperationDiagnostics(extensionHost);
 
-  assert.equal(anyDiagnostics.length, 5);
+  assert.equal(anyDiagnostics.length, 6);
   assert.ok(anyDiagnostics.every((diagnostic) => diagnostic.message.includes("strict-native mode")));
 });
 
@@ -63,6 +64,7 @@ test("compat mode still rejects opaque any operations without finalized carrier 
     value.name = 1;
     value["name"];
     value();
+    new value();
     value + 1;
   `, { typescriptCompatibility: "compat" });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -71,7 +73,7 @@ test("compat mode still rejects opaque any operations without finalized carrier 
   const extensionHost = session.finalizeExtensions();
   const anyDiagnostics = anyOperationDiagnostics(extensionHost);
 
-  assert.equal(anyDiagnostics.length, 5);
+  assert.equal(anyDiagnostics.length, 6);
   assert.ok(anyDiagnostics.every((diagnostic) => diagnostic.message.includes("compatibility mode without finalized target operation facts")));
 });
 
@@ -107,6 +109,23 @@ test("strict-native rejects opaque any operations even when a compatibility fact
 
   assert.equal(anyDiagnostics.length, 1);
   assert.match(anyDiagnostics[0].message, /strict-native mode/u);
+});
+
+test("compat mode permits opaque any construction only when a closed operation fact exists", () => {
+  const session = createNativeSession(`
+    declare let value: any;
+    new value();
+  `, { typescriptCompatibility: "compat" }, [
+    createTestDynamicOperationFactExtension("KindNewExpression"),
+  ]);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const newExpression = collectNodesByKind(sourceFile, session.ast, "KindNewExpression")[0];
+
+  assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
+  assert.equal(extensionHost.facts.get(newExpression, csharpTargetOperationFactKey)?.operationId, "test.compat.any.dynamic-get");
 });
 
 test("compat mode rejects opaque any when only an unclosed selected signature fact exists", () => {

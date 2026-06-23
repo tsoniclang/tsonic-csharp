@@ -70,6 +70,34 @@ sealed partial class ReflectionProvider
         };
     }
 
+    string TypeRefFailureReason(Type type)
+    {
+        type = UnwrapByRef(type);
+        if (type.IsPointer)
+        {
+            return $"Pointer type '{TypeMetadataName(type)}' requires an explicit provider pointer type model before it can be exposed safely.";
+        }
+        if (type.IsArray)
+        {
+            var elementType = type.GetElementType()!;
+            return $"Array element type '{TypeMetadataName(elementType)}' is not representable. {TypeRefFailureReason(elementType)}";
+        }
+        if (IsNullableShape(type, out var nullableElement))
+        {
+            return $"Nullable element type '{TypeMetadataName(nullableElement)}' is not representable. {TypeRefFailureReason(nullableElement)}";
+        }
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+        {
+            var unsupportedArgument = type.GetGenericArguments()
+                .FirstOrDefault(argument => TypeRef(argument) is null);
+            if (unsupportedArgument is not null)
+            {
+                return $"Generic type argument '{TypeMetadataName(unsupportedArgument)}' is not representable. {TypeRefFailureReason(unsupportedArgument)}";
+            }
+        }
+        return $"Type '{TypeMetadataName(type)}' is outside the supported provider type-ref model.";
+    }
+
     object? SourceShape(Type type)
     {
         if (IsDelegate(type))

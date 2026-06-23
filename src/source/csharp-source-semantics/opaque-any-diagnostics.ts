@@ -111,6 +111,11 @@ function getOpaqueAnyOperation(
       ? { kind: "call", description: "C# call emission" }
       : undefined;
   }
+  if (ast.is.IsNewExpression(node)) {
+    return hasOpaqueAnyCarrier(asNodeSubject(getNodeField(node, "Expression")), lifecycleContext)
+      ? { kind: "construct", description: "C# construct emission" }
+      : undefined;
+  }
   if (ast.is.IsPropertyAccessExpression(node)) {
     return hasOpaqueAnyCarrier(asNodeSubject(getNodeField(node, "Expression")), lifecycleContext)
       ? { kind: "property", description: "C# property access emission" }

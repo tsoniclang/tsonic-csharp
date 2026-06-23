@@ -30,6 +30,20 @@ sealed partial class ReflectionProvider
             .ToArray();
     }
 
+    object[] UnsupportedImplementedContracts(Type type)
+    {
+        return type.GetInterfaces()
+            .OrderBy(MetadataName, StringComparer.Ordinal)
+            .Where(contract => TypeRef(contract) is null)
+            .Select(contract => new
+            {
+                targetId = TargetId(contract),
+                metadataName = MetadataName(contract),
+                reason = $"Implemented contract type '{TypeMetadataName(contract)}' cannot be represented as closed .NET target type facts. {TypeRefFailureReason(contract)}",
+            })
+            .ToArray();
+    }
+
     object TypeParameter(Type parameter)
     {
         var constraints = new List<object>();
