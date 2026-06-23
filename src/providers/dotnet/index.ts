@@ -1,6 +1,11 @@
 export type {
   DotnetAssemblyReference,
+  DotnetAttributeArgument,
+  DotnetAttributeDeclaration,
+  DotnetAttributePlacement,
+  DotnetAttributeValue,
   DotnetConstraint,
+  DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
   DotnetFunctionDeclaration,
   DotnetMemberDeclaration,
@@ -8,12 +13,16 @@ export type {
   DotnetModuleModel,
   DotnetNamespaceDeclaration,
   DotnetParameterDeclaration,
+  DotnetParameterDefaultValue,
   DotnetProviderIdentity,
   DotnetSignatureDeclaration,
+  DotnetTargetMember,
+  DotnetTargetParameter,
   DotnetTypeDeclaration,
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedAttributeDeclaration,
   DotnetValueDeclaration,
 } from "./model.js";
 export {

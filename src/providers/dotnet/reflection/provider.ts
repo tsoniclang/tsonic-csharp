@@ -30,6 +30,7 @@ export interface DotnetReflectionTypeDataProviderOptions {
 
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
   findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined;
+  findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined;
 }
 
 const providerIdentity: DotnetProviderIdentity = {
@@ -112,7 +113,7 @@ export function createDotnetReflectionTypeDataProvider(
     }
     const result = spawnSync("dotnet", args, {
       encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
+      maxBuffer: 128 * 1024 * 1024,
     });
     if (result.status !== 0) {
       const error = diagnostic("DOTNET_REFLECTION_PROVIDER_FAILED", ".NET reflection provider tool failed.", {
@@ -159,6 +160,17 @@ export function createDotnetReflectionTypeDataProvider(
       }
       return findTargetBindingInLoadedModules(modules, targetId);
     },
+    findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined {
+      const existing = findUniqueTargetBindingByMetadataNameInLoadedModules(modules, metadataName);
+      if (existing !== undefined) {
+        return existing;
+      }
+      const batchDiagnostic = loadAllModules({});
+      if (batchDiagnostic !== undefined) {
+        return undefined;
+      }
+      return findUniqueTargetBindingByMetadataNameInLoadedModules(modules, metadataName);
+    },
   };
 }
 
@@ -177,11 +189,34 @@ function findTargetBindingInLoadedModules(
 
 function findTargetBindingInModule(module: DotnetModuleModel, targetId: string): TargetBindingFact | undefined {
   for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
-    if (declaration.kind === "type" && declaration.metadataName === targetId) {
+    if (declaration.kind === "type" && declaration.targetId === targetId) {
       return dotnetExportToTargetBinding(declaration);
     }
   }
   return undefined;
+}
+
+function findUniqueTargetBindingByMetadataNameInLoadedModules(
+  modules: ReadonlyMap<string, DotnetModuleModel>,
+  metadataName: string,
+): TargetBindingFact | undefined {
+  let result: TargetBindingFact | undefined;
+  for (const module of modules.values()) {
+    for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
+      if (declaration.kind !== "type" || declaration.metadataName !== metadataName) {
+        continue;
+      }
+      const binding = dotnetExportToTargetBinding(declaration);
+      if (binding === undefined) {
+        continue;
+      }
+      if (result !== undefined && result.id !== binding.id) {
+        return undefined;
+      }
+      result = binding;
+    }
+  }
+  return result;
 }
 
 function diagnostic(

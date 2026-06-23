@@ -12,6 +12,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import {
+  csharpAnyRuntimeCarrier,
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
 import {
@@ -48,6 +49,11 @@ export function mapRuntimeCarrier(
     }, [{ message: "C# callable runtime carrier mapped from checked TSTS signature and source parameter facts." }]);
   }
   const requestType = asType(request.type);
+  if (isAnyRuntimeCarrierType(requestType, context)) {
+    return acceptObservation<RuntimeCarrierFactResult>({
+      carrier: csharpAnyRuntimeCarrier(),
+    }, [{ message: "C# opaque any runtime carrier recorded from explicit TypeScript any boundary; dynamic behavior requires separate finalized target facts." }]);
+  }
   const primitive = (request.sourceTypeReference === undefined ? undefined : context.factResolver.resolve(request.sourceTypeReference, sourcePrimitiveFactKey)) ??
     (request.sourceTypeSymbol === undefined ? undefined : context.factResolver.resolve(request.sourceTypeSymbol, sourcePrimitiveFactKey));
   const syntaxCarrier = request.sourceTypeReference === undefined
@@ -92,6 +98,13 @@ export function mapRuntimeCarrier(
   return acceptObservation<RuntimeCarrierFactResult>({
     carrier: csharpSourcePrimitiveTargetType(primitive.kind),
   }, [{ message: "C# runtime carrier mapped from source primitive fact." }]);
+}
+
+function isAnyRuntimeCarrierType(
+  type: Type | undefined,
+  context: ExtensionObservationContext,
+): boolean {
+  return type !== undefined && context.compiler?.types.isAny(type) === true;
 }
 
 interface CommonUnionRuntimeCarrier {

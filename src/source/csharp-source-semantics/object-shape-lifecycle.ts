@@ -1,4 +1,5 @@
 import {
+  providerVirtualDeclarationFactKey,
   runtimeCarrierFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
@@ -113,8 +114,15 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
       if (isProjectSourceModuleStaticValuePropertyAccess(node, sourceFile, projectSourceFiles, compiler)) {
         return;
       }
+      if (isNamespaceImportReceiverPropertyAccess(node, sourceFile, compiler)) {
+        return;
+      }
       const receiver = asNodeSubject(getNodeField(node, "Expression"));
-      const propertyName = getSourceNameNodeText(asNodeSubject(getNodeField(node, "name")), compiler.ast);
+      if (isProviderSelectedPropertyAccess(node, context)) {
+        return;
+      }
+      const propertyNameNode = asNodeSubject(getNodeField(node, "name"));
+      const propertyName = getSourceNameNodeText(propertyNameNode, compiler.ast);
       if (receiver === undefined || propertyName.length === 0) {
         return;
       }
@@ -138,28 +146,64 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
   }
 }
 
+function isProviderSelectedPropertyAccess(
+  node: Node,
+  context: ExtensionObservationContext,
+): boolean {
+  return context.host.facts.get(node, providerVirtualDeclarationFactKey) !== undefined;
+}
+
+function isNamespaceImportReceiverPropertyAccess(
+  node: Node,
+  sourceFile: SourceFile,
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+): boolean {
+  const propertyAccess = compiler.ast.as.AsPropertyAccessExpression(node);
+  const receiver = asNodeSubject(propertyAccess?.Expression);
+  if (receiver === undefined || !compiler.ast.is.IsIdentifier(receiver)) {
+    return false;
+  }
+  const receiverName = compiler.ast.text(receiver);
+  let namespaceImportMatch = false;
+  visitAstReaderNodes(compiler.ast, sourceFile, (candidate) => {
+    if (namespaceImportMatch || !compiler.ast.is.IsImportDeclaration(candidate)) {
+      return;
+    }
+    const importDeclaration = compiler.ast.as.AsImportDeclaration(candidate);
+    const importClause = compiler.ast.as.AsImportClause(importDeclaration?.ImportClause);
+    const namedBindings = importClause?.NamedBindings;
+    if (namedBindings === undefined || compiler.ast.as.AsNamespaceImport(namedBindings) === undefined) {
+      return;
+    }
+    const name = compiler.ast.name(namedBindings);
+    namespaceImportMatch = name !== undefined && compiler.ast.text(name) === receiverName;
+  });
+  return namespaceImportMatch;
+}
+
 function isProjectSourceModuleStaticValuePropertyAccess(
   node: Node,
   sourceFile: SourceFile,
   projectSourceFiles: readonly SourceFile[],
   compiler: NonNullable<ExtensionObservationContext["compiler"]>,
 ): boolean {
-  const symbols = [
-    compiler.checker.getSymbolAtLocation(node, { sourceFile }),
-    compiler.checker.getResolvedSymbol(node, { sourceFile }),
-  ];
-  return symbols.some((symbol) =>
-    (symbol?.Declarations ?? [])
-      .some((declaration) => {
-        if (declaration === undefined) {
-          return false;
-        }
-        const declarationSourceFile = compiler.ast.getSourceFile(declaration);
-        return declarationSourceFile !== undefined &&
-          declarationSourceFile !== sourceFile &&
-          projectSourceFiles.some((candidate) => candidate === declarationSourceFile) &&
-          isModuleStaticValueDeclaration(declaration, compiler);
-      }));
+  const propertyAccess = compiler.ast.as.AsPropertyAccessExpression(node);
+  const receiver = asNodeSubject(propertyAccess?.Expression);
+  if (receiver === undefined || !compiler.ast.is.IsIdentifier(receiver)) {
+    return false;
+  }
+  const receiverSymbol = compiler.checker.getSymbolAtLocation(receiver, { sourceFile }) ??
+    compiler.checker.getResolvedSymbolOrNil(receiver, { sourceFile });
+  return (receiverSymbol?.Declarations ?? []).some((declaration) => {
+    if (declaration === undefined) {
+      return false;
+    }
+    const declarationSourceFile = compiler.ast.getSourceFile(declaration);
+    return declarationSourceFile !== undefined &&
+      declarationSourceFile !== sourceFile &&
+      projectSourceFiles.some((candidate) => candidate === declarationSourceFile) &&
+      isModuleStaticValueDeclaration(declaration, compiler);
+  });
 }
 
 function isModuleStaticValueDeclaration(

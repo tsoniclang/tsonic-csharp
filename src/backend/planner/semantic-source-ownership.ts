@@ -15,6 +15,9 @@ import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import {
   getTargetTypeRefForNode,
 } from "./runtime-carriers.js";
+import {
+  isCsharpAnyRuntimeCarrier,
+} from "../../source/csharp-source-semantics/target-types.js";
 import { isProviderVirtualSourceFile } from "./provider-virtual-source-files.js";
 
 export function isTypeParameterTargetRef(type: TargetTypeRef | undefined): boolean {
@@ -38,7 +41,11 @@ export function isSourceOwnedProjectShapeSubject(node: Node | undefined, sourceF
   if (node === undefined) {
     return false;
   }
-  if (isTypeParameterTargetRef(getTargetTypeRefForNode(input, node, sourceFile))) {
+  const carrier = getTargetTypeRefForNode(input, node, sourceFile);
+  if (isCsharpAnyRuntimeCarrier(carrier)) {
+    return false;
+  }
+  if (isTypeParameterTargetRef(carrier)) {
     return true;
   }
   return input.semantics.isProjectSourceShapeForNode(node, { sourceFile });
@@ -48,7 +55,8 @@ export function isSourceOwnedProjectConstructibleObjectSubject(node: Node | unde
   if (node === undefined) {
     return false;
   }
-  if (isTypeParameterTargetRef(getTargetTypeRefForNode(input, node, sourceFile))) {
+  const carrier = getTargetTypeRefForNode(input, node, sourceFile);
+  if (isCsharpAnyRuntimeCarrier(carrier) || isTypeParameterTargetRef(carrier)) {
     return false;
   }
   return input.semantics.isProjectSourceConstructibleObjectForNode(node, { sourceFile });

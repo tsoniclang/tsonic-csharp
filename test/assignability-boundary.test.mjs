@@ -6,7 +6,7 @@ import {
   formatDiagnostics,
 } from "@tsonic/tsts";
 import {
-  createCsharpNativeProviderExtension,
+  createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
 } from "../dist/index.js";
 import {
@@ -17,21 +17,33 @@ const searchValuesModule = "@example/csharp/search-values.js";
 
 test("C# post-check target assignability reports target invalidity without changing the TS relation", () => {
   const sourceText = `
-    import type { int32 } from "@tsonic/core/types.js";
-    import type { SearchValues } from "@example/csharp/search-values.js";
-
-    declare let x: SearchValues<int32>;
-    declare let y: SearchValues<string>;
+    declare let x: number;
+    declare let y: number;
     x = y;
   `;
-  const session = createSearchValuesSession(sourceText);
+  const session = createNativeSession(sourceText);
   const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
 
   const diagnostics = session.ensureChecked(sourceFile);
   assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 2322), false, formatDiagnostics(diagnostics));
   assert.equal(session.extensionHost?.diagnostics.all().filter((diagnostic) =>
     diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
   ).length, 0);
+  session.extensionHost?.facts.set(sourceFile, csharpObservedTargetAssignabilityFactKey, {
+    source: {
+      kind: "target-named",
+      id: "Example.SearchValues`1",
+      typeArguments: [{ kind: "opaque", id: "any" }],
+    },
+    target: {
+      kind: "target-named",
+      id: "Example.SearchValues`1",
+      typeArguments: [{ kind: "source-primitive", name: "int32" }],
+    },
+    relation: "assignment",
+    expression: sourceFile,
+  }, [{ message: "Test-injected post-check assignability fact after TSTS accepted a TypeScript assignment." }]);
   const observedFacts = collectFacts(sourceFile, session.ast, session.extensionHost, csharpObservedTargetAssignabilityFactKey);
   assert.equal(observedFacts.length, 1);
   assert.equal(observedFacts[0].relation, "assignment");
@@ -67,6 +79,28 @@ test("C# post-check target assignability cannot make TypeScript-invalid assignme
     diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
   ) ?? [];
   assert.equal(targetDiagnostics.length, 0);
+});
+
+test("C# post-check target assignability fails closed on TypeScript any boundaries", () => {
+  const sourceText = `
+    declare let value: any;
+    declare let target: number;
+    target = value;
+  `;
+  const session = createNativeSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  session.finalizeExtensions();
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 1);
+  assert.match(targetDiagnostics[0].message, /TypeScript any boundary/);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
 });
 
 function createSearchValuesSession(sourceText) {
@@ -108,7 +142,29 @@ function createSearchValuesSession(sourceText) {
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createProviderBackedSearchValuesExtension(),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ],
+    },
+  });
+}
+
+function createNativeSession(sourceText) {
+  return createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strictNullChecks: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });
@@ -174,7 +230,12 @@ function createProviderBackedSearchValuesExtension() {
                 displayName: "System.Collections.Generic.List<T>",
               },
               typeParameters: [{ name: "T" }],
-              members: [],
+              members: [{
+                id: "SearchValues.value",
+                name: "value",
+                kind: "property",
+                type: { kind: "type-parameter", name: "T" },
+              }],
             }],
           };
         },

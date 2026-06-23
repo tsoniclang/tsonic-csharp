@@ -42,7 +42,7 @@ import type {
 
 type CsharpRecordDictionaryElementAccessHost = Pick<
   CsharpOperationsProviderHost,
-  "getCsharpTargetBindingByTargetId" | "getTargetTypeRefForSubject" | "getBaseTargetTypeRef"
+  "getCsharpTargetBindingByTargetId" | "getCsharpTargetBindingByMetadataName" | "getTargetTypeRefForSubject" | "getBaseTargetTypeRef"
 > & {
   readonly getTargetTypeRefForType: (
     type: Type | undefined,
@@ -53,11 +53,10 @@ type CsharpRecordDictionaryElementAccessHost = Pick<
 
 export function recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  selectedSurfaceIds: ReadonlySet<string>,
   host: CsharpRecordDictionaryElementAccessHost,
 ): void {
   const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || !selectedSurfaceIds.has("js")) {
+  if (compiler === undefined) {
     return;
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);

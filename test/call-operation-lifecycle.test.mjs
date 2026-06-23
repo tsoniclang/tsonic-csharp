@@ -19,7 +19,7 @@ test("selected call lifecycle records closed C# operation facts from selected ty
   recordCsharpSelectedCallOperationFactsBeforeFinalization({
     host,
     compiler: fakeCompiler([sourceFile]),
-  }, new Set(), fakeTargetTypeHost());
+  }, fakeTargetTypeHost());
 
   const operation = facts.get(call, csharpTargetOperationFactKey);
   assert.equal(operation.kind, "member");
@@ -42,7 +42,7 @@ test("selected call lifecycle does not record unresolved generic C# members", ()
   recordCsharpSelectedCallOperationFactsBeforeFinalization({
     host,
     compiler: fakeCompiler([sourceFile]),
-  }, new Set(), fakeTargetTypeHost());
+  }, fakeTargetTypeHost());
 
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
@@ -72,7 +72,7 @@ test("selected constructor lifecycle records explicit result type from declaring
   recordCsharpSelectedCallOperationFactsBeforeFinalization({
     host,
     compiler: fakeCompiler([sourceFile]),
-  }, new Set(), fakeTargetTypeHost());
+  }, fakeTargetTypeHost());
 
   const operation = facts.get(call, csharpTargetOperationFactKey);
   assert.equal(operation.kind, "member");

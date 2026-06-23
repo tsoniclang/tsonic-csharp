@@ -31,11 +31,12 @@ export function mapCsharpJsRecordDictionaryElementAccess(
   if (!isCsharpRecordDictionaryTargetType(receiverType)) {
     return undefined;
   }
-  if (host.getCsharpTargetBindingByTargetId === undefined) {
+  if (host.getCsharpTargetBindingByTargetId === undefined || host.getCsharpTargetBindingByMetadataName === undefined) {
     return undefined;
   }
   const candidates = getCsharpRecordDictionaryIndexerTargetMembers(receiverType, {
     getCsharpTargetBindingByTargetId: host.getCsharpTargetBindingByTargetId,
+    getCsharpTargetBindingByMetadataName: host.getCsharpTargetBindingByMetadataName,
   });
   const member = host.selectTargetMember(candidates, { arguments: [request.argument] }, context);
   if (member === undefined) {

@@ -56,6 +56,10 @@ import type {
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
+import {
+  asNodeSubject,
+  visitAstReaderNodes,
+} from "./ast-utils.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
 
@@ -167,6 +171,9 @@ function mapCsharpObjectShapeCheckedPropertyAccess(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  if (isNamespaceImportReceiver(request.receiver, context)) {
+    return undefined;
+  }
   const objectShape = host.getCsharpObjectShapeFactForSubject(request.receiver, context) ??
     host.getCsharpObjectShapeFactForSubject(request.receiverType, context) ??
     host.getCsharpObjectShapeFactForSubject(request.receiverSymbol, context) ??
@@ -191,6 +198,37 @@ function mapCsharpObjectShapeCheckedPropertyAccess(
       { resultType: member.type },
     ),
   }, [{ message: "C# object-shape property access selected from finalized structural shape fact." }]);
+}
+
+function isNamespaceImportReceiver(
+  receiver: unknown,
+  context: ExtensionObservationContext,
+): boolean {
+  const ast = context.compiler?.ast;
+  const receiverNode = asNodeSubject(receiver);
+  if (ast === undefined || receiverNode === undefined || !ast.is.IsIdentifier(receiverNode)) {
+    return false;
+  }
+  const sourceFile = ast.getSourceFile(receiverNode);
+  const receiverName = ast.text(receiverNode);
+  if (sourceFile === undefined) {
+    return false;
+  }
+  let matched = false;
+  visitAstReaderNodes(ast, sourceFile, (node) => {
+    if (matched || !ast.is.IsImportDeclaration(node)) {
+      return;
+    }
+    const importDeclaration = ast.as.AsImportDeclaration(node);
+    const importClause = ast.as.AsImportClause(importDeclaration?.ImportClause);
+    const namedBindings = importClause?.NamedBindings;
+    if (namedBindings === undefined || ast.as.AsNamespaceImport(namedBindings) === undefined) {
+      return;
+    }
+    const name = ast.name(namedBindings);
+    matched = name !== undefined && ast.text(name) === receiverName;
+  });
+  return matched;
 }
 
 function mapCsharpNativeArrayCheckedElementAccess(

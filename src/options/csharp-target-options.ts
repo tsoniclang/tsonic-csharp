@@ -1,4 +1,7 @@
-import type { TargetSelection } from "@tsonic/target-api";
+import type {
+  TargetSelection,
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
 
 export type CsharpProjectReference =
   | { readonly kind: "project"; readonly include: string }
@@ -8,6 +11,17 @@ export type CsharpProjectReference =
 
 export function readCsharpTargetFramework(target: TargetSelection): string {
   return readStringOption(target, "targetFramework", "net10.0");
+}
+
+export function readCsharpTypescriptCompatibilityMode(target: TargetSelection): TargetTypescriptCompatibilityMode {
+  const value = target.options?.typescriptCompatibility;
+  if (value === undefined) {
+    return "strict-native";
+  }
+  if (value !== "strict-native" && value !== "compat") {
+    throw new Error("C# target option 'typescriptCompatibility' must be either 'strict-native' or 'compat'.");
+  }
+  return value;
 }
 
 export function readCsharpReferences(target: TargetSelection): readonly CsharpProjectReference[] {

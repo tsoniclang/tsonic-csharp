@@ -2,7 +2,7 @@ export { createCsharpTargetPack, csharpTargetId } from "./descriptor/csharp-targ
 export {
   csharpLangModule,
   csharpTypesModule,
-  createCsharpNativeProviderExtension,
+  createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
   neutralLangModule,
   neutralTypesModule,
@@ -35,8 +35,13 @@ export type {
 export { printCsharpCompilationUnit, printCsharpExpression, printCsharpStatement, printCsharpType } from "./print/csharp-printer.js";
 export type {
   DotnetAssemblyReference,
+  DotnetAttributeArgument,
+  DotnetAttributeDeclaration,
+  DotnetAttributePlacement,
+  DotnetAttributeValue,
   DotnetBindingProviderOptions,
   DotnetConstraint,
+  DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
   DotnetFunctionDeclaration,
   DotnetMemberDeclaration,
@@ -44,6 +49,7 @@ export type {
   DotnetModuleModel,
   DotnetNamespaceDeclaration,
   DotnetParameterDeclaration,
+  DotnetParameterDefaultValue,
   DotnetProviderDiagnostic,
   DotnetProviderIdentity,
   DotnetProviderModuleContext,
@@ -52,11 +58,14 @@ export type {
   DotnetReflectionTypeDataProvider,
   DotnetReflectionTypeDataProviderOptions,
   DotnetSignatureDeclaration,
+  DotnetTargetMember,
+  DotnetTargetParameter,
   DotnetTypeDataProvider,
   DotnetTypeDeclaration,
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedAttributeDeclaration,
   DotnetValueDeclaration,
 } from "./providers/dotnet/index.js";
 export {

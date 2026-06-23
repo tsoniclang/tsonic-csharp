@@ -13,6 +13,7 @@ import {
 
 export interface CsharpTargetEnrichmentHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
+  readonly getCsharpTargetBindingByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
 }
 
 export function getCsharpTargetTypeFromBinding(

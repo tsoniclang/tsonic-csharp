@@ -74,6 +74,21 @@ test("primitive member access still requires selected target member facts", () =
   assert.deepEqual(ownership.reasons, ["node runtime carrier"]);
 });
 
+test("opaque any member access is not source-owned dynamic fallback", () => {
+  const receiver = node(KindIdentifier);
+  const input = fakeInput({
+    runtimeCarrierSubject: receiver,
+    runtimeCarrier: { carrier: { kind: "opaque", id: "any" } },
+    projectSourceShape: true,
+  });
+
+  const ownership = getSemanticOwnership(receiver, {}, input);
+
+  assert.equal(ownership.requiresTargetFact, true);
+  assert.equal(ownership.sourceOwned, false);
+  assert.deepEqual(ownership.reasons, ["node runtime carrier"]);
+});
+
 test("type parameter operands are classified from finalized runtime carrier facts", () => {
   const operand = node(KindIdentifier);
   const typeParameter = {};

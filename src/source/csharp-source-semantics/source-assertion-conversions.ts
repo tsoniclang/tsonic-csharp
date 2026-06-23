@@ -1,11 +1,14 @@
 import {
+  runtimeCarrierFactKey,
   targetConversionFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
+  ExtensionLifecycleContext,
   ExtensionObservationContext,
   Node,
   TargetOperationFact,
+  TargetBindingFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -27,6 +30,13 @@ import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carriers.js";
 import {
+  csharpProviderDiagnostic,
+} from "./diagnostics.js";
+import {
+  getCsharpProviderConversionOperator,
+  requiresCsharpProviderConversionEvidence,
+} from "./provider-conversion-operators.js";
+import {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-selection.js";
 import type {
@@ -36,11 +46,15 @@ import {
   getCsharpConversionOperation,
 } from "./target-rules.js";
 import {
+  isCsharpAnyRuntimeCarrier,
+} from "./target-types.js";
+import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "./target-ref-utils.js";
 
 export interface CsharpAssertionConversionLifecycleHost {
+  readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
   readonly getTargetTypeRefForSubject: (
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,
@@ -49,7 +63,7 @@ export interface CsharpAssertionConversionLifecycleHost {
 }
 
 export function recordCsharpAssertionConversionFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "extensionId" | "host" | "compiler">,
   host: CsharpAssertionConversionLifecycleHost,
 ): void {
   const compiler = lifecycleContext.compiler;
@@ -63,7 +77,7 @@ export function recordCsharpAssertionConversionFactsBeforeFinalization(
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       const assertion = getAssertionParts(node, compiler.ast);
-      if (assertion === undefined || lifecycleContext.host.facts.get(node, targetConversionFactKey) !== undefined) {
+      if (assertion === undefined) {
         return;
       }
       const target = host.getTargetTypeRefForSubject(assertion.target, context);
@@ -71,17 +85,63 @@ export function recordCsharpAssertionConversionFactsBeforeFinalization(
         return;
       }
       const source = host.getTargetTypeRefForSubject(assertion.expression, context);
-      const conversion = getAssertionConversionOperation(assertion.expression, source, target, context);
+      if (
+        isCsharpAnyRuntimeCarrier(source) ||
+        isCsharpAnyRuntimeCarrier(target) ||
+        hasOpaqueAnyCarrier(assertion.expression, lifecycleContext) ||
+        hasOpaqueAnyCarrier(assertion.target, lifecycleContext)
+      ) {
+        lifecycleContext.host.diagnostics.append({
+          ...csharpProviderDiagnostic(
+            lifecycleContext.extensionId,
+            "CSHARP_ANY_ASSERTION_CONVERSION_UNSUPPORTED",
+            9100122,
+            "C# assertion conversion cannot cross a TypeScript any boundary without finalized target conversion facts.",
+          ),
+          nodeOrSpan: node,
+          evidence: [
+            {
+              message: "C# dynamic assertion boundary rejected",
+              details: "TypeScript accepted the assertion through any, but the C# target has no finalized unbox/cast capability fact for this expression.",
+            },
+            {
+              message: "Required architecture",
+              details: "A JS/dynamic compatibility surface must provide an explicit target conversion fact; source assertion syntax must not invent C# casts from any.",
+            },
+          ],
+          identity: `csharp-any-assertion:${subjectIdentity(node)}`,
+        });
+        return;
+      }
+      if (lifecycleContext.host.facts.get(node, targetConversionFactKey) !== undefined) {
+        return;
+      }
+      const conversion = getAssertionConversionOperation(assertion.expression, source, target, context, host);
+      if (conversion?.kind === "diagnostic") {
+        lifecycleContext.host.diagnostics.append({
+          ...csharpProviderDiagnostic(
+            lifecycleContext.extensionId,
+            conversion.code,
+            conversion.numericCode,
+            conversion.message,
+          ),
+          nodeOrSpan: node,
+          evidence: conversion.evidence,
+          identity: `${conversion.code}:${subjectIdentity(node)}`,
+        });
+        return;
+      }
       lifecycleContext.host.facts.set(
         node,
         targetConversionFactKey,
         {
+          ...(source !== undefined ? { sourceType: source } : {}),
           convertedType: target,
-          ...(conversion !== undefined ? { operation: conversion.operation } : {}),
+          ...(conversion?.kind === "conversion" ? { operation: conversion.operation } : {}),
         },
         [{ message: "C# assertion conversion finalized from source assertion target type facts." }],
       );
-      if (conversion !== undefined) {
+      if (conversion?.kind === "conversion") {
         lifecycleContext.host.facts.set(
           node,
           csharpTargetConversionOperationFactKey,
@@ -113,23 +173,102 @@ function getAssertionConversionOperation(
   source: TargetTypeRef | undefined,
   target: TargetTypeRef,
   context: ExtensionObservationContext,
-): { readonly operation: TargetOperationFact; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
+  host: CsharpAssertionConversionLifecycleHost,
+): CsharpAssertionConversionDecision | undefined {
   if (source !== undefined && targetTypeRefEquals(source, target)) {
     return undefined;
   }
   if (isLiteralRepresentableAsTargetType(target, expression, context)) {
     return undefined;
   }
+  const providerConversion = getCsharpProviderConversionOperator(source, target, host, "explicit-or-implicit");
+  if (providerConversion.kind === "matched") {
+    return {
+      kind: "conversion",
+      operation: providerConversion.operation,
+      csharpOperation: providerConversion.csharpOperation,
+    };
+  }
+  if (providerConversion.kind === "ambiguous") {
+    return {
+      kind: "diagnostic",
+      code: "CSHARP_PROVIDER_ASSERTION_CONVERSION_AMBIGUOUS",
+      numericCode: 9100123,
+      message: "C# provider assertion conversion is ambiguous.",
+      evidence: [{
+        message: "Candidate conversion operators",
+        details: providerConversion.candidateIds.join(", "),
+      }],
+    };
+  }
   const conversion = getCsharpConversionOperation(source, target);
   if (conversion !== undefined) {
-    return conversion;
+    return {
+      kind: "conversion",
+      operation: conversion.operation,
+      csharpOperation: conversion.csharpOperation,
+    };
+  }
+  if (requiresCsharpProviderConversionEvidence(source, target, host)) {
+    return {
+      kind: "diagnostic",
+      code: "CSHARP_PROVIDER_ASSERTION_CONVERSION_UNSUPPORTED",
+      numericCode: 9100124,
+      message: "C# provider assertion conversion requires a finalized provider conversion operator fact.",
+      evidence: [{
+        message: "Missing provider conversion operator",
+        details: "The target type is provider-owned, so assertion emission cannot synthesize a C# cast without a reflected op_Implicit or op_Explicit member matching the source and target types.",
+      }],
+    };
   }
   if (source === undefined) {
     return undefined;
   }
+  if (!isSourceDeclaredAssertionTarget(source, target)) {
+    return undefined;
+  }
   const operationId = `tsonic.csharp.cast:${targetTypeRefKey(target)}`;
   return {
+    kind: "conversion",
     operation: targetOperation(operationId, "operator", "cast", { resultType: target }),
     csharpOperation: csharpTargetCastOperation(operationId, target),
   };
+}
+
+type CsharpAssertionConversionDecision =
+  | {
+      readonly kind: "conversion";
+      readonly operation: TargetOperationFact;
+      readonly csharpOperation: CsharpTargetOperationFact;
+    }
+  | {
+      readonly kind: "diagnostic";
+      readonly code: string;
+      readonly numericCode: number;
+      readonly message: string;
+      readonly evidence: readonly { readonly message: string; readonly details?: string }[];
+    };
+
+function isSourceDeclaredAssertionTarget(source: TargetTypeRef, target: TargetTypeRef): boolean {
+  return isSourceDeclaredTargetType(source) || isSourceDeclaredTargetType(target);
+}
+
+function isSourceDeclaredTargetType(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" &&
+    "csharpSourceDeclarationKind" in type &&
+    type.csharpSourceDeclarationKind !== undefined;
+}
+
+function hasOpaqueAnyCarrier(
+  subject: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
+): boolean {
+  return isCsharpAnyRuntimeCarrier(lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey)?.carrier);
+}
+
+function subjectIdentity(subject: unknown): string {
+  if (subject !== null && typeof subject === "object" && "id" in subject) {
+    return String((subject as { readonly id?: unknown }).id ?? "unknown");
+  }
+  return "unknown";
 }

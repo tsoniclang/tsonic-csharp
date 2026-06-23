@@ -36,14 +36,12 @@ type CsharpFinalizedCallOperationHost = CsharpTargetTypeResolutionHost & CsharpO
 
 export function recordCsharpSelectedCallOperationFactsBeforeFinalization(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  selectedSurfaceIds: ReadonlySet<string>,
   host: CsharpFinalizedCallOperationHost,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
     return;
   }
-  void selectedSurfaceIds;
   for (const sourceFile of compiler.getSourceFiles()) {
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;

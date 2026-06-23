@@ -1,14 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { createCsharpOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
+import { csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { createCsharpJsSurfaceOperationsProvider, createCsharpNativeOperationsProvider, createCsharpNodejsSurfaceOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 
 test("Array.length is not mapped without the JS surface", () => {
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(), fakeHost(receiverType));
+  const provider = createCsharpNativeOperationsProvider(fakeHost(receiverType));
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, arrayLengthDeclaration()), fakeContext(facts));
 
@@ -20,7 +20,7 @@ test("JS surface maps Array.length only from the selected standard-library decla
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(receiverType));
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(receiverType));
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, arrayLengthDeclaration()), fakeContext(facts));
 
@@ -33,7 +33,7 @@ test("JS surface does not map Array.length from receiver carrier without selecte
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(receiverType));
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(receiverType));
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, undefined), fakeContext(facts));
 
@@ -45,7 +45,7 @@ test("JS surface does not recover Array.length from property text without a fina
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined));
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, undefined), fakeContext(facts));
 
@@ -62,7 +62,7 @@ test("JS surface maps single-target calls from selected declaration identity wit
     [receiver, int32ArrayType()],
     [value, int32Type()],
   ]);
-  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined, targetTypes));
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("includes"), {
     arguments: [value],
@@ -82,7 +82,7 @@ test("JS surface rejects multi-target calls without exact selected signature ide
     [receiver, int32ArrayType()],
     [callback, actionOfInt32Type()],
   ]);
-  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined, targetTypes));
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("forEach"), {
     arguments: [callback],
@@ -103,7 +103,7 @@ test("JS surface maps multi-target calls from exact selected signature identity"
     [receiver, int32ArrayType()],
     [callback, actionOfInt32Type()],
   ]);
-  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined, targetTypes));
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("forEach"), {
     arguments: [callback],
@@ -125,7 +125,7 @@ test("JS surface maps Record element access through provider-owned Dictionary in
     [receiverType, dictionaryType],
     [key, stringType()],
   ]);
-  const provider = createCsharpOperationsProvider(new Set(["js"]), fakeHost(undefined, targetTypes, dictionaryBinding()));
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
 
   const result = provider.mapCheckedElementAccess({
     target: "csharp",
@@ -142,11 +142,65 @@ test("JS surface maps Record element access through provider-owned Dictionary in
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.memberName, "Item");
 });
 
+test("JS surface maps Record for-in through provider-owned Dictionary key facts", () => {
+  const statement = {};
+  const expression = {};
+  const expressionType = {};
+  const facts = new TestFactStore();
+  const dictionaryType = recordDictionaryType(stringType(), int32Type());
+  const targetTypes = new Map([
+    [expressionType, dictionaryType],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const result = provider.mapCheckedIteration({
+    target: "csharp",
+    statement,
+    expression,
+    sourceExpressionType: expressionType,
+    kind: "for-in",
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationKind, "iteration");
+  assert.equal(result.value.operation.targetOperation, "key-collection");
+  const iteration = facts.get(statement, csharpTargetIterationFactKey);
+  assert.equal(iteration?.iterationKind, "property-key");
+  assert.equal(iteration?.lowering.kind, "key-collection");
+  assert.equal(iteration?.lowering.keysMember.memberName, "Keys");
+  assert.equal(iteration?.lowering.keysMember.selectedMember.id, "System.Collections.Generic.Dictionary`2.Keys");
+  assert.deepEqual(iteration?.elementType, stringType());
+});
+
+test("JS surface rejects Record for-in without string-key enumeration facts", () => {
+  const statement = {};
+  const expression = {};
+  const expressionType = {};
+  const facts = new TestFactStore();
+  const dictionaryType = recordDictionaryType(int32Type(), int32Type());
+  const targetTypes = new Map([
+    [expressionType, dictionaryType],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const result = provider.mapCheckedIteration({
+    target: "csharp",
+    statement,
+    expression,
+    sourceExpressionType: expressionType,
+    kind: "for-in",
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_RECORD_DICTIONARY_FOR_IN_KEY_TYPE_UNSUPPORTED");
+  assert.equal(facts.get(statement, csharpTargetIterationFactKey), undefined);
+});
+
 test("NodeJS surface maps calls from the selected provider signature identity", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(["nodejs"]), fakeHost(undefined));
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "join", "node:path.join(System.String[])"));
 
   const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedDeclaration), fakeContext(facts));
@@ -159,7 +213,7 @@ test("NodeJS surface rejects provider declarations whose selected identity is no
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(["nodejs"]), fakeHost(undefined));
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, {
     ...nodejsVirtualDeclaration("node:path", "join"),
     virtualFileName: "tsts-provider://csharp-nodejs/wrong.d.ts",
@@ -175,7 +229,7 @@ test("NodeJS surface maps single-signature calls from provider declaration ident
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(["nodejs"]), fakeHost(undefined));
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "join"));
 
   const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedDeclaration), fakeContext(facts));
@@ -188,7 +242,7 @@ test("NodeJS surface does not map foreign provider declarations by module and ex
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(["nodejs"]), fakeHost(undefined));
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, {
     ...nodejsVirtualDeclaration("node:path", "join"),
     providerId: "foreign.nodejs-provider",
@@ -203,7 +257,7 @@ test("NodeJS surface maps static properties from the selected provider declarati
   const expression = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(["nodejs"]), fakeHost(undefined));
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "platform"));
 
   const result = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(expression, selectedDeclaration), fakeContext(facts));
@@ -217,7 +271,7 @@ test("NodeJS surface maps namespace property access from selected provider prope
   const expression = {};
   const selectedPropertySymbol = {};
   const facts = new TestFactStore();
-  const provider = createCsharpOperationsProvider(new Set(["nodejs"]), fakeHost(undefined));
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
   facts.set(selectedPropertySymbol, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "platform"));
 
   const result = provider.mapCheckedPropertyAccess({
@@ -262,6 +316,7 @@ function arrayMemberDeclaration(memberName) {
 function fakeHost(receiverType, targetTypes = new Map(), targetBinding) {
   return {
     ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByTargetId: (targetId) => targetId === targetBinding.id ? targetBinding : undefined }),
+    ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByMetadataName: (metadataName) => metadataName === "System.Collections.Generic.Dictionary`2" ? targetBinding : undefined }),
     getTargetTypeRefForSubject: (subject) => targetTypes.get(subject) ?? (subject === receiverType
       ? { kind: "array", element: { kind: "source-primitive", name: "int32" } }
       : undefined),
@@ -381,6 +436,19 @@ function dictionaryBinding() {
       parameters: [{ name: "key", type: { kind: "type-parameter", name: "TKey" }, passingMode: "by-value" }],
       returnType: { kind: "type-parameter", name: "TValue" },
       overloadGroup: "System.Collections.Generic.Dictionary`2.Item(TKey)",
+    }, {
+      id: "System.Collections.Generic.Dictionary`2.Keys",
+      sourceName: "keys",
+      targetName: "Keys",
+      kind: "property",
+      declaringType: declarationType,
+      parameters: [],
+      returnType: {
+        kind: "target-named",
+        id: "System.Collections.Generic.Dictionary`2.KeyCollection",
+        typeArguments: [{ kind: "type-parameter", name: "TKey" }, { kind: "type-parameter", name: "TValue" }],
+        csharpRender: { kind: "nested", outer: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "Dictionary" }, name: "KeyCollection" },
+      },
     }],
   };
 }

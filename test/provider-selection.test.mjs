@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { attributeFactKey, providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { createCsharpNativeProviderExtension } from "../dist/index.js";
+import { createCsharpTargetSemanticsExtension } from "../dist/index.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
 test("C# provider rejects ambiguous target members instead of ranking candidates", () => {
@@ -720,7 +720,7 @@ test("target member selection does not prepend provider static container for exp
   const staticContainer = {};
   const value = {};
   const start = {};
-  const stringType = { kind: "target-named", id: "System.String" };
+  const stringType = csharpStringType();
   const int32Type = { kind: "source-primitive", name: "int32" };
   const member = {
     id: "System.MemoryExtensions.AsSpan(System.String,System.Int32)",
@@ -741,7 +741,7 @@ test("target member selection does not prepend provider static container for exp
         passingMode: "by-value",
       },
     ],
-    returnType: { kind: "target-named", id: "System.ReadOnlySpan`1", typeArguments: [{ kind: "source-primitive", name: "char" }] },
+    returnType: csharpReadOnlySpanType({ kind: "source-primitive", name: "char" }),
   };
   const context = {};
   const resolveTargetTypeRef = (subject) => {
@@ -772,7 +772,7 @@ test("C# provider maps extension receiver calls from selected provider signature
   const selectedDeclaration = {};
   const containerSymbol = {};
   const call = {};
-  const receiver = { kind: "target-named", id: "System.String" };
+  const receiver = csharpStringType();
   const start = { kind: "source-primitive", name: "int32" };
   const recordedFacts = [];
 
@@ -793,6 +793,22 @@ test("C# provider maps extension receiver calls from selected provider signature
       targetName: "System.MemoryExtensions",
       target: "csharp",
       kind: "class",
+      members: [
+        {
+          id: "System.MemoryExtensions.AsSpan(System.String,System.Int32)",
+          sourceName: "asSpan",
+          targetName: "AsSpan",
+          kind: "method",
+          static: true,
+          receiverPassing: "first-argument",
+          parameters: [
+            targetParameter("text", csharpStringType()),
+            targetParameter("start", start),
+          ],
+          returnType: csharpReadOnlySpanType({ kind: "source-primitive", name: "char" }),
+          overloadGroup: "System.MemoryExtensions.AsSpan",
+        },
+      ],
     },
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: {
@@ -837,6 +853,21 @@ test("C# provider maps LINQ ExtensionMethods receiver calls from selected signat
       targetName: "System.Linq.Enumerable",
       target: "csharp",
       kind: "class",
+      members: [
+        {
+          id: "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)",
+          sourceName: "average",
+          targetName: "Average",
+          kind: "method",
+          static: true,
+          receiverPassing: "first-argument",
+          parameters: [
+            targetParameter("source", csharpIEnumerableType(int32)),
+          ],
+          returnType: { kind: "source-primitive", name: "float64" },
+          overloadGroup: "System.Linq.Enumerable.Average",
+        },
+      ],
     },
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: {
@@ -1080,7 +1111,7 @@ test("target member selection does not treat opaque any or unknown as wildcard t
 function getNativeSemanticProvider() {
   const semanticProviders = [];
   const target = { id: "csharp" };
-  const extension = createCsharpNativeProviderExtension({
+  const extension = createCsharpTargetSemanticsExtension({
     project: {
       entryPoint: "index.ts",
       targets: [target],
@@ -1117,7 +1148,7 @@ function method(id, parameterType, options = {}) {
       type: parameterType,
       passingMode: "by-value",
     }],
-    returnType: { kind: "target-named", id: "System.Void" },
+    returnType: csharpVoidType(),
     overloadGroup: options.overloadGroup ?? "Example.Target.m",
   };
 }
@@ -1144,8 +1175,44 @@ function indexer(id, parameterType, options = {}) {
       type: parameterType,
       passingMode: "by-value",
     }],
-    returnType: { kind: "target-named", id: "System.String" },
+    returnType: csharpStringType(),
     overloadGroup: options.overloadGroup ?? "Example.Target.Item",
+  };
+}
+
+function csharpStringType() {
+  return {
+    kind: "target-named",
+    id: "System.String",
+    csharpRender: { kind: "predefined", name: "string" },
+    csharpSpecialType: "string",
+  };
+}
+
+function csharpVoidType() {
+  return {
+    kind: "target-named",
+    id: "System.Void",
+    csharpRender: { kind: "predefined", name: "void" },
+    csharpSpecialType: "void",
+  };
+}
+
+function csharpReadOnlySpanType(element) {
+  return {
+    kind: "target-named",
+    id: "System.ReadOnlySpan`1",
+    typeArguments: [element],
+    csharpRender: { kind: "named", namespace: ["System"], name: "ReadOnlySpan" },
+  };
+}
+
+function csharpIEnumerableType(element) {
+  return {
+    kind: "target-named",
+    id: "System.Collections.Generic.IEnumerable`1",
+    typeArguments: [element],
+    csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "IEnumerable" },
   };
 }
 

@@ -1,6 +1,11 @@
 export type {
   DotnetAssemblyReference,
+  DotnetAttributeArgument,
+  DotnetAttributeDeclaration,
+  DotnetAttributePlacement,
+  DotnetAttributeValue,
   DotnetConstraint,
+  DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
   DotnetFunctionDeclaration,
   DotnetMemberDeclaration,
@@ -8,12 +13,15 @@ export type {
   DotnetModuleModel,
   DotnetNamespaceDeclaration,
   DotnetParameterDeclaration,
+  DotnetParameterDefaultValue,
   DotnetProviderIdentity,
   DotnetSignatureDeclaration,
   DotnetTypeDeclaration,
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedAttributeDeclaration,
+  DotnetUnsupportedMemberDeclaration,
   DotnetUnsupportedNestedTypeExportDeclaration,
   DotnetUnsupportedExportDeclaration,
   DotnetUnsupportedTypeFamilyExportDeclaration,
@@ -28,4 +36,8 @@ export {
   dotnetConstraintToTargetConstraint,
   dotnetExportToTargetBinding,
   dotnetTypeRefToTargetTypeRef,
+} from "./model-target-conversion.js";
+export type {
+  DotnetTargetMember,
+  DotnetTargetParameter,
 } from "./model-target-conversion.js";

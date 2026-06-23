@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
@@ -8,12 +9,9 @@ sealed partial class ReflectionProvider
 {
     IEnumerable<object> Members(Type type)
     {
-        foreach (var group in Constructors(type).GroupBy(member => (string)member.GetType().GetProperty("metadataName")!.GetValue(member)!))
+        foreach (var member in Constructors(type))
         {
-            foreach (var member in group)
-            {
-                yield return member;
-            }
+            yield return member;
         }
 
         foreach (var member in Properties(type))
@@ -22,6 +20,11 @@ sealed partial class ReflectionProvider
         }
 
         foreach (var member in Fields(type))
+        {
+            yield return member;
+        }
+
+        foreach (var member in Events(type))
         {
             yield return member;
         }
@@ -39,6 +42,7 @@ sealed partial class ReflectionProvider
                 kind = "method",
                 sourceName = LowerCamel(first.Name),
                 targetName = first.Name,
+                targetId = $"{TargetId(type)}.{first.Name}",
                 metadataName = $"{MetadataName(type)}.{first.Name}",
                 @static = first.IsStatic ? true : (bool?)null,
                 receiverPassing = IsExtensionMethod(first) ? "first-argument" : null,
@@ -59,11 +63,53 @@ sealed partial class ReflectionProvider
                 kind = "operator",
                 sourceName = OperatorSourceName(first.Name),
                 targetName = first.Name,
+                targetId = $"{TargetId(type)}.{first.Name}",
                 metadataName = $"{MetadataName(type)}.{first.Name}",
                 @static = first.IsStatic ? true : (bool?)null,
                 signatures,
             };
         }
+    }
+
+    IEnumerable<object> ConversionOperators(Type type)
+    {
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(IsConversionOperator)
+            .Where(method => UnsupportedOperatorReason(type, method) is null)
+            .OrderBy(MethodId, StringComparer.Ordinal))
+        {
+            var parameters = method.GetParameters();
+            if (parameters.Length != 1)
+            {
+                continue;
+            }
+            var sourceType = TypeRef(UnwrapByRef(parameters[0].ParameterType));
+            var targetType = TypeRef(method.ReturnType);
+            if (sourceType is null || targetType is null)
+            {
+                continue;
+            }
+            yield return new
+            {
+                id = MethodId(method),
+                targetName = method.Name,
+                metadataName = MethodMetadataId(method),
+                conversionKind = method.Name == "op_Implicit" ? "implicit" : "explicit",
+                sourceType,
+                targetType,
+            };
+        }
+    }
+
+    object[] UnsupportedMembers(Type type)
+    {
+        return UnsupportedConstructors(type)
+            .Concat(UnsupportedProperties(type))
+            .Concat(UnsupportedFields(type))
+            .Concat(UnsupportedMethods(type))
+            .Concat(UnsupportedOperators(type))
+            .Concat(UnsupportedSourceEvents(type))
+            .ToArray();
     }
 
     IEnumerable<object> Constructors(Type type)
@@ -80,10 +126,38 @@ sealed partial class ReflectionProvider
                 kind = "constructor",
                 sourceName = "constructor",
                 targetName = ".ctor",
-                metadataName = ConstructorId(constructor),
+                targetId = ConstructorId(constructor),
+                metadataName = ConstructorMetadataName(constructor),
                 signatures = new[] { signature },
             };
         }
+    }
+
+    IEnumerable<object> UnsupportedConstructors(Type type)
+    {
+        foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).OrderBy(ConstructorId, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedConstructorReason(constructor);
+            if (reason is null)
+            {
+                continue;
+            }
+            yield return UnsupportedMember(
+                "constructor",
+                "constructor",
+                ".ctor",
+                ConstructorId(constructor),
+                ConstructorMetadataName(constructor),
+                false,
+                reason);
+        }
+    }
+
+    string? UnsupportedConstructorReason(ConstructorInfo constructor)
+    {
+        return Parameters(constructor.GetParameters()) is null
+            ? "Constructor signature contains a parameter type that cannot be represented as closed .NET target type facts."
+            : null;
     }
 
     IEnumerable<object> Properties(Type type)
@@ -95,6 +169,7 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
+            var attributes = AttributeFacts(property.GetCustomAttributesData(), "property", $"{TargetId(type)}.{property.Name}");
             var indexParameters = property.GetIndexParameters();
             if (indexParameters.Length > 0)
             {
@@ -102,7 +177,9 @@ sealed partial class ReflectionProvider
                 {
                     continue;
                 }
-                var parameters = Parameters(indexParameters);
+                var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
+                var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
+                var parameters = Parameters(indexParameters, targetId);
                 var returnType = TypeRef(property.PropertyType);
                 if (parameters is null || returnType is null)
                 {
@@ -113,13 +190,16 @@ sealed partial class ReflectionProvider
                     kind = "indexer",
                     sourceName = "item",
                     targetName = property.Name,
-                    metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})",
+                    targetId,
+                    metadataName,
                     @static = accessors[0].IsStatic ? true : (bool?)null,
+                    attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                    unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
                     signatures = new[]
                     {
                         new
                         {
-                            id = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})",
+                            id = targetId,
                             targetName = property.Name,
                             parameters,
                             returnType,
@@ -144,11 +224,82 @@ sealed partial class ReflectionProvider
                 kind = "property",
                 sourceName = LowerCamel(property.Name),
                 targetName = property.Name,
+                targetId = $"{TargetId(type)}.{property.Name}",
                 metadataName = $"{MetadataName(type)}.{property.Name}",
                 @static = isStatic ? true : (bool?)null,
                 type = typeRef,
+                attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             };
         }
+    }
+
+    IEnumerable<object> UnsupportedProperties(Type type)
+    {
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(property => property.Name, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedPropertyReason(type, property);
+            if (reason is null)
+            {
+                continue;
+            }
+            var accessors = property.GetAccessors(false);
+            var isStatic = accessors.Length > 0 && accessors[0].IsStatic;
+            var indexParameters = property.GetIndexParameters();
+            var memberKind = indexParameters.Length > 0 ? "indexer" : "property";
+            var targetId = indexParameters.Length > 0
+                ? $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})"
+                : $"{TargetId(type)}.{property.Name}";
+            var metadataName = indexParameters.Length > 0
+                ? $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})"
+                : $"{MetadataName(type)}.{property.Name}";
+            yield return UnsupportedMember(
+                memberKind,
+                indexParameters.Length > 0 ? "item" : LowerCamel(property.Name),
+                property.Name,
+                targetId,
+                metadataName,
+                isStatic,
+                reason);
+        }
+    }
+
+    string? UnsupportedPropertyReason(Type type, PropertyInfo property)
+    {
+        var accessors = property.GetAccessors(false);
+        if (accessors.Length == 0)
+        {
+            return "Property has no public accessor visible to the provider.";
+        }
+        var indexParameters = property.GetIndexParameters();
+        if (indexParameters.Length > 0)
+        {
+            if (indexParameters.Length != 1)
+            {
+                return "Indexers with multiple parameters require a provider multi-indexer declaration model before they can be exposed safely.";
+            }
+            if (Parameters(indexParameters) is null)
+            {
+                return "Indexer parameter type cannot be represented as closed .NET target type facts.";
+            }
+            return TypeRef(property.PropertyType) is null
+                ? "Indexer return type cannot be represented as closed .NET target type facts."
+                : null;
+        }
+        if (TypeRef(property.PropertyType) is null)
+        {
+            return "Property type cannot be represented as closed .NET target type facts.";
+        }
+        var isStatic = accessors[0].IsStatic;
+        if (type.IsInterface && isStatic)
+        {
+            return "Static interface properties require a provider static-interface-member declaration model before they can be exposed safely.";
+        }
+        if (isStatic && UsesDeclaringTypeParameter(property.PropertyType, type))
+        {
+            return "Static properties that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
+        }
+        return null;
     }
 
     IEnumerable<object> Fields(Type type)
@@ -168,24 +319,145 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
+            var attributes = AttributeFacts(field.GetCustomAttributesData(), "field", $"{TargetId(type)}.{field.Name}");
             yield return new
             {
                 kind = "field",
                 sourceName = LowerCamel(field.Name),
                 targetName = field.Name,
+                targetId = $"{TargetId(type)}.{field.Name}",
                 metadataName = $"{MetadataName(type)}.{field.Name}",
                 @static = field.IsStatic ? true : (bool?)null,
                 type = typeRef,
+                attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             };
         }
+    }
+
+    IEnumerable<object> UnsupportedFields(Type type)
+    {
+        foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(field => field.Name, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedFieldReason(type, field);
+            if (reason is null)
+            {
+                continue;
+            }
+            yield return UnsupportedMember(
+                "field",
+                LowerCamel(field.Name),
+                field.Name,
+                $"{TargetId(type)}.{field.Name}",
+                $"{MetadataName(type)}.{field.Name}",
+                field.IsStatic,
+                reason);
+        }
+    }
+
+    string? UnsupportedFieldReason(Type type, FieldInfo field)
+    {
+        if (field.IsSpecialName)
+        {
+            return "Special-name fields are target-only CLR implementation details and are not exposed as source declarations.";
+        }
+        if (TypeRef(field.FieldType) is null)
+        {
+            return "Field type cannot be represented as closed .NET target type facts.";
+        }
+        if (type.IsInterface && field.IsStatic)
+        {
+            return "Static interface fields require a provider static-interface-member declaration model before they can be exposed safely.";
+        }
+        if (field.IsStatic && UsesDeclaringTypeParameter(field.FieldType, type))
+        {
+            return "Static fields that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
+        }
+        return null;
+    }
+
+    IEnumerable<object> Events(Type type)
+    {
+        foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(eventInfo => eventInfo.Name, StringComparer.Ordinal))
+        {
+            var eventHandlerType = eventInfo.EventHandlerType;
+            if (eventHandlerType is null)
+            {
+                continue;
+            }
+            var typeRef = TypeRef(eventHandlerType);
+            if (typeRef is null)
+            {
+                continue;
+            }
+            var accessor = EventAccessor(eventInfo);
+            if (accessor is null)
+            {
+                continue;
+            }
+            var attributes = AttributeFacts(eventInfo.GetCustomAttributesData(), "event", EventTargetId(type, eventInfo));
+            yield return new
+            {
+                kind = "event",
+                sourceName = LowerCamel(eventInfo.Name),
+                targetName = eventInfo.Name,
+                targetId = EventTargetId(type, eventInfo),
+                metadataName = EventMetadataName(type, eventInfo),
+                @static = accessor.IsStatic ? true : (bool?)null,
+                type = typeRef,
+                attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
+            };
+        }
+    }
+
+    IEnumerable<object> UnsupportedSourceEvents(Type type)
+    {
+        foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(eventInfo => eventInfo.Name, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedSourceEventReason(eventInfo);
+            if (reason is null)
+            {
+                continue;
+            }
+            var accessor = EventAccessor(eventInfo);
+            yield return new
+            {
+                kind = "unsupported-member",
+                memberKind = "event",
+                sourceName = LowerCamel(eventInfo.Name),
+                targetName = eventInfo.Name,
+                targetId = EventTargetId(type, eventInfo),
+                metadataName = EventMetadataName(type, eventInfo),
+                @static = accessor?.IsStatic == true ? true : (bool?)null,
+                reason,
+            };
+        }
+    }
+
+    string? UnsupportedSourceEventReason(EventInfo eventInfo)
+    {
+        var eventHandlerType = eventInfo.EventHandlerType;
+        if (eventHandlerType is null)
+        {
+            return "Event has no provider-visible event-handler type, so no source event declaration can be generated.";
+        }
+        if (TypeRef(eventHandlerType) is null)
+        {
+            return "Event handler type cannot be represented as closed .NET target type facts.";
+        }
+        if (EventAccessor(eventInfo) is null)
+        {
+            return "Event has no public add/remove accessor visible to the provider.";
+        }
+        return "C# events require explicit add/remove subscription semantics; the provider records this event as a target-only member until source event facts exist.";
     }
 
     IEnumerable<MethodInfo> Methods(Type type)
     {
         return type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(method => !method.IsSpecialName)
-            .Where(method => !(type.IsInterface && method.IsStatic))
-            .Where(method => !(method.IsStatic && UsesDeclaringTypeParameter(method, type)))
+            .Where(method => UnsupportedMethodReason(type, method) is null)
             .OrderBy(MethodId, StringComparer.Ordinal);
     }
 
@@ -194,8 +466,116 @@ sealed partial class ReflectionProvider
         return type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(method => method.IsSpecialName)
             .Where(method => method.Name.StartsWith("op_", StringComparison.Ordinal))
-            .Where(method => !UsesDeclaringTypeParameter(method, type))
+            .Where(method => !IsConversionOperator(method))
+            .Where(method => UnsupportedOperatorReason(type, method) is null)
             .OrderBy(MethodId, StringComparer.Ordinal);
+    }
+
+    IEnumerable<object> UnsupportedMethods(Type type)
+    {
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => !method.IsSpecialName)
+            .OrderBy(MethodId, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedMethodReason(type, method);
+            if (reason is null)
+            {
+                continue;
+            }
+            yield return UnsupportedMember(
+                "method",
+                LowerCamel(method.Name),
+                method.Name,
+                MethodId(method),
+                MethodMetadataId(method),
+                method.IsStatic,
+                reason);
+        }
+    }
+
+    string? UnsupportedMethodReason(Type type, MethodInfo method)
+    {
+        if (type.IsInterface && method.IsStatic)
+        {
+            return "Static interface methods require a provider static-interface-member declaration model before they can be exposed safely.";
+        }
+        if (method.IsStatic && UsesDeclaringTypeParameter(method, type))
+        {
+            return "Static methods that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
+        }
+        if (Parameters(method.GetParameters()) is null)
+        {
+            return "Method signature contains a parameter type that cannot be represented as closed .NET target type facts.";
+        }
+        return TypeRef(method.ReturnType) is null
+            ? "Method return type cannot be represented as closed .NET target type facts."
+            : null;
+    }
+
+    IEnumerable<object> UnsupportedOperators(Type type)
+    {
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => method.IsSpecialName)
+            .Where(method => method.Name.StartsWith("op_", StringComparison.Ordinal))
+            .OrderBy(MethodId, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedOperatorReason(type, method);
+            if (reason is null)
+            {
+                continue;
+            }
+            yield return UnsupportedMember(
+                "operator",
+                OperatorSourceName(method.Name),
+                method.Name,
+                MethodId(method),
+                MethodMetadataId(method),
+                true,
+                reason);
+        }
+    }
+
+    string? UnsupportedOperatorReason(Type type, MethodInfo method)
+    {
+        if (UsesDeclaringTypeParameter(method, type))
+        {
+            return "Operators that use declaring generic type parameters require a provider generic-operator declaration model before they can be exposed safely.";
+        }
+        if (Parameters(method.GetParameters()) is null)
+        {
+            return "Operator signature contains a parameter type that cannot be represented as closed .NET target type facts.";
+        }
+        return TypeRef(method.ReturnType) is null
+            ? "Operator return type cannot be represented as closed .NET target type facts."
+            : null;
+    }
+
+    static bool IsConversionOperator(MethodInfo method)
+    {
+        return method.IsSpecialName &&
+            (method.Name == "op_Implicit" || method.Name == "op_Explicit");
+    }
+
+    static object UnsupportedMember(
+        string memberKind,
+        string sourceName,
+        string targetName,
+        string targetId,
+        string metadataName,
+        bool isStatic,
+        string reason)
+    {
+        return new
+        {
+            kind = "unsupported-member",
+            memberKind,
+            sourceName,
+            targetName,
+            targetId,
+            metadataName,
+            @static = isStatic ? true : (bool?)null,
+            reason,
+        };
     }
 
     static bool IsExtensionMethod(MethodInfo method)
@@ -206,38 +586,49 @@ sealed partial class ReflectionProvider
 
     object? MethodSignature(MethodInfo method)
     {
-        var parameters = Parameters(method.GetParameters());
+        var id = MethodId(method);
+        var parameters = Parameters(method.GetParameters(), id);
         var returnType = TypeRef(method.ReturnType);
         if (parameters is null || returnType is null)
         {
             return null;
         }
         var typeParameters = MethodTypeParameters(method);
+        var attributes = AttributeFacts(method.GetCustomAttributesData(), "method", id);
+        var returnAttributes = AttributeFacts(method.ReturnParameter.GetCustomAttributesData(), "return", $"{id}:return");
         return new
         {
-            id = MethodId(method),
+            id,
             targetName = method.Name,
+            attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+            unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
             parameters,
             returnType,
+            returnAttributes = returnAttributes.Supported.Length == 0 ? null : returnAttributes.Supported,
+            unsupportedReturnAttributes = returnAttributes.Unsupported.Length == 0 ? null : returnAttributes.Unsupported,
         };
     }
 
     object? ConstructorSignature(Type type, ConstructorInfo constructor)
     {
-        var parameters = Parameters(constructor.GetParameters());
+        var id = ConstructorId(constructor);
+        var parameters = Parameters(constructor.GetParameters(), id);
         if (parameters is null)
         {
             return null;
         }
+        var attributes = AttributeFacts(constructor.GetCustomAttributesData(), "constructor", id);
         return new
         {
-            id = ConstructorId(constructor),
+            id,
+            attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+            unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             parameters,
         };
     }
 
-    object[]? Parameters(ParameterInfo[] parameters)
+    object[]? Parameters(ParameterInfo[] parameters, string? ownerId = null)
     {
         var result = new List<object>();
         for (var index = 0; index < parameters.Length; index++)
@@ -250,6 +641,10 @@ sealed partial class ReflectionProvider
                 return null;
             }
             var isParamsArray = parameter.GetCustomAttribute<ParamArrayAttribute>() is not null && parameterType.IsArray;
+            var defaultValue = ParameterDefaultValue(parameter, parameterType);
+            var attributes = ownerId is null
+                ? null
+                : AttributeFacts(parameter.GetCustomAttributesData(), "parameter", $"{ownerId}:parameter:{Identifier(parameter.Name ?? $"arg{index}")}");
             result.Add(new
             {
                 name = Identifier(parameter.Name ?? $"arg{index}"),
@@ -257,9 +652,145 @@ sealed partial class ReflectionProvider
                 passingMode = PassingMode(parameter),
                 optional = parameter.IsOptional ? true : (bool?)null,
                 rest = isParamsArray ? true : (bool?)null,
+                defaultValue,
+                attributes = attributes is null || attributes.Supported.Length == 0 ? null : attributes.Supported,
+                unsupportedAttributes = attributes is null || attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             });
         }
         return result.ToArray();
+    }
+
+    object? ParameterDefaultValue(ParameterInfo parameter, Type parameterType)
+    {
+        if (!TryGetRawDefaultValue(parameter, out var value))
+        {
+            return null;
+        }
+        if (value is null)
+        {
+            return new { kind = "null" };
+        }
+
+        parameterType = Nullable.GetUnderlyingType(parameterType) ?? parameterType;
+        if (parameterType.IsEnum)
+        {
+            return EnumParameterDefaultValue(parameterType, value);
+        }
+        if (parameterType == typeof(string) && value is string stringValue)
+        {
+            return new { kind = "string", value = stringValue };
+        }
+
+        var sourcePrimitiveName = SourcePrimitiveName(parameterType);
+        if (sourcePrimitiveName is null)
+        {
+            return null;
+        }
+        var sourcePrimitiveValue = SourcePrimitiveDefaultValue(parameterType, value);
+        return sourcePrimitiveValue is null
+            ? null
+            : new { kind = "source-primitive", name = sourcePrimitiveName, value = sourcePrimitiveValue };
+    }
+
+    static bool TryGetRawDefaultValue(ParameterInfo parameter, out object? value)
+    {
+        value = null;
+        try
+        {
+            if (!parameter.HasDefaultValue)
+            {
+                return false;
+            }
+            value = parameter.RawDefaultValue;
+        }
+        catch (Exception exception) when (
+            exception is FormatException ||
+            exception is InvalidOperationException ||
+            exception is NotSupportedException ||
+            exception is ArgumentException)
+        {
+            value = null;
+            return false;
+        }
+        return value is not DBNull && value is not Missing;
+    }
+
+    static object? EnumParameterDefaultValue(Type enumType, object value)
+    {
+        var underlyingType = Enum.GetUnderlyingType(enumType);
+        var underlyingValue = Convert.ChangeType(value, underlyingType, CultureInfo.InvariantCulture);
+        if (underlyingValue is null)
+        {
+            return null;
+        }
+        var enumValue = Enum.ToObject(enumType, underlyingValue);
+        var fieldName = Enum.GetName(enumType, enumValue);
+        return new
+        {
+            kind = "enum",
+            value = Convert.ToString(underlyingValue, CultureInfo.InvariantCulture),
+            fieldName,
+        };
+    }
+
+    static object? SourcePrimitiveDefaultValue(Type primitiveType, object value)
+    {
+        if (primitiveType == typeof(bool) && value is bool boolValue)
+        {
+            return boolValue;
+        }
+        if (primitiveType == typeof(char) && value is char charValue)
+        {
+            return charValue.ToString();
+        }
+        if (primitiveType == typeof(float))
+        {
+            return Convert.ToSingle(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(double))
+        {
+            return Convert.ToDouble(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(decimal))
+        {
+            return Convert.ToDecimal(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(Half))
+        {
+            return Convert.ToString(value, CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(nint))
+        {
+            return Convert.ToInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(nuint))
+        {
+            return Convert.ToUInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+        }
+        return IsIntegerPrimitive(primitiveType)
+            ? InvariantString(value)
+            : null;
+    }
+
+    static string InvariantString(object value)
+    {
+        return value is IFormattable formattable
+            ? formattable.ToString(null, CultureInfo.InvariantCulture)
+            : value.ToString() ?? "";
+    }
+
+    static bool IsIntegerPrimitive(Type type)
+    {
+        return type == typeof(sbyte) ||
+            type == typeof(byte) ||
+            type == typeof(short) ||
+            type == typeof(ushort) ||
+            type == typeof(int) ||
+            type == typeof(uint) ||
+            type == typeof(long) ||
+            type == typeof(ulong) ||
+            type.FullName == "System.Int128" ||
+            type.FullName == "System.UInt128";
     }
 
     static string PassingMode(ParameterInfo parameter)
@@ -275,5 +806,20 @@ sealed partial class ReflectionProvider
         return parameter.GetCustomAttribute<System.Runtime.InteropServices.InAttribute>() is not null
             ? "byref-readonly"
             : "byref-readwrite";
+    }
+
+    static MethodInfo? EventAccessor(EventInfo eventInfo)
+    {
+        return eventInfo.GetAddMethod(false) ?? eventInfo.GetRemoveMethod(false);
+    }
+
+    static string EventMetadataName(Type declaringType, EventInfo eventInfo)
+    {
+        return $"{MetadataName(declaringType)}.{eventInfo.Name}";
+    }
+
+    static string EventTargetId(Type declaringType, EventInfo eventInfo)
+    {
+        return $"{TargetId(declaringType)}.{eventInfo.Name}";
     }
 }

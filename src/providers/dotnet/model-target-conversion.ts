@@ -1,22 +1,33 @@
 import type {
   TargetConstraint,
+  TargetAttributeArgument,
+  TargetAttributeFact,
+  TargetAttributeValue,
   TargetBindingFact,
   TargetMember,
+  TargetConversionOperatorFact,
   TargetParameter,
   TargetTypeParameter,
   TargetTypeRef,
+  TargetUnsupportedAttributeFact,
 } from "@tsonic/tsts";
 import type {
+  DotnetAttributeArgument,
+  DotnetAttributeDeclaration,
+  DotnetAttributeValue,
   DotnetConstraint,
+  DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
   DotnetMemberDeclaration,
   DotnetParameterDeclaration,
+  DotnetParameterDefaultValue,
   DotnetRenderShape,
   DotnetSignatureDeclaration,
   DotnetTypeDeclaration,
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedAttributeDeclaration,
 } from "./model-types.js";
 import {
   type CsharpTargetBindingFact,
@@ -29,6 +40,14 @@ import {
   csharpTargetNamedType,
   csharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
+
+export type DotnetTargetParameter = TargetParameter & {
+  readonly defaultValue?: DotnetParameterDefaultValue;
+};
+
+export type DotnetTargetMember = TargetMember & {
+  readonly parameters: readonly DotnetTargetParameter[];
+};
 
 export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint): TargetConstraint {
   switch (constraint.kind) {
@@ -60,8 +79,9 @@ export function dotnetExportToTargetBinding(declaration: DotnetExportDeclaration
 }
 
 function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBindingFact {
+  const targetId = requireDotnetTargetId(declaration.targetId, declaration.metadataName);
   const declaredCsharpType = csharpTargetNamedType(
-    declaration.metadataName,
+    targetId,
     declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
     declaration.renderShape === undefined ? undefined : dotnetRenderShapeToCsharpRenderShape(declaration.renderShape),
     csharpTargetMetadataFromDotnetTypeDeclaration(declaration),
@@ -70,13 +90,19 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     ? undefined
     : dotnetTypeRefToTargetTypeRef(declaration.baseType);
   const binding = {
-    id: declaration.metadataName,
+    id: targetId,
     sourceName: declaration.sourceName,
     targetName: declaration.displayName ?? declaration.metadataName,
     target: "csharp",
     kind: dotnetTypeKindToTargetBindingKind(declaration.typeKind),
     csharpType: declaredCsharpType,
     ...(baseType !== undefined ? { csharpBaseType: baseType } : {}),
+    ...(declaration.attributes !== undefined && declaration.attributes.length > 0
+      ? { attributes: declaration.attributes.map(dotnetAttributeToTargetAttribute) }
+      : {}),
+    ...(declaration.unsupportedAttributes !== undefined && declaration.unsupportedAttributes.length > 0
+      ? { unsupportedAttributes: declaration.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+      : {}),
     ...(declaration.typeParameters !== undefined && declaration.typeParameters.length > 0
       ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
@@ -85,6 +111,9 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
       : {}),
     ...(declaration.members !== undefined && declaration.members.length > 0
       ? { members: declaration.members.flatMap((member) => dotnetMemberToTargetMembers(member, declaredCsharpType)) }
+      : {}),
+    ...(declaration.conversionOperators !== undefined && declaration.conversionOperators.length > 0
+      ? { conversionOperators: declaration.conversionOperators.map((operator) => dotnetConversionOperatorToTargetConversionOperator(operator, declaredCsharpType)) }
       : {}),
   } satisfies CsharpTargetBindingFact;
   return binding;
@@ -125,7 +154,7 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
       return member.type === undefined
         ? []
         : [{
-            id: member.metadataName,
+            id: member.targetId,
             sourceName: member.sourceName,
             targetName: member.targetName,
             kind: member.kind,
@@ -134,6 +163,12 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
             ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
             parameters: [],
             returnType: dotnetTypeRefToTargetTypeRef(member.type),
+            ...(member.attributes !== undefined && member.attributes.length > 0
+              ? { attributes: member.attributes.map(dotnetAttributeToTargetAttribute) }
+              : {}),
+            ...(member.unsupportedAttributes !== undefined && member.unsupportedAttributes.length > 0
+              ? { unsupportedAttributes: member.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+              : {}),
           }];
   }
 }
@@ -142,7 +177,7 @@ function dotnetSignatureToTargetMember(
   member: DotnetMemberDeclaration,
   signature: DotnetSignatureDeclaration,
   declaringType: TargetTypeRef,
-): TargetMember {
+): DotnetTargetMember {
   return {
     id: signature.id,
     sourceName: member.sourceName,
@@ -153,6 +188,18 @@ function dotnetSignatureToTargetMember(
     ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
     parameters: signature.parameters.map(dotnetParameterToTargetParameter),
     ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToTargetTypeRef(signature.returnType) } : {}),
+    ...(signature.attributes !== undefined && signature.attributes.length > 0
+      ? { attributes: signature.attributes.map(dotnetAttributeToTargetAttribute) }
+      : {}),
+    ...(signature.unsupportedAttributes !== undefined && signature.unsupportedAttributes.length > 0
+      ? { unsupportedAttributes: signature.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+      : {}),
+    ...(signature.returnAttributes !== undefined && signature.returnAttributes.length > 0
+      ? { returnAttributes: signature.returnAttributes.map(dotnetAttributeToTargetAttribute) }
+      : {}),
+    ...(signature.unsupportedReturnAttributes !== undefined && signature.unsupportedReturnAttributes.length > 0
+      ? { unsupportedReturnAttributes: signature.unsupportedReturnAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+      : {}),
     ...(signature.typeParameters !== undefined && signature.typeParameters.length > 0
       ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
@@ -162,8 +209,21 @@ function dotnetSignatureToTargetMember(
 
 function dotnetTargetMemberOverloadGroup(member: DotnetMemberDeclaration): string {
   return member.kind === "constructor"
-    ? dotnetMetadataNameWithoutSignature(member.metadataName)
-    : member.metadataName;
+    ? dotnetMetadataNameWithoutSignature(member.targetId)
+    : member.targetId;
+}
+
+function dotnetConversionOperatorToTargetConversionOperator(
+  declaration: DotnetConversionOperatorDeclaration,
+  declaringType: TargetTypeRef,
+): TargetConversionOperatorFact {
+  return {
+    id: declaration.id,
+    conversionKind: declaration.conversionKind,
+    declaringType,
+    sourceType: dotnetTypeRefToTargetTypeRef(declaration.sourceType),
+    targetType: dotnetTypeRefToTargetTypeRef(declaration.targetType),
+  };
 }
 
 function dotnetMetadataNameWithoutSignature(metadataName: string): string {
@@ -171,14 +231,80 @@ function dotnetMetadataNameWithoutSignature(metadataName: string): string {
   return signatureStart === -1 ? metadataName : metadataName.slice(0, signatureStart);
 }
 
-function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration): TargetParameter {
+function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration): DotnetTargetParameter {
   return {
     name: parameter.name,
     type: dotnetTypeRefToTargetTypeRef(parameter.type),
     passingMode: parameter.passingMode,
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),
+    ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+    ...(parameter.attributes !== undefined && parameter.attributes.length > 0
+      ? { attributes: parameter.attributes.map(dotnetAttributeToTargetAttribute) }
+      : {}),
+    ...(parameter.unsupportedAttributes !== undefined && parameter.unsupportedAttributes.length > 0
+      ? { unsupportedAttributes: parameter.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+      : {}),
   };
+}
+
+function dotnetAttributeToTargetAttribute(attribute: DotnetAttributeDeclaration): TargetAttributeFact {
+  return {
+    id: attribute.id,
+    target: attribute.target,
+    attributeType: dotnetTypeRefToTargetTypeRef(attribute.attributeType),
+    constructorId: attribute.constructorId,
+    ...(attribute.arguments !== undefined && attribute.arguments.length > 0
+      ? { arguments: attribute.arguments.map(dotnetAttributeArgumentToTargetAttributeArgument) }
+      : {}),
+    ...(attribute.evidence !== undefined ? { evidence: attribute.evidence } : {}),
+  };
+}
+
+function dotnetUnsupportedAttributeToTargetUnsupportedAttribute(attribute: DotnetUnsupportedAttributeDeclaration): TargetUnsupportedAttributeFact {
+  return {
+    id: attribute.id,
+    target: attribute.target,
+    ...(attribute.attributeType !== undefined && attribute.attributeType !== null ? { attributeType: dotnetTypeRefToTargetTypeRef(attribute.attributeType) } : {}),
+    ...(attribute.constructorId !== undefined ? { constructorId: attribute.constructorId } : {}),
+    reason: attribute.reason,
+    ...(attribute.evidence !== undefined ? { evidence: attribute.evidence } : {}),
+  };
+}
+
+function dotnetAttributeArgumentToTargetAttributeArgument(argument: DotnetAttributeArgument): TargetAttributeArgument {
+  switch (argument.kind) {
+    case "constructor":
+      return { kind: "constructor", value: dotnetAttributeValueToTargetAttributeValue(argument.value) };
+    case "named":
+      return {
+        kind: "named",
+        name: argument.name,
+        memberKind: argument.memberKind,
+        value: dotnetAttributeValueToTargetAttributeValue(argument.value),
+      };
+  }
+}
+
+function dotnetAttributeValueToTargetAttributeValue(value: DotnetAttributeValue): TargetAttributeValue {
+  switch (value.kind) {
+    case "null":
+    case "string":
+      return value;
+    case "source-primitive":
+      return value;
+    case "type":
+      return { kind: "type", type: dotnetTypeRefToTargetTypeRef(value.type) };
+    case "enum":
+      return {
+        kind: "enum",
+        type: dotnetTypeRefToTargetTypeRef(value.type),
+        value: value.value,
+        ...(value.fieldName !== undefined ? { fieldName: value.fieldName } : {}),
+      };
+    case "array":
+      return { kind: "array", elements: value.elements.map(dotnetAttributeValueToTargetAttributeValue) };
+  }
 }
 
 export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef {
@@ -207,8 +333,9 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "provider-ref":
       throw new Error("Provider-ref is a source declaration shape only and cannot be emitted as a target type.");
     case "named":
+      const targetId = requireDotnetTargetId(type.targetId, type.metadataName);
       return csharpTargetNamedType(
-        type.metadataName,
+        targetId,
         type.typeArguments?.map(dotnetTypeRefToTargetTypeRef),
         type.renderShape === undefined ? undefined : dotnetRenderShapeToCsharpRenderShape(type.renderShape),
         csharpTargetMetadataFromDotnetTypeRef(type),
@@ -248,6 +375,13 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "opaque":
       return { kind: "opaque", id: type.id };
   }
+}
+
+function requireDotnetTargetId(targetId: string | undefined, metadataName: string): string {
+  if (typeof targetId !== "string" || targetId.length === 0) {
+    throw new Error(`Missing canonical .NET targetId for '${metadataName}'. .NET target facts must be assembly-qualified and must not fall back to metadataName.`);
+  }
+  return targetId;
 }
 
 function csharpTargetMetadataFromDotnetTypeRef(

@@ -46,7 +46,7 @@ export function getSymbolForDeclarationLookup(
   if (!isSymbolLookupNode(ast, node) || isTypeOnlySymbolLookupPosition(ast, node)) {
     return undefined;
   }
-  if (isControlFlowLabelIdentifier(ast, node)) {
+  if (isControlFlowLabelIdentifier(ast, node) || isPropertyAccessName(ast, node)) {
     return undefined;
   }
   const symbol = checker.getSymbolAtLocation(node, { sourceFile });
@@ -58,6 +58,16 @@ export function getSymbolForDeclarationLookup(
   } catch {
     return undefined;
   }
+}
+
+function isPropertyAccessName(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  const parent = ast.parent(node);
+  return parent !== undefined &&
+    ast.is.IsPropertyAccessExpression(parent) &&
+    ast.name(parent) === node;
 }
 
 function isTypeOnlySymbolLookupPosition(

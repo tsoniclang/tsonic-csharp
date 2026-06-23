@@ -2,6 +2,7 @@ import {
   acceptObservation,
   deferObservation,
   ExtensionObservationPoint,
+  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionEvidence,
@@ -29,14 +30,19 @@ import {
 } from "../csharp-facts.js";
 import {
   getAstReaderChildNodes,
+  getNodeField,
 } from "./ast-utils.js";
 import {
   getCsharpNullableElementTargetType,
+  isCsharpAnyRuntimeCarrier,
 } from "./target-types.js";
 import {
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "./target-ref-utils.js";
+import {
+  getBinaryOperatorText,
+} from "./operator-syntax.js";
 
 type CsharpTargetAssignabilityValidation =
   | {
@@ -111,6 +117,7 @@ function validateObservedAssignabilityFactsForNode(
   }
   const fact = context.facts.get(node, csharpObservedTargetAssignabilityFactKey);
   if (fact === undefined) {
+    diagnoseAnyTypedBoundaryForNode(node, context);
     return;
   }
   const source = host.getTargetTypeRefForSubject(fact.source, context);
@@ -130,6 +137,106 @@ function validateObservedAssignabilityFactsForNode(
     evidence: validation.evidence,
     identity: `csharp-target-assignability:${subjectIdentity(fact.expression ?? fact.errorNode ?? fact.target)}`,
   });
+}
+
+function diagnoseAnyTypedBoundaryForNode(
+  node: Node,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): void {
+  const compiler = context.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const ast = compiler.ast;
+  if (ast.is.IsBinaryExpression(node) && getBinaryOperatorText(ast, node) === "=") {
+    appendAnyBoundaryDiagnostic(
+      node,
+      context,
+      context.facts.get(asNode(getNodeField(node, "Right")), runtimeCarrierFactKey)?.carrier,
+      context.facts.get(asNode(getNodeField(node, "Left")), runtimeCarrierFactKey)?.carrier,
+    );
+    return;
+  }
+  const kind = ast.kindName(node);
+  if (kind === "KindVariableDeclaration" || kind === "KindPropertyDeclaration") {
+    appendAnyBoundaryDiagnostic(
+      node,
+      context,
+      context.facts.get(asNode(getNodeField(node, "Initializer")), runtimeCarrierFactKey)?.carrier,
+      context.facts.get(node, runtimeCarrierFactKey)?.carrier ??
+        context.facts.get(asNode(getNodeField(node, "Type")), runtimeCarrierFactKey)?.carrier,
+    );
+    return;
+  }
+  if (kind === "KindReturnStatement") {
+    appendAnyBoundaryDiagnostic(
+      node,
+      context,
+      context.facts.get(asNode(getNodeField(node, "Expression")), runtimeCarrierFactKey)?.carrier,
+      getEnclosingReturnTargetCarrier(node, context),
+    );
+  }
+}
+
+function appendAnyBoundaryDiagnostic(
+  node: Node,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  source: TargetTypeRef | undefined,
+  target: TargetTypeRef | undefined,
+): void {
+  if (!isAnyBoundary(source, target)) {
+    return;
+  }
+  context.diagnostics.append({
+    ...csharpProviderDiagnostic(
+      context.extensionId,
+      "CSHARP_TARGET_ASSIGNABILITY_INVALID",
+      9100120,
+      "C# target assignment cannot cross a TypeScript any boundary without finalized target capability facts for the runtime carrier.",
+    ),
+    nodeOrSpan: node,
+    evidence: [
+      { message: "C# target validation reason", details: "A typed boundary uses the opaque any runtime carrier without a finalized target conversion or dynamic carrier operation." },
+      { message: "Source C# target type", details: source },
+      { message: "Target C# target type", details: target },
+    ],
+    identity: `csharp-target-assignability:${subjectIdentity(node)}`,
+  });
+}
+
+function isAnyBoundary(source: TargetTypeRef | undefined, target: TargetTypeRef | undefined): boolean {
+  const sourceAny = isCsharpAnyRuntimeCarrier(source);
+  const targetAny = isCsharpAnyRuntimeCarrier(target);
+  return source !== undefined && target !== undefined && sourceAny !== targetAny;
+}
+
+function getEnclosingReturnTargetCarrier(
+  returnStatement: Node,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  let current = ast.parent(returnStatement);
+  while (current !== undefined) {
+    const kind = ast.kindName(current);
+    if (
+      kind === "KindFunctionDeclaration" ||
+      kind === "KindMethodDeclaration" ||
+      kind === "KindFunctionExpression" ||
+      kind === "KindArrowFunction" ||
+      kind === "KindGetAccessor"
+    ) {
+      return context.facts.get(asNode(getNodeField(current, "Type")), runtimeCarrierFactKey)?.carrier;
+    }
+    current = ast.parent(current);
+  }
+  return undefined;
+}
+
+function asNode(value: unknown): Node | undefined {
+  return value !== undefined && value !== null && typeof value === "object" ? value as Node : undefined;
 }
 
 function validateCsharpTargetAssignability(
@@ -156,6 +263,9 @@ function validateCsharpTargetAssignability(
       evidence: [{ message: "C# post-check target assignability matched identical finalized target types." }],
     };
   }
+  if (isCsharpAnyRuntimeCarrier(source) || isCsharpAnyRuntimeCarrier(target)) {
+    return invalidAnyAssignability(source, target);
+  }
   const nullableTargetElement = getCsharpNullableElementTargetType(target);
   if (nullableTargetElement !== undefined && targetTypeRefEquals(source, nullableTargetElement)) {
     return {
@@ -172,6 +282,19 @@ function validateCsharpTargetAssignability(
       message: "C# post-check target assignability has no target-specific rule for this finalized source/target carrier pair.",
       details: { source, target },
     }],
+  };
+}
+
+function invalidAnyAssignability(source: TargetTypeRef, target: TargetTypeRef): CsharpTargetAssignabilityValidation {
+  return {
+    kind: "invalid",
+    message: "C# target assignment cannot cross a TypeScript any boundary without finalized target capability facts for the runtime carrier.",
+    evidence: [
+      { message: "TSTS relation decision", details: "TypeScript assignability was accepted before C# target validation observed the operation." },
+      { message: "C# target validation reason", details: "The source or target finalized to the opaque any runtime carrier, which is not a renderable or dynamic C# target type." },
+      { message: "Source C# target type", details: source },
+      { message: "Target C# target type", details: target },
+    ],
   };
 }
 

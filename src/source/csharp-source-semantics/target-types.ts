@@ -333,6 +333,14 @@ export function csharpSourcePrimitiveTargetType(kind: SourcePrimitiveKind): Targ
   return { kind: "source-primitive", name: kind };
 }
 
+export function csharpAnyRuntimeCarrier(): TargetTypeRef {
+  return { kind: "opaque", id: "any" };
+}
+
+export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "opaque" && type.id === "any";
+}
+
 export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" && (type as CsharpTargetNamedTypeRef).csharpThrowable === true;
 }

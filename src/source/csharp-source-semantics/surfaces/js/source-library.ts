@@ -59,6 +59,7 @@ export interface CsharpJsSurfaceHost {
     options?: CsharpJsTargetTypeRefResolutionOptions,
   ) => TargetTypeRef | undefined;
   readonly getCsharpTargetBindingByTargetId?: CsharpTargetEnrichmentHost["getCsharpTargetBindingByTargetId"];
+  readonly getCsharpTargetBindingByMetadataName?: CsharpTargetEnrichmentHost["getCsharpTargetBindingByMetadataName"];
   readonly unwrapNullableTargetType: (type: TargetTypeRef | undefined) => TargetTypeRef | undefined;
   readonly isCsharpStringType: (type: TargetTypeRef | undefined) => boolean;
   readonly isIntegralTargetTypeRef: (type: TargetTypeRef | undefined) => boolean;

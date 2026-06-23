@@ -28,6 +28,9 @@ import {
   getCsharpConversionOperation,
 } from "./target-rules.js";
 import {
+  getCsharpProviderConversionOperator,
+} from "./provider-conversion-operators.js";
+import {
   targetOperation,
 } from "./operations.js";
 import {
@@ -106,30 +109,49 @@ export function mapCsharpCheckedConversion(
   const selectedSignatureReturn = context.facts.get(request.source, selectedTargetSignatureFactKey)?.member.returnType;
   if (selectedSignatureReturn !== undefined && targetTypeRefEquals(selectedSignatureReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
+      ...(source !== undefined ? { sourceType: source } : {}),
       convertedType: target,
     }, [{ message: "C# selected target operation already returns the selected target type." }]);
   }
   const csharpOperationReturn = context.facts.get(request.source, csharpTargetOperationFactKey)?.resultType;
   if (csharpOperationReturn !== undefined && targetTypeRefEquals(csharpOperationReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
+      ...(source !== undefined ? { sourceType: source } : {}),
       convertedType: target,
     }, [{ message: "C# finalized target operation already returns the selected target type." }]);
   }
   if (source !== undefined && targetTypeRefEquals(source, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
+      sourceType: source,
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);
   }
   if (isLiteralRepresentableAsTargetType(target, request.source, context)) {
     return acceptObservation<CheckedConversionMappingResult>({
+      ...(source !== undefined ? { sourceType: source } : {}),
       convertedType: target,
     }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
+  }
+  const providerConversion = getCsharpProviderConversionOperator(source, target, host, "implicit-only");
+  if (providerConversion.kind === "matched") {
+    context.facts.set(
+      request.source,
+      csharpTargetConversionOperationFactKey,
+      providerConversion.csharpOperation,
+      [{ message: "C# provider implicit conversion operator recorded from reflected target member facts." }],
+    );
+    return acceptObservation<CheckedConversionMappingResult>({
+      sourceType: providerConversion.operator.sourceType,
+      convertedType: target,
+      operation: providerConversion.operation,
+    }, [{ message: "C# target conversion recorded from reflected provider implicit conversion operator." }]);
   }
   const operation = getCsharpConversionOperation(source, target);
   if (operation !== undefined) {
     context.facts.set(request.source, csharpTargetConversionOperationFactKey, operation.csharpOperation, [{ message: "C# target conversion static member recorded from selected target conversion." }]);
   }
   return acceptObservation<CheckedConversionMappingResult>({
+    ...(source !== undefined ? { sourceType: source } : {}),
     convertedType: target,
     ...(operation !== undefined ? { operation: operation.operation } : {}),
   }, [{ message: "C# target conversion recorded from checked call argument and selected target parameter." }]);

@@ -86,6 +86,10 @@ export type CsharpTargetIterationLowering =
       readonly lengthMember: string;
       readonly keyConversion: "invariant-string";
     }
+  | {
+      readonly kind: "key-collection";
+      readonly keysMember: CsharpTargetMemberOperationFact;
+    }
   | { readonly kind: "object-shape-keys" };
 
 export interface CsharpRegularExpressionLiteralFact {
@@ -99,7 +103,8 @@ export type CsharpTargetOperationFact =
   | CsharpTargetIntrinsicOperatorOperationFact
   | CsharpTargetTypeofRuntimeOperationFact
   | CsharpTargetTypeofComparisonOperationFact
-  | CsharpTargetCastOperationFact;
+  | CsharpTargetCastOperationFact
+  | CsharpTargetConversionOperatorOperationFact;
 
 export interface CsharpTargetMemberOperationFact {
   readonly kind: "member";
@@ -151,6 +156,16 @@ export interface CsharpTargetTypeofComparisonOperationFact {
 export interface CsharpTargetCastOperationFact {
   readonly kind: "cast";
   readonly operationId: string;
+  readonly targetType: TargetTypeRef;
+  readonly resultType?: TargetTypeRef;
+}
+
+export interface CsharpTargetConversionOperatorOperationFact {
+  readonly kind: "conversion-operator";
+  readonly operationId: string;
+  readonly conversionKind: "implicit" | "explicit";
+  readonly declaringType: TargetTypeRef;
+  readonly sourceType: TargetTypeRef;
   readonly targetType: TargetTypeRef;
   readonly resultType?: TargetTypeRef;
 }
@@ -245,6 +260,13 @@ function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right:
       return right.kind === "cast"
         && targetTypeRefEquals(left.targetType, right.targetType)
         && targetTypeRefEquals(left.resultType, right.resultType);
+    case "conversion-operator":
+      return right.kind === "conversion-operator"
+        && left.conversionKind === right.conversionKind
+        && targetTypeRefEquals(left.declaringType, right.declaringType)
+        && targetTypeRefEquals(left.sourceType, right.sourceType)
+        && targetTypeRefEquals(left.targetType, right.targetType)
+        && targetTypeRefEquals(left.resultType, right.resultType);
   }
 }
 
@@ -287,6 +309,9 @@ function csharpTargetIterationLoweringEquals(left: CsharpTargetIterationLowering
       return right.kind === "index-key"
         && left.lengthMember === right.lengthMember
         && left.keyConversion === right.keyConversion;
+    case "key-collection":
+      return right.kind === "key-collection"
+        && csharpTargetMemberOperationFactEquals(left.keysMember, right.keysMember);
   }
 }
 
@@ -352,8 +377,36 @@ function targetParameterArrayEquals(left: readonly TargetParameter[] | undefined
       && parameter.passingMode === other.passingMode
       && parameter.optional === other.optional
       && parameter.paramsArray === other.paramsArray
+      && targetOwnedParameterMetadataEquals(parameter, other)
       && targetTypeRefEquals(parameter.type, other.type);
   });
+}
+
+function targetOwnedParameterMetadataEquals(left: TargetParameter, right: TargetParameter): boolean {
+  return simpleMetadataEquals(
+    (left as { readonly defaultValue?: unknown }).defaultValue,
+    (right as { readonly defaultValue?: unknown }).defaultValue,
+  );
+}
+
+function simpleMetadataEquals(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+  if (!isPlainRecord(left) || !isPlainRecord(right)) {
+    return false;
+  }
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key, index) => {
+      const rightKey = rightKeys[index];
+      return key === rightKey && simpleMetadataEquals(left[key], right[rightKey]);
+    });
+}
+
+function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function targetTypeParameterArrayEquals(left: readonly TargetTypeParameter[] | undefined, right: readonly TargetTypeParameter[] | undefined): boolean {

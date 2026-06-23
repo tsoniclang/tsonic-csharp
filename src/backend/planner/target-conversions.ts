@@ -11,6 +11,9 @@ import {
 import {
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
+import type {
+  CsharpTargetOperationFact,
+} from "../../source/csharp-facts.js";
 import {
   targetTypeRefEquals,
 } from "../../source/csharp-source-semantics/target-ref-utils.js";
@@ -73,7 +76,7 @@ function planTargetConversionOperation(
     case "constructor":
       return planTargetConversionConstructor(node, conversion, expression, diagnostics);
     case "operator":
-      return planTargetConversionOperator(node, input, operation, expression, diagnostics);
+      return planTargetConversionOperator(node, input, operation, conversion, expression, diagnostics);
     default:
       diagnostics.push(unsupportedNodeDiagnostic(node, `Target conversion operation '${operation.operationKind}' is not renderable by the C# backend.`));
       return invalidExpression("unsupported target conversion operation");
@@ -134,6 +137,7 @@ function planTargetConversionOperator(
   node: Node,
   input: TargetCompileInput,
   operation: TargetOperationFact,
+  conversion: TargetConversion,
   expression: CsharpExpression,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
@@ -142,8 +146,14 @@ function planTargetConversionOperator(
     return invalidExpression("target conversion operator");
   }
   if (csharpOperation.kind !== "cast") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `C# target conversion operator emission requires a finalized C# cast operation fact, but provider recorded '${csharpOperation.kind}'.`));
-    return invalidExpression("target conversion operator kind");
+    if (csharpOperation.kind !== "conversion-operator") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, `C# target conversion operator emission requires a finalized C# cast or conversion-operator fact, but provider recorded '${csharpOperation.kind}'.`));
+      return invalidExpression("target conversion operator kind");
+    }
+    if (!isMatchingConversionOperatorFact(csharpOperation, conversion)) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "C# target conversion operator emission received mismatched source or target conversion facts."));
+      return invalidExpression("target conversion operator mismatch");
+    }
   }
   const targetType = csharpTypeFromTargetTypeRef(csharpOperation.targetType);
   if (targetType === undefined) {
@@ -155,4 +165,14 @@ function planTargetConversionOperator(
     type: targetType,
     expression,
   };
+}
+
+function isMatchingConversionOperatorFact(
+  csharpOperation: Extract<CsharpTargetOperationFact, { readonly kind: "conversion-operator" }>,
+  conversion: TargetConversion,
+): boolean {
+  return conversion.sourceType !== undefined &&
+    conversion.convertedType !== undefined &&
+    targetTypeRefEquals(csharpOperation.sourceType, conversion.sourceType) &&
+    targetTypeRefEquals(csharpOperation.targetType, conversion.convertedType);
 }

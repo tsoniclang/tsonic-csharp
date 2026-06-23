@@ -19,6 +19,7 @@ import {
   getNodeList,
   getNodeNameText,
   isControlFlowLabelIdentifier,
+  isSemanticTypeQueryableValueExpressionNode,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
@@ -268,9 +269,12 @@ function getSemanticTypeForObjectShapeSubject(
     return undefined;
   }
   try {
-    return isTypeSyntaxNode(compiler.ast, node)
-      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
-      : compiler.checker.getTypeAtLocation(node, { sourceFile });
+    if (isTypeSyntaxNode(compiler.ast, node)) {
+      return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+    }
+    return isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
+      ? compiler.checker.getTypeAtLocation(node, { sourceFile })
+      : undefined;
   } catch {
     return undefined;
   }
