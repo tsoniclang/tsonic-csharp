@@ -69,6 +69,28 @@ test("C# post-check target assignability cannot make TypeScript-invalid assignme
   assert.equal(targetDiagnostics.length, 0);
 });
 
+test("C# post-check target assignability fails closed on TypeScript any boundaries", () => {
+  const sourceText = `
+    declare let value: any;
+    declare let target: number;
+    target = value;
+  `;
+  const session = createNativeSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  session.finalizeExtensions();
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 1);
+  assert.match(targetDiagnostics[0].message, /TypeScript any boundary/);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
+});
+
 function createSearchValuesSession(sourceText) {
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -108,6 +130,28 @@ function createSearchValuesSession(sourceText) {
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createProviderBackedSearchValuesExtension(),
+        createCsharpNativeProviderExtension(csharpProviderContext()),
+      ],
+    },
+  });
+}
+
+function createNativeSession(sourceText) {
+  return createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strictNullChecks: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpNativeProviderExtension(csharpProviderContext()),
       ],
     },

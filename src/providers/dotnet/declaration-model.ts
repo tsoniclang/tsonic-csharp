@@ -413,6 +413,9 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
 }
 
 function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): ProviderMemberDeclaration | undefined {
+  if (member.kind === "event") {
+    return undefined;
+  }
   if (member.kind !== "constructor" && member.sourceName === "constructor") {
     return undefined;
   }
@@ -546,7 +549,7 @@ function dotnetMemberKindToProviderKind(kind: DotnetMemberDeclaration["kind"]): 
     case "indexer":
       return kind;
     case "event":
-      return "property";
+      throw new Error("C# events are target-only until source event subscription semantics are modeled.");
     case "operator":
       return "method";
   }

@@ -256,7 +256,18 @@ function getCheckedExpressionRuntimeCarrierTargetTypeRef(
     if (directCarrier !== undefined) {
       return directCarrier;
     }
-    if (type === undefined || !compiler.types.isUnion(type)) {
+    if (type === undefined) {
+      return undefined;
+    }
+    if (compiler.types.isAny(type)) {
+      const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
+        type,
+        sourceTypeReference: node,
+        target: csharpTargetId,
+      }, selectedSurfaceIds, host);
+      return result.kind === "accept" ? result.value.carrier : undefined;
+    }
+    if (!compiler.types.isUnion(type)) {
       return undefined;
     }
     const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {

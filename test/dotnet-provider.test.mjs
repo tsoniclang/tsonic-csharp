@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   createDotnetReflectionTypeDataProvider,
@@ -10,6 +13,8 @@ import {
 import {
   dotnetExportToTargetBinding,
 } from "../dist/providers/dotnet/model.js";
+
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
@@ -460,6 +465,92 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
   assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Environment.SpecialFolder"));
 });
 
+test(".NET reflection provider records events as target facts and omits source declarations", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.Diagnostics.js", {});
+  assert.equal("exports" in module, true);
+
+  const rawProcess = module.exports.find((declaration) => declaration.sourceName === "Process");
+  assert.ok(rawProcess);
+  const rawExited = rawProcess.members.find((member) =>
+    member.kind === "event" &&
+    member.sourceName === "exited" &&
+    member.targetName === "Exited"
+  );
+  assert.ok(rawExited);
+  assert.equal(rawExited.metadataName, "System.Diagnostics.Process.Exited");
+  assert.equal(rawExited.type.kind, "named");
+  assert.equal(rawExited.type.metadataName, "System.EventHandler");
+  assert.equal(rawExited.type.sourceShape?.kind, "function");
+  const unsupportedExited = rawProcess.unsupportedMembers?.find((member) =>
+    member.kind === "unsupported-member" &&
+    member.memberKind === "event" &&
+    member.metadataName === "System.Diagnostics.Process.Exited"
+  );
+  assert.ok(unsupportedExited);
+  assert.match(unsupportedExited.reason, /add\/remove subscription semantics/);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const process = declarationModel.exports.find((declaration) => declaration.name === "Process");
+  assert.ok(process);
+  assert.equal(process.members?.some((member) => member.name === "exited"), false);
+
+  const binding = provider.findTargetBindingByTargetId("System.Diagnostics.Process");
+  assert.ok(binding);
+  const targetExited = binding.members.find((member) =>
+    member.kind === "event" &&
+    member.sourceName === "exited" &&
+    member.targetName === "Exited"
+  );
+  assert.ok(targetExited);
+  assert.deepEqual(targetExited.parameters, []);
+  assert.equal(targetExited.returnType.kind, "target-named");
+  assert.equal(targetExited.returnType.id, "System.EventHandler");
+});
+
+test(".NET reflection provider records unsupported source events without dropping target facts", () => {
+  const reference = buildUnsupportedEventFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderEventFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const rawEventSource = module.exports.find((declaration) => declaration.sourceName === "EventSource");
+  assert.ok(rawEventSource);
+  const rawPointerEvent = rawEventSource.members.find((member) =>
+    member.kind === "event" &&
+    member.sourceName === "pointerEvent" &&
+    member.targetName === "PointerEvent"
+  );
+  assert.ok(rawPointerEvent);
+  assert.equal(rawPointerEvent.type.kind, "named");
+  assert.equal(rawPointerEvent.type.metadataName, "ProviderEventFixtures.PointerEventHandler");
+  assert.equal(rawPointerEvent.type.sourceShape, undefined);
+
+  const unsupportedPointerEvent = rawEventSource.unsupportedMembers?.find((member) =>
+    member.kind === "unsupported-member" &&
+    member.memberKind === "event" &&
+    member.metadataName === "ProviderEventFixtures.EventSource.PointerEvent"
+  );
+  assert.ok(unsupportedPointerEvent);
+  assert.match(unsupportedPointerEvent.reason, /add\/remove subscription semantics/);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const eventSource = declarationModel.exports.find((declaration) => declaration.name === "EventSource");
+  assert.ok(eventSource);
+  assert.equal(eventSource.members?.some((member) => member.name === "pointerEvent"), false);
+
+  const binding = provider.findTargetBindingByTargetId("ProviderEventFixtures.EventSource");
+  assert.ok(binding);
+  const targetPointerEvent = binding.members.find((member) =>
+    member.kind === "event" &&
+    member.sourceName === "pointerEvent" &&
+    member.targetName === "PointerEvent"
+  );
+  assert.ok(targetPointerEvent);
+  assert.equal(targetPointerEvent.returnType.kind, "target-named");
+  assert.equal(targetPointerEvent.returnType.id, "ProviderEventFixtures.PointerEventHandler");
+});
+
 test(".NET reflection provider keeps unmodelled nested CLR types out of source declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
@@ -679,3 +770,21 @@ test(".NET reflection provider classifies unsupported type families without sile
   assert.equal(provider.findTargetBindingByTargetId("System.Action`1")?.kind, "delegate");
   assert.equal(provider.findTargetBindingByTargetId("System.Func`2")?.kind, "delegate");
 });
+
+function buildUnsupportedEventFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/unsupported-event/UnsupportedEventProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-event/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-event/obj/");
+  const result = spawnSync("dotnet", [
+    "build",
+    project,
+    "--nologo",
+    "--verbosity",
+    "quiet",
+    "--output",
+    outputDirectory,
+    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  return join(outputDirectory, "UnsupportedEventProviderFixture.dll");
+}

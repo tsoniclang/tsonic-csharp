@@ -26,6 +26,11 @@ sealed partial class ReflectionProvider
             yield return member;
         }
 
+        foreach (var member in Events(type))
+        {
+            yield return member;
+        }
+
         foreach (var group in Methods(type).GroupBy(MethodGroupKey))
         {
             var first = group.First();
@@ -64,6 +69,11 @@ sealed partial class ReflectionProvider
                 signatures,
             };
         }
+    }
+
+    object[] UnsupportedMembers(Type type)
+    {
+        return UnsupportedSourceEvents(type).ToArray();
     }
 
     IEnumerable<object> Constructors(Type type)
@@ -180,6 +190,74 @@ sealed partial class ReflectionProvider
         }
     }
 
+    IEnumerable<object> Events(Type type)
+    {
+        foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(eventInfo => eventInfo.Name, StringComparer.Ordinal))
+        {
+            var eventHandlerType = eventInfo.EventHandlerType;
+            if (eventHandlerType is null)
+            {
+                continue;
+            }
+            var typeRef = TypeRef(eventHandlerType);
+            if (typeRef is null)
+            {
+                continue;
+            }
+            var accessor = EventAccessor(eventInfo);
+            if (accessor is null)
+            {
+                continue;
+            }
+            yield return new
+            {
+                kind = "event",
+                sourceName = LowerCamel(eventInfo.Name),
+                targetName = eventInfo.Name,
+                metadataName = EventMetadataName(type, eventInfo),
+                @static = accessor.IsStatic ? true : (bool?)null,
+                type = typeRef,
+            };
+        }
+    }
+
+    IEnumerable<object> UnsupportedSourceEvents(Type type)
+    {
+        foreach (var eventInfo in type.GetEvents(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(eventInfo => eventInfo.Name, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedSourceEventReason(eventInfo);
+            if (reason is null)
+            {
+                continue;
+            }
+            var accessor = EventAccessor(eventInfo);
+            yield return new
+            {
+                kind = "unsupported-member",
+                memberKind = "event",
+                sourceName = LowerCamel(eventInfo.Name),
+                targetName = eventInfo.Name,
+                metadataName = EventMetadataName(type, eventInfo),
+                @static = accessor?.IsStatic == true ? true : (bool?)null,
+                reason,
+            };
+        }
+    }
+
+    string? UnsupportedSourceEventReason(EventInfo eventInfo)
+    {
+        var eventHandlerType = eventInfo.EventHandlerType;
+        if (eventHandlerType is null)
+        {
+            return "Event has no provider-visible event-handler type, so no source event declaration can be generated.";
+        }
+        if (TypeRef(eventHandlerType) is null)
+        {
+            return "Event handler type cannot be represented as closed .NET target type facts.";
+        }
+        return "C# events require explicit add/remove subscription semantics; the provider records this event as a target-only member until source event facts exist.";
+    }
+
     IEnumerable<MethodInfo> Methods(Type type)
     {
         return type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
@@ -275,5 +353,15 @@ sealed partial class ReflectionProvider
         return parameter.GetCustomAttribute<System.Runtime.InteropServices.InAttribute>() is not null
             ? "byref-readonly"
             : "byref-readwrite";
+    }
+
+    static MethodInfo? EventAccessor(EventInfo eventInfo)
+    {
+        return eventInfo.GetAddMethod(false) ?? eventInfo.GetRemoveMethod(false);
+    }
+
+    static string EventMetadataName(Type declaringType, EventInfo eventInfo)
+    {
+        return $"{MetadataName(declaringType)}.{eventInfo.Name}";
     }
 }

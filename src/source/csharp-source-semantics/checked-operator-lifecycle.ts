@@ -33,6 +33,9 @@ import {
   isSourceEnumTargetTypeRef,
 } from "./target-rules.js";
 import {
+  isCsharpAnyRuntimeCarrier,
+} from "./target-types.js";
+import {
   getCheckedOperatorOperandQuery,
   getCsharpOperatorResultTypeRefForOperator,
   getLiteralTargetTypeRefForKnownOperatorOperand,
@@ -122,6 +125,9 @@ function getCsharpCheckedOperatorFactsFromSyntax(
       getNullishTargetTypeRefForKnownOperatorOperand(right, leftSubject, sourceFile, context);
   }
   if (left === undefined || (rightSubject !== undefined && right === undefined)) {
+    return undefined;
+  }
+  if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
     return undefined;
   }
   if (operator !== "=" && (left.kind === "type-parameter" || right?.kind === "type-parameter")) {

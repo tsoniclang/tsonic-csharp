@@ -14,6 +14,7 @@ export type {
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedMemberDeclaration,
   DotnetUnsupportedNestedTypeExportDeclaration,
   DotnetUnsupportedExportDeclaration,
   DotnetUnsupportedTypeFamilyExportDeclaration,

@@ -8,13 +8,16 @@ import {
   formatDiagnostics,
   pointerFactKey,
   runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
   targetConversionFactKey,
+  targetOperationFactKey,
 } from "@tsonic/tsts";
 import {
   createCsharpNativeProviderExtension,
   createCsharpSourceSemanticsExtension,
 } from "../dist/index.js";
 import {
+  csharpTargetOperationFactKey,
   csharpTargetConversionOperationFactKey,
 } from "../dist/source/csharp-facts.js";
 import { providerExportDeclarationsForModule } from "../dist/source/csharp-source-semantics/core-virtual-declarations.js";
@@ -30,6 +33,102 @@ test("source-semantics virtual attribute helpers do not introduce any-typed lane
 
   assert.equal(serialized.includes('"kind":"any"'), false);
   assert.equal(serialized.includes('"kind":"unknown"'), true);
+});
+
+test("source-semantics records opaque any carriers without promoting unknown or object", () => {
+  const sourceText = `
+    declare let dynamicValue: any;
+    declare let unknownValue: unknown;
+    declare let objectValue: object;
+
+    dynamicValue;
+    dynamicValue["field"];
+    dynamicValue();
+    unknownValue;
+    objectValue;
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      module: "esnext",
+      moduleResolution: "bundler",
+      strictNullChecks: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpNativeProviderExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const dynamicCarriers = collectIdentifiersByText(sourceFile, session.ast, "dynamicValue")
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier)
+    .filter((carrier) => carrier !== undefined);
+  const unknownCarriers = collectIdentifiersByText(sourceFile, session.ast, "unknownValue")
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier)
+    .filter((carrier) => carrier !== undefined);
+  const objectCarriers = collectIdentifiersByText(sourceFile, session.ast, "objectValue")
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier)
+    .filter((carrier) => carrier !== undefined);
+
+  assert.ok(dynamicCarriers.length >= 2);
+  assert.deepEqual([...new Set(dynamicCarriers.map((carrier) => `${carrier.kind}:${carrier.id}`))], ["opaque:any"]);
+  assert.deepEqual(unknownCarriers, []);
+  assert.deepEqual(objectCarriers, []);
+  const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
+  const call = collectNodesByKind(sourceFile, session.ast, "KindCallExpression")[0];
+  assert.deepEqual(extensionHost.facts.get(elementAccess, runtimeCarrierFactKey)?.carrier, { kind: "opaque", id: "any" });
+  assert.deepEqual(extensionHost.facts.get(call, runtimeCarrierFactKey)?.carrier, { kind: "opaque", id: "any" });
+  assert.equal(extensionHost.facts.get(elementAccess, targetOperationFactKey), undefined);
+  assert.equal(extensionHost.facts.get(call, selectedTargetSignatureFactKey), undefined);
+});
+
+test("source-semantics does not synthesize C# operator facts for opaque any operands", () => {
+  const sourceText = `
+    declare let dynamicValue: any;
+    const result = dynamicValue + 1;
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      module: "esnext",
+      moduleResolution: "bundler",
+      strictNullChecks: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpNativeProviderExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const binary = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")
+    .find((node) => session.ast.kindName(node.OperatorToken) === "KindPlusToken");
+  assert.ok(binary);
+  const dynamicUse = collectIdentifiersByText(sourceFile, session.ast, "dynamicValue")
+    .find((node) => session.ast.parent(node) === binary);
+
+  assert.deepEqual(extensionHost.facts.get(dynamicUse, runtimeCarrierFactKey)?.carrier, { kind: "opaque", id: "any" });
+  assert.equal(extensionHost.facts.get(binary, targetOperationFactKey), undefined);
+  assert.equal(extensionHost.facts.get(binary, csharpTargetOperationFactKey), undefined);
 });
 
 test("source-semantics records provider-backed attribute selector facts from user source", () => {

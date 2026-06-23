@@ -28,6 +28,7 @@ import {
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  isCsharpAnyRuntimeCarrier,
 } from "./target-types.js";
 import {
   getCsharpOperatorTargetOperation,
@@ -100,6 +101,9 @@ export function mapCsharpCheckedOperator(
   const left = operands.left;
   const right = operands.right;
   if (left === undefined || (request.right !== undefined && right === undefined)) {
+    return deferObservation;
+  }
+  if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
     return deferObservation;
   }
   if (request.operator !== "=" && (left.kind === "type-parameter" || right?.kind === "type-parameter")) {

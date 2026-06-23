@@ -78,6 +78,7 @@ export interface DotnetTypeDeclaration {
   readonly baseType?: DotnetTypeRef;
   readonly implementedContracts?: readonly DotnetConstraint[];
   readonly members?: readonly DotnetMemberDeclaration[];
+  readonly unsupportedMembers?: readonly DotnetUnsupportedMemberDeclaration[];
   readonly sourceShape?: DotnetTypeRef;
   readonly throwable?: boolean;
 }
@@ -121,6 +122,16 @@ export interface DotnetMemberDeclaration {
   readonly receiverPassing?: "instance" | "first-argument";
   readonly type?: DotnetTypeRef;
   readonly signatures?: readonly DotnetSignatureDeclaration[];
+}
+
+export interface DotnetUnsupportedMemberDeclaration {
+  readonly kind: "unsupported-member";
+  readonly memberKind: DotnetMemberKind;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly metadataName: string;
+  readonly static?: boolean;
+  readonly reason: string;
 }
 
 export interface DotnetSignatureDeclaration {
