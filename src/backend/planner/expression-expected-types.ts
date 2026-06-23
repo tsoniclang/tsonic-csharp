@@ -12,6 +12,7 @@ import {
   KindArrayLiteralExpression,
   KindArrowFunction,
   KindAsExpression,
+  KindBinaryExpression,
   KindConditionalExpression,
   KindFunctionExpression,
   KindNoSubstitutionTemplateLiteral,
@@ -46,6 +47,9 @@ import {
 import {
   parseFiniteNumberLiteral,
 } from "../../source/source-literal-values.js";
+import {
+  tryPlanBinaryExpressionWithExpectedType,
+} from "./expression-operators.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: (
@@ -120,6 +124,21 @@ export function planExpressionWithExpectedTypeCore(
   }
   if (expectedType.kind === "NullableType" && !HasSourceKind(input.ast, node, KindNullKeyword)) {
     return planners.planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType.inner, expectedTypeSubject);
+  }
+  if (HasSourceKind(input.ast, node, KindBinaryExpression)) {
+    const binaryExpression = tryPlanBinaryExpressionWithExpectedType(
+      node,
+      sourceFile,
+      input,
+      diagnostics,
+      expectedType,
+      expectedTypeSubject,
+      planners.planExpression,
+      planners.planExpressionWithExpectedType,
+    );
+    if (binaryExpression !== undefined) {
+      return binaryExpression;
+    }
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners);

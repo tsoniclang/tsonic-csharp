@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { attributeFactKey, providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
+import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpNativeProviderExtension } from "../dist/index.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
@@ -766,6 +767,95 @@ test("target member selection does not prepend provider static container for exp
   );
 });
 
+test("C# provider maps extension receiver calls from selected provider signature identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const call = {};
+  const receiver = { kind: "target-named", id: "System.String" };
+  const start = { kind: "source-primitive", name: "int32" };
+  const recordedFacts = [];
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    calleeReceiver: receiver,
+    calleePropertyName: "asSpan",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [start],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: {
+      id: "System.MemoryExtensions",
+      sourceName: "MemoryExtensions",
+      targetName: "System.MemoryExtensions",
+      target: "csharp",
+      kind: "class",
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("System.MemoryExtensions.AsSpan", "asSpan"),
+      signatureId: "System.MemoryExtensions.AsSpan(System.String,System.Int32)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
+  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+
+  const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(operation?.operationId, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
+  assert.equal(operation?.selectedMember?.receiverPassing, "first-argument");
+});
+
+test("C# provider rejects receiver calls when static target metadata omits receiver passing", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const receiver = {};
+  const binding = {
+    id: "Example.Extensions",
+    sourceName: "Extensions",
+    targetName: "Extensions",
+    target: "csharp",
+    kind: "class",
+    members: [
+      {
+        id: "Example.Extensions.current",
+        sourceName: "current",
+        targetName: "Current",
+        kind: "method",
+        static: true,
+        parameters: [],
+        returnType: { kind: "source-primitive", name: "bool" },
+        overloadGroup: "Example.Extensions.current",
+      },
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleeReceiver: receiver,
+    calleePropertyName: "current",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Extensions.current", "current"),
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_EXTENSION_RECEIVER_NOT_PROVEN");
+});
+
 test("target member selection applies declaring generics before literal collection matching", () => {
   const arrayLiteral = { Kind: 2, Elements: [{ Kind: 1, Text: "1" }, { Kind: 1, Text: "2" }] };
   const int32Type = { kind: "source-primitive", name: "int32" };
@@ -998,7 +1088,9 @@ function fakeObservationContext(options) {
         }
         return undefined;
       },
-      set() {},
+      set(subject, key, value, evidence) {
+        options.recordedFacts?.push({ subject, key, value, evidence });
+      },
     },
     factResolver: {
       resolve(subject, key) {

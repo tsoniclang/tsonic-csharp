@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   KindClassDeclaration,
   KindConstructor,
+  KindFalseKeyword,
   KindGetAccessor,
   KindIdentifier,
   KindMethodDeclaration,
@@ -36,7 +37,7 @@ test("planner emits finalized source attribute facts on supported declaration pl
     attribute<User>().property((target) => target.name).target("field").add(ObsoleteAttribute, "backing-field");
     attribute<User>().property((target) => target.display).add(ObsoleteAttribute, "property");
     attribute<User>().property((target) => target.display).target("property").add(ObsoleteAttribute, "property-target");
-    attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method");
+    attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method", false);
     attribute<User>().method((target) => target.save).target("return").add(ObsoleteAttribute, "return");
     attribute<User>().method((target) => target.save).parameter("route").add(ObsoleteAttribute, "route");
     attribute<User>().method((target) => target.save).parameter("route").target("param").add(ObsoleteAttribute, "param");
@@ -74,6 +75,7 @@ test("planner emits finalized source attribute facts on supported declaration pl
   const fieldArgument = stringLiteral("field");
   const propertyArgument = stringLiteral("property");
   const methodArgument = stringLiteral("method");
+  const methodErrorArgument = falseLiteral();
   const methodReturnArgument = stringLiteral("return");
   const routeArgument = stringLiteral("route");
   const routeParamArgument = stringLiteral("param");
@@ -144,7 +146,7 @@ test("planner emits finalized source attribute facts on supported declaration pl
         ...attributeFact(obsoleteAttribute, propertyTarget, [propertyTargetArgument]),
         applicationTargetSpecifier: "property",
       }],
-      [methodAttributeCall, attributeFact(obsoleteAttribute, methodTarget, [methodArgument])],
+      [methodAttributeCall, attributeFact(obsoleteAttribute, methodTarget, [methodArgument, methodErrorArgument])],
       [methodReturnAttributeCall, {
         ...attributeFact(obsoleteAttribute, methodTarget, [methodReturnArgument]),
         applicationTargetSpecifier: "return",
@@ -174,7 +176,7 @@ test("planner emits finalized source attribute facts on supported declaration pl
   assert.match(printed, /\[System\.ObsoleteAttribute\("constructor"\)\]\n    public User\(\[System\.ObsoleteAttribute\("id"\)\] string id\)/);
   assert.match(printed, /\[System\.ObsoleteAttribute\("field"\)\]\n    \[field: System\.ObsoleteAttribute\("backing-field"\)\]\n    public string name;/);
   assert.match(printed, /\[System\.ObsoleteAttribute\("property"\)\]\n    \[property: System\.ObsoleteAttribute\("property-target"\)\]\n    public string display/);
-  assert.match(printed, /\[System\.ObsoleteAttribute\("method"\)\]\n    \[return: System\.ObsoleteAttribute\("return"\)\]\n    public void save\(\[System\.ObsoleteAttribute\("route"\)\] \[param: System\.ObsoleteAttribute\("param"\)\] string route\)/);
+  assert.match(printed, /\[System\.ObsoleteAttribute\("method", false\)\]\n    \[return: System\.ObsoleteAttribute\("return"\)\]\n    public void save\(\[System\.ObsoleteAttribute\("route"\)\] \[param: System\.ObsoleteAttribute\("param"\)\] string route\)/);
   assert.doesNotMatch(printed, /__tsonic_erased_source_marker|attribute<User>/);
 });
 
@@ -253,6 +255,43 @@ test("planner diagnoses unsupported explicit attribute target specifiers from fi
   assert.match(diagnostics[0].message, /unsupported explicit target specifier 'assembly'/);
 });
 
+test("planner diagnoses supported explicit attribute target specifiers on invalid finalized subjects", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const stringType = node("KindStringKeyword");
+  const field = node(KindPropertyDeclaration, { name: identifier("name"), Type: stringType });
+  const classDeclaration = node(KindClassDeclaration, {
+    name: identifier("User"),
+    Members: { Nodes: [field] },
+  });
+  const fieldTarget = propertyAccess("name");
+  const obsoleteAttribute = identifier("ObsoleteAttribute");
+  const fieldAttributeCall = node("KindCallExpression");
+  sourceFile.Statements = {
+    Nodes: [
+      classDeclaration,
+      fieldAttributeCall,
+    ],
+  };
+  const input = fakeInput(sourceFile, {
+    references: new Map([[fieldTarget, field]]),
+    targetBindings: new Map([[obsoleteAttribute, attributeBinding("ObsoleteAttribute")]]),
+    attributeFacts: new Map([
+      [fieldAttributeCall, {
+        ...attributeFact(obsoleteAttribute, fieldTarget),
+        applicationTargetSpecifier: "return",
+      }],
+    ]),
+  });
+  const diagnostics = [];
+
+  planClassDeclaration(classDeclaration, sourceFile, input, diagnostics);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION");
+  assert.match(diagnostics[0].message, /uses explicit target specifier 'return' on KindPropertyDeclaration/);
+  assert.match(diagnostics[0].message, /outside the finalized C# attribute placement surface/);
+});
+
 function node(kind, properties = {}) {
   return { Kind: kind, ...properties };
 }
@@ -267,6 +306,10 @@ function identifier(text) {
 
 function stringLiteral(text) {
   return node(KindStringLiteral, { Text: text });
+}
+
+function falseLiteral() {
+  return node(KindFalseKeyword);
 }
 
 function typeReference(text) {

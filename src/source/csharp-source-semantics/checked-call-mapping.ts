@@ -125,6 +125,7 @@ export function mapCsharpCheckedCall(
     ? host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
       host.getTargetTypeRefForSubject(request.calleeReceiver, context)
     : constructorDeclaringTargetType;
+  const providerStaticContainerReceiver = isProviderStaticContainerReceiver(request, context, targetBinding);
   const member = findTargetMemberForCall(
     targetBinding,
     virtualDeclaration,
@@ -133,7 +134,7 @@ export function mapCsharpCheckedCall(
     host.getTargetTypeRefForSubject,
     {
       getBaseTargetTypeRef: host.getBaseTargetTypeRef,
-      ...(isProviderStaticContainerReceiver(request, context, targetBinding) ? { firstArgumentReceiver: false as const } : {}),
+      ...(providerStaticContainerReceiver ? { firstArgumentReceiver: false as const } : {}),
       ...(receiverDeclaringTargetType !== undefined ? { declaringTargetType: receiverDeclaringTargetType } : {}),
       ...(targetBinding.typeParameters !== undefined ? { declaringTypeParameters: targetBinding.typeParameters } : {}),
     },
@@ -143,6 +144,9 @@ export function mapCsharpCheckedCall(
   }
   if (member.kind !== "method" && member.kind !== "constructor") {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_CALLABLE", 9100101, `C# provider mapped checked call '${request.calleePropertyName ?? "<anonymous>"}' to non-callable target member '${member.id}'.`));
+  }
+  if (member.static === true && request.calleeReceiver !== undefined && !providerStaticContainerReceiver && member.receiverPassing !== "first-argument") {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_EXTENSION_RECEIVER_NOT_PROVEN", 9100115, `C# provider selected static target member '${member.id}' for receiver call '${request.calleePropertyName ?? "<anonymous>"}', but target metadata did not prove first-argument receiver passing.`));
   }
   const declaringTargetType = member.kind === "constructor" ? constructorDeclaringTargetType ?? member.declaringType : host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
     host.getTargetTypeRefForSubject(request.calleeReceiver, context) ??

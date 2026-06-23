@@ -257,6 +257,40 @@ test(".NET target bindings preserve provider-proven extension-method receiver pa
   assert.equal(average.parameters[0].passingMode, "by-value");
 });
 
+test(".NET provider source declarations keep extension-method signature identities for explicit calls", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.js", {});
+  assert.equal("exports" in module, true);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const memoryExtensions = declarationModel.exports.find((declaration) => declaration.name === "MemoryExtensions");
+  assert.ok(memoryExtensions);
+
+  const asSpan = memoryExtensions.members.find((member) =>
+    member.kind === "method" &&
+    member.name === "asSpan" &&
+    member.static === true
+  );
+  assert.ok(asSpan);
+
+  const signature = asSpan.signatures.find((candidate) =>
+    candidate.id === "System.MemoryExtensions.AsSpan(System.String,System.Int32)"
+  );
+  assert.ok(signature);
+  assert.equal(signature.name, "AsSpan");
+  assert.deepEqual(signature.parameters.map((parameter) => parameter.name), ["text", "start"]);
+  assert.deepEqual(signature.parameters[0].type, { kind: "string" });
+  assert.deepEqual(signature.parameters[1].type, { kind: "source-primitive", name: "int32" });
+
+  const binding = provider.findTargetBindingByTargetId("System.MemoryExtensions");
+  assert.ok(binding);
+  const targetMember = binding.members.find((member) =>
+    member.id === "System.MemoryExtensions.AsSpan(System.String,System.Int32)"
+  );
+  assert.ok(targetMember);
+  assert.equal(targetMember.receiverPassing, "first-argument");
+});
+
 test(".NET reflection provider proves collection constructor array-literal element metadata", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const binding = provider.findTargetBindingByTargetId("System.Collections.Generic.List`1");

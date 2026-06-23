@@ -40,7 +40,7 @@ test("source-semantics records provider-backed attribute selector facts from use
     attribute<User>().add(SerializableAttribute);
     attribute<User>().constructor().add(ObsoleteAttribute, "constructor");
     attribute<User>().constructor().parameter("id").add(ObsoleteAttribute, "id");
-    attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method");
+    attribute<User>().method((target) => target.save).add(ObsoleteAttribute, "method", false);
     attribute<User>().method((target) => target.save).target("return").add(ObsoleteAttribute, "return");
     attribute<User>().method((target) => target.save).parameter("route").add(ObsoleteAttribute, "route");
     attribute<User>().method((target) => target.save).parameter("route").target("param").add(ObsoleteAttribute, "param");
@@ -89,7 +89,7 @@ test("source-semantics records provider-backed attribute selector facts from use
     ["SerializableAttribute", undefined, undefined, undefined, 0],
     ["ObsoleteAttribute", "constructor", undefined, undefined, 1],
     ["ObsoleteAttribute", "constructor", "id", undefined, 1],
-    ["ObsoleteAttribute", undefined, undefined, undefined, 1],
+    ["ObsoleteAttribute", undefined, undefined, undefined, 2],
     ["ObsoleteAttribute", undefined, undefined, "return", 1],
     ["ObsoleteAttribute", undefined, "route", undefined, 1],
     ["ObsoleteAttribute", undefined, "route", "param", 1],
@@ -100,6 +100,8 @@ test("source-semantics records provider-backed attribute selector facts from use
   assert.equal(session.ast.kindName(applicationFacts[0].applicationTarget), "KindTypeReference");
   assert.equal(session.ast.kindName(applicationFacts[1].applicationTarget), "KindTypeReference");
   assert.equal(session.ast.text(session.ast.name(applicationFacts[3].applicationTarget)), "save");
+  assert.equal(session.ast.text(applicationFacts[3].arguments?.[0]), "method");
+  assert.equal(session.ast.kindName(applicationFacts[3].arguments?.[1]), "KindFalseKeyword");
   assert.equal(session.ast.text(session.ast.name(applicationFacts[6].applicationTarget)), "save");
   assert.equal(session.ast.text(session.ast.name(applicationFacts[8].applicationTarget)), "name");
   assert.equal(session.ast.text(session.ast.name(applicationFacts[9].applicationTarget)), "display");
