@@ -54,7 +54,8 @@ export function selectExactTargetMember(
   request: TargetMemberSelectionRequest,
   options: TargetMemberSelectionOptions = {},
 ): TargetMember | undefined {
-  if (getTargetArgumentSubjectsForMember(member, request, options) === undefined) {
+  const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
+  if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
     return undefined;
   }
   return substituteTargetMemberTypeParameters(
@@ -120,9 +121,41 @@ function getExpectedTargetTypeForArgument(parameter: TargetParameter): TargetTyp
 }
 
 function targetArityMatches(parameters: readonly TargetParameter[], argumentCount: number): boolean {
+  if (!targetParameterListShapeIsValid(parameters)) {
+    return false;
+  }
   const required = parameters.filter((parameter) => parameter.optional !== true && parameter.paramsArray !== true).length;
   const hasParamsArray = parameters.some((parameter) => parameter.paramsArray === true);
   return argumentCount >= required && (hasParamsArray || argumentCount <= parameters.length);
+}
+
+function targetParameterListShapeIsValid(parameters: readonly TargetParameter[]): boolean {
+  let optionalTailStarted = false;
+  let paramsArrayIndex: number | undefined;
+  for (let index = 0; index < parameters.length; index += 1) {
+    const parameter = parameters[index];
+    if (parameter === undefined) {
+      return false;
+    }
+    if (parameter.optional === true && parameter.paramsArray === true) {
+      return false;
+    }
+    if (parameter.paramsArray === true) {
+      if (paramsArrayIndex !== undefined || index !== parameters.length - 1) {
+        return false;
+      }
+      paramsArrayIndex = index;
+      continue;
+    }
+    if (parameter.optional === true) {
+      optionalTailStarted = true;
+      continue;
+    }
+    if (optionalTailStarted) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function targetMemberArityPenalty(parameters: readonly TargetParameter[], argumentCount: number): number {
