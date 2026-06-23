@@ -5,6 +5,7 @@ import {
   createCompilerSessionFromFiles,
   formatDiagnostics,
   runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import {
   createCsharpSourceSemanticsExtension,
@@ -60,7 +61,9 @@ test("compat mode still rejects opaque any operations without finalized carrier 
     declare let value: any;
     value.name;
     value.name = 1;
+    value["name"];
     value();
+    value + 1;
   `, { typescriptCompatibility: "compat" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
@@ -68,7 +71,7 @@ test("compat mode still rejects opaque any operations without finalized carrier 
   const extensionHost = session.finalizeExtensions();
   const anyDiagnostics = anyOperationDiagnostics(extensionHost);
 
-  assert.equal(anyDiagnostics.length, 3);
+  assert.equal(anyDiagnostics.length, 5);
   assert.ok(anyDiagnostics.every((diagnostic) => diagnostic.message.includes("compatibility mode without finalized target operation facts")));
 });
 
@@ -104,6 +107,25 @@ test("strict-native rejects opaque any operations even when a compatibility fact
 
   assert.equal(anyDiagnostics.length, 1);
   assert.match(anyDiagnostics[0].message, /strict-native mode/u);
+});
+
+test("compat mode rejects opaque any when only an unclosed selected signature fact exists", () => {
+  const session = createNativeSession(`
+    declare let value: any;
+    value.name;
+  `, { typescriptCompatibility: "compat" }, [
+    createTestSelectedSignatureOnlyExtension("KindPropertyAccessExpression"),
+  ]);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const propertyAccess = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")[0];
+  const anyDiagnostics = anyOperationDiagnostics(extensionHost);
+
+  assert.equal(anyDiagnostics.length, 1);
+  assert.match(anyDiagnostics[0].message, /compatibility mode without finalized target operation facts/u);
+  assert.equal(extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey), undefined);
 });
 
 test("unknown and object remain non-dynamic and are rejected by TSTS source checking", () => {
@@ -180,6 +202,41 @@ function createTestDynamicOperationFactExtension(kindName) {
               memberName: "GetProperty",
               resultType: { kind: "opaque", id: "any" },
             }, [{ message: "Test-only closed compat carrier operation fact." }]);
+          }
+        }
+      });
+    },
+  };
+}
+
+function createTestSelectedSignatureOnlyExtension(kindName) {
+  return {
+    identity: {
+      id: "test.compat.selected-signature-only",
+      version: "1.0.0",
+      capabilityNamespace: "test.compat",
+    },
+    initialize(context) {
+      context.registerLifecycleHook(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
+        const compiler = lifecycleContext.compiler;
+        if (compiler === undefined) {
+          return;
+        }
+        for (const sourceFile of compiler.getSourceFiles()) {
+          if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+            continue;
+          }
+          for (const node of collectNodesByKind(sourceFile, compiler.ast, kindName)) {
+            lifecycleContext.host.facts.set(node, selectedTargetSignatureFactKey, {
+              member: {
+                id: "test.compat.any.unclosed-signature",
+                sourceName: "name",
+                targetName: "GetProperty",
+                kind: "method",
+                parameters: [],
+                returnType: { kind: "type-parameter", name: "T" },
+              },
+            }, [{ message: "Test-only unclosed selected signature fact without a finalized C# operation." }]);
           }
         }
       });

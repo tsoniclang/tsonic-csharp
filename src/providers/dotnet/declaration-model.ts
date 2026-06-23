@@ -147,9 +147,7 @@ function dotnetTypeSourceMembers(
     ?.map((member) => dotnetMemberToProviderMember(member, declaration))
     .filter((member): member is ProviderMemberDeclaration => member !== undefined) ?? []);
   const baseMembers = dotnetBaseSourceMembers(declaration, context);
-  const members = baseMembers.length === 0
-    ? ownMembers
-    : ownMembers.flatMap((member) => mergeProviderMemberWithLocalBase(member, baseMembers));
+  const members = mergeOwnAndBaseProviderMembers(ownMembers, baseMembers);
   context.sourceMembersByTargetId.set(declaration.targetId, members);
   return members.length === 0 ? undefined : members;
 }
@@ -166,10 +164,7 @@ function dotnetBaseSourceMembers(
   if (baseDeclaration === undefined) {
     return [];
   }
-  const baseMembers = mergeProviderMemberList([
-    ...dotnetBaseSourceMembers(baseDeclaration, context),
-    ...(dotnetTypeSourceMembers(baseDeclaration, context) ?? []),
-  ]);
+  const baseMembers = dotnetTypeSourceMembers(baseDeclaration, context) ?? [];
   const baseModuleSpecifier = baseType.moduleSpecifier;
   const inheritedMembers = baseModuleSpecifier === undefined || baseModuleSpecifier === context.moduleSpecifier
     ? baseMembers
@@ -178,6 +173,34 @@ function dotnetBaseSourceMembers(
   return substitutions.size === 0
     ? inheritedMembers
     : inheritedMembers.map((member) => substituteProviderMember(member, substitutions));
+}
+
+function mergeOwnAndBaseProviderMembers(
+  ownMembers: readonly ProviderMemberDeclaration[],
+  baseMembers: readonly ProviderMemberDeclaration[],
+): readonly ProviderMemberDeclaration[] {
+  if (baseMembers.length === 0) {
+    return ownMembers;
+  }
+  if (ownMembers.length === 0) {
+    return baseMembers;
+  }
+  const members = [...baseMembers];
+  for (const member of ownMembers) {
+    const matchingBaseMembers = members.filter((baseMember) =>
+      baseMember.name === member.name &&
+      baseMember.static === member.static
+    );
+    if (matchingBaseMembers.length === 0) {
+      members.push(member);
+      continue;
+    }
+    for (const matchingMember of matchingBaseMembers) {
+      members.splice(members.indexOf(matchingMember), 1);
+    }
+    members.push(...mergeProviderMemberWithLocalBase(member, matchingBaseMembers));
+  }
+  return members;
 }
 
 function dotnetProviderRefToTypeDeclaration(

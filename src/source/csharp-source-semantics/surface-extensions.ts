@@ -29,9 +29,6 @@ import {
   createCsharpNodejsSurfaceBindingProvider,
 } from "./surfaces/nodejs/index.js";
 import {
-  recordCsharpNodejsNamespacePropertyFactsBeforeFinalization,
-} from "./surfaces/nodejs/property-lifecycle.js";
-import {
   recordCsharpJsArrayElementAccessFactsBeforeFinalization,
 } from "./surfaces/js/arrays.js";
 import {
@@ -91,9 +88,6 @@ export function createCsharpNodejsSurfaceExtension(_context: TargetSurfaceExtens
         context.host,
         createCsharpNodejsSurfaceOperationsProvider(),
       );
-      context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        recordCsharpNodejsNamespacePropertyFactsBeforeFinalization(lifecycleContext);
-      });
     },
   };
 }

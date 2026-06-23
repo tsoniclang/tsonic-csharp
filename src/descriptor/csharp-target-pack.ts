@@ -14,6 +14,9 @@ import type {
 import type { CompilerExtension } from "@tsonic/tsts";
 import { createCsharpBackend } from "../backend/csharp-backend.js";
 import {
+  validateCsharpTargetOptions,
+} from "../options/csharp-target-options.js";
+import {
   createCsharpTargetSemanticsExtension,
   createCsharpJsSurfaceExtension,
   createCsharpNodejsSurfaceExtension,
@@ -32,6 +35,7 @@ export function createCsharpTargetPack(): TargetPack {
       id: "csharp-provider",
       displayName: "C# target provider",
       createExtensions(context: TargetProviderContext): readonly CompilerExtension[] {
+        validateCsharpTargetOptions(context.target);
         return [
           createCsharpSourceSemanticsExtension(context),
           createCsharpTargetSemanticsExtension(context),
@@ -71,9 +75,11 @@ export function createCsharpTargetPack(): TargetPack {
       },
     ],
     createBackend(context: TargetBackendContext): TargetBackend {
+      validateCsharpTargetOptions(context.target);
       return createCsharpBackend(context);
     },
     createToolchain(context: TargetToolchainContext): TargetToolchain {
+      validateCsharpTargetOptions(context.target);
       return createDotnetToolchain(context);
     },
   };

@@ -28,6 +28,7 @@ import type {
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
   DotnetUnsupportedAttributeDeclaration,
+  DotnetUnsupportedDefaultValueDeclaration,
 } from "./model-types.js";
 import {
   type CsharpTargetBindingFact,
@@ -43,6 +44,7 @@ import {
 
 export type DotnetTargetParameter = TargetParameter & {
   readonly defaultValue?: DotnetParameterDefaultValue;
+  readonly unsupportedDefaultValue?: DotnetUnsupportedDefaultValueDeclaration;
 };
 
 export type DotnetTargetMember = TargetMember & {
@@ -245,6 +247,7 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),
     ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+    ...(parameter.unsupportedDefaultValue !== undefined ? { unsupportedDefaultValue: parameter.unsupportedDefaultValue } : {}),
     ...(parameter.attributes !== undefined && parameter.attributes.length > 0
       ? { attributes: parameter.attributes.map(dotnetAttributeToTargetAttribute) }
       : {}),

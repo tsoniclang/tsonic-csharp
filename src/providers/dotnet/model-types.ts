@@ -167,6 +167,7 @@ export interface DotnetParameterDeclaration {
   readonly optional?: boolean;
   readonly rest?: boolean;
   readonly defaultValue?: DotnetParameterDefaultValue;
+  readonly unsupportedDefaultValue?: DotnetUnsupportedDefaultValueDeclaration;
   readonly attributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
 }
@@ -216,6 +217,12 @@ export type DotnetParameterDefaultValue =
   | { readonly kind: "string"; readonly value: string }
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind; readonly value: string | boolean }
   | { readonly kind: "enum"; readonly value: string; readonly fieldName?: string };
+
+export interface DotnetUnsupportedDefaultValueDeclaration {
+  readonly kind: "unsupported-default-value";
+  readonly reason: string;
+  readonly evidence?: readonly { readonly message: string }[];
+}
 
 export interface DotnetTypeParameterDeclaration {
   readonly name: string;

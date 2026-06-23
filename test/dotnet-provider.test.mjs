@@ -31,6 +31,54 @@ function namedDotnetTypeRef(metadataName, options = {}) {
   };
 }
 
+function methodMember(ownerMetadataName, sourceName, targetName, parameters, returnType = { kind: "void" }) {
+  const signatureMetadataName = `${ownerMetadataName}.${targetName}(${parameters.map(dotnetTestTypeMetadataName).join(",")})`;
+  return {
+    kind: "method",
+    sourceName,
+    targetName,
+    targetId: testTargetId(`${ownerMetadataName}.${targetName}`),
+    metadataName: `${ownerMetadataName}.${targetName}`,
+    signatures: [
+      {
+        id: testTargetId(signatureMetadataName),
+        targetName,
+        parameters,
+        returnType,
+      },
+    ],
+  };
+}
+
+function dotnetTestTypeMetadataName(parameter) {
+  const type = "type" in parameter ? parameter.type : parameter;
+  switch (type.kind) {
+    case "string":
+      return "System.String";
+    case "source-primitive":
+      return sourcePrimitiveTestMetadataName(type.name);
+    case "type-parameter":
+      return type.name;
+    case "named":
+      return type.metadataName;
+    default:
+      return type.kind;
+  }
+}
+
+function sourcePrimitiveTestMetadataName(name) {
+  switch (name) {
+    case "int32":
+      return "System.Int32";
+    case "bool":
+      return "System.Boolean";
+    case "float64":
+      return "System.Double";
+    default:
+      return name;
+  }
+}
+
 function getDotnetDeclaration(provider, moduleSpecifier, metadataName) {
   const module = provider.getModule(moduleSpecifier, {});
   assert.equal("exports" in module, true, JSON.stringify(module));
@@ -176,6 +224,196 @@ test(".NET provider declaration model omits source members without truthful sour
 
   const example = model.exports[0];
   assert.deepEqual(example.members?.map((member) => member.name), ["safeString"]);
+});
+
+test(".NET provider model maps property setters and field mutability to source and target facts", () => {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const example = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "Example",
+    namespaceName: "ProviderModelFixtures",
+    targetId: testTargetId("ProviderModelFixtures.Example"),
+    metadataName: "ProviderModelFixtures.Example",
+    members: [
+      {
+        kind: "property",
+        sourceName: "mutableProperty",
+        targetName: "MutableProperty",
+        targetId: testTargetId("ProviderModelFixtures.Example.MutableProperty"),
+        metadataName: "ProviderModelFixtures.Example.MutableProperty",
+        readable: true,
+        writable: true,
+        type: int32,
+      },
+      {
+        kind: "property",
+        sourceName: "readonlyProperty",
+        targetName: "ReadonlyProperty",
+        targetId: testTargetId("ProviderModelFixtures.Example.ReadonlyProperty"),
+        metadataName: "ProviderModelFixtures.Example.ReadonlyProperty",
+        readable: true,
+        type: int32,
+      },
+      {
+        kind: "property",
+        sourceName: "writeOnlyProperty",
+        targetName: "WriteOnlyProperty",
+        targetId: testTargetId("ProviderModelFixtures.Example.WriteOnlyProperty"),
+        metadataName: "ProviderModelFixtures.Example.WriteOnlyProperty",
+        readable: false,
+        writable: true,
+        type: int32,
+      },
+      {
+        kind: "field",
+        sourceName: "mutableField",
+        targetName: "MutableField",
+        targetId: testTargetId("ProviderModelFixtures.Example.MutableField"),
+        metadataName: "ProviderModelFixtures.Example.MutableField",
+        readable: true,
+        writable: true,
+        type: int32,
+      },
+      {
+        kind: "field",
+        sourceName: "readonlyField",
+        targetName: "ReadonlyField",
+        targetId: testTargetId("ProviderModelFixtures.Example.ReadonlyField"),
+        metadataName: "ProviderModelFixtures.Example.ReadonlyField",
+        readable: true,
+        type: int32,
+      },
+    ],
+  };
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+    namespaceName: "ProviderModelFixtures",
+    exports: [example],
+  });
+  const sourceExample = sourceModel.exports[0];
+  const sourceMembers = new Map(sourceExample.members.map((member) => [member.name, member]));
+  assert.equal(sourceMembers.get("mutableProperty").readonly, undefined);
+  assert.equal(sourceMembers.get("readonlyProperty").readonly, true);
+  assert.equal(sourceMembers.has("writeOnlyProperty"), false);
+  assert.equal(sourceMembers.get("mutableField").readonly, undefined);
+  assert.equal(sourceMembers.get("readonlyField").readonly, true);
+
+  const targetBinding = dotnetExportToTargetBinding(example);
+  const targetMembers = new Map(targetBinding.members.map((member) => [member.sourceName, member]));
+  assert.equal(targetMembers.get("mutableProperty").readonly, undefined);
+  assert.equal(targetMembers.get("readonlyProperty").readonly, true);
+  assert.equal(targetMembers.get("writeOnlyProperty").readonly, undefined);
+  assert.equal(targetMembers.get("mutableField").readonly, undefined);
+  assert.equal(targetMembers.get("readonlyField").readonly, true);
+});
+
+test(".NET provider model keeps event facts target-only until source event semantics exist", () => {
+  const eventHandler = namedDotnetTypeRef("System.EventHandler", {
+    sourceShape: {
+      kind: "function",
+      parameters: [],
+      returnType: { kind: "void" },
+    },
+  });
+  const eventSource = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "EventSource",
+    namespaceName: "ProviderModelFixtures",
+    targetId: testTargetId("ProviderModelFixtures.EventSource"),
+    metadataName: "ProviderModelFixtures.EventSource",
+    members: [
+      {
+        kind: "event",
+        sourceName: "changed",
+        targetName: "Changed",
+        targetId: testTargetId("ProviderModelFixtures.EventSource.Changed"),
+        metadataName: "ProviderModelFixtures.EventSource.Changed",
+        readable: false,
+        writable: false,
+        type: eventHandler,
+      },
+    ],
+  };
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+    namespaceName: "ProviderModelFixtures",
+    exports: [eventSource],
+  });
+  assert.equal(sourceModel.exports[0].members?.some((member) => member.name === "changed") ?? false, false);
+
+  const targetBinding = dotnetExportToTargetBinding(eventSource);
+  const targetEvent = targetBinding.members.find((member) => member.kind === "event" && member.sourceName === "changed");
+  assert.ok(targetEvent);
+  assert.equal(targetEvent.targetName, "Changed");
+  assert.deepEqual(targetEvent.parameters, []);
+  assert.equal(targetEvent.returnType.kind, "target-named");
+  assert.equal(idEndsWith(targetEvent.returnType.id, "System.EventHandler"), true);
+});
+
+test(".NET provider declaration model projects inherited source members deterministically", () => {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const stringType = { kind: "string" };
+  const baseType = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "Base",
+    namespaceName: "ProviderModelFixtures",
+    targetId: testTargetId("ProviderModelFixtures.Base"),
+    metadataName: "ProviderModelFixtures.Base",
+    members: [
+      methodMember("ProviderModelFixtures.Base", "baseOnly", "BaseOnly", []),
+      methodMember("ProviderModelFixtures.Base", "overloaded", "Overloaded", [
+        { name: "text", type: stringType, passingMode: "by-value" },
+      ]),
+      {
+        kind: "property",
+        sourceName: "collision",
+        targetName: "Collision",
+        targetId: testTargetId("ProviderModelFixtures.Base.Collision"),
+        metadataName: "ProviderModelFixtures.Base.Collision",
+        readable: true,
+        type: int32,
+      },
+    ],
+  };
+  const derivedType = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "Derived",
+    namespaceName: "ProviderModelFixtures",
+    targetId: testTargetId("ProviderModelFixtures.Derived"),
+    metadataName: "ProviderModelFixtures.Derived",
+    baseType: namedDotnetTypeRef("ProviderModelFixtures.Base", {
+      sourceShape: { kind: "provider-ref", name: "Base" },
+    }),
+    members: [
+      methodMember("ProviderModelFixtures.Derived", "ownOnly", "OwnOnly", []),
+      methodMember("ProviderModelFixtures.Derived", "overloaded", "Overloaded", [
+        { name: "count", type: int32, passingMode: "by-value" },
+      ]),
+      methodMember("ProviderModelFixtures.Derived", "collision", "Collision", []),
+    ],
+  };
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+    namespaceName: "ProviderModelFixtures",
+    exports: [baseType, derivedType],
+  });
+  const derived = sourceModel.exports.find((declaration) => declaration.name === "Derived");
+  assert.ok(derived);
+  const members = new Map(derived.members.map((member) => [member.name, member]));
+  assert.equal(members.has("baseOnly"), true);
+  assert.equal(members.has("ownOnly"), true);
+  assert.equal(members.has("collision"), false);
+  assert.deepEqual(members.get("overloaded").signatures.map((signature) => signature.parameters.map((parameter) => parameter.name)), [
+    ["text"],
+    ["count"],
+  ]);
 });
 
 test(".NET target refs do not promote any or unknown to CLR object", () => {

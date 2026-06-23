@@ -1,6 +1,5 @@
 import {
   runtimeCarrierFactKey,
-  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
   TargetTypescriptCompatibilityMode,
@@ -139,8 +138,7 @@ function hasFinalizedTargetOperation(
   node: Node,
   lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
 ): boolean {
-  return lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
-    lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey) !== undefined;
+  return lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined;
 }
 
 function hasOpaqueAnyCarrier(

@@ -21,6 +21,7 @@ export type {
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
   DotnetUnsupportedAttributeDeclaration,
+  DotnetUnsupportedDefaultValueDeclaration,
   DotnetUnsupportedMemberDeclaration,
   DotnetUnsupportedExportDeclaration,
   DotnetUnsupportedTypeFamilyExportDeclaration,

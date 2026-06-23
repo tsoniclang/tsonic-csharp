@@ -33,6 +33,22 @@ test("project artifact emits explicit target-owned .NET references", () => {
   assert.match(text, /<Reference Include="Example\.Assembly" HintPath="\.\.\/lib\/Example\.Assembly\.dll" \/>/);
 });
 
+test("project artifact emits NativeAOT as an explicit target project property", () => {
+  const text = printCsharpProjectFile(planCsharpProjectFile(fakeInput({
+    publishAot: true,
+    outputType: "Exe",
+  })));
+
+  assert.match(text, /<OutputType>Exe<\/OutputType>/);
+  assert.match(text, /<PublishAot>true<\/PublishAot>/);
+});
+
+test("project artifact rejects unknown C# target options instead of ignoring them", () => {
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    rootNamespace: "Legacy.Generated",
+  })), /options\.rootNamespace/);
+});
+
 test("project artifact escapes explicit reference values", () => {
   const text = printCsharpProjectFile(planCsharpProjectFile(fakeInput({
     references: {
@@ -63,5 +79,6 @@ test("project artifact rejects duplicate references", () => {
 function fakeInput(options = {}) {
   return {
     target: { id: "csharp", options },
+    runtimeReferences: [],
   };
 }

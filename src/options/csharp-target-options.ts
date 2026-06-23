@@ -9,6 +9,27 @@ export type CsharpProjectReference =
   | { readonly kind: "framework"; readonly include: string }
   | { readonly kind: "assembly"; readonly include: string; readonly hintPath?: string };
 
+const supportedCsharpTargetOptionKeys = Object.freeze([
+  "assemblyName",
+  "implicitUsings",
+  "namespace",
+  "nullable",
+  "outputType",
+  "properties",
+  "publishAot",
+  "references",
+  "targetFramework",
+  "typescriptCompatibility",
+]);
+
+export function validateCsharpTargetOptions(target: TargetSelection): void {
+  const options = target.options;
+  if (options === undefined) {
+    return;
+  }
+  rejectUnknownKeys(options, "options", supportedCsharpTargetOptionKeys);
+}
+
 export function readCsharpTargetFramework(target: TargetSelection): string {
   return readStringOption(target, "targetFramework", "net10.0");
 }

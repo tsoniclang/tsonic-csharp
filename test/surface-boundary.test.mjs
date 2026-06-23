@@ -29,6 +29,25 @@ test("JS surface maps Array.length only from the selected standard-library decla
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
 });
 
+test("native provider does not map JS Object, JSON, or console surface operations", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNativeOperationsProvider(fakeHost(undefined));
+  const objectCall = {};
+  const jsonCall = {};
+  const consoleExpression = {};
+
+  const objectResult = provider.mapCheckedCall(jsCallRequest(objectCall, sourceLibraryMemberDeclaration("ObjectConstructor", "keys")), fakeContext(facts));
+  const jsonResult = provider.mapCheckedCall(jsCallRequest(jsonCall, sourceLibraryMemberDeclaration("JSON", "parse")), fakeContext(facts));
+  const consoleResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(consoleExpression, sourceLibraryMemberDeclaration("Console", "log"), "log"), fakeContext(facts));
+
+  assert.equal(objectResult.kind, "defer");
+  assert.equal(jsonResult.kind, "defer");
+  assert.equal(consoleResult.kind, "defer");
+  assert.equal(facts.get(objectCall, csharpTargetOperationFactKey), undefined);
+  assert.equal(facts.get(jsonCall, csharpTargetOperationFactKey), undefined);
+  assert.equal(facts.get(consoleExpression, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface does not map Array.length from receiver carrier without selected declaration", () => {
   const expression = {};
   const receiverType = {};
@@ -149,6 +168,32 @@ test("JS surface hard-rejects console operations until closed console facts exis
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
   assert.match(result.diagnostic.message, /Console\.log/);
+});
+
+test("JS surface hard-rejects console calls until closed console facts exist", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Console", "log")), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
+  assert.match(result.diagnostic.message, /Console\.log/);
+});
+
+test("JS surface does not reject Object, JSON, or console by source spelling outside bundled declarations", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+  const foreignFileName = "/src/globals.d.ts";
+
+  const objectResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("ObjectConstructor", "keys", foreignFileName)), fakeContext(facts));
+  const jsonResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("JSON", "parse", foreignFileName)), fakeContext(facts));
+  const consoleResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest({}, sourceLibraryMemberDeclaration("Console", "log", foreignFileName), "log"), fakeContext(facts));
+
+  assert.equal(objectResult.kind, "defer");
+  assert.equal(jsonResult.kind, "defer");
+  assert.equal(consoleResult.kind, "defer");
 });
 
 test("JS surface maps Record element access through provider-owned Dictionary indexer facts", () => {
@@ -323,6 +368,44 @@ test("NodeJS surface maps namespace property access from selected provider prope
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.platform");
 });
 
+test("NodeJS surface does not map namespace properties from import and property spelling alone", () => {
+  const expression = {};
+  const receiver = { Kind: "Identifier", Text: "process" };
+  const sourceFile = namespaceImportSourceFile(receiver, "process", "node:process");
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    receiverType: {},
+    propertyName: "platform",
+  }, fakeNamespaceImportContext(facts, sourceFile));
+
+  assert.equal(result.kind, "defer");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+});
+
+test("NodeJS surface does not map namespace properties from container facts and property spelling", () => {
+  const expression = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  facts.set(receiver, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "namespace"));
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    receiverType: {},
+    propertyName: "platform",
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "defer");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+});
+
 function arrayLengthRequest(expression, receiverType, sourceSelectedDeclaration) {
   return {
     target: "csharp",
@@ -342,14 +425,67 @@ function arrayMemberDeclaration(memberName) {
   return sourceLibraryMemberDeclaration("Array", memberName);
 }
 
-function sourceLibraryMemberDeclaration(declaringName, memberName) {
-  const sourceFile = { FileName: "bundled:///libs/lib.es5.d.ts" };
+function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "bundled:///libs/lib.es5.d.ts") {
+  const sourceFile = { FileName: fileName };
   const arrayDeclaration = { Kind: 1, Name: { Text: declaringName }, SourceFile: sourceFile };
   return {
     Kind: 1,
     Name: { Text: memberName },
     Parent: arrayDeclaration,
     SourceFile: sourceFile,
+  };
+}
+
+function namespaceImportSourceFile(receiver, localName, moduleSpecifier) {
+  const sourceFile = { Kind: "SourceFile", Children: [] };
+  receiver.SourceFile = sourceFile;
+  sourceFile.Children = [{
+    Kind: "ImportDeclaration",
+    ImportClause: {
+      Kind: "ImportClause",
+      NamedBindings: {
+        Kind: "NamespaceImport",
+        Name: { Kind: "Identifier", Text: localName },
+      },
+    },
+    ModuleSpecifier: { Kind: "StringLiteral", Text: `"${moduleSpecifier}"` },
+    SourceFile: sourceFile,
+  }];
+  return sourceFile;
+}
+
+function fakeNamespaceImportContext(facts, sourceFile) {
+  return {
+    facts,
+    factResolver: {
+      resolve: () => undefined,
+    },
+    compiler: {
+      ast: {
+        is: {
+          IsIdentifier: (node) => node?.Kind === "Identifier",
+          IsImportDeclaration: (node) => node?.Kind === "ImportDeclaration",
+        },
+        as: {
+          AsImportDeclaration: (node) => node?.Kind === "ImportDeclaration" ? node : undefined,
+          AsImportClause: (node) => node?.Kind === "ImportClause" ? node : undefined,
+          AsNamespaceImport: (node) => node?.Kind === "NamespaceImport" ? node : undefined,
+        },
+        children: (node) => node?.Children ?? [],
+        typeArguments: () => [],
+        typeParameters: () => [],
+        parameters: () => [],
+        members: () => [],
+        elements: () => [],
+        properties: () => [],
+        arguments: () => [],
+        getSourceFile: (node) => node?.SourceFile ?? (node === sourceFile ? sourceFile : undefined),
+        getFileName: (node) => node?.FileName ?? "",
+        parent: (node) => node?.Parent,
+        name: (node) => node?.Name,
+        text: (node) => node?.Text ?? "",
+      },
+    },
   };
 }
 
