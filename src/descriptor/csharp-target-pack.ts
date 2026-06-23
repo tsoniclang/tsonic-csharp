@@ -1,10 +1,13 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
-  TargetArtifact,
   TargetBackend,
   TargetBackendContext,
   TargetPack,
   TargetProviderContext,
-  TargetRuntimeArtifactContext,
+  TargetRuntimeContributionContext,
+  TargetRuntimeContributions,
+  TargetRuntimeReference,
   TargetToolchain,
   TargetToolchainContext,
 } from "@tsonic/target-api";
@@ -19,6 +22,7 @@ import {
 import { createDotnetToolchain } from "../toolchain/dotnet-toolchain.js";
 
 export const csharpTargetId = "csharp";
+const targetPackageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 export function createCsharpTargetPack(): TargetPack {
   return {
@@ -41,8 +45,13 @@ export function createCsharpTargetPack(): TargetPack {
         createExtensions(context) {
           return [createCsharpJsSurfaceExtension(context)];
         },
-        runtimeArtifacts(_context: TargetRuntimeArtifactContext): readonly TargetArtifact[] {
-          return [];
+        runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
+          return {
+            references: [
+              csharpRuntimeProjectReference("csharp-runtime", "Tsonic.CSharp.Runtime"),
+              csharpRuntimeProjectReference("csharp-js", "Tsonic.CSharp.Js"),
+            ],
+          };
         },
       },
       {
@@ -52,8 +61,12 @@ export function createCsharpTargetPack(): TargetPack {
         createExtensions(context) {
           return [createCsharpNodejsSurfaceExtension(context)];
         },
-        runtimeArtifacts(_context: TargetRuntimeArtifactContext): readonly TargetArtifact[] {
-          return [];
+        runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
+          return {
+            references: [
+              csharpRuntimeProjectReference("csharp-nodejs", "Tsonic.CSharp.Node"),
+            ],
+          };
         },
       },
     ],
@@ -63,5 +76,12 @@ export function createCsharpTargetPack(): TargetPack {
     createToolchain(context: TargetToolchainContext): TargetToolchain {
       return createDotnetToolchain(context);
     },
+  };
+}
+
+function csharpRuntimeProjectReference(repositoryName: string, assemblyName: string): TargetRuntimeReference {
+  return {
+    kind: "project",
+    include: resolve(targetPackageRoot, `../${repositoryName}/src/${assemblyName}/${assemblyName}.csproj`),
   };
 }

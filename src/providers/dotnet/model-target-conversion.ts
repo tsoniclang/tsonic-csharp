@@ -160,6 +160,7 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
             kind: member.kind,
             declaringType,
             ...(member.static === true ? { static: true } : {}),
+            ...(dotnetMemberIsReadonly(member) ? { readonly: true } : {}),
             ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
             parameters: [],
             returnType: dotnetTypeRefToTargetTypeRef(member.type),
@@ -185,6 +186,7 @@ function dotnetSignatureToTargetMember(
     kind: member.kind,
     declaringType,
     ...(member.static === true ? { static: true } : {}),
+    ...(dotnetMemberIsReadonly(member) ? { readonly: true } : {}),
     ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
     parameters: signature.parameters.map(dotnetParameterToTargetParameter),
     ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToTargetTypeRef(signature.returnType) } : {}),
@@ -205,6 +207,10 @@ function dotnetSignatureToTargetMember(
       : {}),
     overloadGroup: dotnetTargetMemberOverloadGroup(member),
   };
+}
+
+function dotnetMemberIsReadonly(member: DotnetMemberDeclaration): boolean {
+  return (member.kind === "property" || member.kind === "field" || member.kind === "indexer") && member.writable !== true;
 }
 
 function dotnetTargetMemberOverloadGroup(member: DotnetMemberDeclaration): string {

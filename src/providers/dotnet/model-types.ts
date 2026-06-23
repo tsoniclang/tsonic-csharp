@@ -120,6 +120,8 @@ export interface DotnetMemberDeclaration {
   readonly metadataName: string;
   readonly static?: boolean;
   readonly receiverPassing?: "instance" | "first-argument";
+  readonly readable?: boolean;
+  readonly writable?: boolean;
   readonly type?: DotnetTypeRef;
   readonly signatures?: readonly DotnetSignatureDeclaration[];
   readonly attributes?: readonly DotnetAttributeDeclaration[];

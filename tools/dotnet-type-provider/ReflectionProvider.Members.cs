@@ -193,6 +193,8 @@ sealed partial class ReflectionProvider
                     targetId,
                     metadataName,
                     @static = accessors[0].IsStatic ? true : (bool?)null,
+                    readable = HasPublicGetter(property) ? true : (bool?)null,
+                    writable = HasPublicSetter(property) ? true : (bool?)null,
                     attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                     unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
                     signatures = new[]
@@ -227,6 +229,8 @@ sealed partial class ReflectionProvider
                 targetId = $"{TargetId(type)}.{property.Name}",
                 metadataName = $"{MetadataName(type)}.{property.Name}",
                 @static = isStatic ? true : (bool?)null,
+                readable = HasPublicGetter(property) ? true : (bool?)null,
+                writable = HasPublicSetter(property) ? true : (bool?)null,
                 type = typeRef,
                 attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                 unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -282,9 +286,10 @@ sealed partial class ReflectionProvider
             {
                 return "Indexer parameter type cannot be represented as closed .NET target type facts.";
             }
-            return TypeRef(property.PropertyType) is null
-                ? "Indexer return type cannot be represented as closed .NET target type facts."
-                : null;
+            if (TypeRef(property.PropertyType) is null)
+            {
+                return "Indexer return type cannot be represented as closed .NET target type facts.";
+            }
         }
         if (TypeRef(property.PropertyType) is null)
         {
@@ -298,6 +303,10 @@ sealed partial class ReflectionProvider
         if (isStatic && UsesDeclaringTypeParameter(property.PropertyType, type))
         {
             return "Static properties that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
+        }
+        if (!HasPublicGetter(property))
+        {
+            return "Write-only properties require a provider write-only member declaration model before they can be exposed safely.";
         }
         return null;
     }
@@ -328,6 +337,8 @@ sealed partial class ReflectionProvider
                 targetId = $"{TargetId(type)}.{field.Name}",
                 metadataName = $"{MetadataName(type)}.{field.Name}",
                 @static = field.IsStatic ? true : (bool?)null,
+                readable = true,
+                writable = !field.IsLiteral && !field.IsInitOnly ? true : (bool?)null,
                 type = typeRef,
                 attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                 unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -404,6 +415,8 @@ sealed partial class ReflectionProvider
                 targetId = EventTargetId(type, eventInfo),
                 metadataName = EventMetadataName(type, eventInfo),
                 @static = accessor.IsStatic ? true : (bool?)null,
+                readable = false,
+                writable = false,
                 type = typeRef,
                 attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                 unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -450,7 +463,17 @@ sealed partial class ReflectionProvider
         {
             return "Event has no public add/remove accessor visible to the provider.";
         }
-        return "C# events require explicit add/remove subscription semantics; the provider records this event as a target-only member until source event facts exist.";
+        return "C# events require explicit add/remove subscription semantics; the provider records this event as unsupported until source event facts exist.";
+    }
+
+    static bool HasPublicGetter(PropertyInfo property)
+    {
+        return property.GetMethod is not null && property.GetMethod.IsPublic;
+    }
+
+    static bool HasPublicSetter(PropertyInfo property)
+    {
+        return property.SetMethod is not null && property.SetMethod.IsPublic;
     }
 
     IEnumerable<MethodInfo> Methods(Type type)

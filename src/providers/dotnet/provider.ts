@@ -97,7 +97,12 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
-      return dotnetModuleToProviderDeclarationModel(result);
+      return dotnetModuleToProviderDeclarationModel(result, {
+        resolveModule(specifier) {
+          const resolved = options.provider.getModule(specifier, providerContext({}, options));
+          return isDotnetProviderDiagnostic(resolved) ? undefined : resolved;
+        },
+      });
     },
     getTargetIdentity(symbol) {
       return options.provider.getTargetIdentity?.(symbol);
