@@ -28,6 +28,9 @@ import {
 import {
   getStringTargetMembers,
 } from "./strings.js";
+import {
+  rejectUnsupportedCsharpJsSourceLibraryCall,
+} from "./unsupported.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -37,6 +40,10 @@ export function mapCsharpSourceLibraryCheckedCall(
   const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
     return undefined;
+  }
+  const unsupported = rejectUnsupportedCsharpJsSourceLibraryCall(sourceMember, host);
+  if (unsupported !== undefined) {
+    return unsupported;
   }
   const candidates = getSourceLibraryCallMembers(sourceMember);
   if (candidates.length === 0) {

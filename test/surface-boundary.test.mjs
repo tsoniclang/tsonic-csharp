@@ -115,6 +115,42 @@ test("JS surface maps multi-target calls from exact selected signature identity"
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Runtime.ArrayHelpers.forEach:1");
 });
 
+test("JS surface hard-rejects Object operations until closed Object carrier facts exist", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "keys")), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
+  assert.match(result.diagnostic.message, /Object\.keys/);
+});
+
+test("JS surface hard-rejects JSON operations until closed JSON carrier facts exist", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "parse")), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
+  assert.match(result.diagnostic.message, /JSON\.parse/);
+});
+
+test("JS surface hard-rejects console operations until closed console facts exist", () => {
+  const expression = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("Console", "log"), "log"), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
+  assert.match(result.diagnostic.message, /Console\.log/);
+});
+
 test("JS surface maps Record element access through provider-owned Dictionary indexer facts", () => {
   const expression = {};
   const receiverType = {};
@@ -303,13 +339,28 @@ function arrayLengthDeclaration() {
 }
 
 function arrayMemberDeclaration(memberName) {
+  return sourceLibraryMemberDeclaration("Array", memberName);
+}
+
+function sourceLibraryMemberDeclaration(declaringName, memberName) {
   const sourceFile = { FileName: "bundled:///libs/lib.es5.d.ts" };
-  const arrayDeclaration = { Kind: 1, Name: { Text: "Array" }, SourceFile: sourceFile };
+  const arrayDeclaration = { Kind: 1, Name: { Text: declaringName }, SourceFile: sourceFile };
   return {
     Kind: 1,
     Name: { Text: memberName },
     Parent: arrayDeclaration,
     SourceFile: sourceFile,
+  };
+}
+
+function sourceLibraryPropertyRequest(expression, sourceSelectedDeclaration, propertyName) {
+  return {
+    target: "csharp",
+    expression,
+    receiver: {},
+    receiverType: {},
+    propertyName,
+    sourceSelectedDeclaration,
   };
 }
 

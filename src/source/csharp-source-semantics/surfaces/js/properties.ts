@@ -23,6 +23,9 @@ import {
 import {
   getStringLengthOperation,
 } from "./strings.js";
+import {
+  rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
+} from "./unsupported.js";
 
 export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -41,6 +44,10 @@ function mapCsharpSourceLibraryPropertyOperation(
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   if (sourceMember === undefined) {
     return undefined;
+  }
+  const unsupported = rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(sourceMember, _host);
+  if (unsupported !== undefined) {
+    return unsupported;
   }
   const operation = getSourceLibraryPropertyOperation(sourceMember);
   if (operation === undefined) {
