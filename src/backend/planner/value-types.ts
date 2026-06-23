@@ -4,6 +4,8 @@ import {
   AsPropertyAssignment,
   AsVariableDeclaration,
   isAstNode,
+  KindCallExpression,
+  KindObjectLiteralExpression,
   KindPropertyAssignment,
   Node_Name,
   Node_Text,
@@ -80,9 +82,18 @@ function diagnoseUnprovenValueTypeFields(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): void {
-  const initializer = AsCallExpression(declaration.Initializer);
-  const shape = AsObjectLiteralExpression((initializer?.Arguments?.Nodes ?? [])[0]);
+  const initializer = SourceKind(input.ast, declaration.Initializer) === KindCallExpression
+    ? AsCallExpression(declaration.Initializer)
+    : undefined;
+  const shapeNode = (initializer?.Arguments?.Nodes ?? [])[0];
+  const shape = SourceKind(input.ast, shapeNode) === KindObjectLiteralExpression
+    ? AsObjectLiteralExpression(shapeNode)
+    : undefined;
   if (shape === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      declaration.Initializer ?? declaration,
+      "Struct declaration emission requires struct(...) to receive an object-literal field shape so C# value-type fields are proven before emission.",
+    ));
     return;
   }
   for (const property of shape.Properties?.Nodes ?? []) {

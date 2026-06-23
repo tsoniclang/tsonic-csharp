@@ -9,6 +9,7 @@ import type {
   CheckedCallMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
+  ProviderVirtualDeclarationFact,
 } from "@tsonic/tsts";
 import {
   csharpProviderDiagnostic,
@@ -62,7 +63,7 @@ export function mapCsharpCheckedCall(
     return deferObservation;
   }
   const attributeFact = getCheckedAttributeBuilderFact(request, context);
-  const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  const virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context);
   if (isErasedFieldSourceSemanticsCall(virtualDeclaration)) {
     const fieldFact = getCheckedFieldFact(request, context);
     if (fieldFact === undefined) {
@@ -126,7 +127,7 @@ export function mapCsharpCheckedCall(
     : constructorDeclaringTargetType;
   const member = findTargetMemberForCall(
     targetBinding,
-    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey),
+    virtualDeclaration,
     request,
     context,
     host.getTargetTypeRefForSubject,
@@ -154,6 +155,14 @@ export function mapCsharpCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: csharpMember },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function getSelectedCallProviderVirtualDeclaration(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): ProviderVirtualDeclarationFact | undefined {
+  return context.facts.get(request.sourceSelectedSignature, providerVirtualDeclarationFactKey) ??
+    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
 }
 
 function getConstructorDeclaringTargetType(

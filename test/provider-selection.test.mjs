@@ -281,6 +281,56 @@ test("C# provider includes virtual declaration signature id as candidate evidenc
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
+test("C# provider maps calls from the exact selected signature identity before declaration identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const selectedSignature = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      { ...method("Example.Target.m(System.Int64)", { kind: "source-primitive", name: "int64" }), sourceName: "renamed" },
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSignature: selectedSignature,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int64",
+      runtimeBase: "number",
+      signed: true,
+      width: 64,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target.m"),
+    virtualSignatureSubject: selectedSignature,
+    virtualSignatureDeclaration: {
+      ...virtualMember("Example.Target.m", "renamed"),
+      signatureId: "Example.Target.m(System.Int64)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
+});
+
 test("C# provider rejects overloaded member selections without exact signature identity", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -515,6 +565,41 @@ test("C# provider maps property access from selected provider member identity in
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.operation.operationId, "Example.Target.actual");
+});
+
+test("C# provider rejects same-spelling property members without selected member identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const expression = {};
+  const receiver = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      property("Example.Target.other", "m", "Other"),
+    ],
+  };
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    propertyName: "m",
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target.missing"),
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_NOT_FOUND");
 });
 
 test("C# provider refines selected indexer overload groups from provider signature identity", () => {
@@ -902,6 +987,9 @@ function fakeObservationContext(options) {
   return {
     facts: {
       get(subject, key) {
+        if (subject === options.virtualSignatureSubject && key === providerVirtualDeclarationFactKey) {
+          return options.virtualSignatureDeclaration;
+        }
         if (subject === options.virtualDeclarationSubject && key === providerVirtualDeclarationFactKey) {
           return options.virtualDeclaration;
         }

@@ -51,14 +51,20 @@ function planTypeParameterConstraints(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpGenericConstraint[] {
+  const declaration = AsTypeParameterDeclaration(node)!;
   const fact = input.facts.getFact(node, csharpTargetTypeParameterConstraintFactKey);
   if (fact !== undefined) {
+    if (declaration.Constraint !== undefined && fact.constraints.length === 0) {
+      diagnostics.push(unsupportedNodeDiagnostic(
+        declaration.Constraint,
+        "Generic constraints require at least one finalized C# constraint fact before emission.",
+      ));
+    }
     const constraints = fact.constraints
       .map((constraint) => csharpGenericConstraintFromTargetTypeParameterConstraint(constraint, node, diagnostics))
       .filter((constraint): constraint is CsharpGenericConstraint => constraint !== undefined);
     return constraints;
   }
-  const declaration = AsTypeParameterDeclaration(node)!;
   if (declaration.Constraint === undefined) {
     return [];
   }

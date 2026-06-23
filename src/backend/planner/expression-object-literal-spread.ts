@@ -54,15 +54,16 @@ export function planObjectShapeSpreadAssignments(
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires finalized provider object-shape facts for the spread expression before C# emission."));
     return [];
   }
+  const sourceExpression = planExpression(expression, sourceFile, input, diagnostics);
   const assignments: CsharpObjectInitializerAssignment[] = [];
-  for (const targetMember of targetShape.members) {
-    const sourceMember = sourceShape.members.find((member) => member.sourceName === targetMember.sourceName);
-    if (sourceMember === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Object literal spread source shape does not provide required member '${targetMember.sourceName}'.`));
+  for (const sourceMember of sourceShape.members) {
+    const targetMember = targetShape.members.find((member) => member.sourceName === sourceMember.sourceName);
+    if (targetMember === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Object literal spread source member '${sourceMember.sourceName}' requires a finalized target object-shape member carrier before C# emission.`));
       return [];
     }
     if (!objectShapeMemberTypesMatch(sourceMember, targetMember)) {
-      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Object literal spread member '${targetMember.sourceName}' requires matching finalized source and target member carriers.`));
+      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Object literal spread member '${sourceMember.sourceName}' requires matching finalized source and target member carriers.`));
       return [];
     }
     assignments.push({
@@ -70,7 +71,7 @@ export function planObjectShapeSpreadAssignments(
       name: objectShapeStorageMemberName(targetShape, targetMember),
       expression: {
         kind: "SimpleMemberAccessExpression",
-        receiver: planExpression(expression, sourceFile, input, diagnostics),
+        receiver: sourceExpression,
         name: objectShapeStorageMemberName(sourceShape, sourceMember),
       },
     });

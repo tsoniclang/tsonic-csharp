@@ -9,6 +9,9 @@ import {
   createCsharpNativeProviderExtension,
   createCsharpSourceSemanticsExtension,
 } from "../dist/index.js";
+import {
+  csharpObservedTargetAssignabilityFactKey,
+} from "../dist/source/csharp-facts.js";
 
 const searchValuesModule = "@example/csharp/search-values.js";
 
@@ -21,7 +24,53 @@ test("C# post-check target assignability reports target invalidity without chang
     declare let y: SearchValues<string>;
     x = y;
   `;
-  const session = createCompilerSessionFromFiles({
+  const session = createSearchValuesSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 2322), false, formatDiagnostics(diagnostics));
+  assert.equal(session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
+  ).length, 0);
+  const observedFacts = collectFacts(sourceFile, session.ast, session.extensionHost, csharpObservedTargetAssignabilityFactKey);
+  assert.equal(observedFacts.length, 1);
+  assert.equal(observedFacts[0].relation, "assignment");
+
+  session.finalizeExtensions();
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 1);
+  assert.match(targetDiagnostics[0].message, /after TSTS accepted the TypeScript relation/);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
+});
+
+test("C# post-check target assignability cannot make TypeScript-invalid assignments valid", () => {
+  const sourceText = `
+    import type { int32 } from "@tsonic/core/types.js";
+    import type { SearchValues } from "@example/csharp/search-values.js";
+
+    declare let x: SearchValues<int32>;
+    x = null;
+  `;
+  const session = createSearchValuesSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 2322), true, formatDiagnostics(diagnostics));
+  assert.equal(collectFacts(sourceFile, session.ast, session.extensionHost, csharpObservedTargetAssignabilityFactKey).length, 0);
+
+  session.finalizeExtensions();
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 0);
+});
+
+function createSearchValuesSession(sourceText) {
+  return createCompilerSessionFromFiles({
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
@@ -52,6 +101,7 @@ test("C# post-check target assignability reports target invalidity without chang
       noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
+      strictNullChecks: true,
     },
     extensionHostOptions: {
       activeTarget: "csharp",
@@ -62,22 +112,24 @@ test("C# post-check target assignability reports target invalidity without chang
       ],
     },
   });
+}
 
-  const diagnostics = session.ensureChecked(session.getSourceFile("/src/index.ts"));
-  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 2322), false, formatDiagnostics(diagnostics));
-  assert.equal(session.extensionHost?.diagnostics.all().filter((diagnostic) =>
-    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
-  ).length, 0);
+function collectFacts(sourceFile, ast, extensionHost, factKey) {
+  if (sourceFile === undefined || extensionHost === undefined) {
+    return [];
+  }
+  const facts = [];
+  visit(sourceFile);
+  return facts;
 
-  session.finalizeExtensions();
-
-  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
-    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
-  ) ?? [];
-  assert.equal(targetDiagnostics.length, 1);
-  assert.match(targetDiagnostics[0].message, /after TSTS accepted the TypeScript relation/);
-  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
-});
+  function visit(node) {
+    const fact = extensionHost.facts.get(node, factKey);
+    if (fact !== undefined) {
+      facts.push(fact);
+    }
+    ast.forEachChild(node, visit);
+  }
+}
 
 function createProviderBackedSearchValuesExtension() {
   return {
