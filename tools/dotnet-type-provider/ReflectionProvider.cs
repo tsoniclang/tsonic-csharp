@@ -61,7 +61,6 @@ sealed partial class ReflectionProvider
             .Where(type => type.Namespace == activeNamespaceName)
             .ToArray();
         var sourceGroups = allTypes
-            .Where(type => !type.IsNested)
             .GroupBy(SourceTypeName, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .ToArray();
@@ -73,7 +72,6 @@ sealed partial class ReflectionProvider
         var unsupportedExports = sourceGroups
             .Where(group => group.Count() > 1)
             .Select(ToUnsupportedTypeFamilyExport)
-            .Concat(allTypes.Where(type => type.IsNested).Select(ToUnsupportedNestedTypeExport))
             .ToArray();
         var targetOnlyTypes = allTypes
             .Where(type => !exportTypeNames.Contains(TargetId(type)))

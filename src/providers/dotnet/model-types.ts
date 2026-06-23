@@ -33,9 +33,7 @@ export interface DotnetModuleModel {
   readonly unsupportedExports?: readonly DotnetUnsupportedExportDeclaration[];
 }
 
-export type DotnetUnsupportedExportDeclaration =
-  | DotnetUnsupportedTypeFamilyExportDeclaration
-  | DotnetUnsupportedNestedTypeExportDeclaration;
+export type DotnetUnsupportedExportDeclaration = DotnetUnsupportedTypeFamilyExportDeclaration;
 
 export interface DotnetUnsupportedTypeFamilyExportDeclaration {
   readonly kind: "unsupported-type-family";
@@ -44,16 +42,6 @@ export interface DotnetUnsupportedTypeFamilyExportDeclaration {
   readonly targetIds?: readonly string[];
   readonly metadataNames: readonly string[];
   readonly assemblies?: readonly DotnetAssemblyReference[];
-}
-
-export interface DotnetUnsupportedNestedTypeExportDeclaration {
-  readonly kind: "unsupported-nested-type";
-  readonly sourceName: string;
-  readonly reason: string;
-  readonly targetId?: string;
-  readonly metadataName: string;
-  readonly assembly?: DotnetAssemblyReference;
-  readonly declaringMetadataName?: string;
 }
 
 export type DotnetExportDeclaration =

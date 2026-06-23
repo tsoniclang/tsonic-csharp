@@ -496,8 +496,10 @@ test(".NET reflection provider exposes contracts, operators, and nested public t
 
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
-  assert.equal(systemModule.exports.some((declaration) => declaration.sourceName === "SpecialFolder"), false);
-  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Environment.SpecialFolder"));
+  assert.ok(systemModule.exports.some((declaration) =>
+    declaration.sourceName === "SpecialFolder" &&
+    declaration.metadataName === "System.Environment.SpecialFolder"
+  ));
 });
 
 test(".NET reflection provider records events as target facts and omits source declarations", () => {
@@ -584,7 +586,7 @@ test(".NET reflection provider records unsupported source events without droppin
   assert.equal(idEndsWith(targetPointerEvent.returnType.id, "ProviderEventFixtures.PointerEventHandler"), true);
 });
 
-test(".NET reflection provider keeps unmodelled nested CLR types out of source declarations", () => {
+test(".NET reflection provider exposes unique nested CLR types as source declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
   assert.equal("exports" in systemModule, true);
@@ -596,8 +598,12 @@ test(".NET reflection provider keeps unmodelled nested CLR types out of source d
   const declarationModel = dotnetModuleToProviderDeclarationModel(systemModule);
   const environment = declarationModel.exports.find((declaration) => declaration.name === "Environment");
   assert.ok(environment);
-  assert.equal(environment.members.some((member) => member.name === "getFolderPath"), false);
+  assert.equal(environment.members.some((member) => member.name === "getFolderPath"), true);
   assert.equal(environment.members.some((member) => member.name === "newLine"), true);
+  const specialFolder = declarationModel.exports.find((declaration) => declaration.name === "SpecialFolder");
+  assert.ok(specialFolder);
+  assert.equal(specialFolder.kind, "enum");
+  assert.equal(specialFolder.members.some((member) => member.name === "desktop"), true);
 
   assert.ok(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Environment.SpecialFolder"));
 });
@@ -944,18 +950,8 @@ test(".NET reflection provider classifies unsupported type families without sile
   assert.ok(func.metadataNames.includes("System.Func`2"));
   assert.match(func.reason, /provider type-family declaration model/);
 
-  const specialFolder = systemModule.unsupportedExports?.find((declaration) =>
-    declaration.kind === "unsupported-nested-type" &&
-    declaration.metadataName === "System.Environment.SpecialFolder"
-  );
-  assert.ok(specialFolder);
-  assert.equal(specialFolder.sourceName, "SpecialFolder");
-  assert.equal(specialFolder.declaringMetadataName, "System.Environment");
-  assert.match(specialFolder.reason, /nested-type declaration model/);
-
   assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Action`1"));
   assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Func`2"));
-  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Environment.SpecialFolder"));
 
   assert.equal(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Action`1")?.kind, "delegate");
   assert.equal(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Func`2")?.kind, "delegate");

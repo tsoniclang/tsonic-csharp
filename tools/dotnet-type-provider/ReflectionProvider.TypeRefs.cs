@@ -171,7 +171,6 @@ sealed partial class ReflectionProvider
     Dictionary<string, SourceReference> SourceReferencesByTargetId(IEnumerable<Type> loadedTypes)
     {
         var candidates = loadedTypes
-            .Where(type => !type.IsNested)
             .Where(type => type.Namespace is not null)
             .GroupBy(type => $"{type.Namespace}\0{SourceTypeName(type)}", StringComparer.Ordinal)
             .Where(group => group.Count() == 1)

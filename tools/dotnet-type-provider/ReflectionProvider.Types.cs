@@ -65,17 +65,4 @@ sealed partial class ReflectionProvider
         };
     }
 
-    static object ToUnsupportedNestedTypeExport(Type type)
-    {
-        return new
-        {
-            kind = "unsupported-nested-type",
-            sourceName = SourceTypeName(type),
-            reason = "Nested CLR types require a provider nested-type declaration model before they can be exposed safely as source declarations.",
-            targetId = TargetId(type),
-            metadataName = MetadataName(type),
-            assembly = AssemblyReference(type.Assembly),
-            declaringMetadataName = type.DeclaringType is null ? null : MetadataName(type.DeclaringType),
-        };
-    }
 }
