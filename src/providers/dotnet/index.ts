@@ -30,6 +30,13 @@ export type {
   DotnetTypeDataProvider,
 } from "./provider.js";
 export { createDotnetTargetBindingProvider } from "./provider.js";
+export type {
+  DotnetReflectionTypeDataProvider,
+  DotnetReflectionTypeDataProviderOptions,
+} from "./reflection/provider.js";
+export {
+  createDotnetReflectionTypeDataProvider,
+} from "./reflection/provider.js";
 export {
   createDotnetModuleSpecifier,
   dotnetModuleExtension,
@@ -38,4 +45,3 @@ export {
   parseDotnetModuleSpecifier,
 } from "./module-specifier.js";
 export { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";
-

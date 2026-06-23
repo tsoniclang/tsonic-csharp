@@ -2,8 +2,8 @@ export { createCsharpTargetPack, csharpTargetId } from "./descriptor/csharp-targ
 export {
   csharpLangModule,
   csharpTypesModule,
+  createCsharpNativeProviderExtension,
   createCsharpSourceSemanticsExtension,
-  createCsharpTargetSemanticsExtension,
   neutralLangModule,
   neutralTypesModule,
 } from "./source/csharp-source-semantics.js";
@@ -49,6 +49,8 @@ export type {
   DotnetProviderModuleContext,
   DotnetProviderModuleResult,
   DotnetProviderOwnership,
+  DotnetReflectionTypeDataProvider,
+  DotnetReflectionTypeDataProviderOptions,
   DotnetSignatureDeclaration,
   DotnetTypeDataProvider,
   DotnetTypeDeclaration,
@@ -59,6 +61,7 @@ export type {
 } from "./providers/dotnet/index.js";
 export {
   createDotnetModuleSpecifier,
+  createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
   dotnetConstraintToTargetConstraint,
   dotnetModuleExtension,

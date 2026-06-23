@@ -1,7 +1,24 @@
-import { AsExpressionStatement, HasSourceKind, KindExpressionStatement, Node_Symbol } from "./source-ast.js";
+import {
+  AsClassDeclaration,
+  AsExpressionStatement,
+  HasSourceKind,
+  KindConstructor,
+  KindExpressionStatement,
+  KindFunctionDeclaration,
+  KindGetAccessor,
+  KindMethodDeclaration,
+  KindMethodSignature,
+  KindParameter,
+  KindPropertyDeclaration,
+  KindPropertySignature,
+  KindSetAccessor,
+  Node_Symbol,
+  SourceKind,
+  isAstNode,
+} from "./source-ast.js";
 import type { AttributeFact, Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import type { CsharpArgument, CsharpAttribute } from "../roslyn/syntax.js";
+import type { CsharpArgument, CsharpAttribute, CsharpAttributeTargetSpecifier } from "../roslyn/syntax.js";
 import { expressionToCsharpType } from "./csharp-types.js";
 import { planExpression } from "./expressions.js";
 
@@ -29,23 +46,117 @@ export function isErasedAttributeExpressionStatement(
   return input.facts.getAttributeFact(expression) !== undefined;
 }
 
+export function diagnoseUnresolvedAttributeApplications(
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): void {
+  const reported = new Set<AttributeFact>();
+  for (const attribute of collectAttributeApplicationFactsForSourceFile(sourceFile, input)) {
+    if (reported.has(attribute)) {
+      continue;
+    }
+    reported.add(attribute);
+    const resolution = resolveAttributeApplication(attribute, sourceFile, input);
+    if (resolution.applicationTarget === undefined) {
+      diagnostics.push(attributeApplicationDiagnostic(attribute, "must carry an AST application target from finalized TSTS facts before C# emission."));
+      continue;
+    }
+    if (resolution.selectedDeclaration === undefined) {
+      diagnostics.push(attributeApplicationDiagnostic(attribute, "target must resolve to a project source declaration from finalized TSTS facts before C# emission."));
+      continue;
+    }
+    if (attribute.applicationPlacement === "constructor" && resolution.declaration === undefined) {
+      diagnostics.push(attributeApplicationDiagnostic(attribute, "requires an explicit source constructor declaration; implicit default constructors have no finalized source declaration to attach attributes to."));
+      continue;
+    }
+    if (attribute.applicationParameterName !== undefined && resolution.parameter === undefined) {
+      diagnostics.push(attributeApplicationDiagnostic(attribute, `could not find parameter '${attribute.applicationParameterName}' on the finalized source declaration target.`));
+    }
+  }
+}
+
 function planAttribute(
   attribute: AttributeFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpAttribute {
+  const targetSpecifier = planAttributeTargetSpecifier(attribute, sourceFile, input, diagnostics);
   return {
-    type: isNode(attribute.target)
+    ...(targetSpecifier === undefined ? {} : { targetSpecifier }),
+    type: isAstNode(attribute.target)
       ? expressionToCsharpType(attribute.target, sourceFile, input, diagnostics)
       : unsupportedAttributeTarget(attribute, diagnostics),
     arguments: (attribute.arguments ?? []).map((argument): CsharpArgument => ({
       kind: "Argument",
-      expression: isNode(argument)
+      expression: isAstNode(argument)
         ? planExpression(argument, sourceFile, input, diagnostics)
         : unsupportedAttributeArgument(attribute, diagnostics),
     })),
   };
+}
+
+function planAttributeTargetSpecifier(
+  attribute: AttributeFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpAttributeTargetSpecifier | undefined {
+  const specifier = attribute.applicationTargetSpecifier;
+  if (specifier === undefined) {
+    return undefined;
+  }
+  const csharpSpecifier = csharpAttributeTargetSpecifier(specifier);
+  if (csharpSpecifier === undefined) {
+    diagnostics.push(attributeApplicationDiagnostic(attribute, `uses unsupported explicit target specifier '${specifier}'. Supported C# attribute target specifiers are 'field', 'property', 'param', and 'return'.`));
+    return undefined;
+  }
+  const resolution = resolveAttributeApplication(attribute, sourceFile, input);
+  const subject = attribute.applicationParameterName === undefined ? resolution.declaration : resolution.parameter;
+  if (!attributeTargetSpecifierSupportsSubject(csharpSpecifier, subject, input)) {
+    diagnostics.push(attributeApplicationDiagnostic(attribute, `uses explicit target specifier '${specifier}' on ${attributeSubjectDescription(subject, input)}, which is outside the finalized C# attribute placement surface.`));
+    return undefined;
+  }
+  return csharpSpecifier;
+}
+
+function csharpAttributeTargetSpecifier(specifier: string): CsharpAttributeTargetSpecifier | undefined {
+  switch (specifier) {
+    case "field":
+    case "property":
+    case "param":
+    case "return":
+      return specifier;
+    default:
+      return undefined;
+  }
+}
+
+function attributeTargetSpecifierSupportsSubject(
+  specifier: CsharpAttributeTargetSpecifier,
+  subject: Node | undefined,
+  input: TargetCompileInput,
+): boolean {
+  const kind = SourceKind(input.ast, subject);
+  switch (specifier) {
+    case "field":
+      return kind === KindPropertyDeclaration;
+    case "property":
+      return kind === KindPropertyDeclaration || kind === KindGetAccessor || kind === KindSetAccessor || kind === KindPropertySignature;
+    case "param":
+      return kind === KindParameter;
+    case "return":
+      return kind === KindMethodDeclaration || kind === KindFunctionDeclaration || kind === KindMethodSignature;
+  }
+  return false;
+}
+
+function attributeSubjectDescription(
+  subject: Node | undefined,
+  input: TargetCompileInput,
+): string {
+  return subject === undefined ? "an unresolved source declaration" : input.ast.kindName(subject);
 }
 
 function unsupportedAttributeTarget(
@@ -98,38 +209,110 @@ function collectAttributeFactsForSubject(
 function collectAttributeApplicationFacts(input: TargetCompileInput): readonly AttributeFact[] {
   const facts: AttributeFact[] = [];
   for (const sourceFile of input.sourceFiles) {
-    visitSourceNode(input, sourceFile, (node) => {
-      const fact = input.facts.getAttributeFact(node);
-      if (fact?.applicationTarget !== undefined) {
-        facts.push(fact);
-      }
-    });
+    facts.push(...collectAttributeApplicationFactsForSourceFile(sourceFile, input));
   }
+  return facts;
+}
+
+function collectAttributeApplicationFactsForSourceFile(
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): readonly AttributeFact[] {
+  const facts: AttributeFact[] = [];
+  visitSourceNode(input, sourceFile, (node) => {
+    const fact = input.facts.getAttributeFact(node);
+    if (fact?.applicationTarget !== undefined) {
+      facts.push(fact);
+    }
+  });
   return facts;
 }
 
 function attributeApplicationTargetsSubject(
   attribute: AttributeFact,
   subject: Node,
-  fallbackSourceFile: SourceFile,
+  contextSourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {
-  const applicationTarget = isNode(attribute.applicationTarget) ? attribute.applicationTarget : undefined;
-  if (applicationTarget === undefined) {
-    return false;
+  const resolution = resolveAttributeApplication(attribute, contextSourceFile, input);
+  if (attribute.applicationParameterName === undefined) {
+    return resolution.declaration === subject;
   }
-  const applicationSourceFile = input.ast.getSourceFile(applicationTarget) ?? fallbackSourceFile;
+  return resolution.parameter === subject;
+}
+
+interface AttributeApplicationResolution {
+  readonly applicationTarget?: Node;
+  readonly selectedDeclaration?: Node;
+  readonly declaration?: Node;
+  readonly parameter?: Node;
+}
+
+function resolveAttributeApplication(
+  attribute: AttributeFact,
+  contextSourceFile: SourceFile,
+  input: TargetCompileInput,
+): AttributeApplicationResolution {
+  const applicationTarget = isAstNode(attribute.applicationTarget) ? attribute.applicationTarget : undefined;
+  if (applicationTarget === undefined) {
+    return {};
+  }
+  const applicationSourceFile = input.ast.getSourceFile(applicationTarget) ?? contextSourceFile;
   const selectedDeclaration = input.semantics.getProjectSourceReferenceForNode(applicationTarget, { sourceFile: applicationSourceFile })?.declaration ??
     input.semantics.getProjectSourceDeclarationForNode(applicationTarget, { sourceFile: applicationSourceFile });
-  if (attribute.applicationParameterName === undefined) {
-    return selectedDeclaration === subject;
+  if (attribute.applicationPlacement === "constructor") {
+    const constructor = SourceKind(input.ast, selectedDeclaration) === KindConstructor
+      ? selectedDeclaration
+      : findConstructorDeclaration(selectedDeclaration, input);
+    const parameter = attribute.applicationParameterName === undefined
+      ? undefined
+      : findParameter(constructor, attribute.applicationParameterName, input);
+    return {
+      applicationTarget,
+      ...(selectedDeclaration === undefined ? {} : { selectedDeclaration }),
+      ...(constructor === undefined ? {} : { declaration: constructor }),
+      ...(parameter === undefined ? {} : { parameter }),
+    };
   }
-  const parameter = selectedDeclaration === undefined
+  const parameter = attribute.applicationParameterName === undefined
     ? undefined
-    : input.ast.parameters(selectedDeclaration)
-      .find((candidate): candidate is Node =>
-        candidate !== undefined && input.ast.text(input.ast.name(candidate)) === attribute.applicationParameterName);
-  return parameter === subject;
+    : findParameter(selectedDeclaration, attribute.applicationParameterName, input);
+  return {
+    applicationTarget,
+    ...(selectedDeclaration === undefined ? {} : { selectedDeclaration, declaration: selectedDeclaration }),
+    ...(parameter === undefined ? {} : { parameter }),
+  };
+}
+
+function findConstructorDeclaration(
+  declaration: Node | undefined,
+  input: TargetCompileInput,
+): Node | undefined {
+  const classDeclaration = AsClassDeclaration(declaration);
+  return classDeclaration?.Members?.Nodes
+    ?.find((candidate): candidate is Node => candidate !== undefined && SourceKind(input.ast, candidate) === KindConstructor);
+}
+
+function findParameter(
+  declaration: Node | undefined,
+  parameterName: string,
+  input: TargetCompileInput,
+): Node | undefined {
+  return input.ast.parameters(declaration)
+    .find((candidate): candidate is Node =>
+      candidate !== undefined && input.ast.text(input.ast.name(candidate)) === parameterName);
+}
+
+function attributeApplicationDiagnostic(
+  attribute: AttributeFact,
+  message: string,
+): TargetDiagnostic {
+  return {
+    code: "CSHARP_UNSUPPORTED_ATTRIBUTE_APPLICATION",
+    category: "error",
+    source: "tsonic-csharp",
+    message: `C# attribute application '${attribute.attributeName}' ${message}`,
+  };
 }
 
 function visitSourceNode(
@@ -142,10 +325,4 @@ function visitSourceNode(
   }
   visit(node);
   input.ast.forEachChild(node, (child) => visitSourceNode(input, child, visit));
-}
-
-function isNode(value: unknown): value is Node {
-  return typeof value === "object"
-    && value !== null
-    && typeof (value as { readonly Kind?: unknown }).Kind === "number";
 }

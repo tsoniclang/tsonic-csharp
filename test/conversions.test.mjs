@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
+import { csharpTargetConversionOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
   const value = trueKeyword();
@@ -14,8 +16,17 @@ test("planner renders target conversion method facts as C# AST calls", () => {
       operation: {
         operationId: "System.Convert.ToByte",
         operationKind: "method",
-        targetOperation: "System.Convert.ToByte",
+        targetOperation: "ToByte",
       },
+    },
+    csharpOperationSubject: value,
+    csharpOperation: {
+      kind: "member",
+      operationId: "System.Convert.ToByte",
+      operationKind: "method",
+      memberName: "ToByte",
+      static: true,
+      declaringType: csharpTargetNamedType("System.Convert", undefined, csharpQualifiedTypeRenderShape("System", "Convert")),
     },
   }), diagnostics);
 
@@ -37,6 +48,130 @@ test("planner leaves provider-proven identity conversions unwrapped", () => {
   assert.equal(printCsharpExpression(expression), "true");
 });
 
+test("planner does not rewrap selected target operations that already produce the converted type", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const byteType = { kind: "source-primitive", name: "uint8" };
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      convertedType: byteType,
+      operation: {
+        operationId: "System.Convert.ToByte",
+        operationKind: "method",
+        targetOperation: "ToByte",
+      },
+    },
+    selectedOperationSubject: value,
+    selectedOperation: {
+      kind: "member",
+      operationId: "System.Convert.ToByte",
+      operationKind: "method",
+      memberName: "ToByte",
+      static: true,
+      resultType: byteType,
+      declaringType: csharpTargetNamedType("System.Convert", undefined, csharpQualifiedTypeRenderShape("System", "Convert")),
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "true");
+});
+
+test("planner does not duplicate a selected target operation with the same conversion operation id", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      operation: {
+        operationId: "System.Convert.ToByte",
+        operationKind: "method",
+        targetOperation: "ToByte",
+      },
+    },
+    selectedOperationSubject: value,
+    selectedOperation: {
+      kind: "member",
+      operationId: "System.Convert.ToByte",
+      operationKind: "method",
+      memberName: "ToByte",
+      static: true,
+      declaringType: csharpTargetNamedType("System.Convert", undefined, csharpQualifiedTypeRenderShape("System", "Convert")),
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "true");
+});
+
+test("planner still wraps selected target operations when the target conversion changes the result type", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const byteType = { kind: "source-primitive", name: "uint8" };
+  const intType = { kind: "source-primitive", name: "int32" };
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      convertedType: byteType,
+      operation: {
+        operationId: "System.Convert.ToByte",
+        operationKind: "method",
+        targetOperation: "ToByte",
+      },
+    },
+    csharpOperationSubject: value,
+    csharpOperation: {
+      kind: "member",
+      operationId: "System.Convert.ToByte",
+      operationKind: "method",
+      memberName: "ToByte",
+      static: true,
+      declaringType: csharpTargetNamedType("System.Convert", undefined, csharpQualifiedTypeRenderShape("System", "Convert")),
+    },
+    selectedOperationSubject: value,
+    selectedOperation: {
+      kind: "member",
+      operationId: "Example.Int",
+      operationKind: "method",
+      memberName: "Int",
+      static: true,
+      resultType: intType,
+      declaringType: csharpTargetNamedType("Example.Target", undefined, csharpQualifiedTypeRenderShape("Example", "Target")),
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "System.Convert.ToByte(true)");
+});
+
+test("planner renders target assertion cast facts as C# cast AST", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const animalType = csharpTargetNamedType("Example.Animal", undefined, csharpQualifiedTypeRenderShape("Example", "Animal"));
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      convertedType: animalType,
+      operation: {
+        operationId: "tsonic.csharp.cast:target:Example.Animal<>",
+        operationKind: "operator",
+        targetOperation: "cast",
+      },
+    },
+    csharpOperationSubject: value,
+    csharpOperation: {
+      kind: "cast",
+      operationId: "tsonic.csharp.cast:target:Example.Animal<>",
+      targetType: animalType,
+      resultType: animalType,
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "(Example.Animal)true");
+});
+
 test("planner diagnoses unsupported target conversion operations instead of inventing target semantics", () => {
   const value = trueKeyword();
   const diagnostics = [];
@@ -54,10 +189,10 @@ test("planner diagnoses unsupported target conversion operations instead of inve
 
   assert.equal(expression.kind, "InvalidExpression");
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Target conversion operation 'operator' is not renderable/);
+  assert.match(diagnostics[0].message, /requires a finalized C# target conversion operation fact/);
 });
 
-test("planner rejects unqualified target conversion methods without a provider rendering contract", () => {
+test("planner rejects conversion methods without a finalized C# operation fact", () => {
   const value = trueKeyword();
   const diagnostics = [];
   const expression = planExpression(value, {}, fakeInput({
@@ -74,7 +209,7 @@ test("planner rejects unqualified target conversion methods without a provider r
 
   assert.equal(expression.kind, "InvalidExpression");
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Target conversion method requires a declaring target type and method name/);
+  assert.match(diagnostics[0].message, /requires a finalized C# target conversion operation fact/);
 });
 
 function trueKeyword() {
@@ -99,7 +234,15 @@ function fakeInput(options = {}) {
       getObjectShapeFact: () => undefined,
       getTargetBindingFact: () => undefined,
       getSourcePrimitiveFact: () => undefined,
-      getFact: () => undefined,
+      getFact: (subject, key) => {
+        if (subject === options.csharpOperationSubject && key === csharpTargetConversionOperationFactKey) {
+          return options.csharpOperation;
+        }
+        if (subject === options.selectedOperationSubject && key === csharpTargetOperationFactKey) {
+          return options.selectedOperation;
+        }
+        return undefined;
+      },
       getTargetIterationFact: () => undefined,
       getValueTypeFact: () => undefined,
       getFieldFact: () => undefined,
