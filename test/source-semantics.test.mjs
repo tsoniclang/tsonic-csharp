@@ -13,7 +13,7 @@ import {
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import {
-  createCsharpNativeProviderExtension,
+  createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
 } from "../dist/index.js";
 import {
@@ -61,7 +61,7 @@ test("source-semantics records opaque any carriers without promoting unknown or 
       activeTarget: "csharp",
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });
@@ -117,7 +117,7 @@ test("source-semantics does not synthesize C# operator facts for opaque any oper
       activeTarget: "csharp",
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });
@@ -182,7 +182,7 @@ test("source-semantics records provider-backed attribute selector facts from use
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createAttributeProviderExtension(),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });
@@ -250,7 +250,7 @@ test("source-semantics records pointer marker facts from neutral type aliases", 
       activeTarget: "csharp",
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });
@@ -297,7 +297,7 @@ test("source-semantics records assertion target conversions as C# target facts",
       activeTarget: "csharp",
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });
@@ -345,7 +345,7 @@ test("source-semantics records source primitive assertions as C# conversion meth
       activeTarget: "csharp",
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });
@@ -393,7 +393,7 @@ test("source-semantics rejects any assertion conversions without explicit target
       activeTarget: "csharp",
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });
@@ -440,7 +440,7 @@ test("source-semantics propagates object-shape callable carriers through destruc
       activeTarget: "csharp",
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });

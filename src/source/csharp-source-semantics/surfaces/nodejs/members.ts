@@ -82,6 +82,16 @@ export function getCsharpNodejsStaticPropertyOperation(
       };
 }
 
+export function getNodejsStaticPropertyDeclaration(
+  moduleSpecifier: string,
+  exportName: string,
+): NodejsProviderDeclarationIdentity | undefined {
+  const declaration = nodejsExportDeclarationIdentity(moduleSpecifier, exportName);
+  return nodejsPropertyTargetMembersByDeclarationIdentity.has(nodejsProviderDeclarationIdentityKey(declaration))
+    ? declaration
+    : undefined;
+}
+
 export function getNodejsTargetIdentity(symbol: ProviderSymbolIdentity): TargetIdentity | undefined {
   const member = nodejsTargetMembersByProviderSymbolIdentity.get(nodejsProviderSymbolIdentityKey(symbol));
   return member === undefined

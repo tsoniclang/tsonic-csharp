@@ -1,6 +1,7 @@
 import {
   acceptObservation,
   deferObservation,
+  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
@@ -12,6 +13,12 @@ import type {
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
+import {
+  visitAstReaderNodes,
+} from "../../ast-utils.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "../../runtime-carriers.js";
 import {
   csharpRegularExpressionLiteralFactKey,
 } from "../../../csharp-facts.js";
@@ -55,6 +62,32 @@ export function mapCsharpJsRegExpRuntimeCarrier(
     : acceptObservation<RuntimeCarrierFactResult>({
         carrier,
       }, [{ message: "C# JS surface runtime carrier mapped from checked JavaScript library type." }]);
+}
+
+export function recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+      if (compiler.ast.is.IsRegularExpressionLiteral(node) !== true) {
+        return;
+      }
+      recordCsharpJsRegExpLiteralFact(node, context);
+      if (lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) === undefined) {
+        lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, {
+          carrier: csharpJsRegExpTargetType(),
+        }, [{ message: "C# JS surface RegExp literal runtime carrier recorded from source syntax." }]);
+      }
+    });
+  }
 }
 
 function recordCsharpJsRegExpLiteralFact(

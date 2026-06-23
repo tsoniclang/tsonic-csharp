@@ -71,10 +71,21 @@ export interface CsharpOperationsProviderHost {
   ) => ExtensionObservation<RuntimeCarrierFactResult>;
 }
 
-export function createCsharpOperationsProvider(
-  selectedSurfaceIds: ReadonlySet<string>,
-  host: CsharpOperationsProviderHost,
-): TargetSemanticProvider {
+export const csharpJsSurfaceOperationsProviderId = "tsonic.csharp.js.operations";
+export const csharpNodejsSurfaceOperationsProviderId = "tsonic.csharp.nodejs.operations";
+
+function createProviderIdentity(id: string, displayName: string): ProviderIdentity {
+  return {
+    id,
+    version: csharpProviderVersion,
+    target: csharpTargetId,
+    extensionContractVersion: TstsProviderContractVersion,
+    providerKind: "semantic",
+    displayName,
+  };
+}
+
+export function createCsharpNativeOperationsProvider(host: CsharpOperationsProviderHost): TargetSemanticProvider {
   const identity: ProviderIdentity = {
     id: "tsonic.csharp.operations",
     version: csharpProviderVersion,
@@ -83,44 +94,22 @@ export function createCsharpOperationsProvider(
     providerKind: "semantic",
     displayName: "Tsonic C# semantic mapper",
   };
-  const jsSurfaceEnabled = selectedSurfaceIds.has("js");
-  const nodejsSurfaceEnabled = selectedSurfaceIds.has("nodejs");
-  const jsSurface = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(identity.id, host));
-  const nodejsSurface = createCsharpNodejsSurfaceMappers(identity.id);
   return {
     identity,
     resolveRuntimeCarrier(request, context) {
       if (request.target !== undefined && request.target !== csharpTargetId) {
         return deferObservation;
       }
-      return useObservationOrWhenDeferred(
-        host.mapRuntimeCarrier(request, context),
-        () => jsSurfaceEnabled ? jsSurface.mapRuntimeCarrier(request, context) : deferObservation,
-      );
+      return host.mapRuntimeCarrier(request, context);
     },
     mapCheckedCall(request, context) {
-      return useObservationOrWhenDeferred(
-        nodejsSurfaceEnabled ? nodejsSurface.mapCheckedCall(request, context) : deferObservation,
-        () => useObservationOrWhenDeferred(
-          mapCsharpCheckedCall(request, context, identity.id, host),
-          () => jsSurfaceEnabled ? jsSurface.mapCheckedCall(request, context) : deferObservation,
-        ),
-      );
+      return mapCsharpCheckedCall(request, context, identity.id, host);
     },
     mapCheckedPropertyAccess(request, context) {
-      return useObservationOrWhenDeferred(
-        nodejsSurfaceEnabled ? nodejsSurface.mapCheckedPropertyAccess(request, context) : deferObservation,
-        () => useObservationOrWhenDeferred(
-          mapCsharpCheckedPropertyAccess(request, context, identity.id, host),
-          () => jsSurfaceEnabled ? jsSurface.mapCheckedPropertyAccess(request, context) : deferObservation,
-        ),
-      );
+      return mapCsharpCheckedPropertyAccess(request, context, identity.id, host);
     },
     mapCheckedElementAccess(request, context) {
-      return useObservationOrWhenDeferred(
-        mapCsharpCheckedElementAccess(request, context, identity.id, host),
-        () => jsSurfaceEnabled ? jsSurface.mapCheckedElementAccess(request, context) : deferObservation,
-      );
+      return mapCsharpCheckedElementAccess(request, context, identity.id, host);
     },
     mapCheckedOperator(request, context) {
       return mapCsharpCheckedOperator(request, context, host);
@@ -129,10 +118,7 @@ export function createCsharpOperationsProvider(
       return observeCsharpPostCheckAssignability(request, context, host);
     },
     mapCheckedIteration(request, context) {
-      return useObservationOrWhenDeferred(
-        mapCsharpNativeCheckedIteration(request, context, host),
-        () => jsSurfaceEnabled ? jsSurface.mapCheckedIteration(request, context) : deferObservation,
-      );
+      return mapCsharpNativeCheckedIteration(request, context, host);
     },
     recordContextualTargetType(request, context) {
       return mapCsharpContextualTargetType(request, context, host);
@@ -143,6 +129,35 @@ export function createCsharpOperationsProvider(
     resolveParameterPassing(request, context) {
       return mapCsharpParameterPassing(request, context);
     },
+  };
+}
+
+export function createCsharpJsSurfaceOperationsProvider(host: CsharpOperationsProviderHost): TargetSemanticProvider {
+  const identity = createProviderIdentity(
+    csharpJsSurfaceOperationsProviderId,
+    "Tsonic C# JavaScript surface semantic mapper",
+  );
+  const jsSurface = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(identity.id, host));
+  return {
+    identity,
+    resolveRuntimeCarrier: jsSurface.mapRuntimeCarrier,
+    mapCheckedCall: jsSurface.mapCheckedCall,
+    mapCheckedPropertyAccess: jsSurface.mapCheckedPropertyAccess,
+    mapCheckedElementAccess: jsSurface.mapCheckedElementAccess,
+    mapCheckedIteration: jsSurface.mapCheckedIteration,
+  };
+}
+
+export function createCsharpNodejsSurfaceOperationsProvider(): TargetSemanticProvider {
+  const identity = createProviderIdentity(
+    csharpNodejsSurfaceOperationsProviderId,
+    "Tsonic C# Node.js surface semantic mapper",
+  );
+  const nodejsSurface = createCsharpNodejsSurfaceMappers(identity.id);
+  return {
+    identity,
+    mapCheckedCall: nodejsSurface.mapCheckedCall,
+    mapCheckedPropertyAccess: nodejsSurface.mapCheckedPropertyAccess,
   };
 }
 

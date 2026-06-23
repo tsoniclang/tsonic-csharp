@@ -15,6 +15,7 @@ import type {
 import {
   asNodeSubject,
   isControlFlowLabelIdentifier,
+  isSemanticTypeQueryableValueExpressionNode,
   visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
@@ -166,6 +167,9 @@ function getSafeObjectShapeSymbol(
     if (isControlFlowLabelIdentifier(compiler.ast, node)) {
       return undefined;
     }
+    if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)) {
+      return undefined;
+    }
     const symbol = compiler.checker.getSymbolAtLocation(node, { sourceFile });
     if (symbol !== undefined || !isResolvedObjectShapeSymbolLookupNode(compiler.ast, node)) {
       return symbol;
@@ -204,9 +208,12 @@ function getTypeSubject(
     if (isControlFlowLabelIdentifier(compiler.ast, node)) {
       return undefined;
     }
-    return isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)
-      ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
-      : compiler.checker.getTypeAtLocation(node, { sourceFile });
+    if (isTypeSyntaxNodeForObjectShapeRecording(compiler.ast, node)) {
+      return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+    }
+    return isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
+      ? compiler.checker.getTypeAtLocation(node, { sourceFile })
+      : undefined;
   } catch {
     return undefined;
   }

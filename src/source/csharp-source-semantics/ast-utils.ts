@@ -247,6 +247,8 @@ function isNonValueChildPosition(
     return true;
   }
   if (
+    asNodeSubject(getNodeField(parent, "Name")) === node ||
+    asNodeSubject(getNodeField(parent, "name")) === node ||
     asNodeSubject(getNodeField(parent, "ModuleSpecifier")) === node ||
     asNodeSubject(getNodeField(parent, "moduleSpecifier")) === node ||
     asNodeSubject(getNodeField(parent, "ImportClause")) === node ||

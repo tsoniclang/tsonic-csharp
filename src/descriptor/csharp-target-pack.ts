@@ -11,7 +11,9 @@ import type {
 import type { CompilerExtension } from "@tsonic/tsts";
 import { createCsharpBackend } from "../backend/csharp-backend.js";
 import {
-  createCsharpNativeProviderExtension,
+  createCsharpTargetSemanticsExtension,
+  createCsharpJsSurfaceExtension,
+  createCsharpNodejsSurfaceExtension,
   createCsharpSourceSemanticsExtension,
 } from "../source/csharp-source-semantics.js";
 import { createDotnetToolchain } from "../toolchain/dotnet-toolchain.js";
@@ -28,7 +30,7 @@ export function createCsharpTargetPack(): TargetPack {
       createExtensions(context: TargetProviderContext): readonly CompilerExtension[] {
         return [
           createCsharpSourceSemanticsExtension(context),
-          createCsharpNativeProviderExtension(context),
+          createCsharpTargetSemanticsExtension(context),
         ];
       },
     },
@@ -36,6 +38,9 @@ export function createCsharpTargetPack(): TargetPack {
       {
         id: "js",
         displayName: "JavaScript surface",
+        createExtensions(context) {
+          return [createCsharpJsSurfaceExtension(context)];
+        },
         runtimeArtifacts(_context: TargetRuntimeArtifactContext): readonly TargetArtifact[] {
           return [];
         },
@@ -44,6 +49,9 @@ export function createCsharpTargetPack(): TargetPack {
         id: "nodejs",
         displayName: "Node.js surface",
         requiredSurfaces: ["js"],
+        createExtensions(context) {
+          return [createCsharpNodejsSurfaceExtension(context)];
+        },
         runtimeArtifacts(_context: TargetRuntimeArtifactContext): readonly TargetArtifact[] {
           return [];
         },

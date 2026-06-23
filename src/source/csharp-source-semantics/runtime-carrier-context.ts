@@ -6,7 +6,7 @@ import type {
   ExtensionObservationContext,
 } from "@tsonic/tsts";
 import {
-  csharpNativeProviderExtensionId,
+  csharpTargetSemanticsExtensionId,
 } from "./identity.js";
 
 export type CsharpLifecycleObservationContext =
@@ -22,7 +22,7 @@ export function createRuntimeCarrierLifecycleObservationContext(
 ): ExtensionObservationContext<typeof ExtensionObservationPoint.resolveRuntimeCarrier> {
   return {
     observation: ExtensionObservationPoint.resolveRuntimeCarrier,
-    extensionId: csharpNativeProviderExtensionId,
+    extensionId: csharpTargetSemanticsExtensionId,
     host: lifecycleContext.host,
     facts: lifecycleContext.host.facts,
     factResolver: lifecycleContext.host.factResolver,

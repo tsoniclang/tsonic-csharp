@@ -14,6 +14,7 @@ import {
   asNodeSubject,
   getNodeField,
   isControlFlowLabelIdentifier,
+  isSemanticTypeQueryableValueExpressionNode,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
@@ -83,9 +84,12 @@ function getSemanticTypeForNode(
   if (isControlFlowLabelIdentifier(ast, node)) {
     return undefined;
   }
-  return isTypeSyntaxNode(ast, node)
-    ? checker.getTypeFromTypeNode(node, { sourceFile })
-    : checker.getTypeAtLocation(node, { sourceFile });
+  if (isTypeSyntaxNode(ast, node)) {
+    return checker.getTypeFromTypeNode(node, { sourceFile });
+  }
+  return isSemanticTypeQueryableValueExpressionNode(ast, node)
+    ? checker.getTypeAtLocation(node, { sourceFile })
+    : undefined;
 }
 
 function getSymbolAtReferenceNode(
@@ -117,6 +121,9 @@ function getReferenceQueryNode(
   if (isControlFlowLabelIdentifier(ast, node)) {
     return undefined;
   }
+  if (isPropertyAccessName(ast, node)) {
+    return undefined;
+  }
   if (ast.is.IsIdentifier(node) ||
     ast.is.IsPrivateIdentifier(node) ||
     ast.is.IsPropertyAccessExpression(node) ||
@@ -130,6 +137,16 @@ function getReferenceQueryNode(
     return asNodeSubject(getNodeField(node, "Expression"));
   }
   return undefined;
+}
+
+function isPropertyAccessName(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  const parent = ast.parent(node);
+  return parent !== undefined &&
+    ast.is.IsPropertyAccessExpression(parent) &&
+    ast.name(parent) === node;
 }
 
 function isTypeReferenceQueryNode(

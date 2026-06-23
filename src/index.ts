@@ -2,7 +2,7 @@ export { createCsharpTargetPack, csharpTargetId } from "./descriptor/csharp-targ
 export {
   csharpLangModule,
   csharpTypesModule,
-  createCsharpNativeProviderExtension,
+  createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
   neutralLangModule,
   neutralTypesModule,

@@ -6,7 +6,7 @@ import {
   formatDiagnostics,
 } from "@tsonic/tsts";
 import {
-  createCsharpNativeProviderExtension,
+  createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
 } from "../dist/index.js";
 import {
@@ -130,7 +130,7 @@ function createSearchValuesSession(sourceText) {
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createProviderBackedSearchValuesExtension(),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });
@@ -152,7 +152,7 @@ function createNativeSession(sourceText) {
       activeTarget: "csharp",
       extensions: [
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-        createCsharpNativeProviderExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
     },
   });

@@ -1,5 +1,4 @@
 import {
-  deferObservation,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -11,16 +10,8 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  csharpNativeProviderExtensionId,
   csharpTargetId,
 } from "./identity.js";
-import {
-  createCsharpJsSurfaceMappers,
-} from "./surfaces/js/index.js";
-import {
-  createCsharpJsSurfaceHost,
-  useObservationOrWhenDeferred,
-} from "./operations-provider.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carrier-context.js";
@@ -34,7 +25,6 @@ import type {
 export function getObservedRuntimeCarrierSyntaxTargetTypeRef(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   node: Node,
-  selectedSurfaceIds: ReadonlySet<string>,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): TargetTypeRef | undefined {
   const compiler = lifecycleContext.compiler;
@@ -45,26 +35,17 @@ export function getObservedRuntimeCarrierSyntaxTargetTypeRef(
     type: node,
     sourceTypeReference: node,
     target: csharpTargetId,
-  }, selectedSurfaceIds, host);
+  }, host);
   return result.kind === "accept" ? result.value.carrier : undefined;
 }
 
 export function resolveCsharpRuntimeCarrierFromLifecycle(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   request: RuntimeCarrierFactRequest,
-  selectedSurfaceIds: ReadonlySet<string>,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const jsSurface = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpNativeProviderExtensionId, {
-    getTargetTypeRefForSubject: host.getTargetTypeRefForSubject,
-    getCsharpObjectShapeFactForSubject: host.getCsharpObjectShapeFactForSubject,
-    mapRuntimeCarrier: (runtimeRequest, runtimeContext) => mapRuntimeCarrier(runtimeRequest, runtimeContext, host),
-  }));
-  return useObservationOrWhenDeferred(
-    mapRuntimeCarrier(request, context, host),
-    () => selectedSurfaceIds.has("js") ? jsSurface.mapRuntimeCarrier(request, context) : deferObservation,
-  );
+  return mapRuntimeCarrier(request, context, host);
 }
 
 export function getRuntimeCarrierSyntaxTargetTypeRef(

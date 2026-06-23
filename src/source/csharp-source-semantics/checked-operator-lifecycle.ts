@@ -12,7 +12,6 @@ import type {
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
-  getNodeField,
   visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
@@ -69,16 +68,26 @@ export function recordCsharpCheckedOperatorFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
+    const nodes: Node[] = [];
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      if (lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
-        return;
-      }
-      const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
-      if (operation !== undefined) {
-        lifecycleContext.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
-        lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
-      }
+      nodes.push(node);
     });
+    const pending = nodes.reverse();
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (const node of pending) {
+        if (lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
+          continue;
+        }
+        const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
+        if (operation !== undefined) {
+          lifecycleContext.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
+          lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
+          progressed = true;
+        }
+      }
+    }
   }
 }
 
@@ -91,20 +100,26 @@ function getCsharpCheckedOperatorFactsFromSyntax(
   if (ast === undefined) {
     return undefined;
   }
-  const operator = ast.is.IsBinaryExpression(node)
+  const binaryExpression = ast.is.IsBinaryExpression(node)
+    ? ast.as.AsBinaryExpression(node)
+    : undefined;
+  const prefixUnaryExpression = ast.is.IsPrefixUnaryExpression(node)
+    ? ast.as.AsPrefixUnaryExpression(node)
+    : undefined;
+  const operator = binaryExpression !== undefined
     ? getBinaryOperatorText(ast, node)
-    : ast.kindName(node) === "KindPrefixUnaryExpression"
+    : prefixUnaryExpression !== undefined
       ? getPrefixUnaryOperatorText(ast, node)
       : undefined;
   const targetOperator = operator === undefined ? undefined : getCsharpOperatorTargetOperation(operator);
   if (operator === undefined || targetOperator === undefined) {
     return undefined;
   }
-  const leftSubject = ast.is.IsBinaryExpression(node)
-    ? asNodeSubject(getNodeField(node, "Left"))
-    : asNodeSubject(getNodeField(node, "Operand"));
-  const rightSubject = ast.is.IsBinaryExpression(node)
-    ? asNodeSubject(getNodeField(node, "Right"))
+  const leftSubject = binaryExpression !== undefined
+    ? asNodeSubject(binaryExpression.Left)
+    : asNodeSubject(prefixUnaryExpression?.Operand);
+  const rightSubject = binaryExpression !== undefined
+    ? asNodeSubject(binaryExpression.Right)
     : undefined;
   const operandQuery = getCheckedOperatorOperandQuery(operator);
   const sourceFile = ast.getSourceFile(node);
@@ -156,6 +171,33 @@ function getTargetTypeRefForCheckedOperand(
   options: TargetTypeRefResolutionOptions,
   host: CsharpCheckedOperatorLifecycleHost,
 ): TargetTypeRef | undefined {
+  const node = asNodeSubject(subject);
+  const parenthesizedExpression = node !== undefined && context.compiler?.ast.is.IsParenthesizedExpression(node) === true
+    ? context.compiler.ast.as.AsParenthesizedExpression(node)
+    : undefined;
+  if (parenthesizedExpression !== undefined) {
+    return getTargetTypeRefForCheckedOperand(parenthesizedExpression.Expression, sourceFile, context, options, host);
+  }
+  const selectedOperationResult = context.host.facts.get(node, csharpTargetOperationFactKey)?.resultType ??
+    (subject === undefined
+      ? undefined
+      : context.factResolver.resolve(subject, csharpTargetOperationFactKey)?.resultType);
+  if (selectedOperationResult !== undefined) {
+    return selectedOperationResult;
+  }
+  if (
+    node !== undefined &&
+    (context.compiler?.ast.is.IsBinaryExpression(node) === true ||
+      context.compiler?.ast.is.IsPrefixUnaryExpression(node) === true)
+  ) {
+    const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
+    if (operation !== undefined) {
+      context.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic nested target operand facts." }]);
+      context.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic nested target operand facts." }]);
+      return operation.csharpOperation.resultType;
+    }
+    return undefined;
+  }
   const direct = host.getTargetTypeRefForSubject(subject, context, {
     ...options,
     ...(sourceFile === undefined ? {} : { sourceFile }),
@@ -163,7 +205,6 @@ function getTargetTypeRefForCheckedOperand(
   if (direct !== undefined || sourceFile === undefined) {
     return direct;
   }
-  const node = asNodeSubject(subject);
   const checker = context.compiler?.checker;
   if (node === undefined || checker === undefined) {
     return undefined;

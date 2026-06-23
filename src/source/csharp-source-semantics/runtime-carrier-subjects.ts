@@ -7,6 +7,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   isControlFlowLabelIdentifier,
+  isSemanticTypeQueryableValueExpressionNode,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
@@ -21,9 +22,12 @@ export function getRuntimeCarrierSubjectType(
   if (isControlFlowLabelIdentifier(compiler.ast, node)) {
     return undefined;
   }
-  return isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)
-    ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
-    : compiler.checker.getTypeAtLocation(node, { sourceFile });
+  if (isRuntimeCarrierTypeSyntaxNode(compiler.ast, node)) {
+    return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+  }
+  return isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)
+    ? compiler.checker.getTypeAtLocation(node, { sourceFile })
+    : undefined;
 }
 
 export function getRuntimeCarrierSubjectSymbol(

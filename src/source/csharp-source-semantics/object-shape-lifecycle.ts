@@ -1,4 +1,5 @@
 import {
+  providerVirtualDeclarationFactKey,
   runtimeCarrierFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
@@ -113,8 +114,15 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
       if (isProjectSourceModuleStaticValuePropertyAccess(node, sourceFile, projectSourceFiles, compiler)) {
         return;
       }
+      if (isNamespaceImportReceiverPropertyAccess(node, sourceFile, compiler)) {
+        return;
+      }
       const receiver = asNodeSubject(getNodeField(node, "Expression"));
-      const propertyName = getSourceNameNodeText(asNodeSubject(getNodeField(node, "name")), compiler.ast);
+      const propertyNameNode = asNodeSubject(getNodeField(node, "name"));
+      if (isProviderSelectedPropertyAccess(node, propertyNameNode, sourceFile, context)) {
+        return;
+      }
+      const propertyName = getSourceNameNodeText(propertyNameNode, compiler.ast);
       if (receiver === undefined || propertyName.length === 0) {
         return;
       }
@@ -136,6 +144,51 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
       }), [{ message: "C# object-shape member operation recorded from finalized structural shape fact." }]);
     });
   }
+}
+
+function isProviderSelectedPropertyAccess(
+  node: Node,
+  propertyNameNode: Node | undefined,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+): boolean {
+  const checker = context.compiler?.checker;
+  if (checker === undefined) {
+    return false;
+  }
+  return [
+    propertyNameNode,
+    checker.getSymbolAtLocation(node, { sourceFile }),
+    checker.getResolvedSymbol(node, { sourceFile }),
+  ].some((subject) => context.host.facts.get(subject, providerVirtualDeclarationFactKey) !== undefined);
+}
+
+function isNamespaceImportReceiverPropertyAccess(
+  node: Node,
+  sourceFile: SourceFile,
+  compiler: NonNullable<ExtensionObservationContext["compiler"]>,
+): boolean {
+  const propertyAccess = compiler.ast.as.AsPropertyAccessExpression(node);
+  const receiver = asNodeSubject(propertyAccess?.Expression);
+  if (receiver === undefined || !compiler.ast.is.IsIdentifier(receiver)) {
+    return false;
+  }
+  const receiverName = compiler.ast.text(receiver);
+  let namespaceImportMatch = false;
+  visitAstReaderNodes(compiler.ast, sourceFile, (candidate) => {
+    if (namespaceImportMatch || !compiler.ast.is.IsImportDeclaration(candidate)) {
+      return;
+    }
+    const importDeclaration = compiler.ast.as.AsImportDeclaration(candidate);
+    const importClause = compiler.ast.as.AsImportClause(importDeclaration?.ImportClause);
+    const namedBindings = importClause?.NamedBindings;
+    if (namedBindings === undefined || compiler.ast.as.AsNamespaceImport(namedBindings) === undefined) {
+      return;
+    }
+    const name = compiler.ast.name(namedBindings);
+    namespaceImportMatch = name !== undefined && compiler.ast.text(name) === receiverName;
+  });
+  return namespaceImportMatch;
 }
 
 function isProjectSourceModuleStaticValuePropertyAccess(

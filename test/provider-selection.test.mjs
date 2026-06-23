@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { attributeFactKey, providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { createCsharpNativeProviderExtension } from "../dist/index.js";
+import { createCsharpTargetSemanticsExtension } from "../dist/index.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
 test("C# provider rejects ambiguous target members instead of ranking candidates", () => {
@@ -1080,7 +1080,7 @@ test("target member selection does not treat opaque any or unknown as wildcard t
 function getNativeSemanticProvider() {
   const semanticProviders = [];
   const target = { id: "csharp" };
-  const extension = createCsharpNativeProviderExtension({
+  const extension = createCsharpTargetSemanticsExtension({
     project: {
       entryPoint: "index.ts",
       targets: [target],

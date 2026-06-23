@@ -1,12 +1,14 @@
 import {
   acceptObservation,
   rejectObservation,
+  targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedElementAccessMappingRequest,
   CheckedOperationMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
+  Node,
   TargetMember,
   TargetParameter,
   TargetTypeRef,
@@ -26,6 +28,20 @@ import {
   targetOperation,
   targetParameter,
 } from "./source-library.js";
+import {
+  csharpTargetOperationFactKey,
+} from "../../../csharp-facts.js";
+import {
+  asNodeSubject,
+  getNodeField,
+  visitAstReaderNodes,
+} from "../../ast-utils.js";
+import {
+  csharpTargetId,
+} from "../../identity.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "../../runtime-carriers.js";
 
 export function mapCsharpJsArrayElementAccess(
   request: CheckedElementAccessMappingRequest,
@@ -48,6 +64,71 @@ export function mapCsharpJsArrayElementAccess(
       resultType: receiverType.element,
     }),
   }, [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);
+}
+
+export function recordCsharpJsArrayElementAccessFactsBeforeFinalization(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  host: CsharpJsSurfaceHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+      if (!compiler.ast.is.IsElementAccessExpression(node) || lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
+        return;
+      }
+      recordCsharpJsArrayElementAccessFact(node, context, host);
+    });
+  }
+}
+
+function recordCsharpJsArrayElementAccessFact(
+  node: Node,
+  context: ExtensionObservationContext,
+  host: CsharpJsSurfaceHost,
+): void {
+  const compiler = context.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const receiver = asNodeSubject(getNodeField(node, "Expression"));
+  const argument = asNodeSubject(getNodeField(node, "ArgumentExpression"));
+  const sourceFile = compiler.ast.getSourceFile(node);
+  if (receiver === undefined || argument === undefined || sourceFile === undefined) {
+    return;
+  }
+  const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
+  const request = {
+    expression: node,
+    receiver,
+    receiverType,
+    argument,
+    target: csharpTargetId,
+  } satisfies CheckedElementAccessMappingRequest;
+  const mapped = mapCsharpJsArrayElementAccess(
+    request,
+    context as ExtensionObservationContext<"operation.mapCheckedElementAccess">,
+    host.unwrapNullableTargetType(
+      host.getTargetTypeRefForSubject(receiverType, context, csharpJsCheckedTypeQuery) ??
+        host.getTargetTypeRefForSubject(receiver, context, csharpJsCheckedTypeQuery),
+    ),
+    host,
+  );
+  if (mapped?.kind !== "accept") {
+    return;
+  }
+  const csharpOperation = context.host.facts.get(node, csharpTargetOperationFactKey);
+  context.host.facts.set(node, targetOperationFactKey, csharpOperation?.kind === "member" && csharpOperation.operationKind === "indexer"
+    ? targetOperation(csharpOperation.operationId, "indexer", csharpOperation.memberName, {
+        ...(csharpOperation.resultType !== undefined ? { resultType: csharpOperation.resultType } : {}),
+      })
+    : mapped.value.operation, mapped.evidence ?? [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);
 }
 
 export function getArrayLengthOperation(declaringName: string): CheckedOperationMappingResult["operation"] {
