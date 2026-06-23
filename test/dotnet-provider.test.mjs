@@ -733,6 +733,47 @@ test(".NET reflection provider exposes delegates with source shells and target d
   assert.equal(targetBinding?.csharpType.kind === "target-named" ? targetBinding.csharpType.id : undefined, "System.Predicate`1");
 });
 
+test(".NET reflection provider signature ids preserve byref modes and generic method arity", () => {
+  const reference = buildSignatureIdentityFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderSignatureFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const rawTarget = module.exports.find((declaration) => declaration.sourceName === "SignatureTarget");
+  assert.ok(rawTarget);
+  const rawMembers = new Map(rawTarget.members.map((member) => [member.targetName, member]));
+  const mSignatures = rawMembers.get("M").signatures;
+  assert.deepEqual(mSignatures.map((signature) => signature.id), [
+    "ProviderSignatureFixtures.SignatureTarget.M(System.Int32)",
+    "ProviderSignatureFixtures.SignatureTarget.M(ref System.Int32)",
+  ]);
+  assert.deepEqual(mSignatures.map((signature) => signature.parameters[0].passingMode), [
+    "by-value",
+    "byref-readwrite",
+  ]);
+
+  const writeOut = rawMembers.get("WriteOut").signatures[0];
+  assert.equal(writeOut.id, "ProviderSignatureFixtures.SignatureTarget.WriteOut(out System.Int32)");
+  assert.equal(writeOut.parameters[0].passingMode, "byref-writeonly-must-init");
+
+  const readIn = rawMembers.get("ReadIn").signatures[0];
+  assert.equal(readIn.id, "ProviderSignatureFixtures.SignatureTarget.ReadIn(in System.Int32)");
+  assert.equal(readIn.parameters[0].passingMode, "byref-readonly");
+
+  const genericSignatures = rawMembers.get("Generic").signatures;
+  assert.deepEqual(genericSignatures.map((signature) => signature.id), [
+    "ProviderSignatureFixtures.SignatureTarget.Generic()",
+    "ProviderSignatureFixtures.SignatureTarget.Generic``1()",
+    "ProviderSignatureFixtures.SignatureTarget.Generic``2()",
+  ]);
+  assert.deepEqual(genericSignatures.map((signature) => signature.typeParameters?.length ?? 0), [0, 1, 2]);
+
+  const binding = provider.findTargetBindingByTargetId("ProviderSignatureFixtures.SignatureTarget");
+  assert.ok(binding);
+  assert.ok(binding.members.some((member) => member.id === "ProviderSignatureFixtures.SignatureTarget.M(ref System.Int32)"));
+  assert.ok(binding.members.some((member) => member.id === "ProviderSignatureFixtures.SignatureTarget.Generic``2()"));
+});
+
 test(".NET reflection provider classifies unsupported type families without silently dropping them", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
@@ -787,4 +828,22 @@ function buildUnsupportedEventFixture() {
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "UnsupportedEventProviderFixture.dll");
+}
+
+function buildSignatureIdentityFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/signature-identity/SignatureIdentityProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/signature-identity/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/signature-identity/obj/");
+  const result = spawnSync("dotnet", [
+    "build",
+    project,
+    "--nologo",
+    "--verbosity",
+    "quiet",
+    "--output",
+    outputDirectory,
+    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  return join(outputDirectory, "SignatureIdentityProviderFixture.dll");
 }

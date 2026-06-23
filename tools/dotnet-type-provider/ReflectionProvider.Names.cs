@@ -88,17 +88,39 @@ sealed partial class ReflectionProvider
 
     static string MethodId(MethodInfo method)
     {
-        return $"{MetadataName(method.DeclaringType!)}.{method.Name}({string.Join(",", method.GetParameters().Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
+        return $"{MetadataName(method.DeclaringType!)}.{MethodMetadataName(method)}({string.Join(",", method.GetParameters().Select(ParameterMetadataName))})";
     }
 
     static string ConstructorId(ConstructorInfo constructor)
     {
-        return $"{MetadataName(constructor.DeclaringType!)}..ctor({string.Join(",", constructor.GetParameters().Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
+        return $"{MetadataName(constructor.DeclaringType!)}..ctor({string.Join(",", constructor.GetParameters().Select(ParameterMetadataName))})";
+    }
+
+    static string MethodMetadataName(MethodInfo method)
+    {
+        return method.IsGenericMethodDefinition
+            ? $"{method.Name}``{method.GetGenericArguments().Length}"
+            : method.Name;
+    }
+
+    static string ParameterMetadataName(ParameterInfo parameter)
+    {
+        var typeName = TypeMetadataName(UnwrapByRef(parameter.ParameterType));
+        if (!parameter.ParameterType.IsByRef)
+        {
+            return typeName;
+        }
+        if (parameter.IsOut)
+        {
+            return $"out {typeName}";
+        }
+        return parameter.GetCustomAttribute<System.Runtime.InteropServices.InAttribute>() is not null
+            ? $"in {typeName}"
+            : $"ref {typeName}";
     }
 
     static string TypeMetadataName(Type type)
     {
-        type = UnwrapByRef(type);
         if (type.IsArray)
         {
             return $"{TypeMetadataName(type.GetElementType()!)}[]";
