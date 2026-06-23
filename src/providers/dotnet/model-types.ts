@@ -170,7 +170,14 @@ export type DotnetParameterDefaultValue =
 export interface DotnetTypeParameterDeclaration {
   readonly name: string;
   readonly constraints?: readonly DotnetConstraint[];
+  readonly unsupportedConstraints?: readonly DotnetUnsupportedConstraintDeclaration[];
   readonly variance?: "in" | "out" | "invariant" | "target-defined";
+}
+
+export interface DotnetUnsupportedConstraintDeclaration {
+  readonly targetId: string;
+  readonly metadataName: string;
+  readonly reason: string;
 }
 
 export type DotnetConstraint =

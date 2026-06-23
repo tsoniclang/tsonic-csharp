@@ -667,6 +667,84 @@ test(".NET provider source declarations omit target-only generic constraints", (
   assert.deepEqual(sequenceReader.typeParameters, [{ name: "T" }]);
 });
 
+test(".NET reflection provider records generic constraints and variance as target facts", () => {
+  const reference = buildConstraintFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderConstraintFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const rawReferenceNewTarget = module.exports.find((declaration) => declaration.sourceName === "ReferenceNewTarget");
+  assert.ok(rawReferenceNewTarget);
+  const rawReferenceParameter = rawReferenceNewTarget.typeParameters?.[0];
+  assert.ok(rawReferenceParameter);
+  assert.deepEqual(rawReferenceParameter.constraints?.map((constraint) => constraint.kind), [
+    "reference-type",
+    "constructible",
+    "implements",
+  ]);
+  const taggedConstraint = rawReferenceParameter.constraints.find((constraint) => constraint.kind === "implements");
+  assert.equal(idEndsWith(taggedConstraint.contract.targetId, "ProviderConstraintFixtures.ITagged"), true);
+
+  const copy = rawReferenceNewTarget.members.find((member) => member.kind === "method" && member.targetName === "Copy");
+  assert.ok(copy);
+  const copyTypeParameter = copy.signatures[0].typeParameters[0];
+  assert.deepEqual(copyTypeParameter.constraints?.map((constraint) => constraint.kind), [
+    "constructible",
+    "implements",
+    "implements",
+  ]);
+  assert.ok(copyTypeParameter.constraints.some((constraint) =>
+    constraint.kind === "implements" &&
+    idEndsWith(constraint.contract.targetId, "ProviderConstraintFixtures.EntityBase")
+  ));
+  assert.ok(copyTypeParameter.constraints.some((constraint) =>
+    constraint.kind === "implements" &&
+    idEndsWith(constraint.contract.targetId, "ProviderConstraintFixtures.ITagged")
+  ));
+
+  const rawStructTarget = module.exports.find((declaration) => declaration.sourceName === "StructTarget");
+  assert.ok(rawStructTarget);
+  assert.deepEqual(rawStructTarget.typeParameters?.[0]?.constraints?.map((constraint) => constraint.kind), [
+    "value-type",
+    "constructible",
+  ]);
+
+  const rawUnmanagedTarget = module.exports.find((declaration) => declaration.sourceName === "UnmanagedTarget");
+  assert.ok(rawUnmanagedTarget);
+  assert.deepEqual(rawUnmanagedTarget.typeParameters?.[0]?.constraints?.map((constraint) => constraint.kind), [
+    "unmanaged",
+  ]);
+
+  const rawProducer = module.exports.find((declaration) => declaration.sourceName === "IProducer");
+  assert.ok(rawProducer);
+  assert.equal(rawProducer.typeParameters?.[0]?.variance, "out");
+  const rawConsumer = module.exports.find((declaration) => declaration.sourceName === "IConsumer");
+  assert.ok(rawConsumer);
+  assert.equal(rawConsumer.typeParameters?.[0]?.variance, "in");
+
+  const referenceBinding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConstraintFixtures.js", "ProviderConstraintFixtures.ReferenceNewTarget`1");
+  assert.deepEqual(referenceBinding.typeParameters[0].constraints.map((constraint) => constraint.kind), [
+    "reference-type",
+    "constructible",
+    "implements",
+  ]);
+  const copyTargetMember = referenceBinding.members.find((member) => idEndsWith(member.id, "ProviderConstraintFixtures.ReferenceNewTarget`1.Copy``1(TMethod)"));
+  assert.ok(copyTargetMember);
+  assert.deepEqual(copyTargetMember.typeParameters[0].constraints.map((constraint) => constraint.kind), [
+    "constructible",
+    "implements",
+    "implements",
+  ]);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceReferenceNewTarget = declarationModel.exports.find((declaration) => declaration.name === "ReferenceNewTarget");
+  assert.ok(sourceReferenceNewTarget);
+  assert.deepEqual(sourceReferenceNewTarget.typeParameters, [{ name: "T" }]);
+  const sourceProducer = declarationModel.exports.find((declaration) => declaration.name === "IProducer");
+  assert.ok(sourceProducer);
+  assert.deepEqual(sourceProducer.typeParameters, [{ name: "T", variance: "out" }]);
+});
+
 test(".NET provider source declarations keep only TS-compatible numeric indexers", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const specializedModule = provider.getModule("@tsonic/dotnet/System.Collections.Specialized.js", {});
@@ -963,6 +1041,24 @@ function buildUnsupportedMemberFixture() {
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "UnsupportedMembersProviderFixture.dll");
+}
+
+function buildConstraintFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/constraints/ConstraintProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/obj/");
+  const result = spawnSync("dotnet", [
+    "build",
+    project,
+    "--nologo",
+    "--verbosity",
+    "quiet",
+    "--output",
+    outputDirectory,
+    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  return join(outputDirectory, "ConstraintProviderFixture.dll");
 }
 
 function buildSignatureIdentityFixture() {

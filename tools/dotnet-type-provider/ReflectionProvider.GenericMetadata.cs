@@ -40,12 +40,13 @@ sealed partial class ReflectionProvider
         }
         if ((attributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0)
         {
-            constraints.Add(new { kind = "value-type" });
+            constraints.Add(new { kind = IsUnmanagedConstraint(parameter) ? "unmanaged" : "value-type" });
         }
-        if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0)
+        if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0 && !IsUnmanagedConstraint(parameter))
         {
             constraints.Add(new { kind = "constructible" });
         }
+        var unsupportedConstraints = new List<object>();
         foreach (var constraint in parameter.GetGenericParameterConstraints())
         {
             if (constraint == typeof(ValueType))
@@ -56,14 +57,28 @@ sealed partial class ReflectionProvider
             if (contract is not null)
             {
                 constraints.Add(new { kind = "implements", contract });
+                continue;
             }
+            unsupportedConstraints.Add(new
+            {
+                targetId = TargetId(constraint),
+                metadataName = MetadataName(constraint),
+                reason = "Generic constraint type cannot be represented as closed .NET target type facts.",
+            });
         }
         return new
         {
             name = parameter.Name,
             constraints = constraints.Count == 0 ? null : constraints,
+            unsupportedConstraints = unsupportedConstraints.Count == 0 ? null : unsupportedConstraints,
             variance = Variance(parameter),
         };
+    }
+
+    static bool IsUnmanagedConstraint(Type parameter)
+    {
+        return parameter.GetCustomAttributesData().Any(attribute =>
+            attribute.AttributeType.FullName == "System.Runtime.CompilerServices.IsUnmanagedAttribute");
     }
 
     static string? Variance(Type parameter)
