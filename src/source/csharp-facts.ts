@@ -86,6 +86,10 @@ export type CsharpTargetIterationLowering =
       readonly lengthMember: string;
       readonly keyConversion: "invariant-string";
     }
+  | {
+      readonly kind: "key-collection";
+      readonly keysMember: CsharpTargetMemberOperationFact;
+    }
   | { readonly kind: "object-shape-keys" };
 
 export interface CsharpRegularExpressionLiteralFact {
@@ -305,6 +309,9 @@ function csharpTargetIterationLoweringEquals(left: CsharpTargetIterationLowering
       return right.kind === "index-key"
         && left.lengthMember === right.lengthMember
         && left.keyConversion === right.keyConversion;
+    case "key-collection":
+      return right.kind === "key-collection"
+        && csharpTargetMemberOperationFactEquals(left.keysMember, right.keysMember);
   }
 }
 

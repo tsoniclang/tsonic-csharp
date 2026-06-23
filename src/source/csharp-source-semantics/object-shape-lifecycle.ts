@@ -118,10 +118,10 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
         return;
       }
       const receiver = asNodeSubject(getNodeField(node, "Expression"));
-      const propertyNameNode = asNodeSubject(getNodeField(node, "name"));
-      if (isProviderSelectedPropertyAccess(node, propertyNameNode, sourceFile, context)) {
+      if (isProviderSelectedPropertyAccess(node, context)) {
         return;
       }
+      const propertyNameNode = asNodeSubject(getNodeField(node, "name"));
       const propertyName = getSourceNameNodeText(propertyNameNode, compiler.ast);
       if (receiver === undefined || propertyName.length === 0) {
         return;
@@ -148,19 +148,9 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
 
 function isProviderSelectedPropertyAccess(
   node: Node,
-  propertyNameNode: Node | undefined,
-  sourceFile: SourceFile,
   context: ExtensionObservationContext,
 ): boolean {
-  const checker = context.compiler?.checker;
-  if (checker === undefined) {
-    return false;
-  }
-  return [
-    propertyNameNode,
-    checker.getSymbolAtLocation(node, { sourceFile }),
-    checker.getResolvedSymbol(node, { sourceFile }),
-  ].some((subject) => context.host.facts.get(subject, providerVirtualDeclarationFactKey) !== undefined);
+  return context.host.facts.get(node, providerVirtualDeclarationFactKey) !== undefined;
 }
 
 function isNamespaceImportReceiverPropertyAccess(
@@ -197,22 +187,23 @@ function isProjectSourceModuleStaticValuePropertyAccess(
   projectSourceFiles: readonly SourceFile[],
   compiler: NonNullable<ExtensionObservationContext["compiler"]>,
 ): boolean {
-  const symbols = [
-    compiler.checker.getSymbolAtLocation(node, { sourceFile }),
-    compiler.checker.getResolvedSymbol(node, { sourceFile }),
-  ];
-  return symbols.some((symbol) =>
-    (symbol?.Declarations ?? [])
-      .some((declaration) => {
-        if (declaration === undefined) {
-          return false;
-        }
-        const declarationSourceFile = compiler.ast.getSourceFile(declaration);
-        return declarationSourceFile !== undefined &&
-          declarationSourceFile !== sourceFile &&
-          projectSourceFiles.some((candidate) => candidate === declarationSourceFile) &&
-          isModuleStaticValueDeclaration(declaration, compiler);
-      }));
+  const propertyAccess = compiler.ast.as.AsPropertyAccessExpression(node);
+  const receiver = asNodeSubject(propertyAccess?.Expression);
+  if (receiver === undefined || !compiler.ast.is.IsIdentifier(receiver)) {
+    return false;
+  }
+  const receiverSymbol = compiler.checker.getSymbolAtLocation(receiver, { sourceFile }) ??
+    compiler.checker.getResolvedSymbolOrNil(receiver, { sourceFile });
+  return (receiverSymbol?.Declarations ?? []).some((declaration) => {
+    if (declaration === undefined) {
+      return false;
+    }
+    const declarationSourceFile = compiler.ast.getSourceFile(declaration);
+    return declarationSourceFile !== undefined &&
+      declarationSourceFile !== sourceFile &&
+      projectSourceFiles.some((candidate) => candidate === declarationSourceFile) &&
+      isModuleStaticValueDeclaration(declaration, compiler);
+  });
 }
 
 function isModuleStaticValueDeclaration(

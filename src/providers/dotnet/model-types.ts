@@ -80,6 +80,8 @@ export interface DotnetTypeDeclaration {
   readonly assembly?: DotnetAssemblyReference;
   readonly displayName?: string;
   readonly renderShape?: DotnetRenderShape;
+  readonly attributes?: readonly DotnetAttributeDeclaration[];
+  readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
   readonly typeParameters?: readonly DotnetTypeParameterDeclaration[];
   readonly baseType?: DotnetTypeRef;
   readonly implementedContracts?: readonly DotnetConstraint[];
@@ -132,6 +134,8 @@ export interface DotnetMemberDeclaration {
   readonly receiverPassing?: "instance" | "first-argument";
   readonly type?: DotnetTypeRef;
   readonly signatures?: readonly DotnetSignatureDeclaration[];
+  readonly attributes?: readonly DotnetAttributeDeclaration[];
+  readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
 }
 
 export interface DotnetUnsupportedMemberDeclaration {
@@ -148,9 +152,13 @@ export interface DotnetUnsupportedMemberDeclaration {
 export interface DotnetSignatureDeclaration {
   readonly id: string;
   readonly targetName?: string;
+  readonly attributes?: readonly DotnetAttributeDeclaration[];
+  readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
   readonly typeParameters?: readonly DotnetTypeParameterDeclaration[];
   readonly parameters: readonly DotnetParameterDeclaration[];
   readonly returnType?: DotnetTypeRef;
+  readonly returnAttributes?: readonly DotnetAttributeDeclaration[];
+  readonly unsupportedReturnAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
 }
 
 export interface DotnetConversionOperatorDeclaration {
@@ -169,6 +177,48 @@ export interface DotnetParameterDeclaration {
   readonly optional?: boolean;
   readonly rest?: boolean;
   readonly defaultValue?: DotnetParameterDefaultValue;
+  readonly attributes?: readonly DotnetAttributeDeclaration[];
+  readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
+}
+
+export type DotnetAttributePlacement =
+  | "type"
+  | "constructor"
+  | "method"
+  | "property"
+  | "field"
+  | "event"
+  | "parameter"
+  | "return";
+
+export type DotnetAttributeValue =
+  | { readonly kind: "null" }
+  | { readonly kind: "string"; readonly value: string }
+  | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind; readonly value: string | boolean }
+  | { readonly kind: "type"; readonly type: DotnetTypeRef }
+  | { readonly kind: "enum"; readonly type: DotnetTypeRef; readonly value: string; readonly fieldName?: string }
+  | { readonly kind: "array"; readonly elements: readonly DotnetAttributeValue[] };
+
+export type DotnetAttributeArgument =
+  | { readonly kind: "constructor"; readonly value: DotnetAttributeValue }
+  | { readonly kind: "named"; readonly name: string; readonly memberKind: "field" | "property"; readonly value: DotnetAttributeValue };
+
+export interface DotnetAttributeDeclaration {
+  readonly id: string;
+  readonly target: DotnetAttributePlacement;
+  readonly attributeType: DotnetTypeRef;
+  readonly constructorId: string;
+  readonly arguments?: readonly DotnetAttributeArgument[];
+  readonly evidence?: readonly { readonly message: string }[];
+}
+
+export interface DotnetUnsupportedAttributeDeclaration {
+  readonly id: string;
+  readonly target: DotnetAttributePlacement;
+  readonly attributeType?: DotnetTypeRef | null;
+  readonly constructorId?: string;
+  readonly reason: string;
+  readonly evidence?: readonly { readonly message: string }[];
 }
 
 export type DotnetParameterDefaultValue =

@@ -1,13 +1,20 @@
 import type {
   TargetConstraint,
+  TargetAttributeArgument,
+  TargetAttributeFact,
+  TargetAttributeValue,
   TargetBindingFact,
   TargetMember,
   TargetConversionOperatorFact,
   TargetParameter,
   TargetTypeParameter,
   TargetTypeRef,
+  TargetUnsupportedAttributeFact,
 } from "@tsonic/tsts";
 import type {
+  DotnetAttributeArgument,
+  DotnetAttributeDeclaration,
+  DotnetAttributeValue,
   DotnetConstraint,
   DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
@@ -20,6 +27,7 @@ import type {
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedAttributeDeclaration,
 } from "./model-types.js";
 import {
   type CsharpTargetBindingFact,
@@ -89,6 +97,12 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     kind: dotnetTypeKindToTargetBindingKind(declaration.typeKind),
     csharpType: declaredCsharpType,
     ...(baseType !== undefined ? { csharpBaseType: baseType } : {}),
+    ...(declaration.attributes !== undefined && declaration.attributes.length > 0
+      ? { attributes: declaration.attributes.map(dotnetAttributeToTargetAttribute) }
+      : {}),
+    ...(declaration.unsupportedAttributes !== undefined && declaration.unsupportedAttributes.length > 0
+      ? { unsupportedAttributes: declaration.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+      : {}),
     ...(declaration.typeParameters !== undefined && declaration.typeParameters.length > 0
       ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
@@ -149,6 +163,12 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
             ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
             parameters: [],
             returnType: dotnetTypeRefToTargetTypeRef(member.type),
+            ...(member.attributes !== undefined && member.attributes.length > 0
+              ? { attributes: member.attributes.map(dotnetAttributeToTargetAttribute) }
+              : {}),
+            ...(member.unsupportedAttributes !== undefined && member.unsupportedAttributes.length > 0
+              ? { unsupportedAttributes: member.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+              : {}),
           }];
   }
 }
@@ -168,6 +188,18 @@ function dotnetSignatureToTargetMember(
     ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
     parameters: signature.parameters.map(dotnetParameterToTargetParameter),
     ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToTargetTypeRef(signature.returnType) } : {}),
+    ...(signature.attributes !== undefined && signature.attributes.length > 0
+      ? { attributes: signature.attributes.map(dotnetAttributeToTargetAttribute) }
+      : {}),
+    ...(signature.unsupportedAttributes !== undefined && signature.unsupportedAttributes.length > 0
+      ? { unsupportedAttributes: signature.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+      : {}),
+    ...(signature.returnAttributes !== undefined && signature.returnAttributes.length > 0
+      ? { returnAttributes: signature.returnAttributes.map(dotnetAttributeToTargetAttribute) }
+      : {}),
+    ...(signature.unsupportedReturnAttributes !== undefined && signature.unsupportedReturnAttributes.length > 0
+      ? { unsupportedReturnAttributes: signature.unsupportedReturnAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+      : {}),
     ...(signature.typeParameters !== undefined && signature.typeParameters.length > 0
       ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
@@ -207,7 +239,72 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),
     ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+    ...(parameter.attributes !== undefined && parameter.attributes.length > 0
+      ? { attributes: parameter.attributes.map(dotnetAttributeToTargetAttribute) }
+      : {}),
+    ...(parameter.unsupportedAttributes !== undefined && parameter.unsupportedAttributes.length > 0
+      ? { unsupportedAttributes: parameter.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
+      : {}),
   };
+}
+
+function dotnetAttributeToTargetAttribute(attribute: DotnetAttributeDeclaration): TargetAttributeFact {
+  return {
+    id: attribute.id,
+    target: attribute.target,
+    attributeType: dotnetTypeRefToTargetTypeRef(attribute.attributeType),
+    constructorId: attribute.constructorId,
+    ...(attribute.arguments !== undefined && attribute.arguments.length > 0
+      ? { arguments: attribute.arguments.map(dotnetAttributeArgumentToTargetAttributeArgument) }
+      : {}),
+    ...(attribute.evidence !== undefined ? { evidence: attribute.evidence } : {}),
+  };
+}
+
+function dotnetUnsupportedAttributeToTargetUnsupportedAttribute(attribute: DotnetUnsupportedAttributeDeclaration): TargetUnsupportedAttributeFact {
+  return {
+    id: attribute.id,
+    target: attribute.target,
+    ...(attribute.attributeType !== undefined && attribute.attributeType !== null ? { attributeType: dotnetTypeRefToTargetTypeRef(attribute.attributeType) } : {}),
+    ...(attribute.constructorId !== undefined ? { constructorId: attribute.constructorId } : {}),
+    reason: attribute.reason,
+    ...(attribute.evidence !== undefined ? { evidence: attribute.evidence } : {}),
+  };
+}
+
+function dotnetAttributeArgumentToTargetAttributeArgument(argument: DotnetAttributeArgument): TargetAttributeArgument {
+  switch (argument.kind) {
+    case "constructor":
+      return { kind: "constructor", value: dotnetAttributeValueToTargetAttributeValue(argument.value) };
+    case "named":
+      return {
+        kind: "named",
+        name: argument.name,
+        memberKind: argument.memberKind,
+        value: dotnetAttributeValueToTargetAttributeValue(argument.value),
+      };
+  }
+}
+
+function dotnetAttributeValueToTargetAttributeValue(value: DotnetAttributeValue): TargetAttributeValue {
+  switch (value.kind) {
+    case "null":
+    case "string":
+      return value;
+    case "source-primitive":
+      return value;
+    case "type":
+      return { kind: "type", type: dotnetTypeRefToTargetTypeRef(value.type) };
+    case "enum":
+      return {
+        kind: "enum",
+        type: dotnetTypeRefToTargetTypeRef(value.type),
+        value: value.value,
+        ...(value.fieldName !== undefined ? { fieldName: value.fieldName } : {}),
+      };
+    case "array":
+      return { kind: "array", elements: value.elements.map(dotnetAttributeValueToTargetAttributeValue) };
+  }
 }
 
 export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef {

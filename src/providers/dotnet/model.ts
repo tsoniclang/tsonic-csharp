@@ -1,5 +1,9 @@
 export type {
   DotnetAssemblyReference,
+  DotnetAttributeArgument,
+  DotnetAttributeDeclaration,
+  DotnetAttributePlacement,
+  DotnetAttributeValue,
   DotnetConstraint,
   DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
@@ -16,6 +20,7 @@ export type {
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedAttributeDeclaration,
   DotnetUnsupportedMemberDeclaration,
   DotnetUnsupportedNestedTypeExportDeclaration,
   DotnetUnsupportedExportDeclaration,

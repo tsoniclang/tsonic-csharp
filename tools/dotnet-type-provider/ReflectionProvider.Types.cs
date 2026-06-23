@@ -15,6 +15,7 @@ sealed partial class ReflectionProvider
         var baseType = BaseType(type);
         var implementedContracts = ImplementedContracts(type);
         var sourceShape = ExportSourceShape(type);
+        var attributes = AttributeFacts(type.GetCustomAttributesData(), "type", TargetId(type));
         if (IsDelegate(type) && sourceShape is null)
         {
             return null;
@@ -29,6 +30,8 @@ sealed partial class ReflectionProvider
             metadataName = MetadataName(type),
             displayName = DisplayName(type),
             renderShape = RenderShape(type),
+            attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+            unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
             baseType,
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,

@@ -1,5 +1,9 @@
 export type {
   DotnetAssemblyReference,
+  DotnetAttributeArgument,
+  DotnetAttributeDeclaration,
+  DotnetAttributePlacement,
+  DotnetAttributeValue,
   DotnetConstraint,
   DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
@@ -18,6 +22,7 @@ export type {
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedAttributeDeclaration,
   DotnetValueDeclaration,
 } from "./model.js";
 export {

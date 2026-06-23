@@ -7,6 +7,7 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type {
+  TargetTypescriptCompatibilityMode,
   TargetProviderContext,
 } from "@tsonic/target-api";
 import type {
@@ -16,6 +17,7 @@ import {
   createDotnetReflectionTypeDataProvider,
 } from "../../providers/dotnet/index.js";
 import {
+  readCsharpTypescriptCompatibilityMode,
   readCsharpReflectionReferencePaths,
   readCsharpTargetFramework,
 } from "../../options/csharp-target-options.js";
@@ -64,6 +66,7 @@ import type {
 } from "./operations-provider.js";
 
 export interface CsharpExtensionSemanticHosts {
+  readonly typescriptCompatibilityMode: TargetTypescriptCompatibilityMode;
   readonly dotnetReflectionReferences: readonly string[];
   readonly dotnetTargetFramework: string | undefined;
   readonly dotnetProvider: ReturnType<typeof createDotnetReflectionTypeDataProvider>;
@@ -82,6 +85,7 @@ export interface CsharpExtensionSemanticHosts {
 }
 
 export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderContext, "target">): CsharpExtensionSemanticHosts {
+  const typescriptCompatibilityMode = readCsharpTypescriptCompatibilityMode(context.target);
   const dotnetReflectionReferences = readCsharpReflectionReferencePaths(context.target);
   const dotnetTargetFramework = readCsharpTargetFramework(context.target);
   const dotnetProvider = createDotnetReflectionTypeDataProvider({
@@ -179,6 +183,7 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
   } satisfies CsharpOperationsProviderHost & CsharpTargetTypeResolutionHost & { readonly getTargetTypeRefForType: typeof getTargetTypeRefForType };
 
   return {
+    typescriptCompatibilityMode,
     dotnetReflectionReferences,
     dotnetTargetFramework,
     dotnetProvider,

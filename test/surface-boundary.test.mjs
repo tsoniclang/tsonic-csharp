@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
-import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpJsSurfaceOperationsProvider, createCsharpNativeOperationsProvider, createCsharpNodejsSurfaceOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 
 test("Array.length is not mapped without the JS surface", () => {
@@ -140,6 +140,60 @@ test("JS surface maps Record element access through provider-owned Dictionary in
   assert.equal(result.value.operation.targetOperation, "Item");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationKind, "indexer");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.memberName, "Item");
+});
+
+test("JS surface maps Record for-in through provider-owned Dictionary key facts", () => {
+  const statement = {};
+  const expression = {};
+  const expressionType = {};
+  const facts = new TestFactStore();
+  const dictionaryType = recordDictionaryType(stringType(), int32Type());
+  const targetTypes = new Map([
+    [expressionType, dictionaryType],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const result = provider.mapCheckedIteration({
+    target: "csharp",
+    statement,
+    expression,
+    sourceExpressionType: expressionType,
+    kind: "for-in",
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationKind, "iteration");
+  assert.equal(result.value.operation.targetOperation, "key-collection");
+  const iteration = facts.get(statement, csharpTargetIterationFactKey);
+  assert.equal(iteration?.iterationKind, "property-key");
+  assert.equal(iteration?.lowering.kind, "key-collection");
+  assert.equal(iteration?.lowering.keysMember.memberName, "Keys");
+  assert.equal(iteration?.lowering.keysMember.selectedMember.id, "System.Collections.Generic.Dictionary`2.Keys");
+  assert.deepEqual(iteration?.elementType, stringType());
+});
+
+test("JS surface rejects Record for-in without string-key enumeration facts", () => {
+  const statement = {};
+  const expression = {};
+  const expressionType = {};
+  const facts = new TestFactStore();
+  const dictionaryType = recordDictionaryType(int32Type(), int32Type());
+  const targetTypes = new Map([
+    [expressionType, dictionaryType],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const result = provider.mapCheckedIteration({
+    target: "csharp",
+    statement,
+    expression,
+    sourceExpressionType: expressionType,
+    kind: "for-in",
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_RECORD_DICTIONARY_FOR_IN_KEY_TYPE_UNSUPPORTED");
+  assert.equal(facts.get(statement, csharpTargetIterationFactKey), undefined);
 });
 
 test("NodeJS surface maps calls from the selected provider signature identity", () => {
@@ -382,6 +436,19 @@ function dictionaryBinding() {
       parameters: [{ name: "key", type: { kind: "type-parameter", name: "TKey" }, passingMode: "by-value" }],
       returnType: { kind: "type-parameter", name: "TValue" },
       overloadGroup: "System.Collections.Generic.Dictionary`2.Item(TKey)",
+    }, {
+      id: "System.Collections.Generic.Dictionary`2.Keys",
+      sourceName: "keys",
+      targetName: "Keys",
+      kind: "property",
+      declaringType: declarationType,
+      parameters: [],
+      returnType: {
+        kind: "target-named",
+        id: "System.Collections.Generic.Dictionary`2.KeyCollection",
+        typeArguments: [{ kind: "type-parameter", name: "TKey" }, { kind: "type-parameter", name: "TValue" }],
+        csharpRender: { kind: "nested", outer: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "Dictionary" }, name: "KeyCollection" },
+      },
     }],
   };
 }

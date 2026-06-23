@@ -169,6 +169,7 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
+            var attributes = AttributeFacts(property.GetCustomAttributesData(), "property", $"{TargetId(type)}.{property.Name}");
             var indexParameters = property.GetIndexParameters();
             if (indexParameters.Length > 0)
             {
@@ -176,7 +177,9 @@ sealed partial class ReflectionProvider
                 {
                     continue;
                 }
-                var parameters = Parameters(indexParameters);
+                var targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})";
+                var metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})";
+                var parameters = Parameters(indexParameters, targetId);
                 var returnType = TypeRef(property.PropertyType);
                 if (parameters is null || returnType is null)
                 {
@@ -187,14 +190,16 @@ sealed partial class ReflectionProvider
                     kind = "indexer",
                     sourceName = "item",
                     targetName = property.Name,
-                    targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})",
-                    metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})",
+                    targetId,
+                    metadataName,
                     @static = accessors[0].IsStatic ? true : (bool?)null,
+                    attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                    unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
                     signatures = new[]
                     {
                         new
                         {
-                            id = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})",
+                            id = targetId,
                             targetName = property.Name,
                             parameters,
                             returnType,
@@ -223,6 +228,8 @@ sealed partial class ReflectionProvider
                 metadataName = $"{MetadataName(type)}.{property.Name}",
                 @static = isStatic ? true : (bool?)null,
                 type = typeRef,
+                attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             };
         }
     }
@@ -312,6 +319,7 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
+            var attributes = AttributeFacts(field.GetCustomAttributesData(), "field", $"{TargetId(type)}.{field.Name}");
             yield return new
             {
                 kind = "field",
@@ -321,6 +329,8 @@ sealed partial class ReflectionProvider
                 metadataName = $"{MetadataName(type)}.{field.Name}",
                 @static = field.IsStatic ? true : (bool?)null,
                 type = typeRef,
+                attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             };
         }
     }
@@ -385,6 +395,7 @@ sealed partial class ReflectionProvider
             {
                 continue;
             }
+            var attributes = AttributeFacts(eventInfo.GetCustomAttributesData(), "event", EventTargetId(type, eventInfo));
             yield return new
             {
                 kind = "event",
@@ -394,6 +405,8 @@ sealed partial class ReflectionProvider
                 metadataName = EventMetadataName(type, eventInfo),
                 @static = accessor.IsStatic ? true : (bool?)null,
                 type = typeRef,
+                attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+                unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             };
         }
     }
@@ -573,38 +586,49 @@ sealed partial class ReflectionProvider
 
     object? MethodSignature(MethodInfo method)
     {
-        var parameters = Parameters(method.GetParameters());
+        var id = MethodId(method);
+        var parameters = Parameters(method.GetParameters(), id);
         var returnType = TypeRef(method.ReturnType);
         if (parameters is null || returnType is null)
         {
             return null;
         }
         var typeParameters = MethodTypeParameters(method);
+        var attributes = AttributeFacts(method.GetCustomAttributesData(), "method", id);
+        var returnAttributes = AttributeFacts(method.ReturnParameter.GetCustomAttributesData(), "return", $"{id}:return");
         return new
         {
-            id = MethodId(method),
+            id,
             targetName = method.Name,
+            attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+            unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
             parameters,
             returnType,
+            returnAttributes = returnAttributes.Supported.Length == 0 ? null : returnAttributes.Supported,
+            unsupportedReturnAttributes = returnAttributes.Unsupported.Length == 0 ? null : returnAttributes.Unsupported,
         };
     }
 
     object? ConstructorSignature(Type type, ConstructorInfo constructor)
     {
-        var parameters = Parameters(constructor.GetParameters());
+        var id = ConstructorId(constructor);
+        var parameters = Parameters(constructor.GetParameters(), id);
         if (parameters is null)
         {
             return null;
         }
+        var attributes = AttributeFacts(constructor.GetCustomAttributesData(), "constructor", id);
         return new
         {
-            id = ConstructorId(constructor),
+            id,
+            attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
+            unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             parameters,
         };
     }
 
-    object[]? Parameters(ParameterInfo[] parameters)
+    object[]? Parameters(ParameterInfo[] parameters, string? ownerId = null)
     {
         var result = new List<object>();
         for (var index = 0; index < parameters.Length; index++)
@@ -618,6 +642,9 @@ sealed partial class ReflectionProvider
             }
             var isParamsArray = parameter.GetCustomAttribute<ParamArrayAttribute>() is not null && parameterType.IsArray;
             var defaultValue = ParameterDefaultValue(parameter, parameterType);
+            var attributes = ownerId is null
+                ? null
+                : AttributeFacts(parameter.GetCustomAttributesData(), "parameter", $"{ownerId}:parameter:{Identifier(parameter.Name ?? $"arg{index}")}");
             result.Add(new
             {
                 name = Identifier(parameter.Name ?? $"arg{index}"),
@@ -626,6 +653,8 @@ sealed partial class ReflectionProvider
                 optional = parameter.IsOptional ? true : (bool?)null,
                 rest = isParamsArray ? true : (bool?)null,
                 defaultValue,
+                attributes = attributes is null || attributes.Supported.Length == 0 ? null : attributes.Supported,
+                unsupportedAttributes = attributes is null || attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             });
         }
         return result.ToArray();

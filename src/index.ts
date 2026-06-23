@@ -35,6 +35,10 @@ export type {
 export { printCsharpCompilationUnit, printCsharpExpression, printCsharpStatement, printCsharpType } from "./print/csharp-printer.js";
 export type {
   DotnetAssemblyReference,
+  DotnetAttributeArgument,
+  DotnetAttributeDeclaration,
+  DotnetAttributePlacement,
+  DotnetAttributeValue,
   DotnetBindingProviderOptions,
   DotnetConstraint,
   DotnetConversionOperatorDeclaration,
@@ -61,6 +65,7 @@ export type {
   DotnetTypeKind,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
+  DotnetUnsupportedAttributeDeclaration,
   DotnetValueDeclaration,
 } from "./providers/dotnet/index.js";
 export {

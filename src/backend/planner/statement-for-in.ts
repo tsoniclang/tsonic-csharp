@@ -26,6 +26,9 @@ import {
 import {
   planObjectShapeForInStatement,
 } from "./statement-for-in-object-shapes.js";
+import {
+  planKeyCollectionForInStatement,
+} from "./statement-for-in-key-collection.js";
 
 export function planForInStatement(
   statementNode: Node,
@@ -48,6 +51,9 @@ export function planForInStatement(
   }
   if (selectedIteration.iterationKind === "property-key" && selectedIteration.lowering.kind === "object-shape-keys") {
     return planObjectShapeForInStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
+  }
+  if (selectedIteration.iterationKind === "property-key" && selectedIteration.lowering.kind === "key-collection") {
+    return planKeyCollectionForInStatement(statementNode, statement, binding, selectedIteration, sourceFile, input, diagnostics, state, planNestedStatementBody);
   }
   if (selectedIteration.iterationKind !== "property-key" || selectedIteration.lowering.kind !== "index-key") {
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-in emission does not support provider iteration lowering '${selectedIteration.lowering.kind}' with kind '${selectedIteration.iterationKind}'.`));

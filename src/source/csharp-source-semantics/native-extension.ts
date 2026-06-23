@@ -97,7 +97,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost);
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
-        diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext);
+        diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode);
         validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {

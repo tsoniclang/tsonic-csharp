@@ -62,3 +62,17 @@ export function getCsharpRecordDictionaryIndexerTargetMembers(
     .map((member) => enrichCsharpTargetMember(member, host, { declaringTargetType: dictionaryType }))
     .filter((member): member is TargetMember => member !== undefined && targetMemberIsClosed(member));
 }
+
+export function getCsharpRecordDictionaryKeysTargetMembers(
+  dictionaryType: CsharpRecordDictionaryTargetTypeRef,
+  host: CsharpTargetEnrichmentHost,
+): readonly TargetMember[] {
+  const binding = host.getCsharpTargetBindingByTargetId(dictionaryType.id);
+  return (binding?.members ?? [])
+    .filter((member) =>
+      member.kind === "property" &&
+      member.targetName === "Keys" &&
+      member.parameters.length === 0)
+    .map((member) => enrichCsharpTargetMember(member, host, { declaringTargetType: dictionaryType }))
+    .filter((member): member is TargetMember => member !== undefined && targetMemberIsClosed(member));
+}
