@@ -352,8 +352,36 @@ function targetParameterArrayEquals(left: readonly TargetParameter[] | undefined
       && parameter.passingMode === other.passingMode
       && parameter.optional === other.optional
       && parameter.paramsArray === other.paramsArray
+      && targetOwnedParameterMetadataEquals(parameter, other)
       && targetTypeRefEquals(parameter.type, other.type);
   });
+}
+
+function targetOwnedParameterMetadataEquals(left: TargetParameter, right: TargetParameter): boolean {
+  return simpleMetadataEquals(
+    (left as { readonly defaultValue?: unknown }).defaultValue,
+    (right as { readonly defaultValue?: unknown }).defaultValue,
+  );
+}
+
+function simpleMetadataEquals(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+  if (!isPlainRecord(left) || !isPlainRecord(right)) {
+    return false;
+  }
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key, index) => {
+      const rightKey = rightKeys[index];
+      return key === rightKey && simpleMetadataEquals(left[key], right[rightKey]);
+    });
+}
+
+function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function targetTypeParameterArrayEquals(left: readonly TargetTypeParameter[] | undefined, right: readonly TargetTypeParameter[] | undefined): boolean {

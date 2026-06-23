@@ -8,6 +8,7 @@ export type {
   DotnetModuleModel,
   DotnetNamespaceDeclaration,
   DotnetParameterDeclaration,
+  DotnetParameterDefaultValue,
   DotnetProviderIdentity,
   DotnetSignatureDeclaration,
   DotnetTypeDeclaration,
@@ -29,4 +30,8 @@ export {
   dotnetConstraintToTargetConstraint,
   dotnetExportToTargetBinding,
   dotnetTypeRefToTargetTypeRef,
+} from "./model-target-conversion.js";
+export type {
+  DotnetTargetMember,
+  DotnetTargetParameter,
 } from "./model-target-conversion.js";

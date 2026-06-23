@@ -1,8 +1,10 @@
 import {
+  runtimeCarrierFactKey,
   targetConversionFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
+  ExtensionLifecycleContext,
   ExtensionObservationContext,
   Node,
   TargetOperationFact,
@@ -27,6 +29,9 @@ import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carriers.js";
 import {
+  csharpProviderDiagnostic,
+} from "./diagnostics.js";
+import {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-selection.js";
 import type {
@@ -35,6 +40,9 @@ import type {
 import {
   getCsharpConversionOperation,
 } from "./target-rules.js";
+import {
+  isCsharpAnyRuntimeCarrier,
+} from "./target-types.js";
 import {
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -49,7 +57,7 @@ export interface CsharpAssertionConversionLifecycleHost {
 }
 
 export function recordCsharpAssertionConversionFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: Pick<ExtensionLifecycleContext, "extensionId" | "host" | "compiler">,
   host: CsharpAssertionConversionLifecycleHost,
 ): void {
   const compiler = lifecycleContext.compiler;
@@ -63,7 +71,7 @@ export function recordCsharpAssertionConversionFactsBeforeFinalization(
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       const assertion = getAssertionParts(node, compiler.ast);
-      if (assertion === undefined || lifecycleContext.host.facts.get(node, targetConversionFactKey) !== undefined) {
+      if (assertion === undefined) {
         return;
       }
       const target = host.getTargetTypeRefForSubject(assertion.target, context);
@@ -71,6 +79,37 @@ export function recordCsharpAssertionConversionFactsBeforeFinalization(
         return;
       }
       const source = host.getTargetTypeRefForSubject(assertion.expression, context);
+      if (
+        isCsharpAnyRuntimeCarrier(source) ||
+        isCsharpAnyRuntimeCarrier(target) ||
+        hasOpaqueAnyCarrier(assertion.expression, lifecycleContext) ||
+        hasOpaqueAnyCarrier(assertion.target, lifecycleContext)
+      ) {
+        lifecycleContext.host.diagnostics.append({
+          ...csharpProviderDiagnostic(
+            lifecycleContext.extensionId,
+            "CSHARP_ANY_ASSERTION_CONVERSION_UNSUPPORTED",
+            9100122,
+            "C# assertion conversion cannot cross a TypeScript any boundary without finalized target conversion facts.",
+          ),
+          nodeOrSpan: node,
+          evidence: [
+            {
+              message: "C# dynamic assertion boundary rejected",
+              details: "TypeScript accepted the assertion through any, but the C# target has no finalized unbox/cast capability fact for this expression.",
+            },
+            {
+              message: "Required architecture",
+              details: "A JS/dynamic compatibility surface must provide an explicit target conversion fact; source assertion syntax must not invent C# casts from any.",
+            },
+          ],
+          identity: `csharp-any-assertion:${subjectIdentity(node)}`,
+        });
+        return;
+      }
+      if (lifecycleContext.host.facts.get(node, targetConversionFactKey) !== undefined) {
+        return;
+      }
       const conversion = getAssertionConversionOperation(assertion.expression, source, target, context);
       lifecycleContext.host.facts.set(
         node,
@@ -132,4 +171,18 @@ function getAssertionConversionOperation(
     operation: targetOperation(operationId, "operator", "cast", { resultType: target }),
     csharpOperation: csharpTargetCastOperation(operationId, target),
   };
+}
+
+function hasOpaqueAnyCarrier(
+  subject: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
+): boolean {
+  return isCsharpAnyRuntimeCarrier(lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey)?.carrier);
+}
+
+function subjectIdentity(subject: unknown): string {
+  if (subject !== null && typeof subject === "object" && "id" in subject) {
+    return String((subject as { readonly id?: unknown }).id ?? "unknown");
+  }
+  return "unknown";
 }

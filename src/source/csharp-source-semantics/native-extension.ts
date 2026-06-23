@@ -238,12 +238,12 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
         recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext);
+        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds, runtimeCarrierHost);
         recordCsharpAssertionConversionFactsBeforeFinalization(lifecycleContext, operationsProviderHost);
         recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, objectShapeSemanticsHost);
         recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, objectShapeSemanticsHost);
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);
-        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, selectedSurfaceIds, runtimeCarrierHost);
         recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, selectedSurfaceIds, operationsProviderHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, checkedOperatorLifecycleHost);
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, selectedSurfaceIds, operationsProviderHost);

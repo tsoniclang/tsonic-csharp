@@ -200,6 +200,7 @@ function appendAnyBoundaryDiagnostic(
       { message: "Source C# target type", details: source },
       { message: "Target C# target type", details: target },
     ],
+    identity: `csharp-target-assignability:${subjectIdentity(node)}`,
   });
 }
 

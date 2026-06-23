@@ -148,7 +148,14 @@ export interface DotnetParameterDeclaration {
   readonly passingMode: ArgumentPassingMode;
   readonly optional?: boolean;
   readonly rest?: boolean;
+  readonly defaultValue?: DotnetParameterDefaultValue;
 }
+
+export type DotnetParameterDefaultValue =
+  | { readonly kind: "null" }
+  | { readonly kind: "string"; readonly value: string }
+  | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind; readonly value: string | boolean }
+  | { readonly kind: "enum"; readonly value: string; readonly fieldName?: string };
 
 export interface DotnetTypeParameterDeclaration {
   readonly name: string;

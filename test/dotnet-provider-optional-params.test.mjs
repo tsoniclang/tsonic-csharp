@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   createDotnetReflectionTypeDataProvider,
   dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
 import { findTargetMemberForCall } from "../dist/source/csharp-source-semantics/target-member-selection.js";
+
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 test(".NET provider preserves optional and params-array facts from reflected member signatures", () => {
   const provider = createDotnetReflectionTypeDataProvider();
@@ -55,6 +60,62 @@ test(".NET provider preserves optional and params-array facts from reflected mem
 
   const targetParams = targetMember(provider, "System.Console", "System.Console.WriteLine(System.String,System.Object[])");
   assert.equal(targetParams.parameters[1].paramsArray, true);
+});
+
+test(".NET provider preserves default parameter values only from reflected default metadata", () => {
+  const reference = buildDefaultParameterFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderDefaultFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const defaultsSignatureId = "ProviderDefaultFixtures.DefaultParameterSource.WithDefaults(System.String,System.Int32,System.Boolean,System.Char,System.Decimal,ProviderDefaultFixtures.DefaultMode,System.String)";
+  const expectedDefaults = [
+    { kind: "string", value: "proved" },
+    { kind: "source-primitive", name: "int32", value: "7" },
+    { kind: "source-primitive", name: "bool", value: true },
+    { kind: "source-primitive", name: "char", value: "x" },
+    { kind: "source-primitive", name: "decimal", value: "12.5" },
+    { kind: "enum", value: "2", fieldName: "Enabled" },
+    { kind: "null" },
+  ];
+
+  const rawDefaults = rawSignature(module, "DefaultParameterSource", "withDefaults", defaultsSignatureId);
+  assert.deepEqual(rawDefaults.parameters.map((parameter) => parameter.defaultValue), expectedDefaults);
+  assert.equal(rawDefaults.parameters.every((parameter) => parameter.optional === true), true);
+
+  const rawOptionalWithoutDefault = rawSignature(
+    module,
+    "DefaultParameterSource",
+    "optionalWithoutDefault",
+    "ProviderDefaultFixtures.DefaultParameterSource.OptionalWithoutDefault(System.String)",
+  );
+  assert.equal(rawOptionalWithoutDefault.parameters[0].optional, true);
+  assert.equal(rawOptionalWithoutDefault.parameters[0].defaultValue, undefined);
+
+  const rawRequired = rawSignature(
+    module,
+    "DefaultParameterSource",
+    "required",
+    "ProviderDefaultFixtures.DefaultParameterSource.Required(System.String)",
+  );
+  assert.equal(rawRequired.parameters[0].optional, undefined);
+  assert.equal(rawRequired.parameters[0].defaultValue, undefined);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceDefaults = sourceSignature(sourceModel, "DefaultParameterSource", "withDefaults", defaultsSignatureId);
+  assert.deepEqual(sourceDefaults.parameters.map((parameter) => parameter.optional), [true, true, true, true, true, true, true]);
+  assert.equal(sourceDefaults.parameters.some((parameter) => "defaultValue" in parameter), false);
+
+  const targetDefaults = targetMember(provider, "ProviderDefaultFixtures.DefaultParameterSource", defaultsSignatureId);
+  assert.deepEqual(targetDefaults.parameters.map((parameter) => parameter.defaultValue), expectedDefaults);
+
+  const targetOptionalWithoutDefault = targetMember(
+    provider,
+    "ProviderDefaultFixtures.DefaultParameterSource",
+    "ProviderDefaultFixtures.DefaultParameterSource.OptionalWithoutDefault(System.String)",
+  );
+  assert.equal(targetOptionalWithoutDefault.parameters[0].optional, true);
+  assert.equal(targetOptionalWithoutDefault.parameters[0].defaultValue, undefined);
 });
 
 test(".NET selected target-member identity enforces optional and params-array arity facts", () => {
@@ -164,4 +225,22 @@ function parameter(name, type, options = {}) {
 
 function stringType() {
   return { kind: "target-named", id: "System.String" };
+}
+
+function buildDefaultParameterFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/default-params/DefaultParameterProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/default-params/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/default-params/obj/");
+  const result = spawnSync("dotnet", [
+    "build",
+    project,
+    "--nologo",
+    "--verbosity",
+    "quiet",
+    "--output",
+    outputDirectory,
+    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  return join(outputDirectory, "DefaultParameterProviderFixture.dll");
 }

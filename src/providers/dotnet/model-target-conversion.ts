@@ -11,6 +11,7 @@ import type {
   DotnetExportDeclaration,
   DotnetMemberDeclaration,
   DotnetParameterDeclaration,
+  DotnetParameterDefaultValue,
   DotnetRenderShape,
   DotnetSignatureDeclaration,
   DotnetTypeDeclaration,
@@ -29,6 +30,14 @@ import {
   csharpTargetNamedType,
   csharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
+
+export type DotnetTargetParameter = TargetParameter & {
+  readonly defaultValue?: DotnetParameterDefaultValue;
+};
+
+export type DotnetTargetMember = TargetMember & {
+  readonly parameters: readonly DotnetTargetParameter[];
+};
 
 export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint): TargetConstraint {
   switch (constraint.kind) {
@@ -142,7 +151,7 @@ function dotnetSignatureToTargetMember(
   member: DotnetMemberDeclaration,
   signature: DotnetSignatureDeclaration,
   declaringType: TargetTypeRef,
-): TargetMember {
+): DotnetTargetMember {
   return {
     id: signature.id,
     sourceName: member.sourceName,
@@ -171,13 +180,14 @@ function dotnetMetadataNameWithoutSignature(metadataName: string): string {
   return signatureStart === -1 ? metadataName : metadataName.slice(0, signatureStart);
 }
 
-function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration): TargetParameter {
+function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration): DotnetTargetParameter {
   return {
     name: parameter.name,
     type: dotnetTypeRefToTargetTypeRef(parameter.type),
     passingMode: parameter.passingMode,
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),
+    ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
   };
 }
 

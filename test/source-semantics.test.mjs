@@ -368,6 +368,52 @@ test("source-semantics records source primitive assertions as C# conversion meth
   assert.equal(csharpConversion.declaringType.id, "System.Convert");
 });
 
+test("source-semantics rejects any assertion conversions without explicit target facts", () => {
+  const sourceText = `
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function unsafeCast(value: any): int32 {
+      return value as int32;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpNativeProviderExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const assertion = collectNodesByKind(sourceFile, session.ast, "KindAsExpression")[0];
+  assert.ok(assertion);
+
+  assert.equal(extensionHost.facts.get(assertion, targetConversionFactKey), undefined);
+  assert.equal(extensionHost.facts.get(assertion, csharpTargetConversionOperationFactKey), undefined);
+  const anyAssertionDiagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_ANY_ASSERTION_CONVERSION_UNSUPPORTED"
+  );
+  assert.equal(anyAssertionDiagnostics.length, 1);
+  assert.match(anyAssertionDiagnostics[0].message, /TypeScript any boundary/);
+});
+
 test("source-semantics propagates object-shape callable carriers through destructuring", () => {
   const sourceText = `
     export interface Named {

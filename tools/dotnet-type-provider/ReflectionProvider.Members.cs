@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
@@ -328,6 +329,7 @@ sealed partial class ReflectionProvider
                 return null;
             }
             var isParamsArray = parameter.GetCustomAttribute<ParamArrayAttribute>() is not null && parameterType.IsArray;
+            var defaultValue = ParameterDefaultValue(parameter, parameterType);
             result.Add(new
             {
                 name = Identifier(parameter.Name ?? $"arg{index}"),
@@ -335,9 +337,143 @@ sealed partial class ReflectionProvider
                 passingMode = PassingMode(parameter),
                 optional = parameter.IsOptional ? true : (bool?)null,
                 rest = isParamsArray ? true : (bool?)null,
+                defaultValue,
             });
         }
         return result.ToArray();
+    }
+
+    object? ParameterDefaultValue(ParameterInfo parameter, Type parameterType)
+    {
+        if (!TryGetRawDefaultValue(parameter, out var value))
+        {
+            return null;
+        }
+        if (value is null)
+        {
+            return new { kind = "null" };
+        }
+
+        parameterType = Nullable.GetUnderlyingType(parameterType) ?? parameterType;
+        if (parameterType.IsEnum)
+        {
+            return EnumParameterDefaultValue(parameterType, value);
+        }
+        if (parameterType == typeof(string) && value is string stringValue)
+        {
+            return new { kind = "string", value = stringValue };
+        }
+
+        var sourcePrimitiveName = SourcePrimitiveName(parameterType);
+        if (sourcePrimitiveName is null)
+        {
+            return null;
+        }
+        var sourcePrimitiveValue = SourcePrimitiveDefaultValue(parameterType, value);
+        return sourcePrimitiveValue is null
+            ? null
+            : new { kind = "source-primitive", name = sourcePrimitiveName, value = sourcePrimitiveValue };
+    }
+
+    static bool TryGetRawDefaultValue(ParameterInfo parameter, out object? value)
+    {
+        value = null;
+        try
+        {
+            if (!parameter.HasDefaultValue)
+            {
+                return false;
+            }
+            value = parameter.RawDefaultValue;
+        }
+        catch (Exception exception) when (
+            exception is FormatException ||
+            exception is InvalidOperationException ||
+            exception is NotSupportedException ||
+            exception is ArgumentException)
+        {
+            value = null;
+            return false;
+        }
+        return value is not DBNull && value is not Missing;
+    }
+
+    static object? EnumParameterDefaultValue(Type enumType, object value)
+    {
+        var underlyingType = Enum.GetUnderlyingType(enumType);
+        var underlyingValue = Convert.ChangeType(value, underlyingType, CultureInfo.InvariantCulture);
+        if (underlyingValue is null)
+        {
+            return null;
+        }
+        var enumValue = Enum.ToObject(enumType, underlyingValue);
+        var fieldName = Enum.GetName(enumType, enumValue);
+        return new
+        {
+            kind = "enum",
+            value = Convert.ToString(underlyingValue, CultureInfo.InvariantCulture),
+            fieldName,
+        };
+    }
+
+    static object? SourcePrimitiveDefaultValue(Type primitiveType, object value)
+    {
+        if (primitiveType == typeof(bool) && value is bool boolValue)
+        {
+            return boolValue;
+        }
+        if (primitiveType == typeof(char) && value is char charValue)
+        {
+            return charValue.ToString();
+        }
+        if (primitiveType == typeof(float))
+        {
+            return Convert.ToSingle(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(double))
+        {
+            return Convert.ToDouble(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(decimal))
+        {
+            return Convert.ToDecimal(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(Half))
+        {
+            return Convert.ToString(value, CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(nint))
+        {
+            return Convert.ToInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+        }
+        if (primitiveType == typeof(nuint))
+        {
+            return Convert.ToUInt64(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+        }
+        return IsIntegerPrimitive(primitiveType)
+            ? InvariantString(value)
+            : null;
+    }
+
+    static string InvariantString(object value)
+    {
+        return value is IFormattable formattable
+            ? formattable.ToString(null, CultureInfo.InvariantCulture)
+            : value.ToString() ?? "";
+    }
+
+    static bool IsIntegerPrimitive(Type type)
+    {
+        return type == typeof(sbyte) ||
+            type == typeof(byte) ||
+            type == typeof(short) ||
+            type == typeof(ushort) ||
+            type == typeof(int) ||
+            type == typeof(uint) ||
+            type == typeof(long) ||
+            type == typeof(ulong) ||
+            type.FullName == "System.Int128" ||
+            type.FullName == "System.UInt128";
     }
 
     static string PassingMode(ParameterInfo parameter)
