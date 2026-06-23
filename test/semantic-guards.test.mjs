@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership } from "../dist/backend/planner/semantic-guards.js";
-import { KindArrowFunction, KindFunctionDeclaration, KindIdentifier, KindPropertyAccessExpression, KindVariableDeclaration } from "../dist/backend/planner/source-ast.js";
+import { KindArrowFunction, KindBindingElement, KindFunctionDeclaration, KindIdentifier, KindPropertyAccessExpression, KindVariableDeclaration } from "../dist/backend/planner/source-ast.js";
 
 test("provider-owned operator operands require selected target operator facts", () => {
   const operand = node(KindIdentifier);
@@ -139,6 +139,27 @@ test("source-declared callable references stay source-owned with runtime-carrier
           { kind: "source-primitive", name: "int32" },
         ],
       },
+    },
+  });
+
+  const ownership = getCallableSemanticOwnership(callee, sourceFile, input);
+
+  assert.equal(ownership.requiresTargetFact, false);
+  assert.equal(ownership.sourceOwned, true);
+  assert.deepEqual(ownership.reasons, ["callee node runtime carrier"]);
+});
+
+test("source-owned destructured callable bindings stay source-owned from delegate carrier facts", () => {
+  const sourceFile = sourceFileNode("/src/main.ts");
+  const callee = node(KindIdentifier);
+  const sourceSymbol = { Name: "run" };
+  const sourceDeclaration = { Kind: KindBindingElement };
+  const input = fakeInput({
+    sourceFiles: [sourceFile],
+    sourceReferenceByNode: new Map([[callee, { symbol: sourceSymbol, declaration: sourceDeclaration, sourceFile }]]),
+    runtimeCarrierSubject: callee,
+    runtimeCarrier: {
+      carrier: delegateCarrier([{ kind: "source-primitive", name: "float64" }], { kind: "source-primitive", name: "float64" }),
     },
   });
 

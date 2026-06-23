@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { csharpTypeFromTargetTypeRef } from "../dist/backend/planner/target-types.js";
 import { renderObjectShapeMembers } from "../dist/backend/planner/object-shape-declarations.js";
 import { printCsharpType } from "../dist/print/csharp-printer.js";
+import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import {
   csharpDelegateTargetType,
   csharpTargetTypeFromBinding,
@@ -23,6 +24,17 @@ test("printer renders pointer and function-pointer type nodes", () => {
       returnType: { kind: "PredefinedType", name: "int" },
     }),
     "delegate*<int, int>",
+  );
+});
+
+test("printer renders cast expression nodes", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "CastExpression",
+      type: { kind: "IdentifierName", name: "Animal" },
+      expression: { kind: "IdentifierName", name: "value" },
+    }),
+    "(Animal)value",
   );
 });
 

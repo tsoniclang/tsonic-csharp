@@ -37,6 +37,7 @@ import {
 import {
   csharpDelegateTargetType,
   csharpTargetNamedType,
+  substituteTargetTypeParameters,
 } from "./target-types.js";
 import type {
   CsharpSemanticTypeDeclarationShape,
@@ -135,8 +136,14 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     (node === undefined || (!compiler.ast.is.IsObjectLiteralExpression(node) && compiler.ast.kindName(node) !== "KindObjectLiteralExpression"))) {
     return undefined;
   }
-  const members = deriveCsharpObjectShapeMembersForSemanticType(semanticType, context, sourceFile, host, "callable-property-as-method");
-  if (members === undefined) {
+  const memberSourceType = declaredShape?.kind === "interface" && isObjectLiteral && contextualTargetType !== undefined
+    ? contextualTargetType
+    : semanticType;
+  const members = deriveCsharpObjectShapeMembersForSemanticType(memberSourceType, context, sourceFile, host, "callable-property-as-method");
+  const resolvedMembers = members === undefined
+    ? undefined
+    : substituteCsharpObjectShapeMemberTypeParameters(members, memberSourceType, declaredShape?.targetType, context);
+  if (resolvedMembers === undefined) {
     return undefined;
   }
   const implementsTypes = declaredShape?.kind === "interface"
@@ -145,12 +152,50 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
   const shapeNamePrefix = declaredShape?.kind === "interface"
     ? `__TsonicShape_${generatedObjectShapeMemberName(declaredShape.name)}`
     : "__TsonicShape";
-  const targetName = getObjectShapeTargetName(shapeNamePrefix, members, implementsTypes);
+  const targetName = getObjectShapeTargetName(shapeNamePrefix, resolvedMembers, implementsTypes);
   return {
     targetType: csharpTargetNamedType(targetName, undefined, { kind: "named", name: targetName }),
-    members,
+    members: resolvedMembers,
     ...(implementsTypes === undefined ? {} : { implements: implementsTypes }),
   };
+}
+
+function substituteCsharpObjectShapeMemberTypeParameters(
+  members: readonly CsharpObjectShapeMemberFact[],
+  ownerType: Type,
+  ownerTargetType: TargetTypeRef | undefined,
+  context: ExtensionObservationContext,
+): readonly CsharpObjectShapeMemberFact[] {
+  const substitutions = getSemanticTypeParameterSubstitutions(ownerType, ownerTargetType, context);
+  if (substitutions.size === 0) {
+    return members;
+  }
+  return members.map((member) => ({
+    ...member,
+    type: substituteTargetTypeParameters(member.type, substitutions),
+  }));
+}
+
+function getSemanticTypeParameterSubstitutions(
+  ownerType: Type,
+  ownerTargetType: TargetTypeRef | undefined,
+  context: ExtensionObservationContext,
+): ReadonlyMap<string, TargetTypeRef> {
+  if (ownerTargetType?.kind !== "target-named" || ownerTargetType.typeArguments === undefined) {
+    return new Map();
+  }
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return new Map();
+  }
+  const names = getSymbolDeclarations(ownerType.symbol)
+    .flatMap((declaration) => getNodeList(getNodeField(declaration, "TypeParameters")))
+    .map(getNodeNameText)
+    .filter((name) => name.length > 0);
+  if (names.length !== ownerTargetType.typeArguments.length) {
+    return new Map();
+  }
+  return new Map(names.map((name, index) => [name, ownerTargetType.typeArguments![index]!] as const));
 }
 
 function deriveCsharpObjectShapeMembersForSemanticType(

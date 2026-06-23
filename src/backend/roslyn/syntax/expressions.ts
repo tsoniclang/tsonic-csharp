@@ -11,7 +11,8 @@ export type CsharpExpression =
   | { readonly kind: "ParenthesizedExpression"; readonly expression: CsharpExpression }
   | { readonly kind: "InvocationExpression"; readonly callee: CsharpExpression; readonly arguments: readonly CsharpArgument[] }
   | { readonly kind: "AwaitExpression"; readonly expression: CsharpExpression }
-  | { readonly kind: "ObjectCreationExpression"; readonly type: CsharpTypeNode; readonly arguments?: readonly CsharpArgument[]; readonly assignments?: readonly CsharpObjectInitializerAssignment[] }
+  | CsharpObjectCreationExpression
+  | { readonly kind: "CastExpression"; readonly type: CsharpTypeNode; readonly expression: CsharpExpression }
   | { readonly kind: "SimpleMemberAccessExpression"; readonly receiver: CsharpExpression; readonly name: string }
   | { readonly kind: "ConditionalAccessExpression"; readonly receiver: CsharpExpression; readonly name: string }
   | { readonly kind: "ElementAccessExpression"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
@@ -84,6 +85,30 @@ export interface CsharpLambdaParameter {
 export interface CsharpObjectInitializerAssignment {
   readonly kind: "AssignmentExpression";
   readonly name: string;
+  readonly expression: CsharpExpression;
+}
+
+export type CsharpObjectCreationExpression = {
+  readonly kind: "ObjectCreationExpression";
+  readonly type: CsharpTypeNode;
+  readonly arguments?: readonly CsharpArgument[];
+} & (
+  | {
+      readonly assignments?: readonly CsharpObjectInitializerAssignment[];
+      readonly collectionInitializers?: never;
+    }
+  | {
+      readonly assignments?: never;
+      readonly collectionInitializers: readonly CsharpCollectionInitializerElement[];
+    }
+);
+
+export type CsharpCollectionInitializerElement =
+  | CsharpIndexerInitializerElement;
+
+export interface CsharpIndexerInitializerElement {
+  readonly kind: "IndexerInitializer";
+  readonly arguments: readonly CsharpExpression[];
   readonly expression: CsharpExpression;
 }
 

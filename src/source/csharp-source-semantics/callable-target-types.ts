@@ -42,7 +42,7 @@ export function getCallableExpressionTargetTypeRef(
   host: CsharpCallableTargetTypeHost,
 ): TargetTypeRef | undefined {
   const compiler = context.compiler;
-  if (compiler === undefined || !isCallableExpressionNode(compiler.ast, node)) {
+  if (compiler === undefined || !isCallableExpressionNode(compiler.ast, node) && !isCallableReferenceNode(compiler.ast, node)) {
     return undefined;
   }
   const options = { allowRuntimeCarrier: false, sourceFile };
@@ -56,8 +56,10 @@ export function getCallableExpressionTargetTypeRef(
       context,
       options,
     ));
-  const parameters = getNodeList(getNodeField(node, "Parameters"))
-    .map((parameter, index) => {
+  const parameterNodes = getNodeList(getNodeField(node, "Parameters"));
+  const parameters = parameterNodes.length === 0
+    ? semanticParameters
+    : parameterNodes.map((parameter, index) => {
       const typeNode = asNodeSubject(getNodeField(parameter, "Type"));
       return typeNode === undefined
         ? semanticParameters[index]
@@ -87,4 +89,13 @@ export function isCallableExpressionNode(
 ): boolean {
   return ast.kindName(node) === "KindArrowFunction" ||
     ast.kindName(node) === "KindFunctionExpression";
+}
+
+function isCallableReferenceNode(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  return ast.is.IsIdentifier(node) ||
+    ast.is.IsPropertyAccessExpression(node) ||
+    ast.is.IsElementAccessExpression(node);
 }

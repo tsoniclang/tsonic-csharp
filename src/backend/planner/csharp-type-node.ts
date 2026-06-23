@@ -5,6 +5,8 @@ import {
   KindAnyKeyword,
   KindArrayType,
   KindArrayBindingPattern,
+  KindCallExpression,
+  KindNewExpression,
   KindObjectBindingPattern,
   KindObjectKeyword,
   KindTypeLiteral,
@@ -92,6 +94,10 @@ export function getCsharpTypeForNode(
   if (selectedTargetCallType !== undefined) {
     return selectedTargetCallType;
   }
+  const targetConversionType = getCsharpTypeFromTargetConversion(node, input, diagnostics);
+  if (targetConversionType !== undefined) {
+    return targetConversionType;
+  }
   if (input.ast.kindName(node) === KindTypeLiteral) {
     const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);
     const objectShapeType = objectShape === undefined
@@ -175,16 +181,33 @@ export function getCsharpTypeForNode(
   return invalidCsharpType("unsupported semantic type");
 }
 
+function getCsharpTypeFromTargetConversion(
+  node: Node,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  const convertedType = input.facts.getTargetConversionFact(node)?.convertedType;
+  if (convertedType === undefined) {
+    return undefined;
+  }
+  const type = csharpTypeFromTargetTypeRef(convertedType);
+  if (type !== undefined) {
+    return type;
+  }
+  diagnostics?.push(unsupportedNodeDiagnostic(node, "Target conversion facts require a renderable converted type before C# type emission."));
+  return invalidCsharpType("target conversion type");
+}
+
 function getCsharpTypeFromResolvedSourceCallReturn(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
-  const call = AsCallExpression(node);
-  if (call === undefined) {
+  if (input.ast.kindName(node) !== KindCallExpression) {
     return undefined;
   }
+  const call = AsCallExpression(node)!;
   const ownership = getCallableSemanticOwnership(call.Expression, sourceFile, input);
   if (!ownership.sourceOwned) {
     return undefined;
@@ -212,6 +235,9 @@ function getCsharpTypeFromSourceNewExpression(
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
+  if (input.ast.kindName(node) !== KindNewExpression) {
+    return undefined;
+  }
   const expression = AsNewExpression(node);
   const reference = expression === undefined
     ? undefined

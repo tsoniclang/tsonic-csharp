@@ -72,6 +72,8 @@ function planTargetConversionOperation(
       return planTargetConversionMethodCall(node, input, operation, expression, diagnostics);
     case "constructor":
       return planTargetConversionConstructor(node, conversion, expression, diagnostics);
+    case "operator":
+      return planTargetConversionOperator(node, input, operation, expression, diagnostics);
     default:
       diagnostics.push(unsupportedNodeDiagnostic(node, `Target conversion operation '${operation.operationKind}' is not renderable by the C# backend.`));
       return invalidExpression("unsupported target conversion operation");
@@ -125,5 +127,32 @@ function planTargetConversionConstructor(
     kind: "ObjectCreationExpression",
     type: targetType,
     arguments: [{ kind: "Argument", expression }],
+  };
+}
+
+function planTargetConversionOperator(
+  node: Node,
+  input: TargetCompileInput,
+  operation: TargetOperationFact,
+  expression: CsharpExpression,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const csharpOperation = getRequiredCsharpTargetConversionOperation(input, node, operation, diagnostics, "C# target conversion operator emission");
+  if (csharpOperation === undefined) {
+    return invalidExpression("target conversion operator");
+  }
+  if (csharpOperation.kind !== "cast") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# target conversion operator emission requires a finalized C# cast operation fact, but provider recorded '${csharpOperation.kind}'.`));
+    return invalidExpression("target conversion operator kind");
+  }
+  const targetType = csharpTypeFromTargetTypeRef(csharpOperation.targetType);
+  if (targetType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# target conversion cast requires a renderable target type before C# emission."));
+    return invalidExpression("target conversion cast type");
+  }
+  return {
+    kind: "CastExpression",
+    type: targetType,
+    expression,
   };
 }

@@ -238,7 +238,7 @@ export function csharpBaseTargetTypeFromBinding(
   );
 }
 
-function substituteTargetTypeParameters(
+export function substituteTargetTypeParameters(
   type: TargetTypeRef,
   substitutions: ReadonlyMap<string, TargetTypeRef>,
 ): TargetTypeRef {

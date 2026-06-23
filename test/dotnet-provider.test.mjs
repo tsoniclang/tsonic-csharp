@@ -291,6 +291,101 @@ test(".NET provider source declarations keep extension-method signature identiti
   assert.equal(targetMember.receiverPassing, "first-argument");
 });
 
+test(".NET provider models LINQ ExtensionMethods receiver metadata from target facts", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.Linq.js", {});
+  assert.equal("exports" in module, true);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const enumerable = declarationModel.exports.find((declaration) => declaration.name === "Enumerable");
+  assert.ok(enumerable);
+  const average = enumerable.members.find((member) =>
+    member.kind === "method" &&
+    member.name === "average" &&
+    member.static === true
+  );
+  assert.ok(average);
+  assert.ok(average.signatures.some((signature) =>
+    signature.id === "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)"
+  ));
+
+  const binding = provider.findTargetBindingByTargetId("System.Linq.Enumerable");
+  assert.ok(binding);
+  const targetAverage = binding.members.find((member) =>
+    member.id === "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)"
+  );
+  assert.ok(targetAverage);
+  assert.equal(targetAverage.receiverPassing, "first-argument");
+  assert.equal(targetAverage.parameters[0].passingMode, "by-value");
+  assert.equal(targetAverage.returnType?.kind, "source-primitive");
+  assert.equal(targetAverage.returnType?.kind === "source-primitive" ? targetAverage.returnType.name : undefined, "float64");
+});
+
+test(".NET provider model preserves overlap-like receiver and out parameter facts", () => {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const typeParameter = { kind: "type-parameter", name: "T" };
+  const spanOfT = {
+    kind: "named",
+    metadataName: "Example.Span`1",
+    displayName: "Example.Span`1",
+    typeArguments: [typeParameter],
+    sourceShape: { kind: "array", elementType: typeParameter },
+  };
+  const readOnlySpanOfT = {
+    kind: "named",
+    metadataName: "Example.ReadOnlySpan`1",
+    displayName: "Example.ReadOnlySpan`1",
+    typeArguments: [typeParameter],
+    sourceShape: { kind: "array", elementType: typeParameter },
+  };
+  const overlaps = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "MemoryExtensions",
+    namespaceName: "Example",
+    metadataName: "Example.MemoryExtensions",
+    members: [
+      {
+        kind: "method",
+        sourceName: "overlaps",
+        targetName: "Overlaps",
+        metadataName: "Example.MemoryExtensions.Overlaps",
+        static: true,
+        receiverPassing: "first-argument",
+        signatures: [
+          {
+            id: "Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)",
+            typeParameters: [{ name: "T" }],
+            parameters: [
+              { name: "span", type: spanOfT, passingMode: "by-value" },
+              { name: "other", type: readOnlySpanOfT, passingMode: "by-value" },
+              { name: "elementOffset", type: int32, passingMode: "byref-writeonly-must-init" },
+            ],
+            returnType: { kind: "source-primitive", name: "bool" },
+          },
+        ],
+      },
+    ],
+  };
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@tsonic/dotnet/Example.js",
+    namespaceName: "Example",
+    exports: [overlaps],
+  });
+  const sourceMemoryExtensions = declarationModel.exports[0];
+  const sourceOverlaps = sourceMemoryExtensions.members[0];
+  const sourceSignature = sourceOverlaps.signatures[0];
+
+  assert.equal(sourceSignature.id, "Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)");
+  assert.equal(sourceSignature.parameters[2].passingMode, "byref-writeonly-must-init");
+
+  const targetBinding = dotnetExportToTargetBinding(overlaps);
+  const targetOverlaps = targetBinding.members[0];
+  assert.equal(targetOverlaps.receiverPassing, "first-argument");
+  assert.equal(targetOverlaps.parameters[2].passingMode, "byref-writeonly-must-init");
+});
+
 test(".NET reflection provider proves collection constructor array-literal element metadata", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const binding = provider.findTargetBindingByTargetId("System.Collections.Generic.List`1");

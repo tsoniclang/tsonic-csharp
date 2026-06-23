@@ -27,9 +27,11 @@ export function isCsharpDelegateTargetRef(type: TargetTypeRef | undefined): bool
 
 export function isSourceOwnedCallableRuntimeCarrierSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
   const carrier = getTargetTypeRefForNode(input, node, sourceFile);
+  const sourceReference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile });
   return isCsharpDelegateTargetRef(carrier) &&
     (isDirectSourceCallableSyntax(node, input) ||
-      isSourceDeclaredCallableReference(input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }), input));
+      isSourceDeclaredCallableReference(sourceReference, input) ||
+      isSourceOwnedCallableBindingReference(sourceReference, input));
 }
 
 export function isSourceOwnedProjectShapeSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
@@ -90,6 +92,14 @@ function isSourceCallableDeclaration(declaration: Node | undefined, input: Targe
     default:
       return false;
   }
+}
+
+function isSourceOwnedCallableBindingReference(
+  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  input: TargetCompileInput,
+): boolean {
+  return isSourceOwnedProjectReference(reference, input) &&
+    SourceKind(input.ast, reference?.declaration) === KindBindingElement;
 }
 
 function hasProviderOnlySymbolName(symbol: ReturnType<TargetCompileInput["semantics"]["getResolvedSymbol"]> | undefined): boolean {

@@ -107,7 +107,7 @@ export function planExpressionWithExpectedTypeCore(
     return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
   }
   if (HasSourceKind(input.ast, node, KindObjectLiteralExpression)) {
-    const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics, expectedTypeSubject);
+    const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics, expectedTypeSubject, planners.planExpressionWithExpectedType);
     if (dictionaryLiteral !== undefined) {
       return dictionaryLiteral;
     }

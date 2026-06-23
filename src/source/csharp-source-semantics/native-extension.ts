@@ -104,6 +104,9 @@ import {
   recordCsharpSourceDeclarationFactsBeforeFinalization,
 } from "./source-declaration-facts.js";
 import {
+  recordCsharpAssertionConversionFactsBeforeFinalization,
+} from "./source-assertion-conversions.js";
+import {
   createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
 } from "../../providers/dotnet/index.js";
@@ -232,6 +235,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
       context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
         recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext);
+        recordCsharpAssertionConversionFactsBeforeFinalization(lifecycleContext, operationsProviderHost);
         recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, objectShapeSemanticsHost);
         recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, objectShapeSemanticsHost);
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, objectShapeLifecycleHost);

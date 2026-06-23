@@ -1,6 +1,7 @@
 import type {
   Node,
   SelectedTargetSignatureFact,
+  TargetMember,
   TargetOperationFact,
 } from "@tsonic/tsts";
 import type {
@@ -115,5 +116,51 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member facts: generic selected member '${selectedSignature.member.id}', C# selected member '${operation.selectedMember.id}'.`));
     return undefined;
   }
+  const mismatch = getSelectedMemberEmissionFactMismatch(selectedSignature.member, operation.selectedMember);
+  if (mismatch !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member ${mismatch} facts for '${selectedSignature.member.id}'.`));
+    return undefined;
+  }
+  if (operation.operationKind !== operation.selectedMember.kind) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched target operation kind facts for '${selectedSignature.member.id}'.`));
+    return undefined;
+  }
+  if (operation.memberName !== operation.selectedMember.targetName) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched target member-name facts for '${selectedSignature.member.id}'.`));
+    return undefined;
+  }
   return operation;
+}
+
+function getSelectedMemberEmissionFactMismatch(expected: TargetMember, actual: TargetMember): string | undefined {
+  if (actual.kind !== expected.kind) {
+    return "kind";
+  }
+  if (actual.targetName !== expected.targetName) {
+    return "target-name";
+  }
+  if (actual.static !== expected.static) {
+    return "static-dispatch";
+  }
+  if (actual.receiverPassing !== expected.receiverPassing) {
+    return "receiver-passing";
+  }
+  if (actual.parameters.length !== expected.parameters.length) {
+    return "parameter-list";
+  }
+  for (let index = 0; index < expected.parameters.length; index += 1) {
+    const expectedParameter = expected.parameters[index];
+    const actualParameter = actual.parameters[index];
+    if (expectedParameter === undefined || actualParameter === undefined) {
+      return "parameter-list";
+    }
+    if (
+      actualParameter.passingMode !== expectedParameter.passingMode ||
+      actualParameter.optional !== expectedParameter.optional ||
+      actualParameter.paramsArray !== expectedParameter.paramsArray
+    ) {
+      return "parameter-passing";
+    }
+  }
+  return undefined;
 }

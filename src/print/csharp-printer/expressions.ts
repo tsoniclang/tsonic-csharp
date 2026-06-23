@@ -1,6 +1,8 @@
 import type {
+  CsharpArgument,
   CsharpAssignmentOperatorToken,
   CsharpBinaryOperatorToken,
+  CsharpCollectionInitializerElement,
   CsharpExpression,
   CsharpInterpolatedStringPart,
   CsharpLambdaParameter,
@@ -52,9 +54,14 @@ export function printCsharpExpression(
     case "AwaitExpression":
       return `await ${context.printExpression(expression.expression)}`;
     case "ObjectCreationExpression":
+      if (expression.collectionInitializers !== undefined) {
+        return printCsharpCollectionInitializer(expression.type, expression.arguments ?? [], expression.collectionInitializers, context);
+      }
       return expression.assignments === undefined
-        ? `new ${context.printType(expression.type)}(${(expression.arguments ?? []).map(context.printArgument).join(", ")})`
-        : printCsharpObjectInitializer(expression.type, expression.assignments, context);
+        ? printCsharpObjectCreation(expression.type, expression.arguments ?? [], context)
+        : printCsharpObjectInitializer(expression.type, expression.arguments ?? [], expression.assignments, context);
+    case "CastExpression":
+      return `(${context.printType(expression.type)})${context.printExpression(expression.expression)}`;
     case "BinaryExpression":
       return `${context.printExpression(expression.left)} ${printCsharpBinaryOperatorToken(expression.operatorToken)} ${context.printExpression(expression.right)}`;
     case "AssignmentExpression":
@@ -185,19 +192,66 @@ function printCsharpPostfixUnaryOperatorToken(token: CsharpPostfixUnaryOperatorT
 
 function printCsharpObjectInitializer(
   type: CsharpTypeNode,
+  argumentsList: readonly CsharpArgument[],
   assignments: readonly CsharpObjectInitializerAssignment[],
   context: CsharpPrintContext,
 ): string {
   if (assignments.length === 0) {
-    return `new ${context.printType(type)}()`;
+    return printCsharpObjectCreation(type, argumentsList, context);
   }
   return [
-    `new ${context.printType(type)}`,
+    printCsharpObjectCreationHeader(type, argumentsList, context),
     "{",
     ...indentLines(assignments.map((assignment) =>
       `${assignment.name} = ${context.printExpression(assignment.expression)},`)),
     "}",
   ].join("\n");
+}
+
+function printCsharpCollectionInitializer(
+  type: CsharpTypeNode,
+  argumentsList: readonly CsharpArgument[],
+  initializers: readonly CsharpCollectionInitializerElement[],
+  context: CsharpPrintContext,
+): string {
+  if (initializers.length === 0) {
+    return printCsharpObjectCreation(type, argumentsList, context);
+  }
+  return [
+    printCsharpObjectCreationHeader(type, argumentsList, context),
+    "{",
+    ...indentLines(initializers.map((initializer) => printCsharpCollectionInitializerElement(initializer, context))),
+    "}",
+  ].join("\n");
+}
+
+function printCsharpCollectionInitializerElement(
+  initializer: CsharpCollectionInitializerElement,
+  context: CsharpPrintContext,
+): string {
+  switch (initializer.kind) {
+    case "IndexerInitializer":
+      return `[${initializer.arguments.map(context.printExpression).join(", ")}] = ${context.printExpression(initializer.expression)},`;
+  }
+}
+
+function printCsharpObjectCreation(
+  type: CsharpTypeNode,
+  argumentsList: readonly CsharpArgument[],
+  context: CsharpPrintContext,
+): string {
+  const header = printCsharpObjectCreationHeader(type, argumentsList, context);
+  return argumentsList.length === 0 ? `${header}()` : header;
+}
+
+function printCsharpObjectCreationHeader(
+  type: CsharpTypeNode,
+  argumentsList: readonly CsharpArgument[],
+  context: CsharpPrintContext,
+): string {
+  return argumentsList.length === 0
+    ? `new ${context.printType(type)}`
+    : `new ${context.printType(type)}(${argumentsList.map(context.printArgument).join(", ")})`;
 }
 
 function printCsharpLambda(

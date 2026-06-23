@@ -1,6 +1,7 @@
 import type {
   CsharpArgument,
   CsharpBlock,
+  CsharpCollectionInitializerElement,
   CsharpExpression,
 } from "../roslyn/syntax.js";
 import {
@@ -44,7 +45,11 @@ export function expressionRequiresUnsafe(
     case "ObjectCreationExpression":
       return csharpTypeRequiresUnsafe(expression.type) ||
         (expression.arguments ?? []).some((argument) => argumentRequiresUnsafe(argument, blockRequiresUnsafe)) ||
-        (expression.assignments ?? []).some((assignment) => expressionRequiresUnsafe(assignment.expression, blockRequiresUnsafe));
+        (expression.assignments ?? []).some((assignment) => expressionRequiresUnsafe(assignment.expression, blockRequiresUnsafe)) ||
+        (expression.collectionInitializers ?? []).some((initializer) => collectionInitializerRequiresUnsafe(initializer, blockRequiresUnsafe));
+    case "CastExpression":
+      return csharpTypeRequiresUnsafe(expression.type) ||
+        expressionRequiresUnsafe(expression.expression, blockRequiresUnsafe);
     case "SimpleMemberAccessExpression":
     case "ConditionalAccessExpression":
       return expressionRequiresUnsafe(expression.receiver, blockRequiresUnsafe);
@@ -92,4 +97,15 @@ export function expressionRequiresUnsafe(
 
 export function argumentRequiresUnsafe(argument: CsharpArgument, blockRequiresUnsafe: BlockUnsafeChecker): boolean {
   return expressionRequiresUnsafe(argument.expression, blockRequiresUnsafe);
+}
+
+function collectionInitializerRequiresUnsafe(
+  initializer: CsharpCollectionInitializerElement,
+  blockRequiresUnsafe: BlockUnsafeChecker,
+): boolean {
+  switch (initializer.kind) {
+    case "IndexerInitializer":
+      return initializer.arguments.some((argument) => expressionRequiresUnsafe(argument, blockRequiresUnsafe)) ||
+        expressionRequiresUnsafe(initializer.expression, blockRequiresUnsafe);
+  }
 }

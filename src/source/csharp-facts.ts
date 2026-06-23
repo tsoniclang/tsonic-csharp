@@ -98,7 +98,8 @@ export type CsharpTargetOperationFact =
   | CsharpTargetTokenOperatorOperationFact
   | CsharpTargetIntrinsicOperatorOperationFact
   | CsharpTargetTypeofRuntimeOperationFact
-  | CsharpTargetTypeofComparisonOperationFact;
+  | CsharpTargetTypeofComparisonOperationFact
+  | CsharpTargetCastOperationFact;
 
 export interface CsharpTargetMemberOperationFact {
   readonly kind: "member";
@@ -144,6 +145,13 @@ export interface CsharpTargetTypeofComparisonOperationFact {
   readonly runtimeKind: CsharpTypeofRuntimeKind;
   readonly targetType: TargetTypeRef;
   readonly negated: boolean;
+  readonly resultType?: TargetTypeRef;
+}
+
+export interface CsharpTargetCastOperationFact {
+  readonly kind: "cast";
+  readonly operationId: string;
+  readonly targetType: TargetTypeRef;
   readonly resultType?: TargetTypeRef;
 }
 
@@ -232,6 +240,10 @@ function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right:
         && left.runtimeKind === right.runtimeKind
         && targetTypeRefEquals(left.targetType, right.targetType)
         && left.negated === right.negated
+        && targetTypeRefEquals(left.resultType, right.resultType);
+    case "cast":
+      return right.kind === "cast"
+        && targetTypeRefEquals(left.targetType, right.targetType)
         && targetTypeRefEquals(left.resultType, right.resultType);
   }
 }

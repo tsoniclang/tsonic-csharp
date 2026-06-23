@@ -100,7 +100,7 @@ test("C# provider selects from a proven provider binding using checked source me
     virtualDeclaration: virtualMember("Example.Target.m"),
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
@@ -176,7 +176,7 @@ test("C# attribute builder marker identity comes from finalized attribute facts"
     },
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "source-semantics.attribute:RouteAttribute");
   assert.equal(result.value.selectedSignature.member.sourceName, "attribute");
 });
@@ -811,6 +811,94 @@ test("C# provider maps extension receiver calls from selected provider signature
   assert.equal(operation?.selectedMember?.receiverPassing, "first-argument");
 });
 
+test("C# provider maps LINQ ExtensionMethods receiver calls from selected signature identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const call = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const receiver = { kind: "array", element: int32 };
+  const recordedFacts = [];
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    calleeReceiver: receiver,
+    calleePropertyName: "average",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: {
+      id: "System.Linq.Enumerable",
+      sourceName: "ExtensionMethods",
+      targetName: "System.Linq.Enumerable",
+      target: "csharp",
+      kind: "class",
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("System.Linq.Enumerable.Average", "average"),
+      signatureId: "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)");
+  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.deepEqual(result.value.selectedSignature.member.returnType, { kind: "source-primitive", name: "float64" });
+
+  const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(operation?.operationId, "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)");
+  assert.equal(operation?.memberName, "Average");
+  assert.equal(operation?.static, true);
+  assert.equal(operation?.selectedMember?.receiverPassing, "first-argument");
+});
+
+test("C# provider maps overlap-style extension overloads with receiver and out parameter facts", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const call = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const receiver = spanType(int32);
+  const other = readOnlySpanType(int32);
+  const offset = int32;
+  const recordedFacts = [];
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    calleeReceiver: receiver,
+    calleePropertyName: "overlaps",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [other, offset],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: overlapExtensionsBinding(),
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.MemoryExtensions.Overlaps", "overlaps"),
+      signatureId: "Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, "Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)");
+  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(result.value.selectedSignature.member.parameters[2].passingMode, "byref-writeonly-must-init");
+
+  const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(operation?.selectedMember?.receiverPassing, "first-argument");
+  assert.equal(operation?.selectedMember?.parameters[2]?.passingMode, "byref-writeonly-must-init");
+});
+
 test("C# provider rejects receiver calls when static target metadata omits receiver passing", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -1058,6 +1146,70 @@ function indexer(id, parameterType, options = {}) {
     }],
     returnType: { kind: "target-named", id: "System.String" },
     overloadGroup: options.overloadGroup ?? "Example.Target.Item",
+  };
+}
+
+function overlapExtensionsBinding() {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const typeParameter = { kind: "type-parameter", name: "T" };
+  return {
+    id: "Example.MemoryExtensions",
+    sourceName: "MemoryExtensions",
+    targetName: "Example.MemoryExtensions",
+    target: "csharp",
+    kind: "class",
+    members: [
+      overlapMethod("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>)", [
+        targetParameter("span", spanType(typeParameter)),
+        targetParameter("other", readOnlySpanType(typeParameter)),
+      ]),
+      overlapMethod("Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)", [
+        targetParameter("span", spanType(typeParameter)),
+        targetParameter("other", readOnlySpanType(typeParameter)),
+        targetParameter("elementOffset", int32, "byref-writeonly-must-init"),
+      ]),
+    ],
+  };
+}
+
+function overlapMethod(id, parameters) {
+  return {
+    id,
+    sourceName: "overlaps",
+    targetName: "Overlaps",
+    kind: "method",
+    static: true,
+    receiverPassing: "first-argument",
+    typeParameters: [{ name: "T" }],
+    parameters,
+    returnType: { kind: "source-primitive", name: "bool" },
+    overloadGroup: "Example.MemoryExtensions.Overlaps",
+  };
+}
+
+function targetParameter(name, type, passingMode = "by-value") {
+  return {
+    name,
+    type,
+    passingMode,
+  };
+}
+
+function spanType(element) {
+  return {
+    kind: "target-named",
+    id: "Example.Span`1",
+    typeArguments: [element],
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Span" },
+  };
+}
+
+function readOnlySpanType(element) {
+  return {
+    kind: "target-named",
+    id: "Example.ReadOnlySpan`1",
+    typeArguments: [element],
+    csharpRender: { kind: "named", namespace: ["Example"], name: "ReadOnlySpan" },
   };
 }
 

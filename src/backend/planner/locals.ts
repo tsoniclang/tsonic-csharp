@@ -18,7 +18,7 @@ export function planLocalDeclaration(
   state: DestructuringPlannerState,
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
-  const typeSubject = variable.Type ?? variable.name ?? variable.Initializer;
+  const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, input) ?? variable.name ?? variable.Initializer;
   const type = getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   return {
@@ -50,4 +50,17 @@ export function planLocalDeclarationStatements(
     type: local.type,
     ...(local.initializer === undefined ? {} : { initializer: local.initializer }),
   }];
+}
+
+function getInitializerTypeSubject(
+  initializer: Node | undefined,
+  input: TargetCompileInput,
+): Node | undefined {
+  if (initializer === undefined) {
+    return undefined;
+  }
+  return input.facts.getRuntimeCarrierFact(initializer) !== undefined ||
+    input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined
+    ? initializer
+    : undefined;
 }

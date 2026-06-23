@@ -153,6 +153,18 @@ export function csharpTargetTypeofComparisonOperation(
   };
 }
 
+export function csharpTargetCastOperation(
+  operationId: string,
+  targetType: TargetTypeRef,
+): CsharpTargetOperationFact {
+  return {
+    kind: "cast",
+    operationId,
+    targetType,
+    resultType: targetType,
+  };
+}
+
 export function recordCsharpTargetOperation(
   context: ExtensionObservationContext,
   subject: ExtensionFactSubject,

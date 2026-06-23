@@ -4,12 +4,19 @@ import {
   TstsProviderContractVersion,
   attributeFactKey,
   createCompilerSessionFromFiles,
+  functionPointerFactKey,
   formatDiagnostics,
+  pointerFactKey,
+  runtimeCarrierFactKey,
+  targetConversionFactKey,
 } from "@tsonic/tsts";
 import {
   createCsharpNativeProviderExtension,
   createCsharpSourceSemanticsExtension,
 } from "../dist/index.js";
+import {
+  csharpTargetConversionOperationFactKey,
+} from "../dist/source/csharp-facts.js";
 import { providerExportDeclarationsForModule } from "../dist/source/csharp-source-semantics/core-virtual-declarations.js";
 
 test("source-semantics virtual attribute helpers do not introduce any-typed lanes", () => {
@@ -107,6 +114,195 @@ test("source-semantics records provider-backed attribute selector facts from use
   assert.equal(session.ast.text(session.ast.name(applicationFacts[9].applicationTarget)), "display");
 });
 
+test("source-semantics records pointer marker facts from neutral type aliases", () => {
+  const sourceText = `
+    import type { ptr, fnptr } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+
+    type IntPtr = ptr<int32>;
+    type Binary = fnptr<[int32, int32], int32>;
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpNativeProviderExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const pointerFacts = collectFactsForKey(sourceFile, session.ast, extensionHost, pointerFactKey);
+  const functionPointerFacts = collectFactsForKey(sourceFile, session.ast, extensionHost, functionPointerFactKey);
+
+  assert.equal(pointerFacts.length, 2);
+  assert.deepEqual(pointerFacts[0].fact, {
+    pointee: pointerFacts[0].fact.pointee,
+    mutability: "target-defined",
+    unsafeRequired: true,
+  });
+  assert.equal(session.ast.kindName(pointerFacts[0].fact.pointee), "KindTypeReference");
+  assert.equal(functionPointerFacts.length, 2);
+  assert.equal(functionPointerFacts[0].fact.parameters.length, 2);
+  assert.equal(session.ast.kindName(functionPointerFacts[0].fact.result), "KindTypeReference");
+});
+
+test("source-semantics records assertion target conversions as C# target facts", () => {
+  const sourceText = `
+    class Animal {}
+    class Dog extends Animal {}
+
+    export function downcast(animal: Animal): Dog {
+      return animal as Dog;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpNativeProviderExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const assertion = collectNodesByKind(sourceFile, session.ast, "KindAsExpression")[0];
+  assert.ok(assertion);
+  const conversion = extensionHost.facts.get(assertion, targetConversionFactKey);
+  const csharpConversion = extensionHost.facts.get(assertion, csharpTargetConversionOperationFactKey);
+
+  assert.equal(conversion?.convertedType?.kind, "target-named");
+  assert.equal(conversion.convertedType.id, "Dog");
+  assert.equal(conversion.operation?.operationKind, "operator");
+  assert.equal(conversion.operation?.targetOperation, "cast");
+  assert.equal(csharpConversion?.kind, "cast");
+  assert.equal(csharpConversion.targetType.kind, "target-named");
+  assert.equal(csharpConversion.targetType.id, "Dog");
+});
+
+test("source-semantics records source primitive assertions as C# conversion method facts", () => {
+  const sourceText = `
+    import type { int32, uint8 } from "@tsonic/core/types.js";
+
+    export function toByte(value: int32): uint8 {
+      return value as uint8;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpNativeProviderExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const assertion = collectNodesByKind(sourceFile, session.ast, "KindAsExpression")[0];
+  assert.ok(assertion);
+  const conversion = extensionHost.facts.get(assertion, targetConversionFactKey);
+  const csharpConversion = extensionHost.facts.get(assertion, csharpTargetConversionOperationFactKey);
+
+  assert.equal(conversion?.convertedType?.kind, "source-primitive");
+  assert.equal(conversion.convertedType.name, "uint8");
+  assert.equal(conversion.operation?.operationKind, "method");
+  assert.equal(conversion.operation?.operationId, "System.Convert.ToByte");
+  assert.equal(csharpConversion?.kind, "member");
+  assert.equal(csharpConversion.memberName, "ToByte");
+  assert.equal(csharpConversion.declaringType.id, "System.Convert");
+});
+
+test("source-semantics propagates object-shape callable carriers through destructuring", () => {
+  const sourceText = `
+    export interface Named {
+      name: string;
+      run(value: number): number;
+    }
+
+    export function invoke(named: Named): number {
+      const { run } = named;
+      return run(2);
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpNativeProviderExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const callRun = collectIdentifiersByText(sourceFile, session.ast, "run")
+    .find((node) => session.ast.kindName(session.ast.parent(node)) === "KindCallExpression");
+  assert.ok(callRun);
+  const carrier = extensionHost.facts.get(callRun, runtimeCarrierFactKey)?.carrier;
+
+  assert.equal(carrier?.kind, "target-named");
+  assert.equal(carrier.id, "System.Func`2");
+  assert.deepEqual(carrier.typeArguments?.map((argument) => argument.kind === "source-primitive" ? argument.name : argument.id), ["float64", "float64"]);
+});
+
 function collectFacts(sourceFile, ast, extensionHost) {
   const facts = [];
   visit(sourceFile);
@@ -116,6 +312,46 @@ function collectFacts(sourceFile, ast, extensionHost) {
     const fact = extensionHost.facts.get(node, attributeFactKey);
     if (fact !== undefined) {
       facts.push(fact);
+    }
+    ast.forEachChild(node, visit);
+  }
+}
+
+function collectFactsForKey(sourceFile, ast, extensionHost, key) {
+  const facts = [];
+  visit(sourceFile);
+  return facts;
+
+  function visit(node) {
+    const fact = extensionHost.facts.get(node, key);
+    if (fact !== undefined) {
+      facts.push({ node, fact });
+    }
+    ast.forEachChild(node, visit);
+  }
+}
+
+function collectIdentifiersByText(sourceFile, ast, text) {
+  const nodes = [];
+  visit(sourceFile);
+  return nodes;
+
+  function visit(node) {
+    if (ast.kindName(node) === "KindIdentifier" && ast.text(node) === text) {
+      nodes.push(node);
+    }
+    ast.forEachChild(node, visit);
+  }
+}
+
+function collectNodesByKind(sourceFile, ast, kindName) {
+  const nodes = [];
+  visit(sourceFile);
+  return nodes;
+
+  function visit(node) {
+    if (ast.kindName(node) === kindName) {
+      nodes.push(node);
     }
     ast.forEachChild(node, visit);
   }

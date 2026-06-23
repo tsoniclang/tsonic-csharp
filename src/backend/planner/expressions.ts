@@ -2,6 +2,7 @@ import {
   KindArrowFunction,
   KindCallExpression,
   KindArrayLiteralExpression,
+  KindAsExpression,
   KindBinaryExpression,
   KindElementAccessExpression,
   KindFunctionExpression,
@@ -14,6 +15,7 @@ import {
   KindRegularExpressionLiteral,
   KindTemplateExpression,
   KindTypeOfExpression,
+  KindTypeAssertionExpression,
   SourceKind,
   isAstNode,
 } from "./source-ast.js";
@@ -197,12 +199,16 @@ export function planExpressionWithExpectedType(
   expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
 ): CsharpExpression {
-  return planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
+  const expression = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
     planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
       planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
     planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject) =>
       planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, state),
   });
+  const kind = SourceKind(input.ast, node);
+  return kind === KindAsExpression || kind === KindTypeAssertionExpression
+    ? applyTargetConversionFact(node, input, diagnostics, expression)
+    : expression;
 }
 
 function unsupportedFactExpressionType(node: Node, diagnostics: TargetDiagnostic[]): CsharpTypeNode {

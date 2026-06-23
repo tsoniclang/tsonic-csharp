@@ -145,6 +145,33 @@ test("planner still wraps selected target operations when the target conversion 
   assert.equal(printCsharpExpression(expression), "System.Convert.ToByte(true)");
 });
 
+test("planner renders target assertion cast facts as C# cast AST", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const animalType = csharpTargetNamedType("Example.Animal", undefined, csharpQualifiedTypeRenderShape("Example", "Animal"));
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      convertedType: animalType,
+      operation: {
+        operationId: "tsonic.csharp.cast:target:Example.Animal<>",
+        operationKind: "operator",
+        targetOperation: "cast",
+      },
+    },
+    csharpOperationSubject: value,
+    csharpOperation: {
+      kind: "cast",
+      operationId: "tsonic.csharp.cast:target:Example.Animal<>",
+      targetType: animalType,
+      resultType: animalType,
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "(Example.Animal)true");
+});
+
 test("planner diagnoses unsupported target conversion operations instead of inventing target semantics", () => {
   const value = trueKeyword();
   const diagnostics = [];
@@ -162,7 +189,7 @@ test("planner diagnoses unsupported target conversion operations instead of inve
 
   assert.equal(expression.kind, "InvalidExpression");
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Target conversion operation 'operator' is not renderable/);
+  assert.match(diagnostics[0].message, /requires a finalized C# target conversion operation fact/);
 });
 
 test("planner rejects conversion methods without a finalized C# operation fact", () => {
