@@ -74,7 +74,13 @@ sealed partial class ReflectionProvider
 
     object[] UnsupportedMembers(Type type)
     {
-        return UnsupportedSourceEvents(type).ToArray();
+        return UnsupportedConstructors(type)
+            .Concat(UnsupportedProperties(type))
+            .Concat(UnsupportedFields(type))
+            .Concat(UnsupportedMethods(type))
+            .Concat(UnsupportedOperators(type))
+            .Concat(UnsupportedSourceEvents(type))
+            .ToArray();
     }
 
     IEnumerable<object> Constructors(Type type)
@@ -95,6 +101,32 @@ sealed partial class ReflectionProvider
                 signatures = new[] { signature },
             };
         }
+    }
+
+    IEnumerable<object> UnsupportedConstructors(Type type)
+    {
+        foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).OrderBy(ConstructorId, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedConstructorReason(constructor);
+            if (reason is null)
+            {
+                continue;
+            }
+            yield return UnsupportedMember(
+                "constructor",
+                "constructor",
+                ".ctor",
+                ConstructorId(constructor),
+                false,
+                reason);
+        }
+    }
+
+    string? UnsupportedConstructorReason(ConstructorInfo constructor)
+    {
+        return Parameters(constructor.GetParameters()) is null
+            ? "Constructor signature contains a parameter type that cannot be represented as closed .NET target type facts."
+            : null;
     }
 
     IEnumerable<object> Properties(Type type)
@@ -162,6 +194,70 @@ sealed partial class ReflectionProvider
         }
     }
 
+    IEnumerable<object> UnsupportedProperties(Type type)
+    {
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(property => property.Name, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedPropertyReason(type, property);
+            if (reason is null)
+            {
+                continue;
+            }
+            var accessors = property.GetAccessors(false);
+            var isStatic = accessors.Length > 0 && accessors[0].IsStatic;
+            var indexParameters = property.GetIndexParameters();
+            var memberKind = indexParameters.Length > 0 ? "indexer" : "property";
+            var metadataName = indexParameters.Length > 0
+                ? $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})"
+                : $"{MetadataName(type)}.{property.Name}";
+            yield return UnsupportedMember(
+                memberKind,
+                indexParameters.Length > 0 ? "item" : LowerCamel(property.Name),
+                property.Name,
+                metadataName,
+                isStatic,
+                reason);
+        }
+    }
+
+    string? UnsupportedPropertyReason(Type type, PropertyInfo property)
+    {
+        var accessors = property.GetAccessors(false);
+        if (accessors.Length == 0)
+        {
+            return "Property has no public accessor visible to the provider.";
+        }
+        var indexParameters = property.GetIndexParameters();
+        if (indexParameters.Length > 0)
+        {
+            if (indexParameters.Length != 1)
+            {
+                return "Indexers with multiple parameters require a provider multi-indexer declaration model before they can be exposed safely.";
+            }
+            if (Parameters(indexParameters) is null)
+            {
+                return "Indexer parameter type cannot be represented as closed .NET target type facts.";
+            }
+            return TypeRef(property.PropertyType) is null
+                ? "Indexer return type cannot be represented as closed .NET target type facts."
+                : null;
+        }
+        if (TypeRef(property.PropertyType) is null)
+        {
+            return "Property type cannot be represented as closed .NET target type facts.";
+        }
+        var isStatic = accessors[0].IsStatic;
+        if (type.IsInterface && isStatic)
+        {
+            return "Static interface properties require a provider static-interface-member declaration model before they can be exposed safely.";
+        }
+        if (isStatic && UsesDeclaringTypeParameter(property.PropertyType, type))
+        {
+            return "Static properties that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
+        }
+        return null;
+    }
+
     IEnumerable<object> Fields(Type type)
     {
         foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(field => field.Name, StringComparer.Ordinal))
@@ -189,6 +285,46 @@ sealed partial class ReflectionProvider
                 type = typeRef,
             };
         }
+    }
+
+    IEnumerable<object> UnsupportedFields(Type type)
+    {
+        foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(field => field.Name, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedFieldReason(type, field);
+            if (reason is null)
+            {
+                continue;
+            }
+            yield return UnsupportedMember(
+                "field",
+                LowerCamel(field.Name),
+                field.Name,
+                $"{MetadataName(type)}.{field.Name}",
+                field.IsStatic,
+                reason);
+        }
+    }
+
+    string? UnsupportedFieldReason(Type type, FieldInfo field)
+    {
+        if (field.IsSpecialName)
+        {
+            return "Special-name fields are target-only CLR implementation details and are not exposed as source declarations.";
+        }
+        if (TypeRef(field.FieldType) is null)
+        {
+            return "Field type cannot be represented as closed .NET target type facts.";
+        }
+        if (type.IsInterface && field.IsStatic)
+        {
+            return "Static interface fields require a provider static-interface-member declaration model before they can be exposed safely.";
+        }
+        if (field.IsStatic && UsesDeclaringTypeParameter(field.FieldType, type))
+        {
+            return "Static fields that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
+        }
+        return null;
     }
 
     IEnumerable<object> Events(Type type)
@@ -256,6 +392,10 @@ sealed partial class ReflectionProvider
         {
             return "Event handler type cannot be represented as closed .NET target type facts.";
         }
+        if (EventAccessor(eventInfo) is null)
+        {
+            return "Event has no public add/remove accessor visible to the provider.";
+        }
         return "C# events require explicit add/remove subscription semantics; the provider records this event as a target-only member until source event facts exist.";
     }
 
@@ -263,8 +403,7 @@ sealed partial class ReflectionProvider
     {
         return type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(method => !method.IsSpecialName)
-            .Where(method => !(type.IsInterface && method.IsStatic))
-            .Where(method => !(method.IsStatic && UsesDeclaringTypeParameter(method, type)))
+            .Where(method => UnsupportedMethodReason(type, method) is null)
             .OrderBy(MethodId, StringComparer.Ordinal);
     }
 
@@ -273,8 +412,105 @@ sealed partial class ReflectionProvider
         return type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(method => method.IsSpecialName)
             .Where(method => method.Name.StartsWith("op_", StringComparison.Ordinal))
-            .Where(method => !UsesDeclaringTypeParameter(method, type))
+            .Where(method => UnsupportedOperatorReason(type, method) is null)
             .OrderBy(MethodId, StringComparer.Ordinal);
+    }
+
+    IEnumerable<object> UnsupportedMethods(Type type)
+    {
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => !method.IsSpecialName)
+            .OrderBy(MethodId, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedMethodReason(type, method);
+            if (reason is null)
+            {
+                continue;
+            }
+            yield return UnsupportedMember(
+                "method",
+                LowerCamel(method.Name),
+                method.Name,
+                MethodId(method),
+                method.IsStatic,
+                reason);
+        }
+    }
+
+    string? UnsupportedMethodReason(Type type, MethodInfo method)
+    {
+        if (type.IsInterface && method.IsStatic)
+        {
+            return "Static interface methods require a provider static-interface-member declaration model before they can be exposed safely.";
+        }
+        if (method.IsStatic && UsesDeclaringTypeParameter(method, type))
+        {
+            return "Static methods that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
+        }
+        if (Parameters(method.GetParameters()) is null)
+        {
+            return "Method signature contains a parameter type that cannot be represented as closed .NET target type facts.";
+        }
+        return TypeRef(method.ReturnType) is null
+            ? "Method return type cannot be represented as closed .NET target type facts."
+            : null;
+    }
+
+    IEnumerable<object> UnsupportedOperators(Type type)
+    {
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(method => method.IsSpecialName)
+            .Where(method => method.Name.StartsWith("op_", StringComparison.Ordinal))
+            .OrderBy(MethodId, StringComparer.Ordinal))
+        {
+            var reason = UnsupportedOperatorReason(type, method);
+            if (reason is null)
+            {
+                continue;
+            }
+            yield return UnsupportedMember(
+                "operator",
+                OperatorSourceName(method.Name),
+                method.Name,
+                MethodId(method),
+                true,
+                reason);
+        }
+    }
+
+    string? UnsupportedOperatorReason(Type type, MethodInfo method)
+    {
+        if (UsesDeclaringTypeParameter(method, type))
+        {
+            return "Operators that use declaring generic type parameters require a provider generic-operator declaration model before they can be exposed safely.";
+        }
+        if (Parameters(method.GetParameters()) is null)
+        {
+            return "Operator signature contains a parameter type that cannot be represented as closed .NET target type facts.";
+        }
+        return TypeRef(method.ReturnType) is null
+            ? "Operator return type cannot be represented as closed .NET target type facts."
+            : null;
+    }
+
+    static object UnsupportedMember(
+        string memberKind,
+        string sourceName,
+        string targetName,
+        string metadataName,
+        bool isStatic,
+        string reason)
+    {
+        return new
+        {
+            kind = "unsupported-member",
+            memberKind,
+            sourceName,
+            targetName,
+            metadataName,
+            @static = isStatic ? true : (bool?)null,
+            reason,
+        };
     }
 
     static bool IsExtensionMethod(MethodInfo method)

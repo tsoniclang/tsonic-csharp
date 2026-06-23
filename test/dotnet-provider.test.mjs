@@ -812,6 +812,92 @@ test(".NET reflection provider classifies unsupported type families without sile
   assert.equal(provider.findTargetBindingByTargetId("System.Func`2")?.kind, "delegate");
 });
 
+test(".NET reflection provider records unsupported members instead of silently dropping them", () => {
+  const reference = buildUnsupportedMemberFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const typeByName = new Map(module.exports.map((declaration) => [declaration.sourceName, declaration]));
+  const staticInterface = typeByName.get("IStaticInterfaceMember");
+  const genericHolder = typeByName.get("GenericHolder");
+  const multiIndexer = typeByName.get("MultiIndexer");
+  const pointerSignatures = typeByName.get("PointerSignatures");
+  const genericNumber = typeByName.get("GenericNumber");
+  assert.ok(staticInterface);
+  assert.ok(genericHolder);
+  assert.ok(multiIndexer);
+  assert.ok(pointerSignatures);
+  assert.ok(genericNumber);
+
+  const staticInterfaceUnsupported = unsupportedMembersByMetadataName(staticInterface);
+  assert.equal(staticInterface.members?.some((member) => member.targetName === "Create") ?? false, false);
+  assert.equal(staticInterface.members?.some((member) => member.targetName === "StaticCount") ?? false, false);
+  assert.match(
+    staticInterfaceUnsupported.get("ProviderUnsupportedMemberFixtures.IStaticInterfaceMember.Create()")?.reason ?? "",
+    /Static interface methods/u,
+  );
+  assert.match(
+    staticInterfaceUnsupported.get("ProviderUnsupportedMemberFixtures.IStaticInterfaceMember.StaticCount")?.reason ?? "",
+    /Static interface properties/u,
+  );
+
+  const genericHolderUnsupported = unsupportedMembersByMetadataName(genericHolder);
+  assert.equal(genericHolder.members?.some((member) => member.targetName === "Echo") ?? false, false);
+  assert.equal(genericHolder.members?.some((member) => member.targetName === "StaticValue") ?? false, false);
+  assert.match(
+    genericHolderUnsupported.get("ProviderUnsupportedMemberFixtures.GenericHolder`1.Echo(T)")?.reason ?? "",
+    /declaring generic type parameter/u,
+  );
+  assert.match(
+    genericHolderUnsupported.get("ProviderUnsupportedMemberFixtures.GenericHolder`1.StaticValue")?.reason ?? "",
+    /declaring generic type parameter/u,
+  );
+
+  const multiIndexerUnsupported = unsupportedMembersByMetadataName(multiIndexer);
+  assert.equal(multiIndexer.members?.some((member) => member.kind === "indexer") ?? false, false);
+  assert.match(
+    multiIndexerUnsupported.get("ProviderUnsupportedMemberFixtures.MultiIndexer.Item(System.Int32,System.Int32)")?.reason ?? "",
+    /multiple parameters/u,
+  );
+
+  const pointerUnsupported = [...unsupportedMembersByMetadataName(pointerSignatures).values()];
+  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerReturn") ?? false, false);
+  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "ReadPointer") ?? false, false);
+  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerField") ?? false, false);
+  assert.ok(pointerUnsupported.some((member) =>
+    member.memberKind === "constructor" &&
+    /parameter type/u.test(member.reason)
+  ));
+  assert.ok(pointerUnsupported.some((member) =>
+    member.memberKind === "field" &&
+    member.targetName === "PointerField" &&
+    /Field type/u.test(member.reason)
+  ));
+  assert.ok(pointerUnsupported.some((member) =>
+    member.memberKind === "method" &&
+    member.targetName === "PointerReturn" &&
+    /return type/u.test(member.reason)
+  ));
+  assert.ok(pointerUnsupported.some((member) =>
+    member.memberKind === "method" &&
+    member.targetName === "ReadPointer" &&
+    /parameter type/u.test(member.reason)
+  ));
+
+  const genericNumberUnsupported = unsupportedMembersByMetadataName(genericNumber);
+  assert.equal(genericNumber.members?.some((member) => member.kind === "operator") ?? false, false);
+  assert.ok([...genericNumberUnsupported.values()].some((member) =>
+    member.memberKind === "operator" &&
+    member.targetName === "op_Addition" &&
+    /generic-operator/u.test(member.reason)
+  ));
+});
+
+function unsupportedMembersByMetadataName(declaration) {
+  return new Map(declaration.unsupportedMembers?.map((member) => [member.metadataName, member]) ?? []);
+}
+
 function buildUnsupportedEventFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/unsupported-event/UnsupportedEventProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-event/bin");
@@ -828,6 +914,24 @@ function buildUnsupportedEventFixture() {
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "UnsupportedEventProviderFixture.dll");
+}
+
+function buildUnsupportedMemberFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/unsupported-members/UnsupportedMembersProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-members/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-members/obj/");
+  const result = spawnSync("dotnet", [
+    "build",
+    project,
+    "--nologo",
+    "--verbosity",
+    "quiet",
+    "--output",
+    outputDirectory,
+    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  return join(outputDirectory, "UnsupportedMembersProviderFixture.dll");
 }
 
 function buildSignatureIdentityFixture() {
