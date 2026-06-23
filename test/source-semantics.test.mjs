@@ -90,6 +90,12 @@ test("source-semantics records opaque any carriers without promoting unknown or 
   assert.deepEqual(extensionHost.facts.get(call, runtimeCarrierFactKey)?.carrier, { kind: "opaque", id: "any" });
   assert.equal(extensionHost.facts.get(elementAccess, targetOperationFactKey), undefined);
   assert.equal(extensionHost.facts.get(call, selectedTargetSignatureFactKey), undefined);
+  const anyOperationDiagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED"
+  );
+  assert.equal(anyOperationDiagnostics.length, 2);
+  assert.ok(anyOperationDiagnostics.some((diagnostic) => diagnostic.message.includes("element access")));
+  assert.ok(anyOperationDiagnostics.some((diagnostic) => diagnostic.message.includes("call")));
 });
 
 test("source-semantics does not synthesize C# operator facts for opaque any operands", () => {
@@ -129,6 +135,11 @@ test("source-semantics does not synthesize C# operator facts for opaque any oper
   assert.deepEqual(extensionHost.facts.get(dynamicUse, runtimeCarrierFactKey)?.carrier, { kind: "opaque", id: "any" });
   assert.equal(extensionHost.facts.get(binary, targetOperationFactKey), undefined);
   assert.equal(extensionHost.facts.get(binary, csharpTargetOperationFactKey), undefined);
+  const anyOperationDiagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED"
+  );
+  assert.equal(anyOperationDiagnostics.length, 1);
+  assert.match(anyOperationDiagnostics[0].message, /operator emission/);
 });
 
 test("source-semantics records provider-backed attribute selector facts from user source", () => {

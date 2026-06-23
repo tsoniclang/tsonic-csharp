@@ -98,6 +98,9 @@ import {
   validateCsharpObservedAssignabilityFactsBeforeFinalization,
 } from "./checked-assignability-validation.js";
 import {
+  diagnoseOpaqueAnyOperationsBeforeFinalization,
+} from "./opaque-any-diagnostics.js";
+import {
   recordCsharpTargetNameFactsBeforeFinalization,
 } from "./target-name-facts.js";
 import {
@@ -244,6 +247,7 @@ export function createCsharpNativeProviderExtension(context: TargetProviderConte
         recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, selectedSurfaceIds, operationsProviderHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, checkedOperatorLifecycleHost);
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, selectedSurfaceIds, operationsProviderHost);
+        diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext);
         validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, operationsProviderHost);
       });
       context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
