@@ -99,7 +99,8 @@ export type CsharpTargetOperationFact =
   | CsharpTargetIntrinsicOperatorOperationFact
   | CsharpTargetTypeofRuntimeOperationFact
   | CsharpTargetTypeofComparisonOperationFact
-  | CsharpTargetCastOperationFact;
+  | CsharpTargetCastOperationFact
+  | CsharpTargetConversionOperatorOperationFact;
 
 export interface CsharpTargetMemberOperationFact {
   readonly kind: "member";
@@ -151,6 +152,16 @@ export interface CsharpTargetTypeofComparisonOperationFact {
 export interface CsharpTargetCastOperationFact {
   readonly kind: "cast";
   readonly operationId: string;
+  readonly targetType: TargetTypeRef;
+  readonly resultType?: TargetTypeRef;
+}
+
+export interface CsharpTargetConversionOperatorOperationFact {
+  readonly kind: "conversion-operator";
+  readonly operationId: string;
+  readonly conversionKind: "implicit" | "explicit";
+  readonly declaringType: TargetTypeRef;
+  readonly sourceType: TargetTypeRef;
   readonly targetType: TargetTypeRef;
   readonly resultType?: TargetTypeRef;
 }
@@ -243,6 +254,13 @@ function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right:
         && targetTypeRefEquals(left.resultType, right.resultType);
     case "cast":
       return right.kind === "cast"
+        && targetTypeRefEquals(left.targetType, right.targetType)
+        && targetTypeRefEquals(left.resultType, right.resultType);
+    case "conversion-operator":
+      return right.kind === "conversion-operator"
+        && left.conversionKind === right.conversionKind
+        && targetTypeRefEquals(left.declaringType, right.declaringType)
+        && targetTypeRefEquals(left.sourceType, right.sourceType)
         && targetTypeRefEquals(left.targetType, right.targetType)
         && targetTypeRefEquals(left.resultType, right.resultType);
   }

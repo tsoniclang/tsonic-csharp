@@ -2,12 +2,14 @@ import type {
   TargetConstraint,
   TargetBindingFact,
   TargetMember,
+  TargetConversionOperatorFact,
   TargetParameter,
   TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   DotnetConstraint,
+  DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
   DotnetMemberDeclaration,
   DotnetParameterDeclaration,
@@ -96,6 +98,9 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     ...(declaration.members !== undefined && declaration.members.length > 0
       ? { members: declaration.members.flatMap((member) => dotnetMemberToTargetMembers(member, declaredCsharpType)) }
       : {}),
+    ...(declaration.conversionOperators !== undefined && declaration.conversionOperators.length > 0
+      ? { conversionOperators: declaration.conversionOperators.map((operator) => dotnetConversionOperatorToTargetConversionOperator(operator, declaredCsharpType)) }
+      : {}),
   } satisfies CsharpTargetBindingFact;
   return binding;
 }
@@ -174,6 +179,19 @@ function dotnetTargetMemberOverloadGroup(member: DotnetMemberDeclaration): strin
   return member.kind === "constructor"
     ? dotnetMetadataNameWithoutSignature(member.targetId)
     : member.targetId;
+}
+
+function dotnetConversionOperatorToTargetConversionOperator(
+  declaration: DotnetConversionOperatorDeclaration,
+  declaringType: TargetTypeRef,
+): TargetConversionOperatorFact {
+  return {
+    id: declaration.id,
+    conversionKind: declaration.conversionKind,
+    declaringType,
+    sourceType: dotnetTypeRefToTargetTypeRef(declaration.sourceType),
+    targetType: dotnetTypeRefToTargetTypeRef(declaration.targetType),
+  };
 }
 
 function dotnetMetadataNameWithoutSignature(metadataName: string): string {

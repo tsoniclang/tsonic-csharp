@@ -262,6 +262,7 @@ function arrayMemberDeclaration(memberName) {
 function fakeHost(receiverType, targetTypes = new Map(), targetBinding) {
   return {
     ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByTargetId: (targetId) => targetId === targetBinding.id ? targetBinding : undefined }),
+    ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByMetadataName: (metadataName) => metadataName === "System.Collections.Generic.Dictionary`2" ? targetBinding : undefined }),
     getTargetTypeRefForSubject: (subject) => targetTypes.get(subject) ?? (subject === receiverType
       ? { kind: "array", element: { kind: "source-primitive", name: "int32" } }
       : undefined),

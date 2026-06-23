@@ -55,6 +55,7 @@ import {
 
 export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
+  readonly getCsharpTargetBindingByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
   readonly getTargetTypeRefForSubject: (
     subject: ExtensionFactSubject | undefined,
     context: ExtensionObservationContext,
@@ -166,12 +167,13 @@ export function createCsharpJsSurfaceHost(
   host: Pick<
     CsharpOperationsProviderHost,
     "getTargetTypeRefForSubject" | "getBaseTargetTypeRef" | "getCsharpObjectShapeFactForSubject" | "mapRuntimeCarrier"
-  > & Partial<Pick<CsharpOperationsProviderHost, "getCsharpTargetBindingByTargetId">>,
+  > & Partial<Pick<CsharpOperationsProviderHost, "getCsharpTargetBindingByTargetId" | "getCsharpTargetBindingByMetadataName">>,
 ) {
   return {
     targetId: csharpTargetId,
     extensionId,
     ...(host.getCsharpTargetBindingByTargetId === undefined ? {} : { getCsharpTargetBindingByTargetId: host.getCsharpTargetBindingByTargetId }),
+    ...(host.getCsharpTargetBindingByMetadataName === undefined ? {} : { getCsharpTargetBindingByMetadataName: host.getCsharpTargetBindingByMetadataName }),
     getTargetTypeRefForSubject: host.getTargetTypeRefForSubject,
     unwrapNullableTargetType,
     isCsharpStringType,

@@ -10,6 +10,7 @@ sealed partial class ReflectionProvider
     {
         var typeParameters = TypeParameters(type);
         var members = Members(type).ToArray();
+        var conversionOperators = ConversionOperators(type).ToArray();
         var unsupportedMembers = UnsupportedMembers(type);
         var baseType = BaseType(type);
         var implementedContracts = ImplementedContracts(type);
@@ -34,6 +35,7 @@ sealed partial class ReflectionProvider
             sourceShape,
             throwable = typeof(Exception).IsAssignableFrom(type) ? true : (bool?)null,
             members = members.Length == 0 ? null : members,
+            conversionOperators = conversionOperators.Length == 0 ? null : conversionOperators,
             unsupportedMembers = unsupportedMembers.Length == 0 ? null : unsupportedMembers,
         };
     }

@@ -37,6 +37,7 @@ export type {
   DotnetAssemblyReference,
   DotnetBindingProviderOptions,
   DotnetConstraint,
+  DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
   DotnetFunctionDeclaration,
   DotnetMemberDeclaration,

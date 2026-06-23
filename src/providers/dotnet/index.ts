@@ -1,6 +1,7 @@
 export type {
   DotnetAssemblyReference,
   DotnetConstraint,
+  DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
   DotnetFunctionDeclaration,
   DotnetMemberDeclaration,

@@ -745,6 +745,46 @@ test(".NET reflection provider records generic constraints and variance as targe
   assert.deepEqual(sourceProducer.typeParameters, [{ name: "T", variance: "out" }]);
 });
 
+test(".NET reflection provider records conversion operators as target-only facts", () => {
+  const reference = buildConversionFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderConversionFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const rawMeter = module.exports.find((declaration) => declaration.sourceName === "Meter");
+  assert.ok(rawMeter);
+  assert.equal(rawMeter.members.some((member) => member.kind === "operator"), false);
+  const rawOperators = rawMeter.conversionOperators;
+  assert.deepEqual(rawOperators.map((operator) => [
+    operator.targetName,
+    stripAssemblyQualifiers(operator.id),
+    operator.conversionKind,
+    operator.sourceType.kind,
+    operator.targetType.kind,
+  ]), [
+    ["op_Explicit", "ProviderConversionFixtures.Meter.op_Explicit(System.Double)", "explicit", "source-primitive", "named"],
+    ["op_Implicit", "ProviderConversionFixtures.Meter.op_Implicit(ProviderConversionFixtures.Meter)", "implicit", "named", "source-primitive"],
+  ]);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceMeter = declarationModel.exports.find((declaration) => declaration.name === "Meter");
+  assert.ok(sourceMeter);
+  assert.equal(sourceMeter.members?.some((member) => member.name === "explicit" || member.name === "implicit") ?? false, false);
+
+  const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConversionFixtures.js", "ProviderConversionFixtures.Meter");
+  assert.equal(binding.members.some((member) => member.kind === "operator"), false);
+  const targetOperators = binding.conversionOperators;
+  assert.deepEqual(targetOperators.map((operator) => [
+    stripAssemblyQualifiers(operator.id),
+    operator.conversionKind,
+    operator.sourceType.kind,
+    operator.targetType.kind,
+  ]), [
+    ["ProviderConversionFixtures.Meter.op_Explicit(System.Double)", "explicit", "source-primitive", "target-named"],
+    ["ProviderConversionFixtures.Meter.op_Implicit(ProviderConversionFixtures.Meter)", "implicit", "target-named", "source-primitive"],
+  ]);
+});
+
 test(".NET provider source declarations keep only TS-compatible numeric indexers", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const specializedModule = provider.getModule("@tsonic/dotnet/System.Collections.Specialized.js", {});
@@ -1059,6 +1099,24 @@ function buildConstraintFixture() {
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "ConstraintProviderFixture.dll");
+}
+
+function buildConversionFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/conversions/ConversionProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/conversions/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/conversions/obj/");
+  const result = spawnSync("dotnet", [
+    "build",
+    project,
+    "--nologo",
+    "--verbosity",
+    "quiet",
+    "--output",
+    outputDirectory,
+    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  return join(outputDirectory, "ConversionProviderFixture.dll");
 }
 
 function buildSignatureIdentityFixture() {

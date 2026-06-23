@@ -17,6 +17,7 @@ export interface CsharpSemanticTypeDeclarationShape {
 
 export interface CsharpTargetTypeResolutionHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
+  readonly getCsharpTargetBindingByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
   readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
   readonly getCatchExceptionTargetTypeRef?: () => TargetTypeRef | undefined;
   readonly getCsharpObjectShapeFactForSubject: (

@@ -42,7 +42,7 @@ import type {
 
 type CsharpRecordDictionaryElementAccessHost = Pick<
   CsharpOperationsProviderHost,
-  "getCsharpTargetBindingByTargetId" | "getTargetTypeRefForSubject" | "getBaseTargetTypeRef"
+  "getCsharpTargetBindingByTargetId" | "getCsharpTargetBindingByMetadataName" | "getTargetTypeRefForSubject" | "getBaseTargetTypeRef"
 > & {
   readonly getTargetTypeRefForType: (
     type: Type | undefined,

@@ -17,6 +17,7 @@ import {
 } from "./target-types.js";
 import type {
   CsharpTargetOperationArgument,
+  CsharpTargetConversionOperatorOperationFact,
   CsharpTargetMemberOperationFact,
   CsharpTargetOperationFact,
   CsharpTypeofRuntimeKind,
@@ -160,6 +161,24 @@ export function csharpTargetCastOperation(
   return {
     kind: "cast",
     operationId,
+    targetType,
+    resultType: targetType,
+  };
+}
+
+export function csharpTargetConversionOperatorOperation(
+  operationId: string,
+  conversionKind: CsharpTargetConversionOperatorOperationFact["conversionKind"],
+  declaringType: TargetTypeRef,
+  sourceType: TargetTypeRef,
+  targetType: TargetTypeRef,
+): CsharpTargetOperationFact {
+  return {
+    kind: "conversion-operator",
+    operationId,
+    conversionKind,
+    declaringType,
+    sourceType,
     targetType,
     resultType: targetType,
   };

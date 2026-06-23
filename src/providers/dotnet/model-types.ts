@@ -84,6 +84,7 @@ export interface DotnetTypeDeclaration {
   readonly baseType?: DotnetTypeRef;
   readonly implementedContracts?: readonly DotnetConstraint[];
   readonly members?: readonly DotnetMemberDeclaration[];
+  readonly conversionOperators?: readonly DotnetConversionOperatorDeclaration[];
   readonly unsupportedMembers?: readonly DotnetUnsupportedMemberDeclaration[];
   readonly sourceShape?: DotnetTypeRef;
   readonly throwable?: boolean;
@@ -150,6 +151,15 @@ export interface DotnetSignatureDeclaration {
   readonly typeParameters?: readonly DotnetTypeParameterDeclaration[];
   readonly parameters: readonly DotnetParameterDeclaration[];
   readonly returnType?: DotnetTypeRef;
+}
+
+export interface DotnetConversionOperatorDeclaration {
+  readonly id: string;
+  readonly targetName: "op_Implicit" | "op_Explicit";
+  readonly metadataName: string;
+  readonly conversionKind: "implicit" | "explicit";
+  readonly sourceType: DotnetTypeRef;
+  readonly targetType: DotnetTypeRef;
 }
 
 export interface DotnetParameterDeclaration {

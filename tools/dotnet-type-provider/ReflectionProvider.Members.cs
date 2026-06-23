@@ -71,6 +71,36 @@ sealed partial class ReflectionProvider
         }
     }
 
+    IEnumerable<object> ConversionOperators(Type type)
+    {
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(IsConversionOperator)
+            .Where(method => UnsupportedOperatorReason(type, method) is null)
+            .OrderBy(MethodId, StringComparer.Ordinal))
+        {
+            var parameters = method.GetParameters();
+            if (parameters.Length != 1)
+            {
+                continue;
+            }
+            var sourceType = TypeRef(UnwrapByRef(parameters[0].ParameterType));
+            var targetType = TypeRef(method.ReturnType);
+            if (sourceType is null || targetType is null)
+            {
+                continue;
+            }
+            yield return new
+            {
+                id = MethodId(method),
+                targetName = method.Name,
+                metadataName = MethodMetadataId(method),
+                conversionKind = method.Name == "op_Implicit" ? "implicit" : "explicit",
+                sourceType,
+                targetType,
+            };
+        }
+    }
+
     object[] UnsupportedMembers(Type type)
     {
         return UnsupportedConstructors(type)
@@ -423,6 +453,7 @@ sealed partial class ReflectionProvider
         return type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(method => method.IsSpecialName)
             .Where(method => method.Name.StartsWith("op_", StringComparison.Ordinal))
+            .Where(method => !IsConversionOperator(method))
             .Where(method => UnsupportedOperatorReason(type, method) is null)
             .OrderBy(MethodId, StringComparer.Ordinal);
     }
@@ -504,6 +535,12 @@ sealed partial class ReflectionProvider
         return TypeRef(method.ReturnType) is null
             ? "Operator return type cannot be represented as closed .NET target type facts."
             : null;
+    }
+
+    static bool IsConversionOperator(MethodInfo method)
+    {
+        return method.IsSpecialName &&
+            (method.Name == "op_Implicit" || method.Name == "op_Explicit");
     }
 
     static object UnsupportedMember(

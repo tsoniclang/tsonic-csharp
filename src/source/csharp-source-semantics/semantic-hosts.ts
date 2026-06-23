@@ -91,6 +91,7 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
   let objectShapeSemanticsHost: CsharpObjectShapeSemanticsHost;
   const targetTypeResolutionHost = {
     getCsharpTargetBindingByTargetId: (targetId: string) => dotnetProvider.findTargetBindingByTargetId(targetId),
+    getCsharpTargetBindingByMetadataName: (metadataName: string) => dotnetProvider.findTargetBindingByMetadataName(metadataName),
     getCatchExceptionTargetTypeRef: () => csharpExceptionTargetType(),
     getBaseTargetTypeRef: (type: TargetTypeRef) => {
       if (type.kind !== "target-named") {
@@ -168,6 +169,7 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
   } satisfies CsharpRuntimeCarrierSemanticsHost;
   const operationsProviderHost = {
     getCsharpTargetBindingByTargetId: targetTypeResolutionHost.getCsharpTargetBindingByTargetId,
+    getCsharpTargetBindingByMetadataName: targetTypeResolutionHost.getCsharpTargetBindingByMetadataName,
     getBaseTargetTypeRef: targetTypeResolutionHost.getBaseTargetTypeRef,
     getSemanticTypeDeclarationShape: targetTypeResolutionHost.getSemanticTypeDeclarationShape,
     getTargetTypeRefForSubject,
