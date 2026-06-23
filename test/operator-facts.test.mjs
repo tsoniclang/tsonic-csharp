@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { planExpression } from "../dist/backend/planner/expressions.js";
-import { KindIdentifier, KindPrefixUnaryExpression } from "../dist/backend/planner/source-ast.js";
+import { KindBigIntLiteral, KindIdentifier, KindPrefixUnaryExpression } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpBigIntegerTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("binary expression emission requires selected target operator fact even for source primitives", () => {
   const left = identifier("left");
@@ -117,6 +118,39 @@ test("prefix unary expression emission requires selected target operator fact", 
   assert.equal(output.kind, "InvalidExpression");
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# prefix unary operator emission requires a selected provider operator fact/);
+});
+
+test("bigint literal emission requires finalized runtime carrier fact", () => {
+  const expression = {
+    Kind: KindBigIntLiteral,
+    Text: "1_000n",
+  };
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput(), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /BigInt literal emission requires a finalized runtime carrier fact/);
+});
+
+test("bigint literal emission uses finalized BigInteger carrier and Roslyn AST", () => {
+  const expression = {
+    Kind: KindBigIntLiteral,
+    Text: "1_000n",
+  };
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    runtimeCarrierSubject: expression,
+    runtimeCarrier: {
+      carrier: csharpBigIntegerTargetType(),
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "InvocationExpression");
+  assert.equal(printCsharpExpression(output), 'System.Numerics.BigInteger.Parse("1000")');
 });
 
 function binary(left, right) {

@@ -29,6 +29,7 @@ import {
   getStringTargetMembers,
 } from "./strings.js";
 import {
+  rejectUnmappedCsharpJsSourceLibraryCall,
   rejectUnsupportedCsharpJsSourceLibraryCall,
 } from "./unsupported.js";
 
@@ -47,7 +48,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   }
   const candidates = getSourceLibraryCallMembers(sourceMember);
   if (candidates.length === 0) {
-    return undefined;
+    return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
   if (mathVariadicRuntimeRequiresAtLeastOneArgument(sourceMember) && request.arguments.length === 0) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));

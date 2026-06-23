@@ -9,6 +9,7 @@ export const KindAsExpression = "KindAsExpression";
 export const KindAwaitExpression = "KindAwaitExpression";
 export const KindBindingElement = "KindBindingElement";
 export const KindBinaryExpression = "KindBinaryExpression";
+export const KindBigIntLiteral = "KindBigIntLiteral";
 export const KindBlock = "KindBlock";
 export const KindBreakStatement = "KindBreakStatement";
 export const KindCallExpression = "KindCallExpression";

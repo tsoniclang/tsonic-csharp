@@ -217,6 +217,32 @@ test("JS surface hard-rejects console calls until closed console facts exist", (
   assert.match(result.diagnostic.message, /Console\.log/);
 });
 
+test("JS surface hard-rejects selected RegExp calls without target runtime facts", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("RegExp", "exec")), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /RegExp\.exec/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface hard-rejects selected standard-library properties without target facts", () => {
+  const expression = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("String", "constructor"), "constructor"), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /String\.constructor/);
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface does not reject Object, JSON, or console by source spelling outside bundled declarations", () => {
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));

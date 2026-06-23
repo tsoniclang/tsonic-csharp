@@ -128,6 +128,31 @@ test("compat mode permits opaque any construction only when a closed operation f
   assert.equal(extensionHost.facts.get(newExpression, csharpTargetOperationFactKey)?.operationId, "test.compat.any.dynamic-get");
 });
 
+test("compat mode permits opaque any call, element, and operator only when closed operation facts exist", () => {
+  const session = createNativeSession(`
+    declare let value: any;
+    value();
+    value["name"];
+    value + 1;
+  `, { typescriptCompatibility: "compat" }, [
+    createTestDynamicOperationFactExtension("KindCallExpression"),
+    createTestDynamicOperationFactExtension("KindElementAccessExpression"),
+    createTestDynamicOperationFactExtension("KindBinaryExpression"),
+  ]);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const callExpression = collectNodesByKind(sourceFile, session.ast, "KindCallExpression")[0];
+  const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
+  const binaryExpression = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+
+  assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
+  assert.equal(extensionHost.facts.get(callExpression, csharpTargetOperationFactKey)?.operationId, "test.compat.any.dynamic-get");
+  assert.equal(extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey)?.operationId, "test.compat.any.dynamic-get");
+  assert.equal(extensionHost.facts.get(binaryExpression, csharpTargetOperationFactKey)?.operationId, "test.compat.any.dynamic-get");
+});
+
 test("compat mode rejects opaque any when only an unclosed selected signature fact exists", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -199,7 +224,7 @@ function createNativeSession(sourceText, targetOptions = {}, extraExtensions = [
 function createTestDynamicOperationFactExtension(kindName) {
   return {
     identity: {
-      id: "test.compat.dynamic-operation-facts",
+      id: `test.compat.dynamic-operation-facts.${kindName}`,
       version: "1.0.0",
       capabilityNamespace: "test.compat",
     },

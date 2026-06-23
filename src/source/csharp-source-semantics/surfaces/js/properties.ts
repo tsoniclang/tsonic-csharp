@@ -24,6 +24,7 @@ import {
   getMathPropertyTargetMember,
 } from "./math.js";
 import {
+  rejectUnmappedCsharpJsSourceLibraryPropertyAccess,
   rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
 } from "./unsupported.js";
 
@@ -51,7 +52,7 @@ function mapCsharpSourceLibraryPropertyOperation(
   }
   const member = getSourceLibraryPropertyMember(sourceMember);
   if (member === undefined) {
-    return undefined;
+    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, _host);
   }
   recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
   return acceptObservation<CheckedOperationMappingResult>({
