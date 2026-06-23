@@ -56,7 +56,7 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
       return {
         kind: "target-named",
         target: "csharp",
-        id: type.metadataName,
+        id: type.targetId,
         ...(type.displayName !== undefined ? { displayName: type.displayName } : {}),
         ...(typeArguments.length > 0 ? { typeArguments } : {}),
         sourceShape,

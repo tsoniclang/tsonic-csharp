@@ -8,7 +8,7 @@ sealed partial class ReflectionProvider
 {
     readonly Request request;
     readonly ConcurrentDictionary<string, Assembly> assembliesByPath = new(StringComparer.Ordinal);
-    Dictionary<string, SourceReference> providerSourceReferencesByMetadataName = new(StringComparer.Ordinal);
+    Dictionary<string, SourceReference> providerSourceReferencesByTargetId = new(StringComparer.Ordinal);
     string moduleSpecifierPrefix = "";
     string activeNamespaceName;
     string activeModuleSpecifier;
@@ -24,7 +24,7 @@ sealed partial class ReflectionProvider
     {
         var loadedTypes = LoadPublicTypes();
         moduleSpecifierPrefix = GetModuleSpecifierPrefix();
-        providerSourceReferencesByMetadataName = SourceReferencesByMetadataName(loadedTypes);
+        providerSourceReferencesByTargetId = SourceReferencesByTargetId(loadedTypes);
         return BuildModule(loadedTypes, activeNamespaceName, activeModuleSpecifier);
     }
 
@@ -32,7 +32,7 @@ sealed partial class ReflectionProvider
     {
         var loadedTypes = LoadPublicTypes();
         moduleSpecifierPrefix = request.ModuleSpecifierPrefix;
-        providerSourceReferencesByMetadataName = SourceReferencesByMetadataName(loadedTypes);
+        providerSourceReferencesByTargetId = SourceReferencesByTargetId(loadedTypes);
         return loadedTypes
             .Where(type => type.Namespace is not null)
             .Select(type => type.Namespace!)
@@ -47,9 +47,9 @@ sealed partial class ReflectionProvider
         return LoadTypes()
             .Where(type => type.IsPublic || type.IsNestedPublic)
             .Where(type => !type.IsSpecialName)
-            .GroupBy(MetadataName, StringComparer.Ordinal)
+            .GroupBy(TargetId, StringComparer.Ordinal)
             .Select(group => group.First())
-            .OrderBy(type => MetadataName(type), StringComparer.Ordinal)
+            .OrderBy(type => TargetId(type), StringComparer.Ordinal)
             .ToArray();
     }
 
@@ -69,14 +69,14 @@ sealed partial class ReflectionProvider
             .Where(group => group.Count() == 1)
             .Select(group => group.First())
             .ToArray();
-        var exportTypeNames = exportTypes.Select(MetadataName).ToHashSet(StringComparer.Ordinal);
+        var exportTypeNames = exportTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
         var unsupportedExports = sourceGroups
             .Where(group => group.Count() > 1)
             .Select(ToUnsupportedTypeFamilyExport)
             .Concat(allTypes.Where(type => type.IsNested).Select(ToUnsupportedNestedTypeExport))
             .ToArray();
         var targetOnlyTypes = allTypes
-            .Where(type => !exportTypeNames.Contains(MetadataName(type)))
+            .Where(type => !exportTypeNames.Contains(TargetId(type)))
             .Select(ToTypeExport)
             .Where(export => export is not null)
             .Cast<object>()

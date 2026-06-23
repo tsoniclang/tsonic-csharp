@@ -41,14 +41,18 @@ export interface DotnetUnsupportedTypeFamilyExportDeclaration {
   readonly kind: "unsupported-type-family";
   readonly sourceName: string;
   readonly reason: string;
+  readonly targetIds?: readonly string[];
   readonly metadataNames: readonly string[];
+  readonly assemblies?: readonly DotnetAssemblyReference[];
 }
 
 export interface DotnetUnsupportedNestedTypeExportDeclaration {
   readonly kind: "unsupported-nested-type";
   readonly sourceName: string;
   readonly reason: string;
+  readonly targetId?: string;
   readonly metadataName: string;
+  readonly assembly?: DotnetAssemblyReference;
   readonly declaringMetadataName?: string;
 }
 
@@ -71,7 +75,9 @@ export interface DotnetTypeDeclaration {
   readonly typeKind: DotnetTypeKind;
   readonly sourceName: string;
   readonly namespaceName: string;
+  readonly targetId: string;
   readonly metadataName: string;
+  readonly assembly?: DotnetAssemblyReference;
   readonly displayName?: string;
   readonly renderShape?: DotnetRenderShape;
   readonly typeParameters?: readonly DotnetTypeParameterDeclaration[];
@@ -93,6 +99,7 @@ export interface DotnetNamespaceDeclaration {
 export interface DotnetFunctionDeclaration {
   readonly kind: "function";
   readonly sourceName: string;
+  readonly targetId: string;
   readonly metadataName: string;
   readonly signatures: readonly DotnetSignatureDeclaration[];
 }
@@ -100,6 +107,7 @@ export interface DotnetFunctionDeclaration {
 export interface DotnetValueDeclaration {
   readonly kind: "value";
   readonly sourceName: string;
+  readonly targetId: string;
   readonly metadataName: string;
   readonly type: DotnetTypeRef;
 }
@@ -117,6 +125,7 @@ export interface DotnetMemberDeclaration {
   readonly kind: DotnetMemberKind;
   readonly sourceName: string;
   readonly targetName: string;
+  readonly targetId: string;
   readonly metadataName: string;
   readonly static?: boolean;
   readonly receiverPassing?: "instance" | "first-argument";
@@ -129,6 +138,7 @@ export interface DotnetUnsupportedMemberDeclaration {
   readonly memberKind: DotnetMemberKind;
   readonly sourceName: string;
   readonly targetName: string;
+  readonly targetId: string;
   readonly metadataName: string;
   readonly static?: boolean;
   readonly reason: string;
@@ -185,7 +195,7 @@ export type DotnetTypeRef =
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind }
   | { readonly kind: "type-parameter"; readonly name: string }
   | { readonly kind: "provider-ref"; readonly name: string; readonly moduleSpecifier?: string; readonly typeArguments?: readonly DotnetTypeRef[] }
-  | { readonly kind: "named"; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef }
+  | { readonly kind: "named"; readonly targetId: string; readonly metadataName: string; readonly displayName?: string; readonly renderShape?: DotnetRenderShape; readonly typeArguments?: readonly DotnetTypeRef[]; readonly sourceShape?: DotnetTypeRef }
   | { readonly kind: "nullable"; readonly elementType: DotnetTypeRef }
   | { readonly kind: "array"; readonly elementType: DotnetTypeRef; readonly rank?: number }
   | { readonly kind: "tuple"; readonly elements: readonly DotnetTypeRef[] }

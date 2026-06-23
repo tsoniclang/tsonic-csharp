@@ -24,6 +24,7 @@ sealed partial class ReflectionProvider
             typeKind = TypeKind(type),
             sourceName = SourceTypeName(type),
             namespaceName = activeNamespaceName,
+            targetId = TargetId(type),
             metadataName = MetadataName(type),
             displayName = DisplayName(type),
             renderShape = RenderShape(type),
@@ -53,7 +54,9 @@ sealed partial class ReflectionProvider
             kind = "unsupported-type-family",
             sourceName = group.Key,
             reason = "Multiple CLR metadata types share this source name. This requires a provider type-family declaration model before it can be exposed safely.",
+            targetIds = group.Select(TargetId).OrderBy(name => name, StringComparer.Ordinal).ToArray(),
             metadataNames = group.Select(MetadataName).OrderBy(name => name, StringComparer.Ordinal).ToArray(),
+            assemblies = group.Select(type => AssemblyReference(type.Assembly)).ToArray(),
         };
     }
 
@@ -64,7 +67,9 @@ sealed partial class ReflectionProvider
             kind = "unsupported-nested-type",
             sourceName = SourceTypeName(type),
             reason = "Nested CLR types require a provider nested-type declaration model before they can be exposed safely as source declarations.",
+            targetId = TargetId(type),
             metadataName = MetadataName(type),
+            assembly = AssemblyReference(type.Assembly),
             declaringMetadataName = type.DeclaringType is null ? null : MetadataName(type.DeclaringType),
         };
     }

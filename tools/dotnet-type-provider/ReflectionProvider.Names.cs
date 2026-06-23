@@ -88,10 +88,20 @@ sealed partial class ReflectionProvider
 
     static string MethodId(MethodInfo method)
     {
+        return $"{TargetId(method.DeclaringType!)}.{MethodMetadataName(method)}({string.Join(",", method.GetParameters().Select(ParameterTargetId))})";
+    }
+
+    static string MethodMetadataId(MethodInfo method)
+    {
         return $"{MetadataName(method.DeclaringType!)}.{MethodMetadataName(method)}({string.Join(",", method.GetParameters().Select(ParameterMetadataName))})";
     }
 
     static string ConstructorId(ConstructorInfo constructor)
+    {
+        return $"{TargetId(constructor.DeclaringType!)}..ctor({string.Join(",", constructor.GetParameters().Select(ParameterTargetId))})";
+    }
+
+    static string ConstructorMetadataName(ConstructorInfo constructor)
     {
         return $"{MetadataName(constructor.DeclaringType!)}..ctor({string.Join(",", constructor.GetParameters().Select(ParameterMetadataName))})";
     }
@@ -106,6 +116,22 @@ sealed partial class ReflectionProvider
     static string ParameterMetadataName(ParameterInfo parameter)
     {
         var typeName = TypeMetadataName(UnwrapByRef(parameter.ParameterType));
+        if (!parameter.ParameterType.IsByRef)
+        {
+            return typeName;
+        }
+        if (parameter.IsOut)
+        {
+            return $"out {typeName}";
+        }
+        return parameter.GetCustomAttribute<System.Runtime.InteropServices.InAttribute>() is not null
+            ? $"in {typeName}"
+            : $"ref {typeName}";
+    }
+
+    static string ParameterTargetId(ParameterInfo parameter)
+    {
+        var typeName = TypeTargetId(UnwrapByRef(parameter.ParameterType));
         if (!parameter.ParameterType.IsByRef)
         {
             return typeName;
@@ -136,11 +162,55 @@ sealed partial class ReflectionProvider
         return MetadataName(type);
     }
 
+    static string TypeTargetId(Type type)
+    {
+        if (type.IsArray)
+        {
+            return $"{TypeTargetId(type.GetElementType()!)}[]";
+        }
+        if (type.IsGenericParameter)
+        {
+            return type.Name;
+        }
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+        {
+            return $"{TargetId(type.GetGenericTypeDefinition())}<{string.Join(",", type.GetGenericArguments().Select(TypeTargetId))}>";
+        }
+        return TargetId(type);
+    }
+
     static string MetadataName(Type type)
     {
         var name = type.FullName ?? type.Name;
         var genericArgumentStart = name.IndexOf("[[", StringComparison.Ordinal);
         return genericArgumentStart >= 0 ? name[..genericArgumentStart] : name.Replace('+', '.');
+    }
+
+    static string TargetId(Type type)
+    {
+        return $"{AssemblyIdentity(type.Assembly)}::{MetadataName(type)}";
+    }
+
+    static string AssemblyIdentity(Assembly assembly)
+    {
+        return assembly.GetName().FullName ?? assembly.FullName ?? assembly.GetName().Name ?? "";
+    }
+
+    static object AssemblyReference(Assembly assembly)
+    {
+        var name = assembly.GetName();
+        var token = name.GetPublicKeyToken();
+        var publicKeyToken = token is null || token.Length == 0
+            ? null
+            : Convert.ToHexString(token).ToLowerInvariant();
+        return new
+        {
+            name = name.Name ?? "",
+            version = name.Version?.ToString(),
+            culture = string.IsNullOrEmpty(name.CultureName) ? null : name.CultureName,
+            publicKeyToken,
+            path = string.IsNullOrEmpty(assembly.Location) ? null : assembly.Location,
+        };
     }
 
     static string DisplayName(Type type)

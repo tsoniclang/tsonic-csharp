@@ -37,7 +37,7 @@ export function dotnetModuleToProviderDeclarationModel(module: DotnetModuleModel
 
 interface DotnetDeclarationContext {
   readonly typesBySourceName: ReadonlyMap<string, DotnetTypeDeclaration>;
-  readonly sourceMembersByMetadataName: Map<string, readonly ProviderMemberDeclaration[]>;
+  readonly sourceMembersByTargetId: Map<string, readonly ProviderMemberDeclaration[]>;
 }
 
 function createDotnetDeclarationContext(module: DotnetModuleModel): DotnetDeclarationContext {
@@ -45,7 +45,7 @@ function createDotnetDeclarationContext(module: DotnetModuleModel): DotnetDeclar
     typesBySourceName: new Map(module.exports
       .filter((declaration): declaration is DotnetTypeDeclaration => declaration.kind === "type")
       .map((declaration) => [declaration.sourceName, declaration])),
-    sourceMembersByMetadataName: new Map(),
+    sourceMembersByTargetId: new Map(),
   };
 }
 
@@ -64,10 +64,10 @@ export function dotnetExportToProviderExport(
         return undefined;
       }
       return {
-        id: declaration.metadataName,
+        id: declaration.targetId,
         name: declaration.sourceName,
         kind: "function",
-        targetIdentity: dotnetTargetIdentity(declaration.metadataName, declaration.sourceName),
+        targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.sourceName),
         signatures,
       };
     }
@@ -77,10 +77,10 @@ export function dotnetExportToProviderExport(
         return undefined;
       }
       return {
-        id: declaration.metadataName,
+        id: declaration.targetId,
         name: declaration.sourceName,
         kind: "value",
-        targetIdentity: dotnetTargetIdentity(declaration.metadataName, declaration.sourceName),
+        targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.sourceName),
         type,
       };
     }
@@ -108,10 +108,10 @@ function dotnetTypeToProviderExport(
     ? undefined
     : tryDotnetTypeRefToProviderType(declaration.sourceShape);
   return {
-    id: declaration.metadataName,
+    id: declaration.targetId,
     name: declaration.sourceName,
     kind,
-    targetIdentity: dotnetTargetIdentity(declaration.metadataName, declaration.displayName ?? declaration.sourceName),
+    targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.displayName ?? declaration.sourceName),
     ...(sourceType !== undefined ? { type: sourceType } : {}),
     ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderSourceTypeParameter) } : {}),
     ...(baseType !== undefined ? { extends: [baseType] } : {}),
@@ -123,7 +123,7 @@ function dotnetTypeSourceMembers(
   declaration: DotnetTypeDeclaration,
   context: DotnetDeclarationContext,
 ): readonly ProviderMemberDeclaration[] | undefined {
-  const cached = context.sourceMembersByMetadataName.get(declaration.metadataName);
+  const cached = context.sourceMembersByTargetId.get(declaration.targetId);
   if (cached !== undefined) {
     return cached;
   }
@@ -134,7 +134,7 @@ function dotnetTypeSourceMembers(
   const members = baseMembers.length === 0
     ? ownMembers
     : ownMembers.flatMap((member) => mergeProviderMemberWithLocalBase(member, baseMembers));
-  context.sourceMembersByMetadataName.set(declaration.metadataName, members);
+  context.sourceMembersByTargetId.set(declaration.targetId, members);
   return members.length === 0 ? undefined : members;
 }
 
@@ -226,8 +226,8 @@ function mergeProviderMemberList(members: readonly ProviderMemberDeclaration[]):
 
 function dotnetProviderMemberId(member: DotnetMemberDeclaration): string {
   return member.kind === "constructor"
-    ? dotnetMetadataNameWithoutSignature(member.metadataName)
-    : member.metadataName;
+    ? dotnetMetadataNameWithoutSignature(member.targetId)
+    : member.targetId;
 }
 
 function dotnetMetadataNameWithoutSignature(metadataName: string): string {
@@ -360,14 +360,14 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
         return undefined;
       }
       return {
-        id: declaration.metadataName,
+        id: declaration.targetId,
         name: declaration.sourceName,
         kind: "property",
         static: true,
         type: {
           kind: "target-named",
           target: "csharp",
-          id: declaration.metadataName,
+          id: declaration.targetId,
           ...(declaration.displayName !== undefined ? { displayName: declaration.displayName } : {}),
           sourceShape: sourceType,
         },
@@ -381,7 +381,7 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
         return undefined;
       }
       return {
-        id: declaration.metadataName,
+        id: declaration.targetId,
         name: declaration.sourceName,
         kind: "method",
         static: true,
@@ -394,7 +394,7 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
         return undefined;
       }
       return {
-        id: declaration.metadataName,
+        id: declaration.targetId,
         name: declaration.sourceName,
         kind: "property",
         static: true,

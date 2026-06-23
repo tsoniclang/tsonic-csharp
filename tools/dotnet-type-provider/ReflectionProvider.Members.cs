@@ -9,12 +9,9 @@ sealed partial class ReflectionProvider
 {
     IEnumerable<object> Members(Type type)
     {
-        foreach (var group in Constructors(type).GroupBy(member => (string)member.GetType().GetProperty("metadataName")!.GetValue(member)!))
+        foreach (var member in Constructors(type))
         {
-            foreach (var member in group)
-            {
-                yield return member;
-            }
+            yield return member;
         }
 
         foreach (var member in Properties(type))
@@ -45,6 +42,7 @@ sealed partial class ReflectionProvider
                 kind = "method",
                 sourceName = LowerCamel(first.Name),
                 targetName = first.Name,
+                targetId = $"{TargetId(type)}.{first.Name}",
                 metadataName = $"{MetadataName(type)}.{first.Name}",
                 @static = first.IsStatic ? true : (bool?)null,
                 receiverPassing = IsExtensionMethod(first) ? "first-argument" : null,
@@ -65,6 +63,7 @@ sealed partial class ReflectionProvider
                 kind = "operator",
                 sourceName = OperatorSourceName(first.Name),
                 targetName = first.Name,
+                targetId = $"{TargetId(type)}.{first.Name}",
                 metadataName = $"{MetadataName(type)}.{first.Name}",
                 @static = first.IsStatic ? true : (bool?)null,
                 signatures,
@@ -97,7 +96,8 @@ sealed partial class ReflectionProvider
                 kind = "constructor",
                 sourceName = "constructor",
                 targetName = ".ctor",
-                metadataName = ConstructorId(constructor),
+                targetId = ConstructorId(constructor),
+                metadataName = ConstructorMetadataName(constructor),
                 signatures = new[] { signature },
             };
         }
@@ -117,6 +117,7 @@ sealed partial class ReflectionProvider
                 "constructor",
                 ".ctor",
                 ConstructorId(constructor),
+                ConstructorMetadataName(constructor),
                 false,
                 reason);
         }
@@ -156,13 +157,14 @@ sealed partial class ReflectionProvider
                     kind = "indexer",
                     sourceName = "item",
                     targetName = property.Name,
+                    targetId = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})",
                     metadataName = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})",
                     @static = accessors[0].IsStatic ? true : (bool?)null,
                     signatures = new[]
                     {
                         new
                         {
-                            id = $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})",
+                            id = $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})",
                             targetName = property.Name,
                             parameters,
                             returnType,
@@ -187,6 +189,7 @@ sealed partial class ReflectionProvider
                 kind = "property",
                 sourceName = LowerCamel(property.Name),
                 targetName = property.Name,
+                targetId = $"{TargetId(type)}.{property.Name}",
                 metadataName = $"{MetadataName(type)}.{property.Name}",
                 @static = isStatic ? true : (bool?)null,
                 type = typeRef,
@@ -207,6 +210,9 @@ sealed partial class ReflectionProvider
             var isStatic = accessors.Length > 0 && accessors[0].IsStatic;
             var indexParameters = property.GetIndexParameters();
             var memberKind = indexParameters.Length > 0 ? "indexer" : "property";
+            var targetId = indexParameters.Length > 0
+                ? $"{TargetId(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeTargetId(UnwrapByRef(parameter.ParameterType))))})"
+                : $"{TargetId(type)}.{property.Name}";
             var metadataName = indexParameters.Length > 0
                 ? $"{MetadataName(type)}.{property.Name}({string.Join(",", indexParameters.Select(parameter => TypeMetadataName(UnwrapByRef(parameter.ParameterType))))})"
                 : $"{MetadataName(type)}.{property.Name}";
@@ -214,6 +220,7 @@ sealed partial class ReflectionProvider
                 memberKind,
                 indexParameters.Length > 0 ? "item" : LowerCamel(property.Name),
                 property.Name,
+                targetId,
                 metadataName,
                 isStatic,
                 reason);
@@ -280,6 +287,7 @@ sealed partial class ReflectionProvider
                 kind = "field",
                 sourceName = LowerCamel(field.Name),
                 targetName = field.Name,
+                targetId = $"{TargetId(type)}.{field.Name}",
                 metadataName = $"{MetadataName(type)}.{field.Name}",
                 @static = field.IsStatic ? true : (bool?)null,
                 type = typeRef,
@@ -300,6 +308,7 @@ sealed partial class ReflectionProvider
                 "field",
                 LowerCamel(field.Name),
                 field.Name,
+                $"{TargetId(type)}.{field.Name}",
                 $"{MetadataName(type)}.{field.Name}",
                 field.IsStatic,
                 reason);
@@ -351,6 +360,7 @@ sealed partial class ReflectionProvider
                 kind = "event",
                 sourceName = LowerCamel(eventInfo.Name),
                 targetName = eventInfo.Name,
+                targetId = EventTargetId(type, eventInfo),
                 metadataName = EventMetadataName(type, eventInfo),
                 @static = accessor.IsStatic ? true : (bool?)null,
                 type = typeRef,
@@ -374,6 +384,7 @@ sealed partial class ReflectionProvider
                 memberKind = "event",
                 sourceName = LowerCamel(eventInfo.Name),
                 targetName = eventInfo.Name,
+                targetId = EventTargetId(type, eventInfo),
                 metadataName = EventMetadataName(type, eventInfo),
                 @static = accessor?.IsStatic == true ? true : (bool?)null,
                 reason,
@@ -432,6 +443,7 @@ sealed partial class ReflectionProvider
                 LowerCamel(method.Name),
                 method.Name,
                 MethodId(method),
+                MethodMetadataId(method),
                 method.IsStatic,
                 reason);
         }
@@ -473,6 +485,7 @@ sealed partial class ReflectionProvider
                 OperatorSourceName(method.Name),
                 method.Name,
                 MethodId(method),
+                MethodMetadataId(method),
                 true,
                 reason);
         }
@@ -497,6 +510,7 @@ sealed partial class ReflectionProvider
         string memberKind,
         string sourceName,
         string targetName,
+        string targetId,
         string metadataName,
         bool isStatic,
         string reason)
@@ -507,6 +521,7 @@ sealed partial class ReflectionProvider
             memberKind,
             sourceName,
             targetName,
+            targetId,
             metadataName,
             @static = isStatic ? true : (bool?)null,
             reason,
@@ -735,5 +750,10 @@ sealed partial class ReflectionProvider
     static string EventMetadataName(Type declaringType, EventInfo eventInfo)
     {
         return $"{MetadataName(declaringType)}.{eventInfo.Name}";
+    }
+
+    static string EventTargetId(Type declaringType, EventInfo eventInfo)
+    {
+        return $"{TargetId(declaringType)}.{eventInfo.Name}";
     }
 }

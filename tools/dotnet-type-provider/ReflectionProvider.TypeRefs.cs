@@ -61,6 +61,7 @@ sealed partial class ReflectionProvider
         return new
         {
             kind = "named",
+            targetId = TargetId(definition),
             metadataName = MetadataName(definition),
             displayName = DisplayName(definition),
             renderShape = RenderShape(definition),
@@ -129,7 +130,7 @@ sealed partial class ReflectionProvider
             return element is null ? null : new { kind = "array", elementType = element };
         }
         var referenceDefinition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-        if (providerSourceReferencesByMetadataName.TryGetValue(MetadataName(referenceDefinition), out var sourceReference))
+        if (providerSourceReferencesByTargetId.TryGetValue(TargetId(referenceDefinition), out var sourceReference))
         {
             var args = type.IsGenericType
                 ? type.GetGenericArguments().Select(SourceShape).ToArray()
@@ -167,7 +168,7 @@ sealed partial class ReflectionProvider
         }
     }
 
-    Dictionary<string, SourceReference> SourceReferencesByMetadataName(IEnumerable<Type> loadedTypes)
+    Dictionary<string, SourceReference> SourceReferencesByTargetId(IEnumerable<Type> loadedTypes)
     {
         var candidates = loadedTypes
             .Where(type => !type.IsNested)
@@ -179,10 +180,10 @@ sealed partial class ReflectionProvider
         var references = candidates
             .Where(type => !IsDelegate(type))
             .ToDictionary(
-                type => MetadataName(type),
+                type => TargetId(type),
                 ToSourceReference,
                 StringComparer.Ordinal);
-        providerSourceReferencesByMetadataName = references;
+        providerSourceReferencesByTargetId = references;
 
         var pendingDelegates = candidates.Where(IsDelegate).ToList();
         var added = true;
@@ -195,7 +196,7 @@ sealed partial class ReflectionProvider
                 {
                     continue;
                 }
-                references[MetadataName(type)] = ToSourceReference(type);
+                references[TargetId(type)] = ToSourceReference(type);
                 pendingDelegates.Remove(type);
                 added = true;
             }

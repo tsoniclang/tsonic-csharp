@@ -69,8 +69,9 @@ export function dotnetExportToTargetBinding(declaration: DotnetExportDeclaration
 }
 
 function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBindingFact {
+  const targetId = requireDotnetTargetId(declaration.targetId, declaration.metadataName);
   const declaredCsharpType = csharpTargetNamedType(
-    declaration.metadataName,
+    targetId,
     declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
     declaration.renderShape === undefined ? undefined : dotnetRenderShapeToCsharpRenderShape(declaration.renderShape),
     csharpTargetMetadataFromDotnetTypeDeclaration(declaration),
@@ -79,7 +80,7 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     ? undefined
     : dotnetTypeRefToTargetTypeRef(declaration.baseType);
   const binding = {
-    id: declaration.metadataName,
+    id: targetId,
     sourceName: declaration.sourceName,
     targetName: declaration.displayName ?? declaration.metadataName,
     target: "csharp",
@@ -134,7 +135,7 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
       return member.type === undefined
         ? []
         : [{
-            id: member.metadataName,
+            id: member.targetId,
             sourceName: member.sourceName,
             targetName: member.targetName,
             kind: member.kind,
@@ -171,8 +172,8 @@ function dotnetSignatureToTargetMember(
 
 function dotnetTargetMemberOverloadGroup(member: DotnetMemberDeclaration): string {
   return member.kind === "constructor"
-    ? dotnetMetadataNameWithoutSignature(member.metadataName)
-    : member.metadataName;
+    ? dotnetMetadataNameWithoutSignature(member.targetId)
+    : member.targetId;
 }
 
 function dotnetMetadataNameWithoutSignature(metadataName: string): string {
@@ -217,8 +218,9 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "provider-ref":
       throw new Error("Provider-ref is a source declaration shape only and cannot be emitted as a target type.");
     case "named":
+      const targetId = requireDotnetTargetId(type.targetId, type.metadataName);
       return csharpTargetNamedType(
-        type.metadataName,
+        targetId,
         type.typeArguments?.map(dotnetTypeRefToTargetTypeRef),
         type.renderShape === undefined ? undefined : dotnetRenderShapeToCsharpRenderShape(type.renderShape),
         csharpTargetMetadataFromDotnetTypeRef(type),
@@ -258,6 +260,13 @@ export function dotnetTypeRefToTargetTypeRef(type: DotnetTypeRef): TargetTypeRef
     case "opaque":
       return { kind: "opaque", id: type.id };
   }
+}
+
+function requireDotnetTargetId(targetId: string | undefined, metadataName: string): string {
+  if (typeof targetId !== "string" || targetId.length === 0) {
+    throw new Error(`Missing canonical .NET targetId for '${metadataName}'. .NET target facts must be assembly-qualified and must not fall back to metadataName.`);
+  }
+  return targetId;
 }
 
 function csharpTargetMetadataFromDotnetTypeRef(

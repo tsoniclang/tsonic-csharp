@@ -55,10 +55,20 @@ test(".NET provider preserves optional and params-array facts from reflected mem
   );
   assert.equal(sourceParams.parameters[1].rest, true);
 
-  const targetOptional = targetMember(provider, "System.ArgumentException", "System.ArgumentException.ThrowIfNullOrEmpty(System.String,System.String)");
+  const targetOptional = targetMember(
+    provider,
+    "@tsonic/dotnet/System.js",
+    "System.ArgumentException",
+    "System.ArgumentException.ThrowIfNullOrEmpty(System.String,System.String)",
+  );
   assert.equal(targetOptional.parameters[1].optional, true);
 
-  const targetParams = targetMember(provider, "System.Console", "System.Console.WriteLine(System.String,System.Object[])");
+  const targetParams = targetMember(
+    provider,
+    "@tsonic/dotnet/System.js",
+    "System.Console",
+    "System.Console.WriteLine(System.String,System.Object[])",
+  );
   assert.equal(targetParams.parameters[1].paramsArray, true);
 });
 
@@ -106,11 +116,17 @@ test(".NET provider preserves default parameter values only from reflected defau
   assert.deepEqual(sourceDefaults.parameters.map((parameter) => parameter.optional), [true, true, true, true, true, true, true]);
   assert.equal(sourceDefaults.parameters.some((parameter) => "defaultValue" in parameter), false);
 
-  const targetDefaults = targetMember(provider, "ProviderDefaultFixtures.DefaultParameterSource", defaultsSignatureId);
+  const targetDefaults = targetMember(
+    provider,
+    "@tsonic/dotnet/ProviderDefaultFixtures.js",
+    "ProviderDefaultFixtures.DefaultParameterSource",
+    defaultsSignatureId,
+  );
   assert.deepEqual(targetDefaults.parameters.map((parameter) => parameter.defaultValue), expectedDefaults);
 
   const targetOptionalWithoutDefault = targetMember(
     provider,
+    "@tsonic/dotnet/ProviderDefaultFixtures.js",
     "ProviderDefaultFixtures.DefaultParameterSource",
     "ProviderDefaultFixtures.DefaultParameterSource.OptionalWithoutDefault(System.String)",
   );
@@ -155,10 +171,10 @@ function rawSignature(module, typeName, memberName, signatureId) {
   const member = type.members?.find((candidate) =>
     candidate.kind === "method" &&
     candidate.sourceName === memberName &&
-    candidate.signatures?.some((signature) => signature.id === signatureId)
+    candidate.signatures?.some((signature) => idHasShape(signature.id, signatureId))
   );
   assert.ok(member, `raw member ${typeName}.${memberName}`);
-  const signature = member.signatures.find((candidate) => candidate.id === signatureId);
+  const signature = member.signatures.find((candidate) => idHasShape(candidate.id, signatureId));
   assert.ok(signature, `raw signature ${signatureId}`);
   return signature;
 }
@@ -169,20 +185,39 @@ function sourceSignature(model, typeName, memberName, signatureId) {
   const member = type.members?.find((candidate) =>
     candidate.kind === "method" &&
     candidate.name === memberName &&
-    candidate.signatures?.some((signature) => signature.id === signatureId)
+    candidate.signatures?.some((signature) => idHasShape(signature.id, signatureId))
   );
   assert.ok(member, `source member ${typeName}.${memberName}`);
-  const signature = member.signatures.find((candidate) => candidate.id === signatureId);
+  const signature = member.signatures.find((candidate) => idHasShape(candidate.id, signatureId));
   assert.ok(signature, `source signature ${signatureId}`);
   return signature;
 }
 
-function targetMember(provider, typeId, memberId) {
-  const binding = provider.findTargetBindingByTargetId(typeId);
-  assert.ok(binding, `target binding ${typeId}`);
-  const member = binding.members?.find((candidate) => candidate.id === memberId);
-  assert.ok(member, `target member ${memberId}`);
+function targetMember(provider, moduleSpecifier, typeMetadataName, memberIdShape) {
+  const binding = getDotnetBinding(provider, moduleSpecifier, typeMetadataName);
+  const member = binding.members?.find((candidate) => idHasShape(candidate.id, memberIdShape));
+  assert.ok(member, `target member ${memberIdShape}`);
   return member;
+}
+
+function getDotnetBinding(provider, moduleSpecifier, metadataName) {
+  const module = provider.getModule(moduleSpecifier, {});
+  assert.equal("exports" in module, true, JSON.stringify(module));
+  const declaration = [...module.exports, ...(module.targetOnlyTypes ?? [])]
+    .find((candidate) => candidate.kind === "type" && candidate.metadataName === metadataName);
+  assert.ok(declaration, `Missing .NET declaration '${metadataName}' in ${moduleSpecifier}`);
+  const binding = provider.findTargetBindingByTargetId(declaration.targetId);
+  assert.ok(binding, `Missing .NET target binding '${declaration.targetId}'`);
+  return binding;
+}
+
+function idHasShape(id, metadataShape) {
+  return stripAssemblyQualifiers(id) === metadataShape;
+}
+
+function stripAssemblyQualifiers(id) {
+  return id.replace(/(^|[<(,])(?:(out|ref|in) )?[^:<>()]+::/gu, (_match, delimiter, passingMode) =>
+    `${delimiter}${passingMode === undefined ? "" : `${passingMode} `}`);
 }
 
 function selectBySignature(member, argumentCount) {

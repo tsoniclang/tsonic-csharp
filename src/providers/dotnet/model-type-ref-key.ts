@@ -5,7 +5,7 @@ import type {
 export function dotnetTypeRefKey(type: DotnetTypeRef): string {
   switch (type.kind) {
     case "named":
-      return `${type.metadataName}<${(type.typeArguments ?? []).map(dotnetTypeRefKey).join(",")}>`;
+      return `${type.targetId}<${(type.typeArguments ?? []).map(dotnetTypeRefKey).join(",")}>`;
     case "array":
       return `${dotnetTypeRefKey(type.elementType)}[]`;
     case "nullable":

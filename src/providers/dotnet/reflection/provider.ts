@@ -112,7 +112,7 @@ export function createDotnetReflectionTypeDataProvider(
     }
     const result = spawnSync("dotnet", args, {
       encoding: "utf8",
-      maxBuffer: 64 * 1024 * 1024,
+      maxBuffer: 128 * 1024 * 1024,
     });
     if (result.status !== 0) {
       const error = diagnostic("DOTNET_REFLECTION_PROVIDER_FAILED", ".NET reflection provider tool failed.", {
@@ -177,7 +177,7 @@ function findTargetBindingInLoadedModules(
 
 function findTargetBindingInModule(module: DotnetModuleModel, targetId: string): TargetBindingFact | undefined {
   for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
-    if (declaration.kind === "type" && declaration.metadataName === targetId) {
+    if (declaration.kind === "type" && declaration.targetId === targetId) {
       return dotnetExportToTargetBinding(declaration);
     }
   }
