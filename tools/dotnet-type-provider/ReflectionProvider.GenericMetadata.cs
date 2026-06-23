@@ -77,7 +77,7 @@ sealed partial class ReflectionProvider
             {
                 targetId = TargetId(constraint),
                 metadataName = MetadataName(constraint),
-                reason = "Generic constraint type cannot be represented as closed .NET target type facts.",
+                reason = $"Generic constraint type '{TypeMetadataName(constraint)}' cannot be represented as closed .NET target type facts. {TypeRefFailureReason(constraint)}",
             });
         }
         return new

@@ -30,6 +30,7 @@ import type {
   DotnetUnsupportedAttributeDeclaration,
   DotnetUnsupportedConstraintDeclaration,
   DotnetUnsupportedDefaultValueDeclaration,
+  DotnetUnsupportedMemberDeclaration,
 } from "./model-types.js";
 import {
   type CsharpTargetBindingFact,
@@ -61,6 +62,7 @@ export type DotnetTargetBindingFact = CsharpTargetBindingFact & {
   readonly typeParameters?: readonly DotnetTargetTypeParameter[];
   readonly members?: readonly DotnetTargetMember[];
   readonly unsupportedImplementedContracts?: readonly DotnetUnsupportedConstraintDeclaration[];
+  readonly unsupportedMembers?: readonly DotnetUnsupportedMemberDeclaration[];
 };
 
 export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint): TargetConstraint {
@@ -128,6 +130,9 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
       : {}),
     ...(declaration.members !== undefined && declaration.members.length > 0
       ? { members: declaration.members.flatMap((member) => dotnetMemberToTargetMembers(member, declaredCsharpType)) }
+      : {}),
+    ...(declaration.unsupportedMembers !== undefined && declaration.unsupportedMembers.length > 0
+      ? { unsupportedMembers: declaration.unsupportedMembers }
       : {}),
     ...(declaration.conversionOperators !== undefined && declaration.conversionOperators.length > 0
       ? { conversionOperators: declaration.conversionOperators.map((operator) => dotnetConversionOperatorToTargetConversionOperator(operator, declaredCsharpType)) }

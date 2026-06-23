@@ -522,6 +522,114 @@ test(".NET target binding uses provider-owned target member names", () => {
   assert.equal(item?.targetName, "Item");
 });
 
+test(".NET reflection provider records attribute facts as target data without source-visible fake semantics", () => {
+  const reference = buildAttributeFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderAttributeFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const rawTarget = module.exports.find((declaration) => declaration.sourceName === "AttributeTarget");
+  assert.ok(rawTarget);
+
+  const typeAttribute = rawTarget.attributes?.find((attribute) =>
+    attribute.target === "type" &&
+    idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.SampleAttribute..ctor(System.String,System.Int32,ProviderAttributeFixtures.ProviderAttributeMode,System.Type,System.Int32[])")
+  );
+  assert.ok(typeAttribute);
+  assert.equal(idEndsWith(typeAttribute.constructorId, "ProviderAttributeFixtures.SampleAttribute..ctor(System.String,System.Int32,ProviderAttributeFixtures.ProviderAttributeMode,System.Type,System.Int32[])"), true);
+  assert.deepEqual(typeAttribute.arguments?.map((argument) => argument.kind), [
+    "constructor",
+    "constructor",
+    "constructor",
+    "constructor",
+    "constructor",
+    "named",
+    "named",
+  ]);
+  assert.deepEqual(typeAttribute.arguments?.[0], { kind: "constructor", value: { kind: "string", value: "type" } });
+  assert.equal(typeAttribute.arguments?.[2]?.value.kind, "enum");
+  assert.equal(typeAttribute.arguments?.[2]?.value.fieldName, "Fast");
+  assert.equal(typeAttribute.arguments?.[3]?.value.kind, "type");
+  assert.deepEqual(typeAttribute.arguments?.[4]?.value, {
+    kind: "array",
+    elements: [
+      { kind: "source-primitive", name: "int32", value: "1" },
+      { kind: "source-primitive", name: "int32", value: "2" },
+    ],
+  });
+  assert.deepEqual(typeAttribute.arguments?.slice(5), [
+    { kind: "named", name: "Enabled", memberKind: "property", value: { kind: "source-primitive", name: "bool", value: true } },
+    { kind: "named", name: "Label", memberKind: "field", value: { kind: "string", value: "type-field" } },
+  ]);
+
+  const rawRun = rawTarget.members.find((member) => member.kind === "method" && member.sourceName === "run");
+  assert.ok(rawRun);
+  const runSignature = rawRun.signatures[0];
+  const methodAttribute = runSignature.attributes?.find((attribute) =>
+    idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.SampleAttribute..ctor(System.String,System.Int32,ProviderAttributeFixtures.ProviderAttributeMode,System.Type,System.Int32[])")
+  );
+  const returnAttribute = runSignature.returnAttributes?.find((attribute) =>
+    idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.SampleAttribute..ctor(System.String,System.Int32,ProviderAttributeFixtures.ProviderAttributeMode,System.Type,System.Int32[])")
+  );
+  const methodParameterAttribute = runSignature.parameters[0].attributes?.find((attribute) =>
+    idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.SampleAttribute..ctor(System.String,System.Int32,ProviderAttributeFixtures.ProviderAttributeMode,System.Type,System.Int32[])")
+  );
+  assert.equal(methodAttribute?.target, "method");
+  assert.equal(returnAttribute?.target, "return");
+  assert.equal(methodParameterAttribute?.target, "parameter");
+
+  const rawConstructor = rawTarget.members.find((member) => member.kind === "constructor");
+  assert.ok(rawConstructor);
+  const constructorAttribute = rawConstructor.signatures[0].attributes?.find((attribute) =>
+    idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.SampleAttribute..ctor(System.String,System.Int32,ProviderAttributeFixtures.ProviderAttributeMode,System.Type,System.Int32[])")
+  );
+  const constructorParameterAttribute = rawConstructor.signatures[0].parameters[0].attributes?.find((attribute) =>
+    idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.SampleAttribute..ctor(System.String,System.Int32,ProviderAttributeFixtures.ProviderAttributeMode,System.Type,System.Int32[])")
+  );
+  assert.equal(constructorAttribute?.target, "constructor");
+  assert.equal(constructorParameterAttribute?.target, "parameter");
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceTarget = declarationModel.exports.find((declaration) => declaration.name === "AttributeTarget");
+  assert.ok(sourceTarget);
+  assert.equal(JSON.stringify(sourceTarget).includes("SampleAttribute"), false);
+
+  const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderAttributeFixtures.js", "ProviderAttributeFixtures.AttributeTarget");
+  assert.equal(binding.attributes?.length, rawTarget.attributes?.length);
+  const targetTypeAttribute = binding.attributes?.find((attribute) =>
+    idEndsWith(attribute.constructorId, "ProviderAttributeFixtures.SampleAttribute..ctor(System.String,System.Int32,ProviderAttributeFixtures.ProviderAttributeMode,System.Type,System.Int32[])")
+  );
+  assert.ok(targetTypeAttribute);
+  assert.equal(targetTypeAttribute.attributeType.kind, "target-named");
+  assert.equal(idEndsWith(targetTypeAttribute.attributeType.id, "ProviderAttributeFixtures.SampleAttribute"), true);
+  assert.deepEqual(targetTypeAttribute.arguments?.map((argument) => argument.kind), typeAttribute.arguments?.map((argument) => argument.kind));
+  assert.deepEqual(targetTypeAttribute.arguments?.[0], typeAttribute.arguments?.[0]);
+  assert.equal(targetTypeAttribute.arguments?.[2]?.value.kind, "enum");
+  assert.equal(targetTypeAttribute.arguments?.[2]?.value.type.kind, "target-named");
+  assert.equal(targetTypeAttribute.arguments?.[3]?.value.kind, "type");
+  assert.equal(targetTypeAttribute.arguments?.[3]?.value.type.kind, "target-named");
+  const targetRun = binding.members.find((member) => idEndsWith(member.id, "ProviderAttributeFixtures.AttributeTarget.Run(System.Int32)"));
+  assert.ok(targetRun);
+  assert.equal(targetRun.attributes?.some((attribute) => attribute.target === "method"), true);
+  assert.equal(targetRun.returnAttributes?.some((attribute) => attribute.target === "return"), true);
+  assert.equal(targetRun.parameters[0].attributes?.some((attribute) => attribute.target === "parameter"), true);
+
+  const unsupportedTarget = module.exports.find((declaration) => declaration.sourceName === "UnsupportedAttributeTarget");
+  assert.ok(unsupportedTarget);
+  const unsupportedAttribute = unsupportedTarget.unsupportedAttributes?.find((attribute) =>
+    /Type attribute value/u.test(attribute.reason)
+  );
+  assert.ok(unsupportedAttribute);
+  assert.match(unsupportedAttribute.reason, /Type attribute value/u);
+  assert.match(unsupportedAttribute.reason, /System\.Int32\*/u);
+  const unsupportedBinding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderAttributeFixtures.js", "ProviderAttributeFixtures.UnsupportedAttributeTarget");
+  const targetUnsupportedAttribute = unsupportedBinding.unsupportedAttributes?.find((attribute) =>
+    /Type attribute value/u.test(attribute.reason)
+  );
+  assert.ok(targetUnsupportedAttribute);
+  assert.equal(targetUnsupportedAttribute.reason, unsupportedAttribute.reason);
+});
+
 test(".NET target bindings preserve provider-proven extension-method receiver passing", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const module = provider.getModule("@tsonic/dotnet/System.Linq.js", {});
@@ -684,6 +792,70 @@ test(".NET reflection provider proves collection constructor array-literal eleme
   const parameterType = collectionConstructor.parameters[0].type;
   assert.equal(parameterType.kind, "target-named");
   assert.deepEqual(parameterType.csharpArrayLiteralElementType, { kind: "type-parameter", name: "T" });
+});
+
+test(".NET reflection provider preserves exact constructor facts and unsupported constructor evidence", () => {
+  const reference = buildConstructorFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderConstructorFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const rawTarget = module.exports.find((declaration) => declaration.sourceName === "ConstructorTarget");
+  assert.ok(rawTarget);
+  const rawConstructors = rawTarget.members.filter((member) => member.kind === "constructor");
+  assert.equal(rawConstructors.length, 6);
+
+  const optionalConstructor = constructorSignature(rawTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32,System.String)");
+  assert.deepEqual(optionalConstructor.parameters.map((parameter) => parameter.name), ["value", "label"]);
+  assert.equal(optionalConstructor.parameters[1].optional, true);
+  assert.deepEqual(optionalConstructor.parameters[1].defaultValue, { kind: "string", value: "default" });
+
+  const paramsConstructor = constructorSignature(rawTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32[])");
+  assert.equal(paramsConstructor.parameters[0].rest, true);
+  assert.equal(paramsConstructor.parameters[0].type.kind, "array");
+
+  assert.equal(
+    constructorSignature(rawTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(ref System.Int64)")
+      .parameters[0].passingMode,
+    "byref-readwrite",
+  );
+  assert.equal(
+    constructorSignature(rawTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(out System.Int16)")
+      .parameters[0].passingMode,
+    "byref-writeonly-must-init",
+  );
+  assert.equal(
+    constructorSignature(rawTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(in System.Boolean,System.Char)")
+      .parameters[0].passingMode,
+    "byref-readonly",
+  );
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "ConstructorTarget");
+  assert.ok(sourceTarget);
+  const sourceOptionalConstructor = constructorSignature(sourceTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32,System.String)");
+  assert.equal(sourceOptionalConstructor.parameters[1].optional, true);
+  assert.equal("defaultValue" in sourceOptionalConstructor.parameters[1], false);
+
+  const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConstructorFixtures.js", "ProviderConstructorFixtures.ConstructorTarget");
+  const targetOptionalConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32,System.String)");
+  assert.ok(targetOptionalConstructor);
+  assert.equal(targetOptionalConstructor.kind, "constructor");
+  assert.equal(targetOptionalConstructor.targetName, ".ctor");
+  assert.equal(stripAssemblyQualifiers(targetOptionalConstructor.overloadGroup), "ProviderConstructorFixtures.ConstructorTarget..ctor");
+  assert.deepEqual(targetOptionalConstructor.parameters[1].defaultValue, { kind: "string", value: "default" });
+
+  const unsupportedTarget = module.exports.find((declaration) => declaration.sourceName === "UnsupportedConstructorTarget");
+  assert.ok(unsupportedTarget);
+  const unsupportedConstructor = unsupportedMembersByMetadataName(unsupportedTarget)
+    .get("ProviderConstructorFixtures.UnsupportedConstructorTarget..ctor(System.Int32*)");
+  assert.ok(unsupportedConstructor);
+  assert.match(unsupportedConstructor.reason, /parameter 'pointer'/u);
+  assert.match(unsupportedConstructor.reason, /System\.Int32\*/u);
+
+  const unsupportedBinding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConstructorFixtures.js", "ProviderConstructorFixtures.UnsupportedConstructorTarget");
+  assert.equal(unsupportedBinding.members?.some((member) => member.kind === "constructor") ?? false, false);
+  assert.deepEqual(unsupportedBinding.unsupportedMembers, unsupportedTarget.unsupportedMembers);
 });
 
 test(".NET reflection provider rejects unsupported target frameworks instead of drifting", () => {
@@ -1467,6 +1639,51 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
 
 function unsupportedMembersByMetadataName(declaration) {
   return new Map(declaration.unsupportedMembers?.map((member) => [member.metadataName, member]) ?? []);
+}
+
+function constructorSignature(declaration, signatureId) {
+  const signature = declaration.members
+    ?.filter((member) => member.kind === "constructor")
+    .flatMap((member) => member.signatures ?? [])
+    .find((candidate) => idEndsWith(candidate.id, signatureId));
+  assert.ok(signature, `constructor signature ${signatureId}`);
+  return signature;
+}
+
+function buildAttributeFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/attributes/AttributeProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/obj/");
+  const result = spawnSync("dotnet", [
+    "build",
+    project,
+    "--nologo",
+    "--verbosity",
+    "quiet",
+    "--output",
+    outputDirectory,
+    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  return join(outputDirectory, "AttributeProviderFixture.dll");
+}
+
+function buildConstructorFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/constructors/ConstructorProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constructors/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constructors/obj/");
+  const result = spawnSync("dotnet", [
+    "build",
+    project,
+    "--nologo",
+    "--verbosity",
+    "quiet",
+    "--output",
+    outputDirectory,
+    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  return join(outputDirectory, "ConstructorProviderFixture.dll");
 }
 
 function buildUnsupportedEventFixture() {
