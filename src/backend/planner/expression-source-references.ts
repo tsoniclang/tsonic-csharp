@@ -36,11 +36,14 @@ export function planIdentifierExpression(
 ): CsharpExpression {
   const sourceName = Node_Text(AsIdentifier(identifier));
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
+  const referenceTargetBinding = input.semantics.getTargetBindingForReference(identifier, { sourceFile });
+  if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference, referenceTargetBinding)) {
+    return { kind: "LiteralExpression", value: null };
+  }
   if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return invalidExpression("declaration identifier expression");
   }
-  const referenceTargetBinding = input.semantics.getTargetBindingForReference(identifier, { sourceFile });
   if (referenceTargetBinding !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return invalidExpression("provider-owned identifier expression");
@@ -65,6 +68,21 @@ export function planIdentifierExpression(
     name: getCsharpLocalBindingName(identifier, sourceFile, input, state) ??
       requireCsharpIdentifier(sourceName, diagnostics, "Source identifier"),
   };
+}
+
+function isGlobalUndefinedExpression(
+  identifier: Node,
+  sourceName: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  sourceReference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  targetBinding: ReturnType<TargetCompileInput["semantics"]["getTargetBindingForReference"]>,
+): boolean {
+  if (sourceName !== "undefined" || sourceReference !== undefined || targetBinding !== undefined) {
+    return false;
+  }
+  const type = input.semantics.getTypeAtLocation(identifier, { sourceFile });
+  return type !== undefined && input.types.isNullish(type);
 }
 
 export function isExternalDeclarationReference(
