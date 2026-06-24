@@ -41,6 +41,13 @@ export function createCsharpTargetPack(): TargetPack {
           createCsharpTargetSemanticsExtension(context),
         ];
       },
+      runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
+        return {
+          references: [
+            csharpRuntimeProjectReference("csharp-runtime", "Tsonic.CSharp.Runtime"),
+          ],
+        };
+      },
     },
     surfaces: [
       {
@@ -52,7 +59,6 @@ export function createCsharpTargetPack(): TargetPack {
         runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
           return {
             references: [
-              csharpRuntimeProjectReference("csharp-runtime", "Tsonic.CSharp.Runtime"),
               csharpRuntimeProjectReference("csharp-js", "Tsonic.CSharp.Js"),
             ],
           };
