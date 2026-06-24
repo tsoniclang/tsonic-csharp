@@ -1,4 +1,5 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpExpression,
@@ -16,4 +17,5 @@ export type BindingProjectionPlanner = (
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  projectedCarrier?: TargetTypeRef,
 ) => readonly CsharpStatement[];

@@ -26,8 +26,9 @@ export function planArrayBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
+  sourceCarrierOverride?: TargetTypeRef,
 ): readonly CsharpStatement[] {
-  const sourceCarrier = getRuntimeCarrierForExpression(input, sourceNode, sourceFile);
+  const sourceCarrier = sourceCarrierOverride ?? getRuntimeCarrierForExpression(input, sourceNode, sourceFile);
   if (sourceCarrier === undefined || (sourceCarrier.kind !== "array" && sourceCarrier.kind !== "tuple")) {
     diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression."));
     return [];
@@ -79,7 +80,7 @@ function planArrayBindingElement(
   const projectedWithDefault = element.Initializer === undefined
     ? projected
     : planArrayElementDefaultProjection(projected, sourceExpression, index, element.Initializer, projectedType, sourceFile, input, diagnostics);
-  return planBindingNameFromProjection(name, projectedWithDefault, projectedType, elementNode, sourceFile, input, diagnostics, state);
+  return planBindingNameFromProjection(name, projectedWithDefault, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
 }
 
 function planArrayBindingProjection(
@@ -130,7 +131,7 @@ function planArrayRestBindingElement(
     { kind: "Argument", expression: sourceExpression },
     { kind: "Argument", expression: { kind: "LiteralExpression", value: index } },
   ]);
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, sourceCarrier);
 }
 
 function planArrayElementDefaultProjection(

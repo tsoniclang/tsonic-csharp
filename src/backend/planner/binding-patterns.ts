@@ -5,7 +5,7 @@ import {
   KindObjectBindingPattern,
   Node_Text,
 } from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpExpression,
@@ -34,9 +34,10 @@ export function planBindingPatternFromExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  sourceCarrier?: TargetTypeRef,
 ): readonly CsharpStatement[] {
   if (HasSourceKind(input.ast, patternNode, KindArrayBindingPattern)) {
-    return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, planBindingNameFromProjection, sourceCarrier);
   }
   if (HasSourceKind(input.ast, patternNode, KindObjectBindingPattern)) {
     return planObjectBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
@@ -54,6 +55,7 @@ function planBindingNameFromProjection(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
+  projectedCarrier?: TargetTypeRef,
 ): readonly CsharpStatement[] {
   if (HasSourceKind(input.ast, name, KindIdentifier)) {
     return [{
@@ -74,7 +76,7 @@ function planBindingNameFromProjection(
         type: nestedType,
         initializer: projected,
       },
-      ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state),
+      ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state, projectedCarrier),
     ];
   }
   diagnostics.push(unsupportedNodeDiagnostic(name, "Destructuring target binding name is outside the current C# planning surface."));

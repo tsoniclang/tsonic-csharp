@@ -85,7 +85,7 @@ function planObjectShapeBindingElement(
     receiver: sourceExpression,
     name: member.targetName,
   };
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, member.type);
 }
 
 function planObjectShapeRestBindingElement(
@@ -140,7 +140,7 @@ function planObjectShapeRestBindingElement(
     kind: "ObjectCreationExpression",
     type: restType,
     assignments: assignments as readonly CsharpObjectInitializerAssignment[],
-  }, restType, elementNode, sourceFile, input, diagnostics, state);
+  }, restType, elementNode, sourceFile, input, diagnostics, state, restShape.targetType);
 }
 
 function getObjectShapeBindingPropertySourceName(
