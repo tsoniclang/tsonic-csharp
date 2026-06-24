@@ -32,10 +32,14 @@ sealed partial class ReflectionProvider
         }
         if (type.IsArray)
         {
+            if (!type.IsSZArray)
+            {
+                return null;
+            }
             var elementType = TypeRef(type.GetElementType()!);
             return elementType is null
                 ? null
-                : new { kind = "array", elementType, rank = type.GetArrayRank() == 1 ? null : (int?)type.GetArrayRank() };
+                : new { kind = "array", elementType };
         }
         if (IsNullableShape(type, out var nullableElement))
         {
@@ -79,6 +83,10 @@ sealed partial class ReflectionProvider
         }
         if (type.IsArray)
         {
+            if (!type.IsSZArray)
+            {
+                return $"ranked CLR array type '{TypeMetadataName(type)}' requires an explicit provider ranked-array source model before it can be exposed safely.";
+            }
             var elementType = type.GetElementType()!;
             return $"Array element type '{TypeMetadataName(elementType)}' is not representable. {TypeRefFailureReason(elementType)}";
         }
@@ -123,6 +131,10 @@ sealed partial class ReflectionProvider
         }
         if (type.IsArray)
         {
+            if (!type.IsSZArray)
+            {
+                return null;
+            }
             var element = SourceShape(type.GetElementType()!);
             return element is null ? null : new { kind = "array", elementType = element };
         }
