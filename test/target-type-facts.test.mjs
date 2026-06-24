@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
 import { planTypeParameters } from "../dist/backend/planner/type-parameters.js";
-import { KindIdentifier } from "../dist/backend/planner/source-ast.js";
+import { KindIdentifier, KindTypeReference } from "../dist/backend/planner/source-ast.js";
 import { isCsharpThrowableCarrier } from "../dist/backend/planner/statement-output.js";
+import { printCsharpType } from "../dist/print/csharp-printer.js";
 import { csharpTargetTypeParameterConstraintFactKey } from "../dist/source/csharp-facts.js";
 import {
   isCsharpStringType,
@@ -16,6 +18,7 @@ import {
   csharpExceptionTargetType,
   csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
+  csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
@@ -151,11 +154,87 @@ test("type parameter constraints reject old target-specific mini protocols", () 
   assert.match(diagnostics[0].message, /does not support target type-parameter constraint 'csharp:generic-math-number'/);
 });
 
+test("provider-owned generic target type references require finalized target argument facts", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const argumentNode = typeReferenceNode("int32");
+  const reference = typeReferenceNode("List", [argumentNode]);
+  const listBinding = {
+    id: "System.Collections.Generic.List`1",
+    target: "csharp",
+    kind: "class",
+    sourceName: "List",
+    targetName: "System.Collections.Generic.List",
+    csharpRender: csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
+    typeParameters: [{ name: "T" }],
+  };
+  const diagnostics = [];
+
+  const rendered = getCsharpTypeForNode(reference, sourceFile, fakeTypeInput(sourceFile, {
+    targetBindings: new Map([[reference, listBinding]]),
+    runtimeCarriers: new Map([[argumentNode, csharpSourcePrimitiveTargetType("int32")]]),
+  }), undefined, diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpType(rendered), "System.Collections.Generic.List<int>");
+
+  const missingDiagnostics = [];
+  const missing = getCsharpTypeForNode(reference, sourceFile, fakeTypeInput(sourceFile, {
+    targetBindings: new Map([[reference, listBinding]]),
+  }), undefined, missingDiagnostics);
+
+  assert.equal(missing.kind, "InvalidType");
+  assert.equal(missingDiagnostics.length, 1);
+  assert.match(missingDiagnostics[0].message, /requires target type facts for every type argument/);
+});
+
+test("advanced erased type syntax emits only from TSTS semantic result facts", () => {
+  const sourceExample = `
+    type Result<T> = T extends string ? Readonly<{ value: T }> : never;
+  `;
+  assert.match(sourceExample, /T extends string/);
+  assert.match(sourceExample, /Readonly/);
+
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const conditionalType = { Kind: "KindConditionalType" };
+  const mappedType = { Kind: "KindMappedType" };
+  const utilityType = typeReferenceNode("Readonly");
+  const tstsStringResult = { kind: "semantic-string-result" };
+  const diagnostics = [];
+  const input = fakeTypeInput(sourceFile, {
+    semanticTypes: new Map([
+      [conditionalType, tstsStringResult],
+      [utilityType, tstsStringResult],
+    ]),
+    stringSemanticTypes: new Set([tstsStringResult]),
+  });
+
+  assert.equal(printCsharpType(getCsharpTypeForNode(conditionalType, sourceFile, input, undefined, diagnostics)), "string");
+  assert.equal(printCsharpType(getCsharpTypeForNode(utilityType, sourceFile, input, undefined, diagnostics)), "string");
+  const missing = getCsharpTypeForNode(mappedType, sourceFile, input, undefined, diagnostics);
+
+  assert.equal(missing.kind, "InvalidType");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a closed target type from TSTS\/provider facts/);
+});
+
 function typeParameterNode(name) {
   return {
     Kind: "KindTypeParameter",
     name: { Kind: KindIdentifier, Text: name },
   };
+}
+
+function typeReferenceNode(name, typeArguments = []) {
+  return {
+    Kind: KindTypeReference,
+    TypeName: { Kind: KindIdentifier, Text: name },
+    Text: name,
+    TypeArguments: { Nodes: typeArguments },
+  };
+}
+
+function sourceFileNode(fileName) {
+  return { Kind: "KindSourceFile", FileName: fileName, IsDeclarationFile: false, Statements: { Nodes: [] } };
 }
 
 function fakeInput(options) {
@@ -169,6 +248,104 @@ function fakeInput(options) {
         subject === options.subject && key === csharpTargetTypeParameterConstraintFactKey
           ? options.constraintFact
           : undefined,
+    },
+  };
+}
+
+function fakeTypeInput(sourceFile, options = {}) {
+  return {
+    ast: {
+      kindName: (node) => String(node?.Kind),
+      kindNameFromKind: (kind) => String(kind),
+      text: (node) => String(node?.Text ?? ""),
+      name: (node) => node?.name ?? node?.TypeName,
+      typeArguments: (node) => node?.TypeArguments?.Nodes ?? [],
+      parent: () => undefined,
+      getSourceFile: () => sourceFile,
+      is: {
+        IsKeywordTypeNode: () => false,
+        IsTypeReferenceNode: (node) => node?.Kind === KindTypeReference,
+        IsUnionTypeNode: () => false,
+        IsIntersectionTypeNode: () => false,
+        IsConditionalTypeNode: (node) => node?.Kind === "KindConditionalType",
+        IsInferTypeNode: () => false,
+        IsArrayTypeNode: () => false,
+        IsIndexedAccessTypeNode: () => false,
+        IsLiteralTypeNode: () => false,
+        IsThisTypeNode: () => false,
+        IsMappedTypeNode: (node) => node?.Kind === "KindMappedType",
+        IsTupleTypeNode: () => false,
+        IsOptionalTypeNode: () => false,
+        IsRestTypeNode: () => false,
+        IsParenthesizedTypeNode: () => false,
+        IsFunctionTypeNode: () => false,
+        IsConstructorTypeNode: () => false,
+        IsTemplateLiteralTypeNode: () => false,
+        IsImportTypeNode: () => false,
+        IsClassDeclaration: () => false,
+      },
+    },
+    sourceFiles: [sourceFile],
+    facts: {
+      getDefaultValueFact: () => undefined,
+      getArgumentPassingFact: () => undefined,
+      getTargetConversionFact: () => undefined,
+      getSelectedTargetCall: () => undefined,
+      getContextualTargetTypeFact: () => undefined,
+      getRuntimeCarrierFact: (subject) => {
+        const carrier = options.runtimeCarriers?.get(subject);
+        return carrier === undefined ? undefined : { carrier };
+      },
+      getObjectShapeFact: () => undefined,
+      getTargetBindingFact: () => undefined,
+      getFact: () => undefined,
+      getSourcePrimitiveFact: () => undefined,
+      getPointerFact: () => undefined,
+      getFunctionPointerFact: () => undefined,
+      getStructFact: () => undefined,
+      getAttributeFact: () => undefined,
+      getTargetIterationFact: () => undefined,
+      getValueTypeFact: () => undefined,
+      getFieldFact: () => undefined,
+      getSourceMarkerFact: () => undefined,
+      getSelectedTargetOperator: () => undefined,
+      getSelectedTargetProperty: () => undefined,
+      getSelectedTargetElementAccess: () => undefined,
+    },
+    semantics: {
+      getProjectSourceReferenceForNode: () => undefined,
+      getTargetBindingForReference: (subject) => options.targetBindings?.get(subject),
+      getProjectSourceDeclarationForNode: () => undefined,
+      getTypeFromTypeNode: (subject) => options.semanticTypes?.get(subject),
+      getTypeAtLocation: (subject) => options.semanticTypes?.get(subject),
+      describeTypeAtLocation: () => "<unresolved>",
+      getResolvedCallReturnRuntimeCarrier: () => undefined,
+      getResolvedCallReturnType: () => undefined,
+      getRuntimeCarrierForNode: () => undefined,
+      getSymbolAtLocation: () => undefined,
+      getResolvedSymbol: () => undefined,
+      getProjectSourceReferenceForSymbol: () => undefined,
+    },
+    types: {
+      isAny: () => false,
+      isUnknown: () => false,
+      isNumberLike: () => false,
+      isStringLike: (type) => options.stringSemanticTypes?.has(type) === true,
+      isBooleanLike: () => false,
+      isBigIntLike: () => false,
+      isVoidLike: () => false,
+      isUnion: () => false,
+      isTuple: () => false,
+      isArrayLike: () => false,
+      isTypeReference: () => false,
+      isNullish: () => false,
+      getCallSignatures: () => [],
+      getReturnTypeOfSignature: () => undefined,
+      getUnionOrIntersectionTypes: () => [],
+      getTupleElementTypes: () => [],
+      getTypeArguments: () => [],
+      getIndexInfos: () => [],
+      getTypeReferenceTarget: (type) => type,
     },
   };
 }
