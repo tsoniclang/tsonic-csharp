@@ -63,6 +63,9 @@ import {
   recordCsharpSourceDeclarationFactsBeforeFinalization,
 } from "./source-declaration-facts.js";
 import {
+  validateCsharpSourceFlowFactsBeforeFinalization,
+} from "./source-flow-validation.js";
+import {
   recordCsharpAssertionConversionFactsBeforeFinalization,
 } from "./source-assertion-conversions.js";
 import {
@@ -102,6 +105,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(context, lifecycleContext);
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
         recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext);
+        validateCsharpSourceFlowFactsBeforeFinalization(lifecycleContext);
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
         recordCsharpAssertionConversionFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
         recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);

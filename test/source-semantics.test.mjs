@@ -7,6 +7,7 @@ import {
   createCompilerSessionFromFiles,
   defaultValueFactKey,
   fieldFactKey,
+  flowStateFactKey,
   functionPointerFactKey,
   formatDiagnostics,
   pointerFactKey,
@@ -492,6 +493,55 @@ test("source-semantics records source-core marker facts and rejects unproven sto
     session.ast.kindName(entry.fact.result) === "KindTypeReference" &&
     entry.fact.abi.join(",") === "target-default"
   ));
+});
+
+test("C# target rejects neutral borrow and move markers instead of silently erasing them", () => {
+  const sourceText = `
+    import { borrow, borrowMut, move } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+
+    let value!: int32;
+    borrow(value);
+    borrowMut(value);
+    move(value);
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const flowStates = ["borrow", "borrowMut", "move"].map((callee) =>
+    extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, callee)[0], flowStateFactKey)?.state
+  );
+  assert.deepEqual(flowStates, ["borrowed-shared", "borrowed-mut", "moved"]);
+  const flowDiagnostics = extensionHost.diagnostics.all()
+    .filter((diagnostic) => diagnostic.extensionCode === "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED");
+  assert.equal(flowDiagnostics.length, 3);
+  assert.match(flowDiagnostics[0].message, /borrow/u);
+  assert.match(flowDiagnostics[1].message, /borrowMut/u);
+  assert.match(flowDiagnostics[2].message, /move/u);
 });
 
 test("source-semantics ignores local names that are not configured source-core imports", () => {

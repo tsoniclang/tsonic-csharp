@@ -94,6 +94,58 @@ test("JS surface rejects selected Array.length without finalized array receiver 
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
+test("JS surface attributes array element diagnostics to the selected surface operation provider", () => {
+  const expression = {};
+  const receiver = {};
+  const receiverType = {};
+  const index = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiverType, int32ArrayType()],
+    [index, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    receiverType,
+    argument: index,
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionId, "tsonic.csharp.js.operations");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NON_INTEGRAL_ARRAY_INDEX");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface attributes string element diagnostics to the selected surface operation provider", () => {
+  const expression = {};
+  const receiver = {};
+  const receiverType = {};
+  const index = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiverType, stringType()],
+    [index, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    receiverType,
+    argument: index,
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionId, "tsonic.csharp.js.operations");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NON_INTEGRAL_STRING_INDEX");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps single-target calls from selected declaration identity without selected signature identity", () => {
   const call = {};
   const receiver = {};
