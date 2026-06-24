@@ -42,6 +42,28 @@ public unsafe sealed class PointerSignatures
     }
 }
 
+public sealed class RankedArraySignatures
+{
+    public int[,] MatrixField;
+
+    public RankedArraySignatures(int[,] matrix)
+    {
+        MatrixField = matrix;
+    }
+
+    public int[,] MatrixProperty => MatrixField;
+
+    public int[,] MatrixReturn()
+    {
+        return MatrixField;
+    }
+
+    public void AcceptMatrix(int[,] matrix)
+    {
+        MatrixField = matrix;
+    }
+}
+
 public unsafe delegate int PointerDelegate(int* pointer);
 
 public readonly struct GenericNumber<T>

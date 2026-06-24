@@ -63,6 +63,9 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
       };
     }
     case "array": {
+      if (type.rank !== undefined && type.rank !== 1) {
+        return undefined;
+      }
       const elementType = tryDotnetTypeRefToProviderType(type.elementType);
       return elementType === undefined ? undefined : { kind: "array", elementType };
     }

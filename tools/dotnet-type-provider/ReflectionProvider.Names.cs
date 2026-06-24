@@ -149,7 +149,7 @@ sealed partial class ReflectionProvider
     {
         if (type.IsArray)
         {
-            return $"{TypeMetadataName(type.GetElementType()!)}[]";
+            return $"{TypeMetadataName(type.GetElementType()!)}{ArrayRankSuffix(type)}";
         }
         if (type.IsGenericParameter)
         {
@@ -166,7 +166,7 @@ sealed partial class ReflectionProvider
     {
         if (type.IsArray)
         {
-            return $"{TypeTargetId(type.GetElementType()!)}[]";
+            return $"{TypeTargetId(type.GetElementType()!)}{ArrayRankSuffix(type)}";
         }
         if (type.IsGenericParameter)
         {
@@ -177,6 +177,16 @@ sealed partial class ReflectionProvider
             return $"{TargetId(type.GetGenericTypeDefinition())}<{string.Join(",", type.GetGenericArguments().Select(TypeTargetId))}>";
         }
         return TargetId(type);
+    }
+
+    static string ArrayRankSuffix(Type type)
+    {
+        if (type.IsSZArray)
+        {
+            return "[]";
+        }
+        var rank = type.GetArrayRank();
+        return rank == 1 ? "[*]" : $"[{new string(',', rank - 1)}]";
     }
 
     static string MetadataName(Type type)

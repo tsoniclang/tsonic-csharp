@@ -7,7 +7,7 @@ export function dotnetTypeRefKey(type: DotnetTypeRef): string {
     case "named":
       return `${type.targetId}<${(type.typeArguments ?? []).map(dotnetTypeRefKey).join(",")}>`;
     case "array":
-      return `${dotnetTypeRefKey(type.elementType)}[]`;
+      return `${dotnetTypeRefKey(type.elementType)}[${",".repeat((type.rank ?? 1) - 1)}]`;
     case "nullable":
       return `${dotnetTypeRefKey(type.elementType)}?`;
     case "tuple":

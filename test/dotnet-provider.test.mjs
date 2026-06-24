@@ -1573,6 +1573,7 @@ test(".NET reflection provider records unsupported members instead of silently d
   const genericHolder = typeByName.get("GenericHolder");
   const multiIndexer = typeByName.get("MultiIndexer");
   const pointerSignatures = typeByName.get("PointerSignatures");
+  const rankedArraySignatures = typeByName.get("RankedArraySignatures");
   const genericNumber = typeByName.get("GenericNumber");
   const pointerConversion = typeByName.get("PointerConversion");
   const pointerDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "PointerDelegate");
@@ -1580,6 +1581,7 @@ test(".NET reflection provider records unsupported members instead of silently d
   assert.ok(genericHolder);
   assert.ok(multiIndexer);
   assert.ok(pointerSignatures);
+  assert.ok(rankedArraySignatures);
   assert.ok(genericNumber);
   assert.ok(pointerConversion);
   assert.ok(pointerDelegate);
@@ -1641,6 +1643,42 @@ test(".NET reflection provider records unsupported members instead of silently d
     member.targetName === "ReadPointer" &&
     /parameter 'pointer'/u.test(member.reason) &&
     /System\.Int32\*/u.test(member.reason)
+  ));
+
+  const rankedArrayUnsupported = [...unsupportedMembersByMetadataName(rankedArraySignatures).values()];
+  assert.equal(rankedArraySignatures.members?.some((member) => member.targetName === "MatrixField") ?? false, false);
+  assert.equal(rankedArraySignatures.members?.some((member) => member.targetName === "MatrixProperty") ?? false, false);
+  assert.equal(rankedArraySignatures.members?.some((member) => member.targetName === "MatrixReturn") ?? false, false);
+  assert.equal(rankedArraySignatures.members?.some((member) => member.targetName === "AcceptMatrix") ?? false, false);
+  assert.ok(rankedArrayUnsupported.some((member) =>
+    member.memberKind === "constructor" &&
+    /parameter 'matrix'/u.test(member.reason) &&
+    /ranked CLR array/u.test(member.reason) &&
+    member.reason.includes("System.Int32[,]")
+  ));
+  assert.ok(rankedArrayUnsupported.some((member) =>
+    member.memberKind === "field" &&
+    member.targetName === "MatrixField" &&
+    /Field type/u.test(member.reason) &&
+    /ranked CLR array/u.test(member.reason)
+  ));
+  assert.ok(rankedArrayUnsupported.some((member) =>
+    member.memberKind === "property" &&
+    member.targetName === "MatrixProperty" &&
+    /Property type/u.test(member.reason) &&
+    /ranked CLR array/u.test(member.reason)
+  ));
+  assert.ok(rankedArrayUnsupported.some((member) =>
+    member.memberKind === "method" &&
+    member.targetName === "MatrixReturn" &&
+    /return type/u.test(member.reason) &&
+    /ranked CLR array/u.test(member.reason)
+  ));
+  assert.ok(rankedArrayUnsupported.some((member) =>
+    member.memberKind === "method" &&
+    member.targetName === "AcceptMatrix" &&
+    /parameter 'matrix'/u.test(member.reason) &&
+    /ranked CLR array/u.test(member.reason)
   ));
 
   const genericNumberUnsupported = unsupportedMembersByMetadataName(genericNumber);
