@@ -495,6 +495,164 @@ test("source-semantics records source-core marker facts and rejects unproven sto
   ));
 });
 
+test("source-semantics rejects source-core marker calls missing required type evidence", () => {
+  const sourceText = `
+    import { attribute, defaultof, field } from "@tsonic/core/lang.js";
+
+    const missingField = field();
+    const missingAttribute = attribute();
+    const missingDefault = defaultof();
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+      })],
+      ["/src/node_modules/@tsonic/core/lang.d.ts", [
+        "export declare function attribute<T>(): unknown;",
+        "export declare function defaultof<T>(): T;",
+        "export declare function field<T>(): T;",
+      ].join("\n")],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0002/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0005/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0006/);
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).sort(), [
+    "SOURCE_SEMANTICS_MISSING_ATTRIBUTE_TARGET_EVIDENCE",
+    "SOURCE_SEMANTICS_MISSING_DEFAULT_TYPE_EVIDENCE",
+    "SOURCE_SEMANTICS_MISSING_FIELD_TYPE_EVIDENCE",
+  ]);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "field")[0], fieldFactKey), undefined);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "attribute")[0], attributeFactKey), undefined);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "defaultof")[0], defaultValueFactKey), undefined);
+});
+
+test("source-semantics does not classify shadowed source-core marker names", () => {
+  const sourceText = `
+    import { out } from "@tsonic/core/lang.js";
+
+    let value!: number;
+    {
+      const out = <T>(input: T): T => input;
+      out(value);
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+      })],
+      ["/src/node_modules/@tsonic/core/lang.d.ts", [
+        "export declare function out<T>(target: T): void;",
+      ].join("\n")],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const calls = collectCallsByCalleeText(sourceFile, session.ast, "out");
+  assert.equal(calls.length, 1);
+  assert.equal(extensionHost.facts.get(calls[0], argumentPassingFactKey), undefined);
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+});
+
+test("source-semantics rejects attribute builder chains with unproven declaration targets", () => {
+  const sourceText = `
+    import { attribute } from "@tsonic/core/lang.js";
+
+    class ExampleAttribute {}
+    class User {
+      name = "";
+      save(route: string): void {}
+    }
+    const dynamicTarget = "return";
+    const dynamicParameter = "route";
+
+    attribute<User>().property((target) => target).add(ExampleAttribute);
+    attribute<User>().method((target) => target.save).parameter(dynamicParameter).add(ExampleAttribute);
+    attribute<User>().method((target) => target.save).target(dynamicTarget).add(ExampleAttribute);
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+      })],
+      ["/src/node_modules/@tsonic/core/lang.d.ts", [
+        "export interface AttributeBuilder<T> {",
+        "  add(attribute: object, ...args: unknown[]): void;",
+        "  property(selector: (target: T) => unknown): AttributeMemberBuilder<T>;",
+        "  method(selector: (target: T) => unknown): AttributeMemberBuilder<T>;",
+        "  constructor(): AttributeMemberBuilder<T>;",
+        "}",
+        "export interface AttributeMemberBuilder<T> {",
+        "  add(attribute: object, ...args: unknown[]): void;",
+        "  parameter(name: string): AttributeMemberBuilder<T>;",
+        "  target(specifier: string): AttributeMemberBuilder<T>;",
+        "}",
+        "export declare function attribute<T>(): AttributeBuilder<T>;",
+      ].join("\n")],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0004/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0007/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0008/);
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).sort(), [
+    "SOURCE_SEMANTICS_ATTRIBUTE_PARAMETER_NAME_NOT_PROVEN",
+    "SOURCE_SEMANTICS_ATTRIBUTE_SELECTOR_TARGET_NOT_PROVEN",
+    "SOURCE_SEMANTICS_ATTRIBUTE_TARGET_SPECIFIER_NOT_PROVEN",
+  ]);
+});
+
 test("C# target rejects neutral borrow and move markers instead of silently erasing them", () => {
   const sourceText = `
     import { borrow, borrowMut, move } from "@tsonic/core/lang.js";
