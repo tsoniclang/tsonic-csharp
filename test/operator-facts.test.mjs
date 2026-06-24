@@ -8,6 +8,7 @@ import {
   KindIdentifier,
   KindNoSubstitutionTemplateLiteral,
   KindObjectLiteralExpression,
+  KindPropertyAccessExpression,
   KindPrefixUnaryExpression,
   KindRegularExpressionLiteral,
   KindTemplateExpression,
@@ -95,6 +96,35 @@ test("assignment expression emission uses canonical assignment AST", () => {
   assert.equal(output.kind, "AssignmentExpression");
   assert.deepEqual(output.operatorToken, { kind: "EqualsToken" });
   assert.equal(printCsharpExpression(output), "left = right");
+});
+
+test("assignment expression fails closed when provider-owned storage lacks selected target facts", () => {
+  const receiver = identifier("target");
+  const left = propertyAccess(receiver, "value");
+  const right = identifier("source");
+  const expression = binary(left, right, "KindEqualsToken");
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.assign",
+      operationKind: "operator",
+      targetOperation: "=",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.assign",
+      operator: "=",
+    },
+    targetBindingSubject: receiver,
+  }), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output.reason, "assignment operand facts");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /C# property access 'value' must be selected by TSTS\/provider facts before emission/);
 });
 
 test("destructuring assignment fails closed without finalized storage facts", () => {
@@ -488,6 +518,14 @@ function identifier(name) {
   };
 }
 
+function propertyAccess(receiver, name) {
+  return {
+    Kind: KindPropertyAccessExpression,
+    Expression: receiver,
+    name: identifier(name),
+  };
+}
+
 function templateExpression(head, expression, tail) {
   return {
     Kind: KindTemplateExpression,
@@ -529,7 +567,9 @@ function fakeInput(options = {}) {
           ? options.runtimeCarrier
           : undefined),
       getObjectShapeFact: () => undefined,
-      getTargetBindingFact: () => undefined,
+      getTargetBindingFact: (subject) => subject === options.targetBindingSubject
+        ? { target: "csharp", id: "Example.Target", sourceName: "Target", targetName: "Target", kind: "class" }
+        : undefined,
       getSourcePrimitiveFact: (subject) => subject === options.sourcePrimitiveSubject
         ? { kind: "int32", runtimeBase: "number", signed: true, width: 32 }
         : undefined,

@@ -1,13 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { csharpObjectShapeFactKey } from "../dist/source/csharp-facts.js";
+import {
+  csharpObjectShapeFactKey,
+  csharpTargetOperationFactKey,
+} from "../dist/source/csharp-facts.js";
 import { objectShapeStorageMemberName } from "../dist/backend/planner/object-shapes.js";
 import { planObjectShapeSpreadAssignments } from "../dist/backend/planner/expression-object-literal-spread.js";
 import { tryPlanRecordDictionaryLiteralWithExpectedType } from "../dist/backend/planner/expression-dictionary-literals.js";
-import { planPropertyAccessExpression } from "../dist/backend/planner/expression-target-members.js";
 import {
+  planElementAccessExpression,
+  planPropertyAccessExpression,
+} from "../dist/backend/planner/expression-target-members.js";
+import {
+  KindElementAccessExpression,
   KindFalseKeyword,
   KindIdentifier,
+  KindNumericLiteral,
   KindObjectLiteralExpression,
   KindPropertyAccessExpression,
   KindPropertyAssignment,
@@ -17,6 +25,7 @@ import {
 } from "../dist/backend/planner/source-ast.js";
 import {
   csharpQualifiedTypeRenderShape,
+  csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
@@ -95,6 +104,103 @@ test("provider-owned property access without selected operation facts fails clos
 
   assert.deepEqual(planned, { kind: "InvalidExpression", reason: "missing target property fact" });
   assert.match(diagnostics[0].message, /must be selected by TSTS\/provider facts before emission/);
+});
+
+test("provider-owned property access emits from finalized selected member fact, not source spelling", () => {
+  const receiver = identifier("values");
+  const access = propertyAccess(receiver, "sourceSpellingMustNotPickTarget");
+  const diagnostics = [];
+  const operationId = "Example.Values.Actual";
+
+  const planned = planPropertyAccessExpression(
+    access,
+    {},
+    fakeInput({
+      selectedPropertySubject: access,
+      selectedProperty: targetOperation(operationId, "property"),
+      csharpOperationSubject: access,
+      csharpOperation: csharpMemberOperation(operationId, "property", "Actual"),
+    }),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "values" },
+    name: "Actual",
+  });
+});
+
+test("provider-owned property access rejects generic selected fact without C# operation fact", () => {
+  const receiver = identifier("values");
+  const access = propertyAccess(receiver, "actual");
+  const diagnostics = [];
+
+  const planned = planPropertyAccessExpression(
+    access,
+    {},
+    fakeInput({
+      selectedPropertySubject: access,
+      selectedProperty: targetOperation("Example.Values.Actual", "property"),
+    }),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.deepEqual(planned, { kind: "InvalidExpression", reason: "missing C# target property operation fact" });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
+  assert.match(diagnostics[0].message, /generic TSTS target operation 'Example\.Values\.Actual' is not enough/);
+});
+
+test("provider-owned element access emits only from finalized selected indexer facts", () => {
+  const receiver = identifier("values");
+  const access = elementAccess(receiver, numericLiteral("0"));
+  const diagnostics = [];
+  const operationId = "Example.Values.Item(System.Int32)";
+
+  const planned = planElementAccessExpression(
+    access,
+    {},
+    fakeInput({
+      selectedElementSubject: access,
+      selectedElement: targetOperation(operationId, "indexer"),
+      csharpOperationSubject: access,
+      csharpOperation: csharpMemberOperation(operationId, "indexer", "Item"),
+    }),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "ElementAccessExpression",
+    receiver: { kind: "IdentifierName", name: "values" },
+    argument: { kind: "LiteralExpression", value: 0 },
+  });
+});
+
+test("provider-owned element access rejects generic selected indexer without C# operation fact", () => {
+  const receiver = identifier("values");
+  const access = elementAccess(receiver, numericLiteral("0"));
+  const diagnostics = [];
+
+  const planned = planElementAccessExpression(
+    access,
+    {},
+    fakeInput({
+      selectedElementSubject: access,
+      selectedElement: targetOperation("Example.Values.Item(System.Int32)", "indexer"),
+    }),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.deepEqual(planned, { kind: "InvalidExpression", reason: "selected target element access operation" });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
 });
 
 test("object-shape method storage names require exact member identity", () => {
@@ -309,6 +415,21 @@ function propertyAccess(receiver, name) {
   };
 }
 
+function elementAccess(receiver, argument) {
+  return {
+    Kind: KindElementAccessExpression,
+    Expression: receiver,
+    ArgumentExpression: argument,
+  };
+}
+
+function numericLiteral(text) {
+  return {
+    Kind: KindNumericLiteral,
+    Text: text,
+  };
+}
+
 function objectLiteral(properties) {
   return {
     Kind: KindObjectLiteralExpression,
@@ -344,6 +465,9 @@ function falseKeyword() {
 }
 
 function planExpression(node) {
+  if (node.Kind === KindNumericLiteral) {
+    return { kind: "LiteralExpression", value: Number(node.Text) };
+  }
   return { kind: "IdentifierName", name: node.Text };
 }
 
@@ -369,16 +493,26 @@ function fakeInput(options = {}) {
     ast: fakeAst,
     sourceFiles: [],
     facts: {
-      getSelectedTargetProperty: () => undefined,
-      getSelectedTargetElementAccess: () => undefined,
+      getSelectedTargetProperty: (subject) => subject === options.selectedPropertySubject
+        ? options.selectedProperty
+        : undefined,
+      getSelectedTargetElementAccess: (subject) => subject === options.selectedElementSubject
+        ? options.selectedElement
+        : undefined,
       getSelectedTargetCall: () => undefined,
       getSelectedTargetOperator: () => undefined,
       getTargetBindingFact: (subject) => subject !== undefined && subject === options.targetBindingSubject
         ? { target: "csharp", id: "Example.Values", sourceName: "Values", targetName: "Values", kind: "class" }
         : undefined,
-      getFact: (subject, key) => key === csharpObjectShapeFactKey
-        ? objectShapes.get(subject)
-        : undefined,
+      getFact: (subject, key) => {
+        if (key === csharpObjectShapeFactKey) {
+          return objectShapes.get(subject);
+        }
+        if (key === csharpTargetOperationFactKey && subject === options.csharpOperationSubject) {
+          return options.csharpOperation;
+        }
+        return undefined;
+      },
       getRuntimeCarrierFact: (subject) => {
         const carrier = runtimeCarriers.get(subject);
         return carrier === undefined ? undefined : { carrier };
@@ -404,6 +538,25 @@ function fakeInput(options = {}) {
       getTargetBindingForReference: () => undefined,
       isProjectSourceShapeForNode: () => false,
     },
+  };
+}
+
+function targetOperation(operationId, operationKind) {
+  return {
+    operationId,
+    operationKind,
+    targetOperation: operationId,
+  };
+}
+
+function csharpMemberOperation(operationId, operationKind, memberName) {
+  return {
+    kind: "member",
+    operationId,
+    operationKind,
+    memberName,
+    declaringType: csharpTargetNamedType("Example.Values"),
+    resultType: csharpSourcePrimitiveTargetType("int32"),
   };
 }
 

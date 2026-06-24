@@ -113,11 +113,16 @@ export function tryPlanBinaryExpression(
     return invalidExpression("unsupported C# operator token");
   }
   if (assignmentOperatorToken !== undefined) {
+    const leftExpression = planExpression(left!, sourceFile, input, diagnostics);
+    const rightExpression = planExpression(right!, sourceFile, input, diagnostics);
+    if (leftExpression.kind === "InvalidExpression" || rightExpression.kind === "InvalidExpression") {
+      return invalidExpression("assignment operand facts");
+    }
     return {
       kind: "AssignmentExpression",
-      left: planExpression(left!, sourceFile, input, diagnostics),
+      left: leftExpression,
       operatorToken: assignmentOperatorToken,
-      right: planExpression(right!, sourceFile, input, diagnostics),
+      right: rightExpression,
     };
   }
   if (binaryOperatorToken === undefined) {
