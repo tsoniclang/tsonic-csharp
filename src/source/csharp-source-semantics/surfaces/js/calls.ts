@@ -12,10 +12,12 @@ import type {
   Node,
   SourceFile,
   TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   getArrayTargetMembers,
   getCsharpArrayLikeElementType,
+  isCsharpJsArrayCarrierTargetType,
 } from "./arrays.js";
 import {
   getMathTargetMembers,
@@ -219,6 +221,9 @@ function sourceLibraryCallReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
+  if (sourceMember.declaringName === "Object") {
+    return sourceLibraryObjectCallHasClosedFacts(request, context, sourceMember, host);
+  }
   if (!sourceLibraryCallRequiresClosedReceiver(sourceMember)) {
     return true;
   }
@@ -233,11 +238,43 @@ function sourceLibraryCallReceiverHasClosedFacts(
       return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType));
     case "RegExp":
       return receiverTypes.some((receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType));
-    case "Object":
-      return receiverTypes.some((receiverType) => isCsharpJsObjectCarrierTargetType(receiverType));
     default:
       return true;
   }
+}
+
+function sourceLibraryObjectCallHasClosedFacts(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  if (sourceMember.memberName === "hasOwnProperty") {
+    return getSourceLibraryCallReceiverTargetTypes(request, context, host)
+      .some((receiverType) => isCsharpJsObjectCarrierTargetType(receiverType));
+  }
+  const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
+  switch (sourceMember.memberName) {
+    case "keys":
+    case "values":
+    case "entries":
+      return isSupportedObjectHelperSourceTargetType(argumentTypes[0]);
+    case "assign":
+      return isCsharpJsObjectCarrierTargetType(argumentTypes[0]) &&
+        argumentTypes.slice(1).every(isSupportedObjectHelperSourceTargetType);
+    default:
+      return true;
+  }
+}
+
+function isSupportedObjectHelperSourceTargetType(type: TargetTypeRef | undefined): boolean {
+  return type !== undefined &&
+    (
+      isCsharpJsObjectCarrierTargetType(type) ||
+      isCsharpJsArrayCarrierTargetType(type) ||
+      type.kind === "source-primitive" ||
+      type.kind === "target-named" && type.id === "System.String"
+    );
 }
 
 function sourceLibraryArrayStaticCallRequiresNoReceiver(sourceMember: SourceLibraryMember): boolean {
@@ -266,6 +303,15 @@ function getSourceLibraryCallReceiverTargetTypes(
     }
   }
   return result;
+}
+
+function getSourceLibraryCallArgumentTargetTypes(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): readonly (TargetTypeRef | undefined)[] {
+  return request.arguments.map((argument) =>
+    host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, csharpJsCheckedTypeQuery)));
 }
 
 function getTargetTypeRefForOptionalSubject(

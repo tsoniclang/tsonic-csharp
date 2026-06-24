@@ -464,7 +464,7 @@ test("JS surface maps Object.keys from selected standard-library declaration and
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys");
   assert.equal(result.value.selectedSignature.member.static, true);
-  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].id, "System.String");
 });
 
@@ -484,7 +484,7 @@ test("JS surface maps Object.values from selected standard-library declaration a
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.values");
   assert.equal(result.value.selectedSignature.member.static, true);
-  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].id, "System.Object");
 });
 
@@ -504,10 +504,35 @@ test("JS surface maps Object.entries from selected standard-library declaration 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.entries");
   assert.equal(result.value.selectedSignature.member.static, true);
-  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].kind, "tuple");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].elements[0].id, "System.String");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].elements[1].id, "System.Object");
+});
+
+test("JS surface maps Object.keys for closed JSArray and string carriers", () => {
+  const arrayCall = {};
+  const arrayValue = {};
+  const stringCall = {};
+  const stringValue = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [arrayValue, jsArrayType(int32Type())],
+    [stringValue, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const arrayResult = provider.mapCheckedCall(jsCallRequest(arrayCall, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
+    arguments: [arrayValue],
+  }), fakeContext(facts));
+  const stringResult = provider.mapCheckedCall(jsCallRequest(stringCall, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
+    arguments: [stringValue],
+  }), fakeContext(facts));
+
+  assert.equal(arrayResult.kind, "accept");
+  assert.equal(arrayResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys");
+  assert.equal(stringResult.kind, "accept");
+  assert.equal(stringResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys");
 });
 
 test("JS surface maps Object.hasOwnProperty only from selected declaration and closed JSObject receiver", () => {
@@ -550,23 +575,49 @@ test("JS surface rejects Object.hasOwnProperty without closed JSObject receiver 
   assert.match(result.diagnostic.message, /receiver lacks finalized target runtime facts/);
 });
 
-test("JS surface hard-rejects unsupported Object calls and property-valued access", () => {
+test("JS surface maps Object.assign only from selected declaration and closed JSObject target facts", () => {
+  const facts = new TestFactStore();
+  const call = {};
+  const target = {};
+  const source = {};
+  const targetTypes = new Map([
+    [target, jsObjectType()],
+    [source, jsObjectType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
+    arguments: [target, source],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.assign");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSObject");
+});
+
+test("JS surface rejects Object.assign without closed JSObject target facts", () => {
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
   const call = {};
-  const expression = {};
 
   const callResult = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
     arguments: [{}, {}],
   }), fakeContext(facts));
-  const propertyResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), "assign"), fakeContext(facts));
 
   assert.equal(callResult.kind, "reject");
-  assert.equal(callResult.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(callResult.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
   assert.match(callResult.diagnostic.message, /Object\.assign/);
-  assert.equal(propertyResult.kind, "reject");
-  assert.equal(propertyResult.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
-  assert.match(propertyResult.diagnostic.message, /Object\.assign/);
+});
+
+test("JS surface defers Object.assign property-valued access to selected call facts", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+  const expression = {};
+
+  const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), "assign"), fakeContext(facts));
+
+  assert.equal(result.kind, "defer");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
 test("JS surface does not map console or Object calls without selected declarations", () => {
@@ -1359,6 +1410,16 @@ function jsObjectType() {
     kind: "target-named",
     id: "Tsonic.CSharp.Js.JSObject",
     csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "JSObject" },
+  };
+}
+
+function jsArrayType(elementType) {
+  return {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.JSArray`1",
+    typeArguments: [elementType],
+    csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "JSArray" },
+    arrayLiteralElementType: elementType,
   };
 }
 

@@ -242,21 +242,36 @@ function classifyArrayStaticCallArgumentUse(
   lifecycleContext: LifecycleContext,
 ): readonly ArrayUse[] {
   const sourceMember = getSelectedArraySourceLibraryMemberForCall(call, sourceFile, lifecycleContext);
-  if (sourceMember?.declaringName !== "Array") {
+  if (sourceMember === undefined) {
     return [];
   }
   const argumentIndex = getNodeList(getNodeField(call, "Arguments")).indexOf(identifier);
-  if (argumentIndex !== 0) {
-    return [];
-  }
-  switch (sourceMember.memberName) {
-    case "from":
-      return ["sequential-read"];
-    case "isArray":
-      return ["index-read"];
-    default:
+  if (sourceMember.declaringName === "Array") {
+    if (argumentIndex !== 0) {
       return [];
+    }
+    switch (sourceMember.memberName) {
+      case "from":
+        return ["sequential-read"];
+      case "isArray":
+        return ["index-read"];
+      default:
+        return [];
+    }
   }
+  if (sourceMember.declaringName === "Object") {
+    switch (sourceMember.memberName) {
+      case "keys":
+      case "values":
+      case "entries":
+        return argumentIndex === 0 ? ["full-js"] : [];
+      case "assign":
+        return argumentIndex > 0 ? ["full-js"] : [];
+      default:
+        return [];
+    }
+  }
+  return [];
 }
 
 const denseMutatingArrayMethods = new Set([
@@ -355,7 +370,11 @@ function arraySourceLibraryMemberFromDeclaration(
 ): SourceLibraryMember | undefined {
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   const member = getSourceLibraryMember(declaration, context);
-  return member !== undefined && (member.declaringName === "Array" || member.declaringName === "ReadonlyArray")
+  return member !== undefined && (
+    member.declaringName === "Array" ||
+    member.declaringName === "ReadonlyArray" ||
+    member.declaringName === "Object"
+  )
     ? member
     : undefined;
 }
