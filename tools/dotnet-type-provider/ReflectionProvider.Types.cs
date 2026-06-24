@@ -43,11 +43,24 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedSourceExportReason(Type type)
     {
-        if (IsDelegate(type) && DelegateSourceShape(type) is null)
+        return IsDelegate(type) ? UnsupportedDelegateSourceShapeReason(type) : null;
+    }
+
+    string? UnsupportedDelegateSourceShapeReason(Type type)
+    {
+        var invoke = type.GetMethod("Invoke");
+        if (invoke is null)
         {
-            return "Delegate invoke signature cannot be represented as provider source declarations; the type is retained as target-only .NET data.";
+            return "Delegate has no provider-visible Invoke method, so no source function declaration can be generated.";
         }
-        return null;
+        if (Parameters(invoke.GetParameters()) is null)
+        {
+            return $"{UnsupportedParametersReason(invoke.GetParameters(), "Delegate invoke signature")}; the type is retained as target-only .NET data.";
+        }
+        var returnReason = UnsupportedReturnTypeReason(invoke.ReturnType, "Delegate invoke return type");
+        return returnReason is null
+            ? null
+            : $"{returnReason}; the type is retained as target-only .NET data.";
     }
 
     object? BaseType(Type type)

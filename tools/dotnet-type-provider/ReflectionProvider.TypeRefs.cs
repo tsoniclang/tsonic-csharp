@@ -270,6 +270,10 @@ sealed partial class ReflectionProvider
 
     object? DelegateSourceShape(Type type)
     {
+        if (UnsupportedDelegateSourceShapeReason(type) is not null)
+        {
+            return null;
+        }
         var invoke = type.GetMethod("Invoke");
         if (invoke is null)
         {

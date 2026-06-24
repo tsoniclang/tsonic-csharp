@@ -85,6 +85,8 @@ public sealed class ByRefReturnSignatures
 
 public unsafe delegate int PointerDelegate(int* pointer);
 
+public delegate ref int RefReturnDelegate();
+
 public readonly struct GenericNumber<T>
 {
     public static GenericNumber<T> operator +(GenericNumber<T> left, GenericNumber<T> right)

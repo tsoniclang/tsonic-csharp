@@ -115,6 +115,25 @@ function stripAssemblyQualifiers(id) {
     .replace(/\+/gu, ".");
 }
 
+function collectProviderRefs(value, predicate, refs = []) {
+  if (value === null || typeof value !== "object") {
+    return refs;
+  }
+  if (value.kind === "provider-ref" && predicate(value)) {
+    refs.push(value);
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectProviderRefs(item, predicate, refs);
+    }
+    return refs;
+  }
+  for (const nested of Object.values(value)) {
+    collectProviderRefs(nested, predicate, refs);
+  }
+  return refs;
+}
+
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@tsonic/dotnet/System.Collections.Generic.js",
@@ -1455,6 +1474,27 @@ test(".NET provider source declarations omit constructor-named non-constructor m
   assert.equal(customAttributeData.members.some((member) => member.kind !== "constructor" && member.name === "constructor"), false);
 });
 
+test(".NET provider inheritance keeps provider refs in their owning virtual module", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const reflectionModule = provider.getModule("@tsonic/dotnet/System.Reflection.js", {});
+  assert.equal("exports" in reflectionModule, true);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(reflectionModule, {
+    resolveModule(specifier) {
+      const module = provider.getModule(specifier, {});
+      return "exports" in module ? module : undefined;
+    },
+  });
+  const badRefs = collectProviderRefs(
+    declarationModel,
+    (ref) =>
+      (ref.name === "CustomAttributeData" || ref.name === "MemberInfo") &&
+      ref.moduleSpecifier === "@tsonic/dotnet/System.js",
+  );
+
+  assert.deepEqual(badRefs, []);
+});
+
 test(".NET provider source declarations omit signatures that reference unexportable provider refs", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const threadingModule = provider.getModule("@tsonic/dotnet/System.Threading.js", {});
@@ -1578,6 +1618,7 @@ test(".NET reflection provider records unsupported members instead of silently d
   const genericNumber = typeByName.get("GenericNumber");
   const pointerConversion = typeByName.get("PointerConversion");
   const pointerDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "PointerDelegate");
+  const refReturnDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "RefReturnDelegate");
   assert.ok(staticInterface);
   assert.ok(genericHolder);
   assert.ok(multiIndexer);
@@ -1587,6 +1628,7 @@ test(".NET reflection provider records unsupported members instead of silently d
   assert.ok(genericNumber);
   assert.ok(pointerConversion);
   assert.ok(pointerDelegate);
+  assert.ok(refReturnDelegate);
 
   const staticInterfaceUnsupported = unsupportedMembersByMetadataName(staticInterface);
   assert.equal(staticInterface.members?.some((member) => member.targetName === "Create") ?? false, false);
@@ -1736,6 +1778,16 @@ test(".NET reflection provider records unsupported members instead of silently d
   assert.equal(unsupportedPointerDelegate.metadataName, "ProviderUnsupportedMemberFixtures.PointerDelegate");
   assert.match(unsupportedPointerDelegate.reason, /Delegate invoke signature/u);
   assert.equal(pointerDelegate.metadataName, "ProviderUnsupportedMemberFixtures.PointerDelegate");
+
+  assert.equal(module.exports.some((declaration) => declaration.sourceName === "RefReturnDelegate"), false);
+  const unsupportedRefReturnDelegate = module.unsupportedExports?.find((declaration) =>
+    declaration.kind === "unsupported-type-export" &&
+    declaration.sourceName === "RefReturnDelegate"
+  );
+  assert.ok(unsupportedRefReturnDelegate);
+  assert.equal(unsupportedRefReturnDelegate.metadataName, "ProviderUnsupportedMemberFixtures.RefReturnDelegate");
+  assert.match(unsupportedRefReturnDelegate.reason, /Delegate invoke return type returns 'System\.Int32&' by reference/u);
+  assert.equal(refReturnDelegate.metadataName, "ProviderUnsupportedMemberFixtures.RefReturnDelegate");
 });
 
 test(".NET target binding facts preserve unsupported target-only constraint evidence", () => {
