@@ -82,7 +82,7 @@ export function recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(
         return;
       }
       recordCsharpJsRegExpLiteralFact(node, context);
-      if (lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) === undefined) {
+      if (!isCsharpJsRegExpRuntimeCarrier(lifecycleContext.host.facts.get(node, runtimeCarrierFactKey)?.carrier)) {
         lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, {
           carrier: csharpJsRegExpTargetType(),
         }, [{ message: "C# JS surface RegExp literal runtime carrier recorded from source syntax." }]);

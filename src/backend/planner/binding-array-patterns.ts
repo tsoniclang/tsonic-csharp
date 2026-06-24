@@ -7,6 +7,7 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
+  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
@@ -24,6 +25,7 @@ export function planArrayBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
+  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,
   sourceCarrierOverride?: TargetTypeRef,
 ): readonly CsharpStatement[] {
   const sourceCarrier = sourceCarrierOverride ?? getRuntimeCarrierForExpression(input, sourceNode, sourceFile);
@@ -37,9 +39,19 @@ export function planArrayBindingPattern(
       return [];
     }
     const elementCarrier = sourceCarrier.kind === "array" ? sourceCarrier.element : sourceCarrier.elements[index];
-    return planArrayBindingElement(elementNode, sourceExpression, index, elementCarrier, sourceCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planArrayBindingElement(elementNode, sourceExpression, index, elementCarrier, sourceCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
   });
 }
+
+export type BindingDefaultExpressionPlanner = (
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  expectedType: CsharpTypeNode,
+  expectedTypeSubject?: Node,
+  state?: DestructuringPlannerState,
+) => CsharpExpression;
 
 function planArrayBindingElement(
   elementNode: Node,
@@ -52,6 +64,7 @@ function planArrayBindingElement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
+  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,
 ): readonly CsharpStatement[] {
   const element = AsBindingElement(elementNode);
   if (element === undefined) {
@@ -72,8 +85,16 @@ function planArrayBindingElement(
     return [];
   }
   if (element.Initializer !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array and tuple destructuring defaults require finalized undefined/default-value element facts before C# emission."));
-    return [];
+    if (sourceCarrier.kind !== "array") {
+      diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Tuple destructuring defaults require finalized tuple optional-element facts before C# emission."));
+      return [];
+    }
+    if (planDefaultExpressionWithExpectedType === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array destructuring defaults require the active expression planner before C# emission."));
+      return [];
+    }
+    const fallback = planArrayBindingDefaultProjection(sourceExpression, index, projected, element.Initializer, sourceFile, input, diagnostics, projectedType, state, planDefaultExpressionWithExpectedType);
+    return planBindingNameFromProjection(name, fallback, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
   }
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
 }
@@ -94,6 +115,35 @@ function planArrayBindingProjection(
     kind: "ElementAccessExpression",
     receiver: sourceExpression,
     argument: { kind: "LiteralExpression", value: index },
+  };
+}
+
+function planArrayBindingDefaultProjection(
+  sourceExpression: CsharpExpression,
+  index: number,
+  projected: CsharpExpression,
+  initializer: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  projectedType: CsharpTypeNode,
+  state: DestructuringPlannerState,
+  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
+): CsharpExpression {
+  return {
+    kind: "ConditionalExpression",
+    condition: {
+      kind: "BinaryExpression",
+      left: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: sourceExpression,
+        name: "Length",
+      },
+      operatorToken: { kind: "GreaterThanToken" },
+      right: { kind: "LiteralExpression", value: index },
+    },
+    whenTrue: projected,
+    whenFalse: planDefaultExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, projectedType, initializer, state),
   };
 }
 

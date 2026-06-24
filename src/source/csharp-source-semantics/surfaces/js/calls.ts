@@ -98,22 +98,53 @@ function sourceLibraryCallReceiverHasClosedFacts(
   if (!sourceLibraryCallRequiresClosedReceiver(sourceMember)) {
     return true;
   }
-  const receiverType = host.unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.calleeReceiver, context, csharpJsCheckedTypeQuery),
-  );
+  const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
   switch (sourceMember.declaringName) {
     case "Array":
     case "ReadonlyArray":
-      return receiverType?.kind === "array";
+      return receiverTypes.some((receiverType) => receiverType.kind === "array");
     case "String":
-      return host.isCsharpStringType(receiverType);
+      return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType));
     case "RegExp":
-      return isCsharpJsRegExpRuntimeCarrier(receiverType);
+      return receiverTypes.some((receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType));
     case "Object":
-      return isCsharpJsObjectCarrierTargetType(receiverType);
+      return receiverTypes.some((receiverType) => isCsharpJsObjectCarrierTargetType(receiverType));
     default:
       return true;
   }
+}
+
+function getSourceLibraryCallReceiverTargetTypes(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): readonly NonNullable<ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]>>[] {
+  const candidates = [
+    request.calleeReceiver,
+    request.calleeReceiverSymbol,
+    request.calleeReceiverResolvedSymbol,
+    request.calleeReceiverAliasedSymbol,
+    request.calleeReceiverType,
+    request.calleeReceiverTypeSymbol,
+  ];
+  const result: NonNullable<ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]>>[] = [];
+  for (const candidate of candidates) {
+    const targetType = host.unwrapNullableTargetType(getTargetTypeRefForOptionalSubject(candidate, context, host));
+    if (targetType !== undefined && !result.includes(targetType)) {
+      result.push(targetType);
+    }
+  }
+  return result;
+}
+
+function getTargetTypeRefForOptionalSubject(
+  subject: CheckedCallMappingRequest["calleeReceiverType"],
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
+  return subject === undefined
+    ? undefined
+    : host.getTargetTypeRefForSubject(subject, context, csharpJsCheckedTypeQuery);
 }
 
 function sourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMember): boolean {

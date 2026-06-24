@@ -349,7 +349,7 @@ test("nested array parameter destructuring uses finalized nested array carrier f
   ]);
 });
 
-test("array binding defaults fail closed until undefined/default element facts exist", () => {
+test("array binding defaults emit finalized length-guarded projections", () => {
   const first = identifier("first");
   const pattern = arrayBindingPattern([
     bindingElement(first, { initializer: numericLiteral("42") }),
@@ -368,9 +368,31 @@ test("array binding defaults fail closed until undefined/default element facts e
     createDestructuringPlannerState(),
   );
 
-  assert.deepEqual(statements, []);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Array and tuple destructuring defaults require finalized undefined\/default-value element facts/);
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "first",
+    type: { kind: "PredefinedType", name: "int" },
+    initializer: {
+      kind: "ConditionalExpression",
+      condition: {
+        kind: "BinaryExpression",
+        left: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "value" },
+          name: "Length",
+        },
+        operatorToken: { kind: "GreaterThanToken" },
+        right: { kind: "LiteralExpression", value: 0 },
+      },
+      whenTrue: {
+        kind: "ElementAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        argument: { kind: "LiteralExpression", value: 0 },
+      },
+      whenFalse: { kind: "LiteralExpression", value: 42 },
+    },
+  }]);
+  assert.equal(diagnostics.length, 0);
 });
 
 test("object rename and rest destructuring emit from finalized object-shape facts", () => {

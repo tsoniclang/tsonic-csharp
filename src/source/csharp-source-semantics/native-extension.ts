@@ -28,7 +28,7 @@ import {
   asType,
 } from "./target-ref-utils.js";
 import {
-  createCsharpNativeOperationsProvider,
+  createCsharpCompositeOperationsProvider,
 } from "./operations-provider.js";
 import {
   recordCsharpRuntimeCarrierFactsBeforeFinalization,
@@ -44,6 +44,9 @@ import {
 import {
   recordCsharpCheckedOperatorFactsBeforeFinalization,
 } from "./checked-operator-lifecycle.js";
+import {
+  recordCsharpCheckedOperationFactsBeforeFinalization,
+} from "./checked-operation-lifecycle.js";
 import {
   recordCsharpSelectedCallOperationFactsBeforeFinalization,
 } from "./csharp-operation-lifecycle.js";
@@ -65,6 +68,11 @@ import {
 import {
   createCsharpExtensionSemanticHosts,
 } from "./semantic-hosts.js";
+import {
+  recordCsharpSelectedSurfaceOperationFactsBeforeFinalization,
+  recordCsharpSelectedSurfaceSeedFactsBeforeFinalization,
+  registerCsharpSelectedSurfaceProviders,
+} from "./surface-extensions.js";
 
 export function createCsharpTargetSemanticsExtension(context: TargetProviderContext): CompilerExtension {
   const hosts = createCsharpExtensionSemanticHosts(context);
@@ -78,15 +86,20 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       kind: "target",
       target: csharpTargetId,
     },
-    initialize(context): void {
-      context.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
-      context.registerTargetBindingProvider(createDotnetTargetBindingProvider({
+    initialize(extensionContext): void {
+      extensionContext.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
+      extensionContext.registerTargetBindingProvider(createDotnetTargetBindingProvider({
         provider: hosts.dotnetProvider,
         references: hosts.dotnetReflectionReferences,
         targetFramework: hosts.dotnetTargetFramework,
       }));
-      context.registerTargetSemanticProvider(createCsharpNativeOperationsProvider(hosts.operationsProviderHost));
-      context.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
+      extensionContext.registerTargetSemanticProvider(createCsharpCompositeOperationsProvider(hosts.operationsProviderHost, {
+        jsSurface: context.selectedSurfaces.some((surface) => surface.id === "js"),
+        nodejsSurface: context.selectedSurfaces.some((surface) => surface.id === "nodejs"),
+      }));
+      registerCsharpSelectedSurfaceProviders(context, extensionContext);
+      extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
+        recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(context, lifecycleContext);
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
         recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext);
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
@@ -96,11 +109,13 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost);
+        recordCsharpCheckedOperationFactsBeforeFinalization(lifecycleContext);
+        recordCsharpSelectedSurfaceOperationFactsBeforeFinalization(context, lifecycleContext, hosts);
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
         diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode);
         validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
       });
-      context.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
+      extensionContext.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         if (asType(subject) !== undefined) {
           return undefined;
         }

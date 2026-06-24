@@ -89,7 +89,7 @@ export interface CsharpJsSurfaceHost {
   ) => ExtensionDiagnostic;
 }
 
-export const csharpJsCheckedTypeQuery = { allowSemanticTypeQuery: false } satisfies CsharpJsTargetTypeRefResolutionOptions;
+export const csharpJsCheckedTypeQuery = { allowSemanticTypeQuery: true } satisfies CsharpJsTargetTypeRefResolutionOptions;
 
 export function range(count: number): readonly number[] {
   return Array.from({ length: count }, (_value, index) => index);

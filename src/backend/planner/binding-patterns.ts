@@ -13,6 +13,7 @@ import type {
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import { planArrayBindingPattern } from "./binding-array-patterns.js";
+import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { allocateDestructuringTemp } from "./binding-state.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
@@ -25,6 +26,7 @@ import {
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 
 export function planBindingPatternFromExpression(
   patternNode: Node,
@@ -35,12 +37,35 @@ export function planBindingPatternFromExpression(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   sourceCarrier?: TargetTypeRef,
+  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
+  const projectionPlanner: BindingProjectionPlanner = (
+    name,
+    projected,
+    projectedType,
+    projectionNode,
+    projectionSourceFile,
+    projectionInput,
+    projectionDiagnostics,
+    projectionState,
+    projectedCarrier,
+  ) => planBindingNameFromProjection(
+    name,
+    projected,
+    projectedType,
+    projectionNode,
+    projectionSourceFile,
+    projectionInput,
+    projectionDiagnostics,
+    projectionState,
+    projectedCarrier,
+    planDefaultExpressionWithExpectedType,
+  );
   if (HasSourceKind(input.ast, patternNode, KindArrayBindingPattern)) {
-    return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, planBindingNameFromProjection, sourceCarrier);
+    return planArrayBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner, planDefaultExpressionWithExpectedType, sourceCarrier);
   }
   if (HasSourceKind(input.ast, patternNode, KindObjectBindingPattern)) {
-    return planObjectBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planObjectBindingPattern(patternNode, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, projectionPlanner);
   }
   diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Binding pattern is outside the current C# planning surface."));
   return [];
@@ -56,6 +81,7 @@ function planBindingNameFromProjection(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   projectedCarrier?: TargetTypeRef,
+  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   if (HasSourceKind(input.ast, name, KindIdentifier)) {
     return [{
@@ -76,7 +102,7 @@ function planBindingNameFromProjection(
         type: nestedType,
         initializer: projected,
       },
-      ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state, projectedCarrier),
+      ...planBindingPatternFromExpression(name, nestedSource, projectionNode, sourceFile, input, diagnostics, state, projectedCarrier, planDefaultExpressionWithExpectedType),
     ];
   }
   diagnostics.push(unsupportedNodeDiagnostic(name, "Destructuring target binding name is outside the current C# planning surface."));

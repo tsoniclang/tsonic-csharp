@@ -2,7 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
 import { csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { createCsharpJsSurfaceOperationsProvider, createCsharpNativeOperationsProvider, createCsharpNodejsSurfaceOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
+import { createCsharpCompositeOperationsProvider, createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
+
+function createCsharpJsSurfaceOperationsProvider(host) {
+  return createCsharpCompositeOperationsProvider(host, { jsSurface: true });
+}
+
+function createCsharpNodejsSurfaceOperationsProvider() {
+  return createCsharpCompositeOperationsProvider(fakeHost(undefined), { nodejsSurface: true });
+}
 
 test("Array.length is not mapped without the JS surface", () => {
   const expression = {};

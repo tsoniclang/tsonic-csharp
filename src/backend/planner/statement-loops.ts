@@ -168,6 +168,8 @@ function planForOfBinding(
           input,
           diagnostics,
           state,
+          undefined,
+          planExpressionWithExpectedType,
         ),
       };
     }
