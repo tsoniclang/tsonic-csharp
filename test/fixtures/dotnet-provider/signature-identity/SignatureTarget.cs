@@ -31,3 +31,16 @@ public sealed class SignatureTarget
     {
     }
 }
+
+public static class MixedExtensionTarget
+{
+    public static int Transform(string value)
+    {
+        return value.Length;
+    }
+
+    public static int Transform(this string value, int offset)
+    {
+        return value.Length + offset;
+    }
+}

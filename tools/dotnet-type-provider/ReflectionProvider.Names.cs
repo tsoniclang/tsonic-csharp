@@ -83,7 +83,7 @@ sealed partial class ReflectionProvider
 
     static string MethodGroupKey(MethodInfo method)
     {
-        return $"{method.IsStatic}:{method.Name}";
+        return $"{method.IsStatic}:{(IsExtensionMethod(method) ? "first-argument" : "normal")}:{method.Name}";
     }
 
     static string MethodId(MethodInfo method)

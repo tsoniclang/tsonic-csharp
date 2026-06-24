@@ -86,6 +86,11 @@ import {
   nodeProcessPropertyTargetMembers,
 } from "./process.js";
 import {
+  nodeUtilCallTargetMembers,
+  nodeUtilModuleSpecifier,
+  nodeUtilUnsupportedTargetIdentities,
+} from "./util.js";
+import {
   csharpNodejsVirtualDeclarationFileName,
   nodejsExportDeclarationIdentity,
   nodejsExportMemberDeclarationIdentity,
@@ -161,12 +166,25 @@ export function getNodejsTargetIdentity(symbol: ProviderSymbolIdentity): TargetI
         ...symbol,
         moduleSpecifier: canonicalSpecifier,
       }));
-  return member === undefined
+  if (member !== undefined) {
+    return {
+      target: csharpTargetId,
+      id: member.id,
+      displayName: member.targetName,
+    };
+  }
+  const unsupported = canonicalSpecifier === undefined
+    ? undefined
+    : nodejsUnsupportedTargetIdentitiesByProviderSymbol.get(nodejsProviderSymbolIdentityKey({
+        ...symbol,
+        moduleSpecifier: canonicalSpecifier,
+      }));
+  return unsupported === undefined
     ? undefined
     : {
         target: csharpTargetId,
-        id: member.id,
-        displayName: member.targetName,
+        id: unsupported.targetIdentityId,
+        displayName: unsupported.displayName,
       };
 }
 
@@ -192,6 +210,7 @@ const nodejsCallTargetMembersByDeclarationIdentity = new Map<string, TargetMembe
   ...nodejsCallTargetMemberEntriesForModule(nodeCryptoModuleSpecifier, nodeCryptoCallTargetMembers()),
   ...nodejsCallTargetMemberEntriesForModule(nodeOsModuleSpecifier, nodeOsCallTargetMembers()),
   ...nodejsCallTargetMemberEntriesForModule(nodeProcessModuleSpecifier, nodeProcessCallTargetMembers()),
+  ...nodejsCallTargetMemberEntriesForModule(nodeUtilModuleSpecifier, nodeUtilCallTargetMembers()),
 ]);
 
 const nodejsPropertyTargetMembersByDeclarationIdentity = new Map<string, TargetMember>([
@@ -224,7 +243,15 @@ const nodejsTargetMembersByProviderSymbolIdentity = new Map<string, TargetMember
   ...nodejsProviderPropertySymbolTargetMemberEntriesForModule(nodeOsModuleSpecifier, nodeOsPropertyTargetMembers()),
   ...nodejsProviderSymbolTargetMemberEntriesForModule(nodeProcessModuleSpecifier, nodeProcessCallTargetMembers()),
   ...nodejsProviderPropertySymbolTargetMemberEntriesForModule(nodeProcessModuleSpecifier, nodeProcessPropertyTargetMembers()),
+  ...nodejsProviderSymbolTargetMemberEntriesForModule(nodeUtilModuleSpecifier, nodeUtilCallTargetMembers()),
 ]);
+
+const nodejsUnsupportedTargetIdentitiesByProviderSymbol = new Map(
+  nodeUtilUnsupportedTargetIdentities().flatMap((identity) => [
+    [nodejsProviderExportSymbolIdentityKey(nodeUtilModuleSpecifier, identity.exportName, undefined), identity],
+    [nodejsProviderExportSymbolIdentityKey(nodeUtilModuleSpecifier, identity.exportName, identity.signatureId), identity],
+  ]),
+);
 
 function nodejsCallTargetMemberEntries(
   moduleSpecifier: string,

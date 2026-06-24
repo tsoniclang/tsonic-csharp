@@ -41,6 +41,10 @@ import {
   nodeProcessModuleSpecifier,
 } from "./process.js";
 import {
+  nodeUtilExports,
+  nodeUtilModuleSpecifier,
+} from "./util.js";
+import {
   canonicalNodejsModuleSpecifier,
   isSupportedNodejsModuleSpecifier,
 } from "./module-specifiers.js";
@@ -52,6 +56,7 @@ const canonicalModules = new Map<string, readonly ProviderExportDeclaration[]>([
   [nodeCryptoModuleSpecifier, nodeCryptoExports()],
   [nodeOsModuleSpecifier, nodeOsExports()],
   [nodeProcessModuleSpecifier, nodeProcessExports()],
+  [nodeUtilModuleSpecifier, nodeUtilExports()],
 ]);
 
 export function createCsharpNodejsSurfaceBindingProvider(): TargetBindingProvider {

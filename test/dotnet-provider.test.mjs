@@ -1747,6 +1747,54 @@ test(".NET reflection provider signature ids preserve byref modes and generic me
   assert.ok(binding.members.some((member) => idEndsWith(member.id, "ProviderSignatureFixtures.SignatureTarget.Generic``2()")));
 });
 
+test(".NET reflection provider preserves extension receiver passing per selected signature identity", () => {
+  const reference = buildSignatureIdentityFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderSignatureFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const rawTarget = module.exports.find((declaration) => declaration.sourceName === "MixedExtensionTarget");
+  assert.ok(rawTarget);
+  const rawTransformMembers = rawTarget.members.filter((member) =>
+    member.kind === "method" &&
+    member.targetName === "Transform"
+  );
+  assert.equal(rawTransformMembers.length, 2);
+
+  const rawStaticTransform = rawTransformMembers.find((member) =>
+    member.receiverPassing === undefined &&
+    member.signatures.some((signature) => idEndsWith(signature.id, "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String)"))
+  );
+  const rawExtensionTransform = rawTransformMembers.find((member) =>
+    member.receiverPassing === "first-argument" &&
+    member.signatures.some((signature) => idEndsWith(signature.id, "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String,System.Int32)"))
+  );
+  assert.ok(rawStaticTransform);
+  assert.ok(rawExtensionTransform);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "MixedExtensionTarget");
+  assert.ok(sourceTarget);
+  const sourceTransform = sourceTarget.members.find((member) => member.kind === "method" && member.name === "transform");
+  assert.ok(sourceTransform);
+  assert.deepEqual(sourceTransform.signatures.map((signature) => stripAssemblyQualifiers(signature.id)).sort(), [
+    "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String)",
+    "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String,System.Int32)",
+  ]);
+
+  const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderSignatureFixtures.js", "ProviderSignatureFixtures.MixedExtensionTarget");
+  const targetStaticTransform = binding.members.find((member) =>
+    idEndsWith(member.id, "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String)")
+  );
+  const targetExtensionTransform = binding.members.find((member) =>
+    idEndsWith(member.id, "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String,System.Int32)")
+  );
+  assert.ok(targetStaticTransform);
+  assert.ok(targetExtensionTransform);
+  assert.equal(targetStaticTransform.receiverPassing, undefined);
+  assert.equal(targetExtensionTransform.receiverPassing, "first-argument");
+});
+
 test(".NET reflection provider classifies unsupported type families without silently dropping them", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});

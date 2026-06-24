@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { providerVirtualDeclarationFactKey, runtimeCarrierFactKey } from "@tsonic/tsts";
 import { csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpCompositeOperationsProvider, createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
+import { createCsharpNodejsSurfaceBindingProvider } from "../dist/source/csharp-source-semantics/surfaces/nodejs/index.js";
 
 function createCsharpJsSurfaceOperationsProvider(host) {
   return createCsharpCompositeOperationsProvider(host, { jsSurface: true });
@@ -1048,6 +1049,84 @@ test("NodeJS surface maps expanded crypto and os calls from selected provider si
   assert.equal(cryptoResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.crypto.randomInt(System.Int32,System.Int32?)");
   assert.equal(osResult.kind, "accept");
   assert.equal(osResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.os.tmpdir()");
+});
+
+test("NodeJS surface exposes util as a provider-owned virtual module", () => {
+  const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
+
+  const ownership = bindingProvider.ownsModule("util", {});
+  const resolution = bindingProvider.resolveModule("util", {});
+  assert.equal(ownership.kind, "owned");
+  assert.equal(resolution.kind, "virtual");
+  assert.equal(resolution.providerModuleId, "node:util");
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal(model.moduleSpecifier, "util");
+  assert.equal(model.providerModuleId, "node:util");
+  const format = model.exports.find((entry) => entry.name === "format");
+  const formatSignature = format?.signatures?.[0];
+  const strip = model.exports.find((entry) => entry.name === "stripVTControlCharacters");
+  const stripSignature = strip?.signatures?.[0];
+  assert.equal(format?.kind, "function");
+  assert.equal(formatSignature?.id, "node:util.format(System.Object,System.Object[])");
+  assert.equal(formatSignature?.parameters[1]?.rest, true);
+  assert.equal(formatSignature?.parameters[0]?.type.kind, "unknown");
+  assert.equal(strip?.kind, "function");
+  assert.equal(stripSignature?.id, "node:util.stripVTControlCharacters(System.String)");
+
+  const unsupportedIdentity = bindingProvider.getTargetIdentity({
+    moduleSpecifier: "util",
+    exportName: "format",
+    signatureId: "node:util.format(System.Object,System.Object[])",
+  });
+  const closedIdentity = bindingProvider.getTargetIdentity({
+    moduleSpecifier: "util",
+    exportName: "stripVTControlCharacters",
+    signatureId: "node:util.stripVTControlCharacters(System.String)",
+  });
+  assert.equal(unsupportedIdentity?.id, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
+  assert.equal(closedIdentity?.id, "Tsonic.CSharp.Node.util.stripVTControlCharacters(System.String)");
+});
+
+test("NodeJS surface maps closed util string calls from selected provider signature identity", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const stripCall = {};
+  const stripSignature = {};
+  const usvCall = {};
+  const usvSignature = {};
+  facts.set(stripSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "stripVTControlCharacters", "node:util.stripVTControlCharacters(System.String)"));
+  facts.set(usvSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "toUSVString", "node:util.toUSVString(System.String)"));
+
+  const stripResult = provider.mapCheckedCall(nodejsCallRequest(stripCall, stripSignature), fakeContext(facts));
+  const usvResult = provider.mapCheckedCall(nodejsCallRequest(usvCall, usvSignature), fakeContext(facts));
+
+  assert.equal(stripResult.kind, "accept");
+  assert.equal(stripResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.util.stripVTControlCharacters(System.String)");
+  assert.equal(usvResult.kind, "accept");
+  assert.equal(usvResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.util.toUSVString(System.String)");
+});
+
+test("NodeJS surface fails closed for unsupported util provider identities", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const formatCall = {};
+  const formatSignature = {};
+  const inspectCall = {};
+  const inspectSignature = {};
+  facts.set(formatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "format", "node:util.format(System.Object,System.Object[])"));
+  facts.set(inspectSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "inspect", "node:util.inspect(System.Object)"));
+
+  const formatResult = provider.mapCheckedCall(nodejsCallRequest(formatCall, formatSignature), fakeContext(facts));
+  const inspectResult = provider.mapCheckedCall(nodejsCallRequest(inspectCall, inspectSignature), fakeContext(facts));
+
+  assert.equal(formatResult.kind, "reject");
+  assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.match(formatResult.diagnostic.message, /node:util/);
+  assert.match(formatResult.diagnostic.message, /format/);
+  assert.equal(inspectResult.kind, "reject");
+  assert.equal(inspectResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.match(inspectResult.diagnostic.message, /inspect/);
 });
 
 test("NodeJS surface maps Buffer static calls from selected provider member signature identity", () => {
