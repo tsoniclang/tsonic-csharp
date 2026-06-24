@@ -10,6 +10,7 @@ import {
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
+  csharpTargetMutationOperationFactKey,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
 import {
@@ -206,6 +207,20 @@ export function recordCsharpTargetOperation(
   evidence: readonly ExtensionEvidence[] = [],
 ): void {
   context.facts.set(subject, csharpTargetOperationFactKey, operation, evidence);
+  if (operation.resultType !== undefined) {
+    context.facts.set(subject, runtimeCarrierFactKey, {
+      carrier: operation.resultType,
+    }, evidence);
+  }
+}
+
+export function recordCsharpTargetMutationOperation(
+  context: ExtensionObservationContext,
+  subject: ExtensionFactSubject,
+  operation: CsharpTargetOperationFact,
+  evidence: readonly ExtensionEvidence[] = [],
+): void {
+  context.facts.set(subject, csharpTargetMutationOperationFactKey, operation, evidence);
   if (operation.resultType !== undefined) {
     context.facts.set(subject, runtimeCarrierFactKey, {
       carrier: operation.resultType,

@@ -271,12 +271,25 @@ function mapCsharpNativeArrayCheckedPropertyAccess(
   if (receiverType?.kind !== "array") {
     return undefined;
   }
-  if (request.propertyName !== "length") {
+  const binding = findTargetBinding(context, [
+    request.sourceSelectedContainerSymbol,
+    request.sourceSelectedDeclarationContainer,
+    request.sourceSelectedDeclaration,
+    request.receiverTypeSymbol,
+    request.receiverType,
+    request.receiverAliasedSymbol,
+    request.receiverResolvedSymbol,
+    request.receiverSymbol,
+  ]);
+  const selectedDeclarationFact = context.facts.get(request.sourceSelectedPropertySymbol, providerVirtualDeclarationFactKey) ??
+    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  const member = binding?.id === dotnetNativeArrayTypeId
+    ? findTargetMember(binding, selectedDeclarationFact)
+    : undefined;
+  if (member?.id !== dotnetNativeArrayLengthMemberId) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED", 9100136, `C# native array source contract has no target-backed property '${request.propertyName}'.`));
   }
-  const operation = csharpTargetMemberOperation(dotnetNativeArrayLengthMemberId, "property", "Length", {
-    resultType: csharpSourcePrimitiveTargetType("int32"),
-  });
+  const operation = csharpTargetOperationFromMember(member);
   recordCsharpTargetOperation(context, request.expression, operation, [{ message: "C# native array length operation recorded from checked TypeScript property access on provider-owned array contract." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(dotnetNativeArrayLengthMemberId, "property", "System.Array.Length", {
@@ -295,12 +308,32 @@ function mapCsharpNativeArrayCheckedElementAccess(
   if (receiverType?.kind !== "array") {
     return undefined;
   }
+  const binding = findTargetBinding(context, [
+    request.receiverTypeSymbol,
+    request.receiverType,
+    request.receiver,
+  ]);
+  const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  const member = binding?.id === dotnetNativeArrayTypeId
+    ? findTargetMemberForElementAccess(
+        binding,
+        virtualDeclaration,
+        request,
+        context,
+        host.getTargetTypeRefForSubject,
+        { declaringTargetType: receiverType },
+      )
+    : undefined;
+  if (member?.id !== dotnetNativeArrayIndexerMemberId) {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, "C# native array element access requires the selected provider-owned native array indexer declaration."));
+  }
   const indexType = host.getTargetTypeRefForSubject(request.argument, context);
   if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100109, "C# native array element access requires an integral TSTS/provider-backed index type."));
   }
-  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(dotnetNativeArrayIndexerMemberId, "indexer", "Item", {
-    resultType: receiverType.element,
+  recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember({
+    ...member,
+    returnType: receiverType.element,
   }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access on provider-owned array contract." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(dotnetNativeArrayIndexerMemberId, "indexer", "System.Array.Item", {

@@ -40,6 +40,12 @@ import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../runtime-carriers.js";
 import {
+  getSourceLibraryMember,
+} from "../../source-library.js";
+import type {
+  SourceLibraryMember,
+} from "../../source-library.js";
+import {
   csharpJsArrayCarrierTargetType,
 } from "./array-carriers.js";
 
@@ -150,7 +156,7 @@ function collectArrayUsesForSymbol(
     if (referenced !== symbol) {
       return;
     }
-    for (const use of classifyIdentifierArrayUse(node, compiler.ast)) {
+    for (const use of classifyIdentifierArrayUse(node, sourceFile, lifecycleContext, compiler.ast)) {
       uses.add(use);
     }
   });
@@ -159,6 +165,8 @@ function collectArrayUsesForSymbol(
 
 function classifyIdentifierArrayUse(
   identifier: Node,
+  sourceFile: SourceFile,
+  lifecycleContext: LifecycleContext,
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
 ): readonly ArrayUse[] {
   const parent = ast.parent(identifier);
@@ -166,20 +174,26 @@ function classifyIdentifierArrayUse(
     return [];
   }
   if (ast.is.IsElementAccessExpression(parent) && asNodeSubject(getNodeField(parent, "Expression")) === identifier) {
+    if (isDeleteExpressionOperand(parent, ast)) {
+      return ["full-js"];
+    }
     return parentIsWriteTarget(parent, ast) ? ["dense-mutation"] : ["index-read"];
   }
   if (ast.is.IsPropertyAccessExpression(parent) && asNodeSubject(getNodeField(parent, "Expression")) === identifier) {
-    const propertyName = getPropertyName(parent);
-    if (propertyName === "length") {
-      return parentIsWriteTarget(parent, ast) ? ["dense-mutation"] : ["length-read"];
+    const sourceMember = getSelectedArraySourceLibraryMemberForPropertyAccess(parent, sourceFile, lifecycleContext);
+    if (sourceMember === undefined) {
+      return [];
     }
-    if (denseMutatingArrayMethods.has(propertyName)) {
+    if (sourceMember.memberName === "length") {
+      return parentIsWriteTarget(parent, ast) ? ["full-js"] : ["length-read"];
+    }
+    if (denseMutatingArrayMethods.has(sourceMember.memberName)) {
       return ["dense-mutation"];
     }
-    if (fullJsArrayMethods.has(propertyName)) {
+    if (fullJsArrayMethods.has(sourceMember.memberName)) {
       return ["full-js"];
     }
-    if (readIndexableArrayMethods.has(propertyName)) {
+    if (readIndexableArrayMethods.has(sourceMember.memberName)) {
       return ["index-read"];
     }
     return [];
@@ -197,7 +211,7 @@ function classifyIdentifierArrayUse(
     return classifyArrayBindingPatternUse(asNodeSubject(getNodeField(parent, "name")), ast);
   }
   if (ast.is.IsCallExpression(parent) && getNodeList(getNodeField(parent, "Arguments")).includes(identifier)) {
-    return classifyArrayStaticCallArgumentUse(parent, identifier, ast);
+    return classifyArrayStaticCallArgumentUse(parent, identifier, sourceFile, lifecycleContext);
   }
   return [];
 }
@@ -224,25 +238,18 @@ function classifyArrayBindingPatternUse(
 function classifyArrayStaticCallArgumentUse(
   call: Node,
   identifier: Node,
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  sourceFile: SourceFile,
+  lifecycleContext: LifecycleContext,
 ): readonly ArrayUse[] {
-  const expression = asNodeSubject(getNodeField(call, "Expression"));
-  if (expression === undefined || !ast.is.IsPropertyAccessExpression(expression)) {
-    return [];
-  }
-  const receiver = asNodeSubject(getNodeField(expression, "Expression"));
-  const propertyName = getPropertyName(expression);
-  const receiverName = receiver !== undefined && ast.is.IsIdentifier(receiver)
-    ? ((receiver as { readonly Text?: unknown }).Text)
-    : undefined;
-  if (receiverName !== "Array") {
+  const sourceMember = getSelectedArraySourceLibraryMemberForCall(call, sourceFile, lifecycleContext);
+  if (sourceMember?.declaringName !== "Array") {
     return [];
   }
   const argumentIndex = getNodeList(getNodeField(call, "Arguments")).indexOf(identifier);
   if (argumentIndex !== 0) {
     return [];
   }
-  switch (propertyName) {
+  switch (sourceMember.memberName) {
     case "from":
       return ["sequential-read"];
     case "isArray":
@@ -309,10 +316,57 @@ function parentIsWriteTarget(
     asNodeSubject(getNodeField(parent, "Operand")) === node;
 }
 
-function getPropertyName(propertyAccess: Node): string {
+function isDeleteExpressionOperand(
+  node: Node,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+): boolean {
+  const parent = ast.parent(node);
+  return parent !== undefined &&
+    ast.kindName(parent) === "KindDeleteExpression" &&
+    asNodeSubject(getNodeField(parent, "Expression")) === node;
+}
+
+function getSelectedArraySourceLibraryMemberForPropertyAccess(
+  propertyAccess: Node,
+  sourceFile: SourceFile,
+  lifecycleContext: LifecycleContext,
+): SourceLibraryMember | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
   const name = asNodeSubject(getNodeField(propertyAccess, "name"));
-  const text = (name as { readonly Text?: unknown } | undefined)?.Text;
-  return typeof text === "string" ? text : "";
+  const symbol = name === undefined ? undefined : compiler.checker.getSymbolAtLocation(name, { sourceFile });
+  return arraySourceLibraryMemberFromDeclaration(firstSymbolDeclaration(symbol), lifecycleContext);
+}
+
+function getSelectedArraySourceLibraryMemberForCall(
+  call: Node,
+  sourceFile: SourceFile,
+  lifecycleContext: LifecycleContext,
+): SourceLibraryMember | undefined {
+  const signature = lifecycleContext.compiler?.checker.getResolvedSignature(call, { sourceFile });
+  return arraySourceLibraryMemberFromDeclaration(getSignatureDeclaration(signature), lifecycleContext);
+}
+
+function arraySourceLibraryMemberFromDeclaration(
+  declaration: Node | undefined,
+  lifecycleContext: LifecycleContext,
+): SourceLibraryMember | undefined {
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  const member = getSourceLibraryMember(declaration, context);
+  return member !== undefined && (member.declaringName === "Array" || member.declaringName === "ReadonlyArray")
+    ? member
+    : undefined;
+}
+
+function firstSymbolDeclaration(symbol: unknown): Node | undefined {
+  return ((symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
+    (symbol as { readonly declarations?: readonly Node[] } | undefined)?.declarations)?.[0];
+}
+
+function getSignatureDeclaration(signature: unknown): Node | undefined {
+  return asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
 }
 
 function recordArrayParameterFacts(

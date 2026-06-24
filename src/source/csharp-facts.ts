@@ -271,6 +271,12 @@ export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetO
   equals: csharpTargetOperationFactEquals,
 });
 
+export const csharpTargetMutationOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
+  extensionId: "tsonic.csharp",
+  name: "targetMutationOperation",
+  equals: csharpTargetOperationFactEquals,
+});
+
 export const csharpTargetConversionOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
   extensionId: "tsonic.csharp",
   name: "targetConversionOperation",

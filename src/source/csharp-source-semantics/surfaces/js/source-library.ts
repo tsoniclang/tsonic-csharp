@@ -23,6 +23,7 @@ export {
   csharpTargetOperationFromMember,
   csharpTargetIntrinsicOperatorOperation,
   csharpTargetMemberOperation,
+  recordCsharpTargetMutationOperation,
   recordCsharpTargetOperation,
   targetOperation,
   targetOperationFromMember,

@@ -53,6 +53,9 @@ import {
 import {
   tryPlanCompatRuntimePropertySet,
 } from "./compat-runtime-operations.js";
+import {
+  tryPlanJsArrayLengthMutationExpression,
+} from "./expression-js-array-mutations.js";
 
 export {
   planTypeofExpression,
@@ -69,10 +72,6 @@ export function tryPlanBinaryExpression(
     return undefined;
   }
   const selectedOperator = input.facts.getSelectedTargetOperator(node);
-  if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `Binary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
-    return invalidExpression("selected target operator");
-  }
   const expression = AsBinaryExpression(node)!;
   const left = getBinaryLeft(expression);
   const right = getBinaryRight(expression);
@@ -81,6 +80,14 @@ export function tryPlanBinaryExpression(
     if (compatRuntimePropertySet !== undefined) {
       return compatRuntimePropertySet;
     }
+    const jsArrayLengthMutation = tryPlanJsArrayLengthMutationExpression(node, sourceFile, input, diagnostics, planExpression);
+    if (jsArrayLengthMutation !== undefined) {
+      return jsArrayLengthMutation;
+    }
+  }
+  if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `Binary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
+    return invalidExpression("selected target operator");
   }
   if (isDestructuringAssignmentExpression(node, input)) {
     pushMissingDestructuringAssignmentFactsDiagnostic(left ?? node, diagnostics);

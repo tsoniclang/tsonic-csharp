@@ -20,6 +20,7 @@ export const KindConstructor = "KindConstructor";
 export const KindContinueStatement = "KindContinueStatement";
 export const KindDebuggerStatement = "KindDebuggerStatement";
 export const KindDefaultClause = "KindDefaultClause";
+export const KindDeleteExpression = "KindDeleteExpression";
 export const KindDoStatement = "KindDoStatement";
 export const KindElementAccessExpression = "KindElementAccessExpression";
 export const KindEmptyStatement = "KindEmptyStatement";

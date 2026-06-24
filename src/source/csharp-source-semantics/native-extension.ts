@@ -45,6 +45,9 @@ import {
   recordCsharpCheckedOperationFactsBeforeFinalization,
 } from "./checked-operation-lifecycle.js";
 import {
+  recordCsharpNativeArrayFactsBeforeFinalization,
+} from "./native-array-lifecycle.js";
+import {
   recordCsharpSelectedCallOperationFactsBeforeFinalization,
 } from "./csharp-operation-lifecycle.js";
 import {
@@ -110,6 +113,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost);
         recordCsharpCheckedOperationFactsBeforeFinalization(lifecycleContext);
+        recordCsharpNativeArrayFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
         recordCsharpSelectedSurfaceOperationFactsBeforeFinalization(context, lifecycleContext, hosts);
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
         diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode);
