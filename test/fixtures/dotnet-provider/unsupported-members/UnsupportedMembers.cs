@@ -51,3 +51,11 @@ public readonly struct GenericNumber<T>
         return left;
     }
 }
+
+public unsafe readonly struct PointerConversion
+{
+    public static explicit operator int*(PointerConversion value)
+    {
+        return null;
+    }
+}

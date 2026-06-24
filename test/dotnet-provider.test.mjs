@@ -1574,12 +1574,14 @@ test(".NET reflection provider records unsupported members instead of silently d
   const multiIndexer = typeByName.get("MultiIndexer");
   const pointerSignatures = typeByName.get("PointerSignatures");
   const genericNumber = typeByName.get("GenericNumber");
+  const pointerConversion = typeByName.get("PointerConversion");
   const pointerDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "PointerDelegate");
   assert.ok(staticInterface);
   assert.ok(genericHolder);
   assert.ok(multiIndexer);
   assert.ok(pointerSignatures);
   assert.ok(genericNumber);
+  assert.ok(pointerConversion);
   assert.ok(pointerDelegate);
 
   const staticInterfaceUnsupported = unsupportedMembersByMetadataName(staticInterface);
@@ -1647,6 +1649,16 @@ test(".NET reflection provider records unsupported members instead of silently d
     member.memberKind === "operator" &&
     member.targetName === "op_Addition" &&
     /generic-operator/u.test(member.reason)
+  ));
+
+  const pointerConversionUnsupported = [...unsupportedMembersByMetadataName(pointerConversion).values()];
+  assert.equal(pointerConversion.conversionOperators?.length ?? 0, 0);
+  assert.equal(pointerConversion.members?.some((member) => member.kind === "operator") ?? false, false);
+  assert.ok(pointerConversionUnsupported.some((member) =>
+    member.memberKind === "operator" &&
+    member.targetName === "op_Explicit" &&
+    /return type/u.test(member.reason) &&
+    /System\.Int32\*/u.test(member.reason)
   ));
 
   assert.equal(module.exports.some((declaration) => declaration.sourceName === "PointerDelegate"), false);
