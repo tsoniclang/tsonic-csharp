@@ -567,7 +567,7 @@ function fakeInput(options = {}) {
           ? options.runtimeCarrier
           : undefined),
       getObjectShapeFact: () => undefined,
-      getTargetBindingFact: (subject) => subject === options.targetBindingSubject
+      getTargetBindingFact: (subject) => subject !== undefined && subject === options.targetBindingSubject
         ? { target: "csharp", id: "Example.Target", sourceName: "Target", targetName: "Target", kind: "class" }
         : undefined,
       getSourcePrimitiveFact: (subject) => subject === options.sourcePrimitiveSubject
@@ -601,6 +601,8 @@ function fakeInput(options = {}) {
       getTypeAtLocation: (subject) => options.typeAtLocations?.get(subject) ?? options.typeAtLocation,
       getTypeFromTypeNode: () => options.typeAtLocation,
       describeTypeAtLocation: () => undefined,
+      isProjectSourceShapeForNode: () => false,
+      isProjectSourceConstructibleObjectForNode: () => false,
     },
     types: {
       isAny: () => false,

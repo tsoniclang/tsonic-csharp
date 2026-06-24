@@ -168,6 +168,9 @@ export function planElementAccessExpression(
   const csharpOperation = selectedElementAccess === undefined
     ? undefined
     : getRequiredCsharpTargetOperation(input, elementAccess, selectedElementAccess, diagnostics, "C# element access emission");
+  if (selectedElementAccess !== undefined && csharpOperation === undefined) {
+    return invalidExpression("selected target element access operation");
+  }
   if (selectedElementAccess !== undefined && csharpOperation?.operationId !== selectedElementAccess.operationId) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "C# element access emission received mismatched or missing finalized C# target operation facts."));
     return invalidExpression("selected target element access operation");
