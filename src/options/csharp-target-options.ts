@@ -9,6 +9,8 @@ export type CsharpProjectReference =
   | { readonly kind: "framework"; readonly include: string }
   | { readonly kind: "assembly"; readonly include: string; readonly hintPath?: string };
 
+export type CsharpOutputType = "Exe" | "Library";
+
 const supportedCsharpTargetOptionKeys = Object.freeze([
   "assemblyName",
   "implicitUsings",
@@ -41,6 +43,17 @@ export function readCsharpTypescriptCompatibilityMode(target: TargetSelection): 
   }
   if (value !== "strict-native" && value !== "compat") {
     throw new Error("C# target option 'typescriptCompatibility' must be either 'strict-native' or 'compat'.");
+  }
+  return value;
+}
+
+export function readCsharpOutputType(target: TargetSelection): CsharpOutputType {
+  const value = readOptionalStringOption(target, "outputType");
+  if (value === undefined) {
+    return "Library";
+  }
+  if (value !== "Exe" && value !== "Library") {
+    throw new Error("C# target option 'outputType' must be either 'Exe' or 'Library'.");
   }
   return value;
 }

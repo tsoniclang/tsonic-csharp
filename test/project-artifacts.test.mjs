@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { planCsharpProjectFile } from "../dist/backend/planner/project-artifacts.js";
 import { printCsharpProjectFile } from "../dist/print/csharp-project-printer.js";
+import { createDotnetToolchain } from "../dist/toolchain/dotnet-toolchain.js";
 
 test("project artifact emits explicit target-owned .NET references", () => {
   const project = planCsharpProjectFile(fakeInput({
@@ -33,7 +34,23 @@ test("project artifact emits explicit target-owned .NET references", () => {
   assert.match(text, /<Reference Include="Example\.Assembly" HintPath="\.\.\/lib\/Example\.Assembly\.dll" \/>/);
 });
 
-test("project artifact emits NativeAOT as an explicit target project property", () => {
+test("project artifact emits library output deterministically by default", () => {
+  const text = printCsharpProjectFile(planCsharpProjectFile(fakeInput()));
+
+  assert.match(text, /<OutputType>Library<\/OutputType>/);
+  assert.doesNotMatch(text, /<ItemGroup>/);
+  assert.doesNotMatch(text, /<PublishAot>/);
+});
+
+test("project artifact emits executable output only from explicit C# target option", () => {
+  const text = printCsharpProjectFile(planCsharpProjectFile(fakeInput({
+    outputType: "Exe",
+  })));
+
+  assert.match(text, /<OutputType>Exe<\/OutputType>/);
+});
+
+test("project artifact emits NativeAOT only as an explicit C# target project property", () => {
   const text = printCsharpProjectFile(planCsharpProjectFile(fakeInput({
     publishAot: true,
     outputType: "Exe",
@@ -41,6 +58,21 @@ test("project artifact emits NativeAOT as an explicit target project property", 
 
   assert.match(text, /<OutputType>Exe<\/OutputType>/);
   assert.match(text, /<PublishAot>true<\/PublishAot>/);
+});
+
+test("project artifact rejects invalid executable/library output shapes", () => {
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    outputType: "WinExe",
+  })), /outputType/);
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    outputType: true,
+  })), /outputType/);
+});
+
+test("project artifact rejects invalid NativeAOT option shapes", () => {
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    publishAot: "true",
+  })), /publishAot/);
 });
 
 test("project artifact rejects unknown C# target options instead of ignoring them", () => {
@@ -60,6 +92,27 @@ test("project artifact escapes explicit reference values", () => {
   assert.match(text, /Version="1\.0\.0&lt;beta&gt;"/);
 });
 
+test("project artifact rejects unsupported custom project property shapes", () => {
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    properties: ["PublishTrimmed"],
+  })), /properties/);
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    properties: {
+      "Bad Property": true,
+    },
+  })), /Bad Property/);
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    properties: {
+      DefineConstants: ["AOT"],
+    },
+  })), /DefineConstants/);
+  assert.throws(() => planCsharpProjectFile(fakeInput({
+    properties: {
+      PublishAot: true,
+    },
+  })), /target-owned/);
+});
+
 test("project artifact rejects unsupported reference keys", () => {
   assert.throws(() => planCsharpProjectFile(fakeInput({
     references: {
@@ -76,9 +129,51 @@ test("project artifact rejects duplicate references", () => {
   })), /duplicate project reference/);
 });
 
-function fakeInput(options = {}) {
+test("project artifact includes runtime references only from selected target or surface contributions", () => {
+  const withoutRuntimeReferences = printCsharpProjectFile(planCsharpProjectFile(fakeInput()));
+  const withRuntimeReferences = printCsharpProjectFile(planCsharpProjectFile(fakeInput({}, [
+    { kind: "project", include: "../csharp-js/src/Tsonic.CSharp.Js/Tsonic.CSharp.Js.csproj" },
+    {
+      kind: "package",
+      include: "Tsonic.CSharp.Runtime",
+      version: "0.0.1",
+      attributes: { PrivateAssets: "all" },
+    },
+    { kind: "framework", include: "Microsoft.AspNetCore.App" },
+    { kind: "assembly", include: "Example.Assembly", attributes: { HintPath: "../lib/Example.Assembly.dll" } },
+  ])));
+
+  assert.doesNotMatch(withoutRuntimeReferences, /Tsonic\.CSharp\.Js/);
+  assert.match(withRuntimeReferences, /<ProjectReference Include="\.\.\/csharp-js\/src\/Tsonic\.CSharp\.Js\/Tsonic\.CSharp\.Js\.csproj" \/>/);
+  assert.match(withRuntimeReferences, /<PackageReference Include="Tsonic\.CSharp\.Runtime" Version="0\.0\.1" PrivateAssets="all" \/>/);
+  assert.match(withRuntimeReferences, /<FrameworkReference Include="Microsoft\.AspNetCore\.App" \/>/);
+  assert.match(withRuntimeReferences, /<Reference Include="Example\.Assembly" HintPath="\.\.\/lib\/Example\.Assembly\.dll" \/>/);
+});
+
+test("dotnet toolchain reports deterministic source-to-source artifacts without publishing", () => {
+  const toolchain = createDotnetToolchain({});
+  const result = toolchain.prepare({
+    artifactsRoot: "out",
+    project: { targets: [] },
+    target: { id: "csharp", options: { publishAot: true, outputType: "Exe" } },
+    compileResult: {
+      diagnostics: [],
+      artifacts: [
+        { kind: "project", path: "App.csproj", text: "<Project />" },
+        { kind: "source", path: "Program.cs", language: "csharp", text: "namespace App {}" },
+      ],
+    },
+  });
+
+  assert.deepEqual(result, {
+    diagnostics: [],
+    producedArtifacts: ["App.csproj", "Program.cs"],
+  });
+});
+
+function fakeInput(options = {}, runtimeReferences = []) {
   return {
     target: { id: "csharp", options },
-    runtimeReferences: [],
+    runtimeReferences,
   };
 }
