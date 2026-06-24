@@ -134,6 +134,7 @@ function tryDotnetParameterToProviderParameter(
     : {
         name: parameter.name,
         type,
+        ...(parameter.passingMode !== "by-value" ? { passingMode: parameter.passingMode } : {}),
         ...(parameter.optional === true ? { optional: true as const } : {}),
         ...(parameter.rest === true ? { rest: true as const } : {}),
       };

@@ -12,6 +12,7 @@ import {
 } from "../dist/index.js";
 import {
   dotnetExportToTargetBinding,
+  tryDotnetTypeRefToProviderType,
 } from "../dist/providers/dotnet/model.js";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -108,8 +109,10 @@ function findByIdSuffix(values, metadataSuffix) {
 }
 
 function stripAssemblyQualifiers(id) {
-  return id.replace(/(^|[<(,])(?:(out|ref|in) )?[^:<>()]+::/gu, (_match, delimiter, passingMode) =>
-    `${delimiter}${passingMode === undefined ? "" : `${passingMode} `}`);
+  return id
+    .replace(/(^|[<(,])(?:(out|ref|in) )?[^:<>()]+::/gu, (_match, delimiter, passingMode) =>
+      `${delimiter}${passingMode === undefined ? "" : `${passingMode} `}`)
+    .replace(/\+/gu, ".");
 }
 
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
@@ -442,6 +445,47 @@ test(".NET explicit type-ref kinds carry special target semantics without metada
     kind: "union",
     types: [intType, { kind: "literal", value: null }],
   });
+});
+
+test(".NET provider function source shapes preserve parameter modes and fail closed for unsupported parameter types", () => {
+  const functionType = dotnetTypeRefToProviderType({
+    kind: "function",
+    parameters: [
+      {
+        name: "value",
+        type: { kind: "source-primitive", name: "int32" },
+        passingMode: "byref-writeonly-must-init",
+      },
+      {
+        name: "label",
+        type: { kind: "string" },
+        passingMode: "by-value",
+        optional: true,
+      },
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  });
+
+  assert.equal(functionType.kind, "function");
+  assert.equal(functionType.parameters[0].passingMode, "byref-writeonly-must-init");
+  assert.equal(functionType.parameters[1].passingMode, undefined);
+  assert.equal(functionType.parameters[1].optional, true);
+
+  assert.equal(tryDotnetTypeRefToProviderType({
+    kind: "function",
+    parameters: [
+      {
+        name: "pointer",
+        type: {
+          kind: "pointer",
+          pointee: { kind: "source-primitive", name: "int32" },
+          mutability: "mut",
+        },
+        passingMode: "by-value",
+      },
+    ],
+    returnType: { kind: "void" },
+  }), undefined);
 });
 
 test(".NET named target refs do not derive C# special semantics from metadata names", () => {
@@ -1098,6 +1142,24 @@ test(".NET reflection provider exposes unique nested CLR types as source declara
   assert.equal(specialFolder.members.some((member) => member.name === "desktop"), true);
 
   assert.ok(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Environment.SpecialFolder"));
+});
+
+test(".NET reflection provider target identities preserve nested CLR separators instead of collapsing with namespace names", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});
+  assert.equal("exports" in systemModule, true);
+
+  const specialFolder = systemModule.exports.find((declaration) =>
+    declaration.sourceName === "SpecialFolder" &&
+    declaration.metadataName === "System.Environment.SpecialFolder"
+  );
+  assert.ok(specialFolder);
+  assert.match(specialFolder.targetId, /::System\.Environment\+SpecialFolder$/u);
+
+  const binding = provider.findTargetBindingByTargetId(specialFolder.targetId);
+  assert.ok(binding);
+  assert.equal(binding.id, specialFolder.targetId);
+  assert.equal(provider.findTargetBindingByTargetId(specialFolder.targetId.replace("Environment+SpecialFolder", "Environment.SpecialFolder")), undefined);
 });
 
 test(".NET reflection provider preserves cross-namespace source-visible provider refs", () => {

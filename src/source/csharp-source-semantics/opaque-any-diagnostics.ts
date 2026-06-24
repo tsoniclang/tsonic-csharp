@@ -25,6 +25,12 @@ import {
 import {
   isCsharpAnyRuntimeCarrier,
 } from "./target-types.js";
+import type {
+  CsharpTargetOperationFact,
+} from "../csharp-facts.js";
+import {
+  isTstsBundledStandardLibraryFile,
+} from "./source-library.js";
 
 const unsupportedAnyOperationCode = "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED";
 const unsupportedAnyOperationNumericCode = 9100121;
@@ -86,7 +92,7 @@ function diagnoseOpaqueAnyOperationsForNode(
   if (operation === undefined) {
     return;
   }
-  if (compatibilityMode === "compat" && hasFinalizedTargetOperation(node, lifecycleContext)) {
+  if (compatibilityMode === "compat" && hasClosedCompatRuntimeOperation(node, lifecycleContext)) {
     return;
   }
   const modeDetails = compatibilityMode === "strict-native"
@@ -166,7 +172,7 @@ function getOpaqueAnyOperation(
 
 function getUnsupportedCompatRuntimeOperation(
   node: Node,
-  lifecycleContext: Pick<ExtensionLifecycleContext, "compiler">,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
 ): { readonly kind: string; readonly message: string; readonly reason: string; readonly architecture: string } | undefined {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -187,7 +193,121 @@ function getUnsupportedCompatRuntimeOperation(
       "An object-literal __proto__ member changes the created object's prototype; Tsonic has no closed target object-shape mutation carrier for this operation.",
     );
   }
+  const libraryOperation = getUnsupportedStandardLibraryCompatOperation(node, lifecycleContext);
+  if (libraryOperation !== undefined) {
+    return libraryOperation;
+  }
+  const operation = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey);
+  if (isClosedCompatRuntimeOperationFact(operation) && getOpaqueAnyOperation(node, lifecycleContext) === undefined) {
+    return hardRejectedCompatOperation(
+      "non-any-compat-carrier",
+      "C# compat-runtime carrier operation facts can only attach to explicit TypeScript any operations.",
+      "The finalized operation fact targets a closed TsValue/TsObject/TsArray/TsFunction-style carrier, but the source expression was not proven to operate on a TypeScript any runtime carrier. unknown, object, and statically typed values must not become dynamic through target facts.",
+    );
+  }
   return undefined;
+}
+
+function getUnsupportedStandardLibraryCompatOperation(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "compiler">,
+): { readonly kind: string; readonly message: string; readonly reason: string; readonly architecture: string } | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  const ast = compiler.ast;
+  const callee = ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node)
+    ? asNodeSubject(getNodeField(node, "Expression"))
+    : undefined;
+  if (callee === undefined) {
+    return undefined;
+  }
+  const selected = getSelectedStandardLibraryDeclaration(callee, lifecycleContext);
+  if (selected === undefined) {
+    return undefined;
+  }
+  if (selected.name === "eval") {
+    return hardRejectedCompatOperation(
+      "eval",
+      "C# emission cannot support JavaScript eval.",
+      "eval executes source text with runtime lexical scope access. No closed target carrier can make those bindings statically visible to the C# backend.",
+    );
+  }
+  if (selected.name === "Function" || selected.containerName === "FunctionConstructor") {
+    return hardRejectedCompatOperation(
+      "function-constructor",
+      "C# emission cannot support JavaScript dynamic Function construction.",
+      "Function construction compiles source text at runtime. Tsonic does not use embedded JavaScript engines, C# dynamic, or runtime code generation as language semantics.",
+    );
+  }
+  if (selected.name === "Proxy" || selected.containerName === "ProxyConstructor") {
+    return hardRejectedCompatOperation(
+      "proxy",
+      "C# emission cannot support JavaScript Proxy.",
+      "Proxy traps redefine object operations at runtime. Tsonic requires closed provider facts for every emitted operation and cannot dispatch through runtime target reflection or dynamic traps.",
+    );
+  }
+  if (
+    selected.containerName === "ObjectConstructor" &&
+    (selected.name === "setPrototypeOf" || selected.name === "getPrototypeOf" || selected.name === "create")
+  ) {
+    return hardRejectedCompatOperation(
+      `object-${selected.name}`,
+      `C# emission cannot support JavaScript Object.${selected.name} prototype semantics.`,
+      "Prototype mutation and prototype-chain creation change object member lookup dynamically. Tsonic requires explicit closed object-shape/provider facts and cannot synthesize prototype semantics from standard JavaScript declarations.",
+    );
+  }
+  return undefined;
+}
+
+interface StandardLibraryDeclarationSelection {
+  readonly name: string;
+  readonly containerName?: string;
+}
+
+function getSelectedStandardLibraryDeclaration(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "compiler">,
+): StandardLibraryDeclarationSelection | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  const kind = compiler.ast.kindName(node);
+  if (kind !== "KindIdentifier" && kind !== "KindPropertyAccessExpression") {
+    return undefined;
+  }
+  const sourceFile = compiler.ast.getSourceFile(node);
+  const symbol = compiler.checker.getResolvedSymbol(node, { sourceFile }) ??
+    compiler.checker.getSymbolAtLocation(node, { sourceFile });
+  const declarations = (symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ?? [];
+  for (const declaration of declarations) {
+    const selected = getStandardLibraryDeclarationSelection(declaration, compiler.ast);
+    if (selected !== undefined) {
+      return selected;
+    }
+  }
+  return undefined;
+}
+
+function getStandardLibraryDeclarationSelection(
+  declaration: Node,
+  ast: NonNullable<ExtensionLifecycleContext["compiler"]>["ast"],
+): StandardLibraryDeclarationSelection | undefined {
+  const sourceFile = ast.getSourceFile(declaration);
+  if (!isTstsBundledStandardLibraryFile(ast.getFileName(sourceFile))) {
+    return undefined;
+  }
+  const name = ast.text(ast.name(declaration));
+  if (name === "") {
+    return undefined;
+  }
+  const parentName = ast.text(ast.name(ast.parent(declaration)));
+  return {
+    name,
+    ...(parentName === "" ? {} : { containerName: parentName }),
+  };
 }
 
 function hardRejectedCompatOperation(
@@ -217,11 +337,30 @@ function getNodeNameText(
     : undefined;
 }
 
-function hasFinalizedTargetOperation(
+function hasClosedCompatRuntimeOperation(
   node: Node,
   lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
 ): boolean {
-  return lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey) !== undefined;
+  return isClosedCompatRuntimeOperationFact(lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey));
+}
+
+function isClosedCompatRuntimeOperationFact(operation: CsharpTargetOperationFact | undefined): boolean {
+  return operation?.kind === "member" &&
+    (
+      isClosedCompatRuntimeCarrier(operation.declaringType) ||
+      isClosedCompatRuntimeCarrier(operation.resultType)
+    );
+}
+
+function isClosedCompatRuntimeCarrier(type: { readonly kind?: string; readonly id?: string } | undefined): boolean {
+  return type?.kind === "target-named" &&
+    typeof type.id === "string" &&
+    (
+      type.id === "Tsonic.CSharp.Js.TsValue" ||
+      type.id === "Tsonic.CSharp.Js.TsObject" ||
+      type.id === "Tsonic.CSharp.Js.TsArray" ||
+      type.id === "Tsonic.CSharp.Js.TsFunction"
+    );
 }
 
 function hasOpaqueAnyCarrier(

@@ -2,13 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   TstsProviderContractVersion,
+  argumentPassingFactKey,
   attributeFactKey,
   createCompilerSessionFromFiles,
+  defaultValueFactKey,
+  fieldFactKey,
   functionPointerFactKey,
   formatDiagnostics,
   pointerFactKey,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
+  sourcePrimitiveFactKey,
+  structFactKey,
   targetConversionFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
@@ -21,6 +26,7 @@ import {
   csharpTargetConversionOperationFactKey,
 } from "../dist/source/csharp-facts.js";
 import { providerExportDeclarationsForModule } from "../dist/source/csharp-source-semantics/core-virtual-declarations.js";
+import { csharpSourceSemanticsModules } from "../dist/source/csharp-source-semantics/source-modules.js";
 
 test("source-semantics virtual attribute helpers do not introduce any-typed lanes", () => {
   const declarations = providerExportDeclarationsForModule({
@@ -33,6 +39,155 @@ test("source-semantics virtual attribute helpers do not introduce any-typed lane
 
   assert.equal(serialized.includes('"kind":"any"'), false);
   assert.equal(serialized.includes('"kind":"unknown"'), true);
+});
+
+test("source-semantics keeps neutral primitives separate from C# aliases", () => {
+  const modules = new Map(csharpSourceSemanticsModules().map((module) => [module.moduleSpecifier, module]));
+  const neutralTypes = modules.get("@tsonic/core/types.js");
+  const csharpTypes = modules.get("@tsonic/csharp/types.js");
+  assert.ok(neutralTypes);
+  assert.ok(csharpTypes);
+
+  const neutralExports = neutralTypes.exports.map((declaration) => declaration.exportName).sort();
+  const csharpExports = csharpTypes.exports.map((declaration) => declaration.exportName).sort();
+
+  assert.deepEqual(neutralExports, [
+    "bool",
+    "char",
+    "decimal",
+    "float16",
+    "float32",
+    "float64",
+    "int128",
+    "int16",
+    "int32",
+    "int64",
+    "int8",
+    "nativeInt",
+    "nativeUint",
+    "uint128",
+    "uint16",
+    "uint32",
+    "uint64",
+    "uint8",
+  ]);
+  assert.equal(neutralExports.includes("int"), false);
+  assert.equal(neutralExports.includes("long"), false);
+  assert.equal(neutralExports.includes("byte"), false);
+  assert.deepEqual(csharpExports, [
+    "bool",
+    "byte",
+    "char",
+    "decimal",
+    "double",
+    "float",
+    "int",
+    "long",
+    "nint",
+    "nuint",
+    "sbyte",
+    "short",
+    "uint",
+    "ulong",
+    "ushort",
+  ]);
+});
+
+test("source-semantics records neutral primitive facts, char and bool, and configured aliases", () => {
+  const sourceText = `
+    import type { bool, int32 as i32, float64 } from "@tsonic/core/types.js";
+    import type * as CoreTypes from "@tsonic/core/types.js";
+    import type { byte, int, long } from "@tsonic/csharp/types.js";
+
+    type LocalBool = bool;
+    type LocalChar = CoreTypes.char;
+    type I32 = i32;
+    type I32Again = I32;
+    type DoubleAlias = float64;
+    type CsharpInt = int;
+    type CsharpLong = long;
+    type CsharpByte = byte;
+    type LocalInt = number;
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./types.js": "./types.js",
+      })],
+      ["/src/node_modules/@tsonic/csharp/package.json", packageJson("@tsonic/csharp", {
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const aliases = new Map(collectNodesByKind(sourceFile, session.ast, "KindTypeAliasDeclaration")
+    .map((node) => [session.ast.text(session.ast.name(node)), node]));
+
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("LocalBool"), sourcePrimitiveFactKey)), {
+    kind: "bool",
+    runtimeBase: "boolean",
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("LocalChar"), sourcePrimitiveFactKey)), {
+    kind: "char",
+    runtimeBase: "string",
+    signed: false,
+    width: 16,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("I32"), sourcePrimitiveFactKey)), {
+    kind: "int32",
+    runtimeBase: "number",
+    signed: true,
+    width: 32,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("I32Again"), sourcePrimitiveFactKey)), {
+    kind: "int32",
+    runtimeBase: "number",
+    signed: true,
+    width: 32,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("DoubleAlias"), sourcePrimitiveFactKey)), {
+    kind: "float64",
+    runtimeBase: "number",
+    signed: true,
+    width: 64,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("CsharpInt"), sourcePrimitiveFactKey)), {
+    kind: "int32",
+    runtimeBase: "number",
+    signed: true,
+    width: 32,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("CsharpLong"), sourcePrimitiveFactKey)), {
+    kind: "int64",
+    runtimeBase: "bigint",
+    signed: true,
+    width: 64,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("CsharpByte"), sourcePrimitiveFactKey)), {
+    kind: "uint8",
+    runtimeBase: "number",
+    signed: false,
+    width: 8,
+  });
+  assert.equal(extensionHost.facts.get(aliases.get("LocalInt"), sourcePrimitiveFactKey), undefined);
 });
 
 test("source-semantics records opaque any carriers without promoting unknown or object", () => {
@@ -222,6 +377,163 @@ test("source-semantics records provider-backed attribute selector facts from use
   assert.equal(session.ast.text(session.ast.name(applicationFacts[6].applicationTarget)), "save");
   assert.equal(session.ast.text(session.ast.name(applicationFacts[8].applicationTarget)), "name");
   assert.equal(session.ast.text(session.ast.name(applicationFacts[9].applicationTarget)), "display");
+});
+
+test("source-semantics records source-core marker facts and rejects unproven storage", () => {
+  const sourceText = `
+    import { attribute, defaultof, field, inref, out, ref as passRef, struct } from "@tsonic/core/lang.js";
+    import type { fnptr, ptr } from "@tsonic/core/lang.js";
+    import type { bool, char, int32 } from "@tsonic/core/types.js";
+
+    class ExampleAttribute {}
+    class User {
+      name = "";
+    }
+
+    let value!: int32;
+    out(value);
+    passRef(value);
+    inref(value);
+    out(value + 1);
+
+    const defaultChar = defaultof<char>();
+    const orphanField = field<int32>();
+    const Point = struct({ x: field<int32>(), ok: field<bool>() });
+    attribute<User>().add(ExampleAttribute, "user");
+
+    type ValuePtr = ptr<int32>;
+    type Predicate = fnptr<[int32, bool], char>;
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.deepEqual((session.extensionHost?.diagnostics.all() ?? []).map((diagnostic) => diagnostic.extensionCode).sort(), [
+    "SOURCE_SEMANTICS_FIELD_TARGET_NOT_PROVEN",
+    "SOURCE_SEMANTICS_NON_STORAGE_ARGUMENT",
+  ]);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0001/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0003/);
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).sort(), [
+    "SOURCE_SEMANTICS_FIELD_TARGET_NOT_PROVEN",
+    "SOURCE_SEMANTICS_NON_STORAGE_ARGUMENT",
+  ]);
+
+  assert.deepEqual(argumentPassingFactForCall(sourceFile, session.ast, extensionHost, "out", 0), {
+    mode: "byref-writeonly-must-init",
+    targetKind: "KindIdentifier",
+  });
+  assert.deepEqual(argumentPassingFactForCall(sourceFile, session.ast, extensionHost, "passRef", 0), {
+    mode: "byref-readwrite",
+    targetKind: "KindIdentifier",
+  });
+  assert.deepEqual(argumentPassingFactForCall(sourceFile, session.ast, extensionHost, "inref", 0), {
+    mode: "byref-readonly",
+    targetKind: "KindIdentifier",
+  });
+  assert.deepEqual(argumentPassingFactForCall(sourceFile, session.ast, extensionHost, "out", 1), {
+    mode: "byref-writeonly-must-init",
+    targetKind: "KindBinaryExpression",
+  });
+
+  const defaultCall = collectCallsByCalleeText(sourceFile, session.ast, "defaultof")[0];
+  assert.equal(session.ast.kindName(extensionHost.facts.get(defaultCall, defaultValueFactKey)?.type), "KindTypeReference");
+
+  const fieldFacts = collectCallsByCalleeText(sourceFile, session.ast, "field")
+    .map((call) => extensionHost.facts.get(call, fieldFactKey))
+    .filter((fact) => fact !== undefined)
+    .map((fact) => ({
+      name: fact.name,
+      typeKind: session.ast.kindName(fact.type),
+      primitive: extensionHost.facts.get(fact.type, sourcePrimitiveFactKey)?.kind,
+    }));
+  assert.deepEqual(fieldFacts, [
+    { name: "x", typeKind: "KindTypeReference", primitive: "int32" },
+    { name: "ok", typeKind: "KindTypeReference", primitive: "bool" },
+  ]);
+
+  const structCall = collectCallsByCalleeText(sourceFile, session.ast, "struct")[0];
+  const structFact = extensionHost.facts.get(structCall, structFactKey);
+  assert.equal(structFact?.valueType, true);
+  assert.deepEqual(structFact.fields?.map((field) => field.name), ["x", "ok"]);
+
+  const addCall = collectCallsByCalleeText(sourceFile, session.ast, "add")[0];
+  const attributeFact = extensionHost.facts.get(addCall, attributeFactKey);
+  assert.equal(attributeFact?.attributeName, "ExampleAttribute");
+  assert.equal(session.ast.kindName(attributeFact?.applicationTarget), "KindTypeReference");
+  assert.equal(attributeFact?.arguments?.length, 1);
+
+  const pointerFacts = collectFactsForKey(sourceFile, session.ast, extensionHost, pointerFactKey);
+  const functionPointerFacts = collectFactsForKey(sourceFile, session.ast, extensionHost, functionPointerFactKey);
+  assert.ok(pointerFacts.some((entry) => session.ast.kindName(entry.fact.pointee) === "KindTypeReference" && entry.fact.mutability === "target-defined"));
+  assert.ok(functionPointerFacts.some((entry) =>
+    entry.fact.parameters.length === 2 &&
+    session.ast.kindName(entry.fact.result) === "KindTypeReference" &&
+    entry.fact.abi.join(",") === "target-default"
+  ));
+});
+
+test("source-semantics ignores local names that are not configured source-core imports", () => {
+  const sourceText = `
+    function out<T>(value: T): T {
+      return value;
+    }
+
+    type int = number;
+    type LocalInt = int;
+    let value = 1;
+    out(value);
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const localAlias = collectNodesByKind(sourceFile, session.ast, "KindTypeAliasDeclaration")
+    .find((node) => session.ast.text(session.ast.name(node)) === "LocalInt");
+  const outCall = collectCallsByCalleeText(sourceFile, session.ast, "out")[0];
+
+  assert.equal(extensionHost.facts.get(localAlias, sourcePrimitiveFactKey), undefined);
+  assert.equal(extensionHost.facts.get(outCall, argumentPassingFactKey), undefined);
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
 });
 
 test("source-semantics records pointer marker facts from neutral type aliases", () => {
@@ -511,6 +823,46 @@ function collectNodesByKind(sourceFile, ast, kindName) {
     }
     ast.forEachChild(node, visit);
   }
+}
+
+function collectCallsByCalleeText(sourceFile, ast, text) {
+  return collectNodesByKind(sourceFile, ast, "KindCallExpression")
+    .filter((node) => calleeText(node, ast) === text);
+}
+
+function calleeText(callExpression, ast) {
+  const expression = callExpression?.Expression;
+  if (expression === undefined) {
+    return undefined;
+  }
+  const kind = ast.kindName(expression);
+  if (kind === "KindIdentifier") {
+    return ast.text(expression);
+  }
+  if (kind === "KindPropertyAccessExpression") {
+    return ast.text(ast.name(expression));
+  }
+  return undefined;
+}
+
+function argumentPassingFactForCall(sourceFile, ast, extensionHost, callee, index) {
+  const call = collectCallsByCalleeText(sourceFile, ast, callee)[index];
+  const fact = extensionHost.facts.get(call, argumentPassingFactKey);
+  return {
+    mode: fact?.mode,
+    targetKind: ast.kindName(fact?.targetExpression),
+  };
+}
+
+function primitiveSummary(fact) {
+  return fact === undefined
+    ? undefined
+    : {
+        kind: fact.kind,
+        runtimeBase: fact.runtimeBase,
+        ...(fact.signed === undefined ? {} : { signed: fact.signed }),
+        ...(fact.width === undefined ? {} : { width: fact.width }),
+      };
 }
 
 function packageJson(name, exports) {

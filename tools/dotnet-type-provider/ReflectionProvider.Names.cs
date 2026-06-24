@@ -188,7 +188,14 @@ sealed partial class ReflectionProvider
 
     static string TargetId(Type type)
     {
-        return $"{AssemblyIdentity(type.Assembly)}::{MetadataName(type)}";
+        return $"{AssemblyIdentity(type.Assembly)}::{TargetMetadataName(type)}";
+    }
+
+    static string TargetMetadataName(Type type)
+    {
+        var name = type.FullName ?? type.Name;
+        var genericArgumentStart = name.IndexOf("[[", StringComparison.Ordinal);
+        return genericArgumentStart >= 0 ? name[..genericArgumentStart] : name;
     }
 
     static string AssemblyIdentity(Assembly assembly)
