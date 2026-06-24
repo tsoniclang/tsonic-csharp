@@ -52,7 +52,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  const consoleCall = mapCsharpJsConsoleCheckedCall(sourceMember, host);
+  const consoleCall = mapCsharpJsConsoleCheckedCall(request, context, sourceMember, host);
   if (consoleCall !== undefined) {
     return consoleCall;
   }

@@ -1,9 +1,12 @@
 import {
   acceptObservation,
+  rejectObservation,
 } from "@tsonic/tsts";
 import type {
+  CheckedCallMappingRequest,
   CheckedCallMappingResult,
   ExtensionObservation,
+  ExtensionObservationContext,
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
@@ -24,8 +27,10 @@ const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kin
 const stringTargetType = csharpTargetNamedType("System.String", undefined, { kind: "predefined", name: "string" });
 
 export function mapCsharpJsConsoleCheckedCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
   sourceMember: SourceLibraryMember,
-  _host: CsharpJsSurfaceHost,
+  host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
   if (sourceMember.declaringName !== "Console") {
     return undefined;
@@ -33,6 +38,21 @@ export function mapCsharpJsConsoleCheckedCall(
   const member = getConsoleTargetMember(sourceMember.memberName);
   if (member === undefined) {
     return undefined;
+  }
+  const invalidArgumentIndex = request.arguments.findIndex((argument) => {
+    const type = host.getTargetTypeRefForSubject(argument, context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: false,
+    });
+    return !isClosedConsoleArgumentTargetType(type);
+  });
+  if (invalidArgumentIndex >= 0) {
+    return rejectObservation(host.csharpProviderDiagnostic(
+      host.extensionId,
+      "CSHARP_JS_CONSOLE_ARGUMENT_REQUIRES_TARGET_FACT",
+      9100140,
+      `C# JS surface console call '${sourceMember.declaringName}.${sourceMember.memberName}' requires finalized closed target facts for argument ${invalidArgumentIndex + 1}.`,
+    ));
   }
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
@@ -59,6 +79,33 @@ function consoleDataParameter(): ReturnType<typeof targetParameter> {
 
 function optionalStringParameter(name: string): ReturnType<typeof targetParameter> {
   return targetParameter(name, stringTargetType, { optional: true });
+}
+
+function isClosedConsoleArgumentTargetType(type: TargetTypeRef | undefined): boolean {
+  if (type === undefined) {
+    return false;
+  }
+  switch (type.kind) {
+    case "source-primitive":
+    case "target-named":
+    case "target-specific":
+      return true;
+    case "array":
+      return isClosedConsoleArgumentTargetType(type.element);
+    case "tuple":
+      return type.elements.every(isClosedConsoleArgumentTargetType);
+    case "pointer":
+      return isClosedConsoleArgumentTargetType(type.pointee);
+    case "function-pointer":
+      return type.args.every(isClosedConsoleArgumentTargetType) &&
+        isClosedConsoleArgumentTargetType(type.result);
+    case "associated-type":
+      return isClosedConsoleArgumentTargetType(type.owner);
+    case "type-parameter":
+    case "opaque":
+    case "lifetime":
+      return false;
+  }
 }
 
 const consoleTargetMembers = new Map<string, TargetMember>([

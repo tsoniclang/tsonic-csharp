@@ -211,7 +211,10 @@ test("JS surface maps console.log calls from selected standard-library declarati
   const call = {};
   const value = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+  const targetTypes = new Map([
+    [value, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Console", "log"), {
     arguments: [value],
@@ -221,6 +224,21 @@ test("JS surface maps console.log calls from selected standard-library declarati
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.log");
   assert.equal(result.value.selectedSignature.member.static, true);
   assert.equal(result.value.selectedSignature.member.parameters[0]?.paramsArray, true);
+});
+
+test("JS surface rejects console.log without closed argument target facts", () => {
+  const call = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Console", "log"), {
+    arguments: [value],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_CONSOLE_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.match(result.diagnostic.message, /argument 1/);
 });
 
 test("JS surface maps Object.keys from selected standard-library declaration and closed JSObject carrier", () => {
