@@ -37,6 +37,9 @@ import {
   csharpReadOnlyListTargetType,
 } from "../../target-types.js";
 import {
+  getBinaryOperatorText,
+} from "../../operator-syntax.js";
+import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../runtime-carriers.js";
 import {
@@ -325,10 +328,33 @@ function parentIsWriteTarget(
     return false;
   }
   if (ast.is.IsBinaryExpression(parent) && asNodeSubject(getNodeField(parent, "Left")) === node) {
-    return true;
+    return isAssignmentOperator(getBinaryOperatorText(ast, parent));
   }
   return (ast.is.IsPrefixUnaryExpression(parent) || ast.is.IsPostfixUnaryExpression(parent)) &&
     asNodeSubject(getNodeField(parent, "Operand")) === node;
+}
+
+function isAssignmentOperator(operator: string | undefined): boolean {
+  switch (operator) {
+    case "=":
+    case "+=":
+    case "-=":
+    case "*=":
+    case "/=":
+    case "%=":
+    case "&=":
+    case "|=":
+    case "^=":
+    case "<<=":
+    case ">>=":
+    case ">>>=":
+    case "&&=":
+    case "||=":
+    case "??=":
+      return true;
+    default:
+      return false;
+  }
 }
 
 function isDeleteExpressionOperand(
@@ -350,8 +376,8 @@ function getSelectedArraySourceLibraryMemberForPropertyAccess(
   if (compiler === undefined) {
     return undefined;
   }
-  const name = asNodeSubject(getNodeField(propertyAccess, "name"));
-  const symbol = name === undefined ? undefined : compiler.checker.getSymbolAtLocation(name, { sourceFile });
+  const symbol = compiler.checker.getSymbolAtLocation(propertyAccess, { sourceFile }) ??
+    compiler.checker.getResolvedSymbol(propertyAccess, { sourceFile });
   return arraySourceLibraryMemberFromDeclaration(firstSymbolDeclaration(symbol), lifecycleContext);
 }
 

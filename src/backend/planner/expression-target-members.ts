@@ -238,7 +238,7 @@ function planTupleElementAccessExpression(
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires finalized receiver and argument facts before C# emission."));
     return invalidExpression("tuple element access source facts");
   }
-  const index = getFinalizedTupleElementIndex(argumentNode, input);
+  const index = getFinalizedTupleElementIndex(argumentNode, sourceFile, input);
   if (index === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires a numeric-literal source index; non-literal tuple indexing needs finalized target element-access facts before C# emission."));
     return invalidExpression("tuple element access index fact");
@@ -261,12 +261,19 @@ function planTupleElementAccessExpression(
 
 function getFinalizedTupleElementIndex(
   argumentNode: Node,
+  sourceFile: SourceFile,
   input: TargetCompileInput,
 ): number | undefined {
-  if (!HasSourceKind(input.ast, argumentNode, KindNumericLiteral)) {
-    return undefined;
+  if (HasSourceKind(input.ast, argumentNode, KindNumericLiteral)) {
+    return getNonNegativeSafeIntegerIndex(parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(argumentNode))));
   }
-  const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(argumentNode)));
+  const literalValue = input.types.getLiteralValue(input.semantics.getTypeAtLocation(argumentNode, { sourceFile }));
+  return typeof literalValue === "number"
+    ? getNonNegativeSafeIntegerIndex(literalValue)
+    : undefined;
+}
+
+function getNonNegativeSafeIntegerIndex(value: number | undefined): number | undefined {
   if (value === undefined || !Number.isSafeInteger(value) || !Number.isInteger(value) || value < 0) {
     return undefined;
   }

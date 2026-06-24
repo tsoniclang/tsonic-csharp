@@ -272,16 +272,8 @@ function getCalleePropertyProviderVirtualDeclaration(
   if (propertyName === undefined) {
     return undefined;
   }
-  const sourceFile = compiler.ast.getSourceFile(propertyName);
-  const propertySymbol = compiler.checker.getSymbolAtLocation(propertyName, { sourceFile });
-  const resolvedPropertySymbol = compiler.checker.getResolvedSymbol(propertyName, { sourceFile });
-  const aliasedPropertySymbol = compiler.checker.getAliasedSymbol(propertySymbol, { sourceFile });
-  const aliasedResolvedPropertySymbol = compiler.checker.getAliasedSymbol(resolvedPropertySymbol, { sourceFile });
-  return context.facts.get(propertyName, providerVirtualDeclarationFactKey) ??
-    context.facts.get(propertySymbol, providerVirtualDeclarationFactKey) ??
-    context.facts.get(resolvedPropertySymbol, providerVirtualDeclarationFactKey) ??
-    context.facts.get(aliasedPropertySymbol, providerVirtualDeclarationFactKey) ??
-    context.facts.get(aliasedResolvedPropertySymbol, providerVirtualDeclarationFactKey);
+  return context.facts.get(callee, providerVirtualDeclarationFactKey) ??
+    context.facts.get(propertyName, providerVirtualDeclarationFactKey);
 }
 
 function getConstructorDeclaringTargetType(

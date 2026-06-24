@@ -19,6 +19,7 @@ export interface DotnetProviderCache {
 export interface DotnetProviderCacheRequest {
   readonly providerId: string;
   readonly providerVersion: string;
+  readonly providerCacheAbiVersion: string;
   readonly targetFramework: string;
   readonly moduleSpecifier: string;
   readonly namespaceName: string;

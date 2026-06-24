@@ -101,8 +101,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
     },
     getDeclarationModel(resolution) {
       const result = options.provider.getModule(resolution.moduleSpecifier, providerContext({
-        ...(resolution.broadImport === true ? { broadImport: true as const } : {}),
-        ...(resolution.requestedExports !== undefined ? { requestedExports: resolution.requestedExports } : {}),
+        broadImport: true,
       }, options));
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);

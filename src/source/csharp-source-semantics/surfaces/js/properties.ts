@@ -95,7 +95,8 @@ function recordCsharpSourceLibraryPropertyFact(
   if (receiver === undefined || name === undefined) {
     return;
   }
-  const propertySymbol = compiler.checker.getSymbolAtLocation(name, { sourceFile });
+  const propertySymbol = compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
+    compiler.checker.getResolvedSymbol(node, { sourceFile });
   const declaration = firstSymbolDeclaration(propertySymbol);
   if (getSourceLibraryMember(declaration, context) === undefined) {
     return;
