@@ -5,7 +5,12 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  augmentDotnetModuleWithNativeArray,
   createDotnetReflectionTypeDataProvider,
+  dotnetNativeArrayCreateMemberId,
+  dotnetNativeArrayIndexerMemberId,
+  dotnetNativeArrayLengthMemberId,
+  dotnetNativeArrayTypeId,
   dotnetModuleToProviderDeclarationModel,
   dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
@@ -184,6 +189,60 @@ test(".NET provider declaration model preserves explicit target parameter passin
   assert.equal(signature.name, "TryGetValue");
   assert.equal(signature.parameters[0].passingMode, undefined);
   assert.equal(signature.parameters[1].passingMode, "byref-writeonly-must-init");
+});
+
+test(".NET provider exposes explicit native Array as a provider-owned C# array projection", () => {
+  const module = augmentDotnetModuleWithNativeArray({
+    moduleSpecifier: "@tsonic/dotnet/System.js",
+    namespaceName: "System",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "Array",
+        namespaceName: "System",
+        targetId: testTargetId("System.Array"),
+        metadataName: "System.Array",
+      },
+    ],
+  });
+  const nativeArray = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "Array"
+  );
+  assert.ok(nativeArray);
+  assert.equal(nativeArray.targetId, dotnetNativeArrayTypeId);
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  const providerArray = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "interface");
+  const providerArrayNamespace = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "namespace");
+  assert.ok(providerArray);
+  assert.ok(providerArrayNamespace);
+  assert.equal(providerArray.id, dotnetNativeArrayTypeId);
+  assert.deepEqual(providerArray.typeParameters, [{ name: "T", defaultType: { kind: "unknown" } }]);
+
+  const create = providerArrayNamespace.members.find((member) => member.name === "create");
+  const length = providerArray.members.find((member) => member.name === "length");
+  const indexer = providerArray.members.find((member) => member.kind === "indexer");
+  assert.equal(create.id, dotnetNativeArrayCreateMemberId);
+  assert.equal(create.static, undefined);
+  assert.deepEqual(create.signatures[0].typeParameters, [{ name: "T" }]);
+  assert.deepEqual(create.signatures[0].returnType, {
+    kind: "provider-ref",
+    name: "Array",
+    moduleSpecifier: "@tsonic/dotnet/System.js",
+    typeArguments: [{ kind: "type-parameter", name: "T" }],
+  });
+  assert.equal(length.id, dotnetNativeArrayLengthMemberId);
+  assert.equal(length.readonly, true);
+  assert.equal(indexer.id, dotnetNativeArrayIndexerMemberId);
+  assert.equal(indexer.readonly, undefined);
+
+  const binding = dotnetExportToTargetBinding(nativeArray);
+  assert.ok(binding);
+  assert.equal(binding.csharpType.kind, "array");
+  assert.equal(binding.csharpType.element.kind, "type-parameter");
+  assert.equal(binding.members.find((member) => member.id === dotnetNativeArrayLengthMemberId).targetName, "Length");
+  assert.equal(binding.members.find((member) => member.id === dotnetNativeArrayIndexerMemberId).targetName, "Item");
 });
 
 test(".NET provider declaration model omits source members without truthful source shapes", () => {

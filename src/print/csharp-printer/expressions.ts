@@ -76,6 +76,11 @@ export function printCsharpExpression(
     case "ConditionalExpression":
       return `${context.printExpression(expression.condition)} ? ${context.printExpression(expression.whenTrue)} : ${context.printExpression(expression.whenFalse)}`;
     case "ArrayCreationExpression": {
+      if (expression.size !== undefined) {
+        return expression.elementType === undefined
+          ? `new[] { }`
+          : `new ${context.printType(expression.elementType)}[${context.printExpression(expression.size)}]`;
+      }
       const elements = expression.elements.map(context.printExpression).join(", ");
       const initializer = elements.length === 0 ? "{ }" : `{ ${elements} }`;
       return expression.elementType === undefined

@@ -96,12 +96,14 @@ export function dotnetExportToTargetBinding(declaration: DotnetExportDeclaration
 
 function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBindingFact {
   const targetId = requireDotnetTargetId(declaration.targetId, declaration.metadataName);
-  const declaredCsharpType = csharpTargetNamedType(
-    targetId,
-    declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
-    declaration.renderShape === undefined ? undefined : dotnetRenderShapeToCsharpRenderShape(declaration.renderShape),
-    csharpTargetMetadataFromDotnetTypeDeclaration(declaration),
-  );
+  const declaredCsharpType = declaration.targetType === undefined
+    ? csharpTargetNamedType(
+        targetId,
+        declaration.typeParameters?.map((parameter) => ({ kind: "type-parameter", name: parameter.name }) satisfies TargetTypeRef),
+        declaration.renderShape === undefined ? undefined : dotnetRenderShapeToCsharpRenderShape(declaration.renderShape),
+        csharpTargetMetadataFromDotnetTypeDeclaration(declaration),
+      )
+    : dotnetTypeRefToTargetTypeRef(declaration.targetType);
   const baseType = declaration.baseType === undefined
     ? undefined
     : dotnetTypeRefToTargetTypeRef(declaration.baseType);
@@ -214,7 +216,9 @@ function dotnetSignatureToTargetMember(
     ...(dotnetMemberIsReadonly(member) ? { readonly: true } : {}),
     ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
     parameters: signature.parameters.map(dotnetParameterToTargetParameter),
-    ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToTargetTypeRef(signature.returnType) } : {}),
+    ...(signature.targetReturnType !== undefined || signature.returnType !== undefined
+      ? { returnType: dotnetTypeRefToTargetTypeRef(signature.targetReturnType ?? signature.returnType!) }
+      : {}),
     ...(signature.attributes !== undefined && signature.attributes.length > 0
       ? { attributes: signature.attributes.map(dotnetAttributeToTargetAttribute) }
       : {}),

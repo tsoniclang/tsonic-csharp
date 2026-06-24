@@ -8,8 +8,10 @@ import type {
   CheckedElementAccessMappingRequest,
   CheckedOperationMappingResult,
   CheckedPropertyAccessMappingRequest,
+  ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpProviderDiagnostic,
@@ -63,6 +65,11 @@ import {
   asNodeSubject,
   visitAstReaderNodes,
 } from "./ast-utils.js";
+import {
+  dotnetNativeArrayIndexerMemberId,
+  dotnetNativeArrayLengthMemberId,
+  dotnetNativeArrayTypeId,
+} from "../../providers/dotnet/native-array.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
 
@@ -101,7 +108,12 @@ export function mapCsharpCheckedPropertyAccess(
     request.receiverSymbol,
   ]);
   if (binding === undefined) {
-    return mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ?? deferObservation;
+    return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
+      mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ??
+      deferObservation;
+  }
+  if (binding.id === dotnetNativeArrayTypeId) {
+    return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ?? deferObservation;
   }
   const selectedDeclarationFact = context.facts.get(request.sourceSelectedPropertySymbol, providerVirtualDeclarationFactKey) ??
     context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
@@ -144,6 +156,9 @@ export function mapCsharpCheckedElementAccess(
     request.receiver,
   ]);
   if (binding === undefined) {
+    return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
+  }
+  if (binding.id === dotnetNativeArrayTypeId) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
   }
   const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
@@ -246,16 +261,37 @@ function isNamespaceImportReceiver(
   return matched;
 }
 
+function mapCsharpNativeArrayCheckedPropertyAccess(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
+  extensionId: string,
+  host: CsharpOperationsProviderHost,
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const receiverType = getNativeArrayReceiverType(request.receiverType, request.receiver, context, host);
+  if (receiverType?.kind !== "array") {
+    return undefined;
+  }
+  if (request.propertyName !== "length") {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED", 9100136, `C# native array source contract has no target-backed property '${request.propertyName}'.`));
+  }
+  const operation = csharpTargetMemberOperation(dotnetNativeArrayLengthMemberId, "property", "Length", {
+    resultType: csharpSourcePrimitiveTargetType("int32"),
+  });
+  recordCsharpTargetOperation(context, request.expression, operation, [{ message: "C# native array length operation recorded from checked TypeScript property access on provider-owned array contract." }]);
+  return acceptObservation<CheckedOperationMappingResult>({
+    operation: targetOperation(dotnetNativeArrayLengthMemberId, "property", "System.Array.Length", {
+      resultType: csharpSourcePrimitiveTargetType("int32"),
+    }),
+  }, [{ message: "C# native array length selected from checked TypeScript property access on provider-owned array contract." }]);
+}
+
 function mapCsharpNativeArrayCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.receiverType, context, noRuntimeCarrierQuery) ??
-      host.getTargetTypeRefForSubject(request.receiver, context, { ...noRuntimeCarrierQuery, allowSemanticTypeQuery: false }),
-  );
+  const receiverType = getNativeArrayReceiverType(request.receiverType, request.receiver, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
@@ -263,12 +299,24 @@ function mapCsharpNativeArrayCheckedElementAccess(
   if (!isIntegralTargetTypeRef(indexType) && !isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100109, "C# native array element access requires an integral TSTS/provider-backed index type."));
   }
-  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.array.indexer", "indexer", "Item", {
+  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(dotnetNativeArrayIndexerMemberId, "indexer", "Item", {
     resultType: receiverType.element,
-  }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access." }]);
+  }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access on provider-owned array contract." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation("tsonic.csharp.array.indexer", "indexer", "System.Array.Item", {
+    operation: targetOperation(dotnetNativeArrayIndexerMemberId, "indexer", "System.Array.Item", {
       resultType: receiverType.element,
     }),
-  }, [{ message: "C# native array indexer selected from checked TypeScript element access." }]);
+  }, [{ message: "C# native array indexer selected from checked TypeScript element access on provider-owned array contract." }]);
+}
+
+function getNativeArrayReceiverType(
+  receiverTypeSubject: ExtensionFactSubject | undefined,
+  receiverSubject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  return unwrapNullableTargetType(
+    host.getTargetTypeRefForSubject(receiverTypeSubject, context, noRuntimeCarrierQuery) ??
+      host.getTargetTypeRefForSubject(receiverSubject, context, { ...noRuntimeCarrierQuery, allowSemanticTypeQuery: false }),
+  );
 }

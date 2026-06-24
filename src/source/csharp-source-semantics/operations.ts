@@ -91,6 +91,21 @@ export function csharpTargetMemberOperation(
   };
 }
 
+export function csharpTargetArrayCreationOperation(
+  operationId: string,
+  elementType: TargetTypeRef,
+  selectedMember: TargetMember,
+): CsharpTargetOperationFact {
+  return {
+    kind: "array-creation",
+    operationId,
+    elementType,
+    resultType: { kind: "array", element: elementType },
+    lengthArgumentIndex: 0,
+    selectedMember,
+  };
+}
+
 function getArgumentArrayLiteralElementTypes(member: TargetMember): readonly (TargetTypeRef | undefined)[] | undefined {
   const elementTypes = member.parameters.map((parameter) => getCsharpArrayLiteralElementTargetType(parameter.type));
   return elementTypes.some((elementType) => elementType !== undefined)

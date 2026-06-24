@@ -13,6 +13,9 @@ import {
   dotnetModulePrefix,
   parseDotnetModuleSpecifier,
 } from "../module-specifier.js";
+import {
+  augmentDotnetModuleWithNativeArray,
+} from "../native-array.js";
 import type {
   DotnetProviderDiagnostic,
   DotnetProviderModuleContext,
@@ -102,7 +105,7 @@ export function createDotnetReflectionTypeDataProvider(
       return error;
     }
     try {
-      const module = JSON.parse(result.stdout) as DotnetModuleModel;
+      const module = augmentDotnetModuleWithNativeArray(JSON.parse(result.stdout) as DotnetModuleModel);
       modules.set(specifier, module);
       return module;
     } catch (error) {
@@ -151,7 +154,7 @@ export function createDotnetReflectionTypeDataProvider(
     try {
       const loadedModules = JSON.parse(result.stdout) as DotnetModuleModel[];
       for (const module of loadedModules) {
-        modules.set(module.moduleSpecifier, module);
+        modules.set(module.moduleSpecifier, augmentDotnetModuleWithNativeArray(module));
       }
       allModulesLoaded = true;
       return undefined;

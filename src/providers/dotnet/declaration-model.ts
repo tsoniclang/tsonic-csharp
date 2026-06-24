@@ -105,7 +105,6 @@ export function dotnetExportToProviderExport(
         id: declaration.namespaceName,
         name: declaration.sourceName,
         kind: "namespace",
-        targetIdentity: dotnetTargetIdentity(declaration.namespaceName, declaration.sourceName),
         members: declaration.exports
           .map(dotnetExportToNamespaceMember)
           .filter((member): member is ProviderMemberDeclaration => member !== undefined),
@@ -544,7 +543,6 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
         id: declaration.targetId,
         name: declaration.sourceName,
         kind: "method",
-        static: true,
         signatures,
       };
     }
@@ -709,6 +707,7 @@ function dotnetTypeParameterToProviderSourceTypeParameter(typeParameter: DotnetT
   return {
     name: providerParameter.name,
     ...(providerParameter.variance !== undefined ? { variance: providerParameter.variance } : {}),
+    ...(providerParameter.defaultType !== undefined ? { defaultType: providerParameter.defaultType } : {}),
   };
 }
 

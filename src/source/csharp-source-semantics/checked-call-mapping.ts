@@ -10,6 +10,8 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
+  TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpProviderDiagnostic,
@@ -18,12 +20,18 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
+  csharpTargetArrayCreationOperation,
   csharpTargetOperationFromMember,
   recordCsharpTargetOperation,
 } from "./operations.js";
 import {
   asNodeSubject,
 } from "./ast-utils.js";
+import {
+  dotnetNativeArrayCreateMemberId,
+  dotnetNativeArrayTypeId,
+  isDotnetNativeArrayCreateMemberId,
+} from "../../providers/dotnet/native-array.js";
 import {
   findTargetBinding,
   resolveTargetBindingForReference,
@@ -115,6 +123,10 @@ export function mapCsharpCheckedCall(
     request.calleeReceiverResolvedSymbol,
     request.calleeReceiverSymbol,
   ]) ?? resolveTargetBindingForReference(request.callee, context);
+  const nativeArrayCreate = mapDotnetNativeArrayCreateCall(request, context, extensionId, host, virtualDeclaration);
+  if (nativeArrayCreate !== undefined) {
+    return nativeArrayCreate;
+  }
   if (binding === undefined) {
     return deferObservation;
   }
@@ -158,9 +170,24 @@ export function mapCsharpCheckedCall(
   const declaringTargetType = member.kind === "constructor" ? constructorDeclaringTargetType ?? member.declaringType : host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
     host.getTargetTypeRefForSubject(request.calleeReceiver, context) ??
     host.getTargetTypeRefForSubject(request.call, context);
-  const csharpMember = instantiateSelectedTargetMember({ member }, host, { declaringTargetType });
+  const nativeArrayElementType = isDotnetNativeArrayCreateMemberId(member.id)
+    ? getNativeArrayCreateElementType(request, context, host)
+    : undefined;
+  if (isDotnetNativeArrayCreateMemberId(member.id) && nativeArrayElementType === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_CREATE_ELEMENT_TYPE_NOT_PROVEN", 9100134, "C# native array creation requires an explicit or contextual TSTS-proven element target type."));
+  }
+  const selectedSignature = nativeArrayElementType === undefined
+    ? { member }
+    : { member, targetTypeArguments: [nativeArrayElementType] };
+  const csharpMember = instantiateSelectedTargetMember(selectedSignature, host, { declaringTargetType });
   if (csharpMember === undefined || !targetMemberIsClosed(csharpMember)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_RENDERABLE", 9100104, `C# provider selected '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`));
+  }
+  if (nativeArrayElementType !== undefined) {
+    recordCsharpTargetOperation(context, request.call, csharpTargetArrayCreationOperation(csharpMember.id, nativeArrayElementType, csharpMember), [{ message: "C# native array creation operation finalized from checked TSTS provider declaration and explicit target array facts." }]);
+    return acceptObservation<CheckedCallMappingResult>({
+      selectedSignature: { member: csharpMember, targetTypeArguments: [nativeArrayElementType] },
+    }, [{ message: "C# native array creation selected from checked TSTS provider declaration." }]);
   }
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target call operation finalized from checked TSTS selection and provider target identity." }]);
   return acceptObservation<CheckedCallMappingResult>({
@@ -168,12 +195,93 @@ export function mapCsharpCheckedCall(
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
 }
 
+function mapDotnetNativeArrayCreateCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  extensionId: string,
+  host: CsharpOperationsProviderHost,
+  virtualDeclaration: ProviderVirtualDeclarationFact | undefined,
+): ExtensionObservation<CheckedCallMappingResult> | undefined {
+  const selectedMemberId = virtualDeclaration?.signatureId ?? virtualDeclaration?.memberId;
+  if (selectedMemberId === undefined || !isDotnetNativeArrayCreateMemberId(selectedMemberId)) {
+    return undefined;
+  }
+  const targetBinding = host.getCsharpTargetBindingByTargetId(dotnetNativeArrayTypeId);
+  const member = targetBinding?.members?.find((candidate) => isDotnetNativeArrayCreateMemberId(candidate.id)) ?? createDotnetNativeArrayTargetMember();
+  if (targetBinding === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_CREATE_TARGET_FACT_NOT_PROVEN", 9100135, "C# native array creation requires finalized provider target binding facts for the explicit .NET Array source contract."));
+  }
+  const nativeArrayElementType = getNativeArrayCreateElementType(request, context, host);
+  if (nativeArrayElementType === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_CREATE_ELEMENT_TYPE_NOT_PROVEN", 9100134, "C# native array creation requires an explicit or contextual TSTS-proven element target type."));
+  }
+  const csharpMember = instantiateSelectedTargetMember(
+    { member, targetTypeArguments: [nativeArrayElementType] },
+    host,
+    {},
+  );
+  if (csharpMember === undefined || !targetMemberIsClosed(csharpMember)) {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_RENDERABLE", 9100104, `C# provider selected '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`));
+  }
+  recordCsharpTargetOperation(context, request.call, csharpTargetArrayCreationOperation(csharpMember.id, nativeArrayElementType, csharpMember), [{ message: "C# native array creation operation finalized from checked TSTS provider declaration and explicit target array facts." }]);
+  return acceptObservation<CheckedCallMappingResult>({
+    selectedSignature: { member: csharpMember, targetTypeArguments: [nativeArrayElementType] },
+  }, [{ message: "C# native array creation selected from checked TSTS provider declaration." }]);
+}
+
+function createDotnetNativeArrayTargetMember(): TargetMember {
+  const typeParameter = { kind: "type-parameter", name: "T" } satisfies TargetTypeRef;
+  return {
+    id: dotnetNativeArrayCreateMemberId,
+    sourceName: "create",
+    targetName: "__tsonic_native_array_create",
+    kind: "method",
+    static: true,
+    parameters: [
+      {
+        name: "length",
+        type: { kind: "source-primitive", name: "int32" },
+        passingMode: "by-value",
+      },
+    ],
+    returnType: { kind: "array", element: typeParameter },
+    typeParameters: [{ name: "T" }],
+    overloadGroup: dotnetNativeArrayCreateMemberId,
+  };
+}
+
 function getSelectedCallProviderVirtualDeclaration(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ProviderVirtualDeclarationFact | undefined {
   return context.facts.get(request.sourceSelectedSignature, providerVirtualDeclarationFactKey) ??
-    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey) ??
+    getCalleePropertyProviderVirtualDeclaration(request, context);
+}
+
+function getCalleePropertyProviderVirtualDeclaration(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): ProviderVirtualDeclarationFact | undefined {
+  const compiler = context.compiler;
+  const callee = asNodeSubject(request.callee);
+  if (compiler === undefined || callee === undefined || !compiler.ast.is.IsPropertyAccessExpression(callee)) {
+    return undefined;
+  }
+  const propertyName = compiler.ast.name(callee);
+  if (propertyName === undefined) {
+    return undefined;
+  }
+  const sourceFile = compiler.ast.getSourceFile(propertyName);
+  const propertySymbol = compiler.checker.getSymbolAtLocation(propertyName, { sourceFile });
+  const resolvedPropertySymbol = compiler.checker.getResolvedSymbol(propertyName, { sourceFile });
+  const aliasedPropertySymbol = compiler.checker.getAliasedSymbol(propertySymbol, { sourceFile });
+  const aliasedResolvedPropertySymbol = compiler.checker.getAliasedSymbol(resolvedPropertySymbol, { sourceFile });
+  return context.facts.get(propertyName, providerVirtualDeclarationFactKey) ??
+    context.facts.get(propertySymbol, providerVirtualDeclarationFactKey) ??
+    context.facts.get(resolvedPropertySymbol, providerVirtualDeclarationFactKey) ??
+    context.facts.get(aliasedPropertySymbol, providerVirtualDeclarationFactKey) ??
+    context.facts.get(aliasedResolvedPropertySymbol, providerVirtualDeclarationFactKey);
 }
 
 function getConstructorDeclaringTargetType(
@@ -197,6 +305,24 @@ function getConstructorDeclaringTargetType(
     return undefined;
   }
   return declaringTargetType;
+}
+
+function getNativeArrayCreateElementType(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
+  const ast = context.compiler?.ast;
+  const callNode = asNodeSubject(request.call);
+  if (ast !== undefined && callNode !== undefined) {
+    const explicitTypeArguments = ast.typeArguments(callNode)
+      .map((argument) => host.getTargetTypeRefForSubject(argument, context));
+    if (explicitTypeArguments.length === 1 && explicitTypeArguments[0] !== undefined) {
+      return explicitTypeArguments[0];
+    }
+  }
+  const contextualReturnType = host.getTargetTypeRefForSubject(request.sourceReturnType, context);
+  return contextualReturnType?.kind === "array" ? contextualReturnType.element : undefined;
 }
 
 function isProviderStaticContainerReceiver(

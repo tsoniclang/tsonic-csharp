@@ -89,6 +89,7 @@ export interface DotnetTypeDeclaration {
   readonly conversionOperators?: readonly DotnetConversionOperatorDeclaration[];
   readonly unsupportedMembers?: readonly DotnetUnsupportedMemberDeclaration[];
   readonly sourceShape?: DotnetTypeRef;
+  readonly targetType?: DotnetTypeRef;
   readonly throwable?: boolean;
 }
 
@@ -159,6 +160,7 @@ export interface DotnetSignatureDeclaration {
   readonly typeParameters?: readonly DotnetTypeParameterDeclaration[];
   readonly parameters: readonly DotnetParameterDeclaration[];
   readonly returnType?: DotnetTypeRef;
+  readonly targetReturnType?: DotnetTypeRef;
   readonly returnAttributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedReturnAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
 }
@@ -241,6 +243,7 @@ export interface DotnetUnsupportedDefaultValueDeclaration {
 export interface DotnetTypeParameterDeclaration {
   readonly name: string;
   readonly constraints?: readonly DotnetConstraint[];
+  readonly defaultType?: DotnetTypeRef;
   readonly unsupportedConstraints?: readonly DotnetUnsupportedConstraintDeclaration[];
   readonly variance?: "in" | "out" | "invariant" | "target-defined";
 }

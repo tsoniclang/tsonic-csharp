@@ -118,9 +118,13 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
 }
 
 export function dotnetTypeParameterToProviderTypeParameter(typeParameter: DotnetTypeParameterDeclaration) {
+  const defaultType = typeParameter.defaultType === undefined
+    ? undefined
+    : tryDotnetTypeRefToProviderType(typeParameter.defaultType);
   return {
     name: typeParameter.name,
     ...(typeParameter.variance !== undefined ? { variance: typeParameter.variance } : {}),
+    ...(defaultType !== undefined ? { defaultType } : {}),
   };
 }
 

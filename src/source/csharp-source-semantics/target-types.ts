@@ -199,7 +199,9 @@ export function csharpTargetTypeFromBinding(
       : substituteTargetTypeParameters(withArguments, targetBindingTypeArgumentMap(binding, typeArguments));
   }
   if (declaredType !== undefined) {
-    return typeArguments.length === 0 ? declaredType : undefined;
+    return typeArguments.length === 0
+      ? declaredType
+      : substituteTargetTypeParameters(declaredType, targetBindingTypeArgumentMap(binding, typeArguments));
   }
   const renderShape = (binding as CsharpTargetBindingFact).csharpRender;
   return renderShape === undefined

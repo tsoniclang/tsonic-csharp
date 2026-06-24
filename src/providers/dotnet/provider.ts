@@ -17,6 +17,9 @@ import type {
   DotnetProviderIdentity,
 } from "./model.js";
 import {
+  augmentDotnetModuleWithNativeArray,
+} from "./native-array.js";
+import {
   dotnetPackageName,
   parseDotnetModuleSpecifier,
 } from "./module-specifier.js";
@@ -97,10 +100,10 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
-      return dotnetModuleToProviderDeclarationModel(result, {
+      return dotnetModuleToProviderDeclarationModel(augmentDotnetModuleWithNativeArray(result), {
         resolveModule(specifier) {
           const resolved = options.provider.getModule(specifier, providerContext({}, options));
-          return isDotnetProviderDiagnostic(resolved) ? undefined : resolved;
+          return isDotnetProviderDiagnostic(resolved) ? undefined : augmentDotnetModuleWithNativeArray(resolved);
         },
       });
     },

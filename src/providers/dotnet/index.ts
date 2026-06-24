@@ -55,4 +55,12 @@ export {
   dotnetPackageName,
   parseDotnetModuleSpecifier,
 } from "./module-specifier.js";
+export {
+  augmentDotnetModuleWithNativeArray,
+  dotnetNativeArrayCreateMemberId,
+  dotnetNativeArrayIndexerMemberId,
+  dotnetNativeArrayLengthMemberId,
+  dotnetNativeArrayTypeId,
+  isDotnetNativeArrayCreateMemberId,
+} from "./native-array.js";
 export { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";
