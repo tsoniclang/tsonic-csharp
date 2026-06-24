@@ -218,7 +218,7 @@ test("nested array parameter destructuring uses finalized nested array carrier f
   ]);
 });
 
-test("array binding defaults emit only from finalized array carrier facts", () => {
+test("array binding defaults fail closed until undefined/default element facts exist", () => {
   const first = identifier("first");
   const pattern = arrayBindingPattern([
     bindingElement(first, { initializer: numericLiteral("42") }),
@@ -237,31 +237,9 @@ test("array binding defaults emit only from finalized array carrier facts", () =
     createDestructuringPlannerState(),
   );
 
-  assert.deepEqual(diagnostics, []);
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "first",
-    type: { kind: "PredefinedType", name: "int" },
-    initializer: {
-      kind: "ConditionalExpression",
-      condition: {
-        kind: "BinaryExpression",
-        left: {
-          kind: "SimpleMemberAccessExpression",
-          receiver: { kind: "IdentifierName", name: "value" },
-          name: "Length",
-        },
-        operatorToken: { kind: "GreaterThanToken" },
-        right: { kind: "LiteralExpression", value: 0 },
-      },
-      whenTrue: {
-        kind: "ElementAccessExpression",
-        receiver: { kind: "IdentifierName", name: "value" },
-        argument: { kind: "LiteralExpression", value: 0 },
-      },
-      whenFalse: { kind: "LiteralExpression", value: 42 },
-    },
-  }]);
+  assert.deepEqual(statements, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Array and tuple destructuring defaults require finalized undefined\/default-value element facts/);
 });
 
 test("object rename and rest destructuring emit from finalized object-shape facts", () => {
@@ -347,6 +325,72 @@ test("object rename and rest destructuring emit from finalized object-shape fact
       },
     },
   ]);
+});
+
+test("object rest destructuring rejects rest shape facts that retain extracted members", () => {
+  const renamed = identifier("renamed");
+  const rest = identifier("rest");
+  const sourceMember = {
+    sourceName: "source",
+    targetName: "Source",
+    memberKind: "property",
+    type: { kind: "source-primitive", name: "int32" },
+  };
+  const keepMember = {
+    sourceName: "keep",
+    targetName: "Keep",
+    memberKind: "property",
+    type: { kind: "source-primitive", name: "bool" },
+  };
+  const sourceShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__SourceShape",
+      csharpRender: { kind: "named", name: "__SourceShape" },
+    },
+    members: [sourceMember, keepMember],
+  };
+  const restShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__RestShape",
+      csharpRender: { kind: "named", name: "__RestShape" },
+    },
+    members: [sourceMember, keepMember],
+  };
+  const pattern = objectBindingPattern([
+    bindingElement(renamed, { propertyName: identifier("source") }),
+    bindingElement(rest, { rest: true }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      objectShapes: new Map([
+        [parameter, sourceShape],
+        [rest, restShape],
+      ]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "renamed",
+    type: { kind: "PredefinedType", name: "int" },
+    initializer: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "value" },
+      name: "Source",
+    },
+  }]);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /rest shape must exclude explicitly extracted member 'source'/);
 });
 
 test("object destructuring defaults fail closed until undefined/default facts exist", () => {

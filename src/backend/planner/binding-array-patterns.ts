@@ -7,13 +7,11 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpExpression,
   CsharpStatement,
-  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { planExpressionWithExpectedType } from "./expressions.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
@@ -73,14 +71,11 @@ function planArrayBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array destructuring element requires a renderable provider element carrier type before C# emission."));
     return [];
   }
-  if (element.Initializer !== undefined && sourceCarrier.kind !== "array") {
-    diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Tuple destructuring defaults require finalized optional-element facts before C# emission."));
+  if (element.Initializer !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array and tuple destructuring defaults require finalized undefined/default-value element facts before C# emission."));
     return [];
   }
-  const projectedWithDefault = element.Initializer === undefined
-    ? projected
-    : planArrayElementDefaultProjection(projected, sourceExpression, index, element.Initializer, projectedType, sourceFile, input, diagnostics);
-  return planBindingNameFromProjection(name, projectedWithDefault, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
 }
 
 function planArrayBindingProjection(
@@ -132,34 +127,4 @@ function planArrayRestBindingElement(
     { kind: "Argument", expression: { kind: "LiteralExpression", value: index } },
   ]);
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, sourceCarrier);
-}
-
-function planArrayElementDefaultProjection(
-  projected: CsharpExpression,
-  sourceExpression: CsharpExpression,
-  index: number,
-  defaultExpression: Node,
-  projectedType: CsharpTypeNode,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-): CsharpExpression {
-  return {
-    kind: "ConditionalExpression",
-    condition: {
-      kind: "BinaryExpression",
-      left: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: sourceExpression,
-        name: "Length",
-      },
-      operatorToken: { kind: "GreaterThanToken" },
-      right: {
-        kind: "LiteralExpression",
-        value: index,
-      },
-    },
-    whenTrue: projected,
-    whenFalse: planExpressionWithExpectedType(defaultExpression, sourceFile, input, diagnostics, projectedType),
-  };
 }
