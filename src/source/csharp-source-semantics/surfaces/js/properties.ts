@@ -14,6 +14,7 @@ import type {
 } from "./source-library.js";
 import {
   csharpTargetOperationFromMember,
+  csharpJsCheckedTypeQuery,
   csharpSourcePrimitiveTargetType,
   getSourceLibraryMember,
   recordCsharpTargetOperation,
@@ -23,6 +24,10 @@ import {
 import {
   getMathPropertyTargetMember,
 } from "./math.js";
+import {
+  isCsharpJsRegExpRuntimeCarrier,
+  getRegExpPropertyTargetMember,
+} from "./regexp.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryPropertyAccess,
   rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
@@ -41,7 +46,7 @@ function mapCsharpSourceLibraryPropertyOperation(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   sourceMember: SourceLibraryMember | undefined,
-  _host: CsharpJsSurfaceHost,
+  host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   if (sourceMember === undefined) {
     return undefined;
@@ -49,13 +54,16 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (sourceMember.declaringName === "Console" || sourceMember.declaringName === "Object") {
     return undefined;
   }
-  const unsupported = rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(sourceMember, _host);
+  const unsupported = rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   if (unsupported !== undefined) {
     return unsupported;
   }
+  if (!sourceLibraryPropertyReceiverHasClosedFacts(request, context, sourceMember, host)) {
+    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
+  }
   const member = getSourceLibraryPropertyMember(sourceMember);
   if (member === undefined) {
-    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, _host);
+    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }
   recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
   return acceptObservation<CheckedOperationMappingResult>({
@@ -63,11 +71,41 @@ function mapCsharpSourceLibraryPropertyOperation(
   }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
 }
 
+function sourceLibraryPropertyReceiverHasClosedFacts(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  if (sourceMember.declaringName === "Math") {
+    return true;
+  }
+  const receiverType = host.unwrapNullableTargetType(
+    host.getTargetTypeRefForSubject(request.receiverType, context, csharpJsCheckedTypeQuery) ??
+      host.getTargetTypeRefForSubject(request.receiver, context, csharpJsCheckedTypeQuery),
+  );
+  if (sourceMember.declaringName === "Array" || sourceMember.declaringName === "ReadonlyArray") {
+    return receiverType?.kind === "array";
+  }
+  if (sourceMember.declaringName === "String") {
+    return host.isCsharpStringType(receiverType);
+  }
+  if (sourceMember.declaringName === "RegExp") {
+    return isCsharpJsRegExpRuntimeCarrier(receiverType);
+  }
+  return false;
+}
+
 function getSourceLibraryPropertyMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
   if (sourceMember.memberName !== "length") {
-    return sourceMember.declaringName === "Math"
-      ? getMathPropertyTargetMember(sourceMember.memberName)
-      : undefined;
+    switch (sourceMember.declaringName) {
+      case "Math":
+        return getMathPropertyTargetMember(sourceMember.memberName);
+      case "RegExp":
+        return getRegExpPropertyTargetMember(sourceMember.memberName);
+      default:
+        return undefined;
+    }
   }
   if (
     sourceMember.declaringName === "String" ||

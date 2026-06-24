@@ -139,6 +139,14 @@ export function getArrayTargetMembers(sourceName: string): readonly TargetMember
   const stringType = csharpStringTargetType();
   const helperType = csharpTargetNamedType("Tsonic.CSharp.Runtime.ArrayHelpers", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "ArrayHelpers"));
   switch (sourceName) {
+    case "concat":
+      return [targetMethod("Tsonic.CSharp.Runtime.ArrayHelpers.concat", sourceName, "Concat", [
+        targetParameter("chunks", { kind: "array", element: arrayType }, { paramsArray: true }),
+      ], arrayType, {
+        declaringType: helperType,
+        static: true,
+        receiverPassing: "first-argument",
+      })];
     case "includes":
       return [arrayHelper(sourceName, "Includes", [targetParameter("array", arrayType), targetParameter("value", itemType), targetParameter("fromIndex", intType, { optional: true })], boolType, helperType)];
     case "indexOf":

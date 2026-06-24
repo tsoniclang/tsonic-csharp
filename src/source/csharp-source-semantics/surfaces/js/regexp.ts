@@ -35,6 +35,7 @@ import {
   recordCsharpTargetOperation,
   targetMethod,
   targetParameter,
+  targetProperty,
 } from "./source-library.js";
 
 const csharpJsRegExpTypeId = "Tsonic.CSharp.Js.RegExp";
@@ -202,4 +203,30 @@ export function getRegExpTargetMembers(sourceName: string): readonly TargetMembe
     ], boolType)];
   }
   return [];
+}
+
+export function getRegExpPropertyTargetMember(sourceName: string): TargetMember | undefined {
+  const regExpType = csharpJsRegExpTargetType();
+  switch (sourceName) {
+    case "source":
+    case "flags":
+      return targetProperty(`Tsonic.CSharp.Js.RegExp.${sourceName}`, sourceName, sourceName, csharpStringTargetType(), {
+        declaringType: regExpType,
+      });
+    case "global":
+    case "ignoreCase":
+    case "multiline":
+    case "dotAll":
+    case "unicode":
+    case "sticky":
+      return targetProperty(`Tsonic.CSharp.Js.RegExp.${sourceName}`, sourceName, sourceName, csharpSourcePrimitiveTargetType("bool"), {
+        declaringType: regExpType,
+      });
+    case "lastIndex":
+      return targetProperty(`Tsonic.CSharp.Js.RegExp.${sourceName}`, sourceName, sourceName, csharpSourcePrimitiveTargetType("int32"), {
+        declaringType: regExpType,
+      });
+    default:
+      return undefined;
+  }
 }

@@ -98,6 +98,7 @@ const stringInstanceTargetNames = new Map<string, string>([
 ]);
 
 const stringHelperNames = new Set([
+  "at",
   "charAt",
   "charCodeAt",
   "codePointAt",
@@ -106,7 +107,10 @@ const stringHelperNames = new Set([
   "fromCodePoint",
   "includes",
   "indexOf",
+  "isWellFormed",
   "lastIndexOf",
+  "localeCompare",
+  "normalize",
   "padEnd",
   "padStart",
   "repeat",
@@ -117,6 +121,10 @@ const stringHelperNames = new Set([
   "startsWith",
   "substr",
   "substring",
+  "search",
+  "toLocaleLowerCase",
+  "toLocaleUpperCase",
+  "toWellFormed",
   "valueOf",
 ]);
 
@@ -125,9 +133,12 @@ function getStringHelperReturnType(sourceName: string, stringType: TargetTypeRef
     case "includes":
     case "startsWith":
     case "endsWith":
+    case "isWellFormed":
       return boolType;
     case "indexOf":
     case "lastIndexOf":
+    case "localeCompare":
+    case "search":
       return intType;
     case "charCodeAt":
       return doubleType;
@@ -164,11 +175,21 @@ function getStringHelperParameters(sourceName: string, stringType: TargetTypeRef
       return [receiver, targetParameter("targetLength", intType), targetParameter("padString", stringType, { optional: true })];
     case "repeat":
     case "charAt":
+    case "at":
     case "charCodeAt":
     case "codePointAt":
       return [receiver, targetParameter("index", intType)];
     case "split":
       return [receiver, targetParameter("separator", stringType), targetParameter("limit", intType, { optional: true })];
+    case "localeCompare":
+    case "search":
+      return [receiver, targetParameter("value", stringType)];
+    case "normalize":
+      return [receiver, targetParameter("form", stringType, { optional: true })];
+    case "toLocaleLowerCase":
+    case "toLocaleUpperCase":
+    case "isWellFormed":
+    case "toWellFormed":
     case "valueOf":
       return [receiver];
     default:

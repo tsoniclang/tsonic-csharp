@@ -72,6 +72,20 @@ test("JS surface does not recover Array.length from property text without a fina
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
+test("JS surface rejects selected Array.length without finalized array receiver facts", () => {
+  const expression = {};
+  const receiverType = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, arrayLengthDeclaration()), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Array\.length/);
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps single-target calls from selected declaration identity without selected signature identity", () => {
   const call = {};
   const receiver = {};
@@ -90,6 +104,49 @@ test("JS surface maps single-target calls from selected declaration identity wit
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Runtime.ArrayHelpers.includes");
+});
+
+test("JS surface maps Array.concat from selected declaration and closed array argument facts", () => {
+  const call = {};
+  const receiver = {};
+  const values = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, int32ArrayType()],
+    [values, int32ArrayType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("concat"), {
+    arguments: [values],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Runtime.ArrayHelpers.concat");
+  assert.equal(result.value.selectedSignature.member.returnType.kind, "array");
+  assert.equal(result.value.selectedSignature.member.returnType.element.name, "int32");
+});
+
+test("JS surface rejects Array.concat without closed array argument facts", () => {
+  const call = {};
+  const receiver = {};
+  const values = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, int32ArrayType()],
+    [values, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("concat"), {
+    arguments: [values],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /Array\.concat/);
 });
 
 test("JS surface maps Math.random through the selected JS runtime declaration", () => {
@@ -196,6 +253,24 @@ test("JS surface hard-rejects JSON operations until closed JSON carrier facts ex
   assert.match(result.diagnostic.message, /JSON\.parse/);
 });
 
+test("JS surface hard-rejects JSON.stringify until a closed JSON value carrier is modeled", () => {
+  const call = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, jsObjectType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "stringify"), {
+    arguments: [value],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
+  assert.match(result.diagnostic.message, /JSON\.stringify/);
+});
+
 test("JS surface defers method-valued console property access to selected call facts", () => {
   const expression = {};
   const facts = new TestFactStore();
@@ -224,6 +299,44 @@ test("JS surface maps console.log calls from selected standard-library declarati
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.log");
   assert.equal(result.value.selectedSignature.member.static, true);
   assert.equal(result.value.selectedSignature.member.parameters[0]?.paramsArray, true);
+});
+
+test("JS surface maps console.assert through closed condition and message facts", () => {
+  const call = {};
+  const condition = {};
+  const message = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [condition, boolType()],
+    [message, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Console", "assert"), {
+    arguments: [condition, message],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.assert");
+});
+
+test("JS surface rejects console.dirxml when selected arguments do not match runtime shape", () => {
+  const call = {};
+  const first = {};
+  const second = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [first, stringType()],
+    [second, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Console", "dirxml"), {
+    arguments: [first, second],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_CONSOLE_ARGUMENT_REQUIRES_TARGET_FACT");
 });
 
 test("JS surface rejects console.log without closed argument target facts", () => {
@@ -325,6 +438,97 @@ test("JS surface hard-rejects selected RegExp calls without target runtime facts
   assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(result.diagnostic.message, /RegExp\.exec/);
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface maps RegExp.test from selected declaration and closed RegExp receiver facts", () => {
+  const call = {};
+  const receiver = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, regexpType()],
+    [value, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("RegExp", "test"), {
+    arguments: [value],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.RegExp.test");
+  assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
+});
+
+test("JS surface maps RegExp.source only with selected declaration and closed RegExp receiver facts", () => {
+  const expression = {};
+  const receiverType = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiverType, regexpType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("RegExp", "source"), "not-the-selected-name", {
+    receiverType,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "Tsonic.CSharp.Js.RegExp.source");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.RegExp.source");
+});
+
+test("JS surface rejects selected RegExp.source without closed RegExp receiver facts", () => {
+  const expression = {};
+  const receiverType = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("RegExp", "source"), "source", {
+    receiverType,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+});
+
+test("JS surface maps selected string helpers only with closed string receiver facts", () => {
+  const call = {};
+  const receiver = {};
+  const form = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, stringType()],
+    [form, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("String", "normalize"), {
+    arguments: [form],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.String.normalize");
+});
+
+test("JS surface rejects selected string helpers without closed string receiver facts", () => {
+  const call = {};
+  const form = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [form, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("String", "normalize"), {
+    arguments: [form],
+    calleeReceiver: {},
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
 });
 
 test("JS surface hard-rejects selected standard-library properties without target facts", () => {
@@ -691,12 +895,12 @@ function fakeNamespaceImportContext(facts, sourceFile) {
   };
 }
 
-function sourceLibraryPropertyRequest(expression, sourceSelectedDeclaration, propertyName) {
+function sourceLibraryPropertyRequest(expression, sourceSelectedDeclaration, propertyName, options = {}) {
   return {
     target: "csharp",
     expression,
     receiver: {},
-    receiverType: {},
+    receiverType: options.receiverType ?? {},
     propertyName,
     sourceSelectedDeclaration,
   };
@@ -790,12 +994,25 @@ function int32Type() {
   return { kind: "source-primitive", name: "int32" };
 }
 
+function boolType() {
+  return { kind: "source-primitive", name: "bool" };
+}
+
 function stringType() {
   return {
     kind: "target-named",
     id: "System.String",
     csharpRender: { kind: "predefined", name: "string" },
     csharpSpecialType: "string",
+  };
+}
+
+function regexpType() {
+  return {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.RegExp",
+    csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "RegExp" },
+    csharpJsSurfaceKind: "regexp",
   };
 }
 
