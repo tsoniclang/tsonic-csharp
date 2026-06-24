@@ -52,6 +52,10 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  tryPlanCompatRuntimeCall,
+  tryPlanCompatRuntimePropertyGet,
+} from "./compat-runtime-operations.js";
 
 export {
   planSelectedTargetCallArguments,
@@ -69,6 +73,10 @@ export function planPropertyAccessExpression(
   const sourceModuleStaticMemberReference = tryPlanProjectSourceModuleStaticMemberReference(propertyAccess, sourceFile, input, diagnostics);
   if (sourceModuleStaticMemberReference !== undefined) {
     return sourceModuleStaticMemberReference;
+  }
+  const compatRuntimePropertyGet = tryPlanCompatRuntimePropertyGet(propertyAccess, expression.Expression, expression.QuestionDotToken !== undefined, sourceFile, input, diagnostics, planExpression);
+  if (compatRuntimePropertyGet !== undefined) {
+    return compatRuntimePropertyGet;
   }
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   if (targetOperation !== undefined && targetOperation.operationKind === "property") {
@@ -311,6 +319,10 @@ export function planCallExpression(
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression {
   const expression = AsCallExpression(node)!;
+  const compatRuntimeCall = tryPlanCompatRuntimeCall(node, expression.Expression, expression.Arguments?.Nodes ?? [], sourceFile, input, diagnostics, planExpression);
+  if (compatRuntimeCall !== undefined) {
+    return compatRuntimeCall;
+  }
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
   if (selectedTargetCall !== undefined) {

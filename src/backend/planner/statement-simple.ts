@@ -30,6 +30,10 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
+  isDestructuringAssignmentExpression,
+  pushMissingDestructuringAssignmentFactsDiagnostic,
+} from "./destructuring-assignment.js";
+import {
   planExpression,
   planExpressionWithExpectedType,
 } from "./expressions.js";
@@ -166,9 +170,14 @@ export function planExpressionStatement(
   if (isErasedAttributeExpressionStatement(node, input)) {
     return [];
   }
-  if (HasSourceKind(input.ast, AsExpressionStatement(node)!.Expression, KindVoidExpression)) {
-    const voidExpression = AsVoidExpression(AsExpressionStatement(node)!.Expression!)!;
+  const expression = AsExpressionStatement(node)!.Expression;
+  if (isDestructuringAssignmentExpression(expression, input)) {
+    pushMissingDestructuringAssignmentFactsDiagnostic(expression!, diagnostics);
+    return [];
+  }
+  if (HasSourceKind(input.ast, expression, KindVoidExpression)) {
+    const voidExpression = AsVoidExpression(expression!)!;
     return [expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state)))];
   }
-  return [expressionStatement(planDiscardedExpression(planExpression(AsExpressionStatement(node)!.Expression!, sourceFile, input, diagnostics, state)))];
+  return [expressionStatement(planDiscardedExpression(planExpression(expression!, sourceFile, input, diagnostics, state)))];
 }

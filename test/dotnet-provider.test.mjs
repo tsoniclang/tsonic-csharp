@@ -507,6 +507,48 @@ test(".NET provider function source shapes preserve parameter modes and fail clo
   }), undefined);
 });
 
+test(".NET provider source type conversion fails closed for every unsupported target-only type ref", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const pointerType = {
+    kind: "pointer",
+    pointee: intType,
+    mutability: "mut",
+  };
+
+  assert.equal(tryDotnetTypeRefToProviderType(pointerType), undefined);
+  assert.equal(tryDotnetTypeRefToProviderType({
+    kind: "function-pointer",
+    args: [intType],
+    result: { kind: "void" },
+    abi: ["Cdecl"],
+  }), undefined);
+  assert.equal(tryDotnetTypeRefToProviderType({
+    kind: "array",
+    rank: 2,
+    elementType: intType,
+  }), undefined);
+  assert.equal(tryDotnetTypeRefToProviderType({
+    kind: "named",
+    targetId: testTargetId("ProviderModelFixtures.PointerBacked"),
+    metadataName: "ProviderModelFixtures.PointerBacked",
+    sourceShape: pointerType,
+  }), undefined);
+  assert.equal(tryDotnetTypeRefToProviderType({
+    kind: "provider-ref",
+    name: "Box",
+    typeArguments: [pointerType],
+  }), undefined);
+  assert.equal(tryDotnetTypeRefToProviderType({
+    kind: "opaque",
+    id: "ProviderModelFixtures.PointerOpaque",
+    sourceShape: pointerType,
+  }), undefined);
+  assert.throws(
+    () => dotnetTypeRefToProviderType(pointerType),
+    /Unsupported \.NET provider type 'pointer'/u,
+  );
+});
+
 test(".NET named target refs do not derive C# special semantics from metadata names", () => {
   const intType = { kind: "source-primitive", name: "int32" };
   const namedRefs = [
@@ -1665,6 +1707,8 @@ test(".NET reflection provider records unsupported members instead of silently d
   assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerReturn") ?? false, false);
   assert.equal(pointerSignatures.members?.some((member) => member.targetName === "ReadPointer") ?? false, false);
   assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerField") ?? false, false);
+  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "PointerProperty") ?? false, false);
+  assert.equal(pointerSignatures.members?.some((member) => member.targetName === "Item") ?? false, false);
   assert.ok(pointerUnsupported.some((member) =>
     member.memberKind === "constructor" &&
     /parameter 'pointer'/u.test(member.reason) &&
@@ -1674,6 +1718,18 @@ test(".NET reflection provider records unsupported members instead of silently d
     member.memberKind === "field" &&
     member.targetName === "PointerField" &&
     /Field type/u.test(member.reason) &&
+    /System\.Int32\*/u.test(member.reason)
+  ));
+  assert.ok(pointerUnsupported.some((member) =>
+    member.memberKind === "property" &&
+    member.targetName === "PointerProperty" &&
+    /Property type/u.test(member.reason) &&
+    /System\.Int32\*/u.test(member.reason)
+  ));
+  assert.ok(pointerUnsupported.some((member) =>
+    member.memberKind === "indexer" &&
+    member.targetName === "Item" &&
+    /parameter 'pointer'/u.test(member.reason) &&
     /System\.Int32\*/u.test(member.reason)
   ));
   assert.ok(pointerUnsupported.some((member) =>

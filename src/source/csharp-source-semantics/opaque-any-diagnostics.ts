@@ -24,6 +24,7 @@ import {
 } from "./operator-syntax.js";
 import {
   isCsharpAnyRuntimeCarrier,
+  isCsharpClosedCompatRuntimeCarrier,
 } from "./target-types.js";
 import type {
   CsharpTargetOperationFact,
@@ -347,19 +348,8 @@ function hasClosedCompatRuntimeOperation(
 function isClosedCompatRuntimeOperationFact(operation: CsharpTargetOperationFact | undefined): boolean {
   return operation?.kind === "member" &&
     (
-      isClosedCompatRuntimeCarrier(operation.declaringType) ||
-      isClosedCompatRuntimeCarrier(operation.resultType)
-    );
-}
-
-function isClosedCompatRuntimeCarrier(type: { readonly kind?: string; readonly id?: string } | undefined): boolean {
-  return type?.kind === "target-named" &&
-    typeof type.id === "string" &&
-    (
-      type.id === "Tsonic.CSharp.Js.TsValue" ||
-      type.id === "Tsonic.CSharp.Js.TsObject" ||
-      type.id === "Tsonic.CSharp.Js.TsArray" ||
-      type.id === "Tsonic.CSharp.Js.TsFunction"
+      isCsharpClosedCompatRuntimeCarrier(operation.declaringType) ||
+      isCsharpClosedCompatRuntimeCarrier(operation.resultType)
     );
 }
 

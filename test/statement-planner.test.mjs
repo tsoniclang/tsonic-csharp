@@ -12,11 +12,16 @@ import {
   KindContinueStatement,
   KindDefaultClause,
   KindDoStatement,
+  KindArrayLiteralExpression,
+  KindBinaryExpression,
+  KindEqualsToken,
+  KindExpressionStatement,
   KindForStatement,
   KindForOfStatement,
   KindIdentifier,
   KindLabeledStatement,
   KindNumericLiteral,
+  KindObjectLiteralExpression,
   KindSwitchStatement,
   KindTryStatement,
   KindTrueKeyword,
@@ -327,6 +332,38 @@ test("throw statements require finalized throwable target carriers", () => {
   }]);
 });
 
+test("destructuring assignment statements fail closed without ordinary assignment fallback", () => {
+  const diagnostics = [];
+  const arrayAssignment = expressionStatement(binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first")] },
+    },
+    identifier("source"),
+  ));
+  const objectAssignment = expressionStatement(binaryExpression(
+    {
+      Kind: KindObjectLiteralExpression,
+      Properties: { Nodes: [{ Kind: "KindShorthandPropertyAssignment", name: identifier("name") }] },
+    },
+    identifier("source"),
+  ));
+  const statement = block([arrayAssignment, objectAssignment]);
+
+  const output = planStatements(statement, sourceFile, fakeInput(), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(output, [{
+    kind: "Block",
+    body: {
+      kind: "Block",
+      statements: [],
+    },
+  }]);
+  assert.equal(diagnostics.length, 2);
+  assert.match(diagnostics[0].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
+  assert.match(diagnostics[1].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
+});
+
 test("try statements emit Roslyn catch and finally bodies from finalized exception facts", () => {
   const diagnostics = [];
   const thrown = identifier("error");
@@ -470,6 +507,22 @@ function tryStatement(tryBlock, catchClauseNode, finallyBlock) {
     TryBlock: tryBlock,
     ...(catchClauseNode === undefined ? {} : { CatchClause: catchClauseNode }),
     ...(finallyBlock === undefined ? {} : { FinallyBlock: finallyBlock }),
+  };
+}
+
+function expressionStatement(expression) {
+  return {
+    Kind: KindExpressionStatement,
+    Expression: expression,
+  };
+}
+
+function binaryExpression(left, right) {
+  return {
+    Kind: KindBinaryExpression,
+    Left: left,
+    Right: right,
+    OperatorToken: { Kind: KindEqualsToken },
   };
 }
 

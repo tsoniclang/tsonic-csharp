@@ -2,12 +2,12 @@ import {
   AsBinaryExpression,
   AsIdentifier,
   HasSourceKind,
-  KindArrayLiteralExpression,
   KindBinaryExpression,
   KindIdentifier,
   KindNullKeyword,
-  KindObjectLiteralExpression,
+  KindPropertyAccessExpression,
   KindVoidExpression,
+  Node_Expression,
   Node_Text,
   SourceKind,
 } from "./source-ast.js";
@@ -46,6 +46,13 @@ import {
 import {
   sameCsharpType,
 } from "./csharp-types.js";
+import {
+  isDestructuringAssignmentExpression,
+  pushMissingDestructuringAssignmentFactsDiagnostic,
+} from "./destructuring-assignment.js";
+import {
+  tryPlanCompatRuntimePropertySet,
+} from "./compat-runtime-operations.js";
 
 export {
   planTypeofExpression,
@@ -69,6 +76,16 @@ export function tryPlanBinaryExpression(
   const expression = AsBinaryExpression(node)!;
   const left = getBinaryLeft(expression);
   const right = getBinaryRight(expression);
+  if (SourceKind(input.ast, expression.OperatorToken) === "KindEqualsToken") {
+    const compatRuntimePropertySet = tryPlanCompatRuntimePropertySet(node, getCompatRuntimePropertySetReceiver(left, input), right, sourceFile, input, diagnostics, planExpression);
+    if (compatRuntimePropertySet !== undefined) {
+      return compatRuntimePropertySet;
+    }
+  }
+  if (isDestructuringAssignmentExpression(node, input)) {
+    pushMissingDestructuringAssignmentFactsDiagnostic(left ?? node, diagnostics);
+    return invalidExpression("destructuring assignment without target storage facts");
+  }
   const typeTest = tryPlanTypeTestExpression(expression, selectedOperator, sourceFile, input, diagnostics, planExpression);
   if (typeTest !== undefined) {
     return typeTest;
@@ -96,10 +113,6 @@ export function tryPlanBinaryExpression(
     return invalidExpression("unsupported C# operator token");
   }
   if (assignmentOperatorToken !== undefined) {
-    if (isDestructuringAssignmentTarget(left, input)) {
-      diagnostics.push(unsupportedNodeDiagnostic(left ?? node, "Destructuring assignment emission requires finalized target storage and extraction facts before C# emission."));
-      return invalidExpression("destructuring assignment without target storage facts");
-    }
     return {
       kind: "AssignmentExpression",
       left: planExpression(left!, sourceFile, input, diagnostics),
@@ -214,12 +227,13 @@ function planBinaryOperand(
     : planExpression(operand, sourceFile, input, diagnostics);
 }
 
-function isDestructuringAssignmentTarget(
+function getCompatRuntimePropertySetReceiver(
   node: Node | undefined,
   input: TargetCompileInput,
-): boolean {
-  return HasSourceKind(input.ast, node, KindArrayLiteralExpression) ||
-    HasSourceKind(input.ast, node, KindObjectLiteralExpression);
+): Node | undefined {
+  return HasSourceKind(input.ast, node, KindPropertyAccessExpression)
+    ? Node_Expression(node)
+    : undefined;
 }
 
 function isNullishEqualityOperand(

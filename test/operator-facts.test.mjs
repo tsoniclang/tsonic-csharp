@@ -7,6 +7,7 @@ import {
   KindBigIntLiteral,
   KindIdentifier,
   KindNoSubstitutionTemplateLiteral,
+  KindObjectLiteralExpression,
   KindPrefixUnaryExpression,
   KindRegularExpressionLiteral,
   KindTemplateExpression,
@@ -102,7 +103,36 @@ test("destructuring assignment fails closed without finalized storage facts", ()
     Elements: { Nodes: [identifier("first")] },
   };
   const right = identifier("source");
-  const expression = binary(left, right);
+  const expression = binary(left, right, "KindEqualsToken");
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.assign",
+      operationKind: "operator",
+      targetOperation: "=",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.assign",
+      operator: "=",
+    },
+  }), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
+});
+
+test("object destructuring assignment fails closed before ordinary assignment emission", () => {
+  const left = {
+    Kind: KindObjectLiteralExpression,
+    Properties: { Nodes: [{ Kind: "KindShorthandPropertyAssignment", name: identifier("first") }] },
+  };
+  const right = identifier("source");
+  const expression = binary(left, right, "KindEqualsToken");
   const diagnostics = [];
 
   const output = planExpression(expression, {}, fakeInput({

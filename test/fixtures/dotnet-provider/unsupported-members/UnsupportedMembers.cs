@@ -31,6 +31,10 @@ public unsafe sealed class PointerSignatures
         PointerField = pointer;
     }
 
+    public int* PointerProperty => PointerField;
+
+    public int this[int* pointer] => *pointer;
+
     public int* PointerReturn()
     {
         return PointerField;

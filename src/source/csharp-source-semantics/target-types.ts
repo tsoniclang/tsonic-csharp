@@ -367,6 +367,16 @@ export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): bool
   return type?.kind === "opaque" && type.id === "any";
 }
 
+export function isCsharpClosedCompatRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" &&
+    (
+      type.id === "Tsonic.CSharp.Js.TsValue" ||
+      type.id === "Tsonic.CSharp.Js.TsObject" ||
+      type.id === "Tsonic.CSharp.Js.TsArray" ||
+      type.id === "Tsonic.CSharp.Js.TsFunction"
+    );
+}
+
 export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {
   return type?.kind === "target-named" &&
     typeof type.id === "string" &&
