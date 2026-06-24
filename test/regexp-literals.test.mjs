@@ -27,6 +27,11 @@ test("regexp literal emission uses provider facts without backend target-id hard
         csharpRender: { kind: "named", namespace: ["Acme", "Runtime"], name: "Regex" },
       },
     },
+    runtimeCarrier: {
+      kind: "target-named",
+      id: "Acme.Runtime.Regex",
+      csharpRender: { kind: "named", namespace: ["Acme", "Runtime"], name: "Regex" },
+    },
   }), diagnostics);
 
   assert.deepEqual(diagnostics, []);
@@ -75,6 +80,10 @@ test("regexp literal emission requires a renderable provider constructor result 
         id: "Acme.Runtime.Regex",
       },
     },
+    runtimeCarrier: {
+      kind: "target-named",
+      id: "Acme.Runtime.Regex",
+    },
   }), diagnostics);
 
   assert.equal(expression.kind, "InvalidExpression");
@@ -85,6 +94,13 @@ test("regexp literal emission requires a renderable provider constructor result 
 function fakeInput(options) {
   return {
     facts: {
+      getRuntimeCarrierFact: (subject) => subject === options.subject && options.runtimeCarrier !== undefined
+        ? { carrier: options.runtimeCarrier }
+        : undefined,
+      getPointerFact: () => undefined,
+      getFunctionPointerFact: () => undefined,
+      getSourcePrimitiveFact: () => undefined,
+      getTargetBindingFact: () => undefined,
       getFact: (subject, key) => {
         if (subject !== options.subject) {
           return undefined;
