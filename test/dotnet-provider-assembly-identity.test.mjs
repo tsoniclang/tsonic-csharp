@@ -113,7 +113,7 @@ function buildAssemblyIdentityFixture(projectName, outputName) {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, `${projectName}.dll`);

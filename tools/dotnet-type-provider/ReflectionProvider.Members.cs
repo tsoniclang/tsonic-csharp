@@ -694,7 +694,7 @@ sealed partial class ReflectionProvider
                 return null;
             }
             var isParamsArray = parameter.GetCustomAttribute<ParamArrayAttribute>() is not null && parameterType.IsArray;
-            var defaultValue = ParameterDefaultValue(parameter, parameterType, out var unsupportedDefaultValue);
+            var defaultValue = ParameterDefaultValue(parameter, parameterType, ownerId, out var unsupportedDefaultValue);
             var attributes = ownerId is null
                 ? null
                 : AttributeFacts(parameter.GetCustomAttributesData(), "parameter", $"{ownerId}:parameter:{Identifier(parameter.Name ?? $"arg{index}")}");
@@ -714,14 +714,14 @@ sealed partial class ReflectionProvider
         return result.ToArray();
     }
 
-    object? ParameterDefaultValue(ParameterInfo parameter, Type parameterType, out object? unsupportedDefaultValue)
+    object? ParameterDefaultValue(ParameterInfo parameter, Type parameterType, string? ownerId, out object? unsupportedDefaultValue)
     {
         unsupportedDefaultValue = null;
         if (!TryGetRawDefaultValue(parameter, out var value, out var unsupportedReason))
         {
             if (unsupportedReason is not null)
             {
-                unsupportedDefaultValue = UnsupportedParameterDefaultValue(parameter, parameterType, unsupportedReason);
+                unsupportedDefaultValue = UnsupportedParameterDefaultValue(parameter, parameterType, ownerId, unsupportedReason);
             }
             return null;
         }
@@ -739,6 +739,7 @@ sealed partial class ReflectionProvider
                 unsupportedDefaultValue = UnsupportedParameterDefaultValue(
                     parameter,
                     parameterType,
+                    ownerId,
                     $"Enum default value for '{parameterType.FullName ?? parameterType.Name}' has no deterministic underlying value.");
             }
             return enumDefaultValue;
@@ -752,6 +753,7 @@ sealed partial class ReflectionProvider
             unsupportedDefaultValue = UnsupportedParameterDefaultValue(
                 parameter,
                 parameterType,
+                ownerId,
                 "String default value metadata was not exposed as a deterministic string value.");
             return null;
         }
@@ -762,6 +764,7 @@ sealed partial class ReflectionProvider
             unsupportedDefaultValue = UnsupportedParameterDefaultValue(
                 parameter,
                 parameterType,
+                ownerId,
                 $"Default value type '{parameterType.FullName ?? parameterType.Name}' is outside the supported .NET parameter default value set.");
             return null;
         }
@@ -771,20 +774,25 @@ sealed partial class ReflectionProvider
             unsupportedDefaultValue = UnsupportedParameterDefaultValue(
                 parameter,
                 parameterType,
+                ownerId,
                 $"Source primitive default value '{parameterType.FullName ?? parameterType.Name}' cannot be serialized deterministically.");
             return null;
         }
         return new { kind = "source-primitive", name = sourcePrimitiveName, value = sourcePrimitiveValue };
     }
 
-    object UnsupportedParameterDefaultValue(ParameterInfo parameter, Type parameterType, string reason)
+    object UnsupportedParameterDefaultValue(ParameterInfo parameter, Type parameterType, string? ownerId, string reason)
     {
         var owner = parameter.Member.DeclaringType is null
             ? parameter.Member.Name
             : $"{MetadataName(parameter.Member.DeclaringType)}.{parameter.Member.Name}";
+        var parameterName = Identifier(parameter.Name ?? "");
+        var idOwner = ownerId ?? owner;
         return new
         {
             kind = "unsupported-default-value",
+            id = $"{idOwner}:parameter:{parameterName}:default",
+            parameterName,
             reason,
             evidence = new[]
             {

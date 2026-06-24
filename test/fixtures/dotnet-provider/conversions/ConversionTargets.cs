@@ -19,3 +19,11 @@ public readonly struct Meter
         return value.Value;
     }
 }
+
+public unsafe readonly struct PointerSourceConversion
+{
+    public static explicit operator PointerSourceConversion(int* value)
+    {
+        return new PointerSourceConversion();
+    }
+}

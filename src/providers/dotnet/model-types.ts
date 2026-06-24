@@ -232,6 +232,8 @@ export type DotnetParameterDefaultValue =
 
 export interface DotnetUnsupportedDefaultValueDeclaration {
   readonly kind: "unsupported-default-value";
+  readonly id: string;
+  readonly parameterName: string;
   readonly reason: string;
   readonly evidence?: readonly { readonly message: string }[];
 }

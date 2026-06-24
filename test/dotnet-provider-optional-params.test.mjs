@@ -152,7 +152,10 @@ test(".NET provider records unsupported default parameter values without exposin
   assert.equal(rawParameter.optional, true);
   assert.equal(rawParameter.defaultValue, undefined);
   assert.equal(rawParameter.unsupportedDefaultValue.kind, "unsupported-default-value");
+  assert.equal(rawParameter.unsupportedDefaultValue.parameterName, "value");
+  assert.equal(stripAssemblyQualifiers(rawParameter.unsupportedDefaultValue.id), `${signatureId}:parameter:value:default`);
   assert.match(rawParameter.unsupportedDefaultValue.reason, /System\.DateTime/u);
+  assert.match(JSON.stringify(rawParameter.unsupportedDefaultValue.evidence), /parameter 'value'/u);
 
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceSignatureWithUnsupportedDefault = sourceSignature(
@@ -314,7 +317,7 @@ function buildDefaultParameterFixture() {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "DefaultParameterProviderFixture.dll");
@@ -358,7 +361,7 @@ public sealed class UnsupportedDefaultParameterSource
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "UnsupportedDefaultParameterProviderFixture.dll");

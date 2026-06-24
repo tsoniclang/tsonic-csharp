@@ -1406,7 +1406,6 @@ test(".NET reflection provider records generic constraints and variance as targe
     "implements",
     "implements",
   ]);
-
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceReferenceNewTarget = declarationModel.exports.find((declaration) => declaration.name === "ReferenceNewTarget");
   assert.ok(sourceReferenceNewTarget);
@@ -1454,6 +1453,20 @@ test(".NET reflection provider records conversion operators as target-only facts
     ["ProviderConversionFixtures.Meter.op_Explicit(System.Double)", "explicit", "source-primitive", "target-named"],
     ["ProviderConversionFixtures.Meter.op_Implicit(ProviderConversionFixtures.Meter)", "implicit", "target-named", "source-primitive"],
   ]);
+
+  const rawPointerSourceConversion = module.exports.find((declaration) => declaration.sourceName === "PointerSourceConversion");
+  assert.ok(rawPointerSourceConversion);
+  assert.equal(rawPointerSourceConversion.conversionOperators?.length ?? 0, 0);
+  assert.equal(rawPointerSourceConversion.members?.some((member) => member.kind === "operator") ?? false, false);
+  assert.ok([...unsupportedMembersByMetadataName(rawPointerSourceConversion).values()].some((member) =>
+    member.memberKind === "operator" &&
+    member.targetName === "op_Explicit" &&
+    /parameter 'value'/u.test(member.reason) &&
+    /System\.Int32\*/u.test(member.reason)
+  ));
+  const pointerSourceConversionBinding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConversionFixtures.js", "ProviderConversionFixtures.PointerSourceConversion");
+  assert.equal(pointerSourceConversionBinding.conversionOperators?.length ?? 0, 0);
+  assert.deepEqual(pointerSourceConversionBinding.unsupportedMembers, rawPointerSourceConversion.unsupportedMembers);
 });
 
 test(".NET provider source declarations keep readonly TS-compatible numeric indexers", () => {
@@ -1910,7 +1923,7 @@ function buildAttributeFixture() {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "AttributeProviderFixture.dll");
@@ -1928,7 +1941,7 @@ function buildConstructorFixture() {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "ConstructorProviderFixture.dll");
@@ -1946,7 +1959,7 @@ function buildUnsupportedEventFixture() {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "UnsupportedEventProviderFixture.dll");
@@ -1964,7 +1977,7 @@ function buildUnsupportedMemberFixture() {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "UnsupportedMembersProviderFixture.dll");
@@ -1982,7 +1995,7 @@ function buildConstraintFixture() {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "ConstraintProviderFixture.dll");
@@ -2000,7 +2013,7 @@ function buildConversionFixture() {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "ConversionProviderFixture.dll");
@@ -2018,7 +2031,7 @@ function buildSignatureIdentityFixture() {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "SignatureIdentityProviderFixture.dll");
