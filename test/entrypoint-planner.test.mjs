@@ -1,31 +1,71 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { planCsharpArtifacts } from "../dist/backend/planner/csharp-planner.js";
+import { planCsharpEntrypointSourceFile } from "../dist/backend/planner/csharp-entrypoint-planner.js";
+import { planSourceFile } from "../dist/backend/planner/csharp-source-file-planner.js";
 import {
   KindExpressionStatement,
   KindStringLiteral,
 } from "../dist/backend/planner/source-ast.js";
 
-test("executable output emits a separate entrypoint that invokes module initializers", () => {
+test("executable output plans a Roslyn AST entrypoint that invokes module initializers", () => {
+  const input = fakeInput({
+    outputType: "Exe",
+  });
+  const diagnostics = [];
+  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.ok(plannedSource);
+  assert.equal(plannedSource.hasModuleInitializer, true);
+
+  const entrypoint = planCsharpEntrypointSourceFile(input, [plannedSource]);
+
+  assert.ok(entrypoint);
+  assert.equal(entrypoint.path, "generated/TsonicEntrypoint.cs");
+  const namespace = entrypoint.unit.members[0];
+  assert.equal(namespace.kind, "NamespaceDeclaration");
+  const entrypointClass = namespace.members[0];
+  assert.equal(entrypointClass.kind, "ClassDeclaration");
+  assert.equal(entrypointClass.name, "TsonicEntrypoint");
+  const mainMethod = entrypointClass.members[0];
+  assert.equal(mainMethod.kind, "MethodDeclaration");
+  assert.equal(mainMethod.name, "Main");
+  assert.deepEqual(mainMethod.modifiers, ["public", "static"]);
+  assert.equal(mainMethod.returnType.name, "void");
+  assert.deepEqual(mainMethod.body.statements, [{
+    kind: "ExpressionStatement",
+    expression: {
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "Index" },
+        name: "__tsonic_module_init",
+      },
+      arguments: [],
+    },
+  }]);
+});
+
+test("executable output still materializes source artifacts from the planned Roslyn AST", () => {
   const result = planCsharpArtifacts(fakeInput({
     outputType: "Exe",
   }));
 
   assert.deepEqual(result.diagnostics, []);
-  const entrypoint = result.artifacts.find((artifact) => artifact.path === "generated/TsonicEntrypoint.cs");
-  const moduleSource = result.artifacts.find((artifact) => artifact.path === "src/Index.cs");
-
-  assert.ok(entrypoint);
-  assert.ok(moduleSource);
-  assert.match(moduleSource.text, /public static void __tsonic_module_init\(\)/);
-  assert.match(moduleSource.text, /_ = "boot";/);
-  assert.match(entrypoint.text, /public static void Main\(\)/);
-  assert.match(entrypoint.text, /Index\.__tsonic_module_init\(\);/);
+  assert.equal(result.artifacts.some((artifact) => artifact.path === "generated/TsonicEntrypoint.cs"), true);
+  assert.equal(result.artifacts.some((artifact) => artifact.path === "src/Index.cs"), true);
 });
 
-test("library output does not synthesize executable entrypoint artifacts", () => {
-  const result = planCsharpArtifacts(fakeInput());
+test("library output does not synthesize executable entrypoint AST or artifacts", () => {
+  const input = fakeInput();
+  const diagnostics = [];
+  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics);
+  assert.deepEqual(diagnostics, []);
+  assert.ok(plannedSource);
+  assert.equal(planCsharpEntrypointSourceFile(input, [plannedSource]), undefined);
 
+  const result = planCsharpArtifacts(input);
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.artifacts.some((artifact) => artifact.path === "generated/TsonicEntrypoint.cs"), false);
   assert.equal(result.artifacts.some((artifact) => artifact.kind === "source"), true);
