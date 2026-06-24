@@ -104,6 +104,31 @@ test("backend diagnostics do not render semantic type strings", async () => {
   }
 });
 
+test("backend and printer cannot emit runtime reflection or dynamic semantics", async () => {
+  const sources = [
+    ...(await collectSourceFiles(join(root, "src/backend"))),
+    ...(await collectSourceFiles(join(root, "src/print"))),
+  ];
+  const bannedRuntimeSemantics = [
+    /\bdynamic\b/u,
+    /System\.Reflection/u,
+    /\bGetProperty\b/u,
+    /\bGetProperties\b/u,
+    /\bGetMethod\b/u,
+    /\bGetMethods\b/u,
+    /\bMethodInfo\.Invoke\b/u,
+    /\bMakeGenericMethod\b/u,
+    /\bActivator\.CreateInstance\b/u,
+    /\bAssembly\.Load\b/u,
+  ];
+  for (const source of sources) {
+    const text = await readFile(source, "utf8");
+    for (const pattern of bannedRuntimeSemantics) {
+      assert.doesNotMatch(text, pattern, `${source} contains banned runtime semantic mechanism ${pattern}`);
+    }
+  }
+});
+
 async function collectSourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
