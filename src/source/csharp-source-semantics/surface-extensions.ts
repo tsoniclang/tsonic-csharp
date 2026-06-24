@@ -27,6 +27,9 @@ import {
   recordCsharpJsArrayCarrierFactsBeforeFinalization,
 } from "./surfaces/js/array-carrier-lifecycle.js";
 import {
+  recordCsharpJsArrayMutationFactsBeforeFinalization,
+} from "./surfaces/js/array-mutations.js";
+import {
   recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization,
 } from "./surfaces/js/dictionary-lifecycle.js";
 import {
@@ -69,6 +72,7 @@ export function recordCsharpSelectedSurfaceOperationFactsBeforeFinalization(
   if (targetHasSurface(context, "js")) {
     const jsSurfaceHost = createCsharpJsSurfaceHost("tsonic.csharp.js.operations", hosts.operationsProviderHost);
     recordCsharpSourceLibraryPropertyFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+    recordCsharpJsArrayMutationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpJsArrayElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpJsSurfaceIterationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);

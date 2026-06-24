@@ -65,6 +65,7 @@ import {
   nodeCryptoModuleSpecifier,
 } from "./crypto.js";
 import {
+  getNodeFsTargetMember,
   nodeFsCallTargetMembers,
   nodeFsModuleSpecifier,
 } from "./filesystem.js";
@@ -74,6 +75,7 @@ import {
   nodeOsPropertyTargetMembers,
 } from "./os.js";
 import {
+  getNodePathTargetMember,
   nodePathModuleSpecifier,
   nodePathCallTargetMembers,
   nodePathPropertyTargetMembers,
@@ -83,6 +85,19 @@ import {
   nodeProcessCallTargetMembers,
   nodeProcessPropertyTargetMembers,
 } from "./process.js";
+import {
+  nodeUtilCallTargetMembers,
+  nodeUtilModuleSpecifier,
+  nodeUtilUnsupportedTargetIdentities,
+} from "./util.js";
+import {
+  getNodeUrlTargetMember,
+  nodeUrlCallTargetMembers,
+  nodeUrlClassCallTargetMembers,
+  nodeUrlClassPropertyTargetMembers,
+  nodeUrlModuleSpecifier,
+  nodeUrlUnsupportedTargetIdentities,
+} from "./url.js";
 import {
   csharpNodejsVirtualDeclarationFileName,
   nodejsExportDeclarationIdentity,
@@ -121,33 +136,44 @@ export function getNodejsCallTargetMember(declaration: NodejsProviderDeclaration
   if (bufferMember !== undefined) {
     return bufferMember;
   }
+  const fsMember = canonicalDeclaration.moduleSpecifier === nodeFsModuleSpecifier
+    ? getNodeFsTargetMember(canonicalDeclaration.memberId, canonicalDeclaration.signatureId)
+    : undefined;
+  if (fsMember !== undefined) {
+    return fsMember;
+  }
+  const urlMember = canonicalDeclaration.moduleSpecifier === nodeUrlModuleSpecifier
+    ? getNodeUrlTargetMember(canonicalDeclaration.memberId, canonicalDeclaration.signatureId)
+    : undefined;
+  if (urlMember !== undefined) {
+    return urlMember;
+  }
   return nodejsCallTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalDeclaration));
 }
 
-export function getCsharpNodejsStaticPropertyOperation(
+export function getCsharpNodejsPropertyOperation(
   declaration: NodejsProviderDeclarationIdentity,
 ): { readonly operation: TargetOperationFact; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
-  const member = nodejsPropertyTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalNodejsDeclarationIdentity(declaration)));
+  const canonicalDeclaration = canonicalNodejsDeclarationIdentity(declaration);
+  const pathMember = canonicalDeclaration.moduleSpecifier === nodePathModuleSpecifier
+    ? getNodePathTargetMember(canonicalDeclaration.memberId)
+    : undefined;
+  const fsMember = canonicalDeclaration.moduleSpecifier === nodeFsModuleSpecifier
+    ? getNodeFsTargetMember(canonicalDeclaration.memberId, canonicalDeclaration.signatureId)
+    : undefined;
+  const urlMember = canonicalDeclaration.moduleSpecifier === nodeUrlModuleSpecifier
+    ? getNodeUrlTargetMember(canonicalDeclaration.memberId, canonicalDeclaration.signatureId)
+    : undefined;
+  const member = pathMember
+    ?? fsMember
+    ?? urlMember
+    ?? nodejsPropertyTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalDeclaration));
   return member === undefined
     ? undefined
     : {
         operation: targetOperationFromMember(member),
         csharpOperation: csharpTargetOperationFromMember(member),
       };
-}
-
-export function getNodejsStaticPropertyDeclaration(
-  moduleSpecifier: string,
-  exportName: string,
-): NodejsProviderDeclarationIdentity | undefined {
-  const canonicalSpecifier = canonicalNodejsModuleSpecifier(moduleSpecifier);
-  if (canonicalSpecifier === undefined) {
-    return undefined;
-  }
-  const declaration = nodejsExportDeclarationIdentity(canonicalSpecifier, exportName);
-  return nodejsPropertyTargetMembersByDeclarationIdentity.has(nodejsProviderDeclarationIdentityKey(declaration))
-    ? declaration
-    : undefined;
 }
 
 export function getNodejsTargetIdentity(symbol: ProviderSymbolIdentity): TargetIdentity | undefined {
@@ -158,12 +184,25 @@ export function getNodejsTargetIdentity(symbol: ProviderSymbolIdentity): TargetI
         ...symbol,
         moduleSpecifier: canonicalSpecifier,
       }));
-  return member === undefined
+  if (member !== undefined) {
+    return {
+      target: csharpTargetId,
+      id: member.id,
+      displayName: member.targetName,
+    };
+  }
+  const unsupported = canonicalSpecifier === undefined
+    ? undefined
+    : nodejsUnsupportedTargetIdentitiesByProviderSymbol.get(nodejsProviderSymbolIdentityKey({
+        ...symbol,
+        moduleSpecifier: canonicalSpecifier,
+      }));
+  return unsupported === undefined
     ? undefined
     : {
         target: csharpTargetId,
-        id: member.id,
-        displayName: member.targetName,
+        id: unsupported.targetIdentityId,
+        displayName: unsupported.displayName,
       };
 }
 
@@ -189,6 +228,8 @@ const nodejsCallTargetMembersByDeclarationIdentity = new Map<string, TargetMembe
   ...nodejsCallTargetMemberEntriesForModule(nodeCryptoModuleSpecifier, nodeCryptoCallTargetMembers()),
   ...nodejsCallTargetMemberEntriesForModule(nodeOsModuleSpecifier, nodeOsCallTargetMembers()),
   ...nodejsCallTargetMemberEntriesForModule(nodeProcessModuleSpecifier, nodeProcessCallTargetMembers()),
+  ...nodejsCallTargetMemberEntriesForModule(nodeUtilModuleSpecifier, nodeUtilCallTargetMembers()),
+  ...nodejsCallTargetMemberEntriesForModule(nodeUrlModuleSpecifier, nodeUrlCallTargetMembers()),
 ]);
 
 const nodejsPropertyTargetMembersByDeclarationIdentity = new Map<string, TargetMember>([
@@ -221,7 +262,23 @@ const nodejsTargetMembersByProviderSymbolIdentity = new Map<string, TargetMember
   ...nodejsProviderPropertySymbolTargetMemberEntriesForModule(nodeOsModuleSpecifier, nodeOsPropertyTargetMembers()),
   ...nodejsProviderSymbolTargetMemberEntriesForModule(nodeProcessModuleSpecifier, nodeProcessCallTargetMembers()),
   ...nodejsProviderPropertySymbolTargetMemberEntriesForModule(nodeProcessModuleSpecifier, nodeProcessPropertyTargetMembers()),
+  ...nodejsProviderSymbolTargetMemberEntriesForModule(nodeUtilModuleSpecifier, nodeUtilCallTargetMembers()),
+  ...nodejsProviderSymbolTargetMemberEntriesForModule(nodeUrlModuleSpecifier, nodeUrlCallTargetMembers()),
+  ...nodejsProviderClassCallSymbolTargetMemberEntries(nodeUrlModuleSpecifier, nodeUrlClassCallTargetMembers()),
+  ...nodejsProviderClassPropertySymbolTargetMemberEntries(nodeUrlModuleSpecifier, nodeUrlClassPropertyTargetMembers()),
 ]);
+
+const nodejsUnsupportedTargetIdentitiesByProviderSymbol = new Map(
+  [
+    ...nodeUtilUnsupportedTargetIdentities().flatMap((identity) => [
+      [nodejsProviderExportSymbolIdentityKey(nodeUtilModuleSpecifier, identity.exportName, undefined), identity] as const,
+      [nodejsProviderExportSymbolIdentityKey(nodeUtilModuleSpecifier, identity.exportName, identity.signatureId), identity] as const,
+    ]),
+    ...nodeUrlUnsupportedTargetIdentities().flatMap((identity) =>
+      nodejsProviderUnsupportedSymbolIdentityEntries(nodeUrlModuleSpecifier, identity)
+    ),
+  ],
+);
 
 function nodejsCallTargetMemberEntries(
   moduleSpecifier: string,
@@ -292,6 +349,62 @@ function nodejsProviderPropertySymbolTargetMemberEntriesForModule(
     nodejsProviderExportSymbolIdentityKey(moduleSpecifier, entry.exportName, undefined),
     entry.member,
   ] as const);
+}
+
+function nodejsProviderClassCallSymbolTargetMemberEntries(
+  moduleSpecifier: string,
+  entries: readonly {
+    readonly exportName: string;
+    readonly memberName: string;
+    readonly signatureId: string;
+    readonly member: TargetMember;
+  }[],
+): readonly (readonly [string, TargetMember])[] {
+  return entries.flatMap((entry) => [
+    [nodejsProviderSymbolIdentityKey({ moduleSpecifier, exportName: entry.exportName, memberName: entry.memberName }), entry.member] as const,
+    [nodejsProviderSymbolIdentityKey({ moduleSpecifier, exportName: entry.exportName, memberName: entry.memberName, signatureId: entry.signatureId }), entry.member] as const,
+  ]);
+}
+
+function nodejsProviderClassPropertySymbolTargetMemberEntries(
+  moduleSpecifier: string,
+  entries: readonly {
+    readonly exportName: string;
+    readonly memberName: string;
+    readonly member: TargetMember;
+  }[],
+): readonly (readonly [string, TargetMember])[] {
+  return entries.map((entry) => [
+    nodejsProviderSymbolIdentityKey({ moduleSpecifier, exportName: entry.exportName, memberName: entry.memberName }),
+    entry.member,
+  ] as const);
+}
+
+function nodejsProviderUnsupportedSymbolIdentityEntries(
+  moduleSpecifier: string,
+  identity: {
+    readonly exportName: string;
+    readonly memberName?: string;
+    readonly signatureId?: string;
+    readonly targetIdentityId: string;
+    readonly displayName: string;
+  },
+): readonly (readonly [string, { readonly targetIdentityId: string; readonly displayName: string }])[] {
+  return [
+    [nodejsProviderSymbolIdentityKey({
+      moduleSpecifier,
+      exportName: identity.exportName,
+      ...(identity.memberName !== undefined ? { memberName: identity.memberName } : {}),
+    }), identity],
+    ...(identity.signatureId === undefined
+      ? []
+      : [[nodejsProviderSymbolIdentityKey({
+        moduleSpecifier,
+        exportName: identity.exportName,
+        ...(identity.memberName !== undefined ? { memberName: identity.memberName } : {}),
+        signatureId: identity.signatureId,
+      }), identity] as const]),
+  ];
 }
 
 function nodejsModuleCallExportCounts(entries: readonly NodejsModuleCallTargetMember[]): ReadonlyMap<string, number> {

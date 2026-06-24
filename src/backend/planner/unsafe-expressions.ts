@@ -72,6 +72,11 @@ export function expressionRequiresUnsafe(
         expressionRequiresUnsafe(expression.whenTrue, blockRequiresUnsafe) ||
         expressionRequiresUnsafe(expression.whenFalse, blockRequiresUnsafe);
     case "ArrayCreationExpression":
+      if (expression.size !== undefined) {
+        return optionalTypeRequiresUnsafe(expression.elementType) ||
+          expressionRequiresUnsafe(expression.size, blockRequiresUnsafe) ||
+          expression.elements.some((element) => expressionRequiresUnsafe(element, blockRequiresUnsafe));
+      }
       return optionalTypeRequiresUnsafe(expression.elementType) ||
         expression.elements.some((element) => expressionRequiresUnsafe(element, blockRequiresUnsafe));
     case "TupleExpression":

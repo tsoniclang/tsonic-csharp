@@ -64,19 +64,19 @@ export function getCsharpTypeFromSemanticType(
   if (callable !== undefined) {
     return callable;
   }
-  if (input.types.isArrayLike(type, { sourceFile })) {
-    const elementType = getArrayLikeElementType(type, sourceFile, input);
-    const csharpElementType = getCsharpTypeFromSemanticType(elementType, sourceFile, input, nextSeen);
-    return csharpElementType === undefined
-      ? undefined
-      : { kind: "ArrayType", elementType: csharpElementType };
-  }
   if (input.types.isTuple(type)) {
     const elements = input.types.getTupleElementTypes(type, { sourceFile })
       .map((element) => getCsharpTypeFromSemanticType(element, sourceFile, input, nextSeen));
     return elements.some((element) => element === undefined)
       ? undefined
       : { kind: "TupleType", elements: elements as readonly CsharpTypeNode[] };
+  }
+  if (input.types.isArrayLike(type, { sourceFile })) {
+    const elementType = getArrayLikeElementType(type, sourceFile, input);
+    const csharpElementType = getCsharpTypeFromSemanticType(elementType, sourceFile, input, nextSeen);
+    return csharpElementType === undefined
+      ? undefined
+      : { kind: "ArrayType", elementType: csharpElementType };
   }
   if (input.types.isBooleanLike(type)) {
     return csharpTypeFromTargetTypeRef(csharpSourcePrimitiveTargetType("bool"));
@@ -127,19 +127,19 @@ function getCsharpTargetTypeRefFromSemanticType(
   if (callable !== undefined) {
     return callable;
   }
-  if (input.types.isArrayLike(type, { sourceFile })) {
-    const elementType = getArrayLikeElementType(type, sourceFile, input);
-    const elementTargetType = getCsharpTargetTypeRefFromSemanticType(elementType, sourceFile, input, nextSeen);
-    return elementTargetType === undefined
-      ? undefined
-      : { kind: "array", element: elementTargetType };
-  }
   if (input.types.isTuple(type)) {
     const elements = input.types.getTupleElementTypes(type, { sourceFile })
       .map((element) => getCsharpTargetTypeRefFromSemanticType(element, sourceFile, input, nextSeen));
     return elements.some((element) => element === undefined)
       ? undefined
       : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
+  }
+  if (input.types.isArrayLike(type, { sourceFile })) {
+    const elementType = getArrayLikeElementType(type, sourceFile, input);
+    const elementTargetType = getCsharpTargetTypeRefFromSemanticType(elementType, sourceFile, input, nextSeen);
+    return elementTargetType === undefined
+      ? undefined
+      : { kind: "array", element: elementTargetType };
   }
   if (input.types.isBooleanLike(type)) {
     return csharpSourcePrimitiveTargetType("bool");

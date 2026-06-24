@@ -9,6 +9,9 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpParameter, CsharpStatement, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
+  csharpArrayBoundaryFactKey,
+} from "../../source/csharp-facts.js";
+import {
   allocateSyntheticParameter,
   createDestructuringPlannerState,
   declareCsharpLocalBindingName,
@@ -17,6 +20,9 @@ import {
 import { planAttributesForSubject } from "./attributes.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpressionWithExpectedType } from "./expressions.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
@@ -57,13 +63,20 @@ export function planParametersWithPrelude(
       } else if (hasDefaultParameter && parameter.DotDotDotToken === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(parameterNode!, "Required parameters cannot follow C# optional parameters."));
       }
+      const sourceName = declareCsharpLocalBindingName(parameter.name, sourceFile, input, diagnostics, state, "Parameter name", "arg");
+      const copyIn = parameter.DotDotDotToken === undefined
+        ? planParameterCopyIn(parameterNode!, parameter.name, typeSubject, sourceName, input, diagnostics, state)
+        : undefined;
       parameters.push({
-        name: declareCsharpLocalBindingName(parameter.name, sourceFile, input, diagnostics, state, "Parameter name", "arg"),
+        name: copyIn?.parameterName ?? sourceName,
         type,
         attributes: planAttributesForSubject(parameterNode, sourceFile, input, diagnostics),
         ...(parameter.DotDotDotToken === undefined ? {} : { isParams: true }),
         ...(defaultValue === undefined ? {} : { defaultValue }),
       });
+      if (copyIn !== undefined) {
+        prelude.push(copyIn.statement);
+      }
       continue;
     }
     const bindingName = parameter.name;
@@ -104,6 +117,45 @@ export function planParametersWithPrelude(
     });
   }
   return { parameters, prelude };
+}
+
+function planParameterCopyIn(
+  parameterNode: Node,
+  nameNode: Node | undefined,
+  typeSubject: Node | undefined,
+  sourceName: string,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+): { readonly parameterName: string; readonly statement: CsharpStatement } | undefined {
+  const boundary = input.facts.getFact(typeSubject, csharpArrayBoundaryFactKey) ??
+    input.facts.getFact(nameNode, csharpArrayBoundaryFactKey) ??
+    input.facts.getFact(parameterNode, csharpArrayBoundaryFactKey);
+  if (boundary?.requiresCopyIn !== true) {
+    return undefined;
+  }
+  const carrierType = csharpTypeFromTargetTypeRef(boundary.coreCarrierType);
+  if (carrierType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(parameterNode, "Array parameter copy-in requires a renderable finalized core carrier type."));
+    return undefined;
+  }
+  const parameterName = allocateSyntheticParameter(state);
+  return {
+    parameterName,
+    statement: {
+      kind: "LocalDeclarationStatement",
+      name: sourceName,
+      type: carrierType,
+      initializer: {
+        kind: "ObjectCreationExpression",
+        type: carrierType,
+        arguments: [{
+          kind: "Argument",
+          expression: { kind: "IdentifierName", name: parameterName },
+        }],
+      },
+    },
+  };
 }
 
 function getParameterTypeSubject(parameter: NonNullable<ReturnType<typeof AsParameterDeclaration>>): Node | undefined {

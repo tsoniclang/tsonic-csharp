@@ -22,6 +22,7 @@ export const AsClassStaticBlockDeclaration = cast;
 export const AsConditionalExpression = cast;
 export const AsConstructorDeclaration = cast;
 export const AsContinueStatement = cast;
+export const AsDeleteExpression = cast;
 export const AsDoStatement = cast;
 export const AsElementAccessExpression = cast;
 export const AsEnumDeclaration = cast;

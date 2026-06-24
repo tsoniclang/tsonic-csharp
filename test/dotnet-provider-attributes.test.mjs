@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,6 +7,7 @@ import {
   createDotnetReflectionTypeDataProvider,
   dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
+import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const attributeModuleSpecifier = "@tsonic/dotnet/ProviderAttributeFixtures.js";
@@ -157,16 +157,11 @@ function buildAttributeFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/attributes/AttributeProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "AttributeProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "AttributeProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/attributes"),
+  });
 }

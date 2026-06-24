@@ -12,6 +12,7 @@ import {
   csharpTargetNamedType,
   targetMethod,
   targetParameter,
+  targetProperty,
 } from "../js/source-library.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
@@ -24,6 +25,8 @@ const intTargetType = csharpSourcePrimitiveTargetType("int32");
 const longTargetType = csharpSourcePrimitiveTargetType("int64");
 const voidTargetType = csharpVoidTargetType();
 const fsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.fs", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "fs"));
+const statsProviderType = { kind: "provider-ref", name: "Stats" } satisfies ProviderTypeExpression;
+const statsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.Stats", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "Stats"));
 
 interface NodeFsProviderParameter {
   readonly name: string;
@@ -40,20 +43,32 @@ interface NodeFsCallTargetMember {
 }
 
 export const nodeFsModuleSpecifier = "node:fs";
+export const nodeFsStatsExportName = "Stats";
 export const nodeFsExistsSyncExportName = "existsSync";
 export const nodeFsExistsSyncSignatureId = "node:fs.existsSync(System.String)";
+export const nodeFsStatSyncExportName = "statSync";
+export const nodeFsStatSyncSignatureId = "node:fs.statSync(System.String)";
+export const nodeFsStatsSizeMemberId = "node:fs.Stats.size";
+export const nodeFsStatsIsFileMemberId = "node:fs.Stats.isFile";
+export const nodeFsStatsIsFileSignatureId = "node:fs.Stats.isFile()";
+export const nodeFsStatsIsDirectoryMemberId = "node:fs.Stats.isDirectory";
+export const nodeFsStatsIsDirectorySignatureId = "node:fs.Stats.isDirectory()";
 
 export function nodeFsExports(): readonly ProviderExportDeclaration[] {
-  return nodeFsCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
-    id: `node:fs.${exportName}`,
-    name: exportName,
-    kind: "function",
-    signatures: [{
-      id: signatureId,
-      parameters: providerParameters,
-      returnType: providerReturnType,
-    }],
-  }));
+  return [
+    nodeFsStatsExportDeclaration(),
+    ...nodeFsCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
+      id: `node:fs.${exportName}`,
+      name: exportName,
+      kind: "function" as const,
+      signatures: [{
+        id: signatureId,
+        parameters: providerParameters,
+        returnType: providerReturnType,
+      }],
+    })),
+    ...nodeFsUnsupportedCallDeclarations(),
+  ];
 }
 
 export function getNodeFsExistsSyncTargetMember(): TargetMember {
@@ -71,6 +86,10 @@ export function getNodeFsCallTargetMember(
   return nodeFsCallTargetMembers()
     .find((entry) => entry.exportName === exportName && (signatureId === undefined || entry.signatureId === signatureId))
     ?.member;
+}
+
+export function getNodeFsTargetMember(memberId: string | undefined, signatureId: string | undefined): TargetMember | undefined {
+  return nodeFsTargetMembersByIdentity.get(signatureId ?? memberId ?? "");
 }
 
 export function nodeFsCallTargetMembers(): readonly {
@@ -115,6 +134,9 @@ export function nodeFsCallTargetMembers(): readonly {
     fsCall(nodeFsExistsSyncExportName, nodeFsExistsSyncSignatureId, [stringParameter("path")], boolProviderType, [
       targetParameter("path", stringTargetType),
     ], boolTargetType),
+    fsCall(nodeFsStatSyncExportName, nodeFsStatSyncSignatureId, [stringParameter("path")], statsProviderType, [
+      targetParameter("path", stringTargetType),
+    ], statsTargetType),
     fsCall("mkdirSync", "node:fs.mkdirSync(System.String,System.Boolean)", [stringParameter("path"), optionalBoolParameter("recursive")], voidProviderType, [
       targetParameter("path", stringTargetType),
       targetParameter("recursive", boolTargetType, { optional: true }),
@@ -170,6 +192,88 @@ export function nodeFsCallTargetMembers(): readonly {
   ];
 }
 
+function nodeFsStatsExportDeclaration(): ProviderExportDeclaration {
+  return {
+    id: `node:fs.${nodeFsStatsExportName}`,
+    name: nodeFsStatsExportName,
+    kind: "class",
+    members: [
+      {
+        id: nodeFsStatsSizeMemberId,
+        name: "size",
+        kind: "property",
+        readonly: true,
+        type: numberProviderType,
+      },
+      {
+        id: nodeFsStatsIsFileMemberId,
+        name: "isFile",
+        kind: "method",
+        signatures: [{
+          id: nodeFsStatsIsFileSignatureId,
+          parameters: [],
+          returnType: boolProviderType,
+        }],
+      },
+      {
+        id: nodeFsStatsIsDirectoryMemberId,
+        name: "isDirectory",
+        kind: "method",
+        signatures: [{
+          id: nodeFsStatsIsDirectorySignatureId,
+          parameters: [],
+          returnType: boolProviderType,
+        }],
+      },
+    ],
+  };
+}
+
+function nodeFsUnsupportedCallDeclarations(): readonly ProviderExportDeclaration[] {
+  return [
+    {
+      id: "node:fs.watchFile",
+      name: "watchFile",
+      kind: "function",
+      signatures: [{
+        id: "node:fs.watchFile(System.String,Function)",
+        parameters: [
+          { name: "filename", type: stringProviderType },
+          { name: "listener", type: { kind: "function", parameters: [], returnType: voidProviderType } },
+        ],
+        returnType: voidProviderType,
+      }],
+    },
+  ];
+}
+
+function getNodeFsStatsSizeTargetMember(): TargetMember {
+  return targetProperty("Tsonic.CSharp.Node.Stats.size", "size", "size", longTargetType, {
+    declaringType: statsTargetType,
+  });
+}
+
+function getNodeFsStatsIsFileTargetMember(): TargetMember {
+  return nodeFsStatsBoolMethodTargetMember("isFile", "IsFile");
+}
+
+function getNodeFsStatsIsDirectoryTargetMember(): TargetMember {
+  return nodeFsStatsBoolMethodTargetMember("isDirectory", "IsDirectory");
+}
+
+function nodeFsStatsBoolMethodTargetMember(sourceName: string, targetName: string): TargetMember {
+  return targetMethod(
+    `Tsonic.CSharp.Node.Stats.${targetName}()`,
+    sourceName,
+    targetName,
+    [],
+    boolTargetType,
+    {
+      declaringType: statsTargetType,
+    },
+  );
+}
+
 function fsCall(
   exportName: string,
   signatureId: string,
@@ -196,3 +300,11 @@ function fsCall(
     ),
   };
 }
+
+const nodeFsTargetMembersByIdentity = new Map<string, TargetMember>([
+  [nodeFsStatsSizeMemberId, getNodeFsStatsSizeTargetMember()],
+  [nodeFsStatsIsFileMemberId, getNodeFsStatsIsFileTargetMember()],
+  [nodeFsStatsIsFileSignatureId, getNodeFsStatsIsFileTargetMember()],
+  [nodeFsStatsIsDirectoryMemberId, getNodeFsStatsIsDirectoryTargetMember()],
+  [nodeFsStatsIsDirectorySignatureId, getNodeFsStatsIsDirectoryTargetMember()],
+]);

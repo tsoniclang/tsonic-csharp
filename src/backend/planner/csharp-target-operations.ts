@@ -95,13 +95,8 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
   diagnostics: TargetDiagnostic[],
   purpose: string,
 ): CsharpTargetMemberOperationFact | undefined {
-  const operation = input.facts.getFact(subject, csharpTargetOperationFactKey);
+  const operation = getRequiredCsharpTargetOperationForSelectedSignature(input, subject, selectedSignature, diagnostics, purpose);
   if (operation === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a finalized C# target member operation fact; the generic selected target member '${selectedSignature.member.id}' is not enough for C# emission.`));
-    return undefined;
-  }
-  if (operation.operationId !== selectedSignature.member.id) {
-    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched target operation facts: generic selected member '${selectedSignature.member.id}', C# '${operation.operationId}'.`));
     return undefined;
   }
   if (operation.kind !== "member") {
@@ -127,6 +122,25 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
   }
   if (operation.memberName !== operation.selectedMember.targetName) {
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched target member-name facts for '${selectedSignature.member.id}'.`));
+    return undefined;
+  }
+  return operation;
+}
+
+export function getRequiredCsharpTargetOperationForSelectedSignature(
+  input: TargetCompileInput,
+  subject: Node,
+  selectedSignature: SelectedTargetSignatureFact,
+  diagnostics: TargetDiagnostic[],
+  purpose: string,
+): CsharpTargetOperationFact | undefined {
+  const operation = input.facts.getFact(subject, csharpTargetOperationFactKey);
+  if (operation === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a finalized C# target operation fact; the generic selected target member '${selectedSignature.member.id}' is not enough for C# emission.`));
+    return undefined;
+  }
+  if (operation.operationId !== selectedSignature.member.id) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched target operation facts: generic selected member '${selectedSignature.member.id}', C# '${operation.operationId}'.`));
     return undefined;
   }
   return operation;

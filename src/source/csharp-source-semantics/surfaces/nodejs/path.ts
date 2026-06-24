@@ -19,6 +19,8 @@ const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
 const boolTargetType = csharpSourcePrimitiveTargetType("bool");
 const pathTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.path", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "path"));
+const parsedPathProviderType = { kind: "provider-ref", name: "ParsedPath" } satisfies ProviderTypeExpression;
+const parsedPathTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.ParsedPath", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "ParsedPath"));
 
 interface NodePathProviderParameter {
   readonly name: string;
@@ -42,11 +44,18 @@ interface NodePathPropertyTargetMember {
 }
 
 export const nodePathModuleSpecifier = "node:path";
+export const nodePathParsedPathExportName = "ParsedPath";
 export const nodePathJoinExportName = "join";
 export const nodePathJoinSignatureId = "node:path.join(System.String[])";
+export const nodePathParsedPathRootMemberId = "node:path.ParsedPath.root";
+export const nodePathParsedPathDirMemberId = "node:path.ParsedPath.dir";
+export const nodePathParsedPathBaseMemberId = "node:path.ParsedPath.base";
+export const nodePathParsedPathExtMemberId = "node:path.ParsedPath.ext";
+export const nodePathParsedPathNameMemberId = "node:path.ParsedPath.name";
 
 export function nodePathExports(): readonly ProviderExportDeclaration[] {
   return [
+    nodePathParsedPathExportDeclaration(),
     ...nodePathCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
       id: `node:path.${exportName}`,
       name: exportName,
@@ -87,6 +96,10 @@ export function getNodePathPropertyTargetMember(exportName: string | undefined):
   return nodePathPropertyTargetMembers().find((entry) => entry.exportName === exportName)?.member;
 }
 
+export function getNodePathTargetMember(memberId: string | undefined): TargetMember | undefined {
+  return nodePathTargetMembersByIdentity.get(memberId ?? "");
+}
+
 export function nodePathCallTargetMembers(): readonly {
   readonly exportName: string;
   readonly signatureId: string;
@@ -125,6 +138,9 @@ export function nodePathCallTargetMembers(): readonly {
     pathCall("normalize", "node:path.normalize(System.String)", [stringParameter("path")], stringProviderType, [
       targetParameter("path", stringTargetType),
     ], stringTargetType),
+    pathCall("parse", "node:path.parse(System.String)", [stringParameter("path")], parsedPathProviderType, [
+      targetParameter("path", stringTargetType),
+    ], parsedPathTargetType),
     pathCall("relative", "node:path.relative(System.String,System.String)", [stringParameter("from"), stringParameter("to")], stringProviderType, [
       targetParameter("from", stringTargetType),
       targetParameter("to", stringTargetType),
@@ -134,6 +150,9 @@ export function nodePathCallTargetMembers(): readonly {
     ], stringTargetType),
     pathCall("toNamespacedPath", "node:path.toNamespacedPath(System.String)", [stringParameter("path")], stringProviderType, [
       targetParameter("path", stringTargetType),
+    ], stringTargetType),
+    pathCall("format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)", [{ name: "pathObject", type: parsedPathProviderType }], stringProviderType, [
+      targetParameter("pathObject", parsedPathTargetType),
     ], stringTargetType),
   ];
 }
@@ -190,3 +209,48 @@ function pathProperty(
     }),
   };
 }
+
+function nodePathParsedPathExportDeclaration(): ProviderExportDeclaration {
+  return {
+    id: `node:path.${nodePathParsedPathExportName}`,
+    name: nodePathParsedPathExportName,
+    kind: "interface",
+    members: [
+      parsedPathProperty(nodePathParsedPathRootMemberId, "root"),
+      parsedPathProperty(nodePathParsedPathDirMemberId, "dir"),
+      parsedPathProperty(nodePathParsedPathBaseMemberId, "base"),
+      parsedPathProperty(nodePathParsedPathExtMemberId, "ext"),
+      parsedPathProperty(nodePathParsedPathNameMemberId, "name"),
+    ],
+  };
+}
+
+function parsedPathProperty(id: string, name: string): {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: "property";
+  readonly readonly: true;
+  readonly type: ProviderTypeExpression;
+} {
+  return {
+    id,
+    name,
+    kind: "property",
+    readonly: true,
+    type: stringProviderType,
+  };
+}
+
+function getNodePathParsedPathTargetMember(sourceName: string, targetName: string): TargetMember {
+  return targetProperty(`Tsonic.CSharp.Node.ParsedPath.${targetName}`, sourceName, targetName, stringTargetType, {
+    declaringType: parsedPathTargetType,
+  });
+}
+
+const nodePathTargetMembersByIdentity = new Map<string, TargetMember>([
+  [nodePathParsedPathRootMemberId, getNodePathParsedPathTargetMember("root", "root")],
+  [nodePathParsedPathDirMemberId, getNodePathParsedPathTargetMember("dir", "dir")],
+  [nodePathParsedPathBaseMemberId, getNodePathParsedPathTargetMember("base", "@base")],
+  [nodePathParsedPathExtMemberId, getNodePathParsedPathTargetMember("ext", "ext")],
+  [nodePathParsedPathNameMemberId, getNodePathParsedPathTargetMember("name", "name")],
+]);

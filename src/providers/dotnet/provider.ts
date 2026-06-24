@@ -17,6 +17,9 @@ import type {
   DotnetProviderIdentity,
 } from "./model.js";
 import {
+  augmentDotnetModuleWithNativeArray,
+} from "./native-array.js";
+import {
   dotnetPackageName,
   parseDotnetModuleSpecifier,
 } from "./module-specifier.js";
@@ -32,6 +35,8 @@ export interface DotnetProviderModuleContext {
   readonly containingFile?: string;
   readonly targetFramework?: string;
   readonly references?: readonly string[];
+  readonly requestedExports?: readonly string[];
+  readonly broadImport?: boolean;
 }
 
 export type DotnetProviderOwnership =
@@ -69,7 +74,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (module === undefined) {
         return { kind: "unowned" };
       }
-      return mapDotnetOwnership(options.provider.ownsModule(specifier, providerContext(context, options)));
+      return mapDotnetOwnership(identity.id, options.provider.ownsModule(specifier, providerContext(context, options)));
     },
     resolveModule(specifier: string, context: ProviderModuleContext): ProviderModuleResolution | ExtensionDiagnostic {
       const module = parseDotnetModuleSpecifier(specifier);
@@ -86,21 +91,26 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: providerVirtualDeclarationFileName("csharp-dotnet", specifier),
+        virtualFileName: providerVirtualDeclarationFileName(identity.id, specifier),
         providerModuleId: specifier,
         packageName: dotnetPackageName,
+        ...(context.broadImport === true ? { broadImport: true as const } : {}),
+        ...(context.requestedExports !== undefined ? { requestedExports: context.requestedExports } : {}),
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
       };
     },
     getDeclarationModel(resolution) {
-      const result = options.provider.getModule(resolution.moduleSpecifier, providerContext({}, options));
+      const result = options.provider.getModule(resolution.moduleSpecifier, providerContext({
+        ...(resolution.broadImport === true ? { broadImport: true as const } : {}),
+        ...(resolution.requestedExports !== undefined ? { requestedExports: resolution.requestedExports } : {}),
+      }, options));
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
-      return dotnetModuleToProviderDeclarationModel(result, {
+      return dotnetModuleToProviderDeclarationModel(augmentDotnetModuleWithNativeArray(result), {
         resolveModule(specifier) {
           const resolved = options.provider.getModule(specifier, providerContext({}, options));
-          return isDotnetProviderDiagnostic(resolved) ? undefined : resolved;
+          return isDotnetProviderDiagnostic(resolved) ? undefined : augmentDotnetModuleWithNativeArray(resolved);
         },
       });
     },
@@ -120,12 +130,14 @@ function providerContext(
 ): DotnetProviderModuleContext {
   return {
     ...(context.containingFile !== undefined ? { containingFile: context.containingFile } : {}),
+    ...(context.broadImport === true ? { broadImport: true as const } : {}),
+    ...(context.requestedExports !== undefined ? { requestedExports: context.requestedExports } : {}),
     ...(options.targetFramework !== undefined ? { targetFramework: options.targetFramework } : {}),
     ...(options.references !== undefined ? { references: options.references } : {}),
   };
 }
 
-function mapDotnetOwnership(ownership: DotnetProviderOwnership): ProviderOwnership {
+function mapDotnetOwnership(extensionId: string, ownership: DotnetProviderOwnership): ProviderOwnership {
   switch (ownership.kind) {
     case "owned":
       return { kind: "owned" };
@@ -134,7 +146,7 @@ function mapDotnetOwnership(ownership: DotnetProviderOwnership): ProviderOwnersh
     case "rejected":
       return {
         kind: "reject",
-        diagnostic: dotnetProviderDiagnosticToExtensionDiagnostic("dotnet", ownership.diagnostic),
+        diagnostic: dotnetProviderDiagnosticToExtensionDiagnostic(extensionId, ownership.diagnostic),
       };
   }
 }

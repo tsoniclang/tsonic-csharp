@@ -4,7 +4,7 @@ using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, bool AllModules, string? ReferenceDirectory, IReadOnlyList<string> References)
+sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, bool AllModules, IReadOnlyList<string> Exports, string? ReferenceDirectory, IReadOnlyList<string> References)
 {
     public static Request Parse(string[] args)
     {
@@ -12,6 +12,7 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
         var moduleSpecifier = "";
         var moduleSpecifierPrefix = "";
         var allModules = false;
+        var exports = new List<string>();
         string? referenceDirectory = null;
         var references = new List<string>();
         for (var index = 0; index < args.Length; index++)
@@ -31,6 +32,9 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                 case "--all-modules":
                     allModules = true;
                     break;
+                case "--export":
+                    exports.Add(RequiredValue(args, ref index, arg));
+                    break;
                 case "--reference-dir":
                     referenceDirectory = RequiredValue(args, ref index, arg);
                     break;
@@ -41,7 +45,7 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                     throw new InvalidOperationException($"Unknown argument '{arg}'.");
             }
         }
-        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, allModules, referenceDirectory, references);
+        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, allModules, exports, referenceDirectory, references);
     }
 
     static string RequiredValue(string[] args, ref int index, string name)

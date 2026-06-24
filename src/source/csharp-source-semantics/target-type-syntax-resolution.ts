@@ -71,6 +71,13 @@ export function getTargetTypeRefFromSyntax(
     const element = resolver.resolveSubject(asNodeSubject(getNodeField(node, "ElementType")), context, options, host);
     return element === undefined ? undefined : { kind: "array", element };
   }
+  if (ast.is.IsTupleTypeNode(node)) {
+    const elements = ast.elements(node)
+      .map((element) => resolver.resolveSubject(getTupleElementTypeNode(asNodeSubject(element)), context, options, host));
+    return elements.some((element) => element === undefined)
+      ? undefined
+      : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
+  }
   if (ast.is.IsParenthesizedTypeNode(node)) {
     return resolver.resolveSubject(asNodeSubject(getNodeField(node, "Type")), context, options, host);
   }
@@ -87,4 +94,8 @@ export function getTargetTypeRefFromSyntax(
     return resolveFunctionTargetTypeRefFromSignatureLikeSubject(node, context, options, host, resolver);
   }
   return undefined;
+}
+
+function getTupleElementTypeNode(element: ReturnType<typeof asNodeSubject>): ReturnType<typeof asNodeSubject> {
+  return asNodeSubject(getNodeField(element, "Type")) ?? asNodeSubject(getNodeField(element, "type")) ?? element;
 }

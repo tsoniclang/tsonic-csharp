@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -10,6 +9,7 @@ import {
   dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
 import { findTargetMemberForCall } from "../dist/source/csharp-source-semantics/target-member-selection.js";
+import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -309,18 +309,13 @@ function buildDefaultParameterFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/default-params/DefaultParameterProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/default-params/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/default-params/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "DefaultParameterProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "DefaultParameterProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/default-params"),
+  });
 }
 
 function buildUnsupportedDefaultParameterFixture() {
@@ -353,16 +348,11 @@ public sealed class UnsupportedDefaultParameterSource
     }
 }
 `);
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "UnsupportedDefaultParameterProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "UnsupportedDefaultParameterProviderFixture.dll",
+    projectDirectory: fixtureDirectory,
+  });
 }

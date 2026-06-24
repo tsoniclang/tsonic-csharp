@@ -25,7 +25,7 @@ import type {
   NodejsProviderDeclarationIdentity,
 } from "./identity.js";
 import {
-  getCsharpNodejsStaticPropertyOperation,
+  getCsharpNodejsPropertyOperation,
   getNodejsCallTargetMember,
 } from "./members.js";
 import {
@@ -39,7 +39,7 @@ export {
   createCsharpNodejsSurfaceBindingProvider,
 };
 export {
-  getCsharpNodejsStaticPropertyOperation,
+  getCsharpNodejsPropertyOperation,
 } from "./members.js";
 
 export interface CsharpNodejsSurfaceMappers {
@@ -79,11 +79,11 @@ export function createCsharpNodejsSurfaceMappers(extensionId: string): CsharpNod
       if (declaration === undefined) {
         return deferObservation;
       }
-      const operation = getCsharpNodejsStaticPropertyOperation(declaration);
+      const operation = getCsharpNodejsPropertyOperation(declaration);
       if (operation === undefined) {
         return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_PROPERTY_NOT_MAPPED", 9100201, `C# NodeJS surface could not map checked ${formatNodejsDeclarationIdentity(declaration)} to a target property.`));
       }
-      recordCsharpTargetOperation(context, request.expression, operation.csharpOperation, [{ message: `C# NodeJS surface static property operation recorded from checked provider module '${declaration.moduleSpecifier}'.` }]);
+      recordCsharpTargetOperation(context, request.expression, operation.csharpOperation, [{ message: `C# NodeJS surface property operation recorded from checked provider module '${declaration.moduleSpecifier}'.` }]);
       return acceptObservation<CheckedOperationMappingResult>({
         operation: operation.operation,
       }, [{ message: `C# NodeJS surface target property selected from checked provider module '${declaration.moduleSpecifier}'.` }]);

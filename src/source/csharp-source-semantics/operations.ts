@@ -10,6 +10,7 @@ import {
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
+  csharpTargetMutationOperationFactKey,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
 import {
@@ -88,6 +89,21 @@ export function csharpTargetMemberOperation(
     ...(options.argumentProjection !== undefined ? { argumentProjection: options.argumentProjection } : {}),
     ...(options.argumentArrayLiteralElementTypes !== undefined ? { argumentArrayLiteralElementTypes: options.argumentArrayLiteralElementTypes } : {}),
     ...(options.selectedMember !== undefined ? { selectedMember: options.selectedMember } : {}),
+  };
+}
+
+export function csharpTargetArrayCreationOperation(
+  operationId: string,
+  elementType: TargetTypeRef,
+  selectedMember: TargetMember,
+): CsharpTargetOperationFact {
+  return {
+    kind: "array-creation",
+    operationId,
+    elementType,
+    resultType: { kind: "array", element: elementType },
+    lengthArgumentIndex: 0,
+    selectedMember,
   };
 }
 
@@ -191,6 +207,20 @@ export function recordCsharpTargetOperation(
   evidence: readonly ExtensionEvidence[] = [],
 ): void {
   context.facts.set(subject, csharpTargetOperationFactKey, operation, evidence);
+  if (operation.resultType !== undefined) {
+    context.facts.set(subject, runtimeCarrierFactKey, {
+      carrier: operation.resultType,
+    }, evidence);
+  }
+}
+
+export function recordCsharpTargetMutationOperation(
+  context: ExtensionObservationContext,
+  subject: ExtensionFactSubject,
+  operation: CsharpTargetOperationFact,
+  evidence: readonly ExtensionEvidence[] = [],
+): void {
+  context.facts.set(subject, csharpTargetMutationOperationFactKey, operation, evidence);
   if (operation.resultType !== undefined) {
     context.facts.set(subject, runtimeCarrierFactKey, {
       carrier: operation.resultType,

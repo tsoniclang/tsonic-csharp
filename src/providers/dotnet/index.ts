@@ -45,9 +45,16 @@ export type {
   DotnetReflectionTypeDataProvider,
   DotnetReflectionTypeDataProviderOptions,
 } from "./reflection/provider.js";
+export type {
+  DotnetProviderTelemetry,
+  DotnetProviderTelemetrySnapshot,
+} from "./reflection/telemetry.js";
 export {
   createDotnetReflectionTypeDataProvider,
 } from "./reflection/provider.js";
+export {
+  createDotnetProviderTelemetry,
+} from "./reflection/telemetry.js";
 export {
   createDotnetModuleSpecifier,
   dotnetModuleExtension,
@@ -55,4 +62,12 @@ export {
   dotnetPackageName,
   parseDotnetModuleSpecifier,
 } from "./module-specifier.js";
+export {
+  augmentDotnetModuleWithNativeArray,
+  dotnetNativeArrayCreateMemberId,
+  dotnetNativeArrayIndexerMemberId,
+  dotnetNativeArrayLengthMemberId,
+  dotnetNativeArrayTypeId,
+  isDotnetNativeArrayCreateMemberId,
+} from "./native-array.js";
 export { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";

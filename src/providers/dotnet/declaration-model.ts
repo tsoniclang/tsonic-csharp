@@ -15,7 +15,6 @@ import type {
   DotnetParameterDeclaration,
   DotnetSignatureDeclaration,
   DotnetTypeDeclaration,
-  DotnetTypeParameterDeclaration,
   DotnetTypeRef,
 } from "./model.js";
 import {
@@ -105,7 +104,6 @@ export function dotnetExportToProviderExport(
         id: declaration.namespaceName,
         name: declaration.sourceName,
         kind: "namespace",
-        targetIdentity: dotnetTargetIdentity(declaration.namespaceName, declaration.sourceName),
         members: declaration.exports
           .map(dotnetExportToNamespaceMember)
           .filter((member): member is ProviderMemberDeclaration => member !== undefined),
@@ -129,7 +127,7 @@ function dotnetTypeToProviderExport(
     kind,
     targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.displayName ?? declaration.sourceName),
     ...(sourceType !== undefined ? { type: sourceType } : {}),
-    ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderSourceTypeParameter) } : {}),
+    ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
     ...(baseType !== undefined ? { extends: [baseType] } : {}),
     ...(kind !== "type" && members !== undefined && members.length > 0 ? { members } : {}),
   };
@@ -544,7 +542,6 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
         id: declaration.targetId,
         name: declaration.sourceName,
         kind: "method",
-        static: true,
         signatures,
       };
     }
@@ -682,7 +679,7 @@ function dotnetSignatureToProviderSignature(
     ...(signature.targetName !== undefined || memberTargetName !== undefined ? { name: signature.targetName ?? memberTargetName } : {}),
     parameters: parameters as ProviderParameterDeclaration[],
     ...(returnType !== undefined ? { returnType } : {}),
-    ...(signature.typeParameters !== undefined ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToProviderTypeParameterStrict) } : {}),
+    ...(signature.typeParameters !== undefined ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
   };
 }
 
@@ -697,18 +694,6 @@ function dotnetParameterToProviderParameter(parameter: DotnetParameterDeclaratio
     ...(parameter.passingMode !== "by-value" ? { passingMode: parameter.passingMode } : {}),
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { rest: true } : {}),
-  };
-}
-
-function dotnetTypeParameterToProviderTypeParameterStrict(typeParameter: DotnetTypeParameterDeclaration): ProviderTypeParameterDeclaration {
-  return dotnetTypeParameterToProviderSourceTypeParameter(typeParameter);
-}
-
-function dotnetTypeParameterToProviderSourceTypeParameter(typeParameter: DotnetTypeParameterDeclaration): ProviderTypeParameterDeclaration {
-  const providerParameter = dotnetTypeParameterToProviderTypeParameter(typeParameter);
-  return {
-    name: providerParameter.name,
-    ...(providerParameter.variance !== undefined ? { variance: providerParameter.variance } : {}),
   };
 }
 

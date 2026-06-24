@@ -9,6 +9,7 @@ import {
   KindNewExpression,
   KindObjectBindingPattern,
   KindObjectKeyword,
+  KindTupleType,
   KindTypeLiteral,
   KindTypeReference,
   KindUnknownKeyword,
@@ -140,6 +141,13 @@ export function getCsharpTypeForNode(
       ? invalidCsharpType("array type")
       : { kind: "ArrayType", elementType };
   }
+  if (input.ast.kindName(node) === KindTupleType) {
+    const elements = input.ast.elements(node)
+      .map((element) => getCsharpTypeForNode(getTupleElementTypeNode(element), sourceFile, input, invalidCsharpType("tuple element type"), diagnostics));
+    return elements.some((element) => element.kind === "InvalidType")
+      ? invalidCsharpType("tuple type")
+      : { kind: "TupleType", elements };
+  }
   const keywordType = getCsharpTypeFromKeywordTypeNode(node, input);
   if (keywordType !== undefined) {
     return keywordType;
@@ -173,6 +181,18 @@ export function getCsharpTypeForNode(
   const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
   return invalidCsharpType("unsupported semantic type");
+}
+
+function getTupleElementTypeNode(element: Node | undefined): Node | undefined {
+  return getNodeField(element, "Type") ?? getNodeField(element, "type") ?? element;
+}
+
+function getNodeField(node: Node | undefined, field: string): Node | undefined {
+  if (node === undefined) {
+    return undefined;
+  }
+  const value = Object.getOwnPropertyDescriptor(node, field)?.value;
+  return typeof value === "object" && value !== null ? value as Node : undefined;
 }
 
 function getCsharpTypeFromArrayBoundaryFact(

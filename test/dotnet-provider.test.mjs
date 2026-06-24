@@ -1,11 +1,17 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  augmentDotnetModuleWithNativeArray,
+  createDotnetProviderTelemetry,
   createDotnetReflectionTypeDataProvider,
+  createDotnetTargetBindingProvider,
+  dotnetNativeArrayCreateMemberId,
+  dotnetNativeArrayIndexerMemberId,
+  dotnetNativeArrayLengthMemberId,
+  dotnetNativeArrayTypeId,
   dotnetModuleToProviderDeclarationModel,
   dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
@@ -14,6 +20,7 @@ import {
   dotnetExportToTargetBinding,
   tryDotnetTypeRefToProviderType,
 } from "../dist/providers/dotnet/model.js";
+import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const testAssemblyId = "Test.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
@@ -184,6 +191,109 @@ test(".NET provider declaration model preserves explicit target parameter passin
   assert.equal(signature.name, "TryGetValue");
   assert.equal(signature.parameters[0].passingMode, undefined);
   assert.equal(signature.parameters[1].passingMode, "byref-writeonly-must-init");
+});
+
+test(".NET provider exposes explicit native Array as a provider-owned C# array projection", () => {
+  const module = augmentDotnetModuleWithNativeArray({
+    moduleSpecifier: "@tsonic/dotnet/System.js",
+    namespaceName: "System",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "Array",
+        namespaceName: "System",
+        targetId: testTargetId("System.Array"),
+        metadataName: "System.Array",
+      },
+    ],
+  });
+  const nativeArray = module.exports.find((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === "Array"
+  );
+  assert.ok(nativeArray);
+  assert.equal(nativeArray.targetId, dotnetNativeArrayTypeId);
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  const providerArray = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "interface");
+  const providerArrayNamespace = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "namespace");
+  assert.ok(providerArray);
+  assert.ok(providerArrayNamespace);
+  assert.equal(providerArray.id, dotnetNativeArrayTypeId);
+  assert.deepEqual(providerArray.typeParameters, [{ name: "T", defaultType: { kind: "unknown" } }]);
+
+  const create = providerArrayNamespace.members.find((member) => member.name === "create");
+  const length = providerArray.members.find((member) => member.name === "length");
+  const indexer = providerArray.members.find((member) => member.kind === "indexer");
+  assert.equal(create.id, dotnetNativeArrayCreateMemberId);
+  assert.equal(create.static, undefined);
+  assert.deepEqual(create.signatures[0].typeParameters, [{ name: "T" }]);
+  assert.deepEqual(create.signatures[0].returnType, {
+    kind: "provider-ref",
+    name: "Array",
+    moduleSpecifier: "@tsonic/dotnet/System.js",
+    typeArguments: [{ kind: "type-parameter", name: "T" }],
+  });
+  assert.equal(length.id, dotnetNativeArrayLengthMemberId);
+  assert.equal(length.readonly, true);
+  assert.equal(indexer.id, dotnetNativeArrayIndexerMemberId);
+  assert.equal(indexer.readonly, undefined);
+
+  const binding = dotnetExportToTargetBinding(nativeArray);
+  assert.ok(binding);
+  assert.equal(binding.csharpType.kind, "array");
+  assert.equal(binding.csharpType.element.kind, "type-parameter");
+  assert.equal(binding.members.find((member) => member.id === dotnetNativeArrayLengthMemberId).targetName, "Length");
+  assert.equal(binding.members.find((member) => member.id === dotnetNativeArrayIndexerMemberId).targetName, "Item");
+});
+
+test(".NET reflection provider returns requested export declaration closures instead of whole namespaces", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const exportNames = module.exports.map((declaration) => declaration.sourceName).sort();
+  assert.equal(exportNames.includes("Convert"), true);
+  assert.equal(exportNames.includes("IFormatProvider"), true);
+  assert.equal(exportNames.includes("Type"), true);
+  assert.equal(exportNames.includes("SearchValues"), false);
+  assert.equal(exportNames.includes("Console"), false);
+
+  const convert = module.exports.find((declaration) => declaration.sourceName === "Convert");
+  assert.ok(convert);
+  assert.equal(convert.members?.some((member) => member.sourceName === "toByte"), true);
+
+  const formatProvider = module.exports.find((declaration) => declaration.sourceName === "IFormatProvider");
+  assert.ok(formatProvider);
+  assert.equal(formatProvider.members, undefined);
+});
+
+test(".NET reflection provider reloads requested export slices from persistent cache without rerunning reflection", () => {
+  const cacheRoot = join(repoRoot, ".temp/provider-cache/dotnet-reflection-test-slices");
+  const populateTelemetry = createDotnetProviderTelemetry();
+  const populateProvider = createDotnetReflectionTypeDataProvider({
+    cacheRoot,
+    telemetry: populateTelemetry,
+  });
+  const populated = populateProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in populated, true, JSON.stringify(populated));
+
+  const cachedTelemetry = createDotnetProviderTelemetry();
+  const cachedProvider = createDotnetReflectionTypeDataProvider({
+    cacheRoot,
+    telemetry: cachedTelemetry,
+  });
+  const cached = cachedProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in cached, true, JSON.stringify(cached));
+
+  const snapshot = cachedProvider.getTelemetrySnapshot();
+  assert.equal(snapshot.toolInvocations, 0);
+  assert.equal(snapshot.diskCacheHits, 1);
+  assert.equal(snapshot.diskCacheMisses, 0);
+  assert.equal(snapshot.memoryCacheMisses, 1);
+  assert.equal(snapshot.modelBytes < 1_000_000, true, JSON.stringify(snapshot));
+  assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Convert"), true);
+  assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Console"), false);
 });
 
 test(".NET provider declaration model omits source members without truthful source shapes", () => {
@@ -883,6 +993,51 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
   assert.equal(targetOverlaps.parameters[2].passingMode, "byref-writeonly-must-init");
 });
 
+test(".NET target binding provider uses configured provider identity for diagnostics and virtual modules", () => {
+  const identity = {
+    id: "acme.dotnet.fixture-provider",
+    version: "1.2.3",
+    target: "csharp",
+    displayName: "Acme .NET Fixture Provider",
+  };
+  const rejectedDiagnostic = {
+    code: "DOTNET_FIXTURE_REJECTED",
+    message: "Fixture provider rejected this module.",
+    evidence: [{ module: "@tsonic/dotnet/System.js" }],
+  };
+  const bindingProvider = createDotnetTargetBindingProvider({
+    provider: {
+      identity,
+      ownsModule(specifier) {
+        return specifier === "@tsonic/dotnet/System.js"
+          ? { kind: "rejected", diagnostic: rejectedDiagnostic }
+          : { kind: "owned" };
+      },
+      getModule(specifier) {
+        return {
+          moduleSpecifier: specifier,
+          namespaceName: "System.Text",
+          exports: [],
+        };
+      },
+    },
+  });
+
+  const ownership = bindingProvider.ownsModule("@tsonic/dotnet/System.js", {});
+  assert.equal(ownership.kind, "reject");
+  assert.equal(ownership.diagnostic.extensionId, identity.id);
+  assert.equal(ownership.diagnostic.extensionCode, rejectedDiagnostic.code);
+  assert.equal(ownership.diagnostic.message, rejectedDiagnostic.message);
+
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Text.js", {});
+  assert.equal(resolution.kind, "virtual");
+  assert.equal(resolution.providerModuleId, "@tsonic/dotnet/System.Text.js");
+  assert.match(
+    resolution.virtualFileName,
+    /^tsts-provider:\/\/acme\.dotnet\.fixture-provider\/%40tsonic%2Fdotnet%2FSystem\.Text\.js\.d\.ts$/u,
+  );
+});
+
 test(".NET reflection provider proves collection constructor array-literal element metadata", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.Collections.Generic.js", "System.Collections.Generic.List`1");
@@ -1323,7 +1478,7 @@ test(".NET provider source declarations project cross-module inherited overloads
   ), true);
 });
 
-test(".NET provider source declarations omit target-only generic constraints", () => {
+test(".NET provider keeps target generic constraints out of source virtual declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const buffersModule = provider.getModule("@tsonic/dotnet/System.Buffers.js", {});
   assert.equal("exports" in buffersModule, true);
@@ -1335,7 +1490,7 @@ test(".NET provider source declarations omit target-only generic constraints", (
   const declarationModel = dotnetModuleToProviderDeclarationModel(buffersModule);
   const sequenceReader = declarationModel.exports.find((declaration) => declaration.name === "SequenceReader");
   assert.ok(sequenceReader);
-  assert.deepEqual(sequenceReader.typeParameters, [{ name: "T" }]);
+  assert.equal(sequenceReader.typeParameters?.[0]?.constraints, undefined);
 });
 
 test(".NET reflection provider records generic constraints and variance as target facts", () => {
@@ -1409,7 +1564,13 @@ test(".NET reflection provider records generic constraints and variance as targe
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceReferenceNewTarget = declarationModel.exports.find((declaration) => declaration.name === "ReferenceNewTarget");
   assert.ok(sourceReferenceNewTarget);
-  assert.deepEqual(sourceReferenceNewTarget.typeParameters, [{ name: "T" }]);
+  assert.deepEqual(sourceReferenceNewTarget.typeParameters?.map((parameter) => ({
+    name: parameter.name,
+    constraints: parameter.constraints,
+  })), [{ name: "T", constraints: undefined }]);
+  const sourceCopy = sourceReferenceNewTarget.members.find((member) => member.kind === "method" && member.name === "copy");
+  assert.ok(sourceCopy);
+  assert.equal(sourceCopy.signatures[0].typeParameters[0].constraints, undefined);
   const sourceProducer = declarationModel.exports.find((declaration) => declaration.name === "IProducer");
   assert.ok(sourceProducer);
   assert.deepEqual(sourceProducer.typeParameters, [{ name: "T", variance: "out" }]);
@@ -1627,6 +1788,189 @@ test(".NET reflection provider signature ids preserve byref modes and generic me
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderSignatureFixtures.js", "ProviderSignatureFixtures.SignatureTarget");
   assert.ok(binding.members.some((member) => idEndsWith(member.id, "ProviderSignatureFixtures.SignatureTarget.M(ref System.Int32)")));
   assert.ok(binding.members.some((member) => idEndsWith(member.id, "ProviderSignatureFixtures.SignatureTarget.Generic``2()")));
+});
+
+test(".NET reflection provider preserves selected parameter-mode facts per signature identity", () => {
+  const reference = buildSignatureIdentityFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderSignatureFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const optionalDefaultsId =
+    "ProviderSignatureFixtures.ParameterModeTarget.OptionalDefaults(System.String,System.Int32,ProviderSignatureFixtures.SignatureMode,System.String)";
+  const paramsRestId = "ProviderSignatureFixtures.ParameterModeTarget.ParamsRest(System.String,System.Int32[])";
+  const byRefModesId =
+    "ProviderSignatureFixtures.ParameterModeTarget.ByRefModes(ref System.Int32,out System.Boolean,in System.Int64)";
+
+  const rawTarget = module.exports.find((declaration) => declaration.sourceName === "ParameterModeTarget");
+  assert.ok(rawTarget);
+  const rawOptionalDefaults = methodSignature(rawTarget, "OptionalDefaults", optionalDefaultsId);
+  const rawParamsRest = methodSignature(rawTarget, "ParamsRest", paramsRestId);
+  const rawByRefModes = methodSignature(rawTarget, "ByRefModes", byRefModesId);
+
+  assert.equal(stripAssemblyQualifiers(rawOptionalDefaults.id), optionalDefaultsId);
+  assert.deepEqual(parameterFacts(rawOptionalDefaults.parameters), [
+    { name: "required", type: { kind: "string" }, passingMode: "by-value" },
+    {
+      name: "count",
+      type: { kind: "source-primitive", name: "int32" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "source-primitive", name: "int32", value: "7" },
+    },
+    {
+      name: "mode",
+      type: { kind: "named", metadataName: "ProviderSignatureFixtures.SignatureMode" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "enum", value: "2", fieldName: "Enabled" },
+    },
+    {
+      name: "label",
+      type: { kind: "string" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "null" },
+    },
+  ]);
+  assert.equal(stripAssemblyQualifiers(rawParamsRest.id), paramsRestId);
+  assert.deepEqual(parameterFacts(rawParamsRest.parameters), [
+    { name: "label", type: { kind: "string" }, passingMode: "by-value" },
+    {
+      name: "values",
+      type: { kind: "array", element: { kind: "source-primitive", name: "int32" } },
+      passingMode: "by-value",
+      rest: true,
+    },
+  ]);
+  assert.equal(stripAssemblyQualifiers(rawByRefModes.id), byRefModesId);
+  assert.deepEqual(parameterFacts(rawByRefModes.parameters), [
+    { name: "current", type: { kind: "source-primitive", name: "int32" }, passingMode: "byref-readwrite" },
+    { name: "assigned", type: { kind: "source-primitive", name: "bool" }, passingMode: "byref-writeonly-must-init" },
+    { name: "snapshot", type: { kind: "source-primitive", name: "int64" }, passingMode: "byref-readonly" },
+  ]);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "ParameterModeTarget");
+  assert.ok(sourceTarget);
+  const sourceOptionalDefaults = methodSignature(sourceTarget, "optionalDefaults", optionalDefaultsId);
+  const sourceParamsRest = methodSignature(sourceTarget, "paramsRest", paramsRestId);
+  const sourceByRefModes = methodSignature(sourceTarget, "byRefModes", byRefModesId);
+  assert.equal(sourceOptionalDefaults.name, "OptionalDefaults");
+  assert.deepEqual(parameterFacts(sourceOptionalDefaults.parameters), [
+    { name: "required", type: { kind: "string" } },
+    { name: "count", type: { kind: "source-primitive", name: "int32" }, optional: true },
+    { name: "mode", type: { kind: "target-named", id: "ProviderSignatureFixtures.SignatureMode" }, optional: true },
+    { name: "label", type: { kind: "string" }, optional: true },
+  ]);
+  assert.equal(sourceParamsRest.name, "ParamsRest");
+  assert.deepEqual(parameterFacts(sourceParamsRest.parameters), [
+    { name: "label", type: { kind: "string" } },
+    { name: "values", type: { kind: "array", element: { kind: "source-primitive", name: "int32" } }, rest: true },
+  ]);
+  assert.equal(sourceByRefModes.name, "ByRefModes");
+  assert.deepEqual(parameterFacts(sourceByRefModes.parameters), [
+    { name: "current", type: { kind: "source-primitive", name: "int32" }, passingMode: "byref-readwrite" },
+    { name: "assigned", type: { kind: "source-primitive", name: "bool" }, passingMode: "byref-writeonly-must-init" },
+    { name: "snapshot", type: { kind: "source-primitive", name: "int64" }, passingMode: "byref-readonly" },
+  ]);
+
+  const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderSignatureFixtures.js", "ProviderSignatureFixtures.ParameterModeTarget");
+  const targetOptionalDefaults = findByIdSuffix(binding.members, optionalDefaultsId);
+  const targetParamsRest = findByIdSuffix(binding.members, paramsRestId);
+  const targetByRefModes = findByIdSuffix(binding.members, byRefModesId);
+  assert.ok(targetOptionalDefaults);
+  assert.ok(targetParamsRest);
+  assert.ok(targetByRefModes);
+  assert.equal(stripAssemblyQualifiers(targetOptionalDefaults.overloadGroup), "ProviderSignatureFixtures.ParameterModeTarget.OptionalDefaults");
+  assert.deepEqual(parameterFacts(targetOptionalDefaults.parameters), [
+    { name: "required", type: { kind: "target-named", id: "System.String" }, passingMode: "by-value" },
+    {
+      name: "count",
+      type: { kind: "source-primitive", name: "int32" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "source-primitive", name: "int32", value: "7" },
+    },
+    {
+      name: "mode",
+      type: { kind: "target-named", id: "ProviderSignatureFixtures.SignatureMode" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "enum", value: "2", fieldName: "Enabled" },
+    },
+    {
+      name: "label",
+      type: { kind: "target-named", id: "System.String" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "null" },
+    },
+  ]);
+  assert.equal(stripAssemblyQualifiers(targetParamsRest.overloadGroup), "ProviderSignatureFixtures.ParameterModeTarget.ParamsRest");
+  assert.deepEqual(parameterFacts(targetParamsRest.parameters), [
+    { name: "label", type: { kind: "target-named", id: "System.String" }, passingMode: "by-value" },
+    {
+      name: "values",
+      type: { kind: "array", element: { kind: "source-primitive", name: "int32" } },
+      passingMode: "by-value",
+      paramsArray: true,
+    },
+  ]);
+  assert.equal(stripAssemblyQualifiers(targetByRefModes.overloadGroup), "ProviderSignatureFixtures.ParameterModeTarget.ByRefModes");
+  assert.deepEqual(parameterFacts(targetByRefModes.parameters), [
+    { name: "current", type: { kind: "source-primitive", name: "int32" }, passingMode: "byref-readwrite" },
+    { name: "assigned", type: { kind: "source-primitive", name: "bool" }, passingMode: "byref-writeonly-must-init" },
+    { name: "snapshot", type: { kind: "source-primitive", name: "int64" }, passingMode: "byref-readonly" },
+  ]);
+});
+
+test(".NET reflection provider preserves extension receiver passing per selected signature identity", () => {
+  const reference = buildSignatureIdentityFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderSignatureFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const rawTarget = module.exports.find((declaration) => declaration.sourceName === "MixedExtensionTarget");
+  assert.ok(rawTarget);
+  const rawTransformMembers = rawTarget.members.filter((member) =>
+    member.kind === "method" &&
+    member.targetName === "Transform"
+  );
+  assert.equal(rawTransformMembers.length, 2);
+
+  const rawStaticTransform = rawTransformMembers.find((member) =>
+    member.receiverPassing === undefined &&
+    member.signatures.some((signature) => idEndsWith(signature.id, "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String)"))
+  );
+  const rawExtensionTransform = rawTransformMembers.find((member) =>
+    member.receiverPassing === "first-argument" &&
+    member.signatures.some((signature) => idEndsWith(signature.id, "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String,System.Int32)"))
+  );
+  assert.ok(rawStaticTransform);
+  assert.ok(rawExtensionTransform);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "MixedExtensionTarget");
+  assert.ok(sourceTarget);
+  const sourceTransform = sourceTarget.members.find((member) => member.kind === "method" && member.name === "transform");
+  assert.ok(sourceTransform);
+  assert.deepEqual(sourceTransform.signatures.map((signature) => stripAssemblyQualifiers(signature.id)).sort(), [
+    "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String)",
+    "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String,System.Int32)",
+  ]);
+
+  const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderSignatureFixtures.js", "ProviderSignatureFixtures.MixedExtensionTarget");
+  const targetStaticTransform = binding.members.find((member) =>
+    idEndsWith(member.id, "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String)")
+  );
+  const targetExtensionTransform = binding.members.find((member) =>
+    idEndsWith(member.id, "ProviderSignatureFixtures.MixedExtensionTarget.Transform(System.String,System.Int32)")
+  );
+  assert.ok(targetStaticTransform);
+  assert.ok(targetExtensionTransform);
+  assert.equal(targetStaticTransform.receiverPassing, undefined);
+  assert.equal(targetExtensionTransform.receiverPassing, "first-argument");
 });
 
 test(".NET reflection provider classifies unsupported type families without silently dropping them", () => {
@@ -1911,128 +2255,147 @@ function constructorSignature(declaration, signatureId) {
   return signature;
 }
 
+function methodSignature(declaration, memberName, signatureId) {
+  const member = declaration.members?.find((candidate) =>
+    candidate.kind === "method" &&
+    (candidate.targetName === memberName || candidate.name === memberName || candidate.sourceName === memberName) &&
+    candidate.signatures?.some((signature) => idEndsWith(signature.id, signatureId))
+  );
+  assert.ok(member, `method ${memberName}`);
+  const signature = member.signatures.find((candidate) => idEndsWith(candidate.id, signatureId));
+  assert.ok(signature, `method signature ${signatureId}`);
+  return signature;
+}
+
+function parameterFacts(parameters) {
+  return parameters.map((parameter) => ({
+    name: parameter.name,
+    type: typeFact(parameter.type),
+    ...(parameter.passingMode !== undefined ? { passingMode: parameter.passingMode } : {}),
+    ...(parameter.optional === true ? { optional: true } : {}),
+    ...(parameter.rest === true ? { rest: true } : {}),
+    ...(parameter.paramsArray === true ? { paramsArray: true } : {}),
+    ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+    ...(parameter.unsupportedDefaultValue !== undefined ? { unsupportedDefaultValue: parameter.unsupportedDefaultValue } : {}),
+  }));
+}
+
+function typeFact(type) {
+  switch (type.kind) {
+    case "array":
+      return {
+        kind: "array",
+        element: typeFact(type.element ?? type.elementType),
+      };
+    case "named":
+      return {
+        kind: "named",
+        metadataName: type.metadataName,
+      };
+    case "source-primitive":
+      return {
+        kind: "source-primitive",
+        name: type.name,
+      };
+    case "string":
+      return { kind: "string" };
+    case "target-named":
+      return {
+        kind: "target-named",
+        id: stripAssemblyQualifiers(type.id),
+      };
+    default:
+      return { kind: type.kind };
+  }
+}
+
 function buildAttributeFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/attributes/AttributeProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "AttributeProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "AttributeProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/attributes"),
+  });
 }
 
 function buildConstructorFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/constructors/ConstructorProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constructors/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constructors/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "ConstructorProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "ConstructorProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/constructors"),
+  });
 }
 
 function buildUnsupportedEventFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/unsupported-event/UnsupportedEventProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-event/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-event/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "UnsupportedEventProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "UnsupportedEventProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/unsupported-event"),
+  });
 }
 
 function buildUnsupportedMemberFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/unsupported-members/UnsupportedMembersProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-members/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-members/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "UnsupportedMembersProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "UnsupportedMembersProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/unsupported-members"),
+  });
 }
 
 function buildConstraintFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/constraints/ConstraintProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "ConstraintProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "ConstraintProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/constraints"),
+  });
 }
 
 function buildConversionFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/conversions/ConversionProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/conversions/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/conversions/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "ConversionProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "ConversionProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/conversions"),
+  });
 }
 
 function buildSignatureIdentityFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/signature-identity/SignatureIdentityProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/signature-identity/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/signature-identity/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "SignatureIdentityProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "SignatureIdentityProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/signature-identity"),
+  });
 }

@@ -141,6 +141,7 @@ export interface CsharpArrayBoundaryFact {
 
 export type CsharpTargetOperationFact =
   | CsharpTargetMemberOperationFact
+  | CsharpTargetArrayCreationOperationFact
   | CsharpTargetTokenOperatorOperationFact
   | CsharpTargetIntrinsicOperatorOperationFact
   | CsharpTargetTypeofRuntimeOperationFact
@@ -159,6 +160,15 @@ export interface CsharpTargetMemberOperationFact {
   readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
   readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];
   readonly selectedMember?: TargetMember;
+}
+
+export interface CsharpTargetArrayCreationOperationFact {
+  readonly kind: "array-creation";
+  readonly operationId: string;
+  readonly elementType: TargetTypeRef;
+  readonly resultType: TargetTypeRef;
+  readonly lengthArgumentIndex: number;
+  readonly selectedMember: TargetMember;
 }
 
 export type CsharpTargetOperationArgument =
@@ -261,6 +271,12 @@ export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetO
   equals: csharpTargetOperationFactEquals,
 });
 
+export const csharpTargetMutationOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
+  extensionId: "tsonic.csharp",
+  name: "targetMutationOperation",
+  equals: csharpTargetOperationFactEquals,
+});
+
 export const csharpTargetConversionOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
   extensionId: "tsonic.csharp",
   name: "targetConversionOperation",
@@ -305,6 +321,12 @@ function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right:
   switch (left.kind) {
     case "member":
       return right.kind === "member" && csharpTargetMemberOperationFactEquals(left, right);
+    case "array-creation":
+      return right.kind === "array-creation"
+        && targetTypeRefEquals(left.elementType, right.elementType)
+        && targetTypeRefEquals(left.resultType, right.resultType)
+        && left.lengthArgumentIndex === right.lengthArgumentIndex
+        && targetMemberEquals(left.selectedMember, right.selectedMember);
     case "intrinsic-operator":
       return right.kind === "intrinsic-operator"
         && left.operator === right.operator

@@ -12,16 +12,19 @@ import type {
   Node,
   SourceFile,
   TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   getArrayTargetMembers,
   getCsharpArrayLikeElementType,
+  isCsharpJsArrayCarrierTargetType,
 } from "./arrays.js";
 import {
   getMathTargetMembers,
 } from "./math.js";
 import {
   getObjectTargetMembers,
+  getObjectRecordDictionaryTargetMembers,
   isCsharpJsObjectCarrierTargetType,
 } from "./objects.js";
 import {
@@ -57,6 +60,12 @@ import {
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../runtime-carriers.js";
+import {
+  isCsharpRecordDictionaryTargetType,
+} from "../../dictionaries.js";
+import type {
+  CsharpRecordDictionaryTargetTypeRef,
+} from "../../dictionaries.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -75,7 +84,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (consoleCall !== undefined) {
     return consoleCall;
   }
-  const candidates = getSourceLibraryCallMembers(sourceMember);
+  const candidates = getSourceLibraryCallMembers(sourceMember, request, context, host);
   if (candidates.length === 0) {
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
@@ -85,10 +94,11 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (candidates.length > 1 && request.sourceSelectedSignature === undefined) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE", 9100113, `C# JS surface call '${sourceMember.declaringName}.${sourceMember.memberName}' requires exact selected TypeScript library signature identity because the declaration maps to multiple target members.`));
   }
-  const member = host.selectTargetMember(candidates, {
-    arguments: request.arguments,
-    receiver: request.calleeReceiver,
-  }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
+  const member = getPrevalidatedSourceLibraryCallMember(sourceMember, candidates) ??
+    host.selectTargetMember(candidates, {
+      arguments: request.arguments,
+      receiver: request.calleeReceiver,
+    }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
   if (member === undefined) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));
   }
@@ -96,6 +106,17 @@ export function mapCsharpSourceLibraryCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
   }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+}
+
+function getPrevalidatedSourceLibraryCallMember(
+  sourceMember: SourceLibraryMember,
+  candidates: readonly TargetMember[],
+): TargetMember | undefined {
+  return sourceMember.declaringName === "Object" &&
+    sourceMember.memberName === "assign" &&
+    candidates.length === 1
+    ? candidates[0]
+    : undefined;
 }
 
 export function recordCsharpSourceLibraryCallFactsBeforeFinalization(
@@ -219,6 +240,9 @@ function sourceLibraryCallReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
+  if (sourceMember.declaringName === "Object") {
+    return sourceLibraryObjectCallHasClosedFacts(request, context, sourceMember, host);
+  }
   if (!sourceLibraryCallRequiresClosedReceiver(sourceMember)) {
     return true;
   }
@@ -233,11 +257,57 @@ function sourceLibraryCallReceiverHasClosedFacts(
       return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType));
     case "RegExp":
       return receiverTypes.some((receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType));
-    case "Object":
-      return receiverTypes.some((receiverType) => isCsharpJsObjectCarrierTargetType(receiverType));
     default:
       return true;
   }
+}
+
+function sourceLibraryObjectCallHasClosedFacts(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  if (sourceMember.memberName === "hasOwnProperty") {
+    return getSourceLibraryCallReceiverTargetTypes(request, context, host)
+      .some((receiverType) => isCsharpJsObjectCarrierTargetType(receiverType));
+  }
+  const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
+  switch (sourceMember.memberName) {
+    case "keys":
+    case "values":
+    case "entries":
+      return isSupportedObjectHelperSourceTargetType(argumentTypes[0], host);
+    case "assign":
+      return isCsharpJsObjectCarrierTargetType(argumentTypes[0]) &&
+        argumentTypes.slice(1).every((argumentType) => isSupportedObjectHelperSourceTargetType(argumentType, host));
+    default:
+      return true;
+  }
+}
+
+function isSupportedObjectHelperSourceTargetType(
+  type: TargetTypeRef | undefined,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  return type !== undefined &&
+    (
+      isCsharpJsObjectCarrierTargetType(type) ||
+      isCsharpJsArrayCarrierTargetType(type) ||
+      type.kind === "source-primitive" ||
+      host.isCsharpStringType(type) ||
+      isStringKeyedRecordDictionaryTargetType(type, host)
+    );
+}
+
+function isStringKeyedRecordDictionaryTargetType(
+  type: TargetTypeRef,
+  host: CsharpJsSurfaceHost,
+): type is CsharpRecordDictionaryTargetTypeRef {
+  const typeArguments = type.kind === "target-named" ? type.typeArguments ?? [] : [];
+  const keyType = typeArguments[0];
+  return isCsharpRecordDictionaryTargetType(type) &&
+    host.isCsharpStringType(keyType);
 }
 
 function sourceLibraryArrayStaticCallRequiresNoReceiver(sourceMember: SourceLibraryMember): boolean {
@@ -268,6 +338,15 @@ function getSourceLibraryCallReceiverTargetTypes(
   return result;
 }
 
+function getSourceLibraryCallArgumentTargetTypes(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): readonly (TargetTypeRef | undefined)[] {
+  return request.arguments.map((argument) =>
+    host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, csharpJsCheckedTypeQuery)));
+}
+
 function getTargetTypeRefForOptionalSubject(
   subject: CheckedCallMappingRequest["calleeReceiverType"],
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
@@ -295,7 +374,12 @@ function sourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMemb
   }
 }
 
-function getSourceLibraryCallMembers(sourceMember: SourceLibraryMember): readonly TargetMember[] {
+function getSourceLibraryCallMembers(
+  sourceMember: SourceLibraryMember,
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): readonly TargetMember[] {
   switch (sourceMember.declaringName) {
     case "Math":
       return getMathTargetMembers(sourceMember.memberName);
@@ -304,11 +388,31 @@ function getSourceLibraryCallMembers(sourceMember: SourceLibraryMember): readonl
     case "RegExp":
       return getRegExpTargetMembers(sourceMember.memberName);
     case "Object":
-      return getObjectTargetMembers(sourceMember.memberName);
+      return [
+        ...getObjectTargetMembers(sourceMember.memberName),
+        ...getObjectRecordDictionaryCallMembers(sourceMember, request, context, host),
+      ];
     case "Array":
     case "ReadonlyArray":
       return getArrayTargetMembers(sourceMember.memberName);
     default:
       return [];
   }
+}
+
+function getObjectRecordDictionaryCallMembers(
+  sourceMember: SourceLibraryMember,
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): readonly TargetMember[] {
+  if (sourceMember.memberName !== "keys" && sourceMember.memberName !== "values" && sourceMember.memberName !== "entries") {
+    return [];
+  }
+  const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request, context, host)
+    .find((argumentType): argumentType is CsharpRecordDictionaryTargetTypeRef =>
+      argumentType !== undefined && isStringKeyedRecordDictionaryTargetType(argumentType, host));
+  return dictionaryType === undefined
+    ? []
+    : getObjectRecordDictionaryTargetMembers(sourceMember.memberName, dictionaryType);
 }

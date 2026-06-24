@@ -4,7 +4,7 @@ import {
   AsPropertyAccessExpression,
   Node_Text,
 } from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -36,10 +36,12 @@ import {
 } from "./expression-selected-target-members.js";
 import type {
   CsharpTargetMemberOperationFact,
+  CsharpTargetOperationFact,
   CsharpTargetOperationArgument,
 } from "../../source/csharp-facts.js";
 import {
   getRequiredCsharpTargetOperation,
+  getRequiredCsharpTargetOperationForSelectedSignature,
   getRequiredCsharpTargetMemberOperationForSelectedSignature,
 } from "./csharp-target-operations.js";
 import {
@@ -78,6 +80,7 @@ export function planPropertyAccessExpression(
   if (compatRuntimePropertyGet !== undefined) {
     return compatRuntimePropertyGet;
   }
+  input.semantics.getTypeAtLocation(propertyAccess, { sourceFile });
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   if (targetOperation !== undefined && targetOperation.operationKind === "property") {
     const csharpOperation = getRequiredCsharpTargetOperation(input, propertyAccess, targetOperation, diagnostics, "C# property access emission");
@@ -161,6 +164,7 @@ export function planElementAccessExpression(
   if (tupleElementAccess !== undefined) {
     return tupleElementAccess;
   }
+  input.semantics.getTypeAtLocation(elementAccess, { sourceFile });
   if (!ensureElementAccessCanBeRendered(elementAccess, expression.Expression, sourceFile, input, diagnostics)) {
     return invalidExpression("missing target element access fact");
   }
@@ -327,8 +331,13 @@ export function planCallExpression(
     return compatRuntimeCall;
   }
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
+  input.semantics.getResolvedCallReturnType(node, { sourceFile });
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
   if (selectedTargetCall !== undefined) {
+    const targetOperation = getRequiredCsharpTargetOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");
+    if (targetOperation?.kind === "array-creation") {
+      return planNativeArrayCreationCall(node, expression, targetOperation, selectedTargetCall, sourceFile, input, diagnostics, planCallArgument);
+    }
     const csharpOperation = getRequiredCsharpTargetMemberOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");
     if (csharpOperation === undefined) {
       return invalidExpression("missing C# target call operation fact");
@@ -357,6 +366,86 @@ export function planCallExpression(
         return planCallArgument(argument, sourceFile, input, diagnostics, expected?.type, expected?.subject);
       }),
   };
+}
+
+function planNativeArrayCreationCall(
+  node: Node,
+  expression: NonNullable<ReturnType<typeof AsCallExpression>>,
+  operation: Extract<CsharpTargetOperationFact, { readonly kind: "array-creation" }>,
+  selectedTargetCall: NonNullable<ReturnType<TargetCompileInput["facts"]["getSelectedTargetCall"]>>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planCallArgument: CallArgumentPlanner,
+): CsharpExpression {
+  const lengthArgumentNode = expression.Arguments?.Nodes?.[operation.lengthArgumentIndex];
+  if (lengthArgumentNode === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# native array creation requires the finalized length argument."));
+    return invalidExpression("native array length argument");
+  }
+  const elementType = substituteSelectedTargetTypeParameters(operation.elementType, selectedTargetCall);
+  const csharpElementType = csharpTypeFromTargetTypeRef(elementType);
+  if (csharpElementType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# native array creation requires a renderable finalized array element target type."));
+    return invalidExpression("native array element type");
+  }
+  return {
+    kind: "ArrayCreationExpression",
+    elementType: csharpElementType,
+    size: planCallArgument(lengthArgumentNode, sourceFile, input, diagnostics).expression,
+    elements: [],
+  };
+}
+
+function substituteSelectedTargetTypeParameters(
+  type: TargetTypeRef,
+  selectedTargetCall: NonNullable<ReturnType<TargetCompileInput["facts"]["getSelectedTargetCall"]>>,
+): TargetTypeRef {
+  const substitutions = new Map<string, TargetTypeRef>();
+  const typeParameters = selectedTargetCall.member.typeParameters ?? [];
+  const typeArguments = selectedTargetCall.targetTypeArguments ?? [];
+  for (let index = 0; index < typeParameters.length; index += 1) {
+    const parameter = typeParameters[index];
+    const argument = typeArguments[index];
+    if (parameter !== undefined && argument !== undefined) {
+      substitutions.set(parameter.name, argument);
+    }
+  }
+  return substituteTargetTypeParameterReferences(type, substitutions);
+}
+
+function substituteTargetTypeParameterReferences(
+  type: TargetTypeRef,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): TargetTypeRef {
+  switch (type.kind) {
+    case "type-parameter":
+      return substitutions.get(type.name) ?? type;
+    case "target-named":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameterReferences(argument, substitutions)) }),
+      };
+    case "array":
+      return { ...type, element: substituteTargetTypeParameterReferences(type.element, substitutions) };
+    case "tuple":
+      return { ...type, elements: type.elements.map((element) => substituteTargetTypeParameterReferences(element, substitutions)) };
+    case "pointer":
+      return { ...type, pointee: substituteTargetTypeParameterReferences(type.pointee, substitutions) };
+    case "function-pointer":
+      return {
+        ...type,
+        args: type.args.map((argument) => substituteTargetTypeParameterReferences(argument, substitutions)),
+        result: substituteTargetTypeParameterReferences(type.result, substitutions),
+      };
+    case "associated-type":
+      return { ...type, owner: substituteTargetTypeParameterReferences(type.owner, substitutions) };
+    case "source-primitive":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
+      return type;
+  }
 }
 
 function getResolvedSourceCallArgumentExpectation(

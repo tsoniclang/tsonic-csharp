@@ -4,6 +4,7 @@ import {
   KindArrayLiteralExpression,
   KindAsExpression,
   KindBinaryExpression,
+  KindDeleteExpression,
   KindElementAccessExpression,
   KindFunctionExpression,
   KindIdentifier,
@@ -62,6 +63,9 @@ import {
   planPrefixUnaryExpression,
 } from "./expression-unary.js";
 import {
+  tryPlanJsArrayDeleteExpression,
+} from "./expression-js-array-mutations.js";
+import {
   tryPlanSourceSyntaxExpression,
 } from "./expression-source-syntax.js";
 
@@ -113,6 +117,9 @@ function planExpressionCore(
       return planRegularExpressionLiteral(node, sourceFile, input, diagnostics);
     case KindTypeOfExpression:
       return planTypeofExpression(node, sourceFile, input, diagnostics);
+    case KindDeleteExpression:
+      return tryPlanJsArrayDeleteExpression(node, sourceFile, input, diagnostics, scopedPlanExpression) ??
+        invalidExpression("unsupported delete expression");
     case KindArrayLiteralExpression: {
       return planArrayLiteralExpressionFromFacts(node, sourceFile, input, diagnostics, {
         planExpression: (element, elementSourceFile, elementInput, elementDiagnostics) =>
