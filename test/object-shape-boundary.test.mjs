@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { csharpObjectShapeFactKey } from "../dist/source/csharp-facts.js";
 import { objectShapeStorageMemberName } from "../dist/backend/planner/object-shapes.js";
+import { planObjectShapeSpreadAssignments } from "../dist/backend/planner/expression-object-literal-spread.js";
 import { tryPlanRecordDictionaryLiteralWithExpectedType } from "../dist/backend/planner/expression-dictionary-literals.js";
 import { planPropertyAccessExpression } from "../dist/backend/planner/expression-target-members.js";
 import {
@@ -10,6 +11,7 @@ import {
   KindObjectLiteralExpression,
   KindPropertyAccessExpression,
   KindPropertyAssignment,
+  KindSpreadAssignment,
   KindStringLiteral,
   KindTrueKeyword,
 } from "../dist/backend/planner/source-ast.js";
@@ -172,6 +174,129 @@ test("record dictionary object literals lower through explicit nested Record car
   });
 });
 
+test("object spread assignments emit only from finalized source and target object-shape facts", () => {
+  const source = identifier("source");
+  const spread = spreadAssignment(source);
+  const countMember = {
+    sourceName: "count",
+    targetName: "Count",
+    memberKind: "property",
+    type: { kind: "source-primitive", name: "int32" },
+  };
+  const labelMember = {
+    sourceName: "label",
+    targetName: "Label",
+    memberKind: "property",
+    type: csharpStringTargetType(),
+  };
+  const sourceShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__SourceShape",
+      csharpRender: { kind: "named", name: "__SourceShape" },
+    },
+    members: [countMember, labelMember],
+  };
+  const targetShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__TargetShape",
+      csharpRender: { kind: "named", name: "__TargetShape" },
+    },
+    members: [
+      { ...countMember, targetName: "TargetCount" },
+      { ...labelMember, targetName: "TargetLabel" },
+    ],
+  };
+  const diagnostics = [];
+
+  const assignments = planObjectShapeSpreadAssignments(
+    spread,
+    targetShape,
+    {},
+    fakeInput({ objectShapes: new Map([[source, sourceShape]]) }),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(assignments, [
+    {
+      kind: "AssignmentExpression",
+      name: "TargetCount",
+      expression: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "source" },
+        name: "Count",
+      },
+    },
+    {
+      kind: "AssignmentExpression",
+      name: "TargetLabel",
+      expression: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "source" },
+        name: "Label",
+      },
+    },
+  ]);
+});
+
+test("object spread fails closed without finalized source object-shape facts", () => {
+  const spread = spreadAssignment(identifier("source"));
+  const diagnostics = [];
+
+  const assignments = planObjectShapeSpreadAssignments(
+    spread,
+    {
+      targetType: {
+        kind: "target-named",
+        id: "__TargetShape",
+        csharpRender: { kind: "named", name: "__TargetShape" },
+      },
+      members: [{
+        sourceName: "count",
+        targetName: "Count",
+        memberKind: "property",
+        type: { kind: "source-primitive", name: "int32" },
+      }],
+    },
+    {},
+    fakeInput(),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.deepEqual(assignments, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object literal spread requires finalized provider object-shape facts/);
+});
+
+test("object spread rejects non-identifier expressions until single-evaluation facts exist", () => {
+  const spread = spreadAssignment(objectLiteral([]));
+  const diagnostics = [];
+
+  const assignments = planObjectShapeSpreadAssignments(
+    spread,
+    {
+      targetType: {
+        kind: "target-named",
+        id: "__TargetShape",
+        csharpRender: { kind: "named", name: "__TargetShape" },
+      },
+      members: [],
+    },
+    {},
+    fakeInput(),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.deepEqual(assignments, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a single-evaluation provider lowering/);
+});
+
 function identifier(text) {
   return { Kind: KindIdentifier, Text: text };
 }
@@ -188,6 +313,13 @@ function objectLiteral(properties) {
   return {
     Kind: KindObjectLiteralExpression,
     Properties: { Nodes: properties },
+  };
+}
+
+function spreadAssignment(expression) {
+  return {
+    Kind: KindSpreadAssignment,
+    Expression: expression,
   };
 }
 
@@ -230,6 +362,9 @@ function planExpectedExpression(node) {
 
 function fakeInput(options = {}) {
   const runtimeCarriers = options.runtimeCarriers ?? new Map();
+  const objectShapes = options.objectShapes ?? new Map(
+    options.objectShapeSubject === undefined ? [] : [[options.objectShapeSubject, options.objectShape]],
+  );
   return {
     ast: fakeAst,
     sourceFiles: [],
@@ -241,8 +376,8 @@ function fakeInput(options = {}) {
       getTargetBindingFact: (subject) => subject !== undefined && subject === options.targetBindingSubject
         ? { target: "csharp", id: "Example.Values", sourceName: "Values", targetName: "Values", kind: "class" }
         : undefined,
-      getFact: (subject, key) => subject !== undefined && subject === options.objectShapeSubject && key === csharpObjectShapeFactKey
-        ? options.objectShape
+      getFact: (subject, key) => key === csharpObjectShapeFactKey
+        ? objectShapes.get(subject)
         : undefined,
       getRuntimeCarrierFact: (subject) => {
         const carrier = runtimeCarriers.get(subject);

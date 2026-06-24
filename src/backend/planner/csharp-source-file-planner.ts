@@ -34,6 +34,7 @@ import type {
 import { diagnoseUnresolvedAttributeApplications, isErasedAttributeExpressionStatement } from "./attributes.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { planTopLevelVariableStatement } from "./csharp-top-level-variables.js";
+import { csharpModuleInitMethodName } from "./csharp-entrypoint-planner.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
@@ -51,6 +52,7 @@ export interface PlannedCsharpSourceFile {
   readonly moduleClassName: string;
   readonly unit: CsharpCompilationUnit;
   readonly requiresUnsafe: boolean;
+  readonly hasModuleInitializer: boolean;
 }
 
 export function planSourceFile(
@@ -64,7 +66,7 @@ export function planSourceFile(
   }
   beginObjectShapePlanning(input);
   const moduleClassName = sourceFileClassName(input, fileName);
-  const executableTopLevelSourceFile = hasExecutableTopLevelStatement(sourceFile, input);
+  const hasModuleInitializer = hasRuntimeTopLevel(sourceFile, input);
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
   const topLevelStatements: CsharpStatement[] = [];
@@ -101,7 +103,7 @@ export function planSourceFile(
         namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));
         break;
       case KindVariableStatement:
-        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements, topLevelState, executableTopLevelSourceFile);
+        planTopLevelVariableStatement(statement, sourceFile, input, diagnostics, namespaceMembers, members, topLevelStatements, topLevelState, hasModuleInitializer);
         break;
       case KindExpressionStatement:
       case KindIfStatement:
@@ -123,10 +125,10 @@ export function planSourceFile(
       }
   }
   diagnoseUnresolvedAttributeApplications(sourceFile, input, diagnostics);
-  if (topLevelStatements.length > 0) {
+  if (hasModuleInitializer) {
     members.unshift({
       kind: "MethodDeclaration",
-      name: "Main",
+      name: csharpModuleInitMethodName,
       modifiers: ["public", "static"],
       returnType: predefined("void"),
       parameters: [],
@@ -160,10 +162,11 @@ export function planSourceFile(
     moduleClassName,
     unit: requiresUnsafe ? markCompilationUnitUnsafe(unit) : unit,
     requiresUnsafe,
+    hasModuleInitializer,
   };
 }
 
-function hasExecutableTopLevelStatement(sourceFile: SourceFile, input: TargetCompileInput): boolean {
+function hasRuntimeTopLevel(sourceFile: SourceFile, input: TargetCompileInput): boolean {
   for (const statement of sourceFile.Statements?.Nodes ?? []) {
     if (statement === undefined || isErasedAttributeExpressionStatement(statement, input)) {
       continue;
@@ -176,8 +179,9 @@ function hasExecutableTopLevelStatement(sourceFile: SourceFile, input: TargetCom
       case KindEnumDeclaration:
       case KindFunctionDeclaration:
       case KindClassDeclaration:
-      case KindVariableStatement:
         continue;
+      case KindVariableStatement:
+        return true;
       default:
         return true;
     }

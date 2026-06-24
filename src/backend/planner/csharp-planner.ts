@@ -1,5 +1,6 @@
 import type { TargetArtifact, TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { materializeCsharpOutputPlan } from "./csharp-output-plan.js";
+import { planCsharpEntrypointSourceFile } from "./csharp-entrypoint-planner.js";
 import { planSourceFile } from "./csharp-source-file-planner.js";
 import type { PlannedCsharpSourceFile } from "./csharp-source-file-planner.js";
 import { planCsharpProjectFile } from "./project-artifacts.js";
@@ -39,10 +40,13 @@ export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningRe
     project: planCsharpProjectFile(input, {
       allowUnsafeBlocks: plannedSources.some((source) => source.requiresUnsafe),
     }),
-    sources: plannedSources.map((source) => ({
-      path: sourceFileArtifactPath(input, source.fileName, source.moduleClassName),
-      unit: source.unit,
-    })),
+    sources: [
+      ...plannedSources.map((source) => ({
+        path: sourceFileArtifactPath(input, source.fileName, source.moduleClassName),
+        unit: source.unit,
+      })),
+      ...[planCsharpEntrypointSourceFile(input, plannedSources)].filter((source): source is NonNullable<typeof source> => source !== undefined),
+    ],
   });
   return {
     artifacts,
