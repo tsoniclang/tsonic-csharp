@@ -12,9 +12,7 @@ import type {
 } from "./source-library.js";
 
 const unsupportedSourceLibraryDeclaringNames = new Set<SourceLibraryMember["declaringName"]>([
-  "Object",
   "JSON",
-  "Console",
 ]);
 
 export function rejectUnsupportedCsharpJsSourceLibraryCall(

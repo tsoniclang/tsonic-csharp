@@ -16,6 +16,12 @@ import {
   getMathTargetMembers,
 } from "./math.js";
 import {
+  getObjectTargetMembers,
+} from "./objects.js";
+import {
+  mapCsharpJsConsoleCheckedCall,
+} from "./console.js";
+import {
   getRegExpTargetMembers,
 } from "./regexp.js";
 import type {
@@ -45,6 +51,10 @@ export function mapCsharpSourceLibraryCheckedCall(
   const unsupported = rejectUnsupportedCsharpJsSourceLibraryCall(sourceMember, host);
   if (unsupported !== undefined) {
     return unsupported;
+  }
+  const consoleCall = mapCsharpJsConsoleCheckedCall(sourceMember, host);
+  if (consoleCall !== undefined) {
+    return consoleCall;
   }
   const candidates = getSourceLibraryCallMembers(sourceMember);
   if (candidates.length === 0) {
@@ -81,6 +91,8 @@ function getSourceLibraryCallMembers(sourceMember: SourceLibraryMember): readonl
       return getStringTargetMembers(sourceMember.memberName);
     case "RegExp":
       return getRegExpTargetMembers(sourceMember.memberName);
+    case "Object":
+      return getObjectTargetMembers(sourceMember.memberName);
     case "Array":
     case "ReadonlyArray":
       return getArrayTargetMembers(sourceMember.memberName);

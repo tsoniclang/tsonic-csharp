@@ -46,6 +46,9 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (sourceMember === undefined) {
     return undefined;
   }
+  if (sourceMember.declaringName === "Console" || sourceMember.declaringName === "Object") {
+    return undefined;
+  }
   const unsupported = rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(sourceMember, _host);
   if (unsupported !== undefined) {
     return unsupported;

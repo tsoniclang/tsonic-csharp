@@ -169,15 +169,18 @@ test("JS surface maps multi-target calls from exact selected signature identity"
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Runtime.ArrayHelpers.forEach:1");
 });
 
-test("JS surface hard-rejects Object operations until closed Object carrier facts exist", () => {
+test("JS surface rejects Object operations without closed Object carrier facts", () => {
   const call = {};
+  const value = {};
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
-  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "keys")), fakeContext(facts));
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
+    arguments: [value],
+  }), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
   assert.match(result.diagnostic.message, /Object\.keys/);
 });
 
@@ -193,28 +196,62 @@ test("JS surface hard-rejects JSON operations until closed JSON carrier facts ex
   assert.match(result.diagnostic.message, /JSON\.parse/);
 });
 
-test("JS surface hard-rejects console operations until closed console facts exist", () => {
+test("JS surface defers method-valued console property access to selected call facts", () => {
   const expression = {};
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("Console", "log"), "log"), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
-  assert.match(result.diagnostic.message, /Console\.log/);
+  assert.equal(result.kind, "defer");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("JS surface hard-rejects console calls until closed console facts exist", () => {
+test("JS surface maps console.log calls from selected standard-library declaration identity", () => {
   const call = {};
+  const value = {};
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
-  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Console", "log")), fakeContext(facts));
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Console", "log"), {
+    arguments: [value],
+  }), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
-  assert.match(result.diagnostic.message, /Console\.log/);
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.log");
+  assert.equal(result.value.selectedSignature.member.static, true);
+  assert.equal(result.value.selectedSignature.member.parameters[0]?.paramsArray, true);
+});
+
+test("JS surface maps Object.keys from selected standard-library declaration and closed JSObject carrier", () => {
+  const call = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, jsObjectType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
+    arguments: [value],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys");
+  assert.equal(result.value.selectedSignature.member.static, true);
+  assert.equal(result.value.selectedSignature.member.returnType.kind, "array");
+  assert.equal(result.value.selectedSignature.member.returnType.element.id, "System.String");
+});
+
+test("JS surface does not map console or Object calls without selected declarations", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const consoleResult = provider.mapCheckedCall(jsCallRequest({}, undefined), fakeContext(facts));
+  const objectResult = provider.mapCheckedCall(jsCallRequest({}, undefined, { arguments: [{}] }), fakeContext(facts));
+
+  assert.equal(consoleResult.kind, "defer");
+  assert.equal(objectResult.kind, "defer");
 });
 
 test("JS surface hard-rejects selected RegExp calls without target runtime facts", () => {
@@ -699,6 +736,14 @@ function stringType() {
     id: "System.String",
     csharpRender: { kind: "predefined", name: "string" },
     csharpSpecialType: "string",
+  };
+}
+
+function jsObjectType() {
+  return {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.JSObject",
+    csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "JSObject" },
   };
 }
 
