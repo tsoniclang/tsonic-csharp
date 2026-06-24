@@ -51,6 +51,13 @@ import {
   csharpTypeFromTargetTypeRef,
   targetTypeRefsMatch,
 } from "./target-types.js";
+import {
+  getRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
+import {
+  getCsharpTaskResultTargetType,
+  csharpVoidTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -138,6 +145,21 @@ export function tryPlanSourceSyntaxExpression(
       if (expression.Expression === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression must have an expression."));
         return invalidExpression("await without expression");
+      }
+      const awaitedCarrier = getRuntimeCarrierForExpression(input, expression.Expression, sourceFile);
+      const awaitedResultCarrier = getCsharpTaskResultTargetType(awaitedCarrier);
+      if (awaitedResultCarrier === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression emission requires a finalized Promise/Task target carrier fact for the awaited expression."));
+        return invalidExpression("await without Promise/Task carrier");
+      }
+      const awaitCarrier = getRuntimeCarrierForExpression(input, node, sourceFile);
+      if (
+        awaitCarrier === undefined
+          ? !targetTypeRefsMatch(awaitedResultCarrier, csharpVoidTargetType())
+          : !targetTypeRefsMatch(awaitCarrier, awaitedResultCarrier)
+      ) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression emission requires the finalized await-result carrier to match the awaited Promise/Task result carrier."));
+        return invalidExpression("await result carrier mismatch");
       }
       return {
         kind: "AwaitExpression",

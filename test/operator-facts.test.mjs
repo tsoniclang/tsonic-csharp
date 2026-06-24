@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import {
   KindArrayLiteralExpression,
+  KindAwaitExpression,
   KindBigIntLiteral,
   KindIdentifier,
   KindNoSubstitutionTemplateLiteral,
@@ -19,7 +20,10 @@ import {
   csharpBigIntegerTargetType,
   csharpQualifiedTypeRenderShape,
   csharpStringTargetType,
+  csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
+  csharpTaskTargetType,
+  csharpVoidTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("binary expression emission requires selected target operator fact even for source primitives", () => {
@@ -282,12 +286,86 @@ test("no-substitution template literal requires finalized string carrier facts",
   assert.match(diagnostics[0].message, /No-substitution template literal emission requires a finalized target string runtime carrier fact/);
 });
 
+test("await expression emission requires finalized awaited Promise/Task carrier facts", () => {
+  const awaited = identifier("task");
+  const expression = awaitExpression(awaited);
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [expression, sourcePrimitiveCarrier("int32")],
+    ]),
+  }), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Await expression emission requires a finalized Promise\/Task target carrier fact/);
+});
+
+test("await expression emission rejects mismatched await-result carrier facts", () => {
+  const awaited = identifier("task");
+  const expression = awaitExpression(awaited);
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [awaited, { carrier: csharpTaskTargetType(csharpSourcePrimitiveTargetType("int32")) }],
+      [expression, { carrier: csharpStringTargetType() }],
+    ]),
+  }), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /await-result carrier to match the awaited Promise\/Task result carrier/);
+});
+
+test("await expression emission uses finalized Promise/Task result facts and Roslyn AST", () => {
+  const awaited = identifier("task");
+  const expression = awaitExpression(awaited);
+  const resultType = csharpSourcePrimitiveTargetType("int32");
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [awaited, { carrier: csharpTaskTargetType(resultType) }],
+      [expression, { carrier: resultType }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "AwaitExpression");
+  assert.equal(printCsharpExpression(output), "await task");
+});
+
+test("await expression statement allows finalized non-generic Task carrier", () => {
+  const awaited = identifier("task");
+  const expression = awaitExpression(awaited);
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [awaited, { carrier: csharpTaskTargetType(csharpVoidTargetType()) }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "AwaitExpression");
+  assert.equal(printCsharpExpression(output), "await task");
+});
+
 function binary(left, right) {
   return {
     Kind: "KindBinaryExpression",
     Left: left,
     Right: right,
     OperatorToken: { Kind: "KindPlusToken" },
+  };
+}
+
+function awaitExpression(expression) {
+  return {
+    Kind: KindAwaitExpression,
+    Expression: expression,
   };
 }
 
@@ -333,9 +411,11 @@ function fakeInput(options = {}) {
       getSelectedTargetCall: () => undefined,
       getSelectedTargetOperator: (subject) => subject === options.selectedOperatorSubject ? options.selectedOperator : undefined,
       getContextualTargetTypeFact: () => undefined,
-      getRuntimeCarrierFact: (subject) => subject === options.runtimeCarrierSubject
-        ? options.runtimeCarrier
-        : undefined,
+      getRuntimeCarrierFact: (subject) =>
+        options.runtimeCarrierFacts?.get(subject) ??
+        (subject === options.runtimeCarrierSubject
+          ? options.runtimeCarrier
+          : undefined),
       getObjectShapeFact: () => undefined,
       getTargetBindingFact: () => undefined,
       getSourcePrimitiveFact: (subject) => subject === options.sourcePrimitiveSubject
