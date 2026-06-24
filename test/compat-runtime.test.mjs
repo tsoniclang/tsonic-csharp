@@ -77,6 +77,77 @@ test("compat mode still rejects opaque any operations without finalized carrier 
   assert.ok(anyDiagnostics.every((diagnostic) => diagnostic.message.includes("compatibility mode without finalized target operation facts")));
 });
 
+test("strict-native hard-rejects object-literal prototype mutation syntax", () => {
+  const session = createNativeSession(`
+    const obj = {} as { __proto__: object };
+    const created = { __proto__: obj };
+  `);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const diagnostics = compatRuntimeDiagnostics(extensionHost);
+
+  assert.deepEqual(diagnostics.map((diagnostic) => diagnostic.message), [
+    "C# emission cannot support object-literal __proto__ prototype mutation.",
+  ]);
+  assert.ok(diagnostics.every((diagnostic) =>
+    JSON.stringify(diagnostic.evidence).includes("hard-reject") &&
+    JSON.stringify(diagnostic.evidence).includes("closed Tsonic-owned compat-runtime carrier")
+  ));
+});
+
+test("compat runtime hard rejects are not inferred from shadowable source names", () => {
+  const session = createNativeSession(`
+    export {};
+    const obj = {} as { __proto__: object };
+
+    const Function = (source: string) => source.length;
+    class Proxy {
+      static revocable(target: object, handler: object) {
+        return { target, handler };
+      }
+      constructor(target: object, handler: object) {}
+    }
+    const Object = {
+      setPrototypeOf(target: object, prototype: object) {
+        return target;
+      },
+    };
+
+    Function("return 1");
+    new Proxy({}, {});
+    Proxy.revocable({}, {});
+    obj.__proto__ = {};
+    Object.setPrototypeOf(obj, {});
+  `, { typescriptCompatibility: "compat" });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const diagnostics = compatRuntimeDiagnostics(extensionHost);
+
+  assert.deepEqual(diagnostics.map((diagnostic) => diagnostic.message), []);
+  assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
+});
+
+test("with statements remain hard-rejected as dynamic scope even when TSTS already rejects them", () => {
+  const session = createNativeSession(`
+    with ({ value: 1 }) {
+      value;
+    }
+  `, { typescriptCompatibility: "compat" });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.match(formatDiagnostics(session.ensureChecked(sourceFile)), /with/u);
+
+  const extensionHost = session.finalizeExtensions();
+  const diagnostics = compatRuntimeDiagnostics(extensionHost);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].message, "C# emission cannot support JavaScript 'with' dynamic scope.");
+  assert.match(JSON.stringify(diagnostics[0].evidence), /dynamic scope/u);
+});
+
 test("compat mode permits opaque any operation only when a closed operation fact exists", () => {
   const session = createNativeSession(`
     declare let value: any;
@@ -306,6 +377,12 @@ function csharpProviderContext(targetOptions) {
 function anyOperationDiagnostics(extensionHost) {
   return extensionHost.diagnostics.all().filter((diagnostic) =>
     diagnostic.extensionCode === "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED"
+  );
+}
+
+function compatRuntimeDiagnostics(extensionHost) {
+  return extensionHost.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_COMPAT_RUNTIME_OPERATION_UNSUPPORTED"
   );
 }
 

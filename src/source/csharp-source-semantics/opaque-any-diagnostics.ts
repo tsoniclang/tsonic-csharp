@@ -28,6 +28,8 @@ import {
 
 const unsupportedAnyOperationCode = "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED";
 const unsupportedAnyOperationNumericCode = 9100121;
+const unsupportedCompatRuntimeOperationCode = "CSHARP_COMPAT_RUNTIME_OPERATION_UNSUPPORTED";
+const unsupportedCompatRuntimeOperationNumericCode = 9100128;
 
 export function diagnoseOpaqueAnyOperationsBeforeFinalization(
   lifecycleContext: Pick<ExtensionLifecycleContext, "extensionId" | "host" | "compiler">,
@@ -56,6 +58,29 @@ function diagnoseOpaqueAnyOperationsForNode(
   }
   for (const child of getAstReaderChildNodes(compiler.ast, node)) {
     diagnoseOpaqueAnyOperationsForNode(child, lifecycleContext, compatibilityMode);
+  }
+  const unsupportedCompatOperation = getUnsupportedCompatRuntimeOperation(node, lifecycleContext);
+  if (unsupportedCompatOperation !== undefined) {
+    lifecycleContext.host.diagnostics.append({
+      ...csharpProviderDiagnostic(
+        lifecycleContext.extensionId,
+        unsupportedCompatRuntimeOperationCode,
+        unsupportedCompatRuntimeOperationNumericCode,
+        unsupportedCompatOperation.message,
+      ),
+      nodeOrSpan: node,
+      evidence: [
+        {
+          message: "C# compat-runtime boundary rejected",
+          details: unsupportedCompatOperation.reason,
+        },
+        {
+          message: "Required architecture",
+          details: unsupportedCompatOperation.architecture,
+        },
+      ],
+      identity: `csharp-compat-runtime-operation:${unsupportedCompatOperation.kind}:${subjectIdentity(node)}`,
+    });
   }
   const operation = getOpaqueAnyOperation(node, lifecycleContext);
   if (operation === undefined) {
@@ -137,6 +162,59 @@ function getOpaqueAnyOperation(
       : undefined;
   }
   return undefined;
+}
+
+function getUnsupportedCompatRuntimeOperation(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "compiler">,
+): { readonly kind: string; readonly message: string; readonly reason: string; readonly architecture: string } | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  const ast = compiler.ast;
+  if (ast.kindName(node) === "KindWithStatement") {
+    return hardRejectedCompatOperation(
+      "with-statement",
+      "C# emission cannot support JavaScript 'with' dynamic scope.",
+      "'with' changes lexical name lookup through dynamic scope at runtime; no closed Tsonic-owned carrier can make those bindings statically visible to the C# backend.",
+    );
+  }
+  if (ast.kindName(node) === "KindPropertyAssignment" && getNodeNameText(ast, node) === "__proto__") {
+    return hardRejectedCompatOperation(
+      "proto-object-literal",
+      "C# emission cannot support object-literal __proto__ prototype mutation.",
+      "An object-literal __proto__ member changes the created object's prototype; Tsonic has no closed target object-shape mutation carrier for this operation.",
+    );
+  }
+  return undefined;
+}
+
+function hardRejectedCompatOperation(
+  kind: string,
+  message: string,
+  reason: string,
+): { readonly kind: string; readonly message: string; readonly reason: string; readonly architecture: string } {
+  return {
+    kind,
+    message,
+    reason,
+    architecture: "This pattern is classified as hard-reject until an explicit closed Tsonic-owned compat-runtime carrier and finalized target operation fact exists; the backend must not use QuickJS, CLR reflection dispatch, C# dynamic, or source-name guessing.",
+  };
+}
+
+function getNodeNameText(
+  ast: NonNullable<ExtensionLifecycleContext["compiler"]>["ast"],
+  node: Node,
+): string | undefined {
+  const name = ast.name(node) ?? asNodeSubject(getNodeField(node, "Name")) ?? asNodeSubject(getNodeField(node, "name"));
+  if (name === undefined) {
+    return undefined;
+  }
+  const kind = ast.kindName(name);
+  return kind === "KindIdentifier" || kind === "KindStringLiteral" || kind === "KindNoSubstitutionTemplateLiteral"
+    ? ast.text(name)
+    : undefined;
 }
 
 function hasFinalizedTargetOperation(
