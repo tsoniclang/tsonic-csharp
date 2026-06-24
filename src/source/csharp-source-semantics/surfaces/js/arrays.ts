@@ -181,9 +181,17 @@ export function getArrayTargetMembers(sourceName: string, receiverElementType?: 
     case "push":
       return [arrayHelperMethod(sourceName, "push", [targetParameter("array", listType), targetParameter("item", itemType)], intType, arrayHelpersType)];
     case "pop":
-      return [arrayHelperMethod(sourceName, "pop", [targetParameter("array", listType)], itemType, arrayHelpersType)];
+      return receiverElementType === undefined
+        ? []
+        : arrayNullishElementHelpers(sourceName, "popValue", "popReference", [
+          targetParameter("array", listType),
+        ], itemType, arrayHelpersType);
     case "shift":
-      return [arrayHelperMethod(sourceName, "shift", [targetParameter("array", listType)], itemType, arrayHelpersType)];
+      return receiverElementType === undefined
+        ? []
+        : arrayNullishElementHelpers(sourceName, "shiftValue", "shiftReference", [
+          targetParameter("array", listType),
+        ], itemType, arrayHelpersType);
     case "unshift":
       return [arrayHelperMethod(sourceName, "unshift", [targetParameter("array", listType), targetParameter("item", itemType)], intType, arrayHelpersType)];
     case "concat":
@@ -227,11 +235,15 @@ export function getArrayTargetMembers(sourceName: string, receiverElementType?: 
     case "map":
       return arrayCallbackHelpers(sourceName, "map", "System.Func", itemType, mappedItemType, csharpListTargetType(mappedItemType), readOnlyListType, arrayHelpersType, { typeParameters: [{ name: "U" }] });
     case "find":
-      return arrayCallbackHelpers(sourceName, "find", "System.Func", itemType, boolType, itemType, readOnlyListType, arrayHelpersType);
+      return receiverElementType === undefined
+        ? []
+        : arrayNullishElementCallbackHelpers(sourceName, "findValue", "findReference", "System.Func", itemType, boolType, readOnlyListType, arrayHelpersType);
     case "findIndex":
       return arrayCallbackHelpers(sourceName, "findIndex", "System.Func", itemType, boolType, intType, readOnlyListType, arrayHelpersType);
     case "findLast":
-      return arrayCallbackHelpers(sourceName, "findLast", "System.Func", itemType, boolType, itemType, readOnlyListType, arrayHelpersType);
+      return receiverElementType === undefined
+        ? []
+        : arrayNullishElementCallbackHelpers(sourceName, "findLastValue", "findLastReference", "System.Func", itemType, boolType, readOnlyListType, arrayHelpersType);
     case "findLastIndex":
       return arrayCallbackHelpers(sourceName, "findLastIndex", "System.Func", itemType, boolType, intType, readOnlyListType, arrayHelpersType);
     default:
@@ -248,7 +260,7 @@ function arrayCallbackHelpers(
   memberReturnType: TargetTypeRef,
   arrayType: TargetTypeRef,
   declaringType: TargetTypeRef,
-  options: { readonly compareCallback?: boolean; readonly mutable?: boolean; readonly typeParameters?: readonly TargetTypeParameter[] } = {},
+  options: { readonly compareCallback?: boolean; readonly mutable?: boolean; readonly typeParameters?: readonly TargetTypeParameter[]; readonly idBase?: string } = {},
 ): readonly TargetMember[] {
   const intType = csharpSourcePrimitiveTargetType("int32");
   const callbackShapes: readonly TargetTypeRef[] = options.compareCallback === true
@@ -264,10 +276,68 @@ function arrayCallbackHelpers(
         csharpDelegateTargetType("System.Func", [itemType, intType], callbackReturnType),
         csharpDelegateTargetType("System.Func", [itemType, intType, arrayType], callbackReturnType),
       ];
+  const idBase = options.idBase ?? sourceName;
   return callbackShapes.map((callback, index) => arrayHelperMethod(sourceName, targetName, [
     targetParameter("array", arrayType),
     targetParameter("callback", callback),
-  ], memberReturnType, declaringType, { idSuffix: `${sourceName}:${index + 1}`, typeParameters: options.typeParameters }));
+  ], memberReturnType, declaringType, { idSuffix: `${idBase}:${index + 1}`, typeParameters: options.typeParameters }));
+}
+
+function arrayNullishElementHelpers(
+  sourceName: string,
+  valueTargetName: string,
+  referenceTargetName: string,
+  parameters: readonly TargetParameter[],
+  itemType: TargetTypeRef,
+  declaringType: TargetTypeRef,
+): readonly TargetMember[] {
+  const selection = getNullishElementHelperSelection(itemType, valueTargetName, referenceTargetName);
+  return selection === undefined
+    ? []
+    : [
+        arrayHelperMethod(sourceName, selection.targetName, parameters, csharpNullableTargetType(itemType), declaringType, {
+          idSuffix: `${sourceName}:${selection.kind}`,
+        }),
+      ];
+}
+
+function arrayNullishElementCallbackHelpers(
+  sourceName: string,
+  valueTargetName: string,
+  referenceTargetName: string,
+  delegateKind: "System.Func",
+  itemType: TargetTypeRef,
+  callbackReturnType: TargetTypeRef,
+  arrayType: TargetTypeRef,
+  declaringType: TargetTypeRef,
+): readonly TargetMember[] {
+  const selection = getNullishElementHelperSelection(itemType, valueTargetName, referenceTargetName);
+  return selection === undefined
+    ? []
+    : arrayCallbackHelpers(
+        sourceName,
+        selection.targetName,
+        delegateKind,
+        itemType,
+        callbackReturnType,
+        csharpNullableTargetType(itemType),
+        arrayType,
+        declaringType,
+        { idBase: `${sourceName}:${selection.kind}` },
+      );
+}
+
+function getNullishElementHelperSelection(
+  itemType: TargetTypeRef,
+  valueTargetName: string,
+  referenceTargetName: string,
+): { readonly kind: "value"; readonly targetName: string } | { readonly kind: "reference"; readonly targetName: string } | undefined {
+  if (isCsharpValueTypeTargetType(itemType)) {
+    return { kind: "value", targetName: valueTargetName };
+  }
+  return itemType.kind === "type-parameter"
+    ? undefined
+    : { kind: "reference", targetName: referenceTargetName };
 }
 
 function arrayAtHelpers(

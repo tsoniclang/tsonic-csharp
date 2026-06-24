@@ -90,13 +90,6 @@ export function getStringTargetMembers(sourceName: string): readonly TargetMembe
 
 const stringInstanceTargetNames = new Map<string, string>([
   ["toString", "ToString"],
-  ["trim", "Trim"],
-  ["trimStart", "TrimStart"],
-  ["trimLeft", "TrimStart"],
-  ["trimEnd", "TrimEnd"],
-  ["trimRight", "TrimEnd"],
-  ["toLowerCase", "ToLower"],
-  ["toUpperCase", "ToUpper"],
 ]);
 
 const stringHelperNames = new Set([
@@ -124,7 +117,14 @@ const stringHelperNames = new Set([
   "substr",
   "substring",
   "search",
+  "trim",
+  "trimStart",
+  "trimLeft",
+  "trimEnd",
+  "trimRight",
+  "toLowerCase",
   "toLocaleLowerCase",
+  "toUpperCase",
   "toLocaleUpperCase",
   "toWellFormed",
   "valueOf",
