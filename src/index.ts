@@ -4,8 +4,6 @@ export {
   csharpTypesModule,
   createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
-  neutralLangModule,
-  neutralTypesModule,
 } from "./source/csharp-source-semantics.js";
 export type {
   CsharpArgument,

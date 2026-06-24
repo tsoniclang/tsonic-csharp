@@ -17,7 +17,11 @@ import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
   csharpJsCheckedTypeQuery,
   csharpDelegateTargetType,
+  csharpEnumerableTargetType,
+  csharpListTargetType,
+  csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
+  csharpReadOnlyListTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -31,6 +35,9 @@ import {
 import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
+import {
+  getCsharpArrayLikeElementType,
+} from "./array-carriers.js";
 import {
   asNodeSubject,
   getNodeField,
@@ -49,7 +56,8 @@ export function mapCsharpJsArrayElementAccess(
   receiverType: TargetTypeRef | undefined,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  if (receiverType?.kind !== "array") {
+  const elementType = getCsharpArrayLikeElementType(receiverType);
+  if (elementType === undefined) {
     return undefined;
   }
   const indexType = host.getTargetTypeRefForSubject(request.argument, context, csharpJsCheckedTypeQuery);
@@ -57,11 +65,11 @@ export function mapCsharpJsArrayElementAccess(
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100111, "C# JS surface array element access requires an integral provider-backed index type."));
   }
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.js.array.indexer", "indexer", "Item", {
-    resultType: receiverType.element,
+    resultType: elementType,
   }), [{ message: "C# JS surface array indexer operation recorded from checked TypeScript element access." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation("tsonic.csharp.js.array.indexer", "indexer", "System.Array.Item", {
-      resultType: receiverType.element,
+      resultType: elementType,
     }),
   }, [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);
 }
@@ -133,40 +141,89 @@ function recordCsharpJsArrayElementAccessFact(
 
 export function getArrayTargetMembers(sourceName: string): readonly TargetMember[] {
   const itemType: TargetTypeRef = { kind: "type-parameter", name: "T" };
-  const arrayType: TargetTypeRef = { kind: "array", element: itemType };
+  const enumerableType: TargetTypeRef = csharpEnumerableTargetType(itemType);
+  const readOnlyListType: TargetTypeRef = csharpReadOnlyListTargetType(itemType);
+  const listType: TargetTypeRef = csharpListTargetType(itemType);
   const intType = csharpSourcePrimitiveTargetType("int32");
   const boolType = csharpSourcePrimitiveTargetType("bool");
   const stringType = csharpStringTargetType();
-  const helperType = csharpTargetNamedType("Tsonic.CSharp.Runtime.ArrayHelpers", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "ArrayHelpers"));
+  const arrayHelpersType = csharpTargetNamedType("Tsonic.CSharp.Js.Array", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Array"));
   switch (sourceName) {
+    case "from":
+      return [
+        arrayStaticMethod(sourceName, "from", [targetParameter("iterable", enumerableType)], listType, arrayHelpersType, "from:array:native"),
+        arrayStaticMethod(sourceName, "from", [targetParameter("source", stringType)], csharpListTargetType(stringType), arrayHelpersType, "from:string:native"),
+        arrayStaticMethod(sourceName, "from", [
+          targetParameter("iterable", enumerableType),
+          targetParameter("mapFunc", csharpDelegateTargetType("System.Func", [itemType, intType], itemType)),
+        ], listType, arrayHelpersType, "from:array:indexed-map:native"),
+        arrayStaticMethod(sourceName, "from", [
+          targetParameter("iterable", enumerableType),
+          targetParameter("mapFunc", csharpDelegateTargetType("System.Func", [itemType], itemType)),
+        ], listType, arrayHelpersType, "from:array:map:native"),
+      ];
+    case "of":
+      return [
+        arrayStaticMethod(sourceName, "of", [
+          targetParameter("items", itemType, { paramsArray: true }),
+        ], listType, arrayHelpersType, "of:native"),
+      ];
+    case "isArray":
+      return [
+        arrayStaticMethod(sourceName, "isArray", [
+          targetParameter("value", readOnlyListType),
+        ], boolType, arrayHelpersType, "isArray:native"),
+      ];
+    case "push":
+      return [arrayHelperMethod(sourceName, "push", [targetParameter("array", listType), targetParameter("item", itemType)], intType, arrayHelpersType)];
+    case "pop":
+      return [arrayHelperMethod(sourceName, "pop", [targetParameter("array", listType)], itemType, arrayHelpersType)];
+    case "shift":
+      return [arrayHelperMethod(sourceName, "shift", [targetParameter("array", listType)], itemType, arrayHelpersType)];
+    case "unshift":
+      return [arrayHelperMethod(sourceName, "unshift", [targetParameter("array", listType), targetParameter("item", itemType)], intType, arrayHelpersType)];
     case "concat":
-      return [targetMethod("Tsonic.CSharp.Runtime.ArrayHelpers.concat", sourceName, "Concat", [
-        targetParameter("chunks", { kind: "array", element: arrayType }, { paramsArray: true }),
-      ], arrayType, {
-        declaringType: helperType,
-        static: true,
-        receiverPassing: "first-argument",
-      })];
+      return [arrayHelperMethod(sourceName, "concat", [
+        targetParameter("array", enumerableType),
+        targetParameter("items", enumerableType, { paramsArray: true }),
+      ], listType, arrayHelpersType)];
     case "includes":
-      return [arrayHelper(sourceName, "Includes", [targetParameter("array", arrayType), targetParameter("value", itemType), targetParameter("fromIndex", intType, { optional: true })], boolType, helperType)];
+      return [arrayHelperMethod(sourceName, "includes", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], boolType, arrayHelpersType)];
     case "indexOf":
-      return [arrayHelper(sourceName, "IndexOf", [targetParameter("array", arrayType), targetParameter("value", itemType), targetParameter("fromIndex", intType, { optional: true })], intType, helperType)];
+      return [arrayHelperMethod(sourceName, "indexOf", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], intType, arrayHelpersType)];
     case "lastIndexOf":
-      return [arrayHelper(sourceName, "LastIndexOf", [targetParameter("array", arrayType), targetParameter("value", itemType), targetParameter("fromIndex", intType, { optional: true })], intType, helperType)];
+      return [arrayHelperMethod(sourceName, "lastIndexOf", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], intType, arrayHelpersType)];
     case "join":
-      return [arrayHelper(sourceName, "Join", [targetParameter("array", arrayType), targetParameter("separator", stringType, { optional: true })], stringType, helperType)];
+      return [arrayHelperMethod(sourceName, "join", [targetParameter("array", readOnlyListType), targetParameter("separator", stringType, { optional: true })], stringType, arrayHelpersType)];
     case "slice":
-      return [arrayHelper(sourceName, "Slice", [targetParameter("array", arrayType), targetParameter("start", intType, { optional: true }), targetParameter("end", intType, { optional: true })], arrayType, helperType)];
+      return [arrayHelperMethod(sourceName, "slice", [targetParameter("array", readOnlyListType), targetParameter("start", intType, { optional: true }), targetParameter("end", intType, { optional: true })], listType, arrayHelpersType)];
+    case "splice":
+      return [arrayHelperMethod(sourceName, "splice", [
+        targetParameter("array", listType),
+        targetParameter("start", intType),
+        targetParameter("deleteCount", csharpNullableValueTargetType(intType), { optional: true }),
+        targetParameter("items", itemType, { paramsArray: true }),
+      ], listType, arrayHelpersType)];
+    case "reverse":
+      return [arrayHelperMethod(sourceName, "reverse", [targetParameter("array", listType)], listType, arrayHelpersType)];
+    case "sort":
+      return arrayCallbackHelpers(sourceName, "sort", "System.Func", itemType, csharpSourcePrimitiveTargetType("float64"), listType, listType, arrayHelpersType, { compareCallback: true, mutable: true });
     case "forEach":
-      return arrayCallbackHelpers(sourceName, "ForEach", "System.Action", itemType, arrayType, csharpVoidTargetType(), csharpVoidTargetType(), helperType);
+      return arrayCallbackHelpers(sourceName, "forEach", "System.Action", itemType, csharpVoidTargetType(), csharpVoidTargetType(), readOnlyListType, arrayHelpersType);
     case "some":
-      return arrayCallbackHelpers(sourceName, "Some", "System.Func", itemType, arrayType, boolType, boolType, helperType);
+      return arrayCallbackHelpers(sourceName, "some", "System.Func", itemType, boolType, boolType, readOnlyListType, arrayHelpersType);
     case "every":
-      return arrayCallbackHelpers(sourceName, "Every", "System.Func", itemType, arrayType, boolType, boolType, helperType);
+      return arrayCallbackHelpers(sourceName, "every", "System.Func", itemType, boolType, boolType, readOnlyListType, arrayHelpersType);
+    case "filter":
+      return arrayCallbackHelpers(sourceName, "filter", "System.Func", itemType, boolType, listType, readOnlyListType, arrayHelpersType);
+    case "find":
+      return arrayCallbackHelpers(sourceName, "find", "System.Func", itemType, boolType, itemType, readOnlyListType, arrayHelpersType);
     case "findIndex":
-      return arrayCallbackHelpers(sourceName, "FindIndex", "System.Func", itemType, arrayType, boolType, intType, helperType);
+      return arrayCallbackHelpers(sourceName, "findIndex", "System.Func", itemType, boolType, intType, readOnlyListType, arrayHelpersType);
+    case "findLast":
+      return arrayCallbackHelpers(sourceName, "findLast", "System.Func", itemType, boolType, itemType, readOnlyListType, arrayHelpersType);
     case "findLastIndex":
-      return arrayCallbackHelpers(sourceName, "FindLastIndex", "System.Func", itemType, arrayType, boolType, intType, helperType);
+      return arrayCallbackHelpers(sourceName, "findLastIndex", "System.Func", itemType, boolType, intType, readOnlyListType, arrayHelpersType);
     default:
       return [];
   }
@@ -177,13 +234,16 @@ function arrayCallbackHelpers(
   targetName: string,
   delegateKind: "System.Action" | "System.Func",
   itemType: TargetTypeRef,
-  arrayType: TargetTypeRef,
   callbackReturnType: TargetTypeRef,
   memberReturnType: TargetTypeRef,
-  helperType: TargetTypeRef,
+  arrayType: TargetTypeRef,
+  declaringType: TargetTypeRef,
+  options: { readonly compareCallback?: boolean; readonly mutable?: boolean } = {},
 ): readonly TargetMember[] {
   const intType = csharpSourcePrimitiveTargetType("int32");
-  const callbackShapes: readonly TargetTypeRef[] = delegateKind === "System.Action"
+  const callbackShapes: readonly TargetTypeRef[] = options.compareCallback === true
+    ? [csharpDelegateTargetType("System.Func", [itemType, itemType], callbackReturnType)]
+    : delegateKind === "System.Action"
     ? [
         csharpDelegateTargetType("System.Action", [itemType]),
         csharpDelegateTargetType("System.Action", [itemType, intType]),
@@ -194,23 +254,44 @@ function arrayCallbackHelpers(
         csharpDelegateTargetType("System.Func", [itemType, intType], callbackReturnType),
         csharpDelegateTargetType("System.Func", [itemType, intType, arrayType], callbackReturnType),
       ];
-  return callbackShapes.map((callback, index) => arrayHelper(`${sourceName}:${index + 1}`, targetName, [
+  return callbackShapes.map((callback, index) => arrayHelperMethod(sourceName, targetName, [
     targetParameter("array", arrayType),
     targetParameter("callback", callback),
-  ], memberReturnType, helperType, sourceName));
+  ], memberReturnType, declaringType, { idSuffix: `${sourceName}:${index + 1}` }));
 }
 
-function arrayHelper(
-  idSuffix: string,
+function arrayStaticMethod(
+  sourceName: string,
   targetName: string,
   parameters: readonly TargetParameter[],
   returnType: TargetTypeRef,
-  helperType: TargetTypeRef,
-  sourceName = idSuffix,
+  declaringType: TargetTypeRef,
+  idSuffix = sourceName,
 ): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Runtime.ArrayHelpers.${idSuffix}`, sourceName, targetName, parameters, returnType, {
-    declaringType: helperType,
+  const owner = declaringType.kind === "target-named" ? declaringType.id.replace(/`.*$/, "") : "Tsonic.CSharp.Js.Array";
+  return targetMethod(`${owner}.${idSuffix}`, sourceName, targetName, parameters, returnType, {
+    declaringType,
+    static: true,
+  });
+}
+
+function arrayHelperMethod(
+  sourceName: string,
+  targetName: string,
+  parameters: readonly TargetParameter[],
+  returnType: TargetTypeRef,
+  declaringType: TargetTypeRef,
+  options: { readonly idSuffix?: string } = {},
+): TargetMember {
+  return targetMethod(`Tsonic.CSharp.Js.Array.${options.idSuffix ?? sourceName}`, sourceName, targetName, parameters, returnType, {
+    declaringType,
     static: true,
     receiverPassing: "first-argument",
   });
 }
+
+export {
+  getCsharpArrayLengthMember,
+  getCsharpArrayLikeElementType,
+  isCsharpJsArrayCarrierTargetType,
+} from "./array-carriers.js";

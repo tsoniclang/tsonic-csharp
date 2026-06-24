@@ -32,8 +32,12 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import {
   planArrayLiteralExpression,
+  planArrayLiteralExpressionWithCarrier,
   planTupleLiteralExpression,
 } from "./array-literals.js";
+import {
+  getTargetTypeRefForNode,
+} from "./runtime-carriers.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import {
@@ -142,6 +146,12 @@ export function planExpressionWithExpectedTypeCore(
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners);
+  }
+  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTypeSubject !== undefined) {
+    const expectedCarrier = getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile);
+    if (expectedCarrier !== undefined && expectedCarrier.kind !== "array" && expectedCarrier.kind !== "tuple") {
+      return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedCarrier, planners);
+    }
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
     return planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType, planners);

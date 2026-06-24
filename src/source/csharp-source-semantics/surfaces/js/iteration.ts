@@ -2,12 +2,15 @@ import {
   acceptObservation,
   deferObservation,
   rejectObservation,
+  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedIterationMappingRequest,
   CheckedOperationMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
+  Node,
+  SourceFile,
 } from "@tsonic/tsts";
 import {
   csharpTargetIterationFactKey,
@@ -31,13 +34,80 @@ import {
   getCsharpRecordDictionaryKeysTargetMembers,
   isCsharpRecordDictionaryTargetType,
 } from "../../dictionaries.js";
+import {
+  getCsharpArrayLengthMember,
+} from "./array-carriers.js";
+import {
+  asNodeSubject,
+  getNodeField,
+  visitAstReaderNodes,
+} from "../../ast-utils.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "../../runtime-carriers.js";
+
+export function recordCsharpJsSurfaceIterationFactsBeforeFinalization(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  host: CsharpJsSurfaceHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext) as unknown as ExtensionObservationContext<"operation.mapCheckedIteration">;
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+      recordCsharpJsSurfaceIterationFact(node, sourceFile, context, host);
+    });
+  }
+}
+
+function recordCsharpJsSurfaceIterationFact(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext<"operation.mapCheckedIteration">,
+  host: CsharpJsSurfaceHost,
+): void {
+  const compiler = context.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const kind = compiler.ast.is.IsForInStatement(node)
+    ? "for-in"
+    : compiler.ast.is.IsForOfStatement(node)
+      ? "for-of"
+      : undefined;
+  if (kind === undefined) {
+    return;
+  }
+  const expression = asNodeSubject(getNodeField(node, "Expression"));
+  if (expression === undefined) {
+    return;
+  }
+  const sourceExpressionType = compiler.checker.getTypeAtLocation(expression, { sourceFile });
+  const mapped = mapCsharpJsSurfaceCheckedIteration({
+    statement: node,
+    expression,
+    ...(sourceExpressionType !== undefined ? { sourceExpressionType } : {}),
+    kind,
+    target: host.targetId,
+  }, context, host);
+  if (mapped.kind === "reject") {
+    context.diagnostics.append(mapped.diagnostic);
+  }
+}
 
 export function mapCsharpJsSurfaceCheckedIteration(
   request: CheckedIterationMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedIteration">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  const expressionType = host.getTargetTypeRefForSubject(request.expression, context, csharpJsCheckedTypeQuery) ??
+  const seededExpressionCarrier = context.factResolver.resolve(request.expression, runtimeCarrierFactKey)?.carrier;
+  const expressionType = seededExpressionCarrier ??
+    host.getTargetTypeRefForSubject(request.expression, context, csharpJsCheckedTypeQuery) ??
     host.getTargetTypeRefForSubject(request.sourceExpressionType, context, csharpJsCheckedTypeQuery);
   if (request.kind === "for-of") {
     if (host.isCsharpStringType(expressionType)) {
@@ -82,13 +152,14 @@ export function mapCsharpJsSurfaceCheckedIteration(
         operation: targetOperation(fact.operationId, "iteration", fact.lowering.kind),
       }, [{ message: "C# JS surface object-shape key iteration fact recorded after TSTS accepted for-in." }]);
     }
-    if (expressionType?.kind === "array" || host.isCsharpStringType(expressionType)) {
+    const arrayLengthMember = getCsharpArrayLengthMember(expressionType);
+    if ((arrayLengthMember !== undefined && (seededExpressionCarrier !== undefined || expressionType?.kind !== "array")) || host.isCsharpStringType(expressionType)) {
       const fact = {
         operationId: "tsonic.csharp.js.indexable.keys",
         iterationKind: "property-key",
         lowering: {
           kind: "index-key",
-          lengthMember: "Length",
+          lengthMember: arrayLengthMember ?? "Length",
           keyConversion: "invariant-string",
         },
         elementType: csharpStringTargetType(),

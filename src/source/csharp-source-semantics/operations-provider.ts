@@ -26,7 +26,7 @@ import {
   isLiteralRepresentableAsTargetType,
   selectTargetMember,
 } from "./target-member-selection.js";
-import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
+import type { TargetMemberSelectionOptions, TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import {
   createCsharpJsSurfaceMappers,
 } from "./surfaces/js/index.js";
@@ -182,9 +182,11 @@ export function createCsharpJsSurfaceHost(
         readonly receiver?: ExtensionFactSubject;
       },
       context: ExtensionObservationContext,
+      options: Pick<TargetMemberSelectionOptions, "declaringTargetType" | "declaringTypeParameters"> = {},
     ) =>
       selectTargetMember(candidates, request, context, host.getTargetTypeRefForSubject, {
         getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+        ...options,
       }),
     getCsharpObjectShapeFactForSubject: host.getCsharpObjectShapeFactForSubject,
     csharpProviderDiagnostic,

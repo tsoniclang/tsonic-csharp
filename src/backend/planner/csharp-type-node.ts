@@ -17,7 +17,6 @@ import {
 import type {
   Node,
   SourceFile,
-  TargetBindingFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -47,8 +46,8 @@ import {
   csharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
-  sourcePrimitiveTargetBindingId,
-} from "../../source/csharp-source-semantics/identity.js";
+  csharpArrayBoundaryFactKey,
+} from "../../source/csharp-facts.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
@@ -126,6 +125,14 @@ export function getCsharpTypeForNode(
   if (nodeTypeParameterName !== undefined) {
     return { kind: "IdentifierName", name: nodeTypeParameterName };
   }
+  const arrayBoundaryType = getCsharpTypeFromArrayBoundaryFact(node, input);
+  if (arrayBoundaryType !== undefined) {
+    return arrayBoundaryType;
+  }
+  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
+  if (nodeCarrierType !== undefined) {
+    return nodeCarrierType;
+  }
   if (input.ast.kindName(node) === KindArrayType) {
     const elementTypeNode = (node as { readonly ElementType?: Node }).ElementType;
     const elementType = getCsharpTypeForNode(elementTypeNode, sourceFile, input, invalidCsharpType("array element type"), diagnostics);
@@ -136,10 +143,6 @@ export function getCsharpTypeForNode(
   const keywordType = getCsharpTypeFromKeywordTypeNode(node, input);
   if (keywordType !== undefined) {
     return keywordType;
-  }
-  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
-  if (nodeCarrierType !== undefined) {
-    return nodeCarrierType;
   }
   const targetBindingType = getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
   if (targetBindingType !== undefined) {
@@ -170,6 +173,14 @@ export function getCsharpTypeForNode(
   const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
   return invalidCsharpType("unsupported semantic type");
+}
+
+function getCsharpTypeFromArrayBoundaryFact(
+  node: Node,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const boundary = input.facts.getFact(node, csharpArrayBoundaryFactKey);
+  return boundary === undefined ? undefined : csharpTypeFromTargetTypeRef(boundary.publicType);
 }
 
 function getCsharpTypeFromTargetConversion(
@@ -376,10 +387,6 @@ function getCsharpTypeFromTargetBindingForReference(
   if (targetBinding === undefined) {
     return undefined;
   }
-  const carrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
-  if (isSourcePrimitiveBindingForCarrier(targetBinding, carrier)) {
-    return undefined;
-  }
   const typeArguments = getTargetTypeArgumentsForReference(node, sourceFile, input, diagnostics);
   if (typeArguments === undefined) {
     return invalidCsharpType("provider target type arguments");
@@ -413,10 +420,6 @@ function getTargetTypeArgumentsForReference(
     return undefined;
   }
   return resolved as readonly TargetTypeRef[];
-}
-
-function isSourcePrimitiveBindingForCarrier(binding: TargetBindingFact, carrier: TargetTypeRef | undefined): boolean {
-  return carrier?.kind === "source-primitive" && binding.id === sourcePrimitiveTargetBindingId(carrier.name);
 }
 
 function getCsharpTypeFromKeywordTypeNode(node: Node, input: TargetCompileInput): CsharpTypeNode | undefined {

@@ -15,6 +15,18 @@ import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
+import {
+  csharpListTargetType,
+  getCsharpArrayLiteralElementTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
+import {
+  getCsharpArrayLengthMember,
+  isCsharpJsArrayCarrierTargetType,
+} from "../../source/csharp-source-semantics/surfaces/js/array-carriers.js";
+
+type ArrayBindingCarrier =
+  | { readonly kind: "array"; readonly carrier: TargetTypeRef; readonly element: TargetTypeRef; readonly lengthMember: string; readonly restSlice: "runtime-array-helper" | "instance-slice" | "js-array-helper"; readonly restCarrier: TargetTypeRef }
+  | { readonly kind: "tuple"; readonly elements: readonly TargetTypeRef[] };
 
 export function planArrayBindingPattern(
   patternNode: Node,
@@ -29,7 +41,8 @@ export function planArrayBindingPattern(
   sourceCarrierOverride?: TargetTypeRef,
 ): readonly CsharpStatement[] {
   const sourceCarrier = sourceCarrierOverride ?? getRuntimeCarrierForExpression(input, sourceNode, sourceFile);
-  if (sourceCarrier === undefined || (sourceCarrier.kind !== "array" && sourceCarrier.kind !== "tuple")) {
+  const bindingCarrier = arrayBindingCarrier(sourceCarrier);
+  if (bindingCarrier === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression."));
     return [];
   }
@@ -38,9 +51,29 @@ export function planArrayBindingPattern(
     if (elementNode === undefined) {
       return [];
     }
-    const elementCarrier = sourceCarrier.kind === "array" ? sourceCarrier.element : sourceCarrier.elements[index];
-    return planArrayBindingElement(elementNode, sourceExpression, index, elementCarrier, sourceCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
+    const elementCarrier = bindingCarrier.kind === "array" ? bindingCarrier.element : bindingCarrier.elements[index];
+    return planArrayBindingElement(elementNode, sourceExpression, index, elementCarrier, bindingCarrier, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
   });
+}
+
+function arrayBindingCarrier(sourceCarrier: TargetTypeRef | undefined): ArrayBindingCarrier | undefined {
+  if (sourceCarrier?.kind === "array") {
+    return { kind: "array", carrier: sourceCarrier, element: sourceCarrier.element, lengthMember: "Length", restSlice: "runtime-array-helper", restCarrier: sourceCarrier };
+  }
+  if (sourceCarrier?.kind === "tuple") {
+    return sourceCarrier;
+  }
+  if (sourceCarrier === undefined) {
+    return undefined;
+  }
+  const element = getCsharpArrayLiteralElementTargetType(sourceCarrier);
+  const lengthMember = getCsharpArrayLengthMember(sourceCarrier);
+  if (element === undefined || lengthMember === undefined) {
+    return undefined;
+  }
+  return isCsharpJsArrayCarrierTargetType(sourceCarrier)
+    ? { kind: "array", carrier: sourceCarrier, element, lengthMember, restSlice: "instance-slice", restCarrier: sourceCarrier }
+    : { kind: "array", carrier: sourceCarrier, element, lengthMember, restSlice: "js-array-helper", restCarrier: csharpListTargetType(element) };
 }
 
 export type BindingDefaultExpressionPlanner = (
@@ -58,7 +91,7 @@ function planArrayBindingElement(
   sourceExpression: CsharpExpression,
   index: number,
   elementCarrier: TargetTypeRef | undefined,
-  sourceCarrier: Extract<TargetTypeRef, { readonly kind: "array" | "tuple" }>,
+  sourceCarrier: ArrayBindingCarrier,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -93,7 +126,7 @@ function planArrayBindingElement(
       diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array destructuring defaults require the active expression planner before C# emission."));
       return [];
     }
-    const fallback = planArrayBindingDefaultProjection(sourceExpression, index, projected, element.Initializer, sourceFile, input, diagnostics, projectedType, state, planDefaultExpressionWithExpectedType);
+    const fallback = planArrayBindingDefaultProjection(sourceExpression, index, projected, sourceCarrier, element.Initializer, sourceFile, input, diagnostics, projectedType, state, planDefaultExpressionWithExpectedType);
     return planBindingNameFromProjection(name, fallback, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
   }
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
@@ -102,7 +135,7 @@ function planArrayBindingElement(
 function planArrayBindingProjection(
   sourceExpression: CsharpExpression,
   index: number,
-  sourceCarrier: Extract<TargetTypeRef, { readonly kind: "array" | "tuple" }>,
+  sourceCarrier: ArrayBindingCarrier,
 ): CsharpExpression {
   if (sourceCarrier.kind === "tuple") {
     return {
@@ -122,6 +155,7 @@ function planArrayBindingDefaultProjection(
   sourceExpression: CsharpExpression,
   index: number,
   projected: CsharpExpression,
+  sourceCarrier: Extract<ArrayBindingCarrier, { readonly kind: "array" }>,
   initializer: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
@@ -137,7 +171,7 @@ function planArrayBindingDefaultProjection(
       left: {
         kind: "SimpleMemberAccessExpression",
         receiver: sourceExpression,
-        name: "Length",
+        name: sourceCarrier.lengthMember,
       },
       operatorToken: { kind: "GreaterThanToken" },
       right: { kind: "LiteralExpression", value: index },
@@ -152,7 +186,7 @@ function planArrayRestBindingElement(
   name: Node | undefined,
   sourceExpression: CsharpExpression,
   index: number,
-  sourceCarrier: Extract<TargetTypeRef, { readonly kind: "array" | "tuple" }>,
+  sourceCarrier: ArrayBindingCarrier,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -167,14 +201,56 @@ function planArrayRestBindingElement(
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a target binding name."));
     return [];
   }
-  const projectedType = csharpTypeFromTargetTypeRef(sourceCarrier);
+  const projectedType = csharpTypeFromTargetTypeRef(sourceCarrier.restCarrier);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Array rest destructuring requires a renderable provider array carrier type before C# emission."));
     return [];
   }
-  const projected = runtimeArrayHelperCall("Slice", [
-    { kind: "Argument", expression: sourceExpression },
-    { kind: "Argument", expression: { kind: "LiteralExpression", value: index } },
-  ]);
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, sourceCarrier);
+  const projected = planArrayRestProjection(sourceExpression, index, sourceCarrier);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, sourceCarrier.restCarrier);
+}
+
+function planArrayRestProjection(
+  sourceExpression: CsharpExpression,
+  index: number,
+  sourceCarrier: Extract<ArrayBindingCarrier, { readonly kind: "array" }>,
+): CsharpExpression {
+  if (sourceCarrier.restSlice === "instance-slice") {
+    return {
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: sourceExpression,
+        name: "slice",
+      },
+      arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: index } }],
+    };
+  }
+  const argumentsList = [
+    { kind: "Argument" as const, expression: sourceExpression },
+    { kind: "Argument" as const, expression: { kind: "LiteralExpression" as const, value: index } },
+  ];
+  return sourceCarrier.restSlice === "js-array-helper"
+    ? {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: {
+            kind: "QualifiedName",
+            left: {
+              kind: "QualifiedName",
+              left: {
+                kind: "QualifiedName",
+                left: { kind: "IdentifierName", name: "Tsonic" },
+                name: "CSharp",
+              },
+              name: "Js",
+            },
+            name: "Array",
+          },
+          name: "slice",
+        },
+        arguments: argumentsList,
+      }
+    : runtimeArrayHelperCall("Slice", argumentsList);
 }

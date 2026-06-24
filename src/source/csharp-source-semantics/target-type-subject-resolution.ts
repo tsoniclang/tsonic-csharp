@@ -51,6 +51,10 @@ import {
 import {
   sourceDeclarationTargetType,
 } from "./source-declaration-facts.js";
+import {
+  getCallableExpressionTargetTypeRef,
+  isCallableExpressionNode,
+} from "./callable-target-types.js";
 
 export type CsharpTargetTypeResolver = (
   type: Type | undefined,
@@ -130,6 +134,17 @@ export function resolveTargetTypeRefForSubjectCore(
   if (sourceDeclarationTarget !== undefined) {
     return sourceDeclarationTarget;
   }
+  const callableExpressionTarget = getCallableExpressionTargetTypeRefForSubject(
+    subject,
+    context,
+    options,
+    host,
+    recursiveTargetTypeResolver,
+    resolveTargetTypeRefForType,
+  );
+  if (callableExpressionTarget !== undefined) {
+    return callableExpressionTarget;
+  }
   const declarationType = getTargetTypeRefFromDeclarationAnnotation(
     subject,
     context,
@@ -164,6 +179,55 @@ export function resolveTargetTypeRefForSubjectCore(
     ...options,
     ...(ast !== undefined && node !== undefined ? { sourceFile: ast.getSourceFile(node) } : {}),
   }, host);
+}
+
+function getCallableExpressionTargetTypeRefForSubject(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  recursiveTargetTypeResolver: CsharpRecursiveTargetTypeResolver,
+  resolveTargetTypeRefForType: CsharpTargetTypeResolver,
+): TargetTypeRef | undefined {
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  const checker = context.compiler?.checker;
+  if (node === undefined || ast === undefined || checker === undefined || !isCallableExpressionNode(ast, node)) {
+    return undefined;
+  }
+  const sourceFile = ast.getSourceFile(node);
+  if (sourceFile === undefined) {
+    return undefined;
+  }
+  const type = asType(checker.getTypeAtLocation(node, { sourceFile }));
+  return type === undefined
+    ? undefined
+    : getCallableExpressionTargetTypeRef(node, type, sourceFile, context, {
+        getTargetTypeRefForSubject: (callableSubject, callableContext, callableOptions) =>
+          resolveTargetTypeRefForSubjectCore(
+            callableSubject,
+            callableContext,
+            {
+              ...options,
+              ...callableOptions,
+              sourceFile,
+            },
+            host,
+            recursiveTargetTypeResolver,
+            resolveTargetTypeRefForType,
+          ),
+        getTargetTypeRefForType: (callableType, callableContext, callableOptions) =>
+          resolveTargetTypeRefForType(
+            callableType,
+            callableContext,
+            {
+              ...options,
+              ...callableOptions,
+              sourceFile,
+            },
+            host,
+          ),
+      });
 }
 
 function getSourceDeclarationTargetTypeRef(

@@ -84,6 +84,7 @@ import {
   nodeProcessPropertyTargetMembers,
 } from "./process.js";
 import {
+  csharpNodejsVirtualDeclarationFileName,
   nodejsExportDeclarationIdentity,
   nodejsExportMemberDeclarationIdentity,
   nodejsExportSignatureDeclarationIdentity,
@@ -92,6 +93,10 @@ import {
 import type {
   NodejsProviderDeclarationIdentity,
 } from "./identity.js";
+import {
+  canonicalNodejsModuleSpecifier,
+  isSupportedNodejsModuleSpecifier,
+} from "./module-specifiers.js";
 
 interface NodejsModuleCallTargetMember {
   readonly exportName: string;
@@ -105,28 +110,24 @@ interface NodejsModulePropertyTargetMember {
 }
 
 export function isNodejsProviderModule(moduleSpecifier: string | undefined): boolean {
-  return moduleSpecifier === nodeBufferModuleSpecifier ||
-    moduleSpecifier === nodePathModuleSpecifier ||
-    moduleSpecifier === nodeFsModuleSpecifier ||
-    moduleSpecifier === nodeCryptoModuleSpecifier ||
-    moduleSpecifier === nodeOsModuleSpecifier ||
-    moduleSpecifier === nodeProcessModuleSpecifier;
+  return isSupportedNodejsModuleSpecifier(moduleSpecifier);
 }
 
 export function getNodejsCallTargetMember(declaration: NodejsProviderDeclarationIdentity): TargetMember | undefined {
-  const bufferMember = declaration.moduleSpecifier === nodeBufferModuleSpecifier
-    ? getNodeBufferTargetMember(declaration.memberId, declaration.signatureId)
+  const canonicalDeclaration = canonicalNodejsDeclarationIdentity(declaration);
+  const bufferMember = canonicalDeclaration.moduleSpecifier === nodeBufferModuleSpecifier
+    ? getNodeBufferTargetMember(canonicalDeclaration.memberId, canonicalDeclaration.signatureId)
     : undefined;
   if (bufferMember !== undefined) {
     return bufferMember;
   }
-  return nodejsCallTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(declaration));
+  return nodejsCallTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalDeclaration));
 }
 
 export function getCsharpNodejsStaticPropertyOperation(
   declaration: NodejsProviderDeclarationIdentity,
 ): { readonly operation: TargetOperationFact; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
-  const member = nodejsPropertyTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(declaration));
+  const member = nodejsPropertyTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalNodejsDeclarationIdentity(declaration)));
   return member === undefined
     ? undefined
     : {
@@ -139,20 +140,42 @@ export function getNodejsStaticPropertyDeclaration(
   moduleSpecifier: string,
   exportName: string,
 ): NodejsProviderDeclarationIdentity | undefined {
-  const declaration = nodejsExportDeclarationIdentity(moduleSpecifier, exportName);
+  const canonicalSpecifier = canonicalNodejsModuleSpecifier(moduleSpecifier);
+  if (canonicalSpecifier === undefined) {
+    return undefined;
+  }
+  const declaration = nodejsExportDeclarationIdentity(canonicalSpecifier, exportName);
   return nodejsPropertyTargetMembersByDeclarationIdentity.has(nodejsProviderDeclarationIdentityKey(declaration))
     ? declaration
     : undefined;
 }
 
 export function getNodejsTargetIdentity(symbol: ProviderSymbolIdentity): TargetIdentity | undefined {
-  const member = nodejsTargetMembersByProviderSymbolIdentity.get(nodejsProviderSymbolIdentityKey(symbol));
+  const canonicalSpecifier = canonicalNodejsModuleSpecifier(symbol.moduleSpecifier);
+  const member = canonicalSpecifier === undefined
+    ? undefined
+    : nodejsTargetMembersByProviderSymbolIdentity.get(nodejsProviderSymbolIdentityKey({
+        ...symbol,
+        moduleSpecifier: canonicalSpecifier,
+      }));
   return member === undefined
     ? undefined
     : {
         target: csharpTargetId,
         id: member.id,
         displayName: member.targetName,
+      };
+}
+
+function canonicalNodejsDeclarationIdentity(declaration: NodejsProviderDeclarationIdentity): NodejsProviderDeclarationIdentity {
+  const canonicalSpecifier = canonicalNodejsModuleSpecifier(declaration.moduleSpecifier);
+  return canonicalSpecifier === undefined
+    ? declaration
+    : {
+        ...declaration,
+        providerModuleId: canonicalSpecifier,
+        moduleSpecifier: canonicalSpecifier,
+        virtualFileName: csharpNodejsVirtualDeclarationFileName(canonicalSpecifier),
       };
 }
 

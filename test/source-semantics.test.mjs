@@ -23,14 +23,18 @@ import {
   createCsharpSourceSemanticsExtension,
 } from "../dist/index.js";
 import {
+  createTsonicCoreSourceExtension,
+  providerExportDeclarationsForSourceModule,
+  tsonicCoreSourceSemanticsModules,
+} from "@tsonic/source-core";
+import {
   csharpTargetOperationFactKey,
   csharpTargetConversionOperationFactKey,
 } from "../dist/source/csharp-facts.js";
-import { providerExportDeclarationsForModule } from "../dist/source/csharp-source-semantics/core-virtual-declarations.js";
 import { csharpSourceSemanticsModules } from "../dist/source/csharp-source-semantics/source-modules.js";
 
 test("source-semantics virtual attribute helpers do not introduce any-typed lanes", () => {
-  const declarations = providerExportDeclarationsForModule({
+  const declarations = providerExportDeclarationsForSourceModule({
     moduleSpecifier: "@tsonic/core/lang.js",
     packageName: "@tsonic/core",
     subpath: "lang.js",
@@ -43,7 +47,10 @@ test("source-semantics virtual attribute helpers do not introduce any-typed lane
 });
 
 test("source-semantics keeps neutral primitives separate from C# aliases", () => {
-  const modules = new Map(csharpSourceSemanticsModules().map((module) => [module.moduleSpecifier, module]));
+  const modules = new Map([
+    ...tsonicCoreSourceSemanticsModules(),
+    ...csharpSourceSemanticsModules(),
+  ].map((module) => [module.moduleSpecifier, module]));
   const neutralTypes = modules.get("@tsonic/core/types.js");
   const csharpTypes = modules.get("@tsonic/csharp/types.js");
   assert.ok(neutralTypes);
@@ -128,10 +135,10 @@ test("source-semantics records neutral primitive facts, char and bool, and confi
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -215,10 +222,10 @@ test("source-semantics records opaque any carriers without promoting unknown or 
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -271,10 +278,10 @@ test("source-semantics does not synthesize C# operator facts for opaque any oper
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -335,11 +342,11 @@ test("source-semantics records provider-backed attribute selector facts from use
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createAttributeProviderExtension(),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -421,9 +428,9 @@ test("source-semantics records source-core marker facts and rejects unproven sto
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -510,11 +517,6 @@ test("source-semantics rejects source-core marker calls missing required type ev
       ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
         "./lang.js": "./lang.js",
       })],
-      ["/src/node_modules/@tsonic/core/lang.d.ts", [
-        "export declare function attribute<T>(): unknown;",
-        "export declare function defaultof<T>(): T;",
-        "export declare function field<T>(): T;",
-      ].join("\n")],
     ]),
     compilerOptions: {
       noLib: true,
@@ -523,9 +525,9 @@ test("source-semantics rejects source-core marker calls missing required type ev
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -562,9 +564,6 @@ test("source-semantics does not classify shadowed source-core marker names", () 
       ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
         "./lang.js": "./lang.js",
       })],
-      ["/src/node_modules/@tsonic/core/lang.d.ts", [
-        "export declare function out<T>(target: T): void;",
-      ].join("\n")],
     ]),
     compilerOptions: {
       noLib: true,
@@ -573,9 +572,9 @@ test("source-semantics does not classify shadowed source-core marker names", () 
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -612,20 +611,6 @@ test("source-semantics rejects attribute builder chains with unproven declaratio
       ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
         "./lang.js": "./lang.js",
       })],
-      ["/src/node_modules/@tsonic/core/lang.d.ts", [
-        "export interface AttributeBuilder<T> {",
-        "  add(attribute: object, ...args: unknown[]): void;",
-        "  property(selector: (target: T) => unknown): AttributeMemberBuilder<T>;",
-        "  method(selector: (target: T) => unknown): AttributeMemberBuilder<T>;",
-        "  constructor(): AttributeMemberBuilder<T>;",
-        "}",
-        "export interface AttributeMemberBuilder<T> {",
-        "  add(attribute: object, ...args: unknown[]): void;",
-        "  parameter(name: string): AttributeMemberBuilder<T>;",
-        "  target(specifier: string): AttributeMemberBuilder<T>;",
-        "}",
-        "export declare function attribute<T>(): AttributeBuilder<T>;",
-      ].join("\n")],
     ]),
     compilerOptions: {
       noLib: true,
@@ -634,9 +619,9 @@ test("source-semantics rejects attribute builder chains with unproven declaratio
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -679,10 +664,10 @@ test("C# target rejects neutral borrow and move markers instead of silently eras
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -725,9 +710,9 @@ test("source-semantics ignores local names that are not configured source-core i
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -768,10 +753,10 @@ test("source-semantics records pointer marker facts from neutral type aliases", 
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -815,10 +800,10 @@ test("source-semantics records assertion target conversions as C# target facts",
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -863,10 +848,10 @@ test("source-semantics records source primitive assertions as C# conversion meth
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -911,10 +896,10 @@ test("source-semantics rejects any assertion conversions without explicit target
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -958,10 +943,10 @@ test("source-semantics propagates object-shape callable carriers through destruc
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -1083,6 +1068,13 @@ function packageJson(name, exports) {
       { types: target.replace(/\.js$/, ".d.ts"), default: target },
     ])),
   });
+}
+
+function csharpTestExtensions(...extensions) {
+  return [
+    createTsonicCoreSourceExtension(),
+    ...extensions,
+  ];
 }
 
 function csharpProviderContext() {

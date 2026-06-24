@@ -18,11 +18,23 @@ import {
   recordCsharpJsArrayElementAccessFactsBeforeFinalization,
 } from "./surfaces/js/arrays.js";
 import {
+  recordCsharpSourceLibraryCallFactsBeforeFinalization,
+} from "./surfaces/js/calls.js";
+import {
+  recordCsharpSourceLibraryPropertyFactsBeforeFinalization,
+} from "./surfaces/js/properties.js";
+import {
+  recordCsharpJsArrayCarrierFactsBeforeFinalization,
+} from "./surfaces/js/array-carrier-lifecycle.js";
+import {
   recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization,
 } from "./surfaces/js/dictionary-lifecycle.js";
 import {
   recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/regexp.js";
+import {
+  recordCsharpJsSurfaceIterationFactsBeforeFinalization,
+} from "./surfaces/js/iteration.js";
 
 type CsharpSurfaceLifecycleContext = {
   readonly host: ExtensionObservationContext["host"];
@@ -41,9 +53,11 @@ export function registerCsharpSelectedSurfaceProviders(
 export function recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(
   context: TargetProviderContext,
   lifecycleContext: CsharpSurfaceLifecycleContext,
+  hosts: CsharpExtensionSemanticHosts,
 ): void {
   if (targetHasSurface(context, "js")) {
     recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
+    recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
   }
 }
 
@@ -54,7 +68,10 @@ export function recordCsharpSelectedSurfaceOperationFactsBeforeFinalization(
 ): void {
   if (targetHasSurface(context, "js")) {
     const jsSurfaceHost = createCsharpJsSurfaceHost("tsonic.csharp.js.operations", hosts.operationsProviderHost);
+    recordCsharpSourceLibraryPropertyFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+    recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpJsArrayElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+    recordCsharpJsSurfaceIterationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
   }
 }

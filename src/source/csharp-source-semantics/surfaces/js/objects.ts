@@ -4,6 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpQualifiedTypeRenderShape,
+  csharpListTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -55,9 +56,9 @@ function jsObjectInstanceMethod(
 }
 
 const objectTargetMembers = new Map<string, TargetMember>([
-  ["keys", objectRuntimeMethod("keys", { kind: "array", element: csharpStringTargetType() })],
-  ["values", objectRuntimeMethod("values", { kind: "array", element: objectTargetType })],
-  ["entries", objectRuntimeMethod("entries", { kind: "array", element: { kind: "tuple", elements: [csharpStringTargetType(), objectTargetType] } })],
+  ["keys", objectRuntimeMethod("keys", csharpListTargetType(csharpStringTargetType()))],
+  ["values", objectRuntimeMethod("values", csharpListTargetType(objectTargetType))],
+  ["entries", objectRuntimeMethod("entries", csharpListTargetType({ kind: "tuple", elements: [csharpStringTargetType(), objectTargetType] }))],
   ["hasOwnProperty", jsObjectInstanceMethod("hasOwnProperty", [
     targetParameter("key", csharpStringTargetType()),
   ], csharpSourcePrimitiveTargetType("bool"))],

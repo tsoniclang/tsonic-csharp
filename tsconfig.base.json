@@ -29,6 +29,7 @@
     "esModuleInterop": true,
     "paths": {
       "@tsonic/tsts": ["../tsonic/packages/tsts/src/index.ts"],
+      "@tsonic/source-core": ["../tsonic/packages/source-core/src/index.ts"],
       "@tsonic/target-api": ["../tsonic/packages/target-api/src/index.ts"]
     }
   },

@@ -1,6 +1,7 @@
 import type {
   ExtensionDiagnostic,
   ProviderDeclarationModel,
+  ProviderExportDeclaration,
   ProviderModuleContext,
   ProviderModuleResolution,
   ProviderOwnership,
@@ -39,68 +40,51 @@ import {
   nodeProcessExports,
   nodeProcessModuleSpecifier,
 } from "./process.js";
+import {
+  canonicalNodejsModuleSpecifier,
+  isSupportedNodejsModuleSpecifier,
+} from "./module-specifiers.js";
 
-const supportedModules = new Map<string, ProviderDeclarationModel>([
-  [nodeBufferModuleSpecifier, {
-    moduleSpecifier: nodeBufferModuleSpecifier,
-    providerModuleId: nodeBufferModuleSpecifier,
-    exports: nodeBufferExports(),
-    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
-  }],
-  [nodePathModuleSpecifier, {
-    moduleSpecifier: nodePathModuleSpecifier,
-    providerModuleId: nodePathModuleSpecifier,
-    exports: nodePathExports(),
-    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
-  }],
-  [nodeFsModuleSpecifier, {
-    moduleSpecifier: nodeFsModuleSpecifier,
-    providerModuleId: nodeFsModuleSpecifier,
-    exports: nodeFsExports(),
-    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
-  }],
-  [nodeCryptoModuleSpecifier, {
-    moduleSpecifier: nodeCryptoModuleSpecifier,
-    providerModuleId: nodeCryptoModuleSpecifier,
-    exports: nodeCryptoExports(),
-    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
-  }],
-  [nodeOsModuleSpecifier, {
-    moduleSpecifier: nodeOsModuleSpecifier,
-    providerModuleId: nodeOsModuleSpecifier,
-    exports: nodeOsExports(),
-    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
-  }],
-  [nodeProcessModuleSpecifier, {
-    moduleSpecifier: nodeProcessModuleSpecifier,
-    providerModuleId: nodeProcessModuleSpecifier,
-    exports: nodeProcessExports(),
-    evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
-  }],
+const canonicalModules = new Map<string, readonly ProviderExportDeclaration[]>([
+  [nodeBufferModuleSpecifier, nodeBufferExports()],
+  [nodePathModuleSpecifier, nodePathExports()],
+  [nodeFsModuleSpecifier, nodeFsExports()],
+  [nodeCryptoModuleSpecifier, nodeCryptoExports()],
+  [nodeOsModuleSpecifier, nodeOsExports()],
+  [nodeProcessModuleSpecifier, nodeProcessExports()],
 ]);
 
 export function createCsharpNodejsSurfaceBindingProvider(): TargetBindingProvider {
   return {
     identity: csharpNodejsSurfaceProviderIdentity,
     ownsModule(specifier: string, _context: ProviderModuleContext): ProviderOwnership {
-      return supportedModules.has(specifier) ? { kind: "owned" } : { kind: "unowned" };
+      return isSupportedNodejsModuleSpecifier(specifier) ? { kind: "owned" } : { kind: "unowned" };
     },
     resolveModule(specifier: string, _context: ProviderModuleContext): ProviderModuleResolution | ExtensionDiagnostic {
-      if (!supportedModules.has(specifier)) {
+      const canonicalSpecifier = canonicalNodejsModuleSpecifier(specifier);
+      if (canonicalSpecifier === undefined) {
         return nodejsProviderDiagnostic("NODEJS_SURFACE_MODULE_UNOWNED", 9300001, `C# NodeJS surface provider does not own '${specifier}'.`);
       }
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
         virtualFileName: csharpNodejsVirtualDeclarationFileName(specifier),
-        providerModuleId: specifier,
+        providerModuleId: canonicalSpecifier,
         packageName: "node",
         evidence: [{ message: "C# NodeJS surface provider supplied virtual module." }],
       };
     },
     getDeclarationModel(module: ProviderModuleResolution): ProviderDeclarationModel | ExtensionDiagnostic {
-      return supportedModules.get(module.moduleSpecifier) ??
-        nodejsProviderDiagnostic("NODEJS_SURFACE_MODULE_MISSING", 9300002, `C# NodeJS surface provider has no declaration model for '${module.moduleSpecifier}'.`);
+      const canonicalSpecifier = canonicalNodejsModuleSpecifier(module.moduleSpecifier);
+      const exports = canonicalSpecifier === undefined ? undefined : canonicalModules.get(canonicalSpecifier);
+      return canonicalSpecifier === undefined || exports === undefined
+        ? nodejsProviderDiagnostic("NODEJS_SURFACE_MODULE_MISSING", 9300002, `C# NodeJS surface provider has no declaration model for '${module.moduleSpecifier}'.`)
+        : {
+            moduleSpecifier: module.moduleSpecifier,
+            providerModuleId: canonicalSpecifier,
+            exports,
+            evidence: [{ message: "C# NodeJS surface virtual declaration model." }],
+          };
     },
     getTargetIdentity(symbol: ProviderSymbolIdentity): TargetIdentity | undefined {
       return getNodejsTargetIdentity(symbol);

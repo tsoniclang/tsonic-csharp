@@ -14,9 +14,6 @@ import {
   createDotnetTargetBindingProvider,
 } from "../../providers/dotnet/index.js";
 import {
-  createCsharpCoreVirtualModulesProvider,
-} from "./core-virtual-modules.js";
-import {
   csharpTargetSemanticsExtensionId,
   csharpProviderVersion,
   csharpTargetId,
@@ -90,7 +87,6 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       target: csharpTargetId,
     },
     initialize(extensionContext): void {
-      extensionContext.registerTargetBindingProvider(createCsharpCoreVirtualModulesProvider());
       extensionContext.registerTargetBindingProvider(createDotnetTargetBindingProvider({
         provider: hosts.dotnetProvider,
         references: hosts.dotnetReflectionReferences,
@@ -102,7 +98,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       }));
       registerCsharpSelectedSurfaceProviders(context, extensionContext);
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(context, lifecycleContext);
+        recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(context, lifecycleContext, hosts);
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
         recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext);
         validateCsharpSourceFlowFactsBeforeFinalization(lifecycleContext);

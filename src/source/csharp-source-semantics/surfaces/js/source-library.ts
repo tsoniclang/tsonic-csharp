@@ -4,6 +4,7 @@ import type {
   ExtensionObservationContext,
   SourceFile,
   TargetMember,
+  TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../../../csharp-facts.js";
@@ -34,8 +35,11 @@ export {
 export {
   type CsharpTargetNamedTypeRef,
   csharpDelegateTargetType,
+  csharpEnumerableTargetType,
+  csharpListTargetType,
   csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
+  csharpReadOnlyListTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -76,6 +80,10 @@ export interface CsharpJsSurfaceHost {
       readonly receiver?: ExtensionFactSubject;
     },
     context: ExtensionObservationContext,
+    options?: {
+      readonly declaringTargetType?: TargetTypeRef;
+      readonly declaringTypeParameters?: readonly TargetTypeParameter[];
+    },
   ) => TargetMember | undefined;
   readonly getCsharpObjectShapeFactForSubject: (
     subject: ExtensionFactSubject | undefined,

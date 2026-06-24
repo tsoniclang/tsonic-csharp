@@ -1,8 +1,6 @@
 export {
   csharpLangModule,
   csharpTypesModule,
-  neutralLangModule,
-  neutralTypesModule,
 } from "./csharp-source-semantics/identity.js";
 export {
   createCsharpTargetSemanticsExtension,

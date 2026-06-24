@@ -1,16 +1,21 @@
 import {
   acceptObservation,
   rejectObservation,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
+  ExtensionFactSubject,
+  Node,
+  SourceFile,
   TargetMember,
 } from "@tsonic/tsts";
 import {
   getArrayTargetMembers,
+  getCsharpArrayLikeElementType,
 } from "./arrays.js";
 import {
   getMathTargetMembers,
@@ -31,8 +36,10 @@ import type {
   SourceLibraryMember,
 } from "./source-library.js";
 import {
+  csharpTargetOperationFromMember,
   csharpJsCheckedTypeQuery,
   getSourceLibraryMember,
+  recordCsharpTargetOperation,
 } from "./source-library.js";
 import {
   getStringTargetMembers,
@@ -41,6 +48,15 @@ import {
   rejectUnmappedCsharpJsSourceLibraryCall,
   rejectUnsupportedCsharpJsSourceLibraryCall,
 } from "./unsupported.js";
+import {
+  asNodeSubject,
+  getNodeField,
+  getNodeList,
+  visitAstReaderNodes,
+} from "../../ast-utils.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "../../runtime-carriers.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -66,27 +82,135 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' because the selected receiver lacks finalized target runtime facts.`));
   }
-  if (mathVariadicRuntimeRequiresAtLeastOneArgument(sourceMember) && request.arguments.length === 0) {
-    return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));
-  }
   if (candidates.length > 1 && request.sourceSelectedSignature === undefined) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE", 9100113, `C# JS surface call '${sourceMember.declaringName}.${sourceMember.memberName}' requires exact selected TypeScript library signature identity because the declaration maps to multiple target members.`));
   }
   const member = host.selectTargetMember(candidates, {
     arguments: request.arguments,
     receiver: request.calleeReceiver,
-  }, context);
+  }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
   if (member === undefined) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));
   }
+  recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# JS surface target call operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
   }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
 }
 
-function mathVariadicRuntimeRequiresAtLeastOneArgument(sourceMember: SourceLibraryMember): boolean {
-  return sourceMember.declaringName === "Math" &&
-    (sourceMember.memberName === "max" || sourceMember.memberName === "min");
+export function recordCsharpSourceLibraryCallFactsBeforeFinalization(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  host: CsharpJsSurfaceHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext) as unknown as ExtensionObservationContext<"operation.mapCheckedCall">;
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+      recordCsharpSourceLibraryCallFact(node, sourceFile, context, host);
+    });
+  }
+}
+
+function recordCsharpSourceLibraryCallFact(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): void {
+  const compiler = context.compiler;
+  if (
+    compiler === undefined ||
+    !compiler.ast.is.IsCallExpression(node) ||
+    context.host.facts.get(node, selectedTargetSignatureFactKey) !== undefined
+  ) {
+    return;
+  }
+  const callee = asNodeSubject(getNodeField(node, "Expression"));
+  if (callee === undefined) {
+    return;
+  }
+  const sourceSelectedSignature = compiler.checker.getResolvedSignature(node, { sourceFile }) as ExtensionFactSubject | undefined;
+  const sourceSelectedDeclaration = getSignatureDeclaration(sourceSelectedSignature);
+  if (getSourceLibraryMember(sourceSelectedDeclaration, context) === undefined) {
+    return;
+  }
+  const calleeReceiver = compiler.ast.is.IsPropertyAccessExpression(callee)
+    ? asNodeSubject(getNodeField(callee, "Expression"))
+    : undefined;
+  const calleeReceiverType = calleeReceiver === undefined
+    ? undefined
+    : compiler.checker.getTypeAtLocation(calleeReceiver, { sourceFile });
+  const sourceSelectedDeclarationContainer = getNodeParent(sourceSelectedDeclaration);
+  const mapped = mapCsharpSourceLibraryCheckedCall({
+    call: node,
+    callee,
+    ...(calleeReceiver !== undefined ? { calleeReceiver } : {}),
+    ...(calleeReceiverType !== undefined ? { calleeReceiverType } : {}),
+    ...(getPropertyAccessName(callee, compiler.ast) !== undefined ? { calleePropertyName: getPropertyAccessName(callee, compiler.ast) } : {}),
+    arguments: getNodeList(getNodeField(node, "Arguments")),
+    ...(sourceSelectedSignature !== undefined ? { sourceSelectedSignature } : {}),
+    ...(sourceSelectedDeclaration !== undefined ? { sourceSelectedDeclaration } : {}),
+    ...(sourceSelectedDeclarationContainer !== undefined ? { sourceSelectedDeclarationContainer } : {}),
+    ...(host.targetId !== undefined ? { target: host.targetId } : {}),
+  }, context, host);
+  if (mapped?.kind === "reject") {
+    context.diagnostics.append(mapped.diagnostic);
+    return;
+  }
+  if (mapped?.kind !== "accept") {
+    return;
+  }
+  context.host.facts.set(
+    node,
+    selectedTargetSignatureFactKey,
+    mapped.value.selectedSignature,
+    mapped.evidence ?? [{ message: "C# JS surface selected target signature recorded from checked TypeScript library call before finalization." }],
+  );
+}
+
+function getSignatureDeclaration(signature: ExtensionFactSubject | undefined): Node | undefined {
+  return asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
+}
+
+function getNodeParent(node: Node | undefined): Node | undefined {
+  return asNodeSubject((node as { readonly Parent?: unknown } | undefined)?.Parent);
+}
+
+function getPropertyAccessName(
+  node: Node,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+): string | undefined {
+  if (!ast.is.IsPropertyAccessExpression(node)) {
+    return undefined;
+  }
+  const name = asNodeSubject(getNodeField(node, "name"));
+  const text = name === undefined ? "" : ast.text(name);
+  return text.length === 0 ? undefined : text;
+}
+
+function sourceLibraryCallSelectionOptions(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): Parameters<CsharpJsSurfaceHost["selectTargetMember"]>[3] {
+  if (sourceMember.declaringName !== "Array" && sourceMember.declaringName !== "ReadonlyArray") {
+    return {};
+  }
+  const receiverType = getSourceLibraryCallReceiverTargetTypes(request, context, host)
+    .find((candidate) => getCsharpArrayLikeElementType(candidate) !== undefined);
+  return receiverType === undefined
+    ? {}
+    : {
+        declaringTargetType: receiverType,
+        declaringTypeParameters: [{ name: "T" }],
+      };
 }
 
 function sourceLibraryCallReceiverHasClosedFacts(
@@ -101,8 +225,10 @@ function sourceLibraryCallReceiverHasClosedFacts(
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
   switch (sourceMember.declaringName) {
     case "Array":
+      return sourceLibraryArrayStaticCallRequiresNoReceiver(sourceMember) ||
+        receiverTypes.some((receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined);
     case "ReadonlyArray":
-      return receiverTypes.some((receiverType) => receiverType.kind === "array");
+      return receiverTypes.some((receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined);
     case "String":
       return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType));
     case "RegExp":
@@ -112,6 +238,11 @@ function sourceLibraryCallReceiverHasClosedFacts(
     default:
       return true;
   }
+}
+
+function sourceLibraryArrayStaticCallRequiresNoReceiver(sourceMember: SourceLibraryMember): boolean {
+  return sourceMember.declaringName === "Array" &&
+    (sourceMember.memberName === "from" || sourceMember.memberName === "of" || sourceMember.memberName === "isArray");
 }
 
 function getSourceLibraryCallReceiverTargetTypes(
@@ -150,6 +281,7 @@ function getTargetTypeRefForOptionalSubject(
 function sourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMember): boolean {
   switch (sourceMember.declaringName) {
     case "Array":
+      return !sourceLibraryArrayStaticCallRequiresNoReceiver(sourceMember);
     case "ReadonlyArray":
       return true;
     case "String":

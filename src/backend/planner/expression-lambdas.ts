@@ -53,7 +53,7 @@ export function planArrowFunctionExpression(
     return {
       kind: "LambdaExpression",
       ...(isAsyncExpression(node) ? { async: true } : {}),
-      parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state),
+      parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, expectedType),
       body: {
         kind: "Block",
         statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics, state),
@@ -63,7 +63,7 @@ export function planArrowFunctionExpression(
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
-    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state),
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, expectedType),
     body: planExpression(expression.Body!, sourceFile, input, diagnostics),
   };
 }
@@ -81,7 +81,7 @@ export function planFunctionExpression(
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
-    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state),
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, expectedType),
     body: {
       kind: "Block",
       statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics, state),
@@ -95,10 +95,12 @@ export function planLambdaParameters(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
+  expectedType?: CsharpTypeNode,
 ): readonly CsharpLambdaParameter[] {
+  const expectedParameterTypes = getDelegateParameterTypes(expectedType);
   return parameterNodes
     .filter((parameterNode): parameterNode is Node => parameterNode !== undefined)
-    .map((parameterNode): CsharpLambdaParameter => {
+    .map((parameterNode, index): CsharpLambdaParameter => {
       const parameter = AsParameterDeclaration(parameterNode)!;
       diagnoseTypeScriptOnlyRuntimeShapeModifiers(parameterNode, "lambda parameter declaration", diagnostics);
       if (parameter.DotDotDotToken !== undefined) {
@@ -107,6 +109,10 @@ export function planLambdaParameters(
       if (!HasSourceKind(input.ast, parameter.name, KindIdentifier)) {
         diagnostics.push(unsupportedNodeDiagnostic(parameter.name ?? parameterNode, "Lambda parameter binding is outside the current C# planning surface."));
       }
+      const expectedParameterType = expectedParameterTypes[index];
+      const explicitParameterType = parameter.Type === undefined
+        ? undefined
+        : getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics);
       return {
         kind: "Parameter",
         name: HasSourceKind(input.ast, parameter.name, KindIdentifier) && state !== undefined
@@ -114,9 +120,32 @@ export function planLambdaParameters(
           : HasSourceKind(input.ast, parameter.name, KindIdentifier)
             ? requireCsharpIdentifier(Node_Text(parameter.name), diagnostics, "Lambda parameter")
             : "arg",
-        ...(parameter.Type === undefined ? {} : { type: getCsharpTypeForNode(parameter.Type, sourceFile, input, undefined, diagnostics) }),
+        ...(expectedParameterType !== undefined
+          ? { type: expectedParameterType }
+          : explicitParameterType === undefined
+            ? {}
+            : { type: explicitParameterType }),
       };
     });
+}
+
+function getDelegateParameterTypes(expectedType: CsharpTypeNode | undefined): readonly CsharpTypeNode[] {
+  const type = expectedType?.kind === "NullableType" ? expectedType.inner : expectedType;
+  if (type === undefined) {
+    return [];
+  }
+  const typeName = csharpTypeName(type);
+  const typeArguments = csharpTypeArguments(type);
+  if (typeName === "Action") {
+    return typeArguments;
+  }
+  if (typeName === "Func" && typeArguments.length > 0) {
+    return typeArguments.slice(0, -1);
+  }
+  if (typeName === "Predicate" && typeArguments.length === 1) {
+    return typeArguments;
+  }
+  return [];
 }
 
 export function diagnoseMissingLambdaTargetContext(
@@ -182,5 +211,15 @@ function csharpTypeName(type: CsharpTypeNode): string | undefined {
       return type.name;
     default:
       return undefined;
+  }
+}
+
+function csharpTypeArguments(type: CsharpTypeNode | undefined): readonly CsharpTypeNode[] {
+  switch (type?.kind) {
+    case "IdentifierName":
+    case "QualifiedName":
+      return type.typeArguments ?? [];
+    default:
+      return [];
   }
 }
