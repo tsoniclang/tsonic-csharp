@@ -61,6 +61,9 @@ import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../runtime-carriers.js";
 import {
+  getSymbolForDeclarationLookup,
+} from "../../symbol-utils.js";
+import {
   isCsharpRecordDictionaryTargetType,
 } from "../../dictionaries.js";
 import type {
@@ -164,6 +167,12 @@ function recordCsharpSourceLibraryCallFact(
   const calleeReceiver = compiler.ast.is.IsPropertyAccessExpression(callee)
     ? asNodeSubject(getNodeField(callee, "Expression"))
     : undefined;
+  const calleeReceiverSymbol = calleeReceiver === undefined
+    ? undefined
+    : getSymbolForDeclarationLookup(compiler.ast, compiler.checker, calleeReceiver, sourceFile);
+  const calleeReceiverResolvedSymbol = calleeReceiver === undefined
+    ? undefined
+    : compiler.checker.getResolvedSymbol(calleeReceiver, { sourceFile });
   const calleeReceiverType = calleeReceiver === undefined
     ? undefined
     : compiler.checker.getTypeAtLocation(calleeReceiver, { sourceFile });
@@ -172,6 +181,8 @@ function recordCsharpSourceLibraryCallFact(
     call: node,
     callee,
     ...(calleeReceiver !== undefined ? { calleeReceiver } : {}),
+    ...(calleeReceiverSymbol !== undefined ? { calleeReceiverSymbol } : {}),
+    ...(calleeReceiverResolvedSymbol !== undefined ? { calleeReceiverResolvedSymbol } : {}),
     ...(calleeReceiverType !== undefined ? { calleeReceiverType } : {}),
     ...(getPropertyAccessName(callee, compiler.ast) !== undefined ? { calleePropertyName: getPropertyAccessName(callee, compiler.ast) } : {}),
     arguments: getNodeList(getNodeField(node, "Arguments")),
@@ -397,10 +408,23 @@ function getSourceLibraryCallMembers(
       ];
     case "Array":
     case "ReadonlyArray":
-      return getArrayTargetMembers(sourceMember.memberName);
+      return getArrayTargetMembers(
+        sourceMember.memberName,
+        getSourceLibraryCallReceiverElementType(request, context, host),
+      );
     default:
       return [];
   }
+}
+
+function getSourceLibraryCallReceiverElementType(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  return getSourceLibraryCallReceiverTargetTypes(request, context, host)
+    .map(getCsharpArrayLikeElementType)
+    .find((element): element is TargetTypeRef => element !== undefined);
 }
 
 function getObjectRecordDictionaryCallMembers(

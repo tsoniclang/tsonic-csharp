@@ -506,7 +506,7 @@ export function withoutCsharpNullableReference(type: CsharpNullableReferenceTarg
   return baseType;
 }
 
-function isCsharpValueTypeTargetType(type: TargetTypeRef): boolean {
+export function isCsharpValueTypeTargetType(type: TargetTypeRef): boolean {
   if (type.kind === "source-primitive" || type.kind === "pointer" || type.kind === "function-pointer" || type.kind === "tuple") {
     return true;
   }

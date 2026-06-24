@@ -15,6 +15,7 @@ import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
   csharpJsCheckedTypeQuery,
   csharpListTargetType,
+  csharpNullableTargetType,
   csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
@@ -143,6 +144,8 @@ function getStringHelperReturnType(sourceName: string, stringType: TargetTypeRef
       return intType;
     case "charCodeAt":
       return doubleType;
+    case "at":
+      return csharpNullableTargetType(stringType);
     case "codePointAt":
       return csharpNullableValueTargetType(intType);
     case "split":

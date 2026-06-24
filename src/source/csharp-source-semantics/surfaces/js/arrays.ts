@@ -20,6 +20,7 @@ import {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
   csharpListTargetType,
+  csharpNullableTargetType,
   csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
   csharpReadOnlyListTargetType,
@@ -27,6 +28,7 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
+  isCsharpValueTypeTargetType,
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
   targetMethod,
@@ -140,8 +142,8 @@ function recordCsharpJsArrayElementAccessFact(
     : mapped.value.operation, mapped.evidence ?? [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);
 }
 
-export function getArrayTargetMembers(sourceName: string): readonly TargetMember[] {
-  const itemType: TargetTypeRef = { kind: "type-parameter", name: "T" };
+export function getArrayTargetMembers(sourceName: string, receiverElementType?: TargetTypeRef): readonly TargetMember[] {
+  const itemType: TargetTypeRef = receiverElementType ?? { kind: "type-parameter", name: "T" };
   const mappedItemType: TargetTypeRef = { kind: "type-parameter", name: "U" };
   const enumerableType: TargetTypeRef = csharpEnumerableTargetType(itemType);
   const readOnlyListType: TargetTypeRef = csharpReadOnlyListTargetType(itemType);
@@ -190,7 +192,9 @@ export function getArrayTargetMembers(sourceName: string): readonly TargetMember
         targetParameter("items", enumerableType, { paramsArray: true }),
       ], listType, arrayHelpersType)];
     case "at":
-      return [arrayHelperMethod(sourceName, "at", [targetParameter("array", readOnlyListType), targetParameter("index", intType)], itemType, arrayHelpersType)];
+      return receiverElementType === undefined
+        ? []
+        : arrayAtHelpers(sourceName, readOnlyListType, itemType, intType, arrayHelpersType);
     case "includes":
       return [arrayHelperMethod(sourceName, "includes", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], boolType, arrayHelpersType)];
     case "indexOf":
@@ -264,6 +268,32 @@ function arrayCallbackHelpers(
     targetParameter("array", arrayType),
     targetParameter("callback", callback),
   ], memberReturnType, declaringType, { idSuffix: `${sourceName}:${index + 1}`, typeParameters: options.typeParameters }));
+}
+
+function arrayAtHelpers(
+  sourceName: string,
+  arrayType: TargetTypeRef,
+  itemType: TargetTypeRef,
+  intType: TargetTypeRef,
+  declaringType: TargetTypeRef,
+): readonly TargetMember[] {
+  if (isCsharpValueTypeTargetType(itemType)) {
+    return [arrayHelperMethod(sourceName, "atValue", [
+      targetParameter("array", arrayType),
+      targetParameter("index", intType),
+    ], csharpNullableTargetType(itemType), declaringType, {
+      idSuffix: `${sourceName}:value`,
+    })];
+  }
+  if (itemType.kind === "type-parameter") {
+    return [];
+  }
+  return [arrayHelperMethod(sourceName, "atReference", [
+    targetParameter("array", arrayType),
+    targetParameter("index", intType),
+  ], csharpNullableTargetType(itemType), declaringType, {
+    idSuffix: `${sourceName}:reference`,
+  })];
 }
 
 function arrayStaticMethod(
