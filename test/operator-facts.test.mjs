@@ -1,10 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { planExpression } from "../dist/backend/planner/expressions.js";
-import { KindBigIntLiteral, KindIdentifier, KindPrefixUnaryExpression } from "../dist/backend/planner/source-ast.js";
+import {
+  KindArrayLiteralExpression,
+  KindBigIntLiteral,
+  KindIdentifier,
+  KindNoSubstitutionTemplateLiteral,
+  KindPrefixUnaryExpression,
+  KindRegularExpressionLiteral,
+  KindTemplateExpression,
+} from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
-import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { csharpBigIntegerTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpRegularExpressionLiteralFactKey,
+  csharpTargetOperationFactKey,
+} from "../dist/source/csharp-facts.js";
+import {
+  csharpBigIntegerTargetType,
+  csharpQualifiedTypeRenderShape,
+  csharpStringTargetType,
+  csharpTargetNamedType,
+} from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("binary expression emission requires selected target operator fact even for source primitives", () => {
   const left = identifier("left");
@@ -74,6 +90,35 @@ test("assignment expression emission uses canonical assignment AST", () => {
   assert.equal(output.kind, "AssignmentExpression");
   assert.deepEqual(output.operatorToken, { kind: "EqualsToken" });
   assert.equal(printCsharpExpression(output), "left = right");
+});
+
+test("destructuring assignment fails closed without finalized storage facts", () => {
+  const left = {
+    Kind: KindArrayLiteralExpression,
+    Elements: { Nodes: [identifier("first")] },
+  };
+  const right = identifier("source");
+  const expression = binary(left, right);
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.assign",
+      operationKind: "operator",
+      targetOperation: "=",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.assign",
+      operator: "=",
+    },
+  }), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
 });
 
 test("operator token facts must map to supported Roslyn tokens", () => {
@@ -153,6 +198,90 @@ test("bigint literal emission uses finalized BigInteger carrier and Roslyn AST",
   assert.equal(printCsharpExpression(output), 'System.Numerics.BigInteger.Parse("1000")');
 });
 
+test("RegExp literal emission requires finalized runtime carrier facts", () => {
+  const expression = {
+    Kind: KindRegularExpressionLiteral,
+    Text: "/value/g",
+  };
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    regexpLiteralSubject: expression,
+    regexpLiteral: { pattern: "value", flags: "g" },
+  }), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /RegExp literal emission requires a finalized JS surface RegExp runtime carrier fact/);
+});
+
+test("RegExp literal emission uses finalized RegExp carrier and constructor operation facts", () => {
+  const expression = {
+    Kind: KindRegularExpressionLiteral,
+    Text: "/value/g",
+  };
+  const regExpType = csharpTargetNamedType("Tsonic.CSharp.Js.RegExp", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExp"));
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    regexpLiteralSubject: expression,
+    regexpLiteral: { pattern: "value", flags: "g" },
+    runtimeCarrierSubject: expression,
+    runtimeCarrier: { carrier: regExpType },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "member",
+      operationId: "tsonic.csharp.js.regexp.literal.constructor",
+      operationKind: "constructor",
+      memberName: "RegExp",
+      declaringType: regExpType,
+      resultType: regExpType,
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), 'new Tsonic.CSharp.Js.RegExp("value", "g")');
+});
+
+test("template expression emission requires finalized string carrier facts", () => {
+  const expression = templateExpression("hello ", identifier("name"), "!");
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput(), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Template string emission requires a finalized target string runtime carrier fact/);
+});
+
+test("template expression emission uses finalized string carrier facts and Roslyn interpolated string AST", () => {
+  const expression = templateExpression("hello ", identifier("name"), "!");
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    runtimeCarrierSubject: expression,
+    runtimeCarrier: { carrier: csharpStringTargetType() },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "InterpolatedStringExpression");
+  assert.equal(printCsharpExpression(output), '$"hello {name}!"');
+});
+
+test("no-substitution template literal requires finalized string carrier facts", () => {
+  const expression = {
+    Kind: KindNoSubstitutionTemplateLiteral,
+    Text: "plain",
+  };
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput(), diagnostics);
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /No-substitution template literal emission requires a finalized target string runtime carrier fact/);
+});
+
 function binary(left, right) {
   return {
     Kind: "KindBinaryExpression",
@@ -166,6 +295,19 @@ function identifier(name) {
   return {
     Kind: KindIdentifier,
     Text: name,
+  };
+}
+
+function templateExpression(head, expression, tail) {
+  return {
+    Kind: KindTemplateExpression,
+    Head: { Text: head },
+    TemplateSpans: {
+      Nodes: [{
+        Expression: expression,
+        Literal: { Text: tail },
+      }],
+    },
   };
 }
 
@@ -199,7 +341,15 @@ function fakeInput(options = {}) {
       getSourcePrimitiveFact: (subject) => subject === options.sourcePrimitiveSubject
         ? { kind: "int32", runtimeBase: "number", signed: true, width: 32 }
         : undefined,
-      getFact: (subject, key) => subject === options.csharpOperationSubject && key === csharpTargetOperationFactKey ? options.csharpOperation : undefined,
+      getFact: (subject, key) => {
+        if (subject === options.csharpOperationSubject && key === csharpTargetOperationFactKey) {
+          return options.csharpOperation;
+        }
+        if (subject === options.regexpLiteralSubject && key === csharpRegularExpressionLiteralFactKey) {
+          return options.regexpLiteral;
+        }
+        return undefined;
+      },
       getTargetIterationFact: () => undefined,
       getValueTypeFact: () => undefined,
       getFieldFact: () => undefined,

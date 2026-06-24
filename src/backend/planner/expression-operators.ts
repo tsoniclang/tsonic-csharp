@@ -2,9 +2,11 @@ import {
   AsBinaryExpression,
   AsIdentifier,
   HasSourceKind,
+  KindArrayLiteralExpression,
   KindBinaryExpression,
   KindIdentifier,
   KindNullKeyword,
+  KindObjectLiteralExpression,
   KindVoidExpression,
   Node_Text,
   SourceKind,
@@ -94,6 +96,10 @@ export function tryPlanBinaryExpression(
     return invalidExpression("unsupported C# operator token");
   }
   if (assignmentOperatorToken !== undefined) {
+    if (isDestructuringAssignmentTarget(left, input)) {
+      diagnostics.push(unsupportedNodeDiagnostic(left ?? node, "Destructuring assignment emission requires finalized target storage and extraction facts before C# emission."));
+      return invalidExpression("destructuring assignment without target storage facts");
+    }
     return {
       kind: "AssignmentExpression",
       left: planExpression(left!, sourceFile, input, diagnostics),
@@ -206,6 +212,14 @@ function planBinaryOperand(
   return isNullishEqualityOperand(operand, operatorToken, sourceFile, input)
     ? { kind: "LiteralExpression", value: null }
     : planExpression(operand, sourceFile, input, diagnostics);
+}
+
+function isDestructuringAssignmentTarget(
+  node: Node | undefined,
+  input: TargetCompileInput,
+): boolean {
+  return HasSourceKind(input.ast, node, KindArrayLiteralExpression) ||
+    HasSourceKind(input.ast, node, KindObjectLiteralExpression);
 }
 
 function isNullishEqualityOperand(

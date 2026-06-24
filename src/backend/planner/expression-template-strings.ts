@@ -12,6 +12,9 @@ import {
 import type {
   ExpressionPlanner,
 } from "./expression-call-arguments.js";
+import {
+  requireCsharpStringRuntimeCarrier,
+} from "./expression-literal-carriers.js";
 
 export function planTemplateExpression(
   node: Node,
@@ -20,6 +23,9 @@ export function planTemplateExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression {
+  if (!requireCsharpStringRuntimeCarrier(node, sourceFile, input, diagnostics, "Template string emission")) {
+    return { kind: "InvalidExpression", reason: "template string without target string carrier" };
+  }
   const expression = AsTemplateExpression(node)!;
   const parts: CsharpInterpolatedStringPart[] = [
     { kind: "InterpolatedStringText", text: Node_Text(expression.Head) },

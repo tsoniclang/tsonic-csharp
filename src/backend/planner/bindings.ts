@@ -83,10 +83,11 @@ export function planParameterBindingPrelude(
     return [];
   }
   const parameter = AsParameterDeclaration(getNodeParent(bindingName));
+  const bindingSource = parameter ?? bindingName;
   return planBindingPatternFromExpression(
     bindingName,
     { kind: "IdentifierName", name: parameterName },
-    parameter?.Type,
+    bindingSource,
     sourceFile,
     input,
     diagnostics,

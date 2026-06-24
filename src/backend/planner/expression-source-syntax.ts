@@ -45,6 +45,9 @@ import {
   csharpBigIntegerTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
+  requireCsharpStringRuntimeCarrier,
+} from "./expression-literal-carriers.js";
+import {
   csharpTypeFromTargetTypeRef,
   targetTypeRefsMatch,
 } from "./target-types.js";
@@ -60,6 +63,9 @@ export function tryPlanSourceSyntaxExpression(
     case KindStringLiteral:
       return { kind: "LiteralExpression", value: Node_Text(AsStringLiteral(node)) };
     case KindNoSubstitutionTemplateLiteral:
+      if (!requireCsharpStringRuntimeCarrier(node, sourceFile, input, diagnostics, "No-substitution template literal emission")) {
+        return invalidExpression("template literal without target string carrier");
+      }
       return { kind: "LiteralExpression", value: Node_Text(AsNoSubstitutionTemplateLiteral(node)) };
     case KindNumericLiteral: {
       const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
