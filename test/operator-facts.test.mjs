@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planExpression } from "../dist/backend/planner/expressions.js";
+import { planExpression, planExpressionWithExpectedType } from "../dist/backend/planner/expressions.js";
 import {
   KindArrayLiteralExpression,
   KindAwaitExpression,
@@ -123,6 +123,88 @@ test("destructuring assignment fails closed without finalized storage facts", ()
   assert.equal(output.kind, "InvalidExpression");
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
+});
+
+test("nullish coalescing expected-type emission consumes finalized operator result facts", () => {
+  const left = identifier("maybeValue");
+  const right = identifier("fallbackValue");
+  const expression = binary(left, right, "KindQuestionQuestionToken");
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.??",
+      operationKind: "operator",
+      targetOperation: "??",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.??",
+      operator: "??",
+      resultType: intType,
+    },
+  }), diagnostics, { kind: "PredefinedType", name: "int" });
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), "maybeValue ?? fallbackValue");
+});
+
+test("nullish coalescing expected-type emission fails closed without finalized result type", () => {
+  const left = identifier("maybeValue");
+  const right = identifier("fallbackValue");
+  const expression = binary(left, right, "KindQuestionQuestionToken");
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.??",
+      operationKind: "operator",
+      targetOperation: "??",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.??",
+      operator: "??",
+    },
+  }), diagnostics, { kind: "PredefinedType", name: "int" });
+
+  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a finalized operator result target type/);
+});
+
+test("nullish equality emission maps checked undefined operands to C# null", () => {
+  const left = identifier("value");
+  const right = identifier("undefined");
+  const expression = binary(left, right, "KindEqualsEqualsToken");
+  const nullishType = { kind: "nullish-type" };
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.==",
+      operationKind: "operator",
+      targetOperation: "==",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.==",
+      operator: "==",
+      resultType: csharpSourcePrimitiveTargetType("bool"),
+    },
+    typeAtLocations: new Map([[right, nullishType]]),
+    nullishTypes: new Set([nullishType]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), "value == null");
 });
 
 test("operator token facts must map to supported Roslyn tokens", () => {
@@ -353,12 +435,12 @@ test("await expression statement allows finalized non-generic Task carrier", () 
   assert.equal(printCsharpExpression(output), "await task");
 });
 
-function binary(left, right) {
+function binary(left, right, operatorKind = "KindPlusToken") {
   return {
     Kind: "KindBinaryExpression",
     Left: left,
     Right: right,
-    OperatorToken: { Kind: "KindPlusToken" },
+    OperatorToken: { Kind: operatorKind },
   };
 }
 
@@ -446,7 +528,7 @@ function fakeInput(options = {}) {
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
-      getTypeAtLocation: () => options.typeAtLocation,
+      getTypeAtLocation: (subject) => options.typeAtLocations?.get(subject) ?? options.typeAtLocation,
       getTypeFromTypeNode: () => options.typeAtLocation,
       describeTypeAtLocation: () => undefined,
     },
@@ -462,7 +544,7 @@ function fakeInput(options = {}) {
       isTuple: () => false,
       isArrayLike: () => false,
       isTypeReference: () => false,
-      isNullish: () => false,
+      isNullish: (type) => options.nullishTypes?.has(type) === true,
       getCallSignatures: () => [],
       getReturnTypeOfSignature: () => undefined,
       getUnionOrIntersectionTypes: () => [],
