@@ -4,6 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpQualifiedTypeRenderShape,
+  csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
   targetMethod,
@@ -19,8 +20,16 @@ export function getObjectTargetMembers(sourceName: string): readonly TargetMembe
   return member === undefined ? [] : [member];
 }
 
+export function hasObjectTargetMember(sourceName: string): boolean {
+  return objectTargetMembers.has(sourceName);
+}
+
 export function csharpJsObjectCarrierTargetType(): TargetTypeRef {
   return jsObjectCarrierType;
+}
+
+export function isCsharpJsObjectCarrierTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && type.id === jsObjectCarrierType.id;
 }
 
 function objectRuntimeMethod(
@@ -35,8 +44,21 @@ function objectRuntimeMethod(
   });
 }
 
+function jsObjectInstanceMethod(
+  sourceName: string,
+  parameters: readonly ReturnType<typeof targetParameter>[],
+  returnType: TargetTypeRef,
+): TargetMember {
+  return targetMethod(`Tsonic.CSharp.Js.JSObject.${sourceName}`, sourceName, sourceName, parameters, returnType, {
+    declaringType: jsObjectCarrierType,
+  });
+}
+
 const objectTargetMembers = new Map<string, TargetMember>([
   ["keys", objectRuntimeMethod("keys", { kind: "array", element: csharpStringTargetType() })],
   ["values", objectRuntimeMethod("values", { kind: "array", element: objectTargetType })],
   ["entries", objectRuntimeMethod("entries", { kind: "array", element: { kind: "tuple", elements: [csharpStringTargetType(), objectTargetType] } })],
+  ["hasOwnProperty", jsObjectInstanceMethod("hasOwnProperty", [
+    targetParameter("key", csharpStringTargetType()),
+  ], csharpSourcePrimitiveTargetType("bool"))],
 ]);

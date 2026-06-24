@@ -25,6 +25,9 @@ import {
   getMathPropertyTargetMember,
 } from "./math.js";
 import {
+  hasObjectTargetMember,
+} from "./objects.js";
+import {
   isCsharpJsRegExpRuntimeCarrier,
   getRegExpPropertyTargetMember,
 } from "./regexp.js";
@@ -51,8 +54,13 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (sourceMember === undefined) {
     return undefined;
   }
-  if (sourceMember.declaringName === "Console" || sourceMember.declaringName === "Object") {
+  if (sourceMember.declaringName === "Console") {
     return undefined;
+  }
+  if (sourceMember.declaringName === "Object") {
+    return hasObjectTargetMember(sourceMember.memberName)
+      ? undefined
+      : rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }
   const unsupported = rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   if (unsupported !== undefined) {

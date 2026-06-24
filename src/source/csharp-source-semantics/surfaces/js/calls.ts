@@ -17,18 +17,21 @@ import {
 } from "./math.js";
 import {
   getObjectTargetMembers,
+  isCsharpJsObjectCarrierTargetType,
 } from "./objects.js";
 import {
   mapCsharpJsConsoleCheckedCall,
 } from "./console.js";
 import {
   getRegExpTargetMembers,
+  isCsharpJsRegExpRuntimeCarrier,
 } from "./regexp.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
 } from "./source-library.js";
 import {
+  csharpJsCheckedTypeQuery,
   getSourceLibraryMember,
 } from "./source-library.js";
 import {
@@ -60,6 +63,9 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (candidates.length === 0) {
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
+  if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
+    return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' because the selected receiver lacks finalized target runtime facts.`));
+  }
   if (mathVariadicRuntimeRequiresAtLeastOneArgument(sourceMember) && request.arguments.length === 0) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' to a unique target member from finalized argument facts.`));
   }
@@ -81,6 +87,49 @@ export function mapCsharpSourceLibraryCheckedCall(
 function mathVariadicRuntimeRequiresAtLeastOneArgument(sourceMember: SourceLibraryMember): boolean {
   return sourceMember.declaringName === "Math" &&
     (sourceMember.memberName === "max" || sourceMember.memberName === "min");
+}
+
+function sourceLibraryCallReceiverHasClosedFacts(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  if (!sourceLibraryCallRequiresClosedReceiver(sourceMember)) {
+    return true;
+  }
+  const receiverType = host.unwrapNullableTargetType(
+    host.getTargetTypeRefForSubject(request.calleeReceiver, context, csharpJsCheckedTypeQuery),
+  );
+  switch (sourceMember.declaringName) {
+    case "Array":
+    case "ReadonlyArray":
+      return receiverType?.kind === "array";
+    case "String":
+      return host.isCsharpStringType(receiverType);
+    case "RegExp":
+      return isCsharpJsRegExpRuntimeCarrier(receiverType);
+    case "Object":
+      return isCsharpJsObjectCarrierTargetType(receiverType);
+    default:
+      return true;
+  }
+}
+
+function sourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMember): boolean {
+  switch (sourceMember.declaringName) {
+    case "Array":
+    case "ReadonlyArray":
+      return true;
+    case "String":
+      return sourceMember.memberName !== "fromCharCode" && sourceMember.memberName !== "fromCodePoint";
+    case "RegExp":
+      return sourceMember.memberName !== "constructor";
+    case "Object":
+      return sourceMember.memberName === "hasOwnProperty";
+    default:
+      return false;
+  }
 }
 
 function getSourceLibraryCallMembers(sourceMember: SourceLibraryMember): readonly TargetMember[] {

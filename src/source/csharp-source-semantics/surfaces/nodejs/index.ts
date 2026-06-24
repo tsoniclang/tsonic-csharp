@@ -21,6 +21,9 @@ import {
   getNodejsCheckedCallDeclaration,
   getNodejsCheckedPropertyDeclaration,
 } from "./declarations.js";
+import type {
+  NodejsProviderDeclarationIdentity,
+} from "./identity.js";
 import {
   getCsharpNodejsStaticPropertyOperation,
   getNodejsCallTargetMember,
@@ -62,7 +65,7 @@ export function createCsharpNodejsSurfaceMappers(extensionId: string): CsharpNod
       }
       const member = getNodejsCallTargetMember(declaration);
       if (member === undefined) {
-        return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_CALL_NOT_MAPPED", 9100200, `C# NodeJS surface could not map checked '${declaration.moduleSpecifier}' export '${declaration.exportName}' to a target member.`));
+        return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_CALL_NOT_MAPPED", 9100200, `C# NodeJS surface could not map checked ${formatNodejsDeclarationIdentity(declaration)} to a target member.`));
       }
       return acceptObservation<CheckedCallMappingResult>({
         selectedSignature: { member },
@@ -78,7 +81,7 @@ export function createCsharpNodejsSurfaceMappers(extensionId: string): CsharpNod
       }
       const operation = getCsharpNodejsStaticPropertyOperation(declaration);
       if (operation === undefined) {
-        return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_PROPERTY_NOT_MAPPED", 9100201, `C# NodeJS surface could not map checked '${declaration.moduleSpecifier}' export '${declaration.exportName}' to a target property.`));
+        return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_PROPERTY_NOT_MAPPED", 9100201, `C# NodeJS surface could not map checked ${formatNodejsDeclarationIdentity(declaration)} to a target property.`));
       }
       recordCsharpTargetOperation(context, request.expression, operation.csharpOperation, [{ message: `C# NodeJS surface static property operation recorded from checked provider module '${declaration.moduleSpecifier}'.` }]);
       return acceptObservation<CheckedOperationMappingResult>({
@@ -86,4 +89,11 @@ export function createCsharpNodejsSurfaceMappers(extensionId: string): CsharpNod
       }, [{ message: `C# NodeJS surface target property selected from checked provider module '${declaration.moduleSpecifier}'.` }]);
     },
   };
+}
+
+function formatNodejsDeclarationIdentity(declaration: NodejsProviderDeclarationIdentity): string {
+  const exportName = declaration.exportName === undefined ? "<module>" : declaration.exportName;
+  const member = declaration.memberName === undefined ? "" : ` member '${declaration.memberName}'`;
+  const signature = declaration.signatureId === undefined ? "" : ` signature '${declaration.signatureId}'`;
+  return `'${declaration.moduleSpecifier}' export '${exportName}'${member}${signature}`;
 }
