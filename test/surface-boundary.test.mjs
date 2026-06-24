@@ -261,6 +261,48 @@ test("JS surface maps Object.keys from selected standard-library declaration and
   assert.equal(result.value.selectedSignature.member.returnType.element.id, "System.String");
 });
 
+test("JS surface maps Object.values from selected standard-library declaration and closed JSObject carrier", () => {
+  const call = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, jsObjectType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "values"), {
+    arguments: [value],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.values");
+  assert.equal(result.value.selectedSignature.member.static, true);
+  assert.equal(result.value.selectedSignature.member.returnType.kind, "array");
+  assert.equal(result.value.selectedSignature.member.returnType.element.id, "System.Object");
+});
+
+test("JS surface maps Object.entries from selected standard-library declaration and closed JSObject carrier", () => {
+  const call = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, jsObjectType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "entries"), {
+    arguments: [value],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.entries");
+  assert.equal(result.value.selectedSignature.member.static, true);
+  assert.equal(result.value.selectedSignature.member.returnType.kind, "array");
+  assert.equal(result.value.selectedSignature.member.returnType.element.kind, "tuple");
+  assert.equal(result.value.selectedSignature.member.returnType.element.elements[0].id, "System.String");
+  assert.equal(result.value.selectedSignature.member.returnType.element.elements[1].id, "System.Object");
+});
+
 test("JS surface does not map console or Object calls without selected declarations", () => {
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
