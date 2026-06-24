@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TargetBindingFact } from "@tsonic/tsts";
 import type {
@@ -29,6 +29,7 @@ export interface DotnetReflectionTypeDataProviderOptions {
   readonly referenceDirectory?: string;
   readonly references?: readonly string[];
   readonly targetFramework?: string;
+  readonly toolBuildRoot?: string;
 }
 
 export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider {
@@ -43,6 +44,7 @@ const providerIdentity: DotnetProviderIdentity = {
   displayName: "Tsonic C# .NET reflection provider",
 };
 const supportedTargetFramework = "net10.0";
+let nextProviderToolRunId = 1;
 
 interface DotnetProviderToolResult {
   readonly status: number | null;
@@ -56,6 +58,7 @@ export function createDotnetReflectionTypeDataProvider(
   const modules = new Map<string, DotnetModuleModel>();
   const diagnostics = new Map<string, DotnetProviderDiagnostic>();
   const toolProjectPath = options.toolProjectPath ?? defaultToolProjectPath();
+  const toolBuildRoot = options.toolBuildRoot ?? defaultToolBuildRoot(nextDotnetProviderToolRunId());
   let allModulesLoaded = false;
 
   function loadModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
@@ -87,6 +90,8 @@ export function createDotnetReflectionTypeDataProvider(
       "run",
       "--project",
       toolProjectPath,
+      `-p:BaseIntermediateOutputPath=${join(toolBuildRoot, "obj/")}`,
+      `-p:BaseOutputPath=${join(toolBuildRoot, "bin/")}`,
       "--",
       "--namespace",
       namespaceName,
@@ -135,6 +140,8 @@ export function createDotnetReflectionTypeDataProvider(
       "run",
       "--project",
       toolProjectPath,
+      `-p:BaseIntermediateOutputPath=${join(toolBuildRoot, "obj/")}`,
+      `-p:BaseOutputPath=${join(toolBuildRoot, "bin/")}`,
       "--",
       "--all-modules",
       "--module-specifier-prefix",
@@ -308,4 +315,14 @@ function diagnostic(
 
 function defaultToolProjectPath(): string {
   return resolve(dirname(fileURLToPath(import.meta.url)), "../../../../tools/dotnet-type-provider/DotnetTypeProvider.csproj");
+}
+
+function defaultToolBuildRoot(runId: string): string {
+  return resolve(dirname(fileURLToPath(import.meta.url)), "../../../../.temp/dotnet-type-provider", runId);
+}
+
+function nextDotnetProviderToolRunId(): string {
+  const id = nextProviderToolRunId;
+  nextProviderToolRunId += 1;
+  return `${process.pid}-${id}`;
 }
