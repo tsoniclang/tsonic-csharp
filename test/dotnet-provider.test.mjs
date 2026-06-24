@@ -1747,6 +1747,141 @@ test(".NET reflection provider signature ids preserve byref modes and generic me
   assert.ok(binding.members.some((member) => idEndsWith(member.id, "ProviderSignatureFixtures.SignatureTarget.Generic``2()")));
 });
 
+test(".NET reflection provider preserves selected parameter-mode facts per signature identity", () => {
+  const reference = buildSignatureIdentityFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderSignatureFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const optionalDefaultsId =
+    "ProviderSignatureFixtures.ParameterModeTarget.OptionalDefaults(System.String,System.Int32,ProviderSignatureFixtures.SignatureMode,System.String)";
+  const paramsRestId = "ProviderSignatureFixtures.ParameterModeTarget.ParamsRest(System.String,System.Int32[])";
+  const byRefModesId =
+    "ProviderSignatureFixtures.ParameterModeTarget.ByRefModes(ref System.Int32,out System.Boolean,in System.Int64)";
+
+  const rawTarget = module.exports.find((declaration) => declaration.sourceName === "ParameterModeTarget");
+  assert.ok(rawTarget);
+  const rawOptionalDefaults = methodSignature(rawTarget, "OptionalDefaults", optionalDefaultsId);
+  const rawParamsRest = methodSignature(rawTarget, "ParamsRest", paramsRestId);
+  const rawByRefModes = methodSignature(rawTarget, "ByRefModes", byRefModesId);
+
+  assert.equal(stripAssemblyQualifiers(rawOptionalDefaults.id), optionalDefaultsId);
+  assert.deepEqual(parameterFacts(rawOptionalDefaults.parameters), [
+    { name: "required", type: { kind: "string" }, passingMode: "by-value" },
+    {
+      name: "count",
+      type: { kind: "source-primitive", name: "int32" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "source-primitive", name: "int32", value: "7" },
+    },
+    {
+      name: "mode",
+      type: { kind: "named", metadataName: "ProviderSignatureFixtures.SignatureMode" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "enum", value: "2", fieldName: "Enabled" },
+    },
+    {
+      name: "label",
+      type: { kind: "string" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "null" },
+    },
+  ]);
+  assert.equal(stripAssemblyQualifiers(rawParamsRest.id), paramsRestId);
+  assert.deepEqual(parameterFacts(rawParamsRest.parameters), [
+    { name: "label", type: { kind: "string" }, passingMode: "by-value" },
+    {
+      name: "values",
+      type: { kind: "array", element: { kind: "source-primitive", name: "int32" } },
+      passingMode: "by-value",
+      rest: true,
+    },
+  ]);
+  assert.equal(stripAssemblyQualifiers(rawByRefModes.id), byRefModesId);
+  assert.deepEqual(parameterFacts(rawByRefModes.parameters), [
+    { name: "current", type: { kind: "source-primitive", name: "int32" }, passingMode: "byref-readwrite" },
+    { name: "assigned", type: { kind: "source-primitive", name: "bool" }, passingMode: "byref-writeonly-must-init" },
+    { name: "snapshot", type: { kind: "source-primitive", name: "int64" }, passingMode: "byref-readonly" },
+  ]);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "ParameterModeTarget");
+  assert.ok(sourceTarget);
+  const sourceOptionalDefaults = methodSignature(sourceTarget, "optionalDefaults", optionalDefaultsId);
+  const sourceParamsRest = methodSignature(sourceTarget, "paramsRest", paramsRestId);
+  const sourceByRefModes = methodSignature(sourceTarget, "byRefModes", byRefModesId);
+  assert.equal(sourceOptionalDefaults.name, "OptionalDefaults");
+  assert.deepEqual(parameterFacts(sourceOptionalDefaults.parameters), [
+    { name: "required", type: { kind: "string" } },
+    { name: "count", type: { kind: "source-primitive", name: "int32" }, optional: true },
+    { name: "mode", type: { kind: "target-named", id: "ProviderSignatureFixtures.SignatureMode" }, optional: true },
+    { name: "label", type: { kind: "string" }, optional: true },
+  ]);
+  assert.equal(sourceParamsRest.name, "ParamsRest");
+  assert.deepEqual(parameterFacts(sourceParamsRest.parameters), [
+    { name: "label", type: { kind: "string" } },
+    { name: "values", type: { kind: "array", element: { kind: "source-primitive", name: "int32" } }, rest: true },
+  ]);
+  assert.equal(sourceByRefModes.name, "ByRefModes");
+  assert.deepEqual(parameterFacts(sourceByRefModes.parameters), [
+    { name: "current", type: { kind: "source-primitive", name: "int32" }, passingMode: "byref-readwrite" },
+    { name: "assigned", type: { kind: "source-primitive", name: "bool" }, passingMode: "byref-writeonly-must-init" },
+    { name: "snapshot", type: { kind: "source-primitive", name: "int64" }, passingMode: "byref-readonly" },
+  ]);
+
+  const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderSignatureFixtures.js", "ProviderSignatureFixtures.ParameterModeTarget");
+  const targetOptionalDefaults = findByIdSuffix(binding.members, optionalDefaultsId);
+  const targetParamsRest = findByIdSuffix(binding.members, paramsRestId);
+  const targetByRefModes = findByIdSuffix(binding.members, byRefModesId);
+  assert.ok(targetOptionalDefaults);
+  assert.ok(targetParamsRest);
+  assert.ok(targetByRefModes);
+  assert.equal(stripAssemblyQualifiers(targetOptionalDefaults.overloadGroup), "ProviderSignatureFixtures.ParameterModeTarget.OptionalDefaults");
+  assert.deepEqual(parameterFacts(targetOptionalDefaults.parameters), [
+    { name: "required", type: { kind: "target-named", id: "System.String" }, passingMode: "by-value" },
+    {
+      name: "count",
+      type: { kind: "source-primitive", name: "int32" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "source-primitive", name: "int32", value: "7" },
+    },
+    {
+      name: "mode",
+      type: { kind: "target-named", id: "ProviderSignatureFixtures.SignatureMode" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "enum", value: "2", fieldName: "Enabled" },
+    },
+    {
+      name: "label",
+      type: { kind: "target-named", id: "System.String" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "null" },
+    },
+  ]);
+  assert.equal(stripAssemblyQualifiers(targetParamsRest.overloadGroup), "ProviderSignatureFixtures.ParameterModeTarget.ParamsRest");
+  assert.deepEqual(parameterFacts(targetParamsRest.parameters), [
+    { name: "label", type: { kind: "target-named", id: "System.String" }, passingMode: "by-value" },
+    {
+      name: "values",
+      type: { kind: "array", element: { kind: "source-primitive", name: "int32" } },
+      passingMode: "by-value",
+      paramsArray: true,
+    },
+  ]);
+  assert.equal(stripAssemblyQualifiers(targetByRefModes.overloadGroup), "ProviderSignatureFixtures.ParameterModeTarget.ByRefModes");
+  assert.deepEqual(parameterFacts(targetByRefModes.parameters), [
+    { name: "current", type: { kind: "source-primitive", name: "int32" }, passingMode: "byref-readwrite" },
+    { name: "assigned", type: { kind: "source-primitive", name: "bool" }, passingMode: "byref-writeonly-must-init" },
+    { name: "snapshot", type: { kind: "source-primitive", name: "int64" }, passingMode: "byref-readonly" },
+  ]);
+});
+
 test(".NET reflection provider preserves extension receiver passing per selected signature identity", () => {
   const reference = buildSignatureIdentityFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
@@ -2085,6 +2220,60 @@ function constructorSignature(declaration, signatureId) {
     .find((candidate) => idEndsWith(candidate.id, signatureId));
   assert.ok(signature, `constructor signature ${signatureId}`);
   return signature;
+}
+
+function methodSignature(declaration, memberName, signatureId) {
+  const member = declaration.members?.find((candidate) =>
+    candidate.kind === "method" &&
+    (candidate.targetName === memberName || candidate.name === memberName || candidate.sourceName === memberName) &&
+    candidate.signatures?.some((signature) => idEndsWith(signature.id, signatureId))
+  );
+  assert.ok(member, `method ${memberName}`);
+  const signature = member.signatures.find((candidate) => idEndsWith(candidate.id, signatureId));
+  assert.ok(signature, `method signature ${signatureId}`);
+  return signature;
+}
+
+function parameterFacts(parameters) {
+  return parameters.map((parameter) => ({
+    name: parameter.name,
+    type: typeFact(parameter.type),
+    ...(parameter.passingMode !== undefined ? { passingMode: parameter.passingMode } : {}),
+    ...(parameter.optional === true ? { optional: true } : {}),
+    ...(parameter.rest === true ? { rest: true } : {}),
+    ...(parameter.paramsArray === true ? { paramsArray: true } : {}),
+    ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+    ...(parameter.unsupportedDefaultValue !== undefined ? { unsupportedDefaultValue: parameter.unsupportedDefaultValue } : {}),
+  }));
+}
+
+function typeFact(type) {
+  switch (type.kind) {
+    case "array":
+      return {
+        kind: "array",
+        element: typeFact(type.element ?? type.elementType),
+      };
+    case "named":
+      return {
+        kind: "named",
+        metadataName: type.metadataName,
+      };
+    case "source-primitive":
+      return {
+        kind: "source-primitive",
+        name: type.name,
+      };
+    case "string":
+      return { kind: "string" };
+    case "target-named":
+      return {
+        kind: "target-named",
+        id: stripAssemblyQualifiers(type.id),
+      };
+    default:
+      return { kind: type.kind };
+  }
 }
 
 function buildAttributeFixture() {

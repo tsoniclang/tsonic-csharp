@@ -19,6 +19,9 @@ import {
 import {
   nodeUtilModuleSpecifier,
 } from "./util.js";
+import {
+  nodeUrlModuleSpecifier,
+} from "./url.js";
 
 const canonicalBySpecifier = new Map<string, string>([
   ["buffer", nodeBufferModuleSpecifier],
@@ -35,6 +38,8 @@ const canonicalBySpecifier = new Map<string, string>([
   [nodeProcessModuleSpecifier, nodeProcessModuleSpecifier],
   ["util", nodeUtilModuleSpecifier],
   [nodeUtilModuleSpecifier, nodeUtilModuleSpecifier],
+  ["url", nodeUrlModuleSpecifier],
+  [nodeUrlModuleSpecifier, nodeUrlModuleSpecifier],
 ]);
 
 export function canonicalNodejsModuleSpecifier(specifier: string | undefined): string | undefined {
