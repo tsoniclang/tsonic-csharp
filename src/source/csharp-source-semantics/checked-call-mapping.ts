@@ -35,6 +35,9 @@ import {
   findTargetMemberForCall,
 } from "./target-member-selection.js";
 import {
+  findUnsupportedProviderTargetMember,
+} from "./provider-unsupported-members.js";
+import {
   getCsharpTargetTypeFromBinding,
 } from "./target-enrichment.js";
 import {
@@ -140,6 +143,10 @@ export function mapCsharpCheckedCall(
     },
   );
   if (member === undefined) {
+    const unsupportedMember = findUnsupportedProviderTargetMember(targetBinding, virtualDeclaration);
+    if (unsupportedMember !== undefined) {
+      return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_UNSUPPORTED", 9100130, `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${targetBinding.id}'. ${unsupportedMember.reason}`));
+    }
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_FOUND", 9100100, `C# provider could not map checked call '${request.calleePropertyName ?? "<anonymous>"}' on target '${targetBinding.id}'.`));
   }
   if (member.kind !== "method" && member.kind !== "constructor") {

@@ -32,7 +32,7 @@ export function recordCsharpTargetNameFactsBeforeFinalization(
       const sourceName = compiler.ast.text(node);
       const targetName = privateIdentifierTargetName(sourceName);
       const fact = { name: targetName };
-      const evidence = [{ message: "C# private identifier target name recorded by source-name semantics." }];
+      const evidence = [{ message: "C# private identifier target name recorded from checked private identifier syntax." }];
       lifecycleContext.host.facts.set(node, csharpTargetNameFactKey, fact, evidence);
       const symbol = compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
         compiler.checker.getResolvedSymbol(node, { sourceFile });

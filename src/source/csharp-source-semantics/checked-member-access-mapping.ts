@@ -50,6 +50,9 @@ import {
   findTargetMemberForElementAccess,
   isLiteralRepresentableAsTargetType,
 } from "./target-member-selection.js";
+import {
+  findUnsupportedProviderTargetMember,
+} from "./provider-unsupported-members.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -104,7 +107,15 @@ export function mapCsharpCheckedPropertyAccess(
     context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
   const member = findTargetMember(binding, selectedDeclarationFact);
   if (member === undefined) {
+    const unsupportedMember = findUnsupportedProviderTargetMember(binding, selectedDeclarationFact);
+    if (unsupportedMember !== undefined) {
+      return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_PROPERTY_UNSUPPORTED", 9100131, `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${binding.id}'. ${unsupportedMember.reason}`));
+    }
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_PROPERTY_NOT_FOUND", 9100102, `C# provider could not map checked property '${request.propertyName}' on target '${binding.id}'.`));
+  }
+  if (member.kind === "event") {
+    const unsupportedMember = findUnsupportedProviderTargetMember(binding, selectedDeclarationFact);
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_EVENT_UNSUPPORTED", 9100132, `C# provider selected event '${member.targetName}' on target '${binding.id}', but source event subscription semantics are not modeled.${unsupportedMember === undefined ? "" : ` ${unsupportedMember.reason}`}`));
   }
   const declaringTargetType = host.getTargetTypeRefForSubject(request.receiverType, context) ??
     host.getTargetTypeRefForSubject(request.receiver, context);
@@ -151,6 +162,10 @@ export function mapCsharpCheckedElementAccess(
     },
   );
   if (member === undefined) {
+    const unsupportedMember = findUnsupportedProviderTargetMember(binding, virtualDeclaration);
+    if (unsupportedMember !== undefined) {
+      return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_UNSUPPORTED", 9100133, `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${binding.id}'. ${unsupportedMember.reason}`));
+    }
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, `C# provider could not map checked element access on target '${binding.id}' from selected TSTS provider index declaration identity.`));
   }
   if (member.kind !== "indexer") {

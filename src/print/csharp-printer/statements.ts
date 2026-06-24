@@ -5,6 +5,7 @@ import type {
   CsharpSwitchSection,
 } from "../../backend/roslyn/syntax.js";
 import type { CsharpPrintContext } from "./context.js";
+import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 import { indentLines } from "./format.js";
 
 export function printCsharpStatement(
@@ -101,6 +102,7 @@ export function printCsharpStatement(
         "}",
       ].join("\n");
   }
+  return failUnsupportedCsharpSyntax(statement, "statement");
 }
 
 export function printCsharpStatements(
@@ -147,6 +149,7 @@ function printCsharpForInitializer(
       return `${context.printType(first.type)} ${initializer.locals.map((local) => printCsharpLocalDeclarator(local, context)).join(", ")}`;
     }
   }
+  return failUnsupportedCsharpSyntax(initializer, "for initializer");
 }
 
 function printCsharpLocalDeclarator(local: CsharpLocalDeclaration, context: CsharpPrintContext): string {
