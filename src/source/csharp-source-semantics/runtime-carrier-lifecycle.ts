@@ -190,8 +190,8 @@ function recordCsharpRuntimeCarrierSyntaxFact(
   const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
     getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, host) ??
     getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
-    getReferencedRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node) ??
-    getCheckedExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host);
+    getCheckedExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host) ??
+    getReferencedRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node);
   if (carrier === undefined) {
     return;
   }

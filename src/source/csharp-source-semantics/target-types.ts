@@ -47,6 +47,10 @@ export type CsharpTaskTargetTypeRef = CsharpTargetNamedTypeRef & {
   readonly csharpTaskResultType: TargetTypeRef;
 };
 
+export type CsharpRuntimeUnionTargetTypeRef = CsharpTargetNamedTypeRef & {
+  readonly csharpRuntimeUnionArms: readonly TargetTypeRef[];
+};
+
 export function targetMethod(
   id: string,
   sourceName: string,
@@ -248,6 +252,7 @@ export function substituteTargetTypeParameters(
     case "target-named":
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
       const taskResultType = (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType;
+      const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
       return {
         ...type,
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }),
@@ -257,6 +262,9 @@ export function substituteTargetTypeParameters(
         ...(taskResultType === undefined
           ? {}
           : { csharpTaskResultType: substituteTargetTypeParameters(taskResultType, substitutions) }),
+        ...(runtimeUnionArms === undefined
+          ? {}
+          : { csharpRuntimeUnionArms: runtimeUnionArms.map((arm) => substituteTargetTypeParameters(arm, substitutions)) }),
       };
     case "array":
       return { ...type, element: substituteTargetTypeParameters(type.element, substitutions) };
@@ -337,8 +345,39 @@ export function csharpAnyRuntimeCarrier(): TargetTypeRef {
   return { kind: "opaque", id: "any" };
 }
 
+export function csharpRuntimeUnionTargetType(arms: readonly TargetTypeRef[]): CsharpRuntimeUnionTargetTypeRef | undefined {
+  if (arms.length < 2 || arms.length > 8) {
+    return undefined;
+  }
+  const targetType = csharpTargetNamedType(
+    `Tsonic.CSharp.Runtime.Union\`${arms.length}`,
+    arms,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Union"),
+  );
+  return {
+    kind: "target-named",
+    id: targetType.id,
+    typeArguments: arms,
+    ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
+    csharpRuntimeUnionArms: arms,
+  } satisfies CsharpRuntimeUnionTargetTypeRef;
+}
+
 export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "opaque" && type.id === "any";
+}
+
+export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {
+  return type?.kind === "target-named" &&
+    typeof type.id === "string" &&
+    type.id.startsWith("Tsonic.CSharp.Runtime.Union`") &&
+    Array.isArray((type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms);
+}
+
+export function getCsharpRuntimeUnionArms(type: TargetTypeRef | undefined): readonly TargetTypeRef[] | undefined {
+  return isCsharpRuntimeUnionTargetType(type)
+    ? type.csharpRuntimeUnionArms
+    : undefined;
 }
 
 export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {
