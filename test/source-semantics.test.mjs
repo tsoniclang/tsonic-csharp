@@ -32,6 +32,7 @@ import {
   csharpTargetConversionOperationFactKey,
 } from "../dist/source/csharp-facts.js";
 import { csharpSourceSemanticsModules } from "../dist/source/csharp-source-semantics/source-modules.js";
+import { createCsharpSourceVirtualModulesProvider } from "../dist/source/csharp-source-semantics/source-virtual-modules.js";
 
 test("source-semantics virtual attribute helpers do not introduce any-typed lanes", () => {
   const declarations = providerExportDeclarationsForSourceModule({
@@ -83,6 +84,40 @@ test("source-semantics keeps neutral primitives separate from C# aliases", () =>
   assert.equal(neutralExports.includes("long"), false);
   assert.equal(neutralExports.includes("byte"), false);
   assert.deepEqual(csharpExports, [
+    "bool",
+    "byte",
+    "char",
+    "decimal",
+    "double",
+    "float",
+    "int",
+    "long",
+    "nint",
+    "nuint",
+    "sbyte",
+    "short",
+    "uint",
+    "ulong",
+    "ushort",
+  ]);
+});
+
+test("C# source alias provider does not own or redefine portable core modules", () => {
+  const provider = createCsharpSourceVirtualModulesProvider();
+
+  assert.deepEqual(provider.ownsModule("@tsonic/core/types.js", {}), { kind: "unowned" });
+  assert.deepEqual(provider.ownsModule("@tsonic/core/lang.js", {}), { kind: "unowned" });
+  assert.deepEqual(provider.ownsModule("@tsonic/csharp/types.js", {}), { kind: "owned" });
+  assert.deepEqual(provider.ownsModule("@tsonic/csharp/lang.js", {}), { kind: "owned" });
+
+  const coreResolution = provider.resolveModule("@tsonic/core/types.js", {});
+  assert.equal(coreResolution.extensionCode, "CSHARP_SOURCE_MODULE_UNOWNED");
+
+  const csharpTypesResolution = provider.resolveModule("@tsonic/csharp/types.js", {});
+  assert.equal(csharpTypesResolution.kind, "virtual");
+  const csharpTypesModel = provider.getDeclarationModel(csharpTypesResolution);
+  assert.equal(csharpTypesModel.moduleSpecifier, "@tsonic/csharp/types.js");
+  assert.deepEqual(csharpTypesModel.exports.map((declaration) => declaration.name).sort(), [
     "bool",
     "byte",
     "char",
