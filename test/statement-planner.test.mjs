@@ -11,11 +11,14 @@ import {
   KindBreakStatement,
   KindContinueStatement,
   KindDefaultClause,
+  KindDoStatement,
+  KindForStatement,
   KindForOfStatement,
   KindIdentifier,
   KindLabeledStatement,
   KindNumericLiteral,
   KindSwitchStatement,
+  KindTryStatement,
   KindTrueKeyword,
   KindVariableDeclaration,
   KindVariableDeclarationList,
@@ -76,6 +79,37 @@ test("switch statements diagnose non-constant labels instead of inventing C# low
   assert.match(diagnostics[0].message, /Switch case labels must be C# compile-time constants/);
 });
 
+test("switch statements fail closed when the governing expression is missing", () => {
+  const diagnostics = [];
+  const statement = switchStatement(undefined, [
+    defaultClause([]),
+  ]);
+
+  const output = planStatements(statement, sourceFile, fakeInput(), diagnostics);
+
+  assert.equal(output[0].kind, "SwitchStatement");
+  assert.deepEqual(output[0].expression, {
+    kind: "InvalidExpression",
+    reason: "missing switch expression",
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Switch statement requires a governing expression/);
+});
+
+test("switch statements keep explicit section terminators instead of adding fallthrough", () => {
+  const diagnostics = [];
+  const statement = switchStatement(numeric("1"), [
+    caseClause(numeric("1"), [breakStatement()]),
+    defaultClause([]),
+  ]);
+
+  const output = planStatements(statement, sourceFile, fakeInput(), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[0].sections[0].statements, [{ kind: "BreakStatement" }]);
+  assert.deepEqual(output[0].sections[1].statements, [{ kind: "BreakStatement" }]);
+});
+
 test("labeled loops emit target control-flow labels without source-name target guessing", () => {
   const diagnostics = [];
   const statement = labeledStatement(
@@ -105,6 +139,39 @@ test("labeled loops emit target control-flow labels without source-name target g
   assert.equal(breakTarget.name, labeled.statement.body.statements[1].label);
 });
 
+test("labeled control transfers fail closed when the target is missing or non-iterable", () => {
+  const missingDiagnostics = [];
+  const missingOutput = planStatements(
+    breakStatement(identifier("missing")),
+    sourceFile,
+    fakeInput(),
+    missingDiagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(missingOutput, []);
+  assert.equal(missingDiagnostics.length, 1);
+  assert.match(missingDiagnostics[0].message, /Labeled break target was not available/);
+
+  const nonLoopDiagnostics = [];
+  const nonLoopStatement = labeledStatement(
+    "target",
+    block([continueStatement(identifier("target"))]),
+  );
+
+  const nonLoopOutput = planStatements(
+    nonLoopStatement,
+    sourceFile,
+    fakeInput(),
+    nonLoopDiagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.equal(nonLoopOutput[0].kind, "Block");
+  assert.equal(nonLoopDiagnostics.length, 1);
+  assert.match(nonLoopDiagnostics[0].message, /Labeled continue target must be an iteration statement/);
+});
+
 test("conditions fail closed without finalized bool carrier facts", () => {
   const diagnostics = [];
   const statement = whileStatement(identifier("flag"), block([]));
@@ -118,6 +185,75 @@ test("conditions fail closed without finalized bool carrier facts", () => {
   });
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /condition requires a finalized C# bool runtime carrier/);
+});
+
+test("for, while, and do loops emit Roslyn AST from finalized bool condition facts", () => {
+  const diagnostics = [];
+  const whileFlag = identifier("whileFlag");
+  const doFlag = identifier("doFlag");
+  const forFlag = identifier("forFlag");
+  const statement = block([
+    whileStatement(whileFlag, block([])),
+    doStatement(doFlag, block([breakStatement()])),
+    forStatement(undefined, forFlag, undefined, block([
+      continueStatement(),
+      breakStatement(),
+    ])),
+  ]);
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [whileFlag, { carrier: csharpSourcePrimitiveTargetType("bool") }],
+      [doFlag, { carrier: csharpSourcePrimitiveTargetType("bool") }],
+      [forFlag, { carrier: csharpSourcePrimitiveTargetType("bool") }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [{
+    kind: "Block",
+    body: {
+      kind: "Block",
+      statements: [
+        {
+          kind: "WhileStatement",
+          condition: { kind: "IdentifierName", name: "whileFlag" },
+          body: { kind: "Block", statements: [] },
+        },
+        {
+          kind: "DoStatement",
+          body: { kind: "Block", statements: [{ kind: "BreakStatement" }] },
+          condition: { kind: "IdentifierName", name: "doFlag" },
+        },
+        {
+          kind: "ForStatement",
+          condition: { kind: "IdentifierName", name: "forFlag" },
+          body: {
+            kind: "Block",
+            statements: [
+              { kind: "ContinueStatement" },
+              { kind: "BreakStatement" },
+            ],
+          },
+        },
+      ],
+    },
+  }]);
+});
+
+test("for conditions fail closed without finalized bool carrier facts", () => {
+  const diagnostics = [];
+  const statement = forStatement(undefined, identifier("flag"), undefined, block([]));
+
+  const output = planStatements(statement, sourceFile, fakeInput(), diagnostics);
+
+  assert.equal(output[0].kind, "ForStatement");
+  assert.deepEqual(output[0].condition, {
+    kind: "InvalidExpression",
+    reason: "non-bool condition expression",
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /For statement condition requires a finalized C# bool runtime carrier/);
 });
 
 test("for-of emits a Roslyn foreach only from finalized provider iteration facts", () => {
@@ -191,6 +327,74 @@ test("throw statements require finalized throwable target carriers", () => {
   }]);
 });
 
+test("try statements emit Roslyn catch and finally bodies from finalized exception facts", () => {
+  const diagnostics = [];
+  const thrown = identifier("error");
+  const catchName = identifier("caught");
+  const catchVariable = {
+    Kind: KindVariableDeclaration,
+    name: catchName,
+  };
+  const statement = tryStatement(
+    block([throwStatement(thrown)]),
+    catchClause(catchVariable, block([])),
+    block([]),
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [thrown, { carrier: csharpExceptionTargetType() }],
+      [catchName, { carrier: csharpExceptionTargetType() }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [{
+    kind: "TryStatement",
+    tryBody: {
+      kind: "Block",
+      statements: [{
+        kind: "ThrowStatement",
+        expression: { kind: "IdentifierName", name: "error" },
+      }],
+    },
+    catchClause: {
+      kind: "CatchClause",
+      variableType: {
+        kind: "QualifiedName",
+        left: { kind: "IdentifierName", name: "System" },
+        name: "Exception",
+      },
+      variableName: "caught",
+      body: { kind: "Block", statements: [] },
+    },
+    finallyBody: { kind: "Block", statements: [] },
+  }]);
+});
+
+test("catch variables fail closed without finalized exception carrier facts", () => {
+  const diagnostics = [];
+  const catchName = identifier("caught");
+  const statement = tryStatement(
+    block([]),
+    catchClause({
+      Kind: KindVariableDeclaration,
+      name: catchName,
+    }, block([])),
+    undefined,
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput(), diagnostics, createDestructuringPlannerState());
+
+  assert.equal(output[0].kind, "TryStatement");
+  assert.deepEqual(output[0].catchClause, {
+    kind: "CatchClause",
+    body: { kind: "Block", statements: [] },
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Catch variables require finalized TSTS\/provider exception-carrier facts/);
+});
+
 function switchStatement(expression, clauses) {
   return {
     Kind: KindSwitchStatement,
@@ -233,12 +437,47 @@ function whileStatement(expression, statement) {
   };
 }
 
+function doStatement(expression, statement) {
+  return {
+    Kind: KindDoStatement,
+    Expression: expression,
+    Statement: statement,
+  };
+}
+
+function forStatement(initializer, condition, incrementor, statement) {
+  return {
+    Kind: KindForStatement,
+    Initializer: initializer,
+    Condition: condition,
+    Incrementor: incrementor,
+    Statement: statement,
+  };
+}
+
 function forOfStatement(initializer, expression, statement) {
   return {
     Kind: KindForOfStatement,
     Initializer: initializer,
     Expression: expression,
     Statement: statement,
+  };
+}
+
+function tryStatement(tryBlock, catchClauseNode, finallyBlock) {
+  return {
+    Kind: KindTryStatement,
+    TryBlock: tryBlock,
+    ...(catchClauseNode === undefined ? {} : { CatchClause: catchClauseNode }),
+    ...(finallyBlock === undefined ? {} : { FinallyBlock: finallyBlock }),
+  };
+}
+
+function catchClause(variableDeclarationNode, blockNode) {
+  return {
+    Kind: "KindCatchClause",
+    ...(variableDeclarationNode === undefined ? {} : { VariableDeclaration: variableDeclarationNode }),
+    Block: blockNode,
   };
 }
 
@@ -295,6 +534,13 @@ function numeric(text) {
 function trueKeyword() {
   return {
     Kind: KindTrueKeyword,
+  };
+}
+
+function throwStatement(expression) {
+  return {
+    Kind: "KindThrowStatement",
+    Expression: expression,
   };
 }
 

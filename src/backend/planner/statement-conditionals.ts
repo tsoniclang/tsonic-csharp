@@ -101,7 +101,7 @@ export function planDoStatement(
   }];
 }
 
-function planConditionExpression(
+export function planConditionExpression(
   expression: Node | undefined,
   statementKind: string,
   sourceFile: SourceFile,
