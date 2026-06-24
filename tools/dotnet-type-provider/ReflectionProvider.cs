@@ -60,7 +60,11 @@ sealed partial class ReflectionProvider
         var allTypes = loadedTypes
             .Where(type => type.Namespace == activeNamespaceName)
             .ToArray();
+        var requestedExports = request.Exports.Count == 0
+            ? null
+            : request.Exports.ToHashSet(StringComparer.Ordinal);
         var sourceGroups = allTypes
+            .Where(type => requestedExports is null || requestedExports.Contains(SourceTypeName(type)))
             .GroupBy(SourceTypeName, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .ToArray();
@@ -72,6 +76,7 @@ sealed partial class ReflectionProvider
             .Where(type => UnsupportedSourceExportReason(type) is null)
             .ToArray();
         var exportTypeNames = exportTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
+        var closureTypes = SourceClosureTypes(allTypes, exportTypes);
         var unsupportedExports = sourceGroups
             .Where(group => group.Count() > 1)
             .Select(ToUnsupportedTypeFamilyExport)
@@ -80,17 +85,18 @@ sealed partial class ReflectionProvider
                 .Where(export => export is not null)
                 .Cast<object>())
             .ToArray();
-        var targetOnlyTypes = allTypes
+        var targetOnlyTypes = requestedExports is null ? allTypes
             .Where(type => !exportTypeNames.Contains(TargetId(type)))
             .Select(ToTypeExport)
             .Where(export => export is not null)
             .Cast<object>()
-            .ToArray();
+            .ToArray() : [];
 
         var exports = exportTypes
             .Select(ToTypeExport)
             .Where(export => export is not null)
             .Cast<object>()
+            .Concat(closureTypes.Select(ToShallowTypeExport))
             .ToArray();
 
         return new

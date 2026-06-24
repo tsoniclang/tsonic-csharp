@@ -8,7 +8,7 @@ var request = Request.Parse(args);
 if ((!request.AllModules && (request.NamespaceName.Length == 0 || request.ModuleSpecifier.Length == 0)) ||
     (request.AllModules && request.ModuleSpecifierPrefix.Length == 0))
 {
-    Console.Error.WriteLine("Usage: dotnet-type-provider --namespace <namespace> --module-specifier <specifier> [--reference-dir <dir>] [--reference <assembly>]");
+    Console.Error.WriteLine("Usage: dotnet-type-provider --namespace <namespace> --module-specifier <specifier> [--export <name>...] [--reference-dir <dir>] [--reference <assembly>]");
     Console.Error.WriteLine("   or: dotnet-type-provider --all-modules --module-specifier-prefix <prefix> [--reference-dir <dir>] [--reference <assembly>]");
     return 2;
 }

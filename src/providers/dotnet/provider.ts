@@ -35,6 +35,8 @@ export interface DotnetProviderModuleContext {
   readonly containingFile?: string;
   readonly targetFramework?: string;
   readonly references?: readonly string[];
+  readonly requestedExports?: readonly string[];
+  readonly broadImport?: boolean;
 }
 
 export type DotnetProviderOwnership =
@@ -92,11 +94,16 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
         virtualFileName: providerVirtualDeclarationFileName(identity.id, specifier),
         providerModuleId: specifier,
         packageName: dotnetPackageName,
+        ...(context.broadImport === true ? { broadImport: true as const } : {}),
+        ...(context.requestedExports !== undefined ? { requestedExports: context.requestedExports } : {}),
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
       };
     },
     getDeclarationModel(resolution) {
-      const result = options.provider.getModule(resolution.moduleSpecifier, providerContext({}, options));
+      const result = options.provider.getModule(resolution.moduleSpecifier, providerContext({
+        ...(resolution.broadImport === true ? { broadImport: true as const } : {}),
+        ...(resolution.requestedExports !== undefined ? { requestedExports: resolution.requestedExports } : {}),
+      }, options));
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
@@ -123,6 +130,8 @@ function providerContext(
 ): DotnetProviderModuleContext {
   return {
     ...(context.containingFile !== undefined ? { containingFile: context.containingFile } : {}),
+    ...(context.broadImport === true ? { broadImport: true as const } : {}),
+    ...(context.requestedExports !== undefined ? { requestedExports: context.requestedExports } : {}),
     ...(options.targetFramework !== undefined ? { targetFramework: options.targetFramework } : {}),
     ...(options.references !== undefined ? { references: options.references } : {}),
   };

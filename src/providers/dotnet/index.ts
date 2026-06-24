@@ -45,9 +45,16 @@ export type {
   DotnetReflectionTypeDataProvider,
   DotnetReflectionTypeDataProviderOptions,
 } from "./reflection/provider.js";
+export type {
+  DotnetProviderTelemetry,
+  DotnetProviderTelemetrySnapshot,
+} from "./reflection/telemetry.js";
 export {
   createDotnetReflectionTypeDataProvider,
 } from "./reflection/provider.js";
+export {
+  createDotnetProviderTelemetry,
+} from "./reflection/telemetry.js";
 export {
   createDotnetModuleSpecifier,
   dotnetModuleExtension,

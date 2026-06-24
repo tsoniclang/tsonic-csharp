@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,11 +7,12 @@ import {
   createDotnetReflectionTypeDataProvider,
   dotnetModuleToProviderDeclarationModel,
 } from "../dist/index.js";
+import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const constraintModuleSpecifier = "@tsonic/dotnet/ProviderConstraintFixtures.js";
 
-test(".NET provider exposes source-representable generic constraints while keeping target-only constraints target-only", () => {
+test(".NET provider keeps CLR generic constraints in target facts, not source virtual declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider({ references: [buildConstraintFixture()] });
   const module = provider.getModule(constraintModuleSpecifier, {});
   assert.equal("exports" in module, true);
@@ -21,24 +21,11 @@ test(".NET provider exposes source-representable generic constraints while keepi
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceReferenceNewTarget = getSourceDeclaration(sourceModel, "ReferenceNewTarget");
 
-  assert.deepEqual(
-    sourceReferenceNewTarget.typeParameters?.[0]?.constraints?.map(providerConstraintSourceName),
-    ["ITagged"],
-  );
-  assert.equal(
-    sourceReferenceNewTarget.typeParameters?.[0]?.constraints?.some((constraint) =>
-      constraint.kind === "reference-type" || constraint.kind === "constructible"
-    ) ?? false,
-    false,
-    "CLR-only class/new() constraints must remain target facts, not source virtual declarations.",
-  );
+  assert.equal(sourceReferenceNewTarget.typeParameters?.[0]?.constraints, undefined);
 
   const sourceCopy = getSourceMember(sourceReferenceNewTarget, "copy");
   const sourceCopyTypeParameter = sourceCopy.signatures[0].typeParameters[0];
-  assert.deepEqual(
-    sourceCopyTypeParameter.constraints.map(providerConstraintSourceName).sort(),
-    ["EntityBase", "ITagged"],
-  );
+  assert.equal(sourceCopyTypeParameter.constraints, undefined);
 
   const binding = provider.findTargetBindingByTargetId(rawReferenceNewTarget.targetId);
   assert.ok(binding);
@@ -130,16 +117,6 @@ function getSourceMember(declaration, sourceName) {
   return member;
 }
 
-function providerConstraintSourceName(constraint) {
-  if (constraint.kind === "provider-ref") {
-    return constraint.name;
-  }
-  if (constraint.kind === "target-named" && constraint.sourceShape?.kind === "provider-ref") {
-    return constraint.sourceShape.name;
-  }
-  return constraint.kind;
-}
-
 function targetConstraintKindOrName(constraint) {
   if (constraint.kind !== "implements") {
     return constraint.kind;
@@ -160,16 +137,11 @@ function buildConstraintFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/constraints/ConstraintProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "ConstraintProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "ConstraintProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/constraints"),
+  });
 }

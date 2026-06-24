@@ -53,6 +53,8 @@ export type {
   DotnetProviderModuleContext,
   DotnetProviderModuleResult,
   DotnetProviderOwnership,
+  DotnetProviderTelemetry,
+  DotnetProviderTelemetrySnapshot,
   DotnetReflectionTypeDataProvider,
   DotnetReflectionTypeDataProviderOptions,
   DotnetSignatureDeclaration,
@@ -68,6 +70,7 @@ export type {
 } from "./providers/dotnet/index.js";
 export {
   createDotnetModuleSpecifier,
+  createDotnetProviderTelemetry,
   createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
   dotnetConstraintToTargetConstraint,

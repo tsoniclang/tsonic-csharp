@@ -3,7 +3,6 @@ import type {
   ProviderTypeExpression,
 } from "@tsonic/tsts";
 import type {
-  DotnetConstraint,
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
 } from "./model-types.js";
@@ -119,41 +118,14 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
 }
 
 export function dotnetTypeParameterToProviderTypeParameter(typeParameter: DotnetTypeParameterDeclaration) {
-  const constraints = dotnetConstraintsToProviderConstraints(typeParameter.constraints);
   const defaultType = typeParameter.defaultType === undefined
     ? undefined
     : tryDotnetTypeRefToProviderType(typeParameter.defaultType);
   return {
     name: typeParameter.name,
-    ...(constraints.length > 0 ? { constraints } : {}),
     ...(typeParameter.variance !== undefined ? { variance: typeParameter.variance } : {}),
     ...(defaultType !== undefined ? { defaultType } : {}),
   };
-}
-
-function dotnetConstraintsToProviderConstraints(
-  constraints: readonly DotnetConstraint[] | undefined,
-): readonly ProviderTypeExpression[] {
-  if (constraints === undefined) {
-    return [];
-  }
-  return constraints
-    .map(dotnetConstraintToProviderConstraint)
-    .filter((constraint): constraint is ProviderTypeExpression => constraint !== undefined);
-}
-
-function dotnetConstraintToProviderConstraint(constraint: DotnetConstraint): ProviderTypeExpression | undefined {
-  switch (constraint.kind) {
-    case "implements":
-      return tryDotnetTypeRefToProviderType(constraint.contract);
-    case "value-type":
-    case "reference-type":
-    case "constructible":
-    case "unmanaged":
-    case "not-null":
-    case "target-specific":
-      return undefined;
-  }
 }
 
 function unsupportedDotnetProviderType(kind: DotnetTypeRef["kind"]): Error {

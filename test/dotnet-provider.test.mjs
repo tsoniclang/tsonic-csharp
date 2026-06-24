@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
   augmentDotnetModuleWithNativeArray,
+  createDotnetProviderTelemetry,
   createDotnetReflectionTypeDataProvider,
   createDotnetTargetBindingProvider,
   dotnetNativeArrayCreateMemberId,
@@ -20,6 +20,7 @@ import {
   dotnetExportToTargetBinding,
   tryDotnetTypeRefToProviderType,
 } from "../dist/providers/dotnet/model.js";
+import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const testAssemblyId = "Test.Assembly, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
@@ -244,6 +245,55 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   assert.equal(binding.csharpType.element.kind, "type-parameter");
   assert.equal(binding.members.find((member) => member.id === dotnetNativeArrayLengthMemberId).targetName, "Length");
   assert.equal(binding.members.find((member) => member.id === dotnetNativeArrayIndexerMemberId).targetName, "Item");
+});
+
+test(".NET reflection provider returns requested export declaration closures instead of whole namespaces", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const exportNames = module.exports.map((declaration) => declaration.sourceName).sort();
+  assert.equal(exportNames.includes("Convert"), true);
+  assert.equal(exportNames.includes("IFormatProvider"), true);
+  assert.equal(exportNames.includes("Type"), true);
+  assert.equal(exportNames.includes("SearchValues"), false);
+  assert.equal(exportNames.includes("Console"), false);
+
+  const convert = module.exports.find((declaration) => declaration.sourceName === "Convert");
+  assert.ok(convert);
+  assert.equal(convert.members?.some((member) => member.sourceName === "toByte"), true);
+
+  const formatProvider = module.exports.find((declaration) => declaration.sourceName === "IFormatProvider");
+  assert.ok(formatProvider);
+  assert.equal(formatProvider.members, undefined);
+});
+
+test(".NET reflection provider reloads requested export slices from persistent cache without rerunning reflection", () => {
+  const cacheRoot = join(repoRoot, ".temp/provider-cache/dotnet-reflection-test-slices");
+  const populateTelemetry = createDotnetProviderTelemetry();
+  const populateProvider = createDotnetReflectionTypeDataProvider({
+    cacheRoot,
+    telemetry: populateTelemetry,
+  });
+  const populated = populateProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in populated, true, JSON.stringify(populated));
+
+  const cachedTelemetry = createDotnetProviderTelemetry();
+  const cachedProvider = createDotnetReflectionTypeDataProvider({
+    cacheRoot,
+    telemetry: cachedTelemetry,
+  });
+  const cached = cachedProvider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in cached, true, JSON.stringify(cached));
+
+  const snapshot = cachedProvider.getTelemetrySnapshot();
+  assert.equal(snapshot.toolInvocations, 0);
+  assert.equal(snapshot.diskCacheHits, 1);
+  assert.equal(snapshot.diskCacheMisses, 0);
+  assert.equal(snapshot.memoryCacheMisses, 1);
+  assert.equal(snapshot.modelBytes < 1_000_000, true, JSON.stringify(snapshot));
+  assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Convert"), true);
+  assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Console"), false);
 });
 
 test(".NET provider declaration model omits source members without truthful source shapes", () => {
@@ -1428,7 +1478,7 @@ test(".NET provider source declarations project cross-module inherited overloads
   ), true);
 });
 
-test(".NET provider source declarations expose source-representable generic constraints", () => {
+test(".NET provider keeps target generic constraints out of source virtual declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const buffersModule = provider.getModule("@tsonic/dotnet/System.Buffers.js", {});
   assert.equal("exports" in buffersModule, true);
@@ -1440,11 +1490,7 @@ test(".NET provider source declarations expose source-representable generic cons
   const declarationModel = dotnetModuleToProviderDeclarationModel(buffersModule);
   const sequenceReader = declarationModel.exports.find((declaration) => declaration.name === "SequenceReader");
   assert.ok(sequenceReader);
-  const sourceConstraint = sequenceReader.typeParameters?.[0]?.constraints?.[0];
-  assert.equal(sourceConstraint?.kind, "target-named");
-  assert.equal(sourceConstraint?.sourceShape?.kind, "provider-ref");
-  assert.equal(sourceConstraint?.sourceShape?.name, "IEquatable");
-  assert.deepEqual(sourceConstraint?.sourceShape?.typeArguments, [{ kind: "type-parameter", name: "T" }]);
+  assert.equal(sequenceReader.typeParameters?.[0]?.constraints, undefined);
 });
 
 test(".NET reflection provider records generic constraints and variance as target facts", () => {
@@ -1520,14 +1566,11 @@ test(".NET reflection provider records generic constraints and variance as targe
   assert.ok(sourceReferenceNewTarget);
   assert.deepEqual(sourceReferenceNewTarget.typeParameters?.map((parameter) => ({
     name: parameter.name,
-    constraints: parameter.constraints?.map(providerConstraintSourceName),
-  })), [{ name: "T", constraints: ["ITagged"] }]);
+    constraints: parameter.constraints,
+  })), [{ name: "T", constraints: undefined }]);
   const sourceCopy = sourceReferenceNewTarget.members.find((member) => member.kind === "method" && member.name === "copy");
   assert.ok(sourceCopy);
-  assert.deepEqual(sourceCopy.signatures[0].typeParameters[0].constraints.map(providerConstraintSourceName).sort(), [
-    "EntityBase",
-    "ITagged",
-  ]);
+  assert.equal(sourceCopy.signatures[0].typeParameters[0].constraints, undefined);
   const sourceProducer = declarationModel.exports.find((declaration) => declaration.name === "IProducer");
   assert.ok(sourceProducer);
   assert.deepEqual(sourceProducer.typeParameters, [{ name: "T", variance: "out" }]);
@@ -2203,16 +2246,6 @@ function unsupportedMembersByMetadataName(declaration) {
   return new Map(declaration.unsupportedMembers?.map((member) => [member.metadataName, member]) ?? []);
 }
 
-function providerConstraintSourceName(constraint) {
-  if (constraint.kind === "provider-ref") {
-    return constraint.name;
-  }
-  if (constraint.kind === "target-named" && constraint.sourceShape?.kind === "provider-ref") {
-    return constraint.sourceShape.name;
-  }
-  return constraint.kind;
-}
-
 function constructorSignature(declaration, signatureId) {
   const signature = declaration.members
     ?.filter((member) => member.kind === "constructor")
@@ -2280,124 +2313,89 @@ function buildAttributeFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/attributes/AttributeProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "AttributeProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "AttributeProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/attributes"),
+  });
 }
 
 function buildConstructorFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/constructors/ConstructorProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constructors/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constructors/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "ConstructorProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "ConstructorProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/constructors"),
+  });
 }
 
 function buildUnsupportedEventFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/unsupported-event/UnsupportedEventProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-event/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-event/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "UnsupportedEventProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "UnsupportedEventProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/unsupported-event"),
+  });
 }
 
 function buildUnsupportedMemberFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/unsupported-members/UnsupportedMembersProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-members/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-members/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "UnsupportedMembersProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "UnsupportedMembersProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/unsupported-members"),
+  });
 }
 
 function buildConstraintFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/constraints/ConstraintProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "ConstraintProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "ConstraintProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/constraints"),
+  });
 }
 
 function buildConversionFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/conversions/ConversionProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/conversions/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/conversions/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "ConversionProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "ConversionProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/conversions"),
+  });
 }
 
 function buildSignatureIdentityFixture() {
   const project = join(repoRoot, "test/fixtures/dotnet-provider/signature-identity/SignatureIdentityProviderFixture.csproj");
   const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/signature-identity/bin");
   const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/signature-identity/obj/");
-  const result = spawnSync("dotnet", [
-    "build",
+  return buildDotnetFixture({
     project,
-    "--nologo",
-    "--verbosity",
-    "quiet",
-    "--output",
     outputDirectory,
-    `-p:IntermediateOutputPath=${intermediateDirectory}`,
-  ], { encoding: "utf8" });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  return join(outputDirectory, "SignatureIdentityProviderFixture.dll");
+    intermediateDirectory,
+    outputAssemblyName: "SignatureIdentityProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/signature-identity"),
+  });
 }
