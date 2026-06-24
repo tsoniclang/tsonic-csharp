@@ -1382,7 +1382,7 @@ test(".NET provider source declarations project cross-module inherited overloads
   ), true);
 });
 
-test(".NET provider source declarations omit target-only generic constraints", () => {
+test(".NET provider source declarations expose source-representable generic constraints", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const buffersModule = provider.getModule("@tsonic/dotnet/System.Buffers.js", {});
   assert.equal("exports" in buffersModule, true);
@@ -1394,7 +1394,11 @@ test(".NET provider source declarations omit target-only generic constraints", (
   const declarationModel = dotnetModuleToProviderDeclarationModel(buffersModule);
   const sequenceReader = declarationModel.exports.find((declaration) => declaration.name === "SequenceReader");
   assert.ok(sequenceReader);
-  assert.deepEqual(sequenceReader.typeParameters, [{ name: "T" }]);
+  const sourceConstraint = sequenceReader.typeParameters?.[0]?.constraints?.[0];
+  assert.equal(sourceConstraint?.kind, "target-named");
+  assert.equal(sourceConstraint?.sourceShape?.kind, "provider-ref");
+  assert.equal(sourceConstraint?.sourceShape?.name, "IEquatable");
+  assert.deepEqual(sourceConstraint?.sourceShape?.typeArguments, [{ kind: "type-parameter", name: "T" }]);
 });
 
 test(".NET reflection provider records generic constraints and variance as target facts", () => {
@@ -1468,7 +1472,16 @@ test(".NET reflection provider records generic constraints and variance as targe
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceReferenceNewTarget = declarationModel.exports.find((declaration) => declaration.name === "ReferenceNewTarget");
   assert.ok(sourceReferenceNewTarget);
-  assert.deepEqual(sourceReferenceNewTarget.typeParameters, [{ name: "T" }]);
+  assert.deepEqual(sourceReferenceNewTarget.typeParameters?.map((parameter) => ({
+    name: parameter.name,
+    constraints: parameter.constraints?.map(providerConstraintSourceName),
+  })), [{ name: "T", constraints: ["ITagged"] }]);
+  const sourceCopy = sourceReferenceNewTarget.members.find((member) => member.kind === "method" && member.name === "copy");
+  assert.ok(sourceCopy);
+  assert.deepEqual(sourceCopy.signatures[0].typeParameters[0].constraints.map(providerConstraintSourceName).sort(), [
+    "EntityBase",
+    "ITagged",
+  ]);
   const sourceProducer = declarationModel.exports.find((declaration) => declaration.name === "IProducer");
   assert.ok(sourceProducer);
   assert.deepEqual(sourceProducer.typeParameters, [{ name: "T", variance: "out" }]);
@@ -1959,6 +1972,16 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
 
 function unsupportedMembersByMetadataName(declaration) {
   return new Map(declaration.unsupportedMembers?.map((member) => [member.metadataName, member]) ?? []);
+}
+
+function providerConstraintSourceName(constraint) {
+  if (constraint.kind === "provider-ref") {
+    return constraint.name;
+  }
+  if (constraint.kind === "target-named" && constraint.sourceShape?.kind === "provider-ref") {
+    return constraint.sourceShape.name;
+  }
+  return constraint.kind;
 }
 
 function constructorSignature(declaration, signatureId) {
