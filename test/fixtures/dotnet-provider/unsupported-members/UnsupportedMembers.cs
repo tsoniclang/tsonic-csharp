@@ -64,6 +64,25 @@ public sealed class RankedArraySignatures
     }
 }
 
+public sealed class ByRefReturnSignatures
+{
+    private int _value;
+
+    public ref int ValueProperty => ref _value;
+
+    public ref int this[int index] => ref _value;
+
+    public ref int ValueRef()
+    {
+        return ref _value;
+    }
+
+    public ref readonly int ReadonlyValueRef()
+    {
+        return ref _value;
+    }
+}
+
 public unsafe delegate int PointerDelegate(int* pointer);
 
 public readonly struct GenericNumber<T>

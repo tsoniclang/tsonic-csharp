@@ -162,6 +162,10 @@ sealed partial class ReflectionProvider
     {
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(property => property.Name, StringComparer.Ordinal))
         {
+            if (UnsupportedPropertyReason(type, property) is not null)
+            {
+                continue;
+            }
             var accessors = property.GetAccessors(false);
             if (accessors.Length == 0)
             {
@@ -272,6 +276,10 @@ sealed partial class ReflectionProvider
         if (accessors.Length == 0)
         {
             return "Property has no public accessor visible to the provider.";
+        }
+        if (property.PropertyType.IsByRef)
+        {
+            return "By-reference property or indexer returns require an explicit provider ref-return declaration model before they can be exposed safely.";
         }
         var indexParameters = property.GetIndexParameters();
         if (indexParameters.Length > 0)
@@ -528,9 +536,7 @@ sealed partial class ReflectionProvider
         {
             return UnsupportedParametersReason(method.GetParameters(), "Method signature")!;
         }
-        return TypeRef(method.ReturnType) is null
-            ? $"Method return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(method.ReturnType)}"
-            : null;
+        return UnsupportedReturnTypeReason(method.ReturnType, "Method return type");
     }
 
     IEnumerable<object> UnsupportedOperators(Type type)
@@ -570,8 +576,17 @@ sealed partial class ReflectionProvider
         {
             return UnsupportedParametersReason(method.GetParameters(), "Operator signature")!;
         }
-        return TypeRef(method.ReturnType) is null
-            ? $"Operator return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(method.ReturnType)}"
+        return UnsupportedReturnTypeReason(method.ReturnType, "Operator return type");
+    }
+
+    string? UnsupportedReturnTypeReason(Type returnType, string context)
+    {
+        if (returnType.IsByRef)
+        {
+            return $"{context} returns '{TypeMetadataName(returnType)}' by reference; by-reference returns require an explicit provider ref-return declaration model before they can be exposed safely.";
+        }
+        return TypeRef(returnType) is null
+            ? $"{context} cannot be represented as closed .NET target type facts. {TypeRefFailureReason(returnType)}"
             : null;
     }
 

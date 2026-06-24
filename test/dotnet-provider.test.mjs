@@ -1574,6 +1574,7 @@ test(".NET reflection provider records unsupported members instead of silently d
   const multiIndexer = typeByName.get("MultiIndexer");
   const pointerSignatures = typeByName.get("PointerSignatures");
   const rankedArraySignatures = typeByName.get("RankedArraySignatures");
+  const byRefReturnSignatures = typeByName.get("ByRefReturnSignatures");
   const genericNumber = typeByName.get("GenericNumber");
   const pointerConversion = typeByName.get("PointerConversion");
   const pointerDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "PointerDelegate");
@@ -1582,6 +1583,7 @@ test(".NET reflection provider records unsupported members instead of silently d
   assert.ok(multiIndexer);
   assert.ok(pointerSignatures);
   assert.ok(rankedArraySignatures);
+  assert.ok(byRefReturnSignatures);
   assert.ok(genericNumber);
   assert.ok(pointerConversion);
   assert.ok(pointerDelegate);
@@ -1679,6 +1681,32 @@ test(".NET reflection provider records unsupported members instead of silently d
     member.targetName === "AcceptMatrix" &&
     /parameter 'matrix'/u.test(member.reason) &&
     /ranked CLR array/u.test(member.reason)
+  ));
+
+  const byRefReturnUnsupported = [...unsupportedMembersByMetadataName(byRefReturnSignatures).values()];
+  assert.equal(byRefReturnSignatures.members?.some((member) => member.targetName === "ValueProperty") ?? false, false);
+  assert.equal(byRefReturnSignatures.members?.some((member) => member.targetName === "Item") ?? false, false);
+  assert.equal(byRefReturnSignatures.members?.some((member) => member.targetName === "ValueRef") ?? false, false);
+  assert.equal(byRefReturnSignatures.members?.some((member) => member.targetName === "ReadonlyValueRef") ?? false, false);
+  assert.ok(byRefReturnUnsupported.some((member) =>
+    member.memberKind === "property" &&
+    member.targetName === "ValueProperty" &&
+    /By-reference property or indexer returns/u.test(member.reason)
+  ));
+  assert.ok(byRefReturnUnsupported.some((member) =>
+    member.memberKind === "indexer" &&
+    member.targetName === "Item" &&
+    /By-reference property or indexer returns/u.test(member.reason)
+  ));
+  assert.ok(byRefReturnUnsupported.some((member) =>
+    member.memberKind === "method" &&
+    member.targetName === "ValueRef" &&
+    /returns 'System\.Int32&' by reference/u.test(member.reason)
+  ));
+  assert.ok(byRefReturnUnsupported.some((member) =>
+    member.memberKind === "method" &&
+    member.targetName === "ReadonlyValueRef" &&
+    /returns 'System\.Int32&' by reference/u.test(member.reason)
   ));
 
   const genericNumberUnsupported = unsupportedMembersByMetadataName(genericNumber);

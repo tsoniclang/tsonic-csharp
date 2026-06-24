@@ -114,6 +114,137 @@ test("parameter object destructuring emits from finalized object-shape extractio
   }]);
 });
 
+test("nested object parameter destructuring uses finalized nested object-shape facts", () => {
+  const count = identifier("count");
+  const nestedPattern = objectBindingPattern([
+    bindingElement(count),
+  ]);
+  const nestedElement = bindingElement(nestedPattern, { propertyName: identifier("inner") });
+  const pattern = objectBindingPattern([
+    nestedElement,
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const innerShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InnerShape",
+      csharpRender: { kind: "named", name: "__InnerShape" },
+    },
+    members: [{
+      sourceName: "count",
+      targetName: "Count",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const outerShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__OuterShape",
+      csharpRender: { kind: "named", name: "__OuterShape" },
+    },
+    members: [{
+      sourceName: "inner",
+      targetName: "Inner",
+      memberKind: "property",
+      type: innerShape.targetType,
+    }],
+  };
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      objectShapes: new Map([
+        [parameter, outerShape],
+        [nestedElement, innerShape],
+      ]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "IdentifierName", name: "__InnerShape" },
+      initializer: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        name: "Inner",
+      },
+    },
+    {
+      kind: "LocalDeclarationStatement",
+      name: "count",
+      type: { kind: "PredefinedType", name: "int" },
+      initializer: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+        name: "Count",
+      },
+    },
+  ]);
+});
+
+test("nested object parameter destructuring fails closed without nested object-shape facts", () => {
+  const count = identifier("count");
+  const nestedPattern = objectBindingPattern([
+    bindingElement(count),
+  ]);
+  const nestedElement = bindingElement(nestedPattern, { propertyName: identifier("inner") });
+  const pattern = objectBindingPattern([
+    nestedElement,
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const outerShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__OuterShape",
+      csharpRender: { kind: "named", name: "__OuterShape" },
+    },
+    members: [{
+      sourceName: "inner",
+      targetName: "Inner",
+      memberKind: "property",
+      type: {
+        kind: "target-named",
+        id: "__InnerShape",
+        csharpRender: { kind: "named", name: "__InnerShape" },
+      },
+    }],
+  };
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      objectShapes: new Map([[parameter, outerShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "__tsonic_destructure0",
+    type: { kind: "IdentifierName", name: "__InnerShape" },
+    initializer: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "value" },
+      name: "Inner",
+    },
+  }]);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object destructuring requires a source-owned declaration or finalized provider object-shape facts/);
+});
+
 test("parameter destructuring fails closed without carrier or object-shape facts", () => {
   const pattern = arrayBindingPattern([
     bindingElement(identifier("first")),
