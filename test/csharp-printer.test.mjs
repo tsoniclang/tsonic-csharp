@@ -2,8 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { csharpTypeFromTargetTypeRef } from "../dist/backend/planner/target-types.js";
 import { renderObjectShapeMembers } from "../dist/backend/planner/object-shape-declarations.js";
-import { printCsharpType } from "../dist/print/csharp-printer.js";
-import { printCsharpExpression } from "../dist/print/csharp-printer.js";
+import {
+  printCsharpCompilationUnit,
+  printCsharpExpression,
+  printCsharpStatement,
+  printCsharpType,
+} from "../dist/print/csharp-printer.js";
 import {
   csharpDelegateTargetType,
   csharpTargetTypeFromBinding,
@@ -35,6 +39,33 @@ test("printer renders cast expression nodes", () => {
       expression: { kind: "IdentifierName", name: "value" },
     }),
     "(Animal)value",
+  );
+});
+
+test("printer fails closed for invalid or foreign raw syntax nodes", () => {
+  assert.throws(
+    () => printCsharpExpression({ kind: "InvalidExpression", reason: "unsupported expression" }),
+    /Invalid C# expression reached printer: unsupported expression/,
+  );
+  assert.throws(
+    () => printCsharpExpression({ kind: "RawExpression", code: "Console.WriteLine(1)" }),
+    /Unsupported C# expression syntax reached printer: RawExpression/,
+  );
+  assert.throws(
+    () => printCsharpStatement({ kind: "RawStatement", code: "Console.WriteLine(1);" }),
+    /Unsupported C# statement syntax reached printer: RawStatement/,
+  );
+  assert.throws(
+    () => printCsharpType({ kind: "RawType", text: "dynamic" }),
+    /Unsupported C# type syntax reached printer: RawType/,
+  );
+  assert.throws(
+    () => printCsharpCompilationUnit({
+      kind: "CompilationUnit",
+      usings: [],
+      members: [{ kind: "RawMember", code: "class C {}" }],
+    }),
+    /Unsupported C# compilation-unit member syntax reached printer: RawMember/,
   );
 });
 

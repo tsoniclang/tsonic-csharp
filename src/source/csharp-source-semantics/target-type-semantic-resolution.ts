@@ -48,7 +48,9 @@ export function getSourceArrayTargetTypeRef(
     return undefined;
   }
   const element = resolver.resolveType(getFirstTypeArgument(type, context, options), context, options, host);
-  return element === undefined ? undefined : { kind: "array", element };
+  return element === undefined
+    ? undefined
+    : { kind: "array", element };
 }
 
 export function getSourcePromiseTargetTypeRef(

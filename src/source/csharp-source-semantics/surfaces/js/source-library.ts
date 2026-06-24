@@ -4,6 +4,7 @@ import type {
   ExtensionObservationContext,
   SourceFile,
   TargetMember,
+  TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../../../csharp-facts.js";
@@ -34,14 +35,18 @@ export {
 export {
   type CsharpTargetNamedTypeRef,
   csharpDelegateTargetType,
+  csharpEnumerableTargetType,
+  csharpListTargetType,
   csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
+  csharpReadOnlyListTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
   targetMethod,
   targetParameter,
+  targetProperty,
 } from "../../target-types.js";
 
 export interface CsharpJsTargetTypeRefResolutionOptions {
@@ -75,6 +80,10 @@ export interface CsharpJsSurfaceHost {
       readonly receiver?: ExtensionFactSubject;
     },
     context: ExtensionObservationContext,
+    options?: {
+      readonly declaringTargetType?: TargetTypeRef;
+      readonly declaringTypeParameters?: readonly TargetTypeParameter[];
+    },
   ) => TargetMember | undefined;
   readonly getCsharpObjectShapeFactForSubject: (
     subject: ExtensionFactSubject | undefined,
@@ -88,7 +97,7 @@ export interface CsharpJsSurfaceHost {
   ) => ExtensionDiagnostic;
 }
 
-export const csharpJsCheckedTypeQuery = { allowSemanticTypeQuery: false } satisfies CsharpJsTargetTypeRefResolutionOptions;
+export const csharpJsCheckedTypeQuery = { allowSemanticTypeQuery: true } satisfies CsharpJsTargetTypeRefResolutionOptions;
 
 export function range(count: number): readonly number[] {
   return Array.from({ length: count }, (_value, index) => index);

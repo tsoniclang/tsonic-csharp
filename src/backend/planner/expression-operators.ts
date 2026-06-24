@@ -5,7 +5,9 @@ import {
   KindBinaryExpression,
   KindIdentifier,
   KindNullKeyword,
+  KindPropertyAccessExpression,
   KindVoidExpression,
+  Node_Expression,
   Node_Text,
   SourceKind,
 } from "./source-ast.js";
@@ -44,6 +46,13 @@ import {
 import {
   sameCsharpType,
 } from "./csharp-types.js";
+import {
+  isDestructuringAssignmentExpression,
+  pushMissingDestructuringAssignmentFactsDiagnostic,
+} from "./destructuring-assignment.js";
+import {
+  tryPlanCompatRuntimePropertySet,
+} from "./compat-runtime-operations.js";
 
 export {
   planTypeofExpression,
@@ -67,6 +76,16 @@ export function tryPlanBinaryExpression(
   const expression = AsBinaryExpression(node)!;
   const left = getBinaryLeft(expression);
   const right = getBinaryRight(expression);
+  if (SourceKind(input.ast, expression.OperatorToken) === "KindEqualsToken") {
+    const compatRuntimePropertySet = tryPlanCompatRuntimePropertySet(node, getCompatRuntimePropertySetReceiver(left, input), right, sourceFile, input, diagnostics, planExpression);
+    if (compatRuntimePropertySet !== undefined) {
+      return compatRuntimePropertySet;
+    }
+  }
+  if (isDestructuringAssignmentExpression(node, input)) {
+    pushMissingDestructuringAssignmentFactsDiagnostic(left ?? node, diagnostics);
+    return invalidExpression("destructuring assignment without target storage facts");
+  }
   const typeTest = tryPlanTypeTestExpression(expression, selectedOperator, sourceFile, input, diagnostics, planExpression);
   if (typeTest !== undefined) {
     return typeTest;
@@ -94,11 +113,16 @@ export function tryPlanBinaryExpression(
     return invalidExpression("unsupported C# operator token");
   }
   if (assignmentOperatorToken !== undefined) {
+    const leftExpression = planExpression(left!, sourceFile, input, diagnostics);
+    const rightExpression = planExpression(right!, sourceFile, input, diagnostics);
+    if (leftExpression.kind === "InvalidExpression" || rightExpression.kind === "InvalidExpression") {
+      return invalidExpression("assignment operand facts");
+    }
     return {
       kind: "AssignmentExpression",
-      left: planExpression(left!, sourceFile, input, diagnostics),
+      left: leftExpression,
       operatorToken: assignmentOperatorToken,
-      right: planExpression(right!, sourceFile, input, diagnostics),
+      right: rightExpression,
     };
   }
   if (binaryOperatorToken === undefined) {
@@ -206,6 +230,15 @@ function planBinaryOperand(
   return isNullishEqualityOperand(operand, operatorToken, sourceFile, input)
     ? { kind: "LiteralExpression", value: null }
     : planExpression(operand, sourceFile, input, diagnostics);
+}
+
+function getCompatRuntimePropertySetReceiver(
+  node: Node | undefined,
+  input: TargetCompileInput,
+): Node | undefined {
+  return HasSourceKind(input.ast, node, KindPropertyAccessExpression)
+    ? Node_Expression(node)
+    : undefined;
 }
 
 function isNullishEqualityOperand(

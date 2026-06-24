@@ -1,4 +1,5 @@
 import type { CsharpExpression, CsharpTypeNode } from "../../backend/roslyn/syntax.js";
+import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 
 export function printCsharpType(type: CsharpTypeNode): string {
   switch (type.kind) {
@@ -27,6 +28,7 @@ export function printCsharpType(type: CsharpTypeNode): string {
     case "NullableType":
       return `${printCsharpType(type.inner)}?`;
   }
+  return failUnsupportedCsharpSyntax(type, "type");
 }
 
 export function isCsharpTypeSyntax(expression: CsharpExpression): expression is CsharpTypeNode {

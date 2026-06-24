@@ -47,6 +47,10 @@ export type CsharpTaskTargetTypeRef = CsharpTargetNamedTypeRef & {
   readonly csharpTaskResultType: TargetTypeRef;
 };
 
+export type CsharpRuntimeUnionTargetTypeRef = CsharpTargetNamedTypeRef & {
+  readonly csharpRuntimeUnionArms: readonly TargetTypeRef[];
+};
+
 export function targetMethod(
   id: string,
   sourceName: string,
@@ -248,6 +252,7 @@ export function substituteTargetTypeParameters(
     case "target-named":
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
       const taskResultType = (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType;
+      const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
       return {
         ...type,
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }),
@@ -257,6 +262,9 @@ export function substituteTargetTypeParameters(
         ...(taskResultType === undefined
           ? {}
           : { csharpTaskResultType: substituteTargetTypeParameters(taskResultType, substitutions) }),
+        ...(runtimeUnionArms === undefined
+          ? {}
+          : { csharpRuntimeUnionArms: runtimeUnionArms.map((arm) => substituteTargetTypeParameters(arm, substitutions)) }),
       };
     case "array":
       return { ...type, element: substituteTargetTypeParameters(type.element, substitutions) };
@@ -323,6 +331,68 @@ export function csharpTaskTargetType(resultType: TargetTypeRef): CsharpTaskTarge
   } satisfies CsharpTaskTargetTypeRef;
 }
 
+export function csharpEnumerableTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "System.Collections.Generic.IEnumerable`1",
+    [elementType],
+    csharpQualifiedTypeRenderShape("System.Collections.Generic", "IEnumerable"),
+    { arrayLiteralElementType: elementType },
+  );
+}
+
+export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "System.Collections.Generic.IReadOnlyList`1",
+    [elementType],
+    csharpQualifiedTypeRenderShape("System.Collections.Generic", "IReadOnlyList"),
+    { arrayLiteralElementType: elementType },
+  );
+}
+
+export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNamedTypeRef {
+  return csharpTargetNamedType(
+    "System.Collections.Generic.List`1",
+    [elementType],
+    csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
+    { arrayLiteralElementType: elementType },
+  );
+}
+
+export function getCsharpCollectionElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  if (type?.kind === "array") {
+    return type.element;
+  }
+  if (type?.kind !== "target-named") {
+    return undefined;
+  }
+  const id = type.id;
+  if (
+    id !== "System.Collections.Generic.IEnumerable`1" &&
+    id !== "System.Collections.Generic.IReadOnlyList`1" &&
+    id !== "System.Collections.Generic.IList`1" &&
+    id !== "System.Collections.Generic.List`1"
+  ) {
+    return undefined;
+  }
+  const typeArguments = type.typeArguments ?? [];
+  return typeArguments.length === 1 ? typeArguments[0] : undefined;
+}
+
+export function isCsharpReadOnlyIndexableCollectionTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "array" ||
+    (type?.kind === "target-named" &&
+      (
+        type.id === "System.Collections.Generic.IReadOnlyList`1" ||
+        type.id === "System.Collections.Generic.IList`1" ||
+        type.id === "System.Collections.Generic.List`1"
+      ));
+}
+
+export function isCsharpDenseMutableCollectionTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" &&
+    (type.id === "System.Collections.Generic.List`1" || type.id === "System.Collections.Generic.IList`1");
+}
+
 export function getCsharpTaskResultTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
   return type?.kind === "target-named"
     ? (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType
@@ -337,8 +407,49 @@ export function csharpAnyRuntimeCarrier(): TargetTypeRef {
   return { kind: "opaque", id: "any" };
 }
 
+export function csharpRuntimeUnionTargetType(arms: readonly TargetTypeRef[]): CsharpRuntimeUnionTargetTypeRef | undefined {
+  if (arms.length < 2 || arms.length > 8) {
+    return undefined;
+  }
+  const targetType = csharpTargetNamedType(
+    `Tsonic.CSharp.Runtime.Union\`${arms.length}`,
+    arms,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Union"),
+  );
+  return {
+    kind: "target-named",
+    id: targetType.id,
+    typeArguments: arms,
+    ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
+    csharpRuntimeUnionArms: arms,
+  } satisfies CsharpRuntimeUnionTargetTypeRef;
+}
+
 export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "opaque" && type.id === "any";
+}
+
+export function isCsharpClosedCompatRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" &&
+    (
+      type.id === "Tsonic.CSharp.Js.TsValue" ||
+      type.id === "Tsonic.CSharp.Js.TsObject" ||
+      type.id === "Tsonic.CSharp.Js.TsArray" ||
+      type.id === "Tsonic.CSharp.Js.TsFunction"
+    );
+}
+
+export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {
+  return type?.kind === "target-named" &&
+    typeof type.id === "string" &&
+    type.id.startsWith("Tsonic.CSharp.Runtime.Union`") &&
+    Array.isArray((type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms);
+}
+
+export function getCsharpRuntimeUnionArms(type: TargetTypeRef | undefined): readonly TargetTypeRef[] | undefined {
+  return isCsharpRuntimeUnionTargetType(type)
+    ? type.csharpRuntimeUnionArms
+    : undefined;
 }
 
 export function isCsharpThrowableTargetType(type: TargetTypeRef | undefined): boolean {

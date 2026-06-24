@@ -13,9 +13,12 @@ import {
 import {
   csharpSourceSemanticsModules,
 } from "./source-modules.js";
+import {
+  createCsharpSourceVirtualModulesProvider,
+} from "./source-virtual-modules.js";
 
 export function createCsharpSourceSemanticsExtension(_context: TargetProviderContext): CompilerExtension {
-  return createSourceSemanticsExtension({
+  const sourceSemantics = createSourceSemanticsExtension({
     identity: {
       id: "tsonic.csharp.source-semantics",
       version: csharpProviderVersion,
@@ -23,4 +26,11 @@ export function createCsharpSourceSemanticsExtension(_context: TargetProviderCon
     },
     modules: csharpSourceSemanticsModules(),
   });
+  return {
+    ...sourceSemantics,
+    initialize(extensionContext): void {
+      extensionContext.registerTargetBindingProvider(createCsharpSourceVirtualModulesProvider());
+      sourceSemantics.initialize?.(extensionContext);
+    },
+  };
 }

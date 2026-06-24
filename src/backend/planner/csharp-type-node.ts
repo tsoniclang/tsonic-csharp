@@ -17,10 +17,7 @@ import {
 import type {
   Node,
   SourceFile,
-  Symbol,
-  TargetBindingFact,
   TargetTypeRef,
-  Type,
 } from "@tsonic/tsts";
 import type {
   TargetCompileInput,
@@ -40,28 +37,23 @@ import {
 } from "./object-shapes.js";
 import {
   getTargetTypeRefForNode,
-  getTargetTypeRefForType,
 } from "./runtime-carriers.js";
 import {
   csharpBigIntegerTargetType,
-  csharpDelegateTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetTypeFromBinding,
   csharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
-  sourcePrimitiveTargetBindingId,
-} from "../../source/csharp-source-semantics/identity.js";
+  csharpArrayBoundaryFactKey,
+} from "../../source/csharp-facts.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
   invalidCsharpType,
 } from "./csharp-type-primitives.js";
-import {
-  tryCsharpIdentifier,
-} from "./identifiers.js";
 import {
   getCallableSemanticOwnership,
 } from "./semantic-guards.js";
@@ -71,6 +63,10 @@ import {
   getCsharpTypeFromSelectedTargetCall,
   isUnionTypeNode,
 } from "./csharp-type-facts.js";
+import {
+  getCsharpTypeFromSemanticType,
+  getCsharpTypeParameterName,
+} from "./csharp-semantic-types.js";
 
 export function getCsharpTypeForNode(
   node: Node | undefined,
@@ -129,6 +125,14 @@ export function getCsharpTypeForNode(
   if (nodeTypeParameterName !== undefined) {
     return { kind: "IdentifierName", name: nodeTypeParameterName };
   }
+  const arrayBoundaryType = getCsharpTypeFromArrayBoundaryFact(node, input);
+  if (arrayBoundaryType !== undefined) {
+    return arrayBoundaryType;
+  }
+  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
+  if (nodeCarrierType !== undefined) {
+    return nodeCarrierType;
+  }
   if (input.ast.kindName(node) === KindArrayType) {
     const elementTypeNode = (node as { readonly ElementType?: Node }).ElementType;
     const elementType = getCsharpTypeForNode(elementTypeNode, sourceFile, input, invalidCsharpType("array element type"), diagnostics);
@@ -140,19 +144,9 @@ export function getCsharpTypeForNode(
   if (keywordType !== undefined) {
     return keywordType;
   }
-  const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
-  if (nodeCarrierType !== undefined) {
-    return nodeCarrierType;
-  }
   const targetBindingType = getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
   if (targetBindingType !== undefined) {
     return targetBindingType;
-  }
-  const callableSemanticType = nodeType === undefined
-    ? undefined
-    : getCsharpCallableTypeFromSemanticType(nodeType, sourceFile, input, new Set());
-  if (callableSemanticType !== undefined) {
-    return callableSemanticType;
   }
   if (input.ast.kindName(node) === KindObjectBindingPattern || input.ast.kindName(node) === KindArrayBindingPattern) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Binding patterns require target destructuring lowering before C# type emission."));
@@ -179,6 +173,14 @@ export function getCsharpTypeForNode(
   const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
   return invalidCsharpType("unsupported semantic type");
+}
+
+function getCsharpTypeFromArrayBoundaryFact(
+  node: Node,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const boundary = input.facts.getFact(node, csharpArrayBoundaryFactKey);
+  return boundary === undefined ? undefined : csharpTypeFromTargetTypeRef(boundary.publicType);
 }
 
 function getCsharpTypeFromTargetConversion(
@@ -375,246 +377,6 @@ function substituteCsharpTypeNode(
   }
 }
 
-export function getCsharpTypeFromSemanticType(
-  type: Type | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  seen: ReadonlySet<Type> = new Set(),
-): CsharpTypeNode | undefined {
-  if (
-    type === undefined ||
-    seen.has(type) ||
-    input.types.isAny(type) ||
-    input.types.isUnknown(type)
-  ) {
-    return undefined;
-  }
-  const nextSeen = new Set(seen).add(type);
-  const typeParameterName = getCsharpTypeParameterName(type, input);
-  if (typeParameterName !== undefined) {
-    return { kind: "IdentifierName", name: typeParameterName };
-  }
-  const resolvedTargetType = getCsharpTargetTypeRefFromSemanticType(type, sourceFile, input, nextSeen);
-  const resolvedCsharpType = resolvedTargetType === undefined
-    ? undefined
-    : csharpTypeFromTargetTypeRef(resolvedTargetType);
-  if (resolvedCsharpType !== undefined) {
-    return resolvedCsharpType;
-  }
-  const directTargetType = getTargetTypeRefForType(input, type, sourceFile);
-  const directCsharpType = directTargetType === undefined
-    ? undefined
-    : csharpTypeFromTargetTypeRef(directTargetType);
-  if (directCsharpType !== undefined) {
-    return directCsharpType;
-  }
-  const callable = getCsharpCallableTypeFromSemanticType(type, sourceFile, input, nextSeen);
-  if (callable !== undefined) {
-    return callable;
-  }
-  if (input.types.isArrayLike(type, { sourceFile })) {
-    const elementType = getArrayLikeElementType(type, sourceFile, input);
-    const csharpElementType = getCsharpTypeFromSemanticType(elementType, sourceFile, input, nextSeen);
-    return csharpElementType === undefined
-      ? undefined
-      : { kind: "ArrayType", elementType: csharpElementType };
-  }
-  if (input.types.isTuple(type)) {
-    const elements = input.types.getTupleElementTypes(type, { sourceFile })
-      .map((element) => getCsharpTypeFromSemanticType(element, sourceFile, input, nextSeen));
-    return elements.some((element) => element === undefined)
-      ? undefined
-      : { kind: "TupleType", elements: elements as readonly CsharpTypeNode[] };
-  }
-  if (input.types.isBooleanLike(type)) {
-    return csharpTypeFromTargetTypeRef(csharpSourcePrimitiveTargetType("bool"));
-  }
-  if (input.types.isNumberLike(type)) {
-    return csharpTypeFromTargetTypeRef(csharpSourcePrimitiveTargetType("float64"));
-  }
-  if (input.types.isStringLike(type)) {
-    return csharpTypeFromTargetTypeRef(csharpStringTargetType());
-  }
-  if (input.types.isBigIntLike(type)) {
-    return csharpTypeFromTargetTypeRef(csharpBigIntegerTargetType());
-  }
-  if (input.types.isVoidLike(type)) {
-    return csharpTypeFromTargetTypeRef(csharpVoidTargetType());
-  }
-  return undefined;
-}
-
-function getCsharpTargetTypeRefFromSemanticType(
-  type: Type | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  seen: ReadonlySet<Type>,
-): TargetTypeRef | undefined {
-  if (
-    type === undefined ||
-    seen.has(type) ||
-    input.types.isAny(type) ||
-    input.types.isUnknown(type)
-  ) {
-    return undefined;
-  }
-  const directTargetType = getTargetTypeRefForType(input, type, sourceFile);
-  const instantiatedDirectTargetType = instantiateSemanticTargetNamedType(directTargetType, type, sourceFile, input, seen);
-  if (instantiatedDirectTargetType !== undefined) {
-    return instantiatedDirectTargetType;
-  }
-  if (directTargetType !== undefined) {
-    return directTargetType;
-  }
-  const typeParameterName = getCsharpTypeParameterName(type, input);
-  if (typeParameterName !== undefined) {
-    return { kind: "type-parameter", name: typeParameterName };
-  }
-  const nextSeen = new Set(seen).add(type);
-  const callable = getCsharpCallableTargetTypeRefFromSemanticType(type, sourceFile, input, nextSeen);
-  if (callable !== undefined) {
-    return callable;
-  }
-  if (input.types.isArrayLike(type, { sourceFile })) {
-    const elementType = getArrayLikeElementType(type, sourceFile, input);
-    const elementTargetType = getCsharpTargetTypeRefFromSemanticType(elementType, sourceFile, input, nextSeen);
-    return elementTargetType === undefined
-      ? undefined
-      : { kind: "array", element: elementTargetType };
-  }
-  if (input.types.isTuple(type)) {
-    const elements = input.types.getTupleElementTypes(type, { sourceFile })
-      .map((element) => getCsharpTargetTypeRefFromSemanticType(element, sourceFile, input, nextSeen));
-    return elements.some((element) => element === undefined)
-      ? undefined
-      : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
-  }
-  if (input.types.isBooleanLike(type)) {
-    return csharpSourcePrimitiveTargetType("bool");
-  }
-  if (input.types.isNumberLike(type)) {
-    return csharpSourcePrimitiveTargetType("float64");
-  }
-  if (input.types.isStringLike(type)) {
-    return csharpStringTargetType();
-  }
-  if (input.types.isBigIntLike(type)) {
-    return csharpBigIntegerTargetType();
-  }
-  if (input.types.isVoidLike(type)) {
-    return csharpVoidTargetType();
-  }
-  return undefined;
-}
-
-function getArrayLikeElementType(
-  type: Type,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): Type | undefined {
-  return input.types.isTypeReference(type)
-    ? input.types.getTypeArguments(type, { sourceFile })[0]
-    : undefined;
-}
-
-function instantiateSemanticTargetNamedType(
-  targetType: TargetTypeRef | undefined,
-  type: Type,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  seen: ReadonlySet<Type>,
-): TargetTypeRef | undefined {
-  if (targetType?.kind !== "target-named" || !input.types.isTypeReference(type)) {
-    return undefined;
-  }
-  const typeArguments = input.types.getTypeArguments(type, { sourceFile });
-  if (typeArguments.length === 0) {
-    return targetType;
-  }
-  const nextSeen = new Set(seen).add(type);
-  const targetTypeArguments = typeArguments.map((argument) =>
-    getCsharpTargetTypeRefFromSemanticType(argument, sourceFile, input, nextSeen));
-  return targetTypeArguments.some((argument) => argument === undefined)
-    ? undefined
-    : {
-        ...targetType,
-        typeArguments: targetTypeArguments as readonly TargetTypeRef[],
-      };
-}
-
-function getCsharpCallableTargetTypeRefFromSemanticType(
-  type: Type,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  seen: ReadonlySet<Type>,
-): TargetTypeRef | undefined {
-  const signature = input.types.getCallSignatures(type, { sourceFile })[0];
-  if (signature === undefined) {
-    return undefined;
-  }
-  const parameters = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
-    .map((parameter) => getCsharpTargetTypeRefFromSemanticType(
-      input.semantics.getTypeOfSymbol(parameter, { sourceFile }),
-      sourceFile,
-      input,
-      seen,
-    ));
-  if (parameters.some((parameter) => parameter === undefined)) {
-    return undefined;
-  }
-  const returnType = input.types.getReturnTypeOfSignature(signature, { sourceFile });
-  const returnCsharpType = getCsharpTargetTypeRefFromSemanticType(returnType, sourceFile, input, seen);
-  return input.types.isVoidLike(returnType) || returnCsharpType === undefined
-    ? csharpDelegateTargetType("System.Action", parameters as readonly TargetTypeRef[])
-    : csharpDelegateTargetType("System.Func", parameters as readonly TargetTypeRef[], returnCsharpType);
-}
-
-function getCsharpCallableTypeFromSemanticType(
-  type: Type,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  seen: ReadonlySet<Type>,
-): CsharpTypeNode | undefined {
-  const signature = input.types.getCallSignatures(type, { sourceFile })[0];
-  if (signature === undefined) {
-    return undefined;
-  }
-  const parameters = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
-    .map((parameter) => getCsharpTypeFromSemanticType(
-      input.semantics.getTypeOfSymbol(parameter, { sourceFile }),
-      sourceFile,
-      input,
-      seen,
-    ));
-  if (parameters.some((parameter) => parameter === undefined)) {
-    return undefined;
-  }
-  const returnType = input.types.getReturnTypeOfSignature(signature, { sourceFile });
-  const returnCsharpType = getCsharpTypeFromSemanticType(returnType, sourceFile, input, seen);
-  if (returnCsharpType === undefined || input.types.isVoidLike(returnType)) {
-    return {
-      kind: "IdentifierName",
-      name: "Action",
-      ...(parameters.length > 0 ? { typeArguments: parameters as readonly CsharpTypeNode[] } : {}),
-    };
-  }
-  return {
-    kind: "IdentifierName",
-    name: "Func",
-    typeArguments: [...parameters as readonly CsharpTypeNode[], returnCsharpType],
-  };
-}
-
-function getCsharpTypeParameterName(type: Type, input: TargetCompileInput): string | undefined {
-  const name = type.symbol?.Name;
-  if (name === undefined || tryCsharpIdentifier(name) !== name) {
-    return undefined;
-  }
-  return type.symbol?.Declarations?.some((declaration) => input.ast.is.IsTypeParameterDeclaration(declaration)) === true
-    ? name
-    : undefined;
-}
-
 function getCsharpTypeFromTargetBindingForReference(
   node: Node,
   sourceFile: SourceFile,
@@ -623,10 +385,6 @@ function getCsharpTypeFromTargetBindingForReference(
 ): CsharpTypeNode | undefined {
   const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding === undefined) {
-    return undefined;
-  }
-  const carrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
-  if (isSourcePrimitiveBindingForCarrier(targetBinding, carrier)) {
     return undefined;
   }
   const typeArguments = getTargetTypeArgumentsForReference(node, sourceFile, input, diagnostics);
@@ -662,10 +420,6 @@ function getTargetTypeArgumentsForReference(
     return undefined;
   }
   return resolved as readonly TargetTypeRef[];
-}
-
-function isSourcePrimitiveBindingForCarrier(binding: TargetBindingFact, carrier: TargetTypeRef | undefined): boolean {
-  return carrier?.kind === "source-primitive" && binding.id === sourcePrimitiveTargetBindingId(carrier.name);
 }
 
 function getCsharpTypeFromKeywordTypeNode(node: Node, input: TargetCompileInput): CsharpTypeNode | undefined {

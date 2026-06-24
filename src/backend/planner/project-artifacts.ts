@@ -1,6 +1,9 @@
 import type { TargetCompileInput } from "@tsonic/target-api";
 import type { CsharpProjectFile } from "./project-artifact-types.js";
 import {
+  validateCsharpTargetOptions,
+} from "../../options/csharp-target-options.js";
+import {
   readAssemblyName,
   readCsharpProjectProperties,
   readReferencesOption,
@@ -17,6 +20,7 @@ export function planCsharpProjectFile(
   input: TargetCompileInput,
   options: { readonly allowUnsafeBlocks?: boolean } = {},
 ): CsharpProjectFile {
+  validateCsharpTargetOptions(input.target);
   return {
     sdk: "Microsoft.NET.Sdk",
     path: `${readAssemblyName(input)}.csproj`,

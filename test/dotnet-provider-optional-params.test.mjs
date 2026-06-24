@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -132,6 +133,48 @@ test(".NET provider preserves default parameter values only from reflected defau
   );
   assert.equal(targetOptionalWithoutDefault.parameters[0].optional, true);
   assert.equal(targetOptionalWithoutDefault.parameters[0].defaultValue, undefined);
+});
+
+test(".NET provider records unsupported default parameter values without exposing source defaults", () => {
+  const reference = buildUnsupportedDefaultParameterFixture();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
+  const module = provider.getModule("@tsonic/dotnet/ProviderUnsupportedDefaultFixtures.js", {});
+  assert.equal("exports" in module, true);
+
+  const signatureId = "ProviderUnsupportedDefaultFixtures.UnsupportedDefaultParameterSource.UnsupportedDateTimeDefault(System.DateTime)";
+  const rawSignatureWithUnsupportedDefault = rawSignature(
+    module,
+    "UnsupportedDefaultParameterSource",
+    "unsupportedDateTimeDefault",
+    signatureId,
+  );
+  const rawParameter = rawSignatureWithUnsupportedDefault.parameters[0];
+  assert.equal(rawParameter.optional, true);
+  assert.equal(rawParameter.defaultValue, undefined);
+  assert.equal(rawParameter.unsupportedDefaultValue.kind, "unsupported-default-value");
+  assert.equal(rawParameter.unsupportedDefaultValue.parameterName, "value");
+  assert.equal(stripAssemblyQualifiers(rawParameter.unsupportedDefaultValue.id), `${signatureId}:parameter:value:default`);
+  assert.match(rawParameter.unsupportedDefaultValue.reason, /System\.DateTime/u);
+  assert.match(JSON.stringify(rawParameter.unsupportedDefaultValue.evidence), /parameter 'value'/u);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceSignatureWithUnsupportedDefault = sourceSignature(
+    sourceModel,
+    "UnsupportedDefaultParameterSource",
+    "unsupportedDateTimeDefault",
+    signatureId,
+  );
+  assert.equal(sourceSignatureWithUnsupportedDefault.parameters[0].optional, true);
+  assert.equal("defaultValue" in sourceSignatureWithUnsupportedDefault.parameters[0], false);
+  assert.equal("unsupportedDefaultValue" in sourceSignatureWithUnsupportedDefault.parameters[0], false);
+
+  const targetSignatureWithUnsupportedDefault = targetMember(
+    provider,
+    "@tsonic/dotnet/ProviderUnsupportedDefaultFixtures.js",
+    "ProviderUnsupportedDefaultFixtures.UnsupportedDefaultParameterSource",
+    signatureId,
+  );
+  assert.deepEqual(targetSignatureWithUnsupportedDefault.parameters[0].unsupportedDefaultValue, rawParameter.unsupportedDefaultValue);
 });
 
 test(".NET selected target-member identity enforces optional and params-array arity facts", () => {
@@ -274,8 +317,52 @@ function buildDefaultParameterFixture() {
     "quiet",
     "--output",
     outputDirectory,
-    `-p:BaseIntermediateOutputPath=${intermediateDirectory}`,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return join(outputDirectory, "DefaultParameterProviderFixture.dll");
+}
+
+function buildUnsupportedDefaultParameterFixture() {
+  const fixtureDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-default-params");
+  const project = join(fixtureDirectory, "UnsupportedDefaultParameterProviderFixture.csproj");
+  const source = join(fixtureDirectory, "UnsupportedDefaultParameterSource.cs");
+  const outputDirectory = join(fixtureDirectory, "bin");
+  const intermediateDirectory = join(fixtureDirectory, "obj/");
+  mkdirSync(fixtureDirectory, { recursive: true });
+  writeFileSync(project, `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>
+`);
+  writeFileSync(source, `using System;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+namespace ProviderUnsupportedDefaultFixtures;
+
+public sealed class UnsupportedDefaultParameterSource
+{
+    public void UnsupportedDateTimeDefault(
+        [Optional, DateTimeConstant(638000000000000000L)] DateTime value)
+    {
+    }
+}
+`);
+  const result = spawnSync("dotnet", [
+    "build",
+    project,
+    "--nologo",
+    "--verbosity",
+    "quiet",
+    "--output",
+    outputDirectory,
+    `-p:IntermediateOutputPath=${intermediateDirectory}`,
+  ], { encoding: "utf8" });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  return join(outputDirectory, "UnsupportedDefaultParameterProviderFixture.dll");
 }

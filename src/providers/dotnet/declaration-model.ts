@@ -23,8 +23,15 @@ import {
   tryDotnetTypeRefToProviderType,
 } from "./model.js";
 
-export function dotnetModuleToProviderDeclarationModel(module: DotnetModuleModel): ProviderDeclarationModel {
-  const context = createDotnetDeclarationContext(module);
+export interface DotnetProviderDeclarationModelOptions {
+  readonly resolveModule?: (specifier: string) => DotnetModuleModel | undefined;
+}
+
+export function dotnetModuleToProviderDeclarationModel(
+  module: DotnetModuleModel,
+  options: DotnetProviderDeclarationModelOptions = {},
+): ProviderDeclarationModel {
+  const context = createDotnetDeclarationContext(module, options);
   return {
     moduleSpecifier: module.moduleSpecifier,
     providerModuleId: module.moduleSpecifier,
@@ -36,16 +43,25 @@ export function dotnetModuleToProviderDeclarationModel(module: DotnetModuleModel
 }
 
 interface DotnetDeclarationContext {
+  readonly moduleSpecifier: string;
   readonly typesBySourceName: ReadonlyMap<string, DotnetTypeDeclaration>;
   readonly sourceMembersByTargetId: Map<string, readonly ProviderMemberDeclaration[]>;
+  readonly modulesBySpecifier: Map<string, DotnetModuleModel>;
+  readonly resolveModule?: (specifier: string) => DotnetModuleModel | undefined;
 }
 
-function createDotnetDeclarationContext(module: DotnetModuleModel): DotnetDeclarationContext {
+function createDotnetDeclarationContext(
+  module: DotnetModuleModel,
+  options: DotnetProviderDeclarationModelOptions = {},
+): DotnetDeclarationContext {
   return {
+    moduleSpecifier: module.moduleSpecifier,
     typesBySourceName: new Map(module.exports
       .filter((declaration): declaration is DotnetTypeDeclaration => declaration.kind === "type")
       .map((declaration) => [declaration.sourceName, declaration])),
     sourceMembersByTargetId: new Map(),
+    modulesBySpecifier: new Map([[module.moduleSpecifier, module]]),
+    ...(options.resolveModule !== undefined ? { resolveModule: options.resolveModule } : {}),
   };
 }
 
@@ -128,17 +144,15 @@ function dotnetTypeSourceMembers(
     return cached;
   }
   const ownMembers = mergeProviderMemberList(declaration.members
-    ?.map(dotnetMemberToProviderMember)
+    ?.map((member) => dotnetMemberToProviderMember(member, declaration))
     .filter((member): member is ProviderMemberDeclaration => member !== undefined) ?? []);
-  const baseMembers = dotnetLocalBaseSourceMembers(declaration, context);
-  const members = baseMembers.length === 0
-    ? ownMembers
-    : ownMembers.flatMap((member) => mergeProviderMemberWithLocalBase(member, baseMembers));
+  const baseMembers = dotnetBaseSourceMembers(declaration, context);
+  const members = mergeOwnAndBaseProviderMembers(ownMembers, baseMembers);
   context.sourceMembersByTargetId.set(declaration.targetId, members);
   return members.length === 0 ? undefined : members;
 }
 
-function dotnetLocalBaseSourceMembers(
+function dotnetBaseSourceMembers(
   declaration: DotnetTypeDeclaration,
   context: DotnetDeclarationContext,
 ): readonly ProviderMemberDeclaration[] {
@@ -146,18 +160,78 @@ function dotnetLocalBaseSourceMembers(
   if (baseType?.kind !== "provider-ref") {
     return [];
   }
-  const baseDeclaration = context.typesBySourceName.get(baseType.name);
+  const baseDeclaration = dotnetProviderRefToTypeDeclaration(baseType, context);
   if (baseDeclaration === undefined) {
     return [];
   }
-  const baseMembers = mergeProviderMemberList([
-    ...dotnetLocalBaseSourceMembers(baseDeclaration, context),
-    ...(dotnetTypeSourceMembers(baseDeclaration, context) ?? []),
-  ]);
+  const baseMembers = dotnetTypeSourceMembers(baseDeclaration, context) ?? [];
+  const baseModuleSpecifier = baseType.moduleSpecifier;
+  const inheritedMembers = baseModuleSpecifier === undefined || baseModuleSpecifier === context.moduleSpecifier
+    ? baseMembers
+    : baseMembers.map((member) => qualifyProviderMemberModuleRefs(member, baseModuleSpecifier, context));
   const substitutions = getBaseTypeParameterSubstitutions(baseDeclaration, baseType);
   return substitutions.size === 0
-    ? baseMembers
-    : baseMembers.map((member) => substituteProviderMember(member, substitutions));
+    ? inheritedMembers
+    : inheritedMembers.map((member) => substituteProviderMember(member, substitutions));
+}
+
+function mergeOwnAndBaseProviderMembers(
+  ownMembers: readonly ProviderMemberDeclaration[],
+  baseMembers: readonly ProviderMemberDeclaration[],
+): readonly ProviderMemberDeclaration[] {
+  if (baseMembers.length === 0) {
+    return ownMembers;
+  }
+  if (ownMembers.length === 0) {
+    return baseMembers;
+  }
+  const members = [...baseMembers];
+  for (const member of ownMembers) {
+    const matchingBaseMembers = members.filter((baseMember) =>
+      baseMember.name === member.name &&
+      baseMember.static === member.static
+    );
+    if (matchingBaseMembers.length === 0) {
+      members.push(member);
+      continue;
+    }
+    for (const matchingMember of matchingBaseMembers) {
+      members.splice(members.indexOf(matchingMember), 1);
+    }
+    members.push(...mergeProviderMemberWithLocalBase(member, matchingBaseMembers));
+  }
+  return members;
+}
+
+function dotnetProviderRefToTypeDeclaration(
+  baseType: Extract<ProviderTypeExpression, { readonly kind: "provider-ref" }>,
+  context: DotnetDeclarationContext,
+): DotnetTypeDeclaration | undefined {
+  if (baseType.moduleSpecifier === undefined || baseType.moduleSpecifier === context.moduleSpecifier) {
+    return context.typesBySourceName.get(baseType.name);
+  }
+  const module = getDotnetModuleBySpecifier(baseType.moduleSpecifier, context);
+  if (module === undefined) {
+    return undefined;
+  }
+  return module.exports.find((declaration): declaration is DotnetTypeDeclaration =>
+    declaration.kind === "type" && declaration.sourceName === baseType.name
+  );
+}
+
+function getDotnetModuleBySpecifier(
+  moduleSpecifier: string,
+  context: DotnetDeclarationContext,
+): DotnetModuleModel | undefined {
+  const existing = context.modulesBySpecifier.get(moduleSpecifier);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const resolved = context.resolveModule?.(moduleSpecifier);
+  if (resolved !== undefined) {
+    context.modulesBySpecifier.set(moduleSpecifier, resolved);
+  }
+  return resolved;
 }
 
 function mergeProviderMemberWithLocalBase(
@@ -323,6 +397,92 @@ function substituteProviderTypeExpression(
   }
 }
 
+function qualifyProviderMemberModuleRefs(
+  member: ProviderMemberDeclaration,
+  moduleSpecifier: string,
+  context: DotnetDeclarationContext,
+): ProviderMemberDeclaration {
+  return {
+    ...member,
+    ...(member.type === undefined ? {} : { type: qualifyProviderTypeModuleRefs(member.type, moduleSpecifier, context) }),
+    ...(member.signatures === undefined ? {} : { signatures: member.signatures.map((signature) => qualifyProviderSignatureModuleRefs(signature, moduleSpecifier, context)) }),
+  };
+}
+
+function qualifyProviderSignatureModuleRefs(
+  signature: ProviderSignatureDeclaration,
+  moduleSpecifier: string,
+  context: DotnetDeclarationContext,
+): ProviderSignatureDeclaration {
+  return {
+    ...signature,
+    parameters: signature.parameters.map((parameter) => qualifyProviderParameterModuleRefs(parameter, moduleSpecifier, context)),
+    ...(signature.returnType === undefined ? {} : { returnType: qualifyProviderTypeModuleRefs(signature.returnType, moduleSpecifier, context) }),
+  };
+}
+
+function qualifyProviderParameterModuleRefs(
+  parameter: ProviderParameterDeclaration,
+  moduleSpecifier: string,
+  context: DotnetDeclarationContext,
+): ProviderParameterDeclaration {
+  return {
+    ...parameter,
+    type: qualifyProviderTypeModuleRefs(parameter.type, moduleSpecifier, context),
+  };
+}
+
+function qualifyProviderTypeModuleRefs(
+  type: ProviderTypeExpression,
+  moduleSpecifier: string,
+  context: DotnetDeclarationContext,
+): ProviderTypeExpression {
+  switch (type.kind) {
+    case "provider-ref":
+      return {
+        ...type,
+        ...(type.moduleSpecifier === undefined && dotnetModuleExportsSourceName(moduleSpecifier, type.name, context) ? { moduleSpecifier } : {}),
+        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, moduleSpecifier, context)) }),
+      };
+    case "target-named":
+      return {
+        ...type,
+        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, moduleSpecifier, context)) }),
+        ...(type.sourceShape === undefined ? {} : { sourceShape: qualifyProviderTypeModuleRefs(type.sourceShape, moduleSpecifier, context) }),
+      };
+    case "array":
+      return { ...type, elementType: qualifyProviderTypeModuleRefs(type.elementType, moduleSpecifier, context) };
+    case "tuple":
+      return { ...type, elementTypes: type.elementTypes.map((elementType) => qualifyProviderTypeModuleRefs(elementType, moduleSpecifier, context)) };
+    case "union":
+    case "intersection":
+      return { ...type, types: type.types.map((nestedType) => qualifyProviderTypeModuleRefs(nestedType, moduleSpecifier, context)) };
+    case "function":
+      return {
+        ...type,
+        parameters: type.parameters.map((parameter) => qualifyProviderParameterModuleRefs(parameter, moduleSpecifier, context)),
+        returnType: qualifyProviderTypeModuleRefs(type.returnType, moduleSpecifier, context),
+      };
+    case "opaque":
+      return type.sourceShape === undefined
+        ? type
+        : { ...type, sourceShape: qualifyProviderTypeModuleRefs(type.sourceShape, moduleSpecifier, context) };
+    default:
+      return type;
+  }
+}
+
+function dotnetModuleExportsSourceName(
+  moduleSpecifier: string,
+  sourceName: string,
+  context: DotnetDeclarationContext,
+): boolean {
+  const module = getDotnetModuleBySpecifier(moduleSpecifier, context);
+  return module?.exports.some((declaration) =>
+    declaration.kind === "type" && declaration.sourceName === sourceName
+  ) === true;
+}
+
 function removeScopedTypeParameters(
   substitutions: ReadonlyMap<string, ProviderTypeExpression>,
   typeParameters: readonly ProviderTypeParameterDeclaration[] | undefined,
@@ -344,7 +504,7 @@ function tryDotnetBaseTypeToProviderHeritage(baseType: DotnetTypeRef | undefined
   const providerType = tryDotnetTypeRefToProviderType(baseType.kind === "named" && baseType.sourceShape !== undefined
     ? baseType.sourceShape
     : baseType);
-  if (providerType?.kind !== "provider-ref" || providerType.moduleSpecifier !== undefined) {
+  if (providerType?.kind !== "provider-ref") {
     return undefined;
   }
   return providerType;
@@ -412,11 +572,17 @@ function dotnetExportToNamespaceMember(declaration: DotnetExportDeclaration): Pr
   }
 }
 
-function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): ProviderMemberDeclaration | undefined {
+function dotnetMemberToProviderMember(
+  member: DotnetMemberDeclaration,
+  declaringType: DotnetTypeDeclaration,
+): ProviderMemberDeclaration | undefined {
   if (member.kind === "event" || member.kind === "operator") {
     return undefined;
   }
   if (member.kind !== "constructor" && member.sourceName === "constructor") {
+    return undefined;
+  }
+  if (!isSourceReadableMember(member, declaringType)) {
     return undefined;
   }
   if (member.kind === "indexer" && !isSourceVisibleProviderIndexer(member)) {
@@ -437,9 +603,29 @@ function dotnetMemberToProviderMember(member: DotnetMemberDeclaration): Provider
     name: member.sourceName,
     kind: dotnetMemberKindToProviderKind(member.kind),
     ...(member.static !== undefined ? { static: member.static } : {}),
+    ...(isReadonlyProviderMember(member) ? { readonly: true } : {}),
     ...(type !== undefined ? { type } : {}),
     ...(signatures !== undefined ? { signatures } : {}),
   };
+}
+
+function isSourceReadableMember(member: DotnetMemberDeclaration, declaringType: DotnetTypeDeclaration): boolean {
+  switch (member.kind) {
+    case "property":
+    case "indexer":
+      return member.readable === true;
+    case "field":
+      return declaringType.typeKind === "enum" || member.readable === true;
+    case "constructor":
+    case "method":
+    case "operator":
+    case "event":
+      return true;
+  }
+}
+
+function isReadonlyProviderMember(member: DotnetMemberDeclaration): boolean {
+  return (member.kind === "property" || member.kind === "field" || member.kind === "indexer") && member.writable !== true;
 }
 
 function isSourceVisibleProviderIndexer(member: DotnetMemberDeclaration): boolean {

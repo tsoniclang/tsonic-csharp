@@ -35,6 +35,9 @@ import {
 import {
   getRequiredCsharpTargetMemberOperationForSelectedSignature,
 } from "./csharp-target-operations.js";
+import {
+  tryPlanCompatRuntimeConstruct,
+} from "./compat-runtime-operations.js";
 
 export type CallArgumentPlanner = (
   node: Node,
@@ -52,6 +55,19 @@ export function planNewExpression(
   planCallArgument: CallArgumentPlanner,
 ): CsharpExpression {
   const expression = AsNewExpression(node)!;
+  const compatRuntimeConstruct = tryPlanCompatRuntimeConstruct(
+    node,
+    expression.Expression,
+    expression.Arguments?.Nodes ?? [],
+    sourceFile,
+    input,
+    diagnostics,
+    (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics) =>
+      planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics).expression,
+  );
+  if (compatRuntimeConstruct !== undefined) {
+    return compatRuntimeConstruct;
+  }
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
   const sourceConstructible = isProjectSourceClassReference(expression.Expression, sourceFile, input) ||
     isSourceOwnedProjectConstructibleObjectSubject(expression.Expression, sourceFile, input);

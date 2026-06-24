@@ -32,10 +32,14 @@ sealed partial class ReflectionProvider
         }
         if (type.IsArray)
         {
+            if (!type.IsSZArray)
+            {
+                return null;
+            }
             var elementType = TypeRef(type.GetElementType()!);
             return elementType is null
                 ? null
-                : new { kind = "array", elementType, rank = type.GetArrayRank() == 1 ? null : (int?)type.GetArrayRank() };
+                : new { kind = "array", elementType };
         }
         if (IsNullableShape(type, out var nullableElement))
         {
@@ -70,6 +74,38 @@ sealed partial class ReflectionProvider
         };
     }
 
+    string TypeRefFailureReason(Type type)
+    {
+        type = UnwrapByRef(type);
+        if (type.IsPointer)
+        {
+            return $"Pointer type '{TypeMetadataName(type)}' requires an explicit provider pointer type model before it can be exposed safely.";
+        }
+        if (type.IsArray)
+        {
+            if (!type.IsSZArray)
+            {
+                return $"ranked CLR array type '{TypeMetadataName(type)}' requires an explicit provider ranked-array source model before it can be exposed safely.";
+            }
+            var elementType = type.GetElementType()!;
+            return $"Array element type '{TypeMetadataName(elementType)}' is not representable. {TypeRefFailureReason(elementType)}";
+        }
+        if (IsNullableShape(type, out var nullableElement))
+        {
+            return $"Nullable element type '{TypeMetadataName(nullableElement)}' is not representable. {TypeRefFailureReason(nullableElement)}";
+        }
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+        {
+            var unsupportedArgument = type.GetGenericArguments()
+                .FirstOrDefault(argument => TypeRef(argument) is null);
+            if (unsupportedArgument is not null)
+            {
+                return $"Generic type argument '{TypeMetadataName(unsupportedArgument)}' is not representable. {TypeRefFailureReason(unsupportedArgument)}";
+            }
+        }
+        return $"Type '{TypeMetadataName(type)}' is outside the supported provider type-ref model.";
+    }
+
     object? SourceShape(Type type)
     {
         if (IsDelegate(type))
@@ -95,6 +131,10 @@ sealed partial class ReflectionProvider
         }
         if (type.IsArray)
         {
+            if (!type.IsSZArray)
+            {
+                return null;
+            }
             var element = SourceShape(type.GetElementType()!);
             return element is null ? null : new { kind = "array", elementType = element };
         }
@@ -171,7 +211,6 @@ sealed partial class ReflectionProvider
     Dictionary<string, SourceReference> SourceReferencesByTargetId(IEnumerable<Type> loadedTypes)
     {
         var candidates = loadedTypes
-            .Where(type => !type.IsNested)
             .Where(type => type.Namespace is not null)
             .GroupBy(type => $"{type.Namespace}\0{SourceTypeName(type)}", StringComparer.Ordinal)
             .Where(group => group.Count() == 1)
@@ -231,6 +270,10 @@ sealed partial class ReflectionProvider
 
     object? DelegateSourceShape(Type type)
     {
+        if (UnsupportedDelegateSourceShapeReason(type) is not null)
+        {
+            return null;
+        }
         var invoke = type.GetMethod("Invoke");
         if (invoke is null)
         {

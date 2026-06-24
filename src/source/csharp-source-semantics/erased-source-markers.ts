@@ -12,14 +12,16 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpLangModule,
-  neutralLangModule,
 } from "./identity.js";
+import {
+  tsonicCoreLangModule,
+} from "@tsonic/source-core";
 
 export function isErasedSourceSemanticsCall(declaration: ProviderVirtualDeclarationFact | undefined): declaration is ProviderVirtualDeclarationFact {
   if (declaration === undefined) {
     return false;
   }
-  if (declaration.moduleSpecifier !== neutralLangModule && declaration.moduleSpecifier !== csharpLangModule) {
+  if (declaration.moduleSpecifier !== tsonicCoreLangModule && declaration.moduleSpecifier !== csharpLangModule) {
     return false;
   }
   return declaration.exportName === "attribute" ||
@@ -39,7 +41,7 @@ export function isErasedFieldSourceSemanticsCall(declaration: ProviderVirtualDec
   if (declaration === undefined) {
     return false;
   }
-  if (declaration.moduleSpecifier !== neutralLangModule && declaration.moduleSpecifier !== csharpLangModule) {
+  if (declaration.moduleSpecifier !== tsonicCoreLangModule && declaration.moduleSpecifier !== csharpLangModule) {
     return false;
   }
   return declaration.exportName === "field";

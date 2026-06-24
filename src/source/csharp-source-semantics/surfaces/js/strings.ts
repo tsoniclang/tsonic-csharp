@@ -14,6 +14,7 @@ import type {
 import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
   csharpJsCheckedTypeQuery,
+  csharpListTargetType,
   csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
@@ -37,7 +38,7 @@ export function mapCsharpJsStringElementAccess(
   }
   const indexType = host.getTargetTypeRefForSubject(request.argument, context, csharpJsCheckedTypeQuery);
   if (!host.isIntegralTargetTypeRef(indexType) && !host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
-    return rejectObservation(host.csharpProviderDiagnostic("tsonic.csharp.js-surface-operations", "CSHARP_NON_INTEGRAL_STRING_INDEX", 9100112, "C# JS surface string element access requires an integral provider-backed index type."));
+    return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_NON_INTEGRAL_STRING_INDEX", 9100112, "C# JS surface string element access requires an integral provider-backed index type."));
   }
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.js.string.codeUnit", "method", "Substring", {
     resultType: csharpStringTargetType(),
@@ -51,12 +52,6 @@ export function mapCsharpJsStringElementAccess(
       resultType: csharpStringTargetType(),
     }),
   }, [{ message: "C# JS surface string code-unit access selected from checked TypeScript element access." }]);
-}
-
-export function getStringLengthOperation(declaringName: string): CheckedOperationMappingResult["operation"] {
-  return targetOperation(`tsonic.csharp.js.${declaringName}.length`, "property", "Length", {
-    resultType: csharpSourcePrimitiveTargetType("int32"),
-  });
 }
 
 export function getStringTargetMembers(sourceName: string): readonly TargetMember[] {
@@ -104,6 +99,7 @@ const stringInstanceTargetNames = new Map<string, string>([
 ]);
 
 const stringHelperNames = new Set([
+  "at",
   "charAt",
   "charCodeAt",
   "codePointAt",
@@ -112,7 +108,10 @@ const stringHelperNames = new Set([
   "fromCodePoint",
   "includes",
   "indexOf",
+  "isWellFormed",
   "lastIndexOf",
+  "localeCompare",
+  "normalize",
   "padEnd",
   "padStart",
   "repeat",
@@ -123,6 +122,10 @@ const stringHelperNames = new Set([
   "startsWith",
   "substr",
   "substring",
+  "search",
+  "toLocaleLowerCase",
+  "toLocaleUpperCase",
+  "toWellFormed",
   "valueOf",
 ]);
 
@@ -131,16 +134,19 @@ function getStringHelperReturnType(sourceName: string, stringType: TargetTypeRef
     case "includes":
     case "startsWith":
     case "endsWith":
+    case "isWellFormed":
       return boolType;
     case "indexOf":
     case "lastIndexOf":
+    case "localeCompare":
+    case "search":
       return intType;
     case "charCodeAt":
       return doubleType;
     case "codePointAt":
       return csharpNullableValueTargetType(intType);
     case "split":
-      return { kind: "array", element: stringType };
+      return csharpListTargetType(stringType);
     default:
       return stringType;
   }
@@ -170,11 +176,21 @@ function getStringHelperParameters(sourceName: string, stringType: TargetTypeRef
       return [receiver, targetParameter("targetLength", intType), targetParameter("padString", stringType, { optional: true })];
     case "repeat":
     case "charAt":
+    case "at":
     case "charCodeAt":
     case "codePointAt":
       return [receiver, targetParameter("index", intType)];
     case "split":
       return [receiver, targetParameter("separator", stringType), targetParameter("limit", intType, { optional: true })];
+    case "localeCompare":
+    case "search":
+      return [receiver, targetParameter("value", stringType)];
+    case "normalize":
+      return [receiver, targetParameter("form", stringType, { optional: true })];
+    case "toLocaleLowerCase":
+    case "toLocaleUpperCase":
+    case "isWellFormed":
+    case "toWellFormed":
     case "valueOf":
       return [receiver];
     default:

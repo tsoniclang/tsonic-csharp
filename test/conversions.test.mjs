@@ -4,6 +4,7 @@ import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import { csharpTargetConversionOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { getCsharpProviderConversionOperator } from "../dist/source/csharp-source-semantics/provider-conversion-operators.js";
 import { csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
@@ -212,9 +213,55 @@ test("planner rejects conversion methods without a finalized C# operation fact",
   assert.match(diagnostics[0].message, /requires a finalized C# target conversion operation fact/);
 });
 
+test("provider generic conversion operators substitute target type arguments before checked conversion emission", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const typeParameter = { kind: "type-parameter", name: "T" };
+  const boxOpen = genericTargetType("Example.Box`1", "Box", typeParameter);
+  const wrapperOpen = genericTargetType("Example.Wrapper`1", "Wrapper", typeParameter);
+  const boxInt = genericTargetType("Example.Box`1", "Box", intType);
+  const wrapperInt = genericTargetType("Example.Wrapper`1", "Wrapper", intType);
+  const binding = {
+    id: "Example.Box`1",
+    target: "csharp",
+    kind: "class",
+    sourceName: "Box",
+    targetName: "Example.Box",
+    csharpType: boxOpen,
+    typeParameters: [{ name: "T" }],
+    conversionOperators: [{
+      id: "Example.Box`1.op_Implicit(Example.Wrapper`1<T>)",
+      conversionKind: "implicit",
+      declaringType: boxOpen,
+      sourceType: wrapperOpen,
+      targetType: boxOpen,
+    }],
+  };
+
+  const result = getCsharpProviderConversionOperator(wrapperInt, boxInt, hostForBindings([binding]), "implicit-only");
+
+  assert.equal(result.kind, "matched");
+  assert.equal(result.operation.operationId, "Example.Box`1.op_Implicit(Example.Wrapper`1<T>)");
+  assert.deepEqual(result.operation.resultType, boxInt);
+  assert.deepEqual(result.csharpOperation.declaringType, boxInt);
+  assert.deepEqual(result.csharpOperation.sourceType, wrapperInt);
+  assert.deepEqual(result.csharpOperation.targetType, boxInt);
+  assert.deepEqual(result.csharpOperation.resultType, boxInt);
+});
+
 function trueKeyword() {
   return {
     Kind: KindTrueKeyword,
+  };
+}
+
+function genericTargetType(id, name, argument) {
+  return csharpTargetNamedType(id, [argument], csharpQualifiedTypeRenderShape("Example", name));
+}
+
+function hostForBindings(bindings) {
+  const byId = new Map(bindings.map((binding) => [binding.id, binding]));
+  return {
+    getCsharpTargetBindingByTargetId: (targetId) => byId.get(targetId),
   };
 }
 

@@ -15,7 +15,7 @@ import {
   planBindingPatternFromExpression,
 } from "./binding-patterns.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { planExpression } from "./expressions.js";
+import { planExpression, planExpressionWithExpectedType } from "./expressions.js";
 
 export {
   allocateCatchValue,
@@ -63,7 +63,7 @@ export function planVariableBindingStatements(
       type: sourceType,
       initializer: planExpression(initializer, sourceFile, input, diagnostics),
     },
-    ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state),
+    ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state, undefined, planExpressionWithExpectedType),
   ];
 }
 
@@ -83,14 +83,17 @@ export function planParameterBindingPrelude(
     return [];
   }
   const parameter = AsParameterDeclaration(getNodeParent(bindingName));
+  const bindingSource = parameter ?? bindingName;
   return planBindingPatternFromExpression(
     bindingName,
     { kind: "IdentifierName", name: parameterName },
-    parameter?.Type,
+    bindingSource,
     sourceFile,
     input,
     diagnostics,
     state,
+    undefined,
+    planExpressionWithExpectedType,
   );
 }
 

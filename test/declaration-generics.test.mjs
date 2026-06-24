@@ -111,6 +111,40 @@ test("planner diagnoses constrained generics when finalized facts contain no C# 
   assert.match(diagnostics[0].message, /Generic constraints require at least one finalized C# constraint fact/);
 });
 
+test("planner emits constructor and keyword generic constraints only from finalized facts", () => {
+  const sourceExample = `
+    export class Factory<T extends object> {}
+  `;
+  assert.match(sourceExample, /T extends object/);
+
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const typeParameterNode = typeParameter("T", node("KindObjectKeyword"));
+  const classDeclaration = node(KindClassDeclaration, {
+    name: identifier("Factory"),
+    TypeParameters: { Nodes: [typeParameterNode] },
+    Members: { Nodes: [] },
+  });
+  const input = fakeInput(sourceFile, {
+    constraintFacts: new Map([[typeParameterNode, {
+      constraints: [
+        { kind: "csharp-keyword", keyword: "class" },
+        { kind: "csharp-constructor" },
+      ],
+    }]]),
+  });
+  const diagnostics = [];
+
+  const plannedClass = planClassDeclaration(classDeclaration, sourceFile, input, diagnostics);
+  const printed = printCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: [plannedClass],
+  });
+
+  assert.deepEqual(diagnostics, []);
+  assert.match(printed, /public class Factory<T>\nwhere T : class, new\(\)\n\{/);
+});
+
 function node(kind, properties = {}) {
   return { Kind: kind, ...properties };
 }

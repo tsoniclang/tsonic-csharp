@@ -28,6 +28,9 @@ import type {
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
   DotnetUnsupportedAttributeDeclaration,
+  DotnetUnsupportedConstraintDeclaration,
+  DotnetUnsupportedDefaultValueDeclaration,
+  DotnetUnsupportedMemberDeclaration,
 } from "./model-types.js";
 import {
   type CsharpTargetBindingFact,
@@ -43,10 +46,23 @@ import {
 
 export type DotnetTargetParameter = TargetParameter & {
   readonly defaultValue?: DotnetParameterDefaultValue;
+  readonly unsupportedDefaultValue?: DotnetUnsupportedDefaultValueDeclaration;
+};
+
+export type DotnetTargetTypeParameter = TargetTypeParameter & {
+  readonly unsupportedConstraints?: readonly DotnetUnsupportedConstraintDeclaration[];
 };
 
 export type DotnetTargetMember = TargetMember & {
   readonly parameters: readonly DotnetTargetParameter[];
+  readonly typeParameters?: readonly DotnetTargetTypeParameter[];
+};
+
+export type DotnetTargetBindingFact = CsharpTargetBindingFact & {
+  readonly typeParameters?: readonly DotnetTargetTypeParameter[];
+  readonly members?: readonly DotnetTargetMember[];
+  readonly unsupportedImplementedContracts?: readonly DotnetUnsupportedConstraintDeclaration[];
+  readonly unsupportedMembers?: readonly DotnetUnsupportedMemberDeclaration[];
 };
 
 export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint): TargetConstraint {
@@ -109,13 +125,19 @@ function dotnetTypeToTargetBinding(declaration: DotnetTypeDeclaration): TargetBi
     ...(declaration.implementedContracts !== undefined && declaration.implementedContracts.length > 0
       ? { implementedContracts: declaration.implementedContracts.map(dotnetConstraintToTargetConstraint) }
       : {}),
+    ...(declaration.unsupportedImplementedContracts !== undefined && declaration.unsupportedImplementedContracts.length > 0
+      ? { unsupportedImplementedContracts: declaration.unsupportedImplementedContracts }
+      : {}),
     ...(declaration.members !== undefined && declaration.members.length > 0
       ? { members: declaration.members.flatMap((member) => dotnetMemberToTargetMembers(member, declaredCsharpType)) }
+      : {}),
+    ...(declaration.unsupportedMembers !== undefined && declaration.unsupportedMembers.length > 0
+      ? { unsupportedMembers: declaration.unsupportedMembers }
       : {}),
     ...(declaration.conversionOperators !== undefined && declaration.conversionOperators.length > 0
       ? { conversionOperators: declaration.conversionOperators.map((operator) => dotnetConversionOperatorToTargetConversionOperator(operator, declaredCsharpType)) }
       : {}),
-  } satisfies CsharpTargetBindingFact;
+  } satisfies DotnetTargetBindingFact;
   return binding;
 }
 
@@ -131,11 +153,14 @@ function dotnetTypeKindToTargetBindingKind(kind: DotnetTypeKind): TargetBindingF
   }
 }
 
-function dotnetTypeParameterToTargetTypeParameter(parameter: DotnetTypeParameterDeclaration): TargetTypeParameter {
+function dotnetTypeParameterToTargetTypeParameter(parameter: DotnetTypeParameterDeclaration): DotnetTargetTypeParameter {
   return {
     name: parameter.name,
     ...(parameter.constraints !== undefined && parameter.constraints.length > 0
       ? { constraints: parameter.constraints.map(dotnetConstraintToTargetConstraint) }
+      : {}),
+    ...(parameter.unsupportedConstraints !== undefined && parameter.unsupportedConstraints.length > 0
+      ? { unsupportedConstraints: parameter.unsupportedConstraints }
       : {}),
     ...(parameter.variance !== undefined ? { variance: parameter.variance } : {}),
   };
@@ -160,6 +185,7 @@ function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringT
             kind: member.kind,
             declaringType,
             ...(member.static === true ? { static: true } : {}),
+            ...(dotnetMemberIsReadonly(member) ? { readonly: true } : {}),
             ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
             parameters: [],
             returnType: dotnetTypeRefToTargetTypeRef(member.type),
@@ -185,6 +211,7 @@ function dotnetSignatureToTargetMember(
     kind: member.kind,
     declaringType,
     ...(member.static === true ? { static: true } : {}),
+    ...(dotnetMemberIsReadonly(member) ? { readonly: true } : {}),
     ...(member.receiverPassing !== undefined ? { receiverPassing: member.receiverPassing } : {}),
     parameters: signature.parameters.map(dotnetParameterToTargetParameter),
     ...(signature.returnType !== undefined ? { returnType: dotnetTypeRefToTargetTypeRef(signature.returnType) } : {}),
@@ -205,6 +232,10 @@ function dotnetSignatureToTargetMember(
       : {}),
     overloadGroup: dotnetTargetMemberOverloadGroup(member),
   };
+}
+
+function dotnetMemberIsReadonly(member: DotnetMemberDeclaration): boolean {
+  return (member.kind === "property" || member.kind === "field" || member.kind === "indexer") && member.writable !== true;
 }
 
 function dotnetTargetMemberOverloadGroup(member: DotnetMemberDeclaration): string {
@@ -239,6 +270,7 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),
     ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+    ...(parameter.unsupportedDefaultValue !== undefined ? { unsupportedDefaultValue: parameter.unsupportedDefaultValue } : {}),
     ...(parameter.attributes !== undefined && parameter.attributes.length > 0
       ? { attributes: parameter.attributes.map(dotnetAttributeToTargetAttribute) }
       : {}),

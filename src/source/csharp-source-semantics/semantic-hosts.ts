@@ -84,7 +84,7 @@ export interface CsharpExtensionSemanticHosts {
   };
 }
 
-export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderContext, "target">): CsharpExtensionSemanticHosts {
+export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderContext, "target" | "selectedSurfaces">): CsharpExtensionSemanticHosts {
   const typescriptCompatibilityMode = readCsharpTypescriptCompatibilityMode(context.target);
   const dotnetReflectionReferences = readCsharpReflectionReferencePaths(context.target);
   const dotnetTargetFramework = readCsharpTargetFramework(context.target);

@@ -12,6 +12,7 @@ import type {
   CsharpTypeNode,
 } from "../../backend/roslyn/syntax.js";
 import type { CsharpPrintContext } from "./context.js";
+import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 import {
   escapeCsharpInterpolatedStringText,
   indentLines,
@@ -88,6 +89,7 @@ export function printCsharpExpression(
     case "LambdaExpression":
       return printCsharpLambda(expression, context);
   }
+  return failUnsupportedCsharpSyntax(expression, "expression");
 }
 
 function printCsharpBinaryOperatorToken(token: CsharpBinaryOperatorToken): string {
@@ -133,6 +135,7 @@ function printCsharpBinaryOperatorToken(token: CsharpBinaryOperatorToken): strin
     case "PercentToken":
       return "%";
   }
+  return failUnsupportedCsharpSyntax(token, "binary operator token");
 }
 
 function printCsharpAssignmentOperatorToken(token: CsharpAssignmentOperatorToken): string {
@@ -162,6 +165,7 @@ function printCsharpAssignmentOperatorToken(token: CsharpAssignmentOperatorToken
     case "GreaterThanGreaterThanGreaterThanEqualsToken":
       return ">>>=";
   }
+  return failUnsupportedCsharpSyntax(token, "assignment operator token");
 }
 
 function printCsharpPrefixUnaryOperatorToken(token: CsharpPrefixUnaryOperatorToken): string {
@@ -179,6 +183,7 @@ function printCsharpPrefixUnaryOperatorToken(token: CsharpPrefixUnaryOperatorTok
     case "MinusMinusToken":
       return "--";
   }
+  return failUnsupportedCsharpSyntax(token, "prefix unary operator token");
 }
 
 function printCsharpPostfixUnaryOperatorToken(token: CsharpPostfixUnaryOperatorToken): string {
@@ -188,6 +193,7 @@ function printCsharpPostfixUnaryOperatorToken(token: CsharpPostfixUnaryOperatorT
     case "MinusMinusToken":
       return "--";
   }
+  return failUnsupportedCsharpSyntax(token, "postfix unary operator token");
 }
 
 function printCsharpObjectInitializer(
@@ -233,6 +239,7 @@ function printCsharpCollectionInitializerElement(
     case "IndexerInitializer":
       return `[${initializer.arguments.map(context.printExpression).join(", ")}] = ${context.printExpression(initializer.expression)},`;
   }
+  return failUnsupportedCsharpSyntax(initializer, "collection initializer element");
 }
 
 function printCsharpObjectCreation(
@@ -297,6 +304,7 @@ function printInterpolatedString(
       case "Interpolation":
         return `{${context.printExpression(part.expression)}}`;
     }
+    return failUnsupportedCsharpSyntax(part, "interpolated string part");
   }).join("");
   return `$"${body}"`;
 }

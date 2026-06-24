@@ -4,6 +4,7 @@ import type { CsharpExpression } from "../roslyn/syntax.js";
 import {
   AsAsExpression,
   AsAwaitExpression,
+  AsBigIntLiteral,
   AsConditionalExpression,
   AsNoSubstitutionTemplateLiteral,
   AsNonNullExpression,
@@ -14,6 +15,7 @@ import {
   AsTypeAssertion,
   KindAsExpression,
   KindAwaitExpression,
+  KindBigIntLiteral,
   KindConditionalExpression,
   KindFalseKeyword,
   KindNoSubstitutionTemplateLiteral,
@@ -36,8 +38,26 @@ import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
 import {
+  parseBigIntLiteral,
   parseFiniteNumberLiteral,
 } from "../../source/source-literal-values.js";
+import {
+  csharpBigIntegerTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
+import {
+  requireCsharpStringRuntimeCarrier,
+} from "./expression-literal-carriers.js";
+import {
+  csharpTypeFromTargetTypeRef,
+  targetTypeRefsMatch,
+} from "./target-types.js";
+import {
+  getRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
+import {
+  getCsharpTaskResultTargetType,
+  csharpVoidTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -50,6 +70,9 @@ export function tryPlanSourceSyntaxExpression(
     case KindStringLiteral:
       return { kind: "LiteralExpression", value: Node_Text(AsStringLiteral(node)) };
     case KindNoSubstitutionTemplateLiteral:
+      if (!requireCsharpStringRuntimeCarrier(node, sourceFile, input, diagnostics, "No-substitution template literal emission")) {
+        return invalidExpression("template literal without target string carrier");
+      }
       return { kind: "LiteralExpression", value: Node_Text(AsNoSubstitutionTemplateLiteral(node)) };
     case KindNumericLiteral: {
       const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
@@ -58,6 +81,39 @@ export function tryPlanSourceSyntaxExpression(
         return invalidExpression("invalid numeric literal");
       }
       return { kind: "LiteralExpression", value };
+    }
+    case KindBigIntLiteral: {
+      const value = parseBigIntLiteral(Node_Text(AsBigIntLiteral(node)));
+      if (value === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires parseable source literal text from TSTS."));
+        return invalidExpression("invalid bigint literal");
+      }
+      const carrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
+      if (carrier === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a finalized runtime carrier fact before C# emission."));
+        return invalidExpression("bigint literal without runtime carrier");
+      }
+      if (!targetTypeRefsMatch(carrier, csharpBigIntegerTargetType())) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a finalized System.Numerics.BigInteger runtime carrier fact."));
+        return invalidExpression("bigint literal without BigInteger carrier");
+      }
+      const bigIntegerType = csharpTypeFromTargetTypeRef(carrier);
+      if (bigIntegerType === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a renderable System.Numerics.BigInteger target type."));
+        return invalidExpression("bigint literal without renderable target type");
+      }
+      return {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: bigIntegerType,
+          name: "Parse",
+        },
+        arguments: [{
+          kind: "Argument",
+          expression: { kind: "LiteralExpression", value: value.toString(10) },
+        }],
+      };
     }
     case KindTrueKeyword:
       return { kind: "LiteralExpression", value: true };
@@ -89,6 +145,21 @@ export function tryPlanSourceSyntaxExpression(
       if (expression.Expression === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression must have an expression."));
         return invalidExpression("await without expression");
+      }
+      const awaitedCarrier = getRuntimeCarrierForExpression(input, expression.Expression, sourceFile);
+      const awaitedResultCarrier = getCsharpTaskResultTargetType(awaitedCarrier);
+      if (awaitedResultCarrier === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression emission requires a finalized Promise/Task target carrier fact for the awaited expression."));
+        return invalidExpression("await without Promise/Task carrier");
+      }
+      const awaitCarrier = getRuntimeCarrierForExpression(input, node, sourceFile);
+      if (
+        awaitCarrier === undefined
+          ? !targetTypeRefsMatch(awaitedResultCarrier, csharpVoidTargetType())
+          : !targetTypeRefsMatch(awaitCarrier, awaitedResultCarrier)
+      ) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression emission requires the finalized await-result carrier to match the awaited Promise/Task result carrier."));
+        return invalidExpression("await result carrier mismatch");
       }
       return {
         kind: "AwaitExpression",

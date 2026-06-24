@@ -28,6 +28,9 @@ import {
   getCsharpConversionOperation,
 } from "./target-rules.js";
 import {
+  getCsharpCollectionElementTargetType,
+} from "./target-types.js";
+import {
   getCsharpProviderConversionOperator,
 } from "./provider-conversion-operators.js";
 import {
@@ -60,12 +63,13 @@ export function mapCsharpNativeCheckedIteration(
   const expressionType = host.getTargetTypeRefForSubject(request.expression, context, expressionEvidenceQuery) ??
     host.getTargetTypeRefForSubject(request.sourceExpressionType, context, noRuntimeCarrierQuery);
   if (request.kind === "for-of") {
-    if (expressionType?.kind === "array") {
+    const elementType = getCsharpCollectionElementTargetType(expressionType);
+    if (elementType !== undefined) {
       const fact = {
         operationId: "tsonic.csharp.array.foreach",
         iterationKind: "sync",
         lowering: { kind: "foreach" },
-        elementType: expressionType.element,
+        elementType,
       } satisfies CsharpTargetIterationFact;
       context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# array for-of maps to foreach." }]);
       return acceptObservation<CheckedOperationMappingResult>({

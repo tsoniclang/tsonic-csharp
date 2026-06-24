@@ -2,13 +2,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   TstsProviderContractVersion,
+  argumentPassingFactKey,
   attributeFactKey,
   createCompilerSessionFromFiles,
+  defaultValueFactKey,
+  fieldFactKey,
+  flowStateFactKey,
   functionPointerFactKey,
   formatDiagnostics,
   pointerFactKey,
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
+  sourcePrimitiveFactKey,
+  structFactKey,
   targetConversionFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
@@ -17,13 +23,18 @@ import {
   createCsharpSourceSemanticsExtension,
 } from "../dist/index.js";
 import {
+  createTsonicCoreSourceExtension,
+  providerExportDeclarationsForSourceModule,
+  tsonicCoreSourceSemanticsModules,
+} from "@tsonic/source-core";
+import {
   csharpTargetOperationFactKey,
   csharpTargetConversionOperationFactKey,
 } from "../dist/source/csharp-facts.js";
-import { providerExportDeclarationsForModule } from "../dist/source/csharp-source-semantics/core-virtual-declarations.js";
+import { csharpSourceSemanticsModules } from "../dist/source/csharp-source-semantics/source-modules.js";
 
 test("source-semantics virtual attribute helpers do not introduce any-typed lanes", () => {
-  const declarations = providerExportDeclarationsForModule({
+  const declarations = providerExportDeclarationsForSourceModule({
     moduleSpecifier: "@tsonic/core/lang.js",
     packageName: "@tsonic/core",
     subpath: "lang.js",
@@ -33,6 +44,158 @@ test("source-semantics virtual attribute helpers do not introduce any-typed lane
 
   assert.equal(serialized.includes('"kind":"any"'), false);
   assert.equal(serialized.includes('"kind":"unknown"'), true);
+});
+
+test("source-semantics keeps neutral primitives separate from C# aliases", () => {
+  const modules = new Map([
+    ...tsonicCoreSourceSemanticsModules(),
+    ...csharpSourceSemanticsModules(),
+  ].map((module) => [module.moduleSpecifier, module]));
+  const neutralTypes = modules.get("@tsonic/core/types.js");
+  const csharpTypes = modules.get("@tsonic/csharp/types.js");
+  assert.ok(neutralTypes);
+  assert.ok(csharpTypes);
+
+  const neutralExports = neutralTypes.exports.map((declaration) => declaration.exportName).sort();
+  const csharpExports = csharpTypes.exports.map((declaration) => declaration.exportName).sort();
+
+  assert.deepEqual(neutralExports, [
+    "bool",
+    "char",
+    "decimal",
+    "float16",
+    "float32",
+    "float64",
+    "int128",
+    "int16",
+    "int32",
+    "int64",
+    "int8",
+    "nativeInt",
+    "nativeUint",
+    "uint128",
+    "uint16",
+    "uint32",
+    "uint64",
+    "uint8",
+  ]);
+  assert.equal(neutralExports.includes("int"), false);
+  assert.equal(neutralExports.includes("long"), false);
+  assert.equal(neutralExports.includes("byte"), false);
+  assert.deepEqual(csharpExports, [
+    "bool",
+    "byte",
+    "char",
+    "decimal",
+    "double",
+    "float",
+    "int",
+    "long",
+    "nint",
+    "nuint",
+    "sbyte",
+    "short",
+    "uint",
+    "ulong",
+    "ushort",
+  ]);
+});
+
+test("source-semantics records neutral primitive facts, char and bool, and configured aliases", () => {
+  const sourceText = `
+    import type { bool, int32 as i32, float64 } from "@tsonic/core/types.js";
+    import type * as CoreTypes from "@tsonic/core/types.js";
+    import type { byte, int, long } from "@tsonic/csharp/types.js";
+
+    type LocalBool = bool;
+    type LocalChar = CoreTypes.char;
+    type I32 = i32;
+    type I32Again = I32;
+    type DoubleAlias = float64;
+    type CsharpInt = int;
+    type CsharpLong = long;
+    type CsharpByte = byte;
+    type LocalInt = number;
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./types.js": "./types.js",
+      })],
+      ["/src/node_modules/@tsonic/csharp/package.json", packageJson("@tsonic/csharp", {
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const aliases = new Map(collectNodesByKind(sourceFile, session.ast, "KindTypeAliasDeclaration")
+    .map((node) => [session.ast.text(session.ast.name(node)), node]));
+
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("LocalBool"), sourcePrimitiveFactKey)), {
+    kind: "bool",
+    runtimeBase: "boolean",
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("LocalChar"), sourcePrimitiveFactKey)), {
+    kind: "char",
+    runtimeBase: "string",
+    signed: false,
+    width: 16,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("I32"), sourcePrimitiveFactKey)), {
+    kind: "int32",
+    runtimeBase: "number",
+    signed: true,
+    width: 32,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("I32Again"), sourcePrimitiveFactKey)), {
+    kind: "int32",
+    runtimeBase: "number",
+    signed: true,
+    width: 32,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("DoubleAlias"), sourcePrimitiveFactKey)), {
+    kind: "float64",
+    runtimeBase: "number",
+    signed: true,
+    width: 64,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("CsharpInt"), sourcePrimitiveFactKey)), {
+    kind: "int32",
+    runtimeBase: "number",
+    signed: true,
+    width: 32,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("CsharpLong"), sourcePrimitiveFactKey)), {
+    kind: "int64",
+    runtimeBase: "bigint",
+    signed: true,
+    width: 64,
+  });
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("CsharpByte"), sourcePrimitiveFactKey)), {
+    kind: "uint8",
+    runtimeBase: "number",
+    signed: false,
+    width: 8,
+  });
+  assert.equal(extensionHost.facts.get(aliases.get("LocalInt"), sourcePrimitiveFactKey), undefined);
 });
 
 test("source-semantics records opaque any carriers without promoting unknown or object", () => {
@@ -59,10 +222,10 @@ test("source-semantics records opaque any carriers without promoting unknown or 
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -115,10 +278,10 @@ test("source-semantics does not synthesize C# operator facts for opaque any oper
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -179,11 +342,11 @@ test("source-semantics records provider-backed attribute selector facts from use
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createAttributeProviderExtension(),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -224,6 +387,348 @@ test("source-semantics records provider-backed attribute selector facts from use
   assert.equal(session.ast.text(session.ast.name(applicationFacts[9].applicationTarget)), "display");
 });
 
+test("source-semantics records source-core marker facts and rejects unproven storage", () => {
+  const sourceText = `
+    import { attribute, defaultof, field, inref, out, ref as passRef, struct } from "@tsonic/core/lang.js";
+    import type { fnptr, ptr } from "@tsonic/core/lang.js";
+    import type { bool, char, int32 } from "@tsonic/core/types.js";
+
+    class ExampleAttribute {}
+    class User {
+      name = "";
+    }
+
+    let value!: int32;
+    out(value);
+    passRef(value);
+    inref(value);
+    out(value + 1);
+
+    const defaultChar = defaultof<char>();
+    const orphanField = field<int32>();
+    const Point = struct({ x: field<int32>(), ok: field<bool>() });
+    attribute<User>().add(ExampleAttribute, "user");
+
+    type ValuePtr = ptr<int32>;
+    type Predicate = fnptr<[int32, bool], char>;
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.deepEqual((session.extensionHost?.diagnostics.all() ?? []).map((diagnostic) => diagnostic.extensionCode).sort(), [
+    "SOURCE_SEMANTICS_FIELD_TARGET_NOT_PROVEN",
+    "SOURCE_SEMANTICS_NON_STORAGE_ARGUMENT",
+  ]);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0001/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0003/);
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).sort(), [
+    "SOURCE_SEMANTICS_FIELD_TARGET_NOT_PROVEN",
+    "SOURCE_SEMANTICS_NON_STORAGE_ARGUMENT",
+  ]);
+
+  assert.deepEqual(argumentPassingFactForCall(sourceFile, session.ast, extensionHost, "out", 0), {
+    mode: "byref-writeonly-must-init",
+    targetKind: "KindIdentifier",
+  });
+  assert.deepEqual(argumentPassingFactForCall(sourceFile, session.ast, extensionHost, "passRef", 0), {
+    mode: "byref-readwrite",
+    targetKind: "KindIdentifier",
+  });
+  assert.deepEqual(argumentPassingFactForCall(sourceFile, session.ast, extensionHost, "inref", 0), {
+    mode: "byref-readonly",
+    targetKind: "KindIdentifier",
+  });
+  assert.deepEqual(argumentPassingFactForCall(sourceFile, session.ast, extensionHost, "out", 1), {
+    mode: "byref-writeonly-must-init",
+    targetKind: "KindBinaryExpression",
+  });
+
+  const defaultCall = collectCallsByCalleeText(sourceFile, session.ast, "defaultof")[0];
+  assert.equal(session.ast.kindName(extensionHost.facts.get(defaultCall, defaultValueFactKey)?.type), "KindTypeReference");
+
+  const fieldFacts = collectCallsByCalleeText(sourceFile, session.ast, "field")
+    .map((call) => extensionHost.facts.get(call, fieldFactKey))
+    .filter((fact) => fact !== undefined)
+    .map((fact) => ({
+      name: fact.name,
+      typeKind: session.ast.kindName(fact.type),
+      primitive: extensionHost.facts.get(fact.type, sourcePrimitiveFactKey)?.kind,
+    }));
+  assert.deepEqual(fieldFacts, [
+    { name: "x", typeKind: "KindTypeReference", primitive: "int32" },
+    { name: "ok", typeKind: "KindTypeReference", primitive: "bool" },
+  ]);
+
+  const structCall = collectCallsByCalleeText(sourceFile, session.ast, "struct")[0];
+  const structFact = extensionHost.facts.get(structCall, structFactKey);
+  assert.equal(structFact?.valueType, true);
+  assert.deepEqual(structFact.fields?.map((field) => field.name), ["x", "ok"]);
+
+  const addCall = collectCallsByCalleeText(sourceFile, session.ast, "add")[0];
+  const attributeFact = extensionHost.facts.get(addCall, attributeFactKey);
+  assert.equal(attributeFact?.attributeName, "ExampleAttribute");
+  assert.equal(session.ast.kindName(attributeFact?.applicationTarget), "KindTypeReference");
+  assert.equal(attributeFact?.arguments?.length, 1);
+
+  const pointerFacts = collectFactsForKey(sourceFile, session.ast, extensionHost, pointerFactKey);
+  const functionPointerFacts = collectFactsForKey(sourceFile, session.ast, extensionHost, functionPointerFactKey);
+  assert.ok(pointerFacts.some((entry) => session.ast.kindName(entry.fact.pointee) === "KindTypeReference" && entry.fact.mutability === "target-defined"));
+  assert.ok(functionPointerFacts.some((entry) =>
+    entry.fact.parameters.length === 2 &&
+    session.ast.kindName(entry.fact.result) === "KindTypeReference" &&
+    entry.fact.abi.join(",") === "target-default"
+  ));
+});
+
+test("source-semantics rejects source-core marker calls missing required type evidence", () => {
+  const sourceText = `
+    import { attribute, defaultof, field } from "@tsonic/core/lang.js";
+
+    const missingField = field();
+    const missingAttribute = attribute();
+    const missingDefault = defaultof();
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0002/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0005/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0006/);
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).sort(), [
+    "SOURCE_SEMANTICS_MISSING_ATTRIBUTE_TARGET_EVIDENCE",
+    "SOURCE_SEMANTICS_MISSING_DEFAULT_TYPE_EVIDENCE",
+    "SOURCE_SEMANTICS_MISSING_FIELD_TYPE_EVIDENCE",
+  ]);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "field")[0], fieldFactKey), undefined);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "attribute")[0], attributeFactKey), undefined);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "defaultof")[0], defaultValueFactKey), undefined);
+});
+
+test("source-semantics does not classify shadowed source-core marker names", () => {
+  const sourceText = `
+    import { out } from "@tsonic/core/lang.js";
+
+    let value!: number;
+    {
+      const out = <T>(input: T): T => input;
+      out(value);
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const calls = collectCallsByCalleeText(sourceFile, session.ast, "out");
+  assert.equal(calls.length, 1);
+  assert.equal(extensionHost.facts.get(calls[0], argumentPassingFactKey), undefined);
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+});
+
+test("source-semantics rejects attribute builder chains with unproven declaration targets", () => {
+  const sourceText = `
+    import { attribute } from "@tsonic/core/lang.js";
+
+    class ExampleAttribute {}
+    class User {
+      name = "";
+      save(route: string): void {}
+    }
+    const dynamicTarget = "return";
+    const dynamicParameter = "route";
+
+    attribute<User>().property((target) => target).add(ExampleAttribute);
+    attribute<User>().method((target) => target.save).parameter(dynamicParameter).add(ExampleAttribute);
+    attribute<User>().method((target) => target.save).target(dynamicTarget).add(ExampleAttribute);
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0004/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0007/);
+  assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0008/);
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).sort(), [
+    "SOURCE_SEMANTICS_ATTRIBUTE_PARAMETER_NAME_NOT_PROVEN",
+    "SOURCE_SEMANTICS_ATTRIBUTE_SELECTOR_TARGET_NOT_PROVEN",
+    "SOURCE_SEMANTICS_ATTRIBUTE_TARGET_SPECIFIER_NOT_PROVEN",
+  ]);
+});
+
+test("C# target rejects neutral borrow and move markers instead of silently erasing them", () => {
+  const sourceText = `
+    import { borrow, borrowMut, move } from "@tsonic/core/lang.js";
+    import type { int32 } from "@tsonic/core/types.js";
+
+    let value!: int32;
+    borrow(value);
+    borrowMut(value);
+    move(value);
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const flowStates = ["borrow", "borrowMut", "move"].map((callee) =>
+    extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, callee)[0], flowStateFactKey)?.state
+  );
+  assert.deepEqual(flowStates, ["borrowed-shared", "borrowed-mut", "moved"]);
+  const flowDiagnostics = extensionHost.diagnostics.all()
+    .filter((diagnostic) => diagnostic.extensionCode === "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED");
+  assert.equal(flowDiagnostics.length, 3);
+  assert.match(flowDiagnostics[0].message, /borrow/u);
+  assert.match(flowDiagnostics[1].message, /borrowMut/u);
+  assert.match(flowDiagnostics[2].message, /move/u);
+});
+
+test("source-semantics ignores local names that are not configured source-core imports", () => {
+  const sourceText = `
+    function out<T>(value: T): T {
+      return value;
+    }
+
+    type int = number;
+    type LocalInt = int;
+    let value = 1;
+    out(value);
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const localAlias = collectNodesByKind(sourceFile, session.ast, "KindTypeAliasDeclaration")
+    .find((node) => session.ast.text(session.ast.name(node)) === "LocalInt");
+  const outCall = collectCallsByCalleeText(sourceFile, session.ast, "out")[0];
+
+  assert.equal(extensionHost.facts.get(localAlias, sourcePrimitiveFactKey), undefined);
+  assert.equal(extensionHost.facts.get(outCall, argumentPassingFactKey), undefined);
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+});
+
 test("source-semantics records pointer marker facts from neutral type aliases", () => {
   const sourceText = `
     import type { ptr, fnptr } from "@tsonic/core/lang.js";
@@ -248,10 +753,10 @@ test("source-semantics records pointer marker facts from neutral type aliases", 
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -295,10 +800,10 @@ test("source-semantics records assertion target conversions as C# target facts",
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -343,10 +848,10 @@ test("source-semantics records source primitive assertions as C# conversion meth
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -391,10 +896,10 @@ test("source-semantics rejects any assertion conversions without explicit target
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -438,10 +943,10 @@ test("source-semantics propagates object-shape callable carriers through destruc
     },
     extensionHostOptions: {
       activeTarget: "csharp",
-      extensions: [
+      extensions: csharpTestExtensions(
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
-      ],
+      ),
     },
   });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -513,6 +1018,46 @@ function collectNodesByKind(sourceFile, ast, kindName) {
   }
 }
 
+function collectCallsByCalleeText(sourceFile, ast, text) {
+  return collectNodesByKind(sourceFile, ast, "KindCallExpression")
+    .filter((node) => calleeText(node, ast) === text);
+}
+
+function calleeText(callExpression, ast) {
+  const expression = callExpression?.Expression;
+  if (expression === undefined) {
+    return undefined;
+  }
+  const kind = ast.kindName(expression);
+  if (kind === "KindIdentifier") {
+    return ast.text(expression);
+  }
+  if (kind === "KindPropertyAccessExpression") {
+    return ast.text(ast.name(expression));
+  }
+  return undefined;
+}
+
+function argumentPassingFactForCall(sourceFile, ast, extensionHost, callee, index) {
+  const call = collectCallsByCalleeText(sourceFile, ast, callee)[index];
+  const fact = extensionHost.facts.get(call, argumentPassingFactKey);
+  return {
+    mode: fact?.mode,
+    targetKind: ast.kindName(fact?.targetExpression),
+  };
+}
+
+function primitiveSummary(fact) {
+  return fact === undefined
+    ? undefined
+    : {
+        kind: fact.kind,
+        runtimeBase: fact.runtimeBase,
+        ...(fact.signed === undefined ? {} : { signed: fact.signed }),
+        ...(fact.width === undefined ? {} : { width: fact.width }),
+      };
+}
+
 function packageJson(name, exports) {
   return JSON.stringify({
     name,
@@ -523,6 +1068,13 @@ function packageJson(name, exports) {
       { types: target.replace(/\.js$/, ".d.ts"), default: target },
     ])),
   });
+}
+
+function csharpTestExtensions(...extensions) {
+  return [
+    createTsonicCoreSourceExtension(),
+    ...extensions,
+  ];
 }
 
 function csharpProviderContext() {

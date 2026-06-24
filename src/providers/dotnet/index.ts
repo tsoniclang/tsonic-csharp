@@ -23,7 +23,9 @@ export type {
   DotnetTypeParameterDeclaration,
   DotnetTypeRef,
   DotnetUnsupportedAttributeDeclaration,
+  DotnetUnsupportedConstraintDeclaration,
   DotnetValueDeclaration,
+  DotnetUnsupportedMemberDeclaration,
 } from "./model.js";
 export {
   dotnetConstraintToTargetConstraint,

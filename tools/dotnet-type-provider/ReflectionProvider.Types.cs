@@ -14,12 +14,9 @@ sealed partial class ReflectionProvider
         var unsupportedMembers = UnsupportedMembers(type);
         var baseType = BaseType(type);
         var implementedContracts = ImplementedContracts(type);
+        var unsupportedImplementedContracts = UnsupportedImplementedContracts(type);
         var sourceShape = ExportSourceShape(type);
         var attributes = AttributeFacts(type.GetCustomAttributesData(), "type", TargetId(type));
-        if (IsDelegate(type) && sourceShape is null)
-        {
-            return null;
-        }
         return new
         {
             kind = "type",
@@ -35,12 +32,35 @@ sealed partial class ReflectionProvider
             typeParameters = typeParameters.Length == 0 ? null : typeParameters,
             baseType,
             implementedContracts = implementedContracts.Length == 0 ? null : implementedContracts,
+            unsupportedImplementedContracts = unsupportedImplementedContracts.Length == 0 ? null : unsupportedImplementedContracts,
             sourceShape,
             throwable = typeof(Exception).IsAssignableFrom(type) ? true : (bool?)null,
             members = members.Length == 0 ? null : members,
             conversionOperators = conversionOperators.Length == 0 ? null : conversionOperators,
             unsupportedMembers = unsupportedMembers.Length == 0 ? null : unsupportedMembers,
         };
+    }
+
+    string? UnsupportedSourceExportReason(Type type)
+    {
+        return IsDelegate(type) ? UnsupportedDelegateSourceShapeReason(type) : null;
+    }
+
+    string? UnsupportedDelegateSourceShapeReason(Type type)
+    {
+        var invoke = type.GetMethod("Invoke");
+        if (invoke is null)
+        {
+            return "Delegate has no provider-visible Invoke method, so no source function declaration can be generated.";
+        }
+        if (Parameters(invoke.GetParameters()) is null)
+        {
+            return $"{UnsupportedParametersReason(invoke.GetParameters(), "Delegate invoke signature")}; the type is retained as target-only .NET data.";
+        }
+        var returnReason = UnsupportedReturnTypeReason(invoke.ReturnType, "Delegate invoke return type");
+        return returnReason is null
+            ? null
+            : $"{returnReason}; the type is retained as target-only .NET data.";
     }
 
     object? BaseType(Type type)
@@ -65,17 +85,21 @@ sealed partial class ReflectionProvider
         };
     }
 
-    static object ToUnsupportedNestedTypeExport(Type type)
+    static object? ToUnsupportedTypeExport(Type type, string? reason)
     {
+        if (reason is null)
+        {
+            return null;
+        }
         return new
         {
-            kind = "unsupported-nested-type",
+            kind = "unsupported-type-export",
             sourceName = SourceTypeName(type),
-            reason = "Nested CLR types require a provider nested-type declaration model before they can be exposed safely as source declarations.",
             targetId = TargetId(type),
             metadataName = MetadataName(type),
             assembly = AssemblyReference(type.Assembly),
-            declaringMetadataName = type.DeclaringType is null ? null : MetadataName(type.DeclaringType),
+            reason,
         };
     }
+
 }

@@ -17,18 +17,18 @@ import {
 } from "./identity.js";
 import { csharpSourceSemanticsModules } from "./source-modules.js";
 import {
-  providerExportDeclarationsForModule,
-} from "./core-virtual-declarations.js";
+  providerExportDeclarationsForCsharpSourceModule,
+} from "./source-virtual-declarations.js";
 
-export function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider {
+export function createCsharpSourceVirtualModulesProvider(): TargetBindingProvider {
   const modules = new Map(csharpSourceSemanticsModules().map((module) => [module.moduleSpecifier, module]));
   const identity: ProviderIdentity = {
-    id: "tsonic.csharp.core-virtual-modules",
+    id: "tsonic.csharp.source-virtual-modules",
     version: csharpProviderVersion,
     target: csharpTargetId,
     extensionContractVersion: TstsProviderContractVersion,
     providerKind: "binding",
-    displayName: "Tsonic C# source modules",
+    displayName: "Tsonic C# source alias modules",
   };
   return {
     identity,
@@ -38,45 +38,36 @@ export function createCsharpCoreVirtualModulesProvider(): TargetBindingProvider 
     resolveModule(specifier: string, _context: ProviderModuleContext): ProviderModuleResolution | ExtensionDiagnostic {
       const module = modules.get(specifier);
       if (module === undefined) {
-        return csharpProviderDiagnostic(identity.id, "CSHARP_CORE_MODULE_UNOWNED", 9100001, `C# core provider does not own '${specifier}'.`);
+        return csharpProviderDiagnostic(identity.id, "CSHARP_SOURCE_MODULE_UNOWNED", 9100001, `C# source alias provider does not own '${specifier}'.`);
       }
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: csharpCoreVirtualDeclarationFileName(specifier),
+        virtualFileName: csharpSourceVirtualDeclarationFileName(specifier),
         providerModuleId: specifier,
         ...(module.packageName !== undefined ? { packageName: module.packageName } : {}),
         ...(module.packageVersion !== undefined ? { packageVersion: module.packageVersion } : {}),
-        evidence: [{ message: "C# target supplies source module as provider virtual module." }],
+        evidence: [{ message: "C# target supplies source alias module as provider virtual module." }],
       };
     },
     getDeclarationModel(resolution: ProviderModuleResolution): ProviderDeclarationModel | ExtensionDiagnostic {
       const module = modules.get(resolution.moduleSpecifier);
       if (module === undefined) {
-        return csharpProviderDiagnostic(identity.id, "CSHARP_CORE_MODULE_DECLARATION_MISSING", 9100002, `No C# core declaration model exists for '${resolution.moduleSpecifier}'.`);
+        return csharpProviderDiagnostic(identity.id, "CSHARP_SOURCE_MODULE_DECLARATION_MISSING", 9100002, `No C# source alias declaration model exists for '${resolution.moduleSpecifier}'.`);
       }
       return {
         moduleSpecifier: resolution.moduleSpecifier,
         providerModuleId: resolution.providerModuleId,
-        exports: providerExportDeclarationsForModule(module),
-        evidence: [{ message: "Declaration model is generated from C# target source semantics." }],
+        exports: providerExportDeclarationsForCsharpSourceModule(module),
+        evidence: [{ message: "Declaration model is generated from C# source alias semantics." }],
       };
     },
-    getTargetIdentity(symbol) {
-      if (symbol.exportName === undefined) {
-        return undefined;
-      }
-      const module = modules.get(symbol.moduleSpecifier);
-      if (module === undefined) {
-        return undefined;
-      }
-      const declaration = providerExportDeclarationsForModule(module)
-        .find((candidate) => candidate.name === symbol.exportName);
-      return declaration?.targetIdentity;
+    getTargetIdentity() {
+      return undefined;
     },
   };
 }
 
-function csharpCoreVirtualDeclarationFileName(specifier: string): string {
+function csharpSourceVirtualDeclarationFileName(specifier: string): string {
   return `tsts-provider://csharp-source/${encodeURIComponent(specifier)}.d.ts`;
 }

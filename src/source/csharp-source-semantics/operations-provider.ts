@@ -26,7 +26,7 @@ import {
   isLiteralRepresentableAsTargetType,
   selectTargetMember,
 } from "./target-member-selection.js";
-import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
+import type { TargetMemberSelectionOptions, TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import {
   createCsharpJsSurfaceMappers,
 } from "./surfaces/js/index.js";
@@ -72,21 +72,19 @@ export interface CsharpOperationsProviderHost {
   ) => ExtensionObservation<RuntimeCarrierFactResult>;
 }
 
-export const csharpJsSurfaceOperationsProviderId = "tsonic.csharp.js.operations";
-export const csharpNodejsSurfaceOperationsProviderId = "tsonic.csharp.nodejs.operations";
-
-function createProviderIdentity(id: string, displayName: string): ProviderIdentity {
-  return {
-    id,
-    version: csharpProviderVersion,
-    target: csharpTargetId,
-    extensionContractVersion: TstsProviderContractVersion,
-    providerKind: "semantic",
-    displayName,
-  };
+export function createCsharpNativeOperationsProvider(host: CsharpOperationsProviderHost): TargetSemanticProvider {
+  return createCsharpCompositeOperationsProvider(host, {});
 }
 
-export function createCsharpNativeOperationsProvider(host: CsharpOperationsProviderHost): TargetSemanticProvider {
+export interface CsharpCompositeOperationsProviderOptions {
+  readonly jsSurface?: boolean;
+  readonly nodejsSurface?: boolean;
+}
+
+export function createCsharpCompositeOperationsProvider(
+  host: CsharpOperationsProviderHost,
+  options: CsharpCompositeOperationsProviderOptions,
+): TargetSemanticProvider {
   const identity: ProviderIdentity = {
     id: "tsonic.csharp.operations",
     version: csharpProviderVersion,
@@ -95,22 +93,46 @@ export function createCsharpNativeOperationsProvider(host: CsharpOperationsProvi
     providerKind: "semantic",
     displayName: "Tsonic C# semantic mapper",
   };
+  const jsSurface = options.jsSurface === true
+    ? createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost("tsonic.csharp.js.operations", host))
+    : undefined;
+  const nodejsSurface = options.nodejsSurface === true
+    ? createCsharpNodejsSurfaceMappers("tsonic.csharp.nodejs.operations")
+    : undefined;
   return {
     identity,
     resolveRuntimeCarrier(request, context) {
       if (request.target !== undefined && request.target !== csharpTargetId) {
         return deferObservation;
       }
-      return host.mapRuntimeCarrier(request, context);
+      return useObservationOrWhenDeferred(
+        jsSurface?.mapRuntimeCarrier(request, context) ?? deferObservation,
+        () => host.mapRuntimeCarrier(request, context),
+      );
     },
     mapCheckedCall(request, context) {
-      return mapCsharpCheckedCall(request, context, identity.id, host);
+      return useObservationOrWhenDeferred(
+        nodejsSurface?.mapCheckedCall(request, context) ?? deferObservation,
+        () => useObservationOrWhenDeferred(
+          jsSurface?.mapCheckedCall(request, context) ?? deferObservation,
+          () => mapCsharpCheckedCall(request, context, identity.id, host),
+        ),
+      );
     },
     mapCheckedPropertyAccess(request, context) {
-      return mapCsharpCheckedPropertyAccess(request, context, identity.id, host);
+      return useObservationOrWhenDeferred(
+        nodejsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation,
+        () => useObservationOrWhenDeferred(
+          jsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation,
+          () => mapCsharpCheckedPropertyAccess(request, context, identity.id, host),
+        ),
+      );
     },
     mapCheckedElementAccess(request, context) {
-      return mapCsharpCheckedElementAccess(request, context, identity.id, host);
+      return useObservationOrWhenDeferred(
+        jsSurface?.mapCheckedElementAccess(request, context) ?? deferObservation,
+        () => mapCsharpCheckedElementAccess(request, context, identity.id, host),
+      );
     },
     mapCheckedOperator(request, context) {
       return mapCsharpCheckedOperator(request, context, host);
@@ -119,7 +141,10 @@ export function createCsharpNativeOperationsProvider(host: CsharpOperationsProvi
       return observeCsharpPostCheckAssignability(request, context, host);
     },
     mapCheckedIteration(request, context) {
-      return mapCsharpNativeCheckedIteration(request, context, host);
+      return useObservationOrWhenDeferred(
+        jsSurface?.mapCheckedIteration(request, context) ?? deferObservation,
+        () => mapCsharpNativeCheckedIteration(request, context, host),
+      );
     },
     recordContextualTargetType(request, context) {
       return mapCsharpContextualTargetType(request, context, host);
@@ -130,35 +155,6 @@ export function createCsharpNativeOperationsProvider(host: CsharpOperationsProvi
     resolveParameterPassing(request, context) {
       return mapCsharpParameterPassing(request, context);
     },
-  };
-}
-
-export function createCsharpJsSurfaceOperationsProvider(host: CsharpOperationsProviderHost): TargetSemanticProvider {
-  const identity = createProviderIdentity(
-    csharpJsSurfaceOperationsProviderId,
-    "Tsonic C# JavaScript surface semantic mapper",
-  );
-  const jsSurface = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(identity.id, host));
-  return {
-    identity,
-    resolveRuntimeCarrier: jsSurface.mapRuntimeCarrier,
-    mapCheckedCall: jsSurface.mapCheckedCall,
-    mapCheckedPropertyAccess: jsSurface.mapCheckedPropertyAccess,
-    mapCheckedElementAccess: jsSurface.mapCheckedElementAccess,
-    mapCheckedIteration: jsSurface.mapCheckedIteration,
-  };
-}
-
-export function createCsharpNodejsSurfaceOperationsProvider(): TargetSemanticProvider {
-  const identity = createProviderIdentity(
-    csharpNodejsSurfaceOperationsProviderId,
-    "Tsonic C# Node.js surface semantic mapper",
-  );
-  const nodejsSurface = createCsharpNodejsSurfaceMappers(identity.id);
-  return {
-    identity,
-    mapCheckedCall: nodejsSurface.mapCheckedCall,
-    mapCheckedPropertyAccess: nodejsSurface.mapCheckedPropertyAccess,
   };
 }
 
@@ -186,9 +182,11 @@ export function createCsharpJsSurfaceHost(
         readonly receiver?: ExtensionFactSubject;
       },
       context: ExtensionObservationContext,
+      options: Pick<TargetMemberSelectionOptions, "declaringTargetType" | "declaringTypeParameters"> = {},
     ) =>
       selectTargetMember(candidates, request, context, host.getTargetTypeRefForSubject, {
         getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+        ...options,
       }),
     getCsharpObjectShapeFactForSubject: host.getCsharpObjectShapeFactForSubject,
     csharpProviderDiagnostic,

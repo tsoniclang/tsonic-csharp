@@ -13,6 +13,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpAnyRuntimeCarrier,
+  csharpRuntimeUnionTargetType,
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
 import {
@@ -76,6 +77,12 @@ export function mapRuntimeCarrier(
       carrier: commonUnionCarrier.carrier,
     }, [{ message: "C# non-nullish union runtime carrier mapped from identical finalized constituent carriers." }]);
   }
+  const runtimeUnionCarrier = getNonNullishRuntimeUnionCarrier(request, context, host);
+  if (runtimeUnionCarrier !== undefined) {
+    return acceptObservation<RuntimeCarrierFactResult>({
+      carrier: runtimeUnionCarrier,
+    }, [{ message: "C# runtime union carrier mapped from TSTS union constituents and finalized constituent carrier facts." }]);
+  }
   if (primitive === undefined) {
     if (isCallableTypeWithoutCarrierEvidence(request, context)) {
       return deferObservation;
@@ -98,6 +105,32 @@ export function mapRuntimeCarrier(
   return acceptObservation<RuntimeCarrierFactResult>({
     carrier: csharpSourcePrimitiveTargetType(primitive.kind),
   }, [{ message: "C# runtime carrier mapped from source primitive fact." }]);
+}
+
+function getNonNullishRuntimeUnionCarrier(
+  request: RuntimeCarrierFactRequest,
+  context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): RuntimeCarrierFactResult["carrier"] | undefined {
+  const compiler = context.compiler;
+  const type = asType(request.type);
+  if (compiler === undefined || type === undefined || !compiler.types.isUnion(type)) {
+    return undefined;
+  }
+  const members = compiler.types.getUnionOrIntersectionTypes(type)
+    .filter((member): member is Type => member !== undefined);
+  const nonNullishMembers = members.filter((member) => !compiler.types.isNullish(member));
+  if (nonNullishMembers.length < 2 || nonNullishMembers.length !== members.length) {
+    return undefined;
+  }
+  const memberCarriers = nonNullishMembers.map((member) => getUnionConstituentRuntimeCarrier(member, context, host)?.carrier);
+  if (!memberCarriers.every((member): member is RuntimeCarrierFactResult["carrier"] => member !== undefined)) {
+    return undefined;
+  }
+  if (containsDuplicateTargetCarrier(memberCarriers)) {
+    return undefined;
+  }
+  return csharpRuntimeUnionTargetType(memberCarriers);
 }
 
 function isAnyRuntimeCarrierType(
@@ -198,6 +231,12 @@ function targetTypeRefArrayEquals(
       const other = rightItems[index];
       return other !== undefined && targetTypeRefEquals(item, other);
     });
+}
+
+function containsDuplicateTargetCarrier(carriers: readonly RuntimeCarrierFactResult["carrier"][]): boolean {
+  return carriers.some((carrier, index) =>
+    carriers.slice(index + 1).some((candidate) => targetTypeRefEquals(carrier, candidate))
+  );
 }
 
 function getTypeSyntaxCarrierFromFinalizedTypeFacts(

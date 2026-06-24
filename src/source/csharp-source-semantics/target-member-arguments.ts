@@ -11,7 +11,13 @@ import {
 } from "./target-member-literals.js";
 import {
   type CsharpTargetNamedTypeRef,
+  getCsharpCollectionElementTargetType,
   getCsharpArrayLiteralElementTargetType,
+  isCsharpDenseMutableCollectionTargetType,
+  isCsharpReadOnlyIndexableCollectionTargetType,
+} from "./target-types.js";
+import type {
+  CsharpDelegateSignatureShape,
 } from "./target-types.js";
 import {
   targetTypeRefEquals,
@@ -219,12 +225,30 @@ function targetTypeMatchesExpected(
   if (targetTypeRefEquals(expected, actual)) {
     return true;
   }
+  if (isCsharpObjectType(expected) && actual.kind !== "pointer" && actual.kind !== "function-pointer") {
+    return true;
+  }
+  const expectedDelegate = getCsharpDelegateSignature(expected);
+  if (expectedDelegate !== undefined) {
+    return targetDelegateSignatureMatchesExpected(expectedDelegate, actual, typeParameterBindings, options, seenActualTypes);
+  }
   if (expected.kind === "array" && actual.kind === "array" && (expected.rank ?? 1) === (actual.rank ?? 1)) {
     return targetTypeMatchesExpected(expected.element, actual.element, typeParameterBindings, options, seenActualTypes);
   }
-  const expectedCollectionElement = getCsharpArrayLiteralElementTargetType(expected);
-  if (expectedCollectionElement !== undefined && actual.kind === "array") {
-    return targetTypeMatchesExpected(expectedCollectionElement, actual.element, typeParameterBindings, options, seenActualTypes);
+  const expectedCollectionElement = getCsharpCollectionElementTargetType(expected);
+  const actualCollectionElement = getCsharpCollectionElementTargetType(actual) ??
+    getCsharpArrayLiteralElementTargetType(actual);
+  if (
+    expectedCollectionElement !== undefined &&
+    actualCollectionElement !== undefined &&
+    collectionShapeAcceptsActual(expected, actual) &&
+    targetTypeMatchesExpected(expectedCollectionElement, actualCollectionElement, typeParameterBindings, options, seenActualTypes)
+  ) {
+    return true;
+  }
+  const expectedArrayLiteralElement = getCsharpArrayLiteralElementTargetType(expected);
+  if (expectedArrayLiteralElement !== undefined && actual.kind === "array") {
+    return targetTypeMatchesExpected(expectedArrayLiteralElement, actual.element, typeParameterBindings, options, seenActualTypes);
   }
   if (expected.kind === "tuple" && actual.kind === "tuple" && expected.elements.length === actual.elements.length) {
     return expected.elements.every((element, index) => {
@@ -263,6 +287,60 @@ function targetTypeMatchesExpected(
       });
   }
   return false;
+}
+
+function collectionShapeAcceptsActual(expected: TargetTypeRef, actual: TargetTypeRef): boolean {
+  if (expected.kind === "target-named" && expected.id === "System.Collections.Generic.IEnumerable`1") {
+    return actual.kind === "array" ||
+      getCsharpCollectionElementTargetType(actual) !== undefined ||
+      getCsharpArrayLiteralElementTargetType(actual) !== undefined;
+  }
+  if (isCsharpReadOnlyIndexableCollectionTargetType(expected)) {
+    return actual.kind === "array" || isCsharpReadOnlyIndexableCollectionTargetType(actual);
+  }
+  if (isCsharpDenseMutableCollectionTargetType(expected)) {
+    return isCsharpDenseMutableCollectionTargetType(actual);
+  }
+  return false;
+}
+
+function getCsharpDelegateSignature(type: TargetTypeRef): CsharpDelegateSignatureShape | undefined {
+  return type.kind === "target-named"
+    ? (type as CsharpTargetNamedTypeRef & { readonly csharpDelegateSignature?: CsharpDelegateSignatureShape }).csharpDelegateSignature
+    : undefined;
+}
+
+function targetDelegateSignatureMatchesExpected(
+  expected: CsharpDelegateSignatureShape,
+  actual: TargetTypeRef,
+  typeParameterBindings: Map<string, TargetTypeRef>,
+  options: TargetMemberSelectionOptions,
+  seenActualTypes: ReadonlySet<string>,
+): boolean {
+  const actualSignature = actual.kind === "function-pointer"
+    ? {
+        parameters: actual.args,
+        returnType: actual.result,
+      }
+    : getCsharpDelegateSignature(actual);
+  if (actualSignature === undefined || expected.parameters.length !== actualSignature.parameters.length) {
+    return false;
+  }
+  if (!expected.parameters.every((parameter, index) => {
+    const actualParameter = actualSignature.parameters[index];
+    return actualParameter !== undefined && targetTypeMatchesExpected(parameter, actualParameter, typeParameterBindings, options, seenActualTypes);
+  })) {
+    return false;
+  }
+  if (expected.returnType === undefined) {
+    return true;
+  }
+  return actualSignature.returnType !== undefined &&
+    targetTypeMatchesExpected(expected.returnType, actualSignature.returnType, typeParameterBindings, options, seenActualTypes);
+}
+
+function isCsharpObjectType(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && type.id === "System.Object";
 }
 
 function getDeclaringTypeParameterBindings(

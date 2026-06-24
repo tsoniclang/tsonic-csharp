@@ -16,7 +16,7 @@ export interface SourceLibraryMember {
   readonly memberName: string;
 }
 
-export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "RegExp" | "Math" | "Promise";
+export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "RegExp" | "Math" | "Promise" | "Object" | "JSON" | "Console";
 
 export type SourceLibraryTypeName = SourceLibraryDeclaringName | "Record";
 
@@ -89,7 +89,10 @@ function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclar
     name === "String" ||
     name === "RegExp" ||
     name === "Math" ||
-    name === "Promise";
+    name === "Promise" ||
+    name === "Object" ||
+    name === "JSON" ||
+    name === "Console";
 }
 
 function isSourceLibraryTypeName(name: string): name is SourceLibraryTypeName {

@@ -29,6 +29,9 @@ import {
   planExpression,
 } from "./expressions.js";
 import {
+  planConditionExpression,
+} from "./statement-conditionals.js";
+import {
   planLocalDeclaration,
   planLocalDeclarationStatements,
 } from "./locals.js";
@@ -54,7 +57,7 @@ export function planForStatement(
       ? { initializer: initializer.initializer }
       : {}),
     ...(statement.Condition !== undefined
-      ? { condition: planExpression(statement.Condition, sourceFile, input, diagnostics, state) }
+      ? { condition: planConditionExpression(statement.Condition, "For statement", sourceFile, input, diagnostics, state) }
       : {}),
     ...(statement.Incrementor !== undefined
       ? { incrementor: planExpression(statement.Incrementor, sourceFile, input, diagnostics, state) }

@@ -58,6 +58,43 @@ test("printer and planner do not emit legacy custom statement kind names", async
   }
 });
 
+test("Roslyn syntax model exposes no raw semantic output node kinds", async () => {
+  const sources = await collectSourceFiles(join(root, "src/backend/roslyn"));
+  const bannedKinds = [
+    '"RawExpression"',
+    '"RawStatement"',
+    '"RawMember"',
+    '"RawType"',
+    '"VerbatimExpression"',
+    '"VerbatimStatement"',
+    '"CodeSnippet"',
+    '"RenderedCode"',
+    '"SourceText"',
+    '"CustomExpression"',
+    '"CustomStatement"',
+  ];
+  for (const source of sources) {
+    const text = await readFile(source, "utf8");
+    for (const kind of bannedKinds) {
+      assert.equal(text.includes(kind), false, `${source} exposes ${kind}`);
+    }
+  }
+});
+
+test("backend materializes C# text only at the output-plan printer boundary", async () => {
+  const sources = await collectSourceFiles(join(root, "src/backend"));
+  const allowedPrinterBoundary = join(root, "src/backend/planner/csharp-output-plan.ts");
+  for (const source of sources) {
+    if (source === allowedPrinterBoundary) {
+      continue;
+    }
+    const text = await readFile(source, "utf8");
+    assert.equal(text.includes("../../print/"), false, `${source} imports printer directly`);
+    assert.equal(text.includes("../print/"), false, `${source} imports printer directly`);
+    assert.equal(/\bprintCsharp[A-Za-z]*\b/.test(text), false, `${source} calls printer directly`);
+  }
+});
+
 async function collectSourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];

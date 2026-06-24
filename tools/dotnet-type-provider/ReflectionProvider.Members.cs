@@ -155,15 +155,17 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedConstructorReason(ConstructorInfo constructor)
     {
-        return Parameters(constructor.GetParameters()) is null
-            ? "Constructor signature contains a parameter type that cannot be represented as closed .NET target type facts."
-            : null;
+        return UnsupportedParametersReason(constructor.GetParameters(), "Constructor signature");
     }
 
     IEnumerable<object> Properties(Type type)
     {
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(property => property.Name, StringComparer.Ordinal))
         {
+            if (UnsupportedPropertyReason(type, property) is not null)
+            {
+                continue;
+            }
             var accessors = property.GetAccessors(false);
             if (accessors.Length == 0)
             {
@@ -193,6 +195,8 @@ sealed partial class ReflectionProvider
                     targetId,
                     metadataName,
                     @static = accessors[0].IsStatic ? true : (bool?)null,
+                    readable = HasPublicGetter(property) ? true : (bool?)null,
+                    writable = HasPublicSetter(property) ? true : (bool?)null,
                     attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                     unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
                     signatures = new[]
@@ -227,6 +231,8 @@ sealed partial class ReflectionProvider
                 targetId = $"{TargetId(type)}.{property.Name}",
                 metadataName = $"{MetadataName(type)}.{property.Name}",
                 @static = isStatic ? true : (bool?)null,
+                readable = HasPublicGetter(property) ? true : (bool?)null,
+                writable = HasPublicSetter(property) ? true : (bool?)null,
                 type = typeRef,
                 attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                 unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -271,6 +277,10 @@ sealed partial class ReflectionProvider
         {
             return "Property has no public accessor visible to the provider.";
         }
+        if (property.PropertyType.IsByRef)
+        {
+            return "By-reference property or indexer returns require an explicit provider ref-return declaration model before they can be exposed safely.";
+        }
         var indexParameters = property.GetIndexParameters();
         if (indexParameters.Length > 0)
         {
@@ -280,15 +290,16 @@ sealed partial class ReflectionProvider
             }
             if (Parameters(indexParameters) is null)
             {
-                return "Indexer parameter type cannot be represented as closed .NET target type facts.";
+                return UnsupportedParametersReason(indexParameters, "Indexer signature")!;
             }
-            return TypeRef(property.PropertyType) is null
-                ? "Indexer return type cannot be represented as closed .NET target type facts."
-                : null;
+            if (TypeRef(property.PropertyType) is null)
+            {
+                return $"Indexer return type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
+            }
         }
         if (TypeRef(property.PropertyType) is null)
         {
-            return "Property type cannot be represented as closed .NET target type facts.";
+            return $"Property type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(property.PropertyType)}";
         }
         var isStatic = accessors[0].IsStatic;
         if (type.IsInterface && isStatic)
@@ -298,6 +309,10 @@ sealed partial class ReflectionProvider
         if (isStatic && UsesDeclaringTypeParameter(property.PropertyType, type))
         {
             return "Static properties that use a declaring generic type parameter require a provider generic-static-member declaration model before they can be exposed safely.";
+        }
+        if (!HasPublicGetter(property))
+        {
+            return "Write-only properties require a provider write-only member declaration model before they can be exposed safely.";
         }
         return null;
     }
@@ -328,6 +343,8 @@ sealed partial class ReflectionProvider
                 targetId = $"{TargetId(type)}.{field.Name}",
                 metadataName = $"{MetadataName(type)}.{field.Name}",
                 @static = field.IsStatic ? true : (bool?)null,
+                readable = true,
+                writable = !field.IsLiteral && !field.IsInitOnly ? true : (bool?)null,
                 type = typeRef,
                 attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                 unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -363,7 +380,7 @@ sealed partial class ReflectionProvider
         }
         if (TypeRef(field.FieldType) is null)
         {
-            return "Field type cannot be represented as closed .NET target type facts.";
+            return $"Field type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(field.FieldType)}";
         }
         if (type.IsInterface && field.IsStatic)
         {
@@ -404,6 +421,8 @@ sealed partial class ReflectionProvider
                 targetId = EventTargetId(type, eventInfo),
                 metadataName = EventMetadataName(type, eventInfo),
                 @static = accessor.IsStatic ? true : (bool?)null,
+                readable = false,
+                writable = false,
                 type = typeRef,
                 attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,
                 unsupportedAttributes = attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
@@ -444,13 +463,23 @@ sealed partial class ReflectionProvider
         }
         if (TypeRef(eventHandlerType) is null)
         {
-            return "Event handler type cannot be represented as closed .NET target type facts.";
+            return $"Event handler type cannot be represented as closed .NET target type facts. {TypeRefFailureReason(eventHandlerType)}";
         }
         if (EventAccessor(eventInfo) is null)
         {
             return "Event has no public add/remove accessor visible to the provider.";
         }
-        return "C# events require explicit add/remove subscription semantics; the provider records this event as a target-only member until source event facts exist.";
+        return "C# events require explicit add/remove subscription semantics; the provider records this event as unsupported until source event facts exist.";
+    }
+
+    static bool HasPublicGetter(PropertyInfo property)
+    {
+        return property.GetMethod is not null && property.GetMethod.IsPublic;
+    }
+
+    static bool HasPublicSetter(PropertyInfo property)
+    {
+        return property.SetMethod is not null && property.SetMethod.IsPublic;
     }
 
     IEnumerable<MethodInfo> Methods(Type type)
@@ -505,11 +534,9 @@ sealed partial class ReflectionProvider
         }
         if (Parameters(method.GetParameters()) is null)
         {
-            return "Method signature contains a parameter type that cannot be represented as closed .NET target type facts.";
+            return UnsupportedParametersReason(method.GetParameters(), "Method signature")!;
         }
-        return TypeRef(method.ReturnType) is null
-            ? "Method return type cannot be represented as closed .NET target type facts."
-            : null;
+        return UnsupportedReturnTypeReason(method.ReturnType, "Method return type");
     }
 
     IEnumerable<object> UnsupportedOperators(Type type)
@@ -537,16 +564,29 @@ sealed partial class ReflectionProvider
 
     string? UnsupportedOperatorReason(Type type, MethodInfo method)
     {
+        if (IsConversionOperator(method) && method.GetParameters().Length != 1)
+        {
+            return "Conversion operators require exactly one source parameter before provider conversion facts can be exposed safely.";
+        }
         if (UsesDeclaringTypeParameter(method, type))
         {
             return "Operators that use declaring generic type parameters require a provider generic-operator declaration model before they can be exposed safely.";
         }
         if (Parameters(method.GetParameters()) is null)
         {
-            return "Operator signature contains a parameter type that cannot be represented as closed .NET target type facts.";
+            return UnsupportedParametersReason(method.GetParameters(), "Operator signature")!;
         }
-        return TypeRef(method.ReturnType) is null
-            ? "Operator return type cannot be represented as closed .NET target type facts."
+        return UnsupportedReturnTypeReason(method.ReturnType, "Operator return type");
+    }
+
+    string? UnsupportedReturnTypeReason(Type returnType, string context)
+    {
+        if (returnType.IsByRef)
+        {
+            return $"{context} returns '{TypeMetadataName(returnType)}' by reference; by-reference returns require an explicit provider ref-return declaration model before they can be exposed safely.";
+        }
+        return TypeRef(returnType) is null
+            ? $"{context} cannot be represented as closed .NET target type facts. {TypeRefFailureReason(returnType)}"
             : null;
     }
 
@@ -576,6 +616,19 @@ sealed partial class ReflectionProvider
             @static = isStatic ? true : (bool?)null,
             reason,
         };
+    }
+
+    string? UnsupportedParametersReason(ParameterInfo[] parameters, string context)
+    {
+        foreach (var parameter in parameters)
+        {
+            var parameterType = UnwrapByRef(parameter.ParameterType);
+            if (TypeRef(parameterType) is null)
+            {
+                return $"{context} contains parameter '{parameter.Name ?? ""}' with type '{TypeMetadataName(parameterType)}' that cannot be represented as closed .NET target type facts. {TypeRefFailureReason(parameterType)}";
+            }
+        }
+        return null;
     }
 
     static bool IsExtensionMethod(MethodInfo method)
@@ -641,7 +694,7 @@ sealed partial class ReflectionProvider
                 return null;
             }
             var isParamsArray = parameter.GetCustomAttribute<ParamArrayAttribute>() is not null && parameterType.IsArray;
-            var defaultValue = ParameterDefaultValue(parameter, parameterType);
+            var defaultValue = ParameterDefaultValue(parameter, parameterType, ownerId, out var unsupportedDefaultValue);
             var attributes = ownerId is null
                 ? null
                 : AttributeFacts(parameter.GetCustomAttributesData(), "parameter", $"{ownerId}:parameter:{Identifier(parameter.Name ?? $"arg{index}")}");
@@ -653,6 +706,7 @@ sealed partial class ReflectionProvider
                 optional = parameter.IsOptional ? true : (bool?)null,
                 rest = isParamsArray ? true : (bool?)null,
                 defaultValue,
+                unsupportedDefaultValue,
                 attributes = attributes is null || attributes.Supported.Length == 0 ? null : attributes.Supported,
                 unsupportedAttributes = attributes is null || attributes.Unsupported.Length == 0 ? null : attributes.Unsupported,
             });
@@ -660,10 +714,15 @@ sealed partial class ReflectionProvider
         return result.ToArray();
     }
 
-    object? ParameterDefaultValue(ParameterInfo parameter, Type parameterType)
+    object? ParameterDefaultValue(ParameterInfo parameter, Type parameterType, string? ownerId, out object? unsupportedDefaultValue)
     {
-        if (!TryGetRawDefaultValue(parameter, out var value))
+        unsupportedDefaultValue = null;
+        if (!TryGetRawDefaultValue(parameter, out var value, out var unsupportedReason))
         {
+            if (unsupportedReason is not null)
+            {
+                unsupportedDefaultValue = UnsupportedParameterDefaultValue(parameter, parameterType, ownerId, unsupportedReason);
+            }
             return null;
         }
         if (value is null)
@@ -674,27 +733,78 @@ sealed partial class ReflectionProvider
         parameterType = Nullable.GetUnderlyingType(parameterType) ?? parameterType;
         if (parameterType.IsEnum)
         {
-            return EnumParameterDefaultValue(parameterType, value);
+            var enumDefaultValue = EnumParameterDefaultValue(parameterType, value);
+            if (enumDefaultValue is null)
+            {
+                unsupportedDefaultValue = UnsupportedParameterDefaultValue(
+                    parameter,
+                    parameterType,
+                    ownerId,
+                    $"Enum default value for '{parameterType.FullName ?? parameterType.Name}' has no deterministic underlying value.");
+            }
+            return enumDefaultValue;
         }
         if (parameterType == typeof(string) && value is string stringValue)
         {
             return new { kind = "string", value = stringValue };
         }
+        if (parameterType == typeof(string))
+        {
+            unsupportedDefaultValue = UnsupportedParameterDefaultValue(
+                parameter,
+                parameterType,
+                ownerId,
+                "String default value metadata was not exposed as a deterministic string value.");
+            return null;
+        }
 
         var sourcePrimitiveName = SourcePrimitiveName(parameterType);
         if (sourcePrimitiveName is null)
         {
+            unsupportedDefaultValue = UnsupportedParameterDefaultValue(
+                parameter,
+                parameterType,
+                ownerId,
+                $"Default value type '{parameterType.FullName ?? parameterType.Name}' is outside the supported .NET parameter default value set.");
             return null;
         }
         var sourcePrimitiveValue = SourcePrimitiveDefaultValue(parameterType, value);
-        return sourcePrimitiveValue is null
-            ? null
-            : new { kind = "source-primitive", name = sourcePrimitiveName, value = sourcePrimitiveValue };
+        if (sourcePrimitiveValue is null)
+        {
+            unsupportedDefaultValue = UnsupportedParameterDefaultValue(
+                parameter,
+                parameterType,
+                ownerId,
+                $"Source primitive default value '{parameterType.FullName ?? parameterType.Name}' cannot be serialized deterministically.");
+            return null;
+        }
+        return new { kind = "source-primitive", name = sourcePrimitiveName, value = sourcePrimitiveValue };
     }
 
-    static bool TryGetRawDefaultValue(ParameterInfo parameter, out object? value)
+    object UnsupportedParameterDefaultValue(ParameterInfo parameter, Type parameterType, string? ownerId, string reason)
+    {
+        var owner = parameter.Member.DeclaringType is null
+            ? parameter.Member.Name
+            : $"{MetadataName(parameter.Member.DeclaringType)}.{parameter.Member.Name}";
+        var parameterName = Identifier(parameter.Name ?? "");
+        var idOwner = ownerId ?? owner;
+        return new
+        {
+            kind = "unsupported-default-value",
+            id = $"{idOwner}:parameter:{parameterName}:default",
+            parameterName,
+            reason,
+            evidence = new[]
+            {
+                new { message = $"Reflected from .NET parameter '{parameter.Name ?? ""}' on '{owner}' with default value type '{parameterType.FullName ?? parameterType.Name}'." },
+            },
+        };
+    }
+
+    static bool TryGetRawDefaultValue(ParameterInfo parameter, out object? value, out string? unsupportedReason)
     {
         value = null;
+        unsupportedReason = null;
         try
         {
             if (!parameter.HasDefaultValue)
@@ -710,6 +820,7 @@ sealed partial class ReflectionProvider
             exception is ArgumentException)
         {
             value = null;
+            unsupportedReason = $"Raw default value metadata could not be read deterministically: {exception.GetType().Name}: {exception.Message}";
             return false;
         }
         return value is not DBNull && value is not Missing;

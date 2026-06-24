@@ -149,7 +149,7 @@ sealed partial class ReflectionProvider
     {
         if (type.IsArray)
         {
-            return $"{TypeMetadataName(type.GetElementType()!)}[]";
+            return $"{TypeMetadataName(type.GetElementType()!)}{ArrayRankSuffix(type)}";
         }
         if (type.IsGenericParameter)
         {
@@ -166,7 +166,7 @@ sealed partial class ReflectionProvider
     {
         if (type.IsArray)
         {
-            return $"{TypeTargetId(type.GetElementType()!)}[]";
+            return $"{TypeTargetId(type.GetElementType()!)}{ArrayRankSuffix(type)}";
         }
         if (type.IsGenericParameter)
         {
@@ -179,6 +179,16 @@ sealed partial class ReflectionProvider
         return TargetId(type);
     }
 
+    static string ArrayRankSuffix(Type type)
+    {
+        if (type.IsSZArray)
+        {
+            return "[]";
+        }
+        var rank = type.GetArrayRank();
+        return rank == 1 ? "[*]" : $"[{new string(',', rank - 1)}]";
+    }
+
     static string MetadataName(Type type)
     {
         var name = type.FullName ?? type.Name;
@@ -188,7 +198,14 @@ sealed partial class ReflectionProvider
 
     static string TargetId(Type type)
     {
-        return $"{AssemblyIdentity(type.Assembly)}::{MetadataName(type)}";
+        return $"{AssemblyIdentity(type.Assembly)}::{TargetMetadataName(type)}";
+    }
+
+    static string TargetMetadataName(Type type)
+    {
+        var name = type.FullName ?? type.Name;
+        var genericArgumentStart = name.IndexOf("[[", StringComparison.Ordinal);
+        return genericArgumentStart >= 0 ? name[..genericArgumentStart] : name;
     }
 
     static string AssemblyIdentity(Assembly assembly)

@@ -11,6 +11,7 @@ import {
 } from "../dist/index.js";
 import {
   csharpObservedTargetAssignabilityFactKey,
+  csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
 
 const searchValuesModule = "@example/csharp/search-values.js";
@@ -103,6 +104,116 @@ test("C# post-check target assignability fails closed on TypeScript any boundari
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
 });
 
+test("C# post-check target assignment requires writable selected provider property facts", () => {
+  const session = createNativeSession(`
+    declare class Target { value: number }
+    declare let target: Target;
+    declare let source: Target;
+    target.value = source.value;
+  `);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const assignment = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  const left = assignment?.Left;
+  assert.ok(assignment);
+  assert.ok(left);
+  session.extensionHost?.facts.set(assignment, csharpObservedTargetAssignabilityFactKey, {
+    source: { kind: "source-primitive", name: "float64" },
+    target: { kind: "source-primitive", name: "float64" },
+    relation: "assignment",
+    expression: assignment,
+  }, [{ message: "Test-injected post-check assignment observation after TSTS accepted the source assignment." }]);
+  session.extensionHost?.facts.set(left, csharpTargetOperationFactKey, selectedMemberOperation({
+    id: "Example.Target.ReadonlyValue",
+    sourceName: "value",
+    targetName: "ReadonlyValue",
+    kind: "property",
+    readonly: true,
+  }), [{ message: "Test-injected selected provider property fact proving readonly target mutability." }]);
+
+  session.finalizeExtensions();
+
+  const diagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_MEMBER_WRITE_INVALID"
+  ) ?? [];
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /readonly property 'ReadonlyValue'/u);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === diagnostics[0].numericCode), true);
+});
+
+test("C# post-check target assignment accepts writable selected provider field facts", () => {
+  const session = createNativeSession(`
+    declare class Target { value: number }
+    declare let target: Target;
+    declare let source: Target;
+    target.value = source.value;
+  `);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const assignment = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  const left = assignment?.Left;
+  assert.ok(assignment);
+  assert.ok(left);
+  session.extensionHost?.facts.set(assignment, csharpObservedTargetAssignabilityFactKey, {
+    source: { kind: "source-primitive", name: "float64" },
+    target: { kind: "source-primitive", name: "float64" },
+    relation: "assignment",
+    expression: assignment,
+  }, [{ message: "Test-injected post-check assignment observation after TSTS accepted the source assignment." }]);
+  session.extensionHost?.facts.set(left, csharpTargetOperationFactKey, selectedMemberOperation({
+    id: "Example.Target.MutableField",
+    sourceName: "value",
+    targetName: "MutableField",
+    kind: "field",
+  }), [{ message: "Test-injected selected provider field fact proving writable target mutability." }]);
+
+  session.finalizeExtensions();
+
+  assert.equal(session.extensionHost?.diagnostics.all().some((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_MEMBER_WRITE_INVALID"
+  ), false);
+});
+
+test("C# post-check target assignment rejects selected provider events until source event semantics exist", () => {
+  const session = createNativeSession(`
+    declare class Target { changed: number }
+    declare let target: Target;
+    target.changed = 1;
+  `);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const assignment = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  const left = assignment?.Left;
+  assert.ok(assignment);
+  assert.ok(left);
+  session.extensionHost?.facts.set(assignment, csharpObservedTargetAssignabilityFactKey, {
+    source: { kind: "source-primitive", name: "float64" },
+    target: { kind: "source-primitive", name: "float64" },
+    relation: "assignment",
+    expression: assignment,
+  }, [{ message: "Test-injected post-check assignment observation after TSTS accepted the source assignment." }]);
+  session.extensionHost?.facts.set(left, csharpTargetOperationFactKey, selectedMemberOperation({
+    id: "Example.Target.Changed",
+    sourceName: "changed",
+    targetName: "Changed",
+    kind: "event",
+  }), [{ message: "Test-injected selected provider event fact." }]);
+
+  session.finalizeExtensions();
+
+  const diagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_MEMBER_WRITE_INVALID"
+  ) ?? [];
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /cannot write event 'Changed'/u);
+});
+
 function createSearchValuesSession(sourceText) {
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -185,6 +296,34 @@ function collectFacts(sourceFile, ast, extensionHost, factKey) {
     }
     ast.forEachChild(node, visit);
   }
+}
+
+function collectNodesByKind(sourceFile, ast, kindName) {
+  const nodes = [];
+  visit(sourceFile);
+  return nodes;
+
+  function visit(node) {
+    if (ast.kindName(node) === kindName) {
+      nodes.push(node);
+    }
+    ast.forEachChild(node, visit);
+  }
+}
+
+function selectedMemberOperation(member) {
+  return {
+    kind: "member",
+    operationId: member.id,
+    operationKind: member.kind === "field" || member.kind === "event" ? "property" : member.kind,
+    memberName: member.targetName,
+    resultType: { kind: "source-primitive", name: "float64" },
+    selectedMember: {
+      parameters: [],
+      returnType: { kind: "source-primitive", name: "float64" },
+      ...member,
+    },
+  };
 }
 
 function createProviderBackedSearchValuesExtension() {

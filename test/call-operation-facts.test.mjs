@@ -44,6 +44,34 @@ test("call emission requires closed selected member in finalized C# operation fa
   assert.match(diagnostics[0].message, /requires a closed selected C# member/);
 });
 
+test("call emission accepts finalized C# member operation facts with substituted generic members", () => {
+  const call = { Kind: 1 };
+  const diagnostics = [];
+  const selected = closedIdentityMember({ kind: "target-named", id: "System.String" });
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "method",
+        memberName: "Identity",
+        resultType: selected.returnType,
+        selectedMember: selected,
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# call emission",
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(operation.operationId, "Example.Box.identity``1");
+  assert.deepEqual(operation.selectedMember.parameters[0].type, selected.returnType);
+  assert.deepEqual(operation.resultType, selected.returnType);
+});
+
 test("call emission rejects operation facts that drop extension receiver passing", () => {
   const call = { Kind: 1 };
   const selected = extensionMember();
@@ -118,6 +146,22 @@ function selectedMember() {
       passingMode: "by-value",
     }],
     returnType: { kind: "type-parameter", name: "T" },
+    typeParameters: [{ name: "T" }],
+  };
+}
+
+function closedIdentityMember(type) {
+  return {
+    id: "Example.Box.identity``1",
+    sourceName: "identity",
+    targetName: "Identity",
+    kind: "method",
+    parameters: [{
+      name: "value",
+      type,
+      passingMode: "by-value",
+    }],
+    returnType: type,
     typeParameters: [{ name: "T" }],
   };
 }

@@ -2,10 +2,12 @@ import {
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
+  ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
   SourceFile,
   TargetTypeRef,
+  Symbol,
   Type,
 } from "@tsonic/tsts";
 import {
@@ -33,6 +35,9 @@ import {
   getRuntimeCarrierSubjectType,
   isRuntimeCarrierTypeSyntaxNode,
 } from "./runtime-carrier-subjects.js";
+import {
+  getSymbolDeclarations,
+} from "./symbol-utils.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "./runtime-carrier-types.js";
@@ -87,6 +92,9 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
     }
     for (const node of [...nodes].reverse()) {
       propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
+    }
+    for (const node of [...nodes].reverse()) {
+      propagateCsharpRuntimeCarrierFactFromReferencedSymbol(lifecycleContext, sourceFile, node);
     }
     for (const node of nodes) {
       propagateCsharpExpectedRuntimeCarrierFactFromContext(lifecycleContext, sourceFile, node, host);
@@ -190,14 +198,42 @@ function recordCsharpRuntimeCarrierSyntaxFact(
   const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
     getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, host) ??
     getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
-    getReferencedRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node) ??
-    getCheckedExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host);
+    getUseSiteRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host);
   if (carrier === undefined) {
     return;
   }
   const fact = { carrier };
   const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+}
+
+function getUseSiteRuntimeCarrierTargetTypeRef(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): TargetTypeRef | undefined {
+  const referenced = getReferencedRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node);
+  const checked = getCheckedExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host);
+  if (referenced === undefined) {
+    return checked;
+  }
+  if (checked === undefined) {
+    return referenced;
+  }
+  return checkedRuntimeCarrierShouldOverrideReferencedCarrier(checked, referenced)
+    ? checked
+    : referenced;
+}
+
+function checkedRuntimeCarrierShouldOverrideReferencedCarrier(checked: TargetTypeRef, referenced: TargetTypeRef): boolean {
+  if (isRuntimeUnionCarrier(referenced) && !isRuntimeUnionCarrier(checked)) {
+    return true;
+  }
+  if (isSourceDeclarationCarrier(checked) && !isSourceDeclarationCarrier(referenced)) {
+    return false;
+  }
+  return false;
 }
 
 function getReferencedRuntimeCarrierTargetTypeRef(
@@ -215,16 +251,37 @@ function getReferencedRuntimeCarrierTargetTypeRef(
     return undefined;
   }
   const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, node);
-  const direct = lifecycleContext.host.facts.get(symbol, runtimeCarrierFactKey)?.carrier;
+  const direct = getRuntimeCarrierTargetTypeRefForSymbolOrDeclaration(lifecycleContext, symbol);
   if (direct !== undefined) {
     return direct;
   }
   try {
     const resolved = compiler.checker.getResolvedSymbol(node, { sourceFile });
-    return lifecycleContext.host.facts.get(resolved, runtimeCarrierFactKey)?.carrier;
+    return getRuntimeCarrierTargetTypeRefForSymbolOrDeclaration(lifecycleContext, resolved);
   } catch {
     return undefined;
   }
+}
+
+function getRuntimeCarrierTargetTypeRefForSymbolOrDeclaration(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"] },
+  symbol: Symbol | undefined,
+): TargetTypeRef | undefined {
+  const direct = lifecycleContext.host.facts.get(symbol, runtimeCarrierFactKey)?.carrier;
+  if (direct !== undefined) {
+    return direct;
+  }
+  for (const declaration of getSymbolDeclarations(symbol)) {
+    const declarationFact = lifecycleContext.host.facts.get(declaration, runtimeCarrierFactKey)?.carrier;
+    if (declarationFact !== undefined) {
+      return declarationFact;
+    }
+    const nameFact = lifecycleContext.host.facts.get(asNodeSubject(getNodeField(declaration, "name")), runtimeCarrierFactKey)?.carrier;
+    if (nameFact !== undefined) {
+      return nameFact;
+    }
+  }
+  return undefined;
 }
 
 function getCheckedExpressionRuntimeCarrierTargetTypeRef(
@@ -377,18 +434,53 @@ function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
   const initializer = asNodeSubject(getNodeField(node, "Initializer"));
   const name = asNodeSubject(getNodeField(node, "name"));
   const initializerFact = lifecycleContext.host.facts.get(initializer, runtimeCarrierFactKey);
-  if (initializerFact === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
+  if (initializerFact === undefined) {
     return;
   }
-  const evidence = [{ message: "C# runtime carrier propagated from checked initializer syntax." }];
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, initializerFact, evidence);
-  if (name !== undefined && lifecycleContext.host.facts.get(name, runtimeCarrierFactKey) === undefined) {
-    lifecycleContext.host.facts.set(name, runtimeCarrierFactKey, initializerFact, evidence);
+  const message = "C# runtime carrier propagated from checked initializer syntax.";
+  setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, node, initializerFact, message);
+  if (name !== undefined) {
+    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, name, initializerFact, message);
     const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
-    if (symbol !== undefined && lifecycleContext.host.facts.get(symbol, runtimeCarrierFactKey) === undefined) {
-      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, initializerFact, evidence);
-    }
+    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, symbol, initializerFact, message);
   }
+}
+
+function propagateCsharpRuntimeCarrierFactFromReferencedSymbol(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node,
+): void {
+  const carrier = getReferencedRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node);
+  if (carrier === undefined) {
+    return;
+  }
+  const existing = lifecycleContext.host.facts.get(node, runtimeCarrierFactKey);
+  if (existing !== undefined && !shouldReplaceUseSiteRuntimeCarrier(existing.carrier, carrier)) {
+    return;
+  }
+  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, {
+    carrier,
+  }, [{ message: "C# runtime carrier propagated from finalized referenced declaration facts." }]);
+}
+
+function shouldReplaceUseSiteRuntimeCarrier(existing: TargetTypeRef, replacement: TargetTypeRef): boolean {
+  if (isSourceDeclarationCarrier(existing) && !isSourceDeclarationCarrier(replacement)) {
+    return true;
+  }
+  return existing.kind === "array" && replacement.kind === "array";
+}
+
+function isSourceDeclarationCarrier(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" &&
+    (type as { readonly csharpSourceDeclarationKind?: unknown }).csharpSourceDeclarationKind !== undefined &&
+    (type as { readonly csharpJsSurfaceKind?: unknown }).csharpJsSurfaceKind === undefined;
+}
+
+function isRuntimeUnionCarrier(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" &&
+    ((type as { readonly csharpRuntimeUnionArms?: unknown }).csharpRuntimeUnionArms !== undefined ||
+      type.id.startsWith("Tsonic.CSharp.Runtime.Union`"));
 }
 
 function propagateCsharpRuntimeCarrierFactFromObjectBindingDeclaration(
@@ -592,6 +684,22 @@ function setRuntimeCarrierFactIfAbsent(
     return;
   }
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, [{ message }]);
+}
+
+function setRuntimeCarrierFactIfAbsentOrStronger(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"] },
+  subject: ExtensionFactSubject | undefined,
+  fact: { readonly carrier: TargetTypeRef },
+  message: string,
+): void {
+  if (subject === undefined) {
+    return;
+  }
+  const existing = lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey);
+  if (existing !== undefined && !shouldReplaceUseSiteRuntimeCarrier(existing.carrier, fact.carrier)) {
+    return;
+  }
+  lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, fact, [{ message }]);
 }
 
 function isOptionalParameterDeclaration(

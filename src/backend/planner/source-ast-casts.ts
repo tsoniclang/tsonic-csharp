@@ -7,6 +7,7 @@ export const AsArrayLiteralExpression = cast;
 export const AsArrowFunction = cast;
 export const AsAsExpression = cast;
 export const AsAwaitExpression = cast;
+export const AsBigIntLiteral = cast;
 export const AsBinaryExpression = cast;
 export const AsBindingElement = cast;
 export const AsBindingPattern = cast;

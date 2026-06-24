@@ -32,11 +32,12 @@ export function planObjectShapeBindingPattern(
   planBindingNameFromProjection: BindingProjectionPlanner,
 ): readonly CsharpStatement[] {
   const elements = AsBindingPattern(patternNode)?.Elements?.Nodes ?? [];
+  const explicitlyExtractedSourceNames = collectObjectShapeExtractedSourceNames(elements, input);
   return elements.flatMap((elementNode) => {
     if (elementNode === undefined) {
       return [];
     }
-    return planObjectShapeBindingElement(elementNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planObjectShapeBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
   });
 }
 
@@ -44,6 +45,7 @@ function planObjectShapeBindingElement(
   elementNode: Node,
   sourceExpression: CsharpExpression,
   objectShape: CsharpObjectShapeFact,
+  explicitlyExtractedSourceNames: ReadonlySet<string>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -56,7 +58,7 @@ function planObjectShapeBindingElement(
     return [];
   }
   if (element.DotDotDotToken !== undefined) {
-    return planObjectShapeRestBindingElement(elementNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planObjectShapeRestBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
   }
   if (element.Initializer !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Destructuring defaults require finalized undefined/default-value semantics before C# emission."));
@@ -85,13 +87,14 @@ function planObjectShapeBindingElement(
     receiver: sourceExpression,
     name: member.targetName,
   };
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state);
+  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, member.type);
 }
 
 function planObjectShapeRestBindingElement(
   elementNode: Node,
   sourceExpression: CsharpExpression,
   sourceShape: CsharpObjectShapeFact,
+  explicitlyExtractedSourceNames: ReadonlySet<string>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -111,6 +114,11 @@ function planObjectShapeRestBindingElement(
   }
   const restType = csharpTypeFromObjectShapeFact(input, restShape, diagnostics, elementNode);
   if (restType === undefined) {
+    return [];
+  }
+  const staleRestMember = restShape.members.find((member) => explicitlyExtractedSourceNames.has(member.sourceName));
+  if (staleRestMember !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring rest shape must exclude explicitly extracted member '${staleRestMember.sourceName}'.`));
     return [];
   }
   const assignments = restShape.members.map((restMember): CsharpObjectInitializerAssignment | undefined => {
@@ -140,13 +148,34 @@ function planObjectShapeRestBindingElement(
     kind: "ObjectCreationExpression",
     type: restType,
     assignments: assignments as readonly CsharpObjectInitializerAssignment[],
-  }, restType, elementNode, sourceFile, input, diagnostics, state);
+  }, restType, elementNode, sourceFile, input, diagnostics, state, restShape.targetType);
+}
+
+function collectObjectShapeExtractedSourceNames(
+  elements: readonly (Node | undefined)[],
+  input: TargetCompileInput,
+): ReadonlySet<string> {
+  const sourceNames = new Set<string>();
+  for (const elementNode of elements) {
+    if (elementNode === undefined) {
+      continue;
+    }
+    const element = AsBindingElement(elementNode);
+    if (element === undefined || element.DotDotDotToken !== undefined) {
+      continue;
+    }
+    const sourceName = getObjectShapeBindingPropertySourceName(elementNode, input);
+    if (sourceName !== undefined) {
+      sourceNames.add(sourceName);
+    }
+  }
+  return sourceNames;
 }
 
 function getObjectShapeBindingPropertySourceName(
   elementNode: Node,
   input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
+  diagnostics?: TargetDiagnostic[],
 ): string | undefined {
   const element = AsBindingElement(elementNode);
   if (element === undefined) {
@@ -157,7 +186,7 @@ function getObjectShapeBindingPropertySourceName(
     return undefined;
   }
   if (!HasSourceKind(input.ast, propertyName, KindIdentifier) && !HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
-    diagnostics.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from object-shape facts supports only identifier or string-literal property names."));
+    diagnostics?.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring from object-shape facts supports only identifier or string-literal property names."));
     return undefined;
   }
   return Node_Text(propertyName);

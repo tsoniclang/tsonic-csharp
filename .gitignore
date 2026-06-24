@@ -144,3 +144,5 @@ vite.config.ts.timestamp-*
 
 /tools/dotnet-type-provider/bin/
 /tools/dotnet-type-provider/obj/
+/test/fixtures/**/bin/
+/test/fixtures/**/obj/

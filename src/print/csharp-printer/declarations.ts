@@ -9,6 +9,7 @@ import type {
   CsharpTypeMember,
 } from "../../backend/roslyn/syntax.js";
 import type { CsharpPrintContext } from "./context.js";
+import { failUnsupportedCsharpSyntax } from "./fail-closed.js";
 import { indentLines } from "./format.js";
 
 export function printCsharpCompilationUnit(
@@ -36,6 +37,8 @@ export function printCsharpCompilationUnit(
       case "EnumDeclaration":
         lines.push(...printTypeDeclarationLines(member, context));
         break;
+      default:
+        failUnsupportedCsharpSyntax(member, "compilation-unit member");
     }
   }
   return `${lines.join("\n")}\n`;
@@ -71,6 +74,9 @@ function printTypeDeclarationLines(
       ...indentLines(declaration.members.flatMap((member) => printInterfaceMemberLines(member, context))),
       "}",
     ];
+  }
+  if (declaration.kind !== "ClassDeclaration" && declaration.kind !== "StructDeclaration") {
+    return failUnsupportedCsharpSyntax(declaration, "type declaration");
   }
   const keyword = declaration.kind === "ClassDeclaration" ? "class" : "struct";
   return [
@@ -119,6 +125,7 @@ function printInterfaceMemberLines(
         `${context.printType(member.valueType)} this[${context.printType(member.keyType)} ${member.keyName}] { get; }`,
       ];
   }
+  return failUnsupportedCsharpSyntax(member, "interface member");
 }
 
 function printTypeMemberLines(member: CsharpTypeMember, context: CsharpPrintContext): string[] {
@@ -138,6 +145,7 @@ function printTypeMemberLines(member: CsharpTypeMember, context: CsharpPrintCont
     case "PropertyDeclaration":
       return printPropertyLines(member, context);
   }
+  return failUnsupportedCsharpSyntax(member, "type member");
 }
 
 function printConstructorLines(

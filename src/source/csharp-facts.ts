@@ -97,6 +97,48 @@ export interface CsharpRegularExpressionLiteralFact {
   readonly flags: string;
 }
 
+export type CsharpArrayCarrierLane =
+  | "native-fixed-local"
+  | "native-read-sequence"
+  | "native-read-indexable"
+  | "native-dense-mutable"
+  | "native-array-required"
+  | "js-full-internal"
+  | "hard-reject";
+
+export type CsharpArrayBoundaryKind =
+  | "local"
+  | "internal-call"
+  | "exported-api"
+  | "native-provider-call";
+
+export type CsharpArrayPublicShape =
+  | "IEnumerable<T>"
+  | "IReadOnlyList<T>"
+  | "List<T>"
+  | "T[]"
+  | "compat-facade"
+  | "not-exportable-as-native";
+
+export interface CsharpArrayCarrierFact {
+  readonly sourceKind: "ts-array" | "readonly-ts-array" | "tuple" | "typed-array" | "native-array";
+  readonly lane: CsharpArrayCarrierLane;
+  readonly elementType: TargetTypeRef;
+  readonly carrierType: TargetTypeRef;
+  readonly mutationVisibility: "none" | "internal" | "caller-visible";
+  readonly boundary: CsharpArrayBoundaryKind;
+}
+
+export interface CsharpArrayBoundaryFact {
+  readonly publicShape: CsharpArrayPublicShape;
+  readonly publicType: TargetTypeRef;
+  readonly coreCarrierLane: CsharpArrayCarrierLane;
+  readonly coreCarrierType: TargetTypeRef;
+  readonly preservesMutationVisibility: boolean;
+  readonly requiresCopyIn: boolean;
+  readonly requiresCopyOut: boolean;
+}
+
 export type CsharpTargetOperationFact =
   | CsharpTargetMemberOperationFact
   | CsharpTargetTokenOperatorOperationFact
@@ -229,6 +271,31 @@ export const csharpRegularExpressionLiteralFactKey = defineExtensionFactKey<Csha
   extensionId: "tsonic.csharp",
   name: "regularExpressionLiteral",
   equals: (left, right) => left.pattern === right.pattern && left.flags === right.flags,
+});
+
+export const csharpArrayCarrierFactKey = defineExtensionFactKey<CsharpArrayCarrierFact>({
+  extensionId: "tsonic.csharp",
+  name: "arrayCarrier",
+  equals: (left, right) =>
+    left.sourceKind === right.sourceKind &&
+    left.lane === right.lane &&
+    targetTypeRefEquals(left.elementType, right.elementType) &&
+    targetTypeRefEquals(left.carrierType, right.carrierType) &&
+    left.mutationVisibility === right.mutationVisibility &&
+    left.boundary === right.boundary,
+});
+
+export const csharpArrayBoundaryFactKey = defineExtensionFactKey<CsharpArrayBoundaryFact>({
+  extensionId: "tsonic.csharp",
+  name: "arrayBoundary",
+  equals: (left, right) =>
+    left.publicShape === right.publicShape &&
+    targetTypeRefEquals(left.publicType, right.publicType) &&
+    left.coreCarrierLane === right.coreCarrierLane &&
+    targetTypeRefEquals(left.coreCarrierType, right.coreCarrierType) &&
+    left.preservesMutationVisibility === right.preservesMutationVisibility &&
+    left.requiresCopyIn === right.requiresCopyIn &&
+    left.requiresCopyOut === right.requiresCopyOut,
 });
 
 function csharpTargetOperationFactEquals(left: CsharpTargetOperationFact, right: CsharpTargetOperationFact): boolean {

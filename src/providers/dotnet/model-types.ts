@@ -35,7 +35,7 @@ export interface DotnetModuleModel {
 
 export type DotnetUnsupportedExportDeclaration =
   | DotnetUnsupportedTypeFamilyExportDeclaration
-  | DotnetUnsupportedNestedTypeExportDeclaration;
+  | DotnetUnsupportedTypeExportDeclaration;
 
 export interface DotnetUnsupportedTypeFamilyExportDeclaration {
   readonly kind: "unsupported-type-family";
@@ -46,14 +46,13 @@ export interface DotnetUnsupportedTypeFamilyExportDeclaration {
   readonly assemblies?: readonly DotnetAssemblyReference[];
 }
 
-export interface DotnetUnsupportedNestedTypeExportDeclaration {
-  readonly kind: "unsupported-nested-type";
+export interface DotnetUnsupportedTypeExportDeclaration {
+  readonly kind: "unsupported-type-export";
   readonly sourceName: string;
-  readonly reason: string;
-  readonly targetId?: string;
+  readonly targetId: string;
   readonly metadataName: string;
   readonly assembly?: DotnetAssemblyReference;
-  readonly declaringMetadataName?: string;
+  readonly reason: string;
 }
 
 export type DotnetExportDeclaration =
@@ -85,6 +84,7 @@ export interface DotnetTypeDeclaration {
   readonly typeParameters?: readonly DotnetTypeParameterDeclaration[];
   readonly baseType?: DotnetTypeRef;
   readonly implementedContracts?: readonly DotnetConstraint[];
+  readonly unsupportedImplementedContracts?: readonly DotnetUnsupportedConstraintDeclaration[];
   readonly members?: readonly DotnetMemberDeclaration[];
   readonly conversionOperators?: readonly DotnetConversionOperatorDeclaration[];
   readonly unsupportedMembers?: readonly DotnetUnsupportedMemberDeclaration[];
@@ -132,6 +132,8 @@ export interface DotnetMemberDeclaration {
   readonly metadataName: string;
   readonly static?: boolean;
   readonly receiverPassing?: "instance" | "first-argument";
+  readonly readable?: boolean;
+  readonly writable?: boolean;
   readonly type?: DotnetTypeRef;
   readonly signatures?: readonly DotnetSignatureDeclaration[];
   readonly attributes?: readonly DotnetAttributeDeclaration[];
@@ -177,6 +179,7 @@ export interface DotnetParameterDeclaration {
   readonly optional?: boolean;
   readonly rest?: boolean;
   readonly defaultValue?: DotnetParameterDefaultValue;
+  readonly unsupportedDefaultValue?: DotnetUnsupportedDefaultValueDeclaration;
   readonly attributes?: readonly DotnetAttributeDeclaration[];
   readonly unsupportedAttributes?: readonly DotnetUnsupportedAttributeDeclaration[];
 }
@@ -226,6 +229,14 @@ export type DotnetParameterDefaultValue =
   | { readonly kind: "string"; readonly value: string }
   | { readonly kind: "source-primitive"; readonly name: SourcePrimitiveKind; readonly value: string | boolean }
   | { readonly kind: "enum"; readonly value: string; readonly fieldName?: string };
+
+export interface DotnetUnsupportedDefaultValueDeclaration {
+  readonly kind: "unsupported-default-value";
+  readonly id: string;
+  readonly parameterName: string;
+  readonly reason: string;
+  readonly evidence?: readonly { readonly message: string }[];
+}
 
 export interface DotnetTypeParameterDeclaration {
   readonly name: string;
