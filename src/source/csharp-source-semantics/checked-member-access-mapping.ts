@@ -281,11 +281,12 @@ function mapCsharpNativeArrayCheckedPropertyAccess(
     request.receiverResolvedSymbol,
     request.receiverSymbol,
   ]);
+  if (binding?.id !== dotnetNativeArrayTypeId) {
+    return undefined;
+  }
   const selectedDeclarationFact = context.facts.get(request.sourceSelectedPropertySymbol, providerVirtualDeclarationFactKey) ??
     context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
-  const member = binding?.id === dotnetNativeArrayTypeId
-    ? findTargetMember(binding, selectedDeclarationFact)
-    : undefined;
+  const member = findTargetMember(binding, selectedDeclarationFact);
   if (member?.id !== dotnetNativeArrayLengthMemberId) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED", 9100136, `C# native array source contract has no target-backed property '${request.propertyName}'.`));
   }
@@ -313,17 +314,18 @@ function mapCsharpNativeArrayCheckedElementAccess(
     request.receiverType,
     request.receiver,
   ]);
+  if (binding?.id !== dotnetNativeArrayTypeId) {
+    return undefined;
+  }
   const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
-  const member = binding?.id === dotnetNativeArrayTypeId
-    ? findTargetMemberForElementAccess(
-        binding,
-        virtualDeclaration,
-        request,
-        context,
-        host.getTargetTypeRefForSubject,
-        { declaringTargetType: receiverType },
-      )
-    : undefined;
+  const member = findTargetMemberForElementAccess(
+    binding,
+    virtualDeclaration,
+    request,
+    context,
+    host.getTargetTypeRefForSubject,
+    { declaringTargetType: receiverType },
+  );
   if (member?.id !== dotnetNativeArrayIndexerMemberId) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_NOT_FOUND", 9100103, "C# native array element access requires the selected provider-owned native array indexer declaration."));
   }

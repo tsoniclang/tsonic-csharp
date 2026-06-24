@@ -76,18 +76,16 @@ export function nodeCryptoCallTargetMembers(): readonly {
   readonly member: TargetMember;
 }[] {
   const numberParameter = (name: string) => ({ name, type: numberProviderType });
+  const optionalNumberParameter = (name: string) => ({ name, type: numberProviderType, optional: true });
   const stringArrayProviderType = { kind: "array", elementType: stringProviderType } satisfies ProviderTypeExpression;
   const stringArrayTargetType = { kind: "array", element: stringTargetType } satisfies TargetTypeRef;
   return [
     cryptoCall("getCiphers", "node:crypto.getCiphers()", [], stringArrayProviderType, [], stringArrayTargetType),
     cryptoCall("getCurves", "node:crypto.getCurves()", [], stringArrayProviderType, [], stringArrayTargetType),
     cryptoCall("getHashes", "node:crypto.getHashes()", [], stringArrayProviderType, [], stringArrayTargetType),
-    cryptoCall("randomInt", "node:crypto.randomInt(System.Int32)", [numberParameter("max")], numberProviderType, [
-      targetParameter("max", intTargetType),
-    ], intTargetType),
-    cryptoCall("randomInt", "node:crypto.randomInt(System.Int32,System.Int32)", [numberParameter("min"), numberParameter("max")], numberProviderType, [
-      targetParameter("min", intTargetType),
-      targetParameter("max", intTargetType),
+    cryptoCall("randomInt", "node:crypto.randomInt(System.Int32,System.Int32?)", [numberParameter("minOrMax"), optionalNumberParameter("max")], numberProviderType, [
+      targetParameter("minOrMax", intTargetType),
+      targetParameter("max", intTargetType, { optional: true }),
     ], intTargetType),
     cryptoCall(nodeCryptoRandomUuidExportName, nodeCryptoRandomUuidSignatureId, [], stringProviderType, [], stringTargetType),
   ];

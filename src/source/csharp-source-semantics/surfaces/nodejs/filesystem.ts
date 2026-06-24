@@ -13,6 +13,9 @@ import {
   targetMethod,
   targetParameter,
 } from "../js/source-library.js";
+import {
+  csharpTargetId,
+} from "../../identity.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
@@ -42,18 +45,23 @@ interface NodeFsCallTargetMember {
 export const nodeFsModuleSpecifier = "node:fs";
 export const nodeFsExistsSyncExportName = "existsSync";
 export const nodeFsExistsSyncSignatureId = "node:fs.existsSync(System.String)";
+export const nodeFsWatchFileExportName = "watchFile";
+export const nodeFsWatchFileSignatureId = "node:fs.watchFile(System.String)";
 
 export function nodeFsExports(): readonly ProviderExportDeclaration[] {
-  return nodeFsCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
-    id: `node:fs.${exportName}`,
-    name: exportName,
-    kind: "function",
-    signatures: [{
-      id: signatureId,
-      parameters: providerParameters,
-      returnType: providerReturnType,
-    }],
-  }));
+  return [
+    ...nodeFsCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
+      id: `node:fs.${exportName}`,
+      name: exportName,
+      kind: "function" as const,
+      signatures: [{
+        id: signatureId,
+        parameters: providerParameters,
+        returnType: providerReturnType,
+      }],
+    })),
+    ...nodeFsUnsupportedExports(),
+  ];
 }
 
 export function getNodeFsExistsSyncTargetMember(): TargetMember {
@@ -195,4 +203,22 @@ function fsCall(
       },
     ),
   };
+}
+
+function nodeFsUnsupportedExports(): readonly ProviderExportDeclaration[] {
+  return [{
+    id: `node:fs.${nodeFsWatchFileExportName}`,
+    name: nodeFsWatchFileExportName,
+    kind: "function",
+    targetIdentity: {
+      target: csharpTargetId,
+      id: `node:fs.${nodeFsWatchFileExportName}.unsupported`,
+      displayName: `node:fs.${nodeFsWatchFileExportName}`,
+    },
+    signatures: [{
+      id: nodeFsWatchFileSignatureId,
+      parameters: [{ name: "path", type: stringProviderType }],
+      returnType: voidProviderType,
+    }],
+  }];
 }

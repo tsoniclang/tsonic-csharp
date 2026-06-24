@@ -459,10 +459,11 @@ test("JS surface maps Object.keys from selected standard-library declaration and
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
     arguments: [value],
+    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys:jsobject");
   assert.equal(result.value.selectedSignature.member.static, true);
   assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].id, "System.String");
@@ -479,10 +480,11 @@ test("JS surface maps Object.values from selected standard-library declaration a
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "values"), {
     arguments: [value],
+    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.values");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.values:jsobject");
   assert.equal(result.value.selectedSignature.member.static, true);
   assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].id, "System.Object");
@@ -499,10 +501,11 @@ test("JS surface maps Object.entries from selected standard-library declaration 
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "entries"), {
     arguments: [value],
+    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.entries");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.entries:jsobject");
   assert.equal(result.value.selectedSignature.member.static, true);
   assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].kind, "tuple");
@@ -524,15 +527,46 @@ test("JS surface maps Object.keys for closed JSArray and string carriers", () =>
 
   const arrayResult = provider.mapCheckedCall(jsCallRequest(arrayCall, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
     arguments: [arrayValue],
+    sourceSelectedSignature: {},
   }), fakeContext(facts));
   const stringResult = provider.mapCheckedCall(jsCallRequest(stringCall, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
     arguments: [stringValue],
+    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(arrayResult.kind, "accept");
-  assert.equal(arrayResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys");
+  assert.equal(arrayResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys:jsarray");
   assert.equal(stringResult.kind, "accept");
-  assert.equal(stringResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys");
+  assert.equal(stringResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys:string");
+});
+
+test("JS surface maps Object.values and Object.entries for closed Record dictionary carriers", () => {
+  const valuesCall = {};
+  const entriesCall = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, recordDictionaryType(stringType(), int32Type())],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const valuesResult = provider.mapCheckedCall(jsCallRequest(valuesCall, sourceLibraryMemberDeclaration("ObjectConstructor", "values"), {
+    arguments: [value],
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+  const entriesResult = provider.mapCheckedCall(jsCallRequest(entriesCall, sourceLibraryMemberDeclaration("ObjectConstructor", "entries"), {
+    arguments: [value],
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+
+  assert.equal(valuesResult.kind, "accept");
+  assert.equal(valuesResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.values:dictionary");
+  assert.equal(valuesResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
+  assert.equal(valuesResult.value.selectedSignature.member.returnType.typeArguments[0].name, "int32");
+  assert.equal(entriesResult.kind, "accept");
+  assert.equal(entriesResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.entries:dictionary");
+  assert.equal(entriesResult.value.selectedSignature.member.returnType.typeArguments[0].kind, "tuple");
+  assert.equal(entriesResult.value.selectedSignature.member.returnType.typeArguments[0].elements[1].name, "int32");
 });
 
 test("JS surface maps Object.hasOwnProperty only from selected declaration and closed JSObject receiver", () => {
@@ -936,14 +970,14 @@ test("NodeJS surface maps expanded crypto and os calls from selected provider si
   const cryptoSignature = {};
   const osCall = {};
   const osSignature = {};
-  facts.set(cryptoSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:crypto", "randomInt", "node:crypto.randomInt(System.Int32,System.Int32)"));
+  facts.set(cryptoSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:crypto", "randomInt", "node:crypto.randomInt(System.Int32,System.Int32?)"));
   facts.set(osSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:os", "tmpdir", "node:os.tmpdir()"));
 
   const cryptoResult = provider.mapCheckedCall(nodejsCallRequest(cryptoCall, cryptoSignature), fakeContext(facts));
   const osResult = provider.mapCheckedCall(nodejsCallRequest(osCall, osSignature), fakeContext(facts));
 
   assert.equal(cryptoResult.kind, "accept");
-  assert.equal(cryptoResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.crypto.randomInt(System.Int32,System.Int32)");
+  assert.equal(cryptoResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.crypto.randomInt(System.Int32,System.Int32?)");
   assert.equal(osResult.kind, "accept");
   assert.equal(osResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.os.tmpdir()");
 });
@@ -1061,7 +1095,7 @@ test("NodeJS surface rejects provider declarations whose selected identity is no
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
 });
 
-test("NodeJS surface rejects overloaded provider declarations without selected signature identity", () => {
+test("NodeJS surface maps optional-arity provider declarations from selected declaration identity", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
@@ -1070,10 +1104,10 @@ test("NodeJS surface rejects overloaded provider declarations without selected s
 
   const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedDeclaration), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
-  assert.match(result.diagnostic.message, /node:crypto/);
-  assert.match(result.diagnostic.message, /randomInt/);
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Node.crypto.randomInt(System.Int32,System.Int32?)");
+  assert.equal(result.value.selectedSignature.member.parameters.length, 2);
+  assert.equal(result.value.selectedSignature.member.parameters[1]?.optional, true);
 });
 
 test("NodeJS surface rejects selected provider members absent from the explicit surface map", () => {

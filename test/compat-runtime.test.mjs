@@ -117,9 +117,9 @@ test("compat runtime hard rejects are not inferred from shadowable source names"
 
     Function("return 1");
     new Proxy({}, {});
-    Proxy.revocable({}, {});
+    Proxy["revocable"]({}, {});
     obj.__proto__ = {};
-    Object.setPrototypeOf(obj, {});
+    Object["setPrototypeOf"](obj, {});
   `, { typescriptCompatibility: "compat" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
