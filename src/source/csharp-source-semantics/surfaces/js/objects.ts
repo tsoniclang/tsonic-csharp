@@ -4,6 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpQualifiedTypeRenderShape,
+  csharpListTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -60,7 +61,7 @@ function objectHelperMethod(
     `Tsonic.CSharp.Js.Object.${sourceName}:${carrierName}`,
     sourceName,
     [targetParameter("value", valueType)],
-    csharpJsArrayCarrierTargetType(returnElementType),
+    csharpListTargetType(returnElementType),
   );
 }
 

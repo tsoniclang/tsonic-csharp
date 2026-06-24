@@ -465,7 +465,7 @@ test("JS surface maps Object.keys from selected standard-library declaration and
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.keys:jsobject");
   assert.equal(result.value.selectedSignature.member.static, true);
-  assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].id, "System.String");
 });
 
@@ -486,7 +486,7 @@ test("JS surface maps Object.values from selected standard-library declaration a
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.values:jsobject");
   assert.equal(result.value.selectedSignature.member.static, true);
-  assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].id, "System.Object");
 });
 
@@ -507,7 +507,7 @@ test("JS surface maps Object.entries from selected standard-library declaration 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.entries:jsobject");
   assert.equal(result.value.selectedSignature.member.static, true);
-  assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].kind, "tuple");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].elements[0].id, "System.String");
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].elements[1].id, "System.Object");
@@ -561,7 +561,7 @@ test("JS surface maps Object.values and Object.entries for closed Record diction
 
   assert.equal(valuesResult.kind, "accept");
   assert.equal(valuesResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.values:dictionary");
-  assert.equal(valuesResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
+  assert.equal(valuesResult.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
   assert.equal(valuesResult.value.selectedSignature.member.returnType.typeArguments[0].name, "int32");
   assert.equal(entriesResult.kind, "accept");
   assert.equal(entriesResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.entries:dictionary");
@@ -961,6 +961,74 @@ test("NodeJS surface maps expanded path and fs calls from selected provider sign
   assert.equal(pathResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.path.resolve(System.String[])");
   assert.equal(fsResult.kind, "accept");
   assert.equal(fsResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.fs.readFileSync(System.String,System.String)");
+});
+
+test("NodeJS surface maps path.parse and path.format through ParsedPath provider facts", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const parseCall = {};
+  const parseSignature = {};
+  const formatCall = {};
+  const formatSignature = {};
+  const extExpression = {};
+  const extDeclaration = {};
+  facts.set(parseSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "parse", "node:path.parse(System.String)"));
+  facts.set(formatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)"));
+  facts.set(extDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:path",
+    "ParsedPath",
+    "ext",
+    "node:path.ParsedPath.ext",
+  ));
+
+  const parseResult = provider.mapCheckedCall(nodejsCallRequest(parseCall, parseSignature), fakeContext(facts));
+  const formatResult = provider.mapCheckedCall(nodejsCallRequest(formatCall, formatSignature), fakeContext(facts));
+  const extResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(extExpression, extDeclaration), fakeContext(facts));
+
+  assert.equal(parseResult.kind, "accept");
+  assert.equal(parseResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.path.parse(System.String)");
+  assert.equal(parseResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Node.ParsedPath");
+  assert.equal(formatResult.kind, "accept");
+  assert.equal(formatResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.path.format(Tsonic.CSharp.Node.ParsedPath)");
+  assert.equal(extResult.kind, "accept");
+  assert.equal(extResult.value.operation.operationId, "Tsonic.CSharp.Node.ParsedPath.ext");
+});
+
+test("NodeJS surface maps fs.statSync and Stats members through selected provider facts", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const statCall = {};
+  const statSignature = {};
+  const sizeExpression = {};
+  const sizeDeclaration = {};
+  const isFileCall = {};
+  const isFileSignature = {};
+  facts.set(statSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "statSync", "node:fs.statSync(System.String)"));
+  facts.set(sizeDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:fs",
+    "Stats",
+    "size",
+    "node:fs.Stats.size",
+  ));
+  facts.set(isFileSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:fs",
+    "Stats",
+    "isFile",
+    "node:fs.Stats.isFile",
+    "node:fs.Stats.isFile()",
+  ));
+
+  const statResult = provider.mapCheckedCall(nodejsCallRequest(statCall, statSignature), fakeContext(facts));
+  const sizeResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(sizeExpression, sizeDeclaration), fakeContext(facts));
+  const isFileResult = provider.mapCheckedCall(nodejsCallRequest(isFileCall, isFileSignature), fakeContext(facts));
+
+  assert.equal(statResult.kind, "accept");
+  assert.equal(statResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.fs.statSync(System.String)");
+  assert.equal(statResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Node.Stats");
+  assert.equal(sizeResult.kind, "accept");
+  assert.equal(sizeResult.value.operation.operationId, "Tsonic.CSharp.Node.Stats.size");
+  assert.equal(isFileResult.kind, "accept");
+  assert.equal(isFileResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Stats.IsFile()");
 });
 
 test("NodeJS surface maps expanded crypto and os calls from selected provider signature identity", () => {

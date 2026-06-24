@@ -86,6 +86,7 @@ export const KindTypeAssertionExpression = "KindTypeAssertionExpression";
 export const KindTypeLiteral = "KindTypeLiteral";
 export const KindTypeOfExpression = "KindTypeOfExpression";
 export const KindTypeReference = "KindTypeReference";
+export const KindTupleType = "KindTupleType";
 export const KindUnionType = "KindUnionType";
 export const KindUnknownKeyword = "KindUnknownKeyword";
 export const KindVariableDeclaration = "KindVariableDeclaration";

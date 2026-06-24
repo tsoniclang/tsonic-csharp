@@ -65,6 +65,7 @@ import {
   nodeCryptoModuleSpecifier,
 } from "./crypto.js";
 import {
+  getNodeFsTargetMember,
   nodeFsCallTargetMembers,
   nodeFsModuleSpecifier,
 } from "./filesystem.js";
@@ -74,6 +75,7 @@ import {
   nodeOsPropertyTargetMembers,
 } from "./os.js";
 import {
+  getNodePathTargetMember,
   nodePathModuleSpecifier,
   nodePathCallTargetMembers,
   nodePathPropertyTargetMembers,
@@ -121,33 +123,34 @@ export function getNodejsCallTargetMember(declaration: NodejsProviderDeclaration
   if (bufferMember !== undefined) {
     return bufferMember;
   }
+  const fsMember = canonicalDeclaration.moduleSpecifier === nodeFsModuleSpecifier
+    ? getNodeFsTargetMember(canonicalDeclaration.memberId, canonicalDeclaration.signatureId)
+    : undefined;
+  if (fsMember !== undefined) {
+    return fsMember;
+  }
   return nodejsCallTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalDeclaration));
 }
 
-export function getCsharpNodejsStaticPropertyOperation(
+export function getCsharpNodejsPropertyOperation(
   declaration: NodejsProviderDeclarationIdentity,
 ): { readonly operation: TargetOperationFact; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
-  const member = nodejsPropertyTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalNodejsDeclarationIdentity(declaration)));
+  const canonicalDeclaration = canonicalNodejsDeclarationIdentity(declaration);
+  const pathMember = canonicalDeclaration.moduleSpecifier === nodePathModuleSpecifier
+    ? getNodePathTargetMember(canonicalDeclaration.memberId)
+    : undefined;
+  const fsMember = canonicalDeclaration.moduleSpecifier === nodeFsModuleSpecifier
+    ? getNodeFsTargetMember(canonicalDeclaration.memberId, canonicalDeclaration.signatureId)
+    : undefined;
+  const member = pathMember
+    ?? fsMember
+    ?? nodejsPropertyTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalDeclaration));
   return member === undefined
     ? undefined
     : {
         operation: targetOperationFromMember(member),
         csharpOperation: csharpTargetOperationFromMember(member),
       };
-}
-
-export function getNodejsStaticPropertyDeclaration(
-  moduleSpecifier: string,
-  exportName: string,
-): NodejsProviderDeclarationIdentity | undefined {
-  const canonicalSpecifier = canonicalNodejsModuleSpecifier(moduleSpecifier);
-  if (canonicalSpecifier === undefined) {
-    return undefined;
-  }
-  const declaration = nodejsExportDeclarationIdentity(canonicalSpecifier, exportName);
-  return nodejsPropertyTargetMembersByDeclarationIdentity.has(nodejsProviderDeclarationIdentityKey(declaration))
-    ? declaration
-    : undefined;
 }
 
 export function getNodejsTargetIdentity(symbol: ProviderSymbolIdentity): TargetIdentity | undefined {

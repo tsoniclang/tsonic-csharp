@@ -72,7 +72,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (module === undefined) {
         return { kind: "unowned" };
       }
-      return mapDotnetOwnership(options.provider.ownsModule(specifier, providerContext(context, options)));
+      return mapDotnetOwnership(identity.id, options.provider.ownsModule(specifier, providerContext(context, options)));
     },
     resolveModule(specifier: string, context: ProviderModuleContext): ProviderModuleResolution | ExtensionDiagnostic {
       const module = parseDotnetModuleSpecifier(specifier);
@@ -89,7 +89,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: providerVirtualDeclarationFileName("csharp-dotnet", specifier),
+        virtualFileName: providerVirtualDeclarationFileName(identity.id, specifier),
         providerModuleId: specifier,
         packageName: dotnetPackageName,
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
@@ -128,7 +128,7 @@ function providerContext(
   };
 }
 
-function mapDotnetOwnership(ownership: DotnetProviderOwnership): ProviderOwnership {
+function mapDotnetOwnership(extensionId: string, ownership: DotnetProviderOwnership): ProviderOwnership {
   switch (ownership.kind) {
     case "owned":
       return { kind: "owned" };
@@ -137,7 +137,7 @@ function mapDotnetOwnership(ownership: DotnetProviderOwnership): ProviderOwnersh
     case "rejected":
       return {
         kind: "reject",
-        diagnostic: dotnetProviderDiagnosticToExtensionDiagnostic("dotnet", ownership.diagnostic),
+        diagnostic: dotnetProviderDiagnosticToExtensionDiagnostic(extensionId, ownership.diagnostic),
       };
   }
 }

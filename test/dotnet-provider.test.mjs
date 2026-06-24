@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   augmentDotnetModuleWithNativeArray,
   createDotnetReflectionTypeDataProvider,
+  createDotnetTargetBindingProvider,
   dotnetNativeArrayCreateMemberId,
   dotnetNativeArrayIndexerMemberId,
   dotnetNativeArrayLengthMemberId,
@@ -940,6 +941,51 @@ test(".NET provider model preserves overlap-like receiver and out parameter fact
   const targetOverlaps = targetBinding.members[0];
   assert.equal(targetOverlaps.receiverPassing, "first-argument");
   assert.equal(targetOverlaps.parameters[2].passingMode, "byref-writeonly-must-init");
+});
+
+test(".NET target binding provider uses configured provider identity for diagnostics and virtual modules", () => {
+  const identity = {
+    id: "acme.dotnet.fixture-provider",
+    version: "1.2.3",
+    target: "csharp",
+    displayName: "Acme .NET Fixture Provider",
+  };
+  const rejectedDiagnostic = {
+    code: "DOTNET_FIXTURE_REJECTED",
+    message: "Fixture provider rejected this module.",
+    evidence: [{ module: "@tsonic/dotnet/System.js" }],
+  };
+  const bindingProvider = createDotnetTargetBindingProvider({
+    provider: {
+      identity,
+      ownsModule(specifier) {
+        return specifier === "@tsonic/dotnet/System.js"
+          ? { kind: "rejected", diagnostic: rejectedDiagnostic }
+          : { kind: "owned" };
+      },
+      getModule(specifier) {
+        return {
+          moduleSpecifier: specifier,
+          namespaceName: "System.Text",
+          exports: [],
+        };
+      },
+    },
+  });
+
+  const ownership = bindingProvider.ownsModule("@tsonic/dotnet/System.js", {});
+  assert.equal(ownership.kind, "reject");
+  assert.equal(ownership.diagnostic.extensionId, identity.id);
+  assert.equal(ownership.diagnostic.extensionCode, rejectedDiagnostic.code);
+  assert.equal(ownership.diagnostic.message, rejectedDiagnostic.message);
+
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Text.js", {});
+  assert.equal(resolution.kind, "virtual");
+  assert.equal(resolution.providerModuleId, "@tsonic/dotnet/System.Text.js");
+  assert.match(
+    resolution.virtualFileName,
+    /^tsts-provider:\/\/acme\.dotnet\.fixture-provider\/%40tsonic%2Fdotnet%2FSystem\.Text\.js\.d\.ts$/u,
+  );
 });
 
 test(".NET reflection provider proves collection constructor array-literal element metadata", () => {
