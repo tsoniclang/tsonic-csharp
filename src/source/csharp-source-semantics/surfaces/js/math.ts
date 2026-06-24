@@ -82,8 +82,8 @@ const mathTargetMembers = new Map<string, TargetMember>([
   ["round", mathMethod("round", [targetParameter("value", doubleType)], longType)],
   ["trunc", mathMethod("trunc", [targetParameter("value", doubleType)], longType)],
   ["sign", mathMethod("sign", [targetParameter("value", doubleType)], intType)],
-  ["imul", mathMethod("imul", [targetParameter("left", intType), targetParameter("right", intType)])],
-  ["clz32", mathMethod("clz32", [targetParameter("value", intType)])],
+  ["imul", mathMethod("imul", [targetParameter("left", intType), targetParameter("right", intType)], intType)],
+  ["clz32", mathMethod("clz32", [targetParameter("value", intType)], intType)],
 ]);
 
 const mathPropertyTargetMembers = new Map<string, TargetMember>([

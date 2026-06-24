@@ -203,6 +203,56 @@ test("provider-owned element access rejects generic selected indexer without C# 
   assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
 });
 
+test("tuple element access emits Roslyn member access only from numeric-literal source indexes", () => {
+  const receiver = identifier("pair");
+  const access = elementAccess(receiver, numericLiteral("1"));
+  const diagnostics = [];
+
+  const planned = planElementAccessExpression(
+    access,
+    {},
+    fakeInput({
+      runtimeCarriers: new Map([[receiver, {
+        kind: "tuple",
+        elements: [
+          csharpSourcePrimitiveTargetType("int32"),
+          csharpStringTargetType(),
+        ],
+      }]]),
+    }),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "pair" },
+    name: "Item2",
+  });
+});
+
+test("tuple element access fails closed instead of reading semantic type strings", () => {
+  const receiver = identifier("pair");
+  const index = identifier("index");
+  const access = elementAccess(receiver, index);
+  const diagnostics = [];
+  const input = fakeInput({
+    runtimeCarriers: new Map([[receiver, {
+      kind: "tuple",
+      elements: [csharpSourcePrimitiveTargetType("int32")],
+    }]]),
+  });
+  input.semantics.getTypeAtLocation = () => {
+    throw new Error("tuple element planning must not inspect semantic type strings");
+  };
+
+  const planned = planElementAccessExpression(access, {}, input, diagnostics, planExpression);
+
+  assert.deepEqual(planned, { kind: "InvalidExpression", reason: "tuple element access index fact" });
+  assert.match(diagnostics[0].message, /numeric-literal source index/);
+});
+
 test("object-shape method storage names require exact member identity", () => {
   const member = {
     sourceName: "run",

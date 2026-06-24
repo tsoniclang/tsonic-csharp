@@ -226,6 +226,39 @@ test("JS surface maps Array.from, Array.of, and Array.isArray from selected decl
   assert.equal(isArrayResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.isArray:native");
 });
 
+test("JS surface maps Array.at and Array.map from selected declarations and closed callback facts", () => {
+  const atCall = {};
+  const mapCall = {};
+  const receiver = {};
+  const index = {};
+  const callback = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, int32ReadOnlyListType()],
+    [index, int32Type()],
+    [callback, funcInt32ToStringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const atResult = provider.mapCheckedCall(jsCallRequest(atCall, arrayMemberDeclaration("at"), {
+    arguments: [index],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+  const mapResult = provider.mapCheckedCall(jsCallRequest(mapCall, arrayMemberDeclaration("map"), {
+    arguments: [callback],
+    calleeReceiver: receiver,
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+
+  assert.equal(atResult.kind, "accept");
+  assert.equal(atResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.at");
+  assert.equal(atResult.value.selectedSignature.member.returnType.name, "int32");
+  assert.equal(mapResult.kind, "accept");
+  assert.equal(mapResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.map:1");
+  assert.equal(mapResult.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
+  assert.equal(mapResult.value.selectedSignature.member.returnType.typeArguments[0].id, "System.String");
+});
+
 test("JS surface rejects Array.concat without closed array argument facts", () => {
   const call = {};
   const receiver = {};
@@ -591,6 +624,46 @@ test("JS surface maps Object.hasOwnProperty only from selected declaration and c
   assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
 });
 
+test("JS surface maps Object.hasOwn only from selected declaration and closed JSObject target facts", () => {
+  const call = {};
+  const value = {};
+  const key = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, jsObjectType()],
+    [key, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "hasOwn"), {
+    arguments: [value, key],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.hasOwn");
+  assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
+});
+
+test("JS surface rejects Object.hasOwn without closed JSObject target facts", () => {
+  const call = {};
+  const value = {};
+  const key = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, stringType()],
+    [key, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "hasOwn"), {
+    arguments: [value, key],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /Object\.hasOwn/);
+});
+
 test("JS surface rejects Object.hasOwnProperty without closed JSObject receiver facts", () => {
   const call = {};
   const key = {};
@@ -735,6 +808,29 @@ test("JS surface maps RegExp.source only with selected declaration and closed Re
   assert.equal(result.kind, "accept");
   assert.equal(result.value.operation.operationId, "Tsonic.CSharp.Js.RegExp.source");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.RegExp.source");
+});
+
+test("JS surface maps RegExp modern boolean properties only with closed RegExp receiver facts", () => {
+  const hasIndicesExpression = {};
+  const unicodeSetsExpression = {};
+  const receiverType = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiverType, regexpType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const hasIndicesResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(hasIndicesExpression, sourceLibraryMemberDeclaration("RegExp", "hasIndices"), "hasIndices", {
+    receiverType,
+  }), fakeContext(facts));
+  const unicodeSetsResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(unicodeSetsExpression, sourceLibraryMemberDeclaration("RegExp", "unicodeSets"), "unicodeSets", {
+    receiverType,
+  }), fakeContext(facts));
+
+  assert.equal(hasIndicesResult.kind, "accept");
+  assert.equal(hasIndicesResult.value.operation.operationId, "Tsonic.CSharp.Js.RegExp.hasIndices");
+  assert.equal(unicodeSetsResult.kind, "accept");
+  assert.equal(unicodeSetsResult.value.operation.operationId, "Tsonic.CSharp.Js.RegExp.unicodeSets");
 });
 
 test("JS surface rejects selected RegExp.source without closed RegExp receiver facts", () => {
@@ -1067,12 +1163,18 @@ test("NodeJS surface exposes util as a provider-owned virtual module", () => {
   const formatSignature = format?.signatures?.[0];
   const strip = model.exports.find((entry) => entry.name === "stripVTControlCharacters");
   const stripSignature = strip?.signatures?.[0];
+  const debuglog = model.exports.find((entry) => entry.name === "debuglog");
+  const isDeepStrictEqual = model.exports.find((entry) => entry.name === "isDeepStrictEqual");
   assert.equal(format?.kind, "function");
   assert.equal(formatSignature?.id, "node:util.format(System.Object,System.Object[])");
   assert.equal(formatSignature?.parameters[1]?.rest, true);
   assert.equal(formatSignature?.parameters[0]?.type.kind, "unknown");
   assert.equal(strip?.kind, "function");
   assert.equal(stripSignature?.id, "node:util.stripVTControlCharacters(System.String)");
+  assert.equal(debuglog?.signatures?.[0]?.id, "node:util.debuglog(System.String)");
+  assert.equal(debuglog?.signatures?.[0]?.returnType.kind, "function");
+  assert.equal(isDeepStrictEqual?.signatures?.[0]?.id, "node:util.isDeepStrictEqual(System.Object,System.Object)");
+  assert.equal(isDeepStrictEqual?.signatures?.[0]?.returnType.kind, "boolean");
 
   const unsupportedIdentity = bindingProvider.getTargetIdentity({
     moduleSpecifier: "util",
@@ -1084,8 +1186,14 @@ test("NodeJS surface exposes util as a provider-owned virtual module", () => {
     exportName: "stripVTControlCharacters",
     signatureId: "node:util.stripVTControlCharacters(System.String)",
   });
+  const debuglogIdentity = bindingProvider.getTargetIdentity({
+    moduleSpecifier: "node:util",
+    exportName: "debuglog",
+    signatureId: "node:util.debuglog(System.String)",
+  });
   assert.equal(unsupportedIdentity?.id, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
   assert.equal(closedIdentity?.id, "Tsonic.CSharp.Node.util.stripVTControlCharacters(System.String)");
+  assert.equal(debuglogIdentity?.id, "unsupported:Tsonic.CSharp.Node.util.debuglog(System.String)");
 });
 
 test("NodeJS surface maps closed util string calls from selected provider signature identity", () => {
@@ -1114,11 +1222,15 @@ test("NodeJS surface fails closed for unsupported util provider identities", () 
   const formatSignature = {};
   const inspectCall = {};
   const inspectSignature = {};
+  const isDeepStrictEqualCall = {};
+  const isDeepStrictEqualSignature = {};
   facts.set(formatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "format", "node:util.format(System.Object,System.Object[])"));
   facts.set(inspectSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "inspect", "node:util.inspect(System.Object)"));
+  facts.set(isDeepStrictEqualSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "isDeepStrictEqual", "node:util.isDeepStrictEqual(System.Object,System.Object)"));
 
   const formatResult = provider.mapCheckedCall(nodejsCallRequest(formatCall, formatSignature), fakeContext(facts));
   const inspectResult = provider.mapCheckedCall(nodejsCallRequest(inspectCall, inspectSignature), fakeContext(facts));
+  const isDeepStrictEqualResult = provider.mapCheckedCall(nodejsCallRequest(isDeepStrictEqualCall, isDeepStrictEqualSignature), fakeContext(facts));
 
   assert.equal(formatResult.kind, "reject");
   assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
@@ -1127,6 +1239,9 @@ test("NodeJS surface fails closed for unsupported util provider identities", () 
   assert.equal(inspectResult.kind, "reject");
   assert.equal(inspectResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
   assert.match(inspectResult.diagnostic.message, /inspect/);
+  assert.equal(isDeepStrictEqualResult.kind, "reject");
+  assert.equal(isDeepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.match(isDeepStrictEqualResult.diagnostic.message, /isDeepStrictEqual/);
 });
 
 test("NodeJS surface exposes URL as a provider-owned virtual module", () => {
@@ -1391,6 +1506,35 @@ test("NodeJS surface maps expanded static properties from selected provider decl
   assert.equal(processResult.value.operation.operationId, "Tsonic.CSharp.Node.process.argv");
   assert.equal(facts.get(processExpression, csharpTargetOperationFactKey)?.resultType.kind, "array");
   assert.equal(facts.get(processExpression, csharpTargetOperationFactKey)?.resultType.element.id, "System.String");
+});
+
+test("NodeJS surface exposes process.env as unsupported open-object state", () => {
+  const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
+  const resolution = bindingProvider.resolveModule("process", {});
+  assert.equal(resolution.kind, "virtual");
+  const model = bindingProvider.getDeclarationModel(resolution);
+  const env = model.exports.find((entry) => entry.name === "env");
+  assert.equal(env?.kind, "value");
+  assert.equal(env?.type.kind, "object");
+
+  const envIdentity = bindingProvider.getTargetIdentity({
+    moduleSpecifier: "process",
+    exportName: "env",
+  });
+  assert.equal(envIdentity?.id, "unsupported:Tsonic.CSharp.Node.process.env");
+
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const expression = {};
+  const envDeclaration = {};
+  facts.set(envDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "env"));
+
+  const result = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(expression, envDeclaration), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_PROPERTY_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /env/);
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
 test("NodeJS surface rejects provider declarations whose selected identity is not mapped", () => {
@@ -1845,6 +1989,18 @@ function actionOfInt32Type() {
     kind: "target-named",
     id: "System.Action`1",
     typeArguments: [int32Type()],
+  };
+}
+
+function funcInt32ToStringType() {
+  return {
+    kind: "target-named",
+    id: "System.Func`2",
+    typeArguments: [int32Type(), stringType()],
+    csharpDelegateSignature: {
+      parameters: [int32Type()],
+      returnType: stringType(),
+    },
   };
 }
 

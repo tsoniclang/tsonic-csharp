@@ -296,6 +296,32 @@ test(".NET reflection provider reloads requested export slices from persistent c
   assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Console"), false);
 });
 
+test(".NET reflection provider keeps requested-export memory slices isolated from broad modules", () => {
+  const telemetry = createDotnetProviderTelemetry();
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    telemetry,
+  });
+  const sliced = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in sliced, true, JSON.stringify(sliced));
+  assert.equal(sliced.exports.some((declaration) => declaration.sourceName === "Convert"), true);
+  assert.equal(sliced.exports.some((declaration) => declaration.sourceName === "Console"), false);
+
+  const broad = provider.getModule("@tsonic/dotnet/System.js", {});
+  assert.equal("exports" in broad, true, JSON.stringify(broad));
+  assert.equal(broad.exports.some((declaration) => declaration.sourceName === "Console"), true);
+
+  const slicedAgain = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in slicedAgain, true, JSON.stringify(slicedAgain));
+  assert.equal(slicedAgain.exports.some((declaration) => declaration.sourceName === "Convert"), true);
+  assert.equal(slicedAgain.exports.some((declaration) => declaration.sourceName === "Console"), false);
+
+  const snapshot = provider.getTelemetrySnapshot();
+  assert.equal(snapshot.toolInvocations, 2);
+  assert.equal(snapshot.memoryCacheMisses, 2);
+  assert.equal(snapshot.memoryCacheHits, 1);
+});
+
 test(".NET provider declaration model omits source members without truthful source shapes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@tsonic/dotnet/System.js",
@@ -546,6 +572,65 @@ test(".NET provider declaration model projects inherited source members determin
     ["text"],
     ["count"],
   ]);
+});
+
+test(".NET provider declaration model substitutes inherited generic type arguments without source-name lookup", () => {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const baseType = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "GenericBase",
+    namespaceName: "ProviderModelFixtures",
+    targetId: testTargetId("ProviderModelFixtures.GenericBase`1"),
+    metadataName: "ProviderModelFixtures.GenericBase`1",
+    typeParameters: [{ name: "T" }],
+    members: [
+      {
+        kind: "property",
+        sourceName: "value",
+        targetName: "Value",
+        targetId: testTargetId("ProviderModelFixtures.GenericBase`1.Value"),
+        metadataName: "ProviderModelFixtures.GenericBase`1.Value",
+        readable: true,
+        type: { kind: "type-parameter", name: "T" },
+      },
+      methodMember("ProviderModelFixtures.GenericBase`1", "echo", "Echo", [
+        { name: "value", type: { kind: "type-parameter", name: "T" }, passingMode: "by-value" },
+      ], { kind: "type-parameter", name: "T" }),
+    ],
+  };
+  const derivedType = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "IntDerived",
+    namespaceName: "ProviderModelFixtures",
+    targetId: testTargetId("ProviderModelFixtures.IntDerived"),
+    metadataName: "ProviderModelFixtures.IntDerived",
+    baseType: namedDotnetTypeRef("ProviderModelFixtures.GenericBase`1", {
+      typeArguments: [int32],
+      sourceShape: {
+        kind: "provider-ref",
+        name: "GenericBase",
+        typeArguments: [int32],
+      },
+    }),
+  };
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+    namespaceName: "ProviderModelFixtures",
+    exports: [baseType, derivedType],
+  });
+  const derived = sourceModel.exports.find((declaration) => declaration.name === "IntDerived");
+  assert.ok(derived);
+  const value = derived.members.find((member) => member.kind === "property" && member.name === "value");
+  const echo = derived.members.find((member) => member.kind === "method" && member.name === "echo");
+  assert.deepEqual(value.type, int32);
+  assert.deepEqual(echo.signatures[0].parameters[0].type, int32);
+  assert.deepEqual(echo.signatures[0].returnType, int32);
+
+  const targetBinding = dotnetExportToTargetBinding(derivedType);
+  assert.deepEqual(targetBinding.csharpBaseType.typeArguments, [int32]);
 });
 
 test(".NET target refs do not promote any or unknown to CLR object", () => {

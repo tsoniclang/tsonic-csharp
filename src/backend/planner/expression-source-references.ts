@@ -6,6 +6,7 @@ import {
   KindFunctionDeclaration,
   KindPropertyAccessExpression,
   KindVariableDeclaration,
+  Node_Name,
   Node_Text,
   SourceFile_FileName,
 } from "./source-ast.js";
@@ -15,7 +16,8 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
-import { requireCsharpIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier, sanitizeIdentifier } from "./identifiers.js";
+import { planIdentifierName } from "./names.js";
 import {
   getCsharpLocalBindingName,
 } from "./bindings.js";
@@ -98,7 +100,7 @@ export function planProjectSourceModuleMemberReference(
       kind: "IdentifierName",
       name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
     },
-    name: requireCsharpIdentifier(sourceReference.symbol.Name, diagnostics, "Cross-file source reference"),
+    name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
   };
 }
 
@@ -121,7 +123,7 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
       kind: "IdentifierName",
       name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
     },
-    name: requireCsharpIdentifier(sourceReference.symbol.Name, diagnostics, "Cross-file source reference"),
+    name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
   };
 }
 
@@ -168,6 +170,23 @@ function isModuleStaticValueDeclaration(declaration: Node, input: TargetCompileI
   return HasSourceKind(input.ast, declaration, KindFunctionDeclaration) ||
     HasSourceKind(input.ast, declaration, KindVariableDeclaration) ||
     HasSourceKind(input.ast, declaration, KindExportAssignment);
+}
+
+function planProjectSourceModuleMemberName(
+  declaration: Node,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): string {
+  if (HasSourceKind(input.ast, declaration, KindExportAssignment)) {
+    return sanitizeIdentifier("default");
+  }
+  return planIdentifierName(
+    Node_Name(declaration),
+    "InvalidCrossFileReference",
+    input,
+    diagnostics,
+    "Cross-file source reference",
+  );
 }
 
 function getProjectSourceReferenceForPropertyAccessName(

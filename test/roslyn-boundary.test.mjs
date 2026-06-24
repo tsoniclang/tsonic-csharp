@@ -95,6 +95,15 @@ test("backend materializes C# text only at the output-plan printer boundary", as
   }
 });
 
+test("backend diagnostics do not render semantic type strings", async () => {
+  const sources = await collectSourceFiles(join(root, "src/backend"));
+  for (const source of sources) {
+    const text = await readFile(source, "utf8");
+    assert.equal(text.includes("describeTypeAtLocation"), false, `${source} renders semantic type descriptions`);
+    assert.equal(text.includes("typeToString("), false, `${source} renders semantic type strings`);
+  }
+});
+
 async function collectSourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];

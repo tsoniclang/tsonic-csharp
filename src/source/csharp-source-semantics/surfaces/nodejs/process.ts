@@ -19,6 +19,7 @@ import {
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
 const voidProviderType = { kind: "void" } satisfies ProviderTypeExpression;
+const objectProviderType = { kind: "object" } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
 const intTargetType = csharpSourcePrimitiveTargetType("int32");
 const voidTargetType = csharpVoidTargetType();
@@ -44,10 +45,17 @@ interface NodeProcessPropertyTargetMember {
   readonly member: TargetMember;
 }
 
+export interface NodeProcessUnsupportedTargetIdentity {
+  readonly exportName: string;
+  readonly targetIdentityId: string;
+  readonly displayName: string;
+}
+
 export const nodeProcessModuleSpecifier = "node:process";
 export const nodeProcessCwdExportName = "cwd";
 export const nodeProcessCwdSignatureId = "node:process.cwd()";
 export const nodeProcessPlatformExportName = "platform";
+export const nodeProcessEnvExportName = "env";
 
 export function nodeProcessExports(): readonly ProviderExportDeclaration[] {
   return [
@@ -67,6 +75,7 @@ export function nodeProcessExports(): readonly ProviderExportDeclaration[] {
       kind: "value" as const,
       type: providerType,
     })),
+    ...nodeProcessUnsupportedValueDeclarations(),
   ];
 }
 
@@ -135,6 +144,23 @@ export function nodeProcessPropertyTargetMembers(): readonly {
     processProperty("ppid", numberProviderType, intTargetType),
     processProperty("version", stringProviderType, stringTargetType),
   ];
+}
+
+export function nodeProcessUnsupportedTargetIdentities(): readonly NodeProcessUnsupportedTargetIdentity[] {
+  return [{
+    exportName: nodeProcessEnvExportName,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.env",
+    displayName: "unsupported NodeJS process.env",
+  }];
+}
+
+function nodeProcessUnsupportedValueDeclarations(): readonly ProviderExportDeclaration[] {
+  return [{
+    id: `node:process.${nodeProcessEnvExportName}`,
+    name: nodeProcessEnvExportName,
+    kind: "value",
+    type: objectProviderType,
+  }];
 }
 
 function processCall(

@@ -24,6 +24,9 @@ import type {
 import {
   createDotnetProviderCache,
 } from "./cache.js";
+import type {
+  DotnetProviderCacheRequest,
+} from "./cache.js";
 import {
   dotnetModuleSpecifierForMetadataName,
   dotnetModuleSpecifierForTargetId,
@@ -85,33 +88,86 @@ export function createDotnetReflectionTypeDataProvider(
 
   function loadModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
     telemetry.request("module");
-    const existing = modules.get(specifier);
+    const parsed = parseDotnetModuleSpecifier(specifier);
+    if (parsed === undefined) {
+      return diagnostic("DOTNET_REFLECTION_SPECIFIER_INVALID", `.NET reflection provider does not own '${specifier}'.`, { specifier });
+    }
+    const cacheRequest = createCacheRequest(specifier, parsed.namespaceName, context);
+    const memoryKey = moduleMemoryCacheKey(cacheRequest);
+    const existing = modules.get(memoryKey);
     if (existing !== undefined) {
       telemetry.memoryCacheHit();
       return existing;
     }
     telemetry.memoryCacheMiss();
-    const existingDiagnostic = diagnostics.get(specifier);
+    const existingDiagnostic = diagnostics.get(memoryKey);
     if (existingDiagnostic !== undefined) {
       return existingDiagnostic;
     }
-    const parsed = parseDotnetModuleSpecifier(specifier);
-    if (parsed === undefined) {
-      return diagnostic("DOTNET_REFLECTION_SPECIFIER_INVALID", `.NET reflection provider does not own '${specifier}'.`, { specifier });
-    }
-    return loadSingleModule(specifier, parsed.namespaceName, context);
+    return loadSingleModule(cacheRequest, context);
   }
 
   function loadSingleModule(
-    specifier: string,
-    namespaceName: string,
+    cacheRequest: DotnetProviderCacheRequest,
     context: DotnetProviderModuleContext,
   ): DotnetProviderModuleResult {
     const targetFrameworkDiagnostic = validateTargetFramework(context);
     if (targetFrameworkDiagnostic !== undefined) {
       return targetFrameworkDiagnostic;
     }
-    const cacheRequest = {
+    const memoryKey = moduleMemoryCacheKey(cacheRequest);
+    const cached = persistentCache?.readModule(cacheRequest);
+    if (cached !== undefined) {
+      const module = augmentDotnetModuleWithNativeArray(cached);
+      modules.set(memoryKey, module);
+      telemetry.modelBytes(JSON.stringify(cached).length);
+      return module;
+    }
+    const args = [
+      "--namespace",
+      cacheRequest.namespaceName,
+      "--module-specifier",
+      cacheRequest.moduleSpecifier,
+    ];
+    if (context.broadImport !== true) {
+      for (const exportName of context.requestedExports ?? []) {
+        args.push("--export", exportName);
+      }
+    }
+    pushReferenceArgs(args, context);
+    const result = toolRunner.run(args);
+    if (result.status !== 0) {
+      const error = diagnostic("DOTNET_REFLECTION_PROVIDER_FAILED", ".NET reflection provider tool failed.", {
+        specifier: cacheRequest.moduleSpecifier,
+        status: result.status,
+        stderr: result.stderr,
+      });
+      diagnostics.set(memoryKey, error);
+      return error;
+    }
+    try {
+      const rawModule = JSON.parse(result.stdout) as DotnetModuleModel;
+      persistentCache?.writeModule(cacheRequest, rawModule);
+      telemetry.modelBytes(result.stdout.length);
+      const module = augmentDotnetModuleWithNativeArray(rawModule);
+      modules.set(memoryKey, module);
+      return module;
+    } catch (error) {
+      const parseError = diagnostic("DOTNET_REFLECTION_PROVIDER_INVALID_JSON", ".NET reflection provider emitted invalid JSON.", {
+        specifier: cacheRequest.moduleSpecifier,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      diagnostics.set(memoryKey, parseError);
+      return parseError;
+    }
+  }
+
+  function createCacheRequest(
+    specifier: string,
+    namespaceName: string,
+    context: DotnetProviderModuleContext,
+  ): DotnetProviderCacheRequest {
+    return {
       providerId: providerIdentity.id,
       providerVersion: providerIdentity.version,
       targetFramework: context.targetFramework ?? options.targetFramework ?? supportedTargetFramework,
@@ -123,50 +179,6 @@ export function createDotnetReflectionTypeDataProvider(
       referenceIdentities: referenceIdentities([...(context.references ?? []), ...(options.references ?? [])]),
       toolIdentity: toolRunner.identity,
     };
-    const cached = persistentCache?.readModule(cacheRequest);
-    if (cached !== undefined) {
-      const module = augmentDotnetModuleWithNativeArray(cached);
-      modules.set(specifier, module);
-      telemetry.modelBytes(JSON.stringify(cached).length);
-      return module;
-    }
-    const args = [
-      "--namespace",
-      namespaceName,
-      "--module-specifier",
-      specifier,
-    ];
-    if (context.broadImport !== true) {
-      for (const exportName of context.requestedExports ?? []) {
-        args.push("--export", exportName);
-      }
-    }
-    pushReferenceArgs(args, context);
-    const result = toolRunner.run(args);
-    if (result.status !== 0) {
-      const error = diagnostic("DOTNET_REFLECTION_PROVIDER_FAILED", ".NET reflection provider tool failed.", {
-        specifier,
-        status: result.status,
-        stderr: result.stderr,
-      });
-      diagnostics.set(specifier, error);
-      return error;
-    }
-    try {
-      const rawModule = JSON.parse(result.stdout) as DotnetModuleModel;
-      persistentCache?.writeModule(cacheRequest, rawModule);
-      telemetry.modelBytes(result.stdout.length);
-      const module = augmentDotnetModuleWithNativeArray(rawModule);
-      modules.set(specifier, module);
-      return module;
-    } catch (error) {
-      const parseError = diagnostic("DOTNET_REFLECTION_PROVIDER_INVALID_JSON", ".NET reflection provider emitted invalid JSON.", {
-        specifier,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      diagnostics.set(specifier, parseError);
-      return parseError;
-    }
   }
 
   function validateTargetFramework(context: DotnetProviderModuleContext): DotnetProviderDiagnostic | undefined {
@@ -235,6 +247,10 @@ export function createDotnetReflectionTypeDataProvider(
 
 function isDotnetProviderDiagnostic(value: DotnetProviderModuleResult): value is DotnetProviderDiagnostic {
   return "code" in value && "message" in value;
+}
+
+function moduleMemoryCacheKey(request: DotnetProviderCacheRequest): string {
+  return JSON.stringify(request);
 }
 
 function findTargetBindingInLoadedModules(

@@ -214,10 +214,12 @@ export function getRegExpPropertyTargetMember(sourceName: string): TargetMember 
         declaringType: regExpType,
       });
     case "global":
+    case "hasIndices":
     case "ignoreCase":
     case "multiline":
     case "dotAll":
     case "unicode":
+    case "unicodeSets":
     case "sticky":
       return targetProperty(`Tsonic.CSharp.Js.RegExp.${sourceName}`, sourceName, sourceName, csharpSourcePrimitiveTargetType("bool"), {
         declaringType: regExpType,

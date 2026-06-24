@@ -278,6 +278,9 @@ function sourceLibraryObjectCallHasClosedFacts(
     case "values":
     case "entries":
       return isSupportedObjectHelperSourceTargetType(argumentTypes[0], host);
+    case "hasOwn":
+      return isCsharpJsObjectCarrierTargetType(argumentTypes[0]) &&
+        host.isCsharpStringType(argumentTypes[1]);
     case "assign":
       return isCsharpJsObjectCarrierTargetType(argumentTypes[0]) &&
         argumentTypes.slice(1).every((argumentType) => isSupportedObjectHelperSourceTargetType(argumentType, host));

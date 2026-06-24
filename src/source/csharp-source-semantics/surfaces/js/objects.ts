@@ -115,6 +115,10 @@ const objectTargetMembers = new Map<string, readonly TargetMember[]>([
     targetParameter("target", jsObjectCarrierType),
     targetParameter("sources", objectTargetType, { paramsArray: true }),
   ], jsObjectCarrierType)]],
+  ["hasOwn", [objectRuntimeMethod("Tsonic.CSharp.Js.Object.hasOwn", "hasOwn", [
+    targetParameter("value", jsObjectCarrierType),
+    targetParameter("key", csharpStringTargetType()),
+  ], csharpSourcePrimitiveTargetType("bool"))]],
   ["hasOwnProperty", [jsObjectInstanceMethod("hasOwnProperty", [
     targetParameter("key", csharpStringTargetType()),
   ], csharpSourcePrimitiveTargetType("bool"))]],

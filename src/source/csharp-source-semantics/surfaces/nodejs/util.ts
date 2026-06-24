@@ -15,6 +15,13 @@ import {
 
 const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
+const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
+const voidProviderType = { kind: "void" } satisfies ProviderTypeExpression;
+const callbackProviderType = {
+  kind: "function",
+  parameters: [{ name: "args", type: { kind: "array", elementType: unknownProviderType }, rest: true }],
+  returnType: voidProviderType,
+} satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
 const utilTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.util", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "util"));
 
@@ -40,6 +47,12 @@ export const nodeUtilFormatWithOptionsExportName = "formatWithOptions";
 export const nodeUtilFormatWithOptionsSignatureId = "node:util.formatWithOptions(System.Object,System.Object,System.Object[])";
 export const nodeUtilInspectExportName = "inspect";
 export const nodeUtilInspectSignatureId = "node:util.inspect(System.Object)";
+export const nodeUtilDebuglogExportName = "debuglog";
+export const nodeUtilDebuglogSignatureId = "node:util.debuglog(System.String)";
+export const nodeUtilDeprecateExportName = "deprecate";
+export const nodeUtilDeprecateSignatureId = "node:util.deprecate(Function,System.String,System.String)";
+export const nodeUtilIsDeepStrictEqualExportName = "isDeepStrictEqual";
+export const nodeUtilIsDeepStrictEqualSignatureId = "node:util.isDeepStrictEqual(System.Object,System.Object)";
 export const nodeUtilStripVtControlCharactersExportName = "stripVTControlCharacters";
 export const nodeUtilStripVtControlCharactersSignatureId = "node:util.stripVTControlCharacters(System.String)";
 export const nodeUtilToUsvStringExportName = "toUSVString";
@@ -68,6 +81,9 @@ export function nodeUtilUnsupportedTargetIdentities(): readonly NodeUtilUnsuppor
     unsupportedUtilTargetIdentity(nodeUtilFormatExportName, nodeUtilFormatSignatureId),
     unsupportedUtilTargetIdentity(nodeUtilFormatWithOptionsExportName, nodeUtilFormatWithOptionsSignatureId),
     unsupportedUtilTargetIdentity(nodeUtilInspectExportName, nodeUtilInspectSignatureId),
+    unsupportedUtilTargetIdentity(nodeUtilDebuglogExportName, nodeUtilDebuglogSignatureId),
+    unsupportedUtilTargetIdentity(nodeUtilDeprecateExportName, nodeUtilDeprecateSignatureId),
+    unsupportedUtilTargetIdentity(nodeUtilIsDeepStrictEqualExportName, nodeUtilIsDeepStrictEqualSignatureId),
   ];
 }
 
@@ -105,7 +121,7 @@ function unsupportedUtilFunction(
     signatures: [{
       id: signatureId,
       parameters,
-      returnType: stringProviderType,
+      returnType: unsupportedUtilReturnType(exportName),
     }],
   };
 }
@@ -139,8 +155,35 @@ function unsupportedUtilParameters(exportName: string): readonly ProviderParamet
       return [
         unknownParameter("object"),
       ];
+    case nodeUtilDebuglogExportName:
+      return [
+        stringParameter("section"),
+      ];
+    case nodeUtilDeprecateExportName:
+      return [
+        callbackParameter("fn"),
+        stringParameter("msg"),
+        stringParameter("code", true),
+      ];
+    case nodeUtilIsDeepStrictEqualExportName:
+      return [
+        unknownParameter("val1"),
+        unknownParameter("val2"),
+      ];
     default:
       return [];
+  }
+}
+
+function unsupportedUtilReturnType(exportName: string): ProviderTypeExpression {
+  switch (exportName) {
+    case nodeUtilDebuglogExportName:
+    case nodeUtilDeprecateExportName:
+      return callbackProviderType;
+    case nodeUtilIsDeepStrictEqualExportName:
+      return boolProviderType;
+    default:
+      return stringProviderType;
   }
 }
 
@@ -149,6 +192,21 @@ function unknownParameter(name: string, optional = false): ProviderParameterDecl
     name,
     type: unknownProviderType,
     ...(optional ? { optional: true } : {}),
+  };
+}
+
+function stringParameter(name: string, optional = false): ProviderParameterDeclaration {
+  return {
+    name,
+    type: stringProviderType,
+    ...(optional ? { optional: true } : {}),
+  };
+}
+
+function callbackParameter(name: string): ProviderParameterDeclaration {
+  return {
+    name,
+    type: callbackProviderType,
   };
 }
 

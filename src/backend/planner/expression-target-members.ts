@@ -1,7 +1,10 @@
 import {
   AsCallExpression,
   AsElementAccessExpression,
+  AsNumericLiteral,
   AsPropertyAccessExpression,
+  HasSourceKind,
+  KindNumericLiteral,
   Node_Text,
 } from "./source-ast.js";
 import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
@@ -58,6 +61,9 @@ import {
   tryPlanCompatRuntimeCall,
   tryPlanCompatRuntimePropertyGet,
 } from "./compat-runtime-operations.js";
+import {
+  parseFiniteNumberLiteral,
+} from "../../source/source-literal-values.js";
 
 export {
   planSelectedTargetCallArguments,
@@ -80,7 +86,6 @@ export function planPropertyAccessExpression(
   if (compatRuntimePropertyGet !== undefined) {
     return compatRuntimePropertyGet;
   }
-  input.semantics.getTypeAtLocation(propertyAccess, { sourceFile });
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   if (targetOperation !== undefined && targetOperation.operationKind === "property") {
     const csharpOperation = getRequiredCsharpTargetOperation(input, propertyAccess, targetOperation, diagnostics, "C# property access emission");
@@ -164,7 +169,6 @@ export function planElementAccessExpression(
   if (tupleElementAccess !== undefined) {
     return tupleElementAccess;
   }
-  input.semantics.getTypeAtLocation(elementAccess, { sourceFile });
   if (!ensureElementAccessCanBeRendered(elementAccess, expression.Expression, sourceFile, input, diagnostics)) {
     return invalidExpression("missing target element access fact");
   }
@@ -234,9 +238,9 @@ function planTupleElementAccessExpression(
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires finalized receiver and argument facts before C# emission."));
     return invalidExpression("tuple element access source facts");
   }
-  const index = getFinalizedTupleElementIndex(argumentNode, sourceFile, input);
+  const index = getFinalizedTupleElementIndex(argumentNode, input);
   if (index === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires a finalized numeric-literal index type before C# emission."));
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires a numeric-literal source index; non-literal tuple indexing needs finalized target element-access facts before C# emission."));
     return invalidExpression("tuple element access index fact");
   }
   const elementCarrier = receiverCarrier.elements[index];
@@ -257,19 +261,16 @@ function planTupleElementAccessExpression(
 
 function getFinalizedTupleElementIndex(
   argumentNode: Node,
-  sourceFile: SourceFile,
   input: TargetCompileInput,
 ): number | undefined {
-  const argumentType = input.semantics.getTypeAtLocation(argumentNode, { sourceFile });
-  if (argumentType === undefined) {
+  if (!HasSourceKind(input.ast, argumentNode, KindNumericLiteral)) {
     return undefined;
   }
-  const typeName = input.types.typeToString(argumentType, { sourceFile });
-  if (!/^(0|[1-9]\d*)$/.test(typeName)) {
+  const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(argumentNode)));
+  if (value === undefined || !Number.isSafeInteger(value) || !Number.isInteger(value) || value < 0) {
     return undefined;
   }
-  const index = Number(typeName);
-  return Number.isSafeInteger(index) ? index : undefined;
+  return value;
 }
 
 function planCsharpTargetOperationArguments(
@@ -331,7 +332,6 @@ export function planCallExpression(
     return compatRuntimeCall;
   }
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
-  input.semantics.getResolvedCallReturnType(node, { sourceFile });
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
   if (selectedTargetCall !== undefined) {
     const targetOperation = getRequiredCsharpTargetOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");

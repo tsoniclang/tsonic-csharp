@@ -6,6 +6,7 @@ import {
   KindIdentifier,
   KindInterfaceDeclaration,
   KindPropertyAccessExpression,
+  Node_Name,
 } from "./source-ast.js";
 import type {
   Node,
@@ -21,9 +22,7 @@ import type {
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
-import {
-  requireCsharpIdentifier,
-} from "./identifiers.js";
+import { planIdentifierName } from "./names.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
@@ -84,14 +83,13 @@ function getCsharpTypeForExpressionReference(
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
-  const sourceReferenceName = getProjectSourceReferenceTypeName(
+  const sourceReferenceType = getProjectSourceReferenceType(
     input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }),
     input,
+    diagnostics,
   );
-  if (sourceReferenceName !== undefined) {
-    return diagnostics === undefined
-      ? { kind: "IdentifierName", name: sourceReferenceName }
-      : { kind: "IdentifierName", name: requireCsharpIdentifier(sourceReferenceName, diagnostics, "Project source type reference") };
+  if (sourceReferenceType !== undefined) {
+    return sourceReferenceType;
   }
   const targetCarrier = getTargetTypeRefForNode(input, node, sourceFile);
   if (targetCarrier !== undefined) {
@@ -112,10 +110,11 @@ function getCsharpTypeForExpressionReference(
   return invalidCsharpType("unresolved type expression");
 }
 
-function getProjectSourceReferenceTypeName(
+function getProjectSourceReferenceType(
   reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
   input: TargetCompileInput,
-): string | undefined {
+  diagnostics: TargetDiagnostic[] | undefined,
+): CsharpTypeNode | undefined {
   if (reference === undefined) {
     return undefined;
   }
@@ -132,5 +131,19 @@ function getProjectSourceReferenceTypeName(
   ) {
     return undefined;
   }
-  return reference.symbol.Name;
+  const nameNode = Node_Name(reference.declaration);
+  if (nameNode === undefined) {
+    diagnostics?.push(unsupportedNodeDiagnostic(reference.declaration, "Project source type reference requires a declaration name resolved by TSTS."));
+    return invalidCsharpType("project source type reference");
+  }
+  return {
+    kind: "IdentifierName",
+    name: planIdentifierName(
+      nameNode,
+      "InvalidProjectSourceTypeReference",
+      input,
+      diagnostics ?? [],
+      "Project source type reference",
+    ),
+  };
 }

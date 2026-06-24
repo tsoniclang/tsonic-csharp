@@ -11,6 +11,7 @@ import type {
   Node,
   TargetMember,
   TargetParameter,
+  TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type { CsharpJsSurfaceHost } from "./source-library.js";
@@ -141,6 +142,7 @@ function recordCsharpJsArrayElementAccessFact(
 
 export function getArrayTargetMembers(sourceName: string): readonly TargetMember[] {
   const itemType: TargetTypeRef = { kind: "type-parameter", name: "T" };
+  const mappedItemType: TargetTypeRef = { kind: "type-parameter", name: "U" };
   const enumerableType: TargetTypeRef = csharpEnumerableTargetType(itemType);
   const readOnlyListType: TargetTypeRef = csharpReadOnlyListTargetType(itemType);
   const listType: TargetTypeRef = csharpListTargetType(itemType);
@@ -187,6 +189,8 @@ export function getArrayTargetMembers(sourceName: string): readonly TargetMember
         targetParameter("array", enumerableType),
         targetParameter("items", enumerableType, { paramsArray: true }),
       ], listType, arrayHelpersType)];
+    case "at":
+      return [arrayHelperMethod(sourceName, "at", [targetParameter("array", readOnlyListType), targetParameter("index", intType)], itemType, arrayHelpersType)];
     case "includes":
       return [arrayHelperMethod(sourceName, "includes", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], boolType, arrayHelpersType)];
     case "indexOf":
@@ -216,6 +220,8 @@ export function getArrayTargetMembers(sourceName: string): readonly TargetMember
       return arrayCallbackHelpers(sourceName, "every", "System.Func", itemType, boolType, boolType, readOnlyListType, arrayHelpersType);
     case "filter":
       return arrayCallbackHelpers(sourceName, "filter", "System.Func", itemType, boolType, listType, readOnlyListType, arrayHelpersType);
+    case "map":
+      return arrayCallbackHelpers(sourceName, "map", "System.Func", itemType, mappedItemType, csharpListTargetType(mappedItemType), readOnlyListType, arrayHelpersType, { typeParameters: [{ name: "U" }] });
     case "find":
       return arrayCallbackHelpers(sourceName, "find", "System.Func", itemType, boolType, itemType, readOnlyListType, arrayHelpersType);
     case "findIndex":
@@ -238,7 +244,7 @@ function arrayCallbackHelpers(
   memberReturnType: TargetTypeRef,
   arrayType: TargetTypeRef,
   declaringType: TargetTypeRef,
-  options: { readonly compareCallback?: boolean; readonly mutable?: boolean } = {},
+  options: { readonly compareCallback?: boolean; readonly mutable?: boolean; readonly typeParameters?: readonly TargetTypeParameter[] } = {},
 ): readonly TargetMember[] {
   const intType = csharpSourcePrimitiveTargetType("int32");
   const callbackShapes: readonly TargetTypeRef[] = options.compareCallback === true
@@ -257,7 +263,7 @@ function arrayCallbackHelpers(
   return callbackShapes.map((callback, index) => arrayHelperMethod(sourceName, targetName, [
     targetParameter("array", arrayType),
     targetParameter("callback", callback),
-  ], memberReturnType, declaringType, { idSuffix: `${sourceName}:${index + 1}` }));
+  ], memberReturnType, declaringType, { idSuffix: `${sourceName}:${index + 1}`, typeParameters: options.typeParameters }));
 }
 
 function arrayStaticMethod(
@@ -281,13 +287,19 @@ function arrayHelperMethod(
   parameters: readonly TargetParameter[],
   returnType: TargetTypeRef,
   declaringType: TargetTypeRef,
-  options: { readonly idSuffix?: string } = {},
+  options: { readonly idSuffix?: string; readonly typeParameters?: readonly TargetTypeParameter[] } = {},
 ): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.Array.${options.idSuffix ?? sourceName}`, sourceName, targetName, parameters, returnType, {
+  const member = targetMethod(`Tsonic.CSharp.Js.Array.${options.idSuffix ?? sourceName}`, sourceName, targetName, parameters, returnType, {
     declaringType,
     static: true,
     receiverPassing: "first-argument",
   });
+  return options.typeParameters === undefined
+    ? member
+    : {
+        ...member,
+        typeParameters: options.typeParameters,
+      };
 }
 
 export {

@@ -84,6 +84,7 @@ import {
   nodeProcessModuleSpecifier,
   nodeProcessCallTargetMembers,
   nodeProcessPropertyTargetMembers,
+  nodeProcessUnsupportedTargetIdentities,
 } from "./process.js";
 import {
   nodeUtilCallTargetMembers,
@@ -274,6 +275,10 @@ const nodejsUnsupportedTargetIdentitiesByProviderSymbol = new Map(
       [nodejsProviderExportSymbolIdentityKey(nodeUtilModuleSpecifier, identity.exportName, undefined), identity] as const,
       [nodejsProviderExportSymbolIdentityKey(nodeUtilModuleSpecifier, identity.exportName, identity.signatureId), identity] as const,
     ]),
+    ...nodeProcessUnsupportedTargetIdentities().map((identity) => [
+      nodejsProviderExportSymbolIdentityKey(nodeProcessModuleSpecifier, identity.exportName, undefined),
+      identity,
+    ] as const),
     ...nodeUrlUnsupportedTargetIdentities().flatMap((identity) =>
       nodejsProviderUnsupportedSymbolIdentityEntries(nodeUrlModuleSpecifier, identity)
     ),

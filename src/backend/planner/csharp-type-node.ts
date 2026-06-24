@@ -178,8 +178,7 @@ export function getCsharpTypeForNode(
   if (semanticType !== undefined) {
     return semanticType;
   }
-  const typeDescription = input.semantics.describeTypeAtLocation(node, { sourceFile }) ?? "<unknown>";
-  diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts. TSTS type: ${typeDescription}.`));
+  diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type from TSTS/provider facts; backend diagnostics must not render semantic type strings as C# type evidence."));
   return invalidCsharpType("unsupported semantic type");
 }
 
