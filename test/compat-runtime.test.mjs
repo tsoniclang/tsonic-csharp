@@ -384,7 +384,7 @@ function createTestDynamicOperationFactExtension(kindName, options = {}) {
               kind: "member",
               operationId: "test.compat.any.dynamic-get",
               operationKind: "method",
-              memberName: "GetProperty",
+              memberName: "ReadDynamicSlot",
               declaringType: options.closedCompatCarrier === false ? undefined : tsValueCarrier(),
               resultType: options.closedCompatCarrier === false ? { kind: "opaque", id: "any" } : tsValueCarrier(),
             }, [{ message: "Test-only closed compat carrier operation fact." }]);
@@ -425,7 +425,7 @@ function createTestSelectedSignatureOnlyExtension(kindName) {
               member: {
                 id: "test.compat.any.unclosed-signature",
                 sourceName: "name",
-                targetName: "GetProperty",
+                targetName: "ReadDynamicSlot",
                 kind: "method",
                 parameters: [],
                 returnType: { kind: "type-parameter", name: "T" },
