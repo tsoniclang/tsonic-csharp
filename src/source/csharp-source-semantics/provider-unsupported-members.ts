@@ -1,11 +1,12 @@
 import type {
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
+  TargetMember,
 } from "@tsonic/tsts";
 
 export interface UnsupportedProviderTargetMember {
   readonly kind: "unsupported-member";
-  readonly memberKind: string;
+  readonly memberKind: TargetMember["kind"];
   readonly sourceName: string;
   readonly targetName: string;
   readonly targetId: string;
