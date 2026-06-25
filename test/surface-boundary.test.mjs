@@ -449,19 +449,25 @@ test("JS surface rejects Object operations without closed Object carrier facts",
   assert.match(result.diagnostic.message, /Object\.keys/);
 });
 
-test("JS surface hard-rejects JSON operations until closed JSON carrier facts exist", () => {
+test("JS surface maps JSON.parse from selected standard-library declaration and closed string facts", () => {
   const call = {};
+  const value = {};
   const facts = new TestFactStore();
-  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+  const targetTypes = new Map([
+    [value, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
-  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "parse")), fakeContext(facts));
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "parse"), {
+    arguments: [value],
+  }), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
-  assert.match(result.diagnostic.message, /JSON\.parse/);
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.parse");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Object");
 });
 
-test("JS surface hard-rejects JSON.stringify until a closed JSON value carrier is modeled", () => {
+test("JS surface maps JSON.stringify only from closed JSON value carrier facts", () => {
   const call = {};
   const value = {};
   const facts = new TestFactStore();
@@ -474,8 +480,22 @@ test("JS surface hard-rejects JSON.stringify until a closed JSON value carrier i
     arguments: [value],
   }), fakeContext(facts));
 
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.stringify:object");
+});
+
+test("JS surface rejects JSON.stringify without closed JSON value carrier facts", () => {
+  const call = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "stringify"), {
+    arguments: [value],
+  }), fakeContext(facts));
+
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
   assert.match(result.diagnostic.message, /JSON\.stringify/);
 });
 

@@ -38,6 +38,9 @@ import {
   getDateTargetMembers,
   isCsharpJsDateRuntimeCarrier,
 } from "./date.js";
+import {
+  getJsonTargetMembers,
+} from "./json.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
@@ -130,11 +133,31 @@ function getPrevalidatedSourceLibraryCallMember(
   if (dateMember !== undefined) {
     return dateMember;
   }
+  const jsonMember = getPrevalidatedJsonCallMember(sourceMember, candidates, request, context, host);
+  if (jsonMember !== undefined) {
+    return jsonMember;
+  }
   return sourceMember.declaringName === "Object" &&
     sourceMember.memberName === "assign" &&
     candidates.length === 1
     ? candidates[0]
     : undefined;
+}
+
+function getPrevalidatedJsonCallMember(
+  sourceMember: SourceLibraryMember,
+  candidates: readonly TargetMember[],
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetMember | undefined {
+  if (sourceMember.declaringName !== "JSON") {
+    return undefined;
+  }
+  return host.selectTargetMember(candidates, {
+    arguments: request.arguments,
+    receiver: request.calleeReceiver,
+  }, context);
 }
 
 function getPrevalidatedDateCallMember(
@@ -376,6 +399,9 @@ function sourceLibraryCallReceiverHasClosedFacts(
   if (sourceMember.declaringName === "Object") {
     return sourceLibraryObjectCallHasClosedFacts(request, context, sourceMember, host);
   }
+  if (sourceMember.declaringName === "JSON") {
+    return sourceLibraryJsonCallHasClosedFacts(request, context, sourceMember, host);
+  }
   if (!sourceLibraryCallRequiresClosedReceiver(sourceMember)) {
     return true;
   }
@@ -397,6 +423,37 @@ function sourceLibraryCallReceiverHasClosedFacts(
     default:
       return true;
   }
+}
+
+function sourceLibraryJsonCallHasClosedFacts(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
+  switch (sourceMember.memberName) {
+    case "parse":
+      return host.isCsharpStringType(argumentTypes[0]);
+    case "stringify":
+      return isSupportedJsonValueTargetType(argumentTypes[0], host);
+    default:
+      return false;
+  }
+}
+
+function isSupportedJsonValueTargetType(
+  type: TargetTypeRef | undefined,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  return type !== undefined &&
+    (
+      host.isCsharpStringType(type) ||
+      isNumericSourcePrimitive(type) ||
+      (type.kind === "source-primitive" && type.name === "bool") ||
+      isCsharpJsObjectCarrierTargetType(type) ||
+      isCsharpJsArrayCarrierTargetType(type)
+    );
 }
 
 function sourceLibraryObjectCallHasClosedFacts(
@@ -537,6 +594,8 @@ function getSourceLibraryCallMembers(
         sourceMember.memberName,
         isNewExpression(request.call, context) ? "new" : "call",
       );
+    case "JSON":
+      return getJsonTargetMembers(sourceMember.memberName);
     case "Object":
       return [
         ...getObjectTargetMembers(sourceMember.memberName),
