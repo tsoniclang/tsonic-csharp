@@ -1,6 +1,7 @@
 import {
   acceptObservation,
   rejectObservation,
+  runtimeCarrierFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -13,6 +14,7 @@ import type {
   TargetParameter,
   TargetTypeParameter,
   TargetTypeRef,
+  Type,
 } from "@tsonic/tsts";
 import type { CsharpJsSurfaceHost } from "./source-library.js";
 import {
@@ -52,6 +54,9 @@ import {
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../runtime-carriers.js";
+import {
+  isSourceLibraryType,
+} from "../../source-library.js";
 
 export function mapCsharpJsArrayElementAccess(
   request: CheckedElementAccessMappingRequest,
@@ -121,6 +126,7 @@ function recordCsharpJsArrayElementAccessFact(
     return;
   }
   const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
+  const receiverCarrier = getFinalizedArrayElementReceiverCarrier(receiver, receiverType, context, host);
   const request = {
     expression: node,
     receiver,
@@ -131,13 +137,22 @@ function recordCsharpJsArrayElementAccessFact(
   const mapped = mapCsharpJsArrayElementAccess(
     request,
     context as ExtensionObservationContext<"operation.mapCheckedElementAccess">,
-    host.unwrapNullableTargetType(
-      host.getTargetTypeRefForSubject(receiverType, context, csharpJsCheckedTypeQuery) ??
-        host.getTargetTypeRefForSubject(receiver, context, csharpJsCheckedTypeQuery),
-    ),
+    receiverCarrier,
     host,
   );
+  if (mapped?.kind === "reject") {
+    context.diagnostics.append(mapped.diagnostic);
+    return;
+  }
   if (mapped?.kind !== "accept") {
+    if (receiverCarrier === undefined && isSourceLibraryArrayType(receiverType, context)) {
+      context.diagnostics.append(host.csharpProviderDiagnostic(
+        host.extensionId,
+        "CSHARP_JS_ARRAY_ELEMENT_ACCESS_REQUIRES_CARRIER",
+        9100145,
+        "C# JS surface array element access requires finalized array runtime carrier facts; semantic TypeScript Array<T> shape is not enough for target emission.",
+      ));
+    }
     return;
   }
   const csharpOperation = context.host.facts.get(node, csharpTargetOperationFactKey);
@@ -146,6 +161,37 @@ function recordCsharpJsArrayElementAccessFact(
         ...(csharpOperation.resultType !== undefined ? { resultType: csharpOperation.resultType } : {}),
       })
     : mapped.value.operation, mapped.evidence ?? [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);
+}
+
+function getFinalizedArrayElementReceiverCarrier(
+  receiver: Node,
+  receiverType: Type | undefined,
+  context: ExtensionObservationContext,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  return host.unwrapNullableTargetType(
+    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
+      (receiverType === undefined ? undefined : context.factResolver.resolve(receiverType, runtimeCarrierFactKey)?.carrier) ??
+      host.getTargetTypeRefForSubject(receiver, context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: false,
+      }) ??
+      host.getTargetTypeRefForSubject(receiverType, context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: false,
+      }),
+  );
+}
+
+function isSourceLibraryArrayType(
+  type: Type | undefined,
+  context: ExtensionObservationContext,
+): boolean {
+  return type !== undefined &&
+    (
+      isSourceLibraryType(type, context, "Array") ||
+      isSourceLibraryType(type, context, "ReadonlyArray")
+    );
 }
 
 export function getArrayTargetMembers(sourceName: string, receiverElementType?: TargetTypeRef): readonly TargetMember[] {

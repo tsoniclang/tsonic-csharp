@@ -3,10 +3,11 @@ import {
   deferObservation,
 } from "@tsonic/tsts";
 import type {
+  CheckedElementAccessMappingRequest,
+  CheckedPropertyAccessMappingRequest,
   ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
-  CheckedPropertyAccessMappingRequest,
   ProviderIdentity,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
@@ -58,7 +59,11 @@ import {
 } from "./target-constraint-validation.js";
 import {
   getSourceLibraryMember,
+  isSourceLibraryType,
 } from "./source-library.js";
+import {
+  asSemanticType,
+} from "../fact-subjects.js";
 
 export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
@@ -138,10 +143,11 @@ export function createCsharpCompositeOperationsProvider(
       return mapCsharpCheckedPropertyAccess(request, context, identity.id, host);
     },
     mapCheckedElementAccess(request, context) {
-      return useObservationOrWhenDeferred(
-        jsSurface?.mapCheckedElementAccess(request, context) ?? deferObservation,
-        () => mapCsharpCheckedElementAccess(request, context, identity.id, host),
-      );
+      const jsObservation = jsSurface?.mapCheckedElementAccess(request, context) ?? deferObservation;
+      if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedElementAccess(request, context))) {
+        return jsObservation;
+      }
+      return mapCsharpCheckedElementAccess(request, context, identity.id, host);
     },
     mapCheckedOperator(request, context) {
       return mapCsharpCheckedOperator(request, context, host);
@@ -210,6 +216,17 @@ function jsSurfaceOwnsCheckedPropertyAccess(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): boolean {
   return getSourceLibraryMember(request.sourceSelectedDeclaration, context) !== undefined;
+}
+
+function jsSurfaceOwnsCheckedElementAccess(
+  request: CheckedElementAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
+): boolean {
+  const receiverType = asSemanticType(request.receiverType);
+  return receiverType !== undefined && (
+    isSourceLibraryType(receiverType, context, "Array") ||
+    isSourceLibraryType(receiverType, context, "ReadonlyArray")
+  );
 }
 
 export function useObservationOrWhenDeferred<T>(

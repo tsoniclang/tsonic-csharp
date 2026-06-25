@@ -76,7 +76,7 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
-  return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host, { allowReceiverTypeFallback: true });
+  return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host);
 }
 
 export function recordCsharpSourceLibraryPropertyFactsBeforeFinalization(
@@ -141,7 +141,7 @@ function recordCsharpSourceLibraryPropertyFact(
     ...(propertySymbol !== undefined ? { sourceSelectedPropertySymbol: propertySymbol } : {}),
     ...(declaration !== undefined ? { sourceSelectedDeclaration: declaration } : {}),
     target: host.targetId,
-  }, context, sourceMember, host, { allowReceiverTypeFallback: true });
+  }, context, sourceMember, host);
   if (mapped?.kind === "reject") {
     context.diagnostics.append(mapped.diagnostic);
     return;
@@ -196,7 +196,6 @@ function mapCsharpSourceLibraryPropertyOperation(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   sourceMember: SourceLibraryMember | undefined,
   host: CsharpJsSurfaceHost,
-  options: { readonly allowReceiverTypeFallback: boolean },
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   if (sourceMember === undefined) {
     return undefined;
@@ -227,7 +226,7 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  const receiverType = getSourceLibraryPropertyReceiverType(request, context, sourceMember, host, options);
+  const receiverType = getSourceLibraryPropertyReceiverType(request, context, sourceMember, host);
   if (receiverType === undefined && sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember)) {
     return undefined;
   }
@@ -286,26 +285,18 @@ function getSourceLibraryPropertyReceiverType(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
-  options: { readonly allowReceiverTypeFallback: boolean },
 ): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
   if (sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember)) {
-    if (!options.allowReceiverTypeFallback) {
-      return undefined;
-    }
-    const seeded = options.allowReceiverTypeFallback
-      ? context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier
-      : context.host.facts.get(request.receiver, runtimeCarrierFactKey)?.carrier;
-    if (seeded !== undefined || !options.allowReceiverTypeFallback) {
-      return seeded;
-    }
     return host.unwrapNullableTargetType(
+      context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
+        (request.receiverType === undefined ? undefined : context.factResolver.resolve(request.receiverType, runtimeCarrierFactKey)?.carrier) ??
         host.getTargetTypeRefForSubject(request.receiver, context, {
-          ...csharpJsCheckedTypeQuery,
           allowRuntimeCarrier: true,
+          allowSemanticTypeQuery: false,
         }) ??
           host.getTargetTypeRefForSubject(request.receiverType, context, {
-            ...csharpJsCheckedTypeQuery,
             allowRuntimeCarrier: true,
+            allowSemanticTypeQuery: false,
           }),
     );
   }

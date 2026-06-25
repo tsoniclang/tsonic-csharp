@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey } from "@tsonic/tsts";
+import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
 import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import { csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension } from "../dist/index.js";
@@ -151,6 +151,51 @@ test("JS surface attributes string element diagnostics to the selected surface o
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionId, "tsonic.csharp.js.operations");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NON_INTEGRAL_STRING_INDEX");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface maps array element access from finalized receiver carrier facts", () => {
+  const expression = {};
+  const receiver = {};
+  const index = {};
+  const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
+  const targetTypes = new Map([
+    [index, int32Type()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    argument: index,
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "tsonic.csharp.js.array.indexer");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
+});
+
+test("JS surface element access fails closed when no finalized receiver carrier exists", () => {
+  const expression = {};
+  const receiver = {};
+  const index = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [index, int32Type()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    argument: index,
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_ELEMENT_ACCESS_NOT_MAPPED");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -580,6 +625,30 @@ test("selected JS surface finalizes source-level nested JSON.parse carrier for J
   assert.equal(extensionHost.facts.get(stringifyCall, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
   assert.equal(extensionHost.diagnostics.all().some((diagnostic) => diagnostic.extensionCode === "FACT_CONFLICT"), false);
   assert.equal(extensionHost.diagnostics.all().some((diagnostic) => diagnostic.extensionCode === "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED"), false);
+});
+
+test("selected JS surface finalizes array element and length operations from carrier facts", () => {
+  const session = createCsharpSession(`
+    export function read(values: number[]): number {
+      const value = values[0];
+      return value + values.length;
+    }
+  `, { selectedSurfaces: [{ id: "js" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
+  const lengthAccess = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .find((node) => session.ast.text(session.ast.name(node)) === "length");
+
+  assert.ok(elementAccess);
+  assert.ok(lengthAccess);
+  assert.equal(extensionHost.facts.get(elementAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
+  assert.equal(extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
+  assert.equal(extensionHost.facts.get(lengthAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
+  assert.equal(extensionHost.facts.get(lengthAccess, csharpTargetOperationFactKey)?.memberName, "Count");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).includes("CSHARP_JS_ARRAY_ELEMENT_ACCESS_REQUIRES_CARRIER"), false);
 });
 
 test("JS surface accepts method-valued console property access without C# operation facts", () => {
@@ -2084,7 +2153,7 @@ function fakeHost(receiverType, targetTypes = new Map(), targetBinding) {
     getTargetTypeRefForSubject: (subject, context) => targetTypes.get(subject) ??
       context?.factResolver?.resolve(subject, runtimeCarrierFactKey)?.carrier ??
       context?.factResolver?.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
-      (subject === receiverType
+      (receiverType !== undefined && subject === receiverType
       ? { kind: "array", element: { kind: "source-primitive", name: "int32" } }
       : undefined),
     getCsharpObjectShapeFactForSubject: () => undefined,
