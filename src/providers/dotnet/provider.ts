@@ -24,7 +24,9 @@ import {
   augmentDotnetModuleWithNativeArray,
 } from "./native-array.js";
 import {
+  createDotnetProviderDependencyModuleSpecifier,
   dotnetPackageName,
+  parseDotnetProviderDependencyModuleSpecifier,
   parseDotnetModuleSpecifier,
 } from "./module-specifier.js";
 
@@ -75,38 +77,45 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
   return {
     identity,
     ownsModule(specifier: string, context: ProviderModuleContext): ProviderOwnership {
-      const module = parseDotnetModuleSpecifier(specifier);
+      const module = dotnetProviderModuleRequest(specifier, identity.id, context);
       if (module === undefined) {
         return { kind: "unowned" };
       }
-      return mapDotnetOwnership(identity.id, options.provider.ownsModule(specifier, providerContext(context, options)));
+      return mapDotnetOwnership(identity.id, options.provider.ownsModule(module.moduleSpecifier, providerContext(dotnetProviderModuleContext(context, module), options)));
     },
     resolveModule(specifier: string, context: ProviderModuleContext): ProviderModuleResolution | ExtensionDiagnostic {
-      const module = parseDotnetModuleSpecifier(specifier);
+      const module = dotnetProviderModuleRequest(specifier, identity.id, context);
       if (module === undefined) {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${specifier}'.`);
       }
-      const ownership = options.provider.ownsModule(specifier, providerContext(context, options));
+      const moduleContext = dotnetProviderModuleContext(context, module);
+      const ownership = options.provider.ownsModule(module.moduleSpecifier, providerContext(moduleContext, options));
       if (ownership.kind === "rejected") {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, ownership.diagnostic);
       }
       if (ownership.kind !== "owned") {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_UNOWNED", 9200002, `.NET provider does not own '${specifier}'.`);
       }
-      const resolutionContext = dotnetProviderResolutionContext(context);
+      const resolutionContext = dotnetProviderResolutionContext(moduleContext);
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
         virtualFileName: providerVirtualDeclarationFileName(identity.id, specifier, resolutionContext),
-        providerModuleId: specifier,
-        packageName: dotnetPackageName,
+        providerModuleId: module.moduleSpecifier,
+        ...(module.internal === true ? {} : { packageName: dotnetPackageName }),
         ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
         ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
       };
     },
     getDeclarationModel(resolution) {
-      const result = options.provider.getModule(resolution.moduleSpecifier, providerContext({
+      const module = dotnetProviderModuleRequest(resolution.moduleSpecifier, identity.id, {
+        containingFile: resolution.virtualFileName,
+      });
+      if (module === undefined) {
+        return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
+      }
+      const result = options.provider.getModule(module.moduleSpecifier, providerContext({
         ...(resolution.broadImport === true ? { broadImport: true as const } : {}),
         ...(resolution.requestedExports !== undefined ? { requestedExports: resolution.requestedExports } : {}),
       }, options));
@@ -114,7 +123,14 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
       const startedAt = performance.now();
-      const model = dotnetModuleToProviderDeclarationModel(augmentDotnetModuleWithNativeArray(result), {
+      const resolvedModule = {
+        ...augmentDotnetModuleWithNativeArray(result),
+        moduleSpecifier: resolution.moduleSpecifier,
+      };
+      const model = dotnetModuleToProviderDeclarationModel(resolvedModule, {
+        dependencyModuleSpecifier(moduleSpecifier, sourceName) {
+          return createDotnetProviderDependencyModuleSpecifier(identity.id, moduleSpecifier, [sourceName]);
+        },
         resolveModule(specifier) {
           const resolved = options.provider.getModule(specifier, providerContext({}, options));
           return isDotnetProviderDiagnostic(resolved) ? undefined : augmentDotnetModuleWithNativeArray(resolved);
@@ -126,6 +142,50 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
     getTargetIdentity(symbol) {
       return options.provider.getTargetIdentity?.(symbol);
     },
+  };
+}
+
+interface DotnetProviderModuleRequest {
+  readonly moduleSpecifier: string;
+  readonly requestedExports?: readonly string[];
+  readonly internal?: boolean;
+}
+
+function dotnetProviderModuleRequest(
+  specifier: string,
+  providerId: string,
+  context?: ProviderModuleContext,
+): DotnetProviderModuleRequest | undefined {
+  const dependency = parseDotnetProviderDependencyModuleSpecifier(specifier);
+  if (dependency !== undefined) {
+    return dependency.providerId === providerId && isProviderGeneratedContainingFile(context)
+      ? {
+          moduleSpecifier: dependency.moduleSpecifier,
+          requestedExports: dependency.requestedExports,
+          internal: true,
+        }
+      : undefined;
+  }
+  return parseDotnetModuleSpecifier(specifier) === undefined
+    ? undefined
+    : { moduleSpecifier: specifier };
+}
+
+function isProviderGeneratedContainingFile(context: ProviderModuleContext | undefined): boolean {
+  return context?.containingFile?.startsWith("tsts-provider:") === true;
+}
+
+function dotnetProviderModuleContext(
+  context: ProviderModuleContext,
+  module: DotnetProviderModuleRequest,
+): ProviderModuleContext {
+  if (module.requestedExports === undefined) {
+    return context;
+  }
+  return {
+    ...context,
+    requestedExports: module.requestedExports,
+    broadImport: false,
   };
 }
 

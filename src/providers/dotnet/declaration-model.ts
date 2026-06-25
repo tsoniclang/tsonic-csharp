@@ -23,6 +23,7 @@ import {
 } from "./model.js";
 
 export interface DotnetProviderDeclarationModelOptions {
+  readonly dependencyModuleSpecifier?: (moduleSpecifier: string, sourceName: string) => string;
   readonly resolveModule?: (specifier: string) => DotnetModuleModel | undefined;
 }
 
@@ -35,7 +36,12 @@ export function dotnetModuleToProviderDeclarationModel(
     moduleSpecifier: module.moduleSpecifier,
     providerModuleId: module.moduleSpecifier,
     exports: module.exports
-      .map((declaration) => dotnetExportToProviderExport(declaration, context))
+      .map((declaration) => {
+        const providerExport = dotnetExportToProviderExport(declaration, context);
+        return providerExport === undefined
+          ? undefined
+          : qualifyProviderExportModuleRefs(providerExport, module.moduleSpecifier, context);
+      })
       .filter((declaration): declaration is ProviderExportDeclaration => declaration !== undefined),
     evidence: [{ message: ".NET provider declaration model generated from target provider data." }],
   };
@@ -46,6 +52,7 @@ interface DotnetDeclarationContext {
   readonly typesBySourceName: ReadonlyMap<string, DotnetTypeDeclaration>;
   readonly sourceMembersByTargetId: Map<string, readonly ProviderMemberDeclaration[]>;
   readonly modulesBySpecifier: Map<string, DotnetModuleModel>;
+  readonly dependencyModuleSpecifier?: (moduleSpecifier: string, sourceName: string) => string;
   readonly resolveModule?: (specifier: string) => DotnetModuleModel | undefined;
 }
 
@@ -60,6 +67,7 @@ function createDotnetDeclarationContext(
       .map((declaration) => [declaration.sourceName, declaration])),
     sourceMembersByTargetId: new Map(),
     modulesBySpecifier: new Map([[module.moduleSpecifier, module]]),
+    ...(options.dependencyModuleSpecifier !== undefined ? { dependencyModuleSpecifier: options.dependencyModuleSpecifier } : {}),
     ...(options.resolveModule !== undefined ? { resolveModule: options.resolveModule } : {}),
   };
 }
@@ -408,6 +416,20 @@ function qualifyProviderMemberModuleRefs(
   };
 }
 
+function qualifyProviderExportModuleRefs(
+  declaration: ProviderExportDeclaration,
+  moduleSpecifier: string,
+  context: DotnetDeclarationContext,
+): ProviderExportDeclaration {
+  return {
+    ...declaration,
+    ...(declaration.type === undefined ? {} : { type: qualifyProviderTypeModuleRefs(declaration.type, moduleSpecifier, context) }),
+    ...(declaration.extends === undefined ? {} : { extends: declaration.extends.map((heritage) => qualifyProviderTypeModuleRefs(heritage, moduleSpecifier, context)) }),
+    ...(declaration.signatures === undefined ? {} : { signatures: declaration.signatures.map((signature) => qualifyProviderSignatureModuleRefs(signature, moduleSpecifier, context)) }),
+    ...(declaration.members === undefined ? {} : { members: declaration.members.map((member) => qualifyProviderMemberModuleRefs(member, moduleSpecifier, context)) }),
+  };
+}
+
 function qualifyProviderSignatureModuleRefs(
   signature: ProviderSignatureDeclaration,
   moduleSpecifier: string,
@@ -438,11 +460,18 @@ function qualifyProviderTypeModuleRefs(
 ): ProviderTypeExpression {
   switch (type.kind) {
     case "provider-ref":
-      return {
-        ...type,
-        ...(type.moduleSpecifier === undefined && dotnetModuleExportsSourceName(moduleSpecifier, type.name, context) ? { moduleSpecifier } : {}),
-        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, moduleSpecifier, context)) }),
-      };
+      {
+        const declaredModuleSpecifier = type.moduleSpecifier ??
+          (dotnetModuleExportsSourceName(moduleSpecifier, type.name, context) ? moduleSpecifier : undefined);
+        const renderedModuleSpecifier = declaredModuleSpecifier === undefined || declaredModuleSpecifier === context.moduleSpecifier
+          ? declaredModuleSpecifier
+          : context.dependencyModuleSpecifier?.(declaredModuleSpecifier, type.name) ?? declaredModuleSpecifier;
+        return {
+          ...type,
+          ...(renderedModuleSpecifier !== undefined ? { moduleSpecifier: renderedModuleSpecifier } : {}),
+          ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, declaredModuleSpecifier ?? moduleSpecifier, context)) }),
+        };
+      }
     case "target-named":
       return {
         ...type,
