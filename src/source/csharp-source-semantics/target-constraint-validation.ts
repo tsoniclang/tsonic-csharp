@@ -22,6 +22,7 @@ import type {
 } from "./operations-provider.js";
 import {
   csharpSourcePrimitiveTargetType,
+  getCsharpNullableElementTargetType,
 } from "./target-types.js";
 import {
   targetTypeRefEquals,
@@ -88,12 +89,21 @@ function validateCsharpTargetConstraintForType(
       return implementsCsharpContract(source, constraint, host, visited)
         ? validConstraint("C# target generic constraint proved an implemented target contract.", source, constraint)
         : invalidConstraint(`C# target generic constraint requires '${constraint.contract}', but no finalized provider fact proves '${targetTypeRefKey(source)}' implements it.`, constraintEvidence(source, constraint));
+    case "target-specific":
+      if (constraint.target === csharpTargetId && constraint.name === "notnull") {
+        return isCsharpNotNullType(source, host)
+          ? validConstraint("C# target generic constraint proved a notnull target argument.", source, constraint)
+          : invalidConstraint(`C# target generic constraint requires a non-null target argument, but no finalized provider fact proves '${targetTypeRefKey(source)}' is non-null.`, constraintEvidence(source, constraint));
+      }
+      return invalidConstraint(
+        `C# target-specific generic constraint '${constraint.target}:${constraint.name}' is not supported by the C# target provider.`,
+        constraintEvidence(source, constraint),
+      );
     case "copy":
     case "clone":
     case "default":
     case "sized":
     case "lifetime":
-    case "target-specific":
       return invalidConstraint(
         `C# target generic constraint '${constraint.kind}' is not a supported C# constraint kind.`,
         constraintEvidence(source, constraint),
@@ -155,6 +165,13 @@ function isCsharpUnmanagedType(type: TargetTypeRef, host: CsharpOperationsProvid
   }
   const binding = host.getCsharpTargetBindingByTargetId(type.id);
   return binding?.kind === "struct" && (binding as { readonly csharpUnmanaged?: true }).csharpUnmanaged === true;
+}
+
+function isCsharpNotNullType(type: TargetTypeRef | undefined, host: CsharpOperationsProviderHost): boolean {
+  if (type === undefined || getCsharpNullableElementTargetType(type) !== undefined) {
+    return false;
+  }
+  return isCsharpValueType(type, host) || isCsharpReferenceType(type, host);
 }
 
 function implementsCsharpContract(

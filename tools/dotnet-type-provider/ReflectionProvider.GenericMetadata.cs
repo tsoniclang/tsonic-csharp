@@ -56,6 +56,10 @@ sealed partial class ReflectionProvider
         {
             constraints.Add(new { kind = IsUnmanagedConstraint(parameter) ? "unmanaged" : "value-type" });
         }
+        if ((attributes & (GenericParameterAttributes.ReferenceTypeConstraint | GenericParameterAttributes.NotNullableValueTypeConstraint)) == 0 && IsNotNullConstraint(parameter))
+        {
+            constraints.Add(new { kind = "not-null" });
+        }
         if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0 && !IsUnmanagedConstraint(parameter))
         {
             constraints.Add(new { kind = "constructible" });
@@ -93,6 +97,15 @@ sealed partial class ReflectionProvider
     {
         return parameter.GetCustomAttributesData().Any(attribute =>
             attribute.AttributeType.FullName == "System.Runtime.CompilerServices.IsUnmanagedAttribute");
+    }
+
+    static bool IsNotNullConstraint(Type parameter)
+    {
+        return parameter.GetCustomAttributesData().Any(attribute =>
+            attribute.AttributeType.FullName == "System.Runtime.CompilerServices.NullableAttribute" &&
+            attribute.ConstructorArguments.Count == 1 &&
+            attribute.ConstructorArguments[0].Value is byte flag &&
+            flag == 1);
     }
 
     static string? Variance(Type parameter)

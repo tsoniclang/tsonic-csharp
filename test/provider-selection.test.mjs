@@ -13,6 +13,7 @@ import {
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
+import { csharpNullableValueTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("C# provider rejects ambiguous target members instead of ranking candidates", () => {
   const provider = getNativeSemanticProvider();
@@ -245,6 +246,16 @@ test("C# provider validates generic constraints only from finalized target facts
     source: widget,
     constraint: { kind: "implements", contract: "Example.ITagged" },
   }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "target-specific", target: "csharp", name: "notnull" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: structValue,
+    constraint: { kind: "target-specific", target: "csharp", name: "notnull" },
+  }, fakeObservationContext({})).kind, "accept");
 });
 
 test("C# provider rejects generic constraints without finalized target proof", () => {
@@ -281,6 +292,14 @@ test("C# provider rejects generic constraints without finalized target proof", (
     constraint: { kind: "target-specific", target: "rust", name: "Send" },
   }, fakeObservationContext({}));
   assert.equal(unsupportedConstraint.kind, "reject");
+
+  const nullableValue = provider.validateTargetConstraint({
+    target: "csharp",
+    source: csharpNullableValueTargetType({ kind: "source-primitive", name: "int32" }),
+    constraint: { kind: "target-specific", target: "csharp", name: "notnull" },
+  }, fakeObservationContext({}));
+  assert.equal(nullableValue.kind, "reject");
+  assert.equal(nullableValue.diagnostic.extensionCode, "CSHARP_TARGET_CONSTRAINT_INVALID");
 });
 
 test("C# provider selects from a proven provider binding using checked source member and target argument facts", () => {

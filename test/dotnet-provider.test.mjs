@@ -1635,6 +1635,10 @@ test(".NET reflection provider records generic constraints and variance as targe
     "unmanaged",
   ]);
 
+  const rawNotNullTarget = module.exports.find((declaration) => declaration.sourceName === "NotNullTarget");
+  assert.ok(rawNotNullTarget);
+  assert.deepEqual(rawNotNullTarget.typeParameters?.[0]?.constraints, [{ kind: "not-null" }]);
+
   const rawProducer = module.exports.find((declaration) => declaration.sourceName === "IProducer");
   assert.ok(rawProducer);
   assert.equal(rawProducer.typeParameters?.[0]?.variance, "out");
@@ -1655,6 +1659,12 @@ test(".NET reflection provider records generic constraints and variance as targe
     "implements",
     "implements",
   ]);
+  const notNullBinding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConstraintFixtures.js", "ProviderConstraintFixtures.NotNullTarget`1");
+  assert.deepEqual(notNullBinding.typeParameters[0].constraints, [{
+    kind: "target-specific",
+    target: "csharp",
+    name: "notnull",
+  }]);
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceReferenceNewTarget = declarationModel.exports.find((declaration) => declaration.name === "ReferenceNewTarget");
   assert.ok(sourceReferenceNewTarget);
@@ -1665,6 +1675,12 @@ test(".NET reflection provider records generic constraints and variance as targe
   const sourceCopy = sourceReferenceNewTarget.members.find((member) => member.kind === "method" && member.name === "copy");
   assert.ok(sourceCopy);
   assert.equal(sourceCopy.signatures[0].typeParameters[0].constraints, undefined);
+  const sourceNotNullTarget = declarationModel.exports.find((declaration) => declaration.name === "NotNullTarget");
+  assert.ok(sourceNotNullTarget);
+  assert.deepEqual(sourceNotNullTarget.typeParameters?.map((parameter) => ({
+    name: parameter.name,
+    constraints: parameter.constraints,
+  })), [{ name: "T", constraints: undefined }]);
   const sourceProducer = declarationModel.exports.find((declaration) => declaration.name === "IProducer");
   assert.ok(sourceProducer);
   assert.deepEqual(sourceProducer.typeParameters, [{ name: "T", variance: "out" }]);

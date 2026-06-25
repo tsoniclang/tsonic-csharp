@@ -84,7 +84,7 @@ export function dotnetConstraintToTargetConstraint(constraint: DotnetConstraint)
     case "unmanaged":
       return { kind: constraint.kind };
     case "not-null":
-      throw new Error("Unsupported .NET target constraint 'not-null'. Add a typed TSTS target constraint before exposing this declaration.");
+      return { kind: "target-specific", target: "csharp", name: "notnull" };
     case "target-specific":
       throw new Error(`Unsupported .NET target-specific constraint '${constraint.name}'. Add a typed TSTS target constraint before exposing this declaration.`);
   }
