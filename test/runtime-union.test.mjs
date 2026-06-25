@@ -5,6 +5,7 @@ import {
   formatDiagnostics,
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
+import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import {
@@ -168,6 +169,7 @@ function createCompilerSession(sourceText) {
     extensionHostOptions: {
       activeTarget: "csharp",
       extensions: [
+        createTsonicCoreSourceExtension(),
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],

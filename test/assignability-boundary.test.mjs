@@ -5,6 +5,7 @@ import {
   createCompilerSessionFromFiles,
   formatDiagnostics,
 } from "@tsonic/tsts";
+import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import {
   createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
@@ -296,6 +297,7 @@ function createSearchValuesSession(sourceText) {
     extensionHostOptions: {
       activeTarget: "csharp",
       extensions: [
+        createTsonicCoreSourceExtension(),
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createProviderBackedSearchValuesExtension(),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
@@ -319,6 +321,7 @@ function createNativeSession(sourceText) {
     extensionHostOptions: {
       activeTarget: "csharp",
       extensions: [
+        createTsonicCoreSourceExtension(),
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],

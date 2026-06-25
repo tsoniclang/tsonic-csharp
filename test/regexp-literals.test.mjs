@@ -93,6 +93,16 @@ test("regexp literal emission requires a renderable provider constructor result 
 
 function fakeInput(options) {
   return {
+    ast: {
+      kindName(node) {
+        return node?.Kind ?? "";
+      },
+    },
+    semantics: {
+      getRuntimeCarrierForNode: () => undefined,
+      getResolvedSymbol: () => undefined,
+      getSymbolAtLocation: () => undefined,
+    },
     facts: {
       getRuntimeCarrierFact: (subject) => subject === options.subject && options.runtimeCarrier !== undefined
         ? { carrier: options.runtimeCarrier }

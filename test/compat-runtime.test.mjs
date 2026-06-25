@@ -7,6 +7,7 @@ import {
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
+import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import {
   createCsharpSourceSemanticsExtension,
   createCsharpTargetSemanticsExtension,
@@ -354,6 +355,7 @@ function createNativeSession(sourceText, targetOptions = {}, extraExtensions = [
     extensionHostOptions: {
       activeTarget: "csharp",
       extensions: [
+        createTsonicCoreSourceExtension(),
         createCsharpSourceSemanticsExtension(context),
         ...extraExtensions,
         createCsharpTargetSemanticsExtension(context),
