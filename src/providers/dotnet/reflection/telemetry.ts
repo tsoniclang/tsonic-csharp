@@ -13,6 +13,9 @@ export interface DotnetProviderTelemetrySnapshot {
   readonly diskCacheMisses: number;
   readonly providerToolBuilds: number;
   readonly providerToolBuildElapsedMs: number;
+  readonly toolProcessStarts: number;
+  readonly toolCliProcessStarts: number;
+  readonly toolServerProcessStarts: number;
   readonly toolInvocations: number;
   readonly toolCliInvocations: number;
   readonly toolServerInvocations: number;
@@ -42,6 +45,7 @@ export interface DotnetProviderTelemetry {
   diskCacheHit(): void;
   diskCacheMiss(): void;
   toolBuild(elapsedMs: number): void;
+  toolProcessStart(mode: "cli" | "server"): void;
   toolInvocation(mode: "cli" | "server", elapsedMs: number): void;
   modelBytes(bytes: number): void;
   virtualDeclarations(count: number, bytes: number, renderElapsedMs?: number): void;
@@ -68,6 +72,9 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
   let diskCacheMisses = 0;
   let providerToolBuilds = 0;
   let providerToolBuildElapsedMs = 0;
+  let toolProcessStarts = 0;
+  let toolCliProcessStarts = 0;
+  let toolServerProcessStarts = 0;
   let toolInvocations = 0;
   let toolCliInvocations = 0;
   let toolServerInvocations = 0;
@@ -120,6 +127,14 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
       providerToolBuilds += 1;
       providerToolBuildElapsedMs += elapsedMs;
     },
+    toolProcessStart(mode: "cli" | "server"): void {
+      toolProcessStarts += 1;
+      if (mode === "cli") {
+        toolCliProcessStarts += 1;
+      } else {
+        toolServerProcessStarts += 1;
+      }
+    },
     toolInvocation(mode: "cli" | "server", elapsedMs: number): void {
       toolInvocations += 1;
       toolElapsedMs += elapsedMs;
@@ -162,6 +177,9 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
         diskCacheMisses,
         providerToolBuilds,
         providerToolBuildElapsedMs,
+        toolProcessStarts,
+        toolCliProcessStarts,
+        toolServerProcessStarts,
         toolInvocations,
         toolCliInvocations,
         toolServerInvocations,
@@ -197,6 +215,9 @@ export function dotnetProviderTelemetryCounters(
     "provider.cache.disk.miss": snapshot.diskCacheMisses,
     "provider.tool.builds": snapshot.providerToolBuilds,
     "provider.tool.build.elapsedMs": snapshot.providerToolBuildElapsedMs,
+    "provider.tool.processStarts": snapshot.toolProcessStarts,
+    "provider.tool.processStarts.cli": snapshot.toolCliProcessStarts,
+    "provider.tool.processStarts.server": snapshot.toolServerProcessStarts,
     "provider.tool.invocations": snapshot.toolInvocations,
     "provider.tool.mode.cli": snapshot.toolCliInvocations,
     "provider.tool.mode.server": snapshot.toolServerInvocations,

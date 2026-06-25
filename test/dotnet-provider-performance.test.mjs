@@ -33,7 +33,10 @@ test(".NET provider telemetry exposes required performance counters", () => {
   telemetry.diskCacheHit();
   telemetry.diskCacheMiss();
   telemetry.toolBuild(3.5);
+  telemetry.toolProcessStart("cli");
+  telemetry.toolProcessStart("server");
   telemetry.toolInvocation("cli", 4.25);
+  telemetry.toolInvocation("server", 8.5);
   telemetry.modelBytes(128);
   telemetry.virtualDeclarations(2, 256, 1.25);
   telemetry.tstsProviderVirtualParse(5.75);
@@ -55,9 +58,12 @@ test(".NET provider telemetry exposes required performance counters", () => {
   assert.equal(counters["provider.cache.disk.hit"], 1);
   assert.equal(counters["provider.cache.disk.miss"], 1);
   assert.equal(counters["provider.tool.builds"], 1);
-  assert.equal(counters["provider.tool.invocations"], 1);
+  assert.equal(counters["provider.tool.processStarts"], 2);
+  assert.equal(counters["provider.tool.processStarts.cli"], 1);
+  assert.equal(counters["provider.tool.processStarts.server"], 1);
+  assert.equal(counters["provider.tool.invocations"], 2);
   assert.equal(counters["provider.tool.mode.cli"], 1);
-  assert.equal(counters["provider.tool.mode.server"], 0);
+  assert.equal(counters["provider.tool.mode.server"], 1);
   assert.equal(counters["provider.model.bytes"], 128);
   assert.equal(counters["provider.virtualSource.bytes"], 256);
   assert.equal(counters["provider.virtualDeclarations.count"], 2);
@@ -627,7 +633,11 @@ test(".NET reflection provider tool filters target-binding lookups without broad
 
   const snapshot = telemetry.snapshot();
   assert.equal(snapshot.toolInvocations, 2);
-  assert.equal(snapshot.toolCliInvocations, 2);
+  assert.equal(snapshot.toolCliInvocations, 0);
+  assert.equal(snapshot.toolServerInvocations, 2);
+  assert.equal(snapshot.toolProcessStarts, 1);
+  assert.equal(snapshot.toolCliProcessStarts, 0);
+  assert.equal(snapshot.toolServerProcessStarts, 1);
 });
 
 function createDotnetBindingTestExtension(provider) {
