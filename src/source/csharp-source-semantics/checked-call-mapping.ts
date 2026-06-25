@@ -218,6 +218,9 @@ export function mapCsharpCheckedCall(
   const declaringTargetType = member.kind === "constructor" ? constructorDeclaringTargetType ?? member.declaringType : host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
     host.getTargetTypeRefForSubject(request.calleeReceiver, context) ??
     host.getTargetTypeRefForSubject(request.call, context);
+  if (member.kind === "constructor" && declaringTargetType === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_CONSTRUCTOR_RESULT_TYPE_NOT_PROVEN", 9100135, `C# provider selected constructor '${member.id}', but no provider target type fact proved the constructed target type.`));
+  }
   const nativeArrayElementType = isDotnetNativeArrayCreateMemberId(member.id)
     ? getNativeArrayCreateElementType(request, context, host)
     : undefined;

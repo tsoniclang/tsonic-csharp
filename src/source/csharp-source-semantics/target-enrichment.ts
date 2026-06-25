@@ -160,11 +160,12 @@ export function enrichCsharpTargetMember(
   const selectedMember = bindingMember ?? member;
   const typeArgumentMap = createTargetTypeArgumentMap(selectedMember, binding, options);
   const substitutedMember = substituteTargetMemberTypeParameters(selectedMember, typeArgumentMap);
-  const declaringType = enrichCsharpTargetTypeRef(substitutedMember.declaringType, host);
+  const effectiveDeclaringType = substitutedMember.declaringType ?? options.declaringTargetType;
+  const declaringType = enrichCsharpTargetTypeRef(effectiveDeclaringType, host);
   const returnType = enrichCsharpTargetTypeRef(substitutedMember.returnType, host);
   const parameters = enrichCsharpTargetParameters(substitutedMember.parameters, host);
   if (
-    (substitutedMember.declaringType !== undefined && declaringType === undefined) ||
+    (effectiveDeclaringType !== undefined && declaringType === undefined) ||
     (substitutedMember.returnType !== undefined && returnType === undefined) ||
     parameters === undefined
   ) {
