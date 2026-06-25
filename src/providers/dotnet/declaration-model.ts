@@ -25,7 +25,7 @@ import {
 export interface DotnetProviderDeclarationModelOptions {
   readonly providerModuleId?: string;
   readonly dependencyModuleSpecifier?: (moduleSpecifier: string, sourceName: string) => string;
-  readonly resolveModule?: (specifier: string) => DotnetModuleModel | undefined;
+  readonly resolveModule?: (specifier: string, requestedExports: readonly string[]) => DotnetModuleModel | undefined;
 }
 
 export function dotnetModuleToProviderDeclarationModel(
@@ -55,7 +55,7 @@ interface DotnetDeclarationContext {
   readonly sourceMembersByTargetId: Map<string, readonly ProviderMemberDeclaration[]>;
   readonly modulesBySpecifier: Map<string, DotnetModuleModel>;
   readonly dependencyModuleSpecifier?: (moduleSpecifier: string, sourceName: string) => string;
-  readonly resolveModule?: (specifier: string) => DotnetModuleModel | undefined;
+  readonly resolveModule?: (specifier: string, requestedExports: readonly string[]) => DotnetModuleModel | undefined;
 }
 
 function createDotnetDeclarationContext(
@@ -222,12 +222,12 @@ function dotnetProviderRefToTypeDeclaration(
     if (local !== undefined || context.sourceModuleSpecifier === context.moduleSpecifier) {
       return local;
     }
-    const sourceModule = getDotnetModuleBySpecifier(context.sourceModuleSpecifier, context);
+    const sourceModule = getDotnetModuleBySpecifier(context.sourceModuleSpecifier, context, [baseType.name]);
     return sourceModule?.exports.find((declaration): declaration is DotnetTypeDeclaration =>
       declaration.kind === "type" && declaration.sourceName === baseType.name
     );
   }
-  const module = getDotnetModuleBySpecifier(baseType.moduleSpecifier, context);
+  const module = getDotnetModuleBySpecifier(baseType.moduleSpecifier, context, [baseType.name]);
   if (module === undefined) {
     return undefined;
   }
@@ -239,12 +239,13 @@ function dotnetProviderRefToTypeDeclaration(
 function getDotnetModuleBySpecifier(
   moduleSpecifier: string,
   context: DotnetDeclarationContext,
+  requestedExports: readonly string[],
 ): DotnetModuleModel | undefined {
   const existing = context.modulesBySpecifier.get(moduleSpecifier);
-  if (existing !== undefined) {
+  if (existing !== undefined && dotnetModuleIncludesRequestedExports(existing, requestedExports)) {
     return existing;
   }
-  const resolved = context.resolveModule?.(moduleSpecifier);
+  const resolved = context.resolveModule?.(moduleSpecifier, requestedExports);
   if (resolved !== undefined) {
     context.modulesBySpecifier.set(moduleSpecifier, resolved);
   }
@@ -520,10 +521,18 @@ function dotnetModuleExportsSourceName(
   sourceName: string,
   context: DotnetDeclarationContext,
 ): boolean {
-  const module = getDotnetModuleBySpecifier(moduleSpecifier, context);
+  const module = getDotnetModuleBySpecifier(moduleSpecifier, context, [sourceName]);
   return module?.exports.some((declaration) =>
     declaration.kind === "type" && declaration.sourceName === sourceName
   ) === true;
+}
+
+function dotnetModuleIncludesRequestedExports(module: DotnetModuleModel, requestedExports: readonly string[]): boolean {
+  if (requestedExports.length === 0) {
+    return true;
+  }
+  const sourceNames = new Set(module.exports.map((declaration) => declaration.sourceName));
+  return requestedExports.every((sourceName) => sourceNames.has(sourceName));
 }
 
 function removeScopedTypeParameters(

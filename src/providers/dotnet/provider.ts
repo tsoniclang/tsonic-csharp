@@ -61,6 +61,8 @@ export interface DotnetProviderDiagnostic {
   readonly evidence?: readonly Readonly<Record<string, unknown>>[];
 }
 
+type DotnetProviderResolutionContext = Pick<ProviderModuleContext, "broadImport" | "requestedExports">;
+
 export interface DotnetBindingProviderOptions {
   readonly provider: DotnetTypeDataProvider;
   readonly targetFramework?: string;
@@ -99,6 +101,9 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_UNOWNED", 9200002, `.NET provider does not own '${specifier}'.`);
       }
       const resolutionContext = dotnetProviderResolutionContext(moduleContext);
+      if (resolutionContext === undefined) {
+        return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, specifier);
+      }
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
@@ -117,18 +122,19 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (module === undefined) {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
       }
-      const result = options.provider.getModule(module.moduleSpecifier, providerContext({
-        ...(resolution.broadImport === true ? { broadImport: true as const } : {}),
-        ...(resolution.requestedExports !== undefined ? { requestedExports: resolution.requestedExports } : {}),
-      }, options));
+      const resolutionContext = dotnetProviderResolutionContext(resolution);
+      if (resolutionContext === undefined) {
+        return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, resolution.moduleSpecifier);
+      }
+      const result = options.provider.getModule(module.moduleSpecifier, providerContext(resolutionContext, options));
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
       const startedAt = performance.now();
       const resolvedModule = {
         ...augmentDotnetModuleWithNativeArray(result, {
-          ...(resolution.broadImport === true ? { broadImport: true as const } : {}),
-          ...(resolution.requestedExports !== undefined ? { requestedExports: resolution.requestedExports } : {}),
+          ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
+          ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
         }),
         moduleSpecifier: resolution.moduleSpecifier,
       };
@@ -139,8 +145,12 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
             ? createDotnetProviderDependencyModuleSpecifier(identity.id, moduleSpecifier, [sourceName])
             : moduleSpecifier;
         },
-        resolveModule(specifier) {
-          const resolved = options.provider.getModule(specifier, providerContext({}, options));
+        resolveModule(specifier, requestedExports) {
+          const dependencyResolutionContext = dotnetProviderResolutionContext({ requestedExports });
+          if (dependencyResolutionContext === undefined) {
+            return undefined;
+          }
+          const resolved = options.provider.getModule(specifier, providerContext(dependencyResolutionContext, options));
           return isDotnetProviderDiagnostic(resolved) ? undefined : augmentDotnetModuleWithNativeArray(resolved);
         },
       });
@@ -197,11 +207,12 @@ function dotnetProviderModuleContext(
   };
 }
 
-function dotnetProviderResolutionContext(context: ProviderModuleContext): Pick<ProviderModuleContext, "broadImport" | "requestedExports"> {
-  if (context.broadImport === true || context.requestedExports === undefined || context.requestedExports.length === 0) {
+function dotnetProviderResolutionContext(context: DotnetProviderResolutionContext): DotnetProviderResolutionContext | undefined {
+  if (context.broadImport === true) {
     return { broadImport: true as const };
   }
-  return { requestedExports: [...context.requestedExports].sort() };
+  const requestedExports = sortedNonEmpty(context.requestedExports);
+  return requestedExports === undefined ? undefined : { requestedExports };
 }
 
 function providerVirtualDeclarationFileName(
@@ -268,4 +279,21 @@ function dotnetExtensionDiagnostic(
     message,
     ...(evidence !== undefined ? { evidence: evidence.map((details) => ({ message: "Provider evidence", details })) } : {}),
   };
+}
+
+function dotnetProviderRequestSliceRequiredDiagnostic(extensionId: string, specifier: string): ExtensionDiagnostic {
+  return dotnetExtensionDiagnostic(
+    extensionId,
+    "DOTNET_PROVIDER_REQUEST_SLICE_REQUIRED",
+    9200004,
+    `.NET provider module '${specifier}' requires an explicit requested export slice or explicit broad import.`,
+    [{ specifier }],
+  );
+}
+
+function sortedNonEmpty(values: readonly string[] | undefined): readonly string[] | undefined {
+  if (values === undefined || values.length === 0) {
+    return undefined;
+  }
+  return [...new Set(values)].sort();
 }

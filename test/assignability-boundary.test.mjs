@@ -83,6 +83,25 @@ test("C# post-check target assignability cannot make TypeScript-invalid assignme
   assert.equal(targetDiagnostics.length, 0);
 });
 
+test("C# target generic constraints diagnose unproven provider type arguments after TSTS accepts source syntax", () => {
+  const sourceText = `
+    import type { SearchValues } from "@example/csharp/search-values.js";
+
+    type Bad = SearchValues<object>;
+  `;
+  const session = createSearchValuesSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 9100145), true, formatDiagnostics(diagnostics));
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_CONSTRAINT_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 1);
+  assert.match(targetDiagnostics[0].message, /requires a finalized target type fact/u);
+});
+
 test("C# post-check target assignability fails closed on TypeScript any boundaries", () => {
   const sourceText = `
     declare let value: any;
@@ -416,7 +435,16 @@ function createProviderBackedSearchValuesExtension() {
                 id: "System.Collections.Generic.List`1",
                 displayName: "System.Collections.Generic.List<T>",
               },
-              typeParameters: [{ name: "T" }],
+              typeParameters: [{
+                name: "T",
+                constraints: [{
+                  kind: "target-named",
+                  target: "csharp",
+                  id: "System.IEquatable`1",
+                  typeArguments: [{ kind: "type-parameter", name: "T" }],
+                  sourceShape: { kind: "unknown" },
+                }],
+              }],
               members: [{
                 id: "SearchValues.value",
                 name: "value",

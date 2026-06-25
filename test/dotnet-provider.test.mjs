@@ -1112,7 +1112,7 @@ test(".NET target binding provider uses configured provider identity for diagnos
   assert.equal(ownership.diagnostic.extensionCode, rejectedDiagnostic.code);
   assert.equal(ownership.diagnostic.message, rejectedDiagnostic.message);
 
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Text.js", {});
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Text.js", { broadImport: true });
   assert.equal(resolution.kind, "virtual");
   assert.equal(resolution.providerModuleId, "@tsonic/dotnet/System.Text.js");
   assert.match(

@@ -151,6 +151,59 @@ test(".NET target binding provider preserves requested export slices for virtual
   assert.equal(observedContexts[0].broadImport, undefined);
 });
 
+test(".NET target binding provider rejects implicit broad virtual module requests", () => {
+  let getModuleCalled = false;
+  const provider = {
+    identity: {
+      id: "test.dotnet-provider-no-implicit-broad",
+      version: "1.0.0",
+      target: "csharp",
+      displayName: "No implicit broad test provider",
+    },
+    ownsModule() {
+      return { kind: "owned" };
+    },
+    getModule() {
+      getModuleCalled = true;
+      throw new Error("getModule must not run for an unsliced virtual module request.");
+    },
+  };
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", {});
+
+  assert.equal(resolution.extensionCode, "DOTNET_PROVIDER_REQUEST_SLICE_REQUIRED", JSON.stringify(resolution));
+  assert.equal(getModuleCalled, false);
+});
+
+test(".NET target binding provider rejects unsliced declaration model requests", () => {
+  let getModuleCalled = false;
+  const provider = {
+    identity: {
+      id: "test.dotnet-provider-unsliced-model",
+      version: "1.0.0",
+      target: "csharp",
+      displayName: "Unsliced model test provider",
+    },
+    ownsModule() {
+      return { kind: "owned" };
+    },
+    getModule() {
+      getModuleCalled = true;
+      throw new Error("getModule must not run for an unsliced declaration model request.");
+    },
+  };
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const declarationModel = bindingProvider.getDeclarationModel({
+    kind: "virtual",
+    moduleSpecifier: "@tsonic/dotnet/Example.js",
+    virtualFileName: "tsts-provider://test.dotnet-provider-unsliced-model/%40tsonic%2Fdotnet%2FExample.js/unsliced.d.ts",
+    providerModuleId: "@tsonic/dotnet/Example.js",
+  });
+
+  assert.equal(declarationModel.extensionCode, "DOTNET_PROVIDER_REQUEST_SLICE_REQUIRED", JSON.stringify(declarationModel));
+  assert.equal(getModuleCalled, false);
+});
+
 test(".NET target binding provider resolves dependency slices only from provider virtual files", () => {
   const observedContexts = new Map();
   const modules = new Map([
@@ -213,8 +266,9 @@ test(".NET target binding provider resolves dependency slices only from provider
       observedContexts.set(specifier, context);
       const module = modules.get(specifier);
       assert.ok(module, `Unexpected module request '${specifier}'.`);
+      assert.notEqual(context.broadImport, true, `Unexpected broad dependency request for '${specifier}'.`);
       if (context.requestedExports === undefined) {
-        return module;
+        throw new Error(`Expected requested export slice for '${specifier}'.`);
       }
       return {
         ...module,
