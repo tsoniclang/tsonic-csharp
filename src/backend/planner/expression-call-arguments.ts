@@ -9,6 +9,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
+  sameCsharpType,
+} from "./csharp-type-equality.js";
+import {
   invalidExpression,
 } from "./invalid-expression.js";
 import {
@@ -52,10 +55,11 @@ export function planCallArgumentCore(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
     return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject) };
   }
+  const passing = getCsharpArgumentPassing(argumentPassing.mode, node, diagnostics);
   return {
     kind: "Argument",
     expression: planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject),
-    passing: getCsharpArgumentPassing(argumentPassing.mode),
+    ...(passing !== undefined ? { passing } : {}),
   };
 }
 
@@ -73,22 +77,32 @@ function planCallArgumentExpression(
   if (conversion?.operation !== undefined) {
     return planExpression(node, sourceFile, input, diagnostics);
   }
-  if (expectedType !== undefined) {
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
-  }
   if (conversion?.convertedType !== undefined) {
     const convertedType = csharpTypeFromTargetTypeRef(conversion.convertedType);
     if (convertedType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion requires a renderable target type before C# emission."));
       return invalidExpression("target argument conversion type");
     }
+    if (expectedType !== undefined && !sameCsharpType(convertedType, expectedType)) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion fact does not match the finalized selected parameter target type."));
+      return invalidExpression("target argument conversion mismatch");
+    }
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, convertedType, expectedTypeSubject);
+  }
+  if (expectedType !== undefined) {
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   return planExpression(node, sourceFile, input, diagnostics);
 }
 
-function getCsharpArgumentPassing(mode: ArgumentPassingFact["mode"]): CsharpArgument["passing"] {
+function getCsharpArgumentPassing(
+  mode: ArgumentPassingFact["mode"],
+  node: Node,
+  diagnostics: TargetDiagnostic[],
+): CsharpArgument["passing"] {
   switch (mode) {
+    case "by-value":
+      return undefined;
     case "byref-writeonly-must-init":
       return "out";
     case "byref-readwrite":
@@ -96,6 +110,7 @@ function getCsharpArgumentPassing(mode: ArgumentPassingFact["mode"]): CsharpArgu
     case "byref-readonly":
       return "in";
     default:
+      diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission does not support finalized argument-passing mode '${mode}'.`));
       return undefined;
   }
 }

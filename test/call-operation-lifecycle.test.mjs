@@ -47,6 +47,25 @@ test("selected call lifecycle does not record unresolved generic C# members", ()
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
 
+test("selected call lifecycle rejects mismatched selected type argument facts", () => {
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
+  const call = { Kind: 1 };
+  sourceFile.Statements.Nodes.push(call);
+  const facts = new TestFactStore();
+  facts.set(call, selectedTargetSignatureFactKey, {
+    member: genericIdentityMember(),
+    targetTypeArguments: [csharpStringTargetType(), csharpStringTargetType()],
+  });
+
+  const host = fakeObservationHost(facts);
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host,
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
 test("selected constructor lifecycle records explicit result type from declaring type", () => {
   const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
   const call = { Kind: 1 };

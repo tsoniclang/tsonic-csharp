@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { getRequiredCsharpTargetMemberOperationForSelectedSignature } from "../dist/backend/planner/csharp-target-operations.js";
+import { planCallArgumentCore } from "../dist/backend/planner/expression-call-arguments.js";
 import {
   planSelectedTargetCallee,
   planSelectedTargetReceiverExpression,
@@ -141,6 +142,106 @@ test("call emission rejects operation facts that change target parameter passing
   assert.match(diagnostics[0].message, /parameter-passing/);
 });
 
+test("call emission rejects operation facts with mismatched target operation kind", () => {
+  const call = { Kind: 1 };
+  const selected = closedIdentityMember({ kind: "target-named", id: "System.String" });
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "indexer",
+        memberName: "Identity",
+        resultType: selected.returnType,
+        selectedMember: selected,
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# call emission",
+  );
+
+  assert.equal(operation, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /target operation kind/);
+});
+
+test("call argument emission applies explicit target conversion facts before selected expected types", () => {
+  const argument = identifier("value");
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: { kind: "source-primitive", name: "int64" },
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+    { kind: "PredefinedType", name: "long" },
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "Argument",
+    expression: { kind: "IdentifierName", name: "value_as_long" },
+  });
+});
+
+test("call argument emission rejects conversion facts that mismatch selected expected types", () => {
+  const argument = identifier("value");
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: { kind: "source-primitive", name: "int64" },
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+    { kind: "PredefinedType", name: "int" },
+  );
+
+  assert.equal(planned.expression.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /conversion fact does not match/);
+});
+
+test("call argument emission rejects unsupported finalized argument-passing modes", () => {
+  const argument = identifier("borrow");
+  const targetExpression = identifier("value");
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      argumentPassingSubject: argument,
+      argumentPassing: {
+        mode: "borrow-shared",
+        targetExpression,
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+  );
+
+  assert.equal(planned.passing, undefined);
+  assert.deepEqual(planned.expression, { kind: "IdentifierName", name: "value" });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /does not support finalized argument-passing mode 'borrow-shared'/);
+});
+
 test("selected target receiver expression uses planned binding identity instead of source text", () => {
   const receiver = identifier("array");
   const diagnostics = [];
@@ -255,6 +356,17 @@ function fakeInput(options = {}) {
   };
 }
 
+function fakeArgumentInput(options = {}) {
+  return {
+    facts: {
+      getArgumentPassingFact: (subject) =>
+        subject === options.argumentPassingSubject ? options.argumentPassing : undefined,
+      getTargetConversionFact: (subject) =>
+        subject === options.conversionSubject ? options.conversion : undefined,
+    },
+  };
+}
+
 function fakeSelectedInput() {
   return {
     ast: {
@@ -269,6 +381,17 @@ function fakeSelectedInput() {
 
 function identifier(text) {
   return { Kind: KindIdentifier, Text: text };
+}
+
+function identifierExpressionPlanner(node) {
+  return { kind: "IdentifierName", name: node.Text };
+}
+
+function expectedIdentifierExpressionPlanner(node, _sourceFile, _input, _diagnostics, expectedType) {
+  return {
+    kind: "IdentifierName",
+    name: `${node.Text}_as_${expectedType.name}`,
+  };
 }
 
 const sourceFile = {

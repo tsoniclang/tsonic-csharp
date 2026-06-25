@@ -53,6 +53,12 @@ import {
   findTargetMemberForCall,
 } from "./target-member-selection.js";
 import {
+  selectProviderSelectedTargetMember,
+} from "./target-member-arguments.js";
+import type {
+  TargetMemberSelectionOptions,
+} from "./target-member-arguments.js";
+import {
   findUnsupportedProviderTargetMember,
 } from "./provider-unsupported-members.js";
 import {
@@ -192,18 +198,19 @@ export function mapCsharpCheckedCall(
       host.getTargetTypeRefForSubject(request.calleeReceiver, context)
     : constructorDeclaringTargetType;
   const providerStaticContainerReceiver = isProviderStaticContainerReceiver(request, context, targetBinding);
-  const member = findTargetMemberForCall(
+  const selectionOptions: TargetMemberSelectionOptions = {
+    getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+    ...(providerStaticContainerReceiver ? { firstArgumentReceiver: false as const } : {}),
+    ...(receiverDeclaringTargetType !== undefined ? { declaringTargetType: receiverDeclaringTargetType } : {}),
+    ...(targetBinding.typeParameters !== undefined ? { declaringTypeParameters: targetBinding.typeParameters } : {}),
+  };
+  const member = findCsharpTargetMemberForCall(
     targetBinding,
     virtualDeclaration,
     request,
     context,
-    host.getTargetTypeRefForSubject,
-    {
-      getBaseTargetTypeRef: host.getBaseTargetTypeRef,
-      ...(providerStaticContainerReceiver ? { firstArgumentReceiver: false as const } : {}),
-      ...(receiverDeclaringTargetType !== undefined ? { declaringTargetType: receiverDeclaringTargetType } : {}),
-      ...(targetBinding.typeParameters !== undefined ? { declaringTypeParameters: targetBinding.typeParameters } : {}),
-    },
+    host,
+    selectionOptions,
   );
   if (member === undefined) {
     const unsupportedMember = unsupportedSelectedMember;
@@ -251,6 +258,39 @@ export function mapCsharpCheckedCall(
 
 function getVirtualDeclarationSignatureId(declaration: ProviderVirtualDeclarationFact | undefined): string | undefined {
   return declaration === undefined ? undefined : declaration.signatureId;
+}
+
+function findCsharpTargetMemberForCall(
+  binding: NonNullable<ReturnType<typeof findTargetBinding>>,
+  declaration: ProviderVirtualDeclarationFact | undefined,
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+  options: TargetMemberSelectionOptions,
+): TargetMember | undefined {
+  if (declaration?.signatureId !== undefined) {
+    const selectedMember = (binding.members ?? []).find((candidate) => candidate.id === declaration.signatureId);
+    return selectedMember === undefined
+      ? undefined
+      : selectProviderSelectedTargetMember(
+          selectedMember,
+          {
+            arguments: request.arguments,
+            receiver: request.calleeReceiver,
+          },
+          context,
+          host.getTargetTypeRefForSubject,
+          options,
+        );
+  }
+  return findTargetMemberForCall(
+    binding,
+    declaration,
+    request,
+    context,
+    host.getTargetTypeRefForSubject,
+    options,
+  );
 }
 
 function missingRequiredSourceMarkerFactDiagnostic(
