@@ -16,6 +16,8 @@ import type {
 } from "../roslyn/syntax.js";
 import {
   getCsharpTypeForNode,
+  predefined,
+  sameCsharpType,
 } from "./csharp-types.js";
 import {
   unsupportedNodeDiagnostic,
@@ -36,7 +38,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
-  targetTypeRefFromFactSubject,
+  csharpTypeFromIterationElementFact,
 } from "./statement-iteration-facts.js";
 import type {
   CsharpTargetIterationFact,
@@ -106,13 +108,16 @@ export function getForInKeyType(
   diagnosticNode: Node,
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> | undefined {
-  const targetKeyType = selectedIteration.elementType === undefined
-    ? undefined
-    : targetTypeRefFromFactSubject(selectedIteration.elementType);
-  const keyType = targetKeyType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetKeyType);
+  const keyType = csharpTypeFromIterationElementFact(selectedIteration, diagnosticNode, diagnostics, "C# for-in key emission", "key");
   if (keyType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-in key emission requires a provider iteration fact with a closed target key type."));
     return undefined;
+  }
+  if (selectedIteration.lowering.kind === "index-key" || selectedIteration.lowering.kind === "object-shape-keys") {
+    const stringType = predefined("string");
+    if (!sameCsharpType(keyType, stringType)) {
+      diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `C# for-in ${selectedIteration.lowering.kind} lowering requires finalized provider key type string.`));
+      return undefined;
+    }
   }
   return keyType;
 }

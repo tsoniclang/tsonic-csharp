@@ -17,6 +17,7 @@ import {
   KindEqualsToken,
   KindExpressionStatement,
   KindForStatement,
+  KindForInStatement,
   KindForOfStatement,
   KindIdentifier,
   KindLabeledStatement,
@@ -30,11 +31,13 @@ import {
   KindWhileStatement,
 } from "../dist/backend/planner/source-ast.js";
 import {
+  csharpObjectShapeFactKey,
   csharpTargetIterationFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
   csharpExceptionTargetType,
   csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("switch statements emit grouped Roslyn sections and deterministic fallthrough", () => {
@@ -306,6 +309,248 @@ test("for-of fails closed when TSTS/provider iteration facts are absent", () => 
   assert.match(diagnostics[0].message, /for-of emission requires finalized TSTS\/provider iteration facts/);
 });
 
+test("for-of rejects provider facts with the wrong iteration kind or lowering", () => {
+  const diagnostics = [];
+  const itemType = typeNode("Item");
+  const item = variableDeclaration("item", itemType);
+  const statement = forOfStatement(variableDeclarationList([item]), identifier("items"), block([]));
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [itemType, { carrier: csharpStringTargetType() }],
+    ]),
+    iterationFacts: new Map([
+      [statement, {
+        operationId: "test.wrongForOf",
+        iterationKind: "property-key",
+        lowering: { kind: "index-key", lengthMember: "Length", keyConversion: "invariant-string" },
+        elementType: csharpStringTargetType(),
+      }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(output, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /for-of emission does not support provider iteration lowering 'index-key' with kind 'property-key'/);
+});
+
+test("for-of emits JS string code-point loops from finalized surface facts", () => {
+  const diagnostics = [];
+  const itemName = identifier("character");
+  const text = identifier("text");
+  const statement = forOfStatement(
+    variableDeclarationList([{ Kind: KindVariableDeclaration, name: itemName }]),
+    text,
+    block([]),
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [itemName, { carrier: csharpStringTargetType() }],
+    ]),
+    iterationFacts: new Map([
+      [statement, stringCodePointIterationFact()],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output[0].kind, "Block");
+  const statements = output[0].body.statements;
+  assert.deepEqual(statements[0], {
+    kind: "LocalDeclarationStatement",
+    name: "__tsonic_forOfString0",
+    type: { kind: "PredefinedType", name: "string" },
+    initializer: { kind: "IdentifierName", name: "text" },
+  });
+  assert.equal(statements[1].kind, "ForStatement");
+  assert.deepEqual(statements[1].condition.right, {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "__tsonic_forOfString0" },
+    name: "Length",
+  });
+  assert.deepEqual(statements[1].body.statements[0], {
+    kind: "LocalDeclarationStatement",
+    name: "character",
+    type: { kind: "PredefinedType", name: "string" },
+  });
+  assert.equal(statements[1].body.statements[1].kind, "IfStatement");
+});
+
+test("for-in fails closed when finalized iteration facts are absent", () => {
+  const diagnostics = [];
+  const keyName = identifier("key");
+  const statement = forInStatement(
+    variableDeclarationList([{ Kind: KindVariableDeclaration, name: keyName }]),
+    identifier("items"),
+    block([]),
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [keyName, { carrier: csharpStringTargetType() }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(output, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /For-in requires finalized TSTS\/provider enumeration facts before C# emission/);
+});
+
+test("for-in rejects provider facts with the wrong iteration kind or lowering", () => {
+  const diagnostics = [];
+  const keyName = identifier("key");
+  const statement = forInStatement(
+    variableDeclarationList([{ Kind: KindVariableDeclaration, name: keyName }]),
+    identifier("items"),
+    block([]),
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [keyName, { carrier: csharpStringTargetType() }],
+    ]),
+    iterationFacts: new Map([
+      [statement, {
+        operationId: "test.wrongForIn",
+        iterationKind: "sync",
+        lowering: { kind: "foreach" },
+        elementType: csharpStringTargetType(),
+      }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(output, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /for-in emission does not support provider iteration lowering 'foreach' with kind 'sync'/);
+});
+
+test("for-in rejects index-key facts whose key type is not finalized as string", () => {
+  const diagnostics = [];
+  const keyName = identifier("key");
+  const items = identifier("items");
+  const statement = forInStatement(
+    variableDeclarationList([{ Kind: KindVariableDeclaration, name: keyName }]),
+    items,
+    block([]),
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [keyName, { carrier: csharpSourcePrimitiveTargetType("int32") }],
+      [items, { carrier: { kind: "array", element: csharpSourcePrimitiveTargetType("int32") } }],
+    ]),
+    iterationFacts: new Map([
+      [statement, {
+        operationId: "test.indexKeys",
+        iterationKind: "property-key",
+        lowering: { kind: "index-key", lengthMember: "Length", keyConversion: "invariant-string" },
+        elementType: csharpSourcePrimitiveTargetType("int32"),
+      }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(output, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /index-key lowering requires finalized provider key type string/);
+});
+
+test("for-in emits object-shape key loops from finalized JS surface facts", () => {
+  const diagnostics = [];
+  const keyName = identifier("key");
+  const shape = identifier("shape");
+  const statement = forInStatement(
+    variableDeclarationList([{ Kind: KindVariableDeclaration, name: keyName }]),
+    shape,
+    block([]),
+  );
+  const objectShape = objectShapeFact("ShapeCarrier", [
+    { sourceName: "alpha", targetName: "Alpha", memberKind: "property", type: csharpSourcePrimitiveTargetType("int32") },
+    { sourceName: "beta", targetName: "Beta", memberKind: "property", type: csharpStringTargetType() },
+  ]);
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [keyName, { carrier: csharpStringTargetType() }],
+    ]),
+    objectShapeFacts: new Map([
+      [shape, objectShape],
+    ]),
+    iterationFacts: new Map([
+      [statement, {
+        operationId: "test.objectShape.keys",
+        iterationKind: "property-key",
+        lowering: { kind: "object-shape-keys" },
+        elementType: csharpStringTargetType(),
+      }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output[0].kind, "Block");
+  const statements = output[0].body.statements;
+  assert.equal(statements[0].name, "__tsonic_forInTarget0");
+  assert.deepEqual(statements[1], {
+    kind: "LocalDeclarationStatement",
+    name: "__tsonic_forInKeys0",
+    type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "string" } },
+    initializer: {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "string" },
+      elements: [
+        { kind: "LiteralExpression", value: "alpha" },
+        { kind: "LiteralExpression", value: "beta" },
+      ],
+    },
+  });
+  assert.equal(statements[2].kind, "ForStatement");
+  assert.deepEqual(statements[2].body.statements[0].initializer, {
+    kind: "ElementAccessExpression",
+    receiver: { kind: "IdentifierName", name: "__tsonic_forInKeys0" },
+    argument: { kind: "IdentifierName", name: "__tsonic_forInIndex0" },
+  });
+});
+
+test("for-in emits provider dictionary key foreach from finalized key-collection facts", () => {
+  const diagnostics = [];
+  const keyName = identifier("key");
+  const dictionary = identifier("dictionary");
+  const statement = forInStatement(
+    variableDeclarationList([{ Kind: KindVariableDeclaration, name: keyName }]),
+    dictionary,
+    block([]),
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [keyName, { carrier: csharpStringTargetType() }],
+      [dictionary, { carrier: recordDictionaryType(csharpStringTargetType(), csharpSourcePrimitiveTargetType("int32")) }],
+    ]),
+    iterationFacts: new Map([
+      [statement, {
+        operationId: "test.dictionary.keys",
+        iterationKind: "property-key",
+        lowering: { kind: "key-collection", keysMember: dictionaryKeysOperation() },
+        elementType: csharpStringTargetType(),
+      }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output[0].kind, "Block");
+  const foreachStatement = output[0].body.statements[1];
+  assert.deepEqual(foreachStatement, {
+    kind: "ForEachStatement",
+    itemType: { kind: "PredefinedType", name: "string" },
+    itemName: "key",
+    collection: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "__tsonic_forInTarget0" },
+      name: "Keys",
+    },
+    body: { kind: "Block", statements: [] },
+  });
+});
+
 test("throw statements require finalized throwable target carriers", () => {
   const diagnostics = [];
   const thrown = identifier("error");
@@ -501,6 +746,15 @@ function forOfStatement(initializer, expression, statement) {
   };
 }
 
+function forInStatement(initializer, expression, statement) {
+  return {
+    Kind: KindForInStatement,
+    Initializer: initializer,
+    Expression: expression,
+    Statement: statement,
+  };
+}
+
 function tryStatement(tryBlock, catchClauseNode, finallyBlock) {
   return {
     Kind: KindTryStatement,
@@ -633,6 +887,9 @@ function fakeInput(options = {}) {
         if (key === csharpTargetIterationFactKey) {
           return options.iterationFacts?.get(subject);
         }
+        if (key === csharpObjectShapeFactKey) {
+          return options.objectShapeFacts?.get(subject);
+        }
         return undefined;
       },
     },
@@ -702,3 +959,69 @@ const fakeAst = {
     IsImportTypeNode: () => false,
   },
 };
+
+function stringCodePointIterationFact() {
+  return {
+    operationId: "test.string.codePoints",
+    iterationKind: "sync",
+    lowering: {
+      kind: "string-code-point",
+      lengthMember: "Length",
+      substringMember: "Substring",
+      highSurrogateOperation: charSurrogateOperation("IsHighSurrogate"),
+      lowSurrogateOperation: charSurrogateOperation("IsLowSurrogate"),
+    },
+    elementType: csharpStringTargetType(),
+  };
+}
+
+function charSurrogateOperation(memberName) {
+  return {
+    kind: "member",
+    operationId: `System.Char.${memberName}`,
+    operationKind: "method",
+    memberName,
+    static: true,
+    declaringType: {
+      kind: "target-named",
+      id: "System.Char",
+      csharpRender: { kind: "predefined", name: "char" },
+    },
+    resultType: csharpSourcePrimitiveTargetType("bool"),
+  };
+}
+
+function objectShapeFact(name, members) {
+  return {
+    targetType: {
+      kind: "target-named",
+      id: `Test.${name}`,
+      csharpRender: { kind: "named", namespace: ["Test"], name },
+    },
+    members,
+  };
+}
+
+function recordDictionaryType(keyType, valueType) {
+  return {
+    kind: "target-named",
+    id: "System.Collections.Generic.Dictionary`2",
+    typeArguments: [keyType, valueType],
+    csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "Dictionary" },
+    csharpCollectionSurface: "record",
+  };
+}
+
+function dictionaryKeysOperation() {
+  return {
+    kind: "member",
+    operationId: "System.Collections.Generic.Dictionary`2.Keys",
+    operationKind: "property",
+    memberName: "Keys",
+    selectedMember: {
+      id: "System.Collections.Generic.Dictionary`2.Keys",
+      kind: "property",
+      targetName: "Keys",
+    },
+  };
+}

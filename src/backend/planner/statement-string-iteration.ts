@@ -63,8 +63,8 @@ export function planStringCodePointForOfStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const stringType = predefined("string");
-  if (selectedIteration.lowering.kind !== "string-code-point") {
-    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `String code-point for-of received provider lowering '${selectedIteration.lowering.kind}'.`));
+  if (selectedIteration.iterationKind !== "sync" || selectedIteration.lowering.kind !== "string-code-point") {
+    diagnostics.push(unsupportedNodeDiagnostic(statementNode, `String code-point for-of received provider lowering '${selectedIteration.lowering.kind}' with kind '${selectedIteration.iterationKind}'.`));
     return [];
   }
   if (!sameCsharpType(binding.type, stringType)) {

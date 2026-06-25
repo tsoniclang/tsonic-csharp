@@ -106,6 +106,9 @@ export function mapCsharpJsSurfaceCheckedIteration(
   context: ExtensionObservationContext<"operation.mapCheckedIteration">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> {
+  if (request.target !== undefined && request.target !== host.targetId) {
+    return deferObservation;
+  }
   const seededExpressionCarrier = context.factResolver.resolve(request.expression, runtimeCarrierFactKey)?.carrier;
   const expressionType = seededExpressionCarrier ??
     host.getTargetTypeRefForSubject(request.expression, context, csharpJsCheckedTypeQuery) ??

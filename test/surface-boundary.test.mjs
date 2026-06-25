@@ -15,6 +15,7 @@ import {
   createCsharpJsSurfaceOperationsProvider as createProductCsharpJsSurfaceOperationsProvider,
   createCsharpNodejsSurfaceOperationsProvider,
 } from "../dist/source/csharp-source-semantics/surface-extensions.js";
+import { mapCsharpJsSurfaceCheckedIteration } from "../dist/source/csharp-source-semantics/surfaces/js/iteration.js";
 import { createCsharpNodejsSurfaceBindingProvider } from "../dist/source/csharp-source-semantics/surfaces/nodejs/index.js";
 
 function createCsharpJsSurfaceOperationsProvider(host) {
@@ -1281,6 +1282,64 @@ test("JS surface maps Record element access through provider-owned Dictionary in
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.memberName, "Item");
 });
 
+test("JS surface maps string for-of to string-code-point iteration facts", () => {
+  const statement = {};
+  const expression = {};
+  const expressionType = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [expressionType, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedIteration({
+    target: "csharp",
+    statement,
+    expression,
+    sourceExpressionType: expressionType,
+    kind: "for-of",
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationKind, "iteration");
+  assert.equal(result.value.operation.targetOperation, "string-code-point");
+  const iteration = facts.get(statement, csharpTargetIterationFactKey);
+  assert.equal(iteration?.iterationKind, "sync");
+  assert.equal(iteration?.lowering.kind, "string-code-point");
+  assert.equal(iteration?.lowering.lengthMember, "Length");
+  assert.equal(iteration?.lowering.substringMember, "Substring");
+  assert.equal(iteration?.lowering.highSurrogateOperation.memberName, "IsHighSurrogate");
+  assert.deepEqual(iteration?.elementType, stringType());
+});
+
+test("JS surface maps object-shape for-in to finalized object-shape key facts", () => {
+  const statement = {};
+  const expression = {};
+  const facts = new TestFactStore();
+  const objectShape = surfaceObjectShapeFact("ShapeCarrier", [
+    { sourceName: "alpha", targetName: "Alpha", memberKind: "property", type: int32Type() },
+    { sourceName: "beta", targetName: "Beta", memberKind: "property", type: stringType() },
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map(), undefined, new Map([
+    [expression, objectShape],
+  ])));
+
+  const result = provider.mapCheckedIteration({
+    target: "csharp",
+    statement,
+    expression,
+    kind: "for-in",
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationKind, "iteration");
+  assert.equal(result.value.operation.targetOperation, "object-shape-keys");
+  const iteration = facts.get(statement, csharpTargetIterationFactKey);
+  assert.equal(iteration?.iterationKind, "property-key");
+  assert.deepEqual(iteration?.lowering, { kind: "object-shape-keys" });
+  assert.deepEqual(iteration?.elementType, stringType());
+});
+
 test("JS surface maps Record for-in through provider-owned Dictionary key facts", () => {
   const statement = {};
   const expression = {};
@@ -1309,6 +1368,36 @@ test("JS surface maps Record for-in through provider-owned Dictionary key facts"
   assert.equal(iteration?.lowering.keysMember.memberName, "Keys");
   assert.equal(iteration?.lowering.keysMember.selectedMember.id, "System.Collections.Generic.Dictionary`2.Keys");
   assert.deepEqual(iteration?.elementType, stringType());
+});
+
+test("JS surface iteration defers unsupported target selection without recording facts", () => {
+  const statement = {};
+  const expression = {};
+  const facts = new TestFactStore();
+
+  const result = mapCsharpJsSurfaceCheckedIteration({
+    target: "rust",
+    statement,
+    expression,
+    kind: "for-of",
+  }, fakeContext(facts), {
+    targetId: "csharp",
+    extensionId: "tsonic.csharp.surface.js",
+    getTargetTypeRefForSubject: () => stringType(),
+    getCsharpObjectShapeFactForSubject: () => undefined,
+    isCsharpStringType: (type) => type?.id === "System.String",
+    selectTargetMember: () => undefined,
+    csharpProviderDiagnostic: (_extensionId, extensionCode, diagnosticCode, message) => ({
+      code: `TS${diagnosticCode}`,
+      category: "error",
+      source: "tsonic-csharp",
+      extensionCode,
+      message,
+    }),
+  });
+
+  assert.equal(result.kind, "defer");
+  assert.equal(facts.get(statement, csharpTargetIterationFactKey), undefined);
 });
 
 test("JS surface rejects Record for-in without string-key enumeration facts", () => {
@@ -2196,7 +2285,7 @@ function sourceLibraryPropertyRequest(expression, sourceSelectedDeclaration, pro
   };
 }
 
-function fakeHost(receiverType, targetTypes = new Map(), targetBinding) {
+function fakeHost(receiverType, targetTypes = new Map(), targetBinding, objectShapeFacts = new Map()) {
   return {
     ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByTargetId: (targetId) => targetId === targetBinding.id ? targetBinding : undefined }),
     ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByMetadataName: (metadataName) => metadataName === "System.Collections.Generic.Dictionary`2" ? targetBinding : undefined }),
@@ -2206,7 +2295,7 @@ function fakeHost(receiverType, targetTypes = new Map(), targetBinding) {
       (receiverType !== undefined && subject === receiverType
       ? { kind: "array", element: { kind: "source-primitive", name: "int32" } }
       : undefined),
-    getCsharpObjectShapeFactForSubject: () => undefined,
+    getCsharpObjectShapeFactForSubject: (subject) => objectShapeFacts.get(subject),
     mapRuntimeCarrier: () => ({ kind: "defer" }),
   };
 }
@@ -2361,6 +2450,7 @@ function stringType() {
     id: "System.String",
     csharpRender: { kind: "predefined", name: "string" },
     csharpSpecialType: "string",
+    csharpTypeofRuntimeKind: "string",
   };
 }
 
@@ -2437,6 +2527,17 @@ function recordDictionaryType(keyType, valueType) {
     typeArguments: [keyType, valueType],
     csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "Dictionary" },
     csharpCollectionSurface: "record",
+  };
+}
+
+function surfaceObjectShapeFact(name, members) {
+  return {
+    targetType: {
+      kind: "target-named",
+      id: `Test.${name}`,
+      csharpRender: { kind: "named", namespace: ["Test"], name },
+    },
+    members,
   };
 }
 
