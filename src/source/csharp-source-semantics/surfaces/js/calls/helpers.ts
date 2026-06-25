@@ -1,0 +1,140 @@
+import {
+  runtimeCarrierFactKey,
+} from "@tsonic/tsts";
+import type {
+  CheckedCallMappingRequest,
+  ExtensionFactSubject,
+  ExtensionObservationContext,
+  TargetTypeRef,
+} from "@tsonic/tsts";
+import {
+  getCsharpArrayLikeElementType,
+} from "../arrays.js";
+import type {
+  CsharpJsSurfaceHost,
+} from "../source-library.js";
+import {
+  csharpJsCheckedTypeQuery,
+} from "../source-library.js";
+import {
+  asNodeSubject,
+} from "../../../ast-utils.js";
+import {
+  isCsharpRecordDictionaryTargetType,
+} from "../../../dictionaries.js";
+import type {
+  CsharpRecordDictionaryTargetTypeRef,
+} from "../../../dictionaries.js";
+
+export function getNonSemanticTargetType(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  if (node !== undefined && ast !== undefined && (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node))) {
+    return undefined;
+  }
+  return host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(subject, context, {
+    ...csharpJsCheckedTypeQuery,
+    allowSemanticTypeQuery: false,
+  }));
+}
+
+export function isNumericSourcePrimitive(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "source-primitive" &&
+    (
+      type.name === "float64" ||
+      type.name === "float32" ||
+      type.name === "int32" ||
+      type.name === "uint32" ||
+      type.name === "int16" ||
+      type.name === "uint16" ||
+      type.name === "int8" ||
+      type.name === "uint8"
+    );
+}
+
+export function isNewExpression(
+  subject: unknown,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  const node = asNodeSubject(subject as ExtensionFactSubject | undefined);
+  return context.compiler?.ast.is?.IsNewExpression(node) === true ||
+    (subject as { readonly Kind?: unknown }).Kind === "KindNewExpression";
+}
+
+export function getSourceLibraryCallReceiverElementType(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  return getSourceLibraryCallReceiverTargetTypes(request, context, host)
+    .map(getCsharpArrayLikeElementType)
+    .find((element): element is TargetTypeRef => element !== undefined);
+}
+
+export function getSourceLibraryCallReceiverTargetTypes(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): readonly TargetTypeRef[] {
+  const candidates = [
+    request.calleeReceiver,
+    request.calleeReceiverSymbol,
+    request.calleeReceiverResolvedSymbol,
+    request.calleeReceiverAliasedSymbol,
+    request.calleeReceiverType,
+    request.calleeReceiverTypeSymbol,
+  ];
+  const result: TargetTypeRef[] = [];
+  for (const candidate of candidates) {
+    const targetType = host.unwrapNullableTargetType(getTargetTypeRefForOptionalSubject(candidate, context, host));
+    if (targetType !== undefined && !result.includes(targetType)) {
+      result.push(targetType);
+    }
+  }
+  return result;
+}
+
+export function getSourceLibraryCallArgumentTargetTypes(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): readonly (TargetTypeRef | undefined)[] {
+  return request.arguments.map((argument) => {
+    const node = asNodeSubject(argument);
+    const isNestedCall = node !== undefined &&
+      (context.compiler?.ast.is.IsCallExpression(node) === true || context.compiler?.ast.is.IsNewExpression(node) === true);
+    return isNestedCall
+      ? host.unwrapNullableTargetType(context.facts.get(argument, runtimeCarrierFactKey)?.carrier)
+      : host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, {
+          ...csharpJsCheckedTypeQuery,
+          allowRuntimeCarrier: true,
+        }));
+  });
+}
+
+export function isStringKeyedRecordDictionaryTargetType(
+  type: TargetTypeRef,
+  host: CsharpJsSurfaceHost,
+): type is CsharpRecordDictionaryTargetTypeRef {
+  const typeArguments = type.kind === "target-named" ? type.typeArguments ?? [] : [];
+  const keyType = typeArguments[0];
+  return isCsharpRecordDictionaryTargetType(type) &&
+    host.isCsharpStringType(keyType);
+}
+
+function getTargetTypeRefForOptionalSubject(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
+  return subject === undefined
+    ? undefined
+    : host.getTargetTypeRefForSubject(subject, context, {
+        ...csharpJsCheckedTypeQuery,
+        allowSemanticTypeQuery: false,
+      });
+}
