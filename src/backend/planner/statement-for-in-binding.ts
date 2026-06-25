@@ -87,7 +87,9 @@ export function planForInBinding(
       kind: "LocalDeclarationStatement",
       name: requireCsharpIdentifier(Node_Text(variable.name), diagnostics, "For-in key binding"),
       node: first,
-      currentType: getCsharpTypeForNode(variable.name, sourceFile, input, undefined, diagnostics),
+      currentType: variable.Type === undefined
+        ? undefined
+        : getCsharpTypeForNode(variable.Type, sourceFile, input, undefined, diagnostics),
     };
   }
   if (HasSourceKind(input.ast, initializer, KindIdentifier)) {

@@ -17,9 +17,12 @@ import type {
 } from "../source-library.js";
 import {
   asNodeSubject,
+  getNodeField,
+  getNodeList,
 } from "../../../ast-utils.js";
 import {
   getNonSemanticTargetType,
+  getSourceLibraryCallArgumentTargetTypes,
   getSourceLibraryCallReceiverTargetTypes,
   isNewExpression,
   isNumericSourcePrimitive,
@@ -39,6 +42,14 @@ export function getPrevalidatedSourceLibraryCallMember(
   const jsonMember = getPrevalidatedJsonCallMember(sourceMember, candidates, request, context, host);
   if (jsonMember !== undefined) {
     return jsonMember;
+  }
+  const arrayFromMember = getPrevalidatedArrayFromCallMember(sourceMember, candidates, request, context, host);
+  if (arrayFromMember !== undefined) {
+    return arrayFromMember;
+  }
+  const arrayCallbackMember = getPrevalidatedArrayCallbackCallMember(sourceMember, candidates, request, context);
+  if (arrayCallbackMember !== undefined) {
+    return arrayCallbackMember;
   }
   return sourceMember.declaringName === "Object" &&
     sourceMember.memberName === "assign" &&
@@ -116,6 +127,86 @@ function getPrevalidatedDateCallMember(
   }
   return argumentCount <= 7
     ? candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32)")
+    : undefined;
+}
+
+function getPrevalidatedArrayFromCallMember(
+  sourceMember: SourceLibraryMember,
+  candidates: readonly TargetMember[],
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetMember | undefined {
+  if (sourceMember.declaringName !== "Array" || sourceMember.memberName !== "from" || request.arguments.length !== 1) {
+    return undefined;
+  }
+  const sourceType = getSourceLibraryCallArgumentTargetTypes(request, context, host)[0];
+  if (host.isCsharpStringType(sourceType)) {
+    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Array.from:string:native");
+  }
+  if (sourceType !== undefined && getCsharpArrayLikeElementType(sourceType) !== undefined) {
+    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Array.from:array:native");
+  }
+  return undefined;
+}
+
+function getPrevalidatedArrayCallbackCallMember(
+  sourceMember: SourceLibraryMember,
+  candidates: readonly TargetMember[],
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): TargetMember | undefined {
+  if (
+    request.sourceSelectedSignature === undefined ||
+    (sourceMember.declaringName !== "Array" && sourceMember.declaringName !== "ReadonlyArray") ||
+    !arrayCallbackSourceMembers.has(sourceMember.memberName)
+  ) {
+    return undefined;
+  }
+  const callbackArgumentIndex = sourceMember.memberName === "from" ? 1 : 0;
+  const callbackParameterCount = getSourceFunctionParameterCount(request.arguments[callbackArgumentIndex], context);
+  if (callbackParameterCount === undefined) {
+    return undefined;
+  }
+  const targetCallbackParameterIndex = sourceMember.memberName === "from" ? 1 : 1;
+  const matching = candidates.filter((candidate) =>
+    getTargetDelegateParameterCount(candidate.parameters[targetCallbackParameterIndex]?.type) === callbackParameterCount
+  );
+  return matching.length === 1 ? matching[0] : undefined;
+}
+
+const arrayCallbackSourceMembers = new Set([
+  "every",
+  "filter",
+  "find",
+  "findIndex",
+  "findLast",
+  "findLastIndex",
+  "forEach",
+  "from",
+  "map",
+  "some",
+  "sort",
+]);
+
+function getSourceFunctionParameterCount(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): number | undefined {
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  if (node === undefined || ast === undefined) {
+    return undefined;
+  }
+  if (!ast.is.IsArrowFunction(node) && !ast.is.IsFunctionExpression(node)) {
+    return undefined;
+  }
+  return getNodeList(getNodeField(node, "Parameters")).length;
+}
+
+function getTargetDelegateParameterCount(type: TargetTypeRef | undefined): number | undefined {
+  return type?.kind === "target-named"
+    ? (type as { readonly csharpDelegateSignature?: { readonly parameters?: readonly unknown[] } }).csharpDelegateSignature?.parameters?.length
     : undefined;
 }
 

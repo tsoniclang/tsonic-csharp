@@ -166,7 +166,7 @@ function getCsharpCheckedOperatorFactsFromSyntax(
   if (operatorRequiresSelectedProviderIdentity(operator, left, right, host)) {
     return undefined;
   }
-  const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right);
+  const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right, expectedResult);
   const operationId = `tsonic.csharp.operator.${targetOperator}`;
   return {
     operation: targetOperation(

@@ -156,7 +156,7 @@ export function mapCsharpCheckedOperator(
   if (operatorRequiresSelectedProviderIdentity(request.operator, left, right, host)) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# provider-owned operator '${request.operator}' requires an exact finalized provider operator identity selected by TSTS. The current checked operator observation request exposes operands and symbols only, not a selected provider operator member id.`);
   }
-  const resultType = getCsharpOperatorResultTypeRef(request, left, right);
+  const resultType = getCsharpOperatorResultTypeRef(request, left, right, context);
   const operationId = `tsonic.csharp.operator.${targetOperator}`;
   recordCsharpTargetOperation(context, request.expression, csharpTargetTokenOperatorOperation(operationId, targetOperator, resultType), [{ message: "C# source operator token operation recorded after TSTS accepted the operation." }]);
   return acceptObservation<CheckedOperationMappingResult>({
@@ -414,7 +414,7 @@ function getNestedCheckedOperatorTargetTypeRef(
   if (operatorRequiresSelectedProviderIdentity(operator, left, right, host)) {
     return undefined;
   }
-  const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right);
+  const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right, operator === "??" ? expectedResult : undefined);
   const operationId = `tsonic.csharp.operator.${targetOperator}`;
   const operation = targetOperation(
     operationId,
@@ -432,6 +432,7 @@ export function getCsharpOperatorResultTypeRefForOperator(
   operator: string,
   left: TargetTypeRef,
   right: TargetTypeRef | undefined,
+  expectedResult?: TargetTypeRef,
 ): TargetTypeRef {
   switch (operator) {
     case "===":
@@ -448,7 +449,7 @@ export function getCsharpOperatorResultTypeRefForOperator(
     case "typeof":
       return csharpStringTargetType();
     case "??":
-      return unwrapNullableTargetType(left) ?? right ?? left;
+      return expectedResult ?? unwrapNullableTargetType(left) ?? right ?? left;
     default:
       return left;
   }
@@ -522,6 +523,10 @@ function getCsharpOperatorResultTypeRef(
   request: CheckedOperatorMappingRequest,
   left: TargetTypeRef,
   right: TargetTypeRef | undefined,
+  context: ExtensionObservationContext,
 ): TargetTypeRef {
-  return getCsharpOperatorResultTypeRefForOperator(request.operator, left, right);
+  const expectedResult = request.operator === "??"
+    ? context.factResolver.resolve(request.expression, runtimeCarrierFactKey)?.carrier
+    : undefined;
+  return getCsharpOperatorResultTypeRefForOperator(request.operator, left, right, expectedResult);
 }

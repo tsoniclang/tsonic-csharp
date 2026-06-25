@@ -56,7 +56,8 @@ export function planParametersWithPrelude(
     diagnoseTypeScriptOnlyRuntimeShapeModifiers(parameterNode!, "parameter declaration", diagnostics);
     if (HasSourceKind(input.ast, parameter.name, KindIdentifier)) {
       const typeSubject = getParameterTypeSubject(parameter);
-      const type = getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics);
+      const type = getArrayBoundaryParameterType(parameterNode, parameter.name, typeSubject, parameterQuestionToken(parameter), input, diagnostics) ??
+        getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics);
       const defaultValue = planParameterDefaultValue(parameter.Initializer, parameterQuestionToken(parameter), sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
@@ -82,7 +83,8 @@ export function planParametersWithPrelude(
     const bindingName = parameter.name;
     if (bindingName !== undefined && (HasSourceKind(input.ast, bindingName, KindObjectBindingPattern) || HasSourceKind(input.ast, bindingName, KindArrayBindingPattern))) {
       const typeSubject = getParameterTypeSubject(parameter) ?? bindingName;
-      const type = getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
+      const type = getArrayBoundaryParameterType(parameterNode, bindingName, typeSubject, parameterQuestionToken(parameter), input, diagnostics) ??
+        getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics, invalidCsharpType("destructured parameter type"));
       const defaultValue = planParameterDefaultValue(parameter.Initializer, parameterQuestionToken(parameter), sourceFile, input, diagnostics, type, typeSubject, state);
       if (defaultValue !== undefined) {
         hasDefaultParameter = true;
@@ -101,7 +103,8 @@ export function planParametersWithPrelude(
       continue;
     }
     const typeSubject = getParameterTypeSubject(parameter);
-    const type = getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics);
+    const type = getArrayBoundaryParameterType(parameterNode, parameter.name, typeSubject, parameterQuestionToken(parameter), input, diagnostics) ??
+      getParameterType(typeSubject, parameterQuestionToken(parameter), sourceFile, input, diagnostics);
     const defaultValue = planParameterDefaultValue(parameter.Initializer, parameterQuestionToken(parameter), sourceFile, input, diagnostics, type, typeSubject, state);
     if (defaultValue !== undefined) {
       hasDefaultParameter = true;
@@ -175,6 +178,30 @@ function getParameterType(
   errorType?: CsharpTypeNode,
 ): CsharpTypeNode {
   const type = getCsharpTypeForNode(typeSubject, sourceFile, input, errorType, diagnostics);
+  return questionToken === undefined || type.kind === "NullableType" || type.kind === "InvalidType"
+    ? type
+    : { kind: "NullableType", inner: type };
+}
+
+function getArrayBoundaryParameterType(
+  parameterNode: Node | undefined,
+  nameNode: Node | undefined,
+  typeSubject: Node | undefined,
+  questionToken: Node | undefined,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  const boundary = input.facts.getFact(typeSubject, csharpArrayBoundaryFactKey) ??
+    input.facts.getFact(nameNode, csharpArrayBoundaryFactKey) ??
+    input.facts.getFact(parameterNode, csharpArrayBoundaryFactKey);
+  if (boundary === undefined) {
+    return undefined;
+  }
+  const type = csharpTypeFromTargetTypeRef(boundary.publicType);
+  if (type === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(parameterNode ?? nameNode ?? typeSubject!, "Array parameter boundary requires a renderable finalized public ABI type."));
+    return invalidCsharpType("array parameter public ABI type");
+  }
   return questionToken === undefined || type.kind === "NullableType" || type.kind === "InvalidType"
     ? type
     : { kind: "NullableType", inner: type };

@@ -23,6 +23,7 @@ import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   allocateForOfItem,
+  declareCsharpLocalBindingName,
   planBindingPatternFromExpression,
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
@@ -177,16 +178,21 @@ function planForOfBinding(
         ),
       };
     }
-    const planned = planLocalDeclaration(first, sourceFile, input, diagnostics, state);
-    const inferredItemType = variable.Type === undefined
-      ? getForOfElementType(selectedIteration, first, diagnostics)
-      : undefined;
-    if (variable.Type === undefined && inferredItemType === undefined) {
-      return undefined;
+    if (variable.Type === undefined) {
+      const inferredItemType = getForOfElementType(selectedIteration, first, diagnostics);
+      if (inferredItemType === undefined) {
+        return undefined;
+      }
+      return {
+        kind: "VariableDeclarator",
+        name: declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "For-of binding name", "forOfItem"),
+        type: inferredItemType,
+        prelude: [],
+      };
     }
+    const planned = planLocalDeclaration(first, sourceFile, input, diagnostics, state);
     return {
       ...planned,
-      ...(inferredItemType === undefined ? {} : { type: inferredItemType }),
       prelude: [],
     };
   }

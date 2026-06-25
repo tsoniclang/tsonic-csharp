@@ -257,10 +257,26 @@ function getFinalizedNullishResultType(
     return undefined;
   }
   if (!sameCsharpType(resultType, expectedType)) {
+    const leftUnwrappedResultType = getNullishOperandUnwrappedResultType(left, input);
+    if (leftUnwrappedResultType !== undefined && sameCsharpType(leftUnwrappedResultType, expectedType)) {
+      return expectedType;
+    }
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# nullish coalescing expected-type emission requires the finalized operator result target type to match the enclosing expected target type."));
     return undefined;
   }
   return resultType;
+}
+
+function getNullishOperandUnwrappedResultType(
+  node: Node,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const resultType = input.facts.getFact(node, csharpTargetOperationFactKey)?.resultType;
+  if (resultType === undefined) {
+    return undefined;
+  }
+  const rendered = csharpTypeFromTargetTypeRef(resultType);
+  return rendered?.kind === "NullableType" ? rendered.inner : undefined;
 }
 
 function planBinaryOperand(
