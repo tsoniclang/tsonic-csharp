@@ -89,7 +89,6 @@ export function createCsharpJsSurfaceExtension(context: TargetSurfaceExtensionCo
       dependsOn: [tsonicCoreSourceExtensionId],
     },
     initialize(extensionContext): void {
-      extensionContext.registerTargetSemanticProvider(createCsharpJsSurfaceOperationsProvider(hosts));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts);
         recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts);
@@ -116,7 +115,6 @@ export function createCsharpNodejsSurfaceExtension(context: TargetSurfaceExtensi
     initialize(extensionContext): void {
       void context;
       extensionContext.registerTargetBindingProvider(createCsharpNodejsSurfaceBindingProvider());
-      extensionContext.registerTargetSemanticProvider(createCsharpNodejsSurfaceOperationsProvider());
     },
   };
 }

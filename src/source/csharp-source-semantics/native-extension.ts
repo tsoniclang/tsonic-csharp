@@ -30,7 +30,7 @@ import {
   asType,
 } from "./target-ref-utils.js";
 import {
-  createCsharpNativeOperationsProvider,
+  createCsharpTargetOperationsProvider,
 } from "./operations-provider.js";
 import {
   recordCsharpRuntimeCarrierFactsBeforeFinalization,
@@ -96,7 +96,10 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         references: hosts.dotnetReflectionReferences,
         targetFramework: hosts.dotnetTargetFramework,
       }));
-      extensionContext.registerTargetSemanticProvider(createCsharpNativeOperationsProvider(hosts.operationsProviderHost));
+      extensionContext.registerTargetSemanticProvider(createCsharpTargetOperationsProvider(hosts.operationsProviderHost, {
+        jsSurface: context.selectedSurfaces.some((surface) => surface.id === "js"),
+        nodejsSurface: context.selectedSurfaces.some((surface) => surface.id === "nodejs"),
+      }));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
         recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
