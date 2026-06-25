@@ -62,6 +62,105 @@ test("target member selection does not treat System.Object as an implicit wildca
   );
 });
 
+test("C# provider validates generic constraints only from finalized target facts", () => {
+  const provider = getNativeSemanticProvider({
+    bindings: [
+      {
+        id: "Example.Widget",
+        sourceName: "Widget",
+        targetName: "Widget",
+        target: "csharp",
+        kind: "class",
+        implementedContracts: [{
+          kind: "implements",
+          contract: "Example.ITagged",
+        }],
+        members: [{
+          id: "Example.Widget..ctor()",
+          sourceName: "constructor",
+          targetName: ".ctor",
+          kind: "constructor",
+          parameters: [],
+          returnType: { kind: "target-named", id: "Example.Widget" },
+        }],
+      },
+      {
+        id: "Example.StructValue",
+        sourceName: "StructValue",
+        targetName: "StructValue",
+        target: "csharp",
+        kind: "struct",
+      },
+    ],
+  });
+
+  const widget = { kind: "target-named", id: "Example.Widget" };
+  const structValue = { kind: "target-named", id: "Example.StructValue" };
+  const widgetArray = { kind: "array", element: widget };
+
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "reference-type" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widgetArray,
+    constraint: { kind: "reference-type" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: structValue,
+    constraint: { kind: "value-type" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "constructible" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "implements", contract: "Example.ITagged" },
+  }, fakeObservationContext({})).kind, "accept");
+});
+
+test("C# provider rejects generic constraints without finalized target proof", () => {
+  const provider = getNativeSemanticProvider({
+    bindings: [{
+      id: "Example.Widget",
+      sourceName: "Widget",
+      targetName: "Widget",
+      target: "csharp",
+      kind: "class",
+    }],
+  });
+  const widget = { kind: "target-named", id: "Example.Widget" };
+  const unknown = { kind: "target-named", id: "Example.Unknown" };
+
+  const missingContract = provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "implements", contract: "Example.ITagged" },
+  }, fakeObservationContext({}));
+  assert.equal(missingContract.kind, "reject");
+  assert.equal(missingContract.diagnostic.extensionCode, "CSHARP_TARGET_CONSTRAINT_INVALID");
+
+  const missingBinding = provider.validateTargetConstraint({
+    target: "csharp",
+    source: unknown,
+    constraint: { kind: "reference-type" },
+  }, fakeObservationContext({}));
+  assert.equal(missingBinding.kind, "reject");
+
+  const unsupportedConstraint = provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "target-specific", target: "rust", name: "Send" },
+  }, fakeObservationContext({}));
+  assert.equal(unsupportedConstraint.kind, "reject");
+});
+
 test("C# provider selects from a proven provider binding using checked source member and target argument facts", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -1294,9 +1393,11 @@ test("target member selection does not treat opaque any or unknown as wildcard t
   }
 });
 
-function getNativeSemanticProvider() {
+function getNativeSemanticProvider(options = {}) {
+  const bindings = new Map((options.bindings ?? []).map((binding) => [binding.id, binding]));
+  const baseTypes = new Map(options.baseTypes ?? []);
   return createCsharpNativeOperationsProvider({
-    getCsharpTargetBindingByTargetId: () => undefined,
+    getCsharpTargetBindingByTargetId: (targetId) => bindings.get(targetId),
     getCsharpTargetBindingByMetadataName: () => undefined,
     getTargetTypeRefForSubject(subject, context) {
       if (subject !== undefined && typeof subject === "object" && typeof subject.kind === "string") {
@@ -1307,6 +1408,9 @@ function getNativeSemanticProvider() {
         kind: "source-primitive",
         name: primitive.kind,
       };
+    },
+    getBaseTargetTypeRef(type) {
+      return type.kind === "target-named" ? baseTypes.get(type.id) : undefined;
     },
     getCsharpObjectShapeFactForSubject: () => undefined,
     mapRuntimeCarrier() {

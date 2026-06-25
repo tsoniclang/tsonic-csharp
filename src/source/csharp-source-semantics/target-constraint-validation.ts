@@ -1,0 +1,261 @@
+import {
+  acceptObservation,
+  deferObservation,
+  rejectObservation,
+} from "@tsonic/tsts";
+import type {
+  ExtensionEvidence,
+  ExtensionObservation,
+  ExtensionObservationContext,
+  TargetConstraint,
+  TargetConstraintValidationRequest,
+  TargetTypeRef,
+} from "@tsonic/tsts";
+import {
+  csharpProviderDiagnostic,
+} from "./diagnostics.js";
+import {
+  csharpTargetId,
+} from "./identity.js";
+import type {
+  CsharpOperationsProviderHost,
+} from "./operations-provider.js";
+import {
+  csharpSourcePrimitiveTargetType,
+} from "./target-types.js";
+import {
+  targetTypeRefEquals,
+  targetTypeRefKey,
+} from "./target-ref-utils.js";
+
+type CsharpTargetConstraintValidation =
+  | {
+      readonly valid: true;
+      readonly evidence: readonly ExtensionEvidence[];
+    }
+  | {
+      readonly valid: false;
+      readonly reason: string;
+      readonly evidence: readonly ExtensionEvidence[];
+    };
+
+export function validateCsharpTargetConstraint(
+  request: TargetConstraintValidationRequest,
+  context: ExtensionObservationContext<"target.validateConstraint">,
+  host: CsharpOperationsProviderHost,
+): ExtensionObservation<boolean> {
+  if (request.target !== undefined && request.target !== csharpTargetId) {
+    return deferObservation;
+  }
+  const source = host.getTargetTypeRefForSubject(request.source, context);
+  const validation = validateCsharpTargetConstraintForType(source, request.constraint, host, new Set());
+  if (validation.valid) {
+    return acceptObservation(true, validation.evidence);
+  }
+  return rejectCsharpTargetConstraint(request, context, validation.reason, validation.evidence);
+}
+
+function validateCsharpTargetConstraintForType(
+  source: TargetTypeRef | undefined,
+  constraint: TargetConstraint,
+  host: CsharpOperationsProviderHost,
+  visited: Set<string>,
+): CsharpTargetConstraintValidation {
+  if (source === undefined) {
+    return invalidConstraint(
+      "C# target generic constraint requires a finalized target type fact for the selected source type argument.",
+      [{ message: "Missing target type fact", details: constraint }],
+    );
+  }
+  switch (constraint.kind) {
+    case "value-type":
+      return isCsharpValueType(source, host)
+        ? validConstraint("C# target generic constraint proved a value-type target argument.", source, constraint)
+        : invalidConstraint(`C# target generic constraint requires a value type, but received '${targetTypeRefKey(source)}'.`, constraintEvidence(source, constraint));
+    case "reference-type":
+      return isCsharpReferenceType(source, host)
+        ? validConstraint("C# target generic constraint proved a reference-type target argument.", source, constraint)
+        : invalidConstraint(`C# target generic constraint requires a reference type, but received '${targetTypeRefKey(source)}'.`, constraintEvidence(source, constraint));
+    case "constructible":
+      return hasCsharpPublicParameterlessConstruction(source, host)
+        ? validConstraint("C# target generic constraint proved a parameterless construction path.", source, constraint)
+        : invalidConstraint(`C# target generic constraint requires a public parameterless constructor, but no finalized provider fact proves one for '${targetTypeRefKey(source)}'.`, constraintEvidence(source, constraint));
+    case "unmanaged":
+      return isCsharpUnmanagedType(source, host)
+        ? validConstraint("C# target generic constraint proved an unmanaged target argument.", source, constraint)
+        : invalidConstraint(`C# target generic constraint requires an unmanaged type, but no finalized provider fact proves one for '${targetTypeRefKey(source)}'.`, constraintEvidence(source, constraint));
+    case "implements":
+      return implementsCsharpContract(source, constraint, host, visited)
+        ? validConstraint("C# target generic constraint proved an implemented target contract.", source, constraint)
+        : invalidConstraint(`C# target generic constraint requires '${constraint.contract}', but no finalized provider fact proves '${targetTypeRefKey(source)}' implements it.`, constraintEvidence(source, constraint));
+    case "copy":
+    case "clone":
+    case "default":
+    case "sized":
+    case "lifetime":
+    case "target-specific":
+      return invalidConstraint(
+        `C# target generic constraint '${constraint.kind}' is not a supported C# constraint kind.`,
+        constraintEvidence(source, constraint),
+      );
+  }
+}
+
+function isCsharpValueType(type: TargetTypeRef, host: CsharpOperationsProviderHost): boolean {
+  if (type.kind === "source-primitive") {
+    return true;
+  }
+  if (type.kind !== "target-named") {
+    return false;
+  }
+  if ((type as { readonly csharpValueType?: true }).csharpValueType === true) {
+    return true;
+  }
+  const binding = host.getCsharpTargetBindingByTargetId(type.id);
+  return binding?.kind === "struct" || binding?.kind === "enum";
+}
+
+function isCsharpReferenceType(type: TargetTypeRef, host: CsharpOperationsProviderHost): boolean {
+  if (type.kind === "array") {
+    return true;
+  }
+  if (type.kind === "function-pointer") {
+    return false;
+  }
+  if (type.kind !== "target-named") {
+    return false;
+  }
+  if ((type as { readonly csharpSpecialType?: string }).csharpSpecialType === "string") {
+    return true;
+  }
+  const binding = host.getCsharpTargetBindingByTargetId(type.id);
+  return binding?.kind === "class" || binding?.kind === "interface" || binding?.kind === "delegate";
+}
+
+function hasCsharpPublicParameterlessConstruction(type: TargetTypeRef, host: CsharpOperationsProviderHost): boolean {
+  if (isCsharpValueType(type, host)) {
+    return true;
+  }
+  if (type.kind !== "target-named") {
+    return false;
+  }
+  const binding = host.getCsharpTargetBindingByTargetId(type.id);
+  return binding?.members?.some((member) =>
+    member.kind === "constructor" &&
+    member.parameters.length === 0
+  ) ?? false;
+}
+
+function isCsharpUnmanagedType(type: TargetTypeRef, host: CsharpOperationsProviderHost): boolean {
+  if (type.kind === "source-primitive") {
+    return true;
+  }
+  if (type.kind !== "target-named") {
+    return false;
+  }
+  const binding = host.getCsharpTargetBindingByTargetId(type.id);
+  return binding?.kind === "struct" && (binding as { readonly csharpUnmanaged?: true }).csharpUnmanaged === true;
+}
+
+function implementsCsharpContract(
+  source: TargetTypeRef,
+  constraint: Extract<TargetConstraint, { readonly kind: "implements" }>,
+  host: CsharpOperationsProviderHost,
+  visited: Set<string>,
+): boolean {
+  if (source.kind === "source-primitive") {
+    return primitiveImplementsCsharpContract(source.name, constraint);
+  }
+  if (source.kind !== "target-named") {
+    return false;
+  }
+  const relationKey = `${targetTypeRefKey(source)}:${constraint.contract}`;
+  if (visited.has(relationKey)) {
+    return false;
+  }
+  visited.add(relationKey);
+  const binding = host.getCsharpTargetBindingByTargetId(source.id);
+  if (binding?.implementedContracts?.some((candidate) => implementedContractMatches(candidate, constraint)) === true) {
+    return true;
+  }
+  const baseType = host.getBaseTargetTypeRef?.(source);
+  return baseType === undefined ? false : implementsCsharpContract(baseType, constraint, host, visited);
+}
+
+function primitiveImplementsCsharpContract(
+  primitive: string,
+  constraint: Extract<TargetConstraint, { readonly kind: "implements" }>,
+): boolean {
+  const primitiveTarget = csharpSourcePrimitiveTargetType(primitive as Parameters<typeof csharpSourcePrimitiveTargetType>[0]);
+  return primitiveTarget.kind === "target-named" &&
+    (constraint.contract === "System.IEquatable`1" || constraint.contract.endsWith("::System.IEquatable`1")) &&
+    (constraint.typeArguments === undefined ||
+      constraint.typeArguments.length === 0 ||
+      constraint.typeArguments.some((argument) => targetTypeRefEquals(argument, primitiveTarget)));
+}
+
+function implementedContractMatches(
+  candidate: TargetConstraint,
+  expected: Extract<TargetConstraint, { readonly kind: "implements" }>,
+): boolean {
+  if (candidate.kind !== "implements" || candidate.contract !== expected.contract) {
+    return false;
+  }
+  const candidateArguments = candidate.typeArguments ?? [];
+  const expectedArguments = expected.typeArguments ?? [];
+  if (expectedArguments.length === 0) {
+    return true;
+  }
+  return candidateArguments.length === expectedArguments.length &&
+    candidateArguments.every((argument, index) => targetTypeRefEquals(argument, expectedArguments[index]!));
+}
+
+function validConstraint(message: string, source: TargetTypeRef, constraint: TargetConstraint): CsharpTargetConstraintValidation {
+  return {
+    valid: true,
+    evidence: [
+      { message, details: { source, constraint } },
+    ],
+  };
+}
+
+function invalidConstraint(reason: string, evidence: readonly ExtensionEvidence[]): CsharpTargetConstraintValidation {
+  return {
+    valid: false,
+    reason,
+    evidence,
+  };
+}
+
+function constraintEvidence(source: TargetTypeRef, constraint: TargetConstraint): readonly ExtensionEvidence[] {
+  return [
+    { message: "C# target generic constraint", details: constraint },
+    { message: "Selected target type argument", details: source },
+  ];
+}
+
+function rejectCsharpTargetConstraint(
+  request: TargetConstraintValidationRequest,
+  context: ExtensionObservationContext<"target.validateConstraint">,
+  message: string,
+  evidence: readonly ExtensionEvidence[],
+): ExtensionObservation<boolean> {
+  return rejectObservation({
+    ...csharpProviderDiagnostic(
+      context.extensionId,
+      "CSHARP_TARGET_CONSTRAINT_INVALID",
+      9100145,
+      message,
+    ),
+    nodeOrSpan: request.source,
+    evidence,
+    identity: `csharp-target-constraint:${subjectIdentity(request.source)}`,
+  });
+}
+
+function subjectIdentity(subject: unknown): string {
+  if (subject !== null && typeof subject === "object" && "id" in subject) {
+    return String((subject as { readonly id?: unknown }).id ?? "unknown");
+  }
+  return `${typeof subject}:${String(subject)}`;
+}

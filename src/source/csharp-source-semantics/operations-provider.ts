@@ -54,6 +54,9 @@ import {
   observeCsharpPostCheckAssignability,
 } from "./checked-assignability-validation.js";
 import {
+  validateCsharpTargetConstraint,
+} from "./target-constraint-validation.js";
+import {
   getSourceLibraryMember,
 } from "./source-library.js";
 
@@ -145,6 +148,9 @@ export function createCsharpCompositeOperationsProvider(
     },
     observePostCheckAssignability(request, context) {
       return observeCsharpPostCheckAssignability(request, context, host);
+    },
+    validateTargetConstraint(request, context) {
+      return validateCsharpTargetConstraint(request, context, host);
     },
     mapCheckedIteration(request, context) {
       return useObservationOrWhenDeferred(
