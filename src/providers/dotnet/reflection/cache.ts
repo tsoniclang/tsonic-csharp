@@ -24,6 +24,8 @@ export interface DotnetProviderCacheRequest {
   readonly moduleSpecifier: string;
   readonly namespaceName: string;
   readonly requestedExports: readonly string[] | undefined;
+  readonly requestedTargetIds: readonly string[] | undefined;
+  readonly requestedMetadataNames: readonly string[] | undefined;
   readonly broadImport: boolean | undefined;
   readonly referenceDirectory: string | undefined;
   readonly referenceIdentities: readonly Readonly<Record<string, unknown>>[];

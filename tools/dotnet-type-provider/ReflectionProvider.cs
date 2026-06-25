@@ -64,8 +64,17 @@ sealed partial class ReflectionProvider
         var requestedExports = request.Exports.Count == 0
             ? null
             : request.Exports.ToHashSet(StringComparer.Ordinal);
+        var requestedTargetIds = request.TargetIds.Count == 0
+            ? null
+            : request.TargetIds.ToHashSet(StringComparer.Ordinal);
+        var requestedMetadataNames = request.MetadataNames.Count == 0
+            ? null
+            : request.MetadataNames.ToHashSet(StringComparer.Ordinal);
+        var requestedSlice = requestedExports is not null ||
+            requestedTargetIds is not null ||
+            requestedMetadataNames is not null;
         var sourceGroups = allTypes
-            .Where(type => requestedExports is null || requestedExports.Contains(ProviderSourceTypeName(type)))
+            .Where(type => IncludesRequestedType(type, requestedExports, requestedTargetIds, requestedMetadataNames))
             .GroupBy(ProviderSourceTypeName, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .ToArray();
@@ -86,7 +95,7 @@ sealed partial class ReflectionProvider
                 .Where(export => export is not null)
                 .Cast<object>())
             .ToArray();
-        var targetOnlyTypes = requestedExports is null ? allTypes
+        var targetOnlyTypes = !requestedSlice ? allTypes
             .Where(type => !exportTypeNames.Contains(TargetId(type)))
             .Select(ToTypeExport)
             .Where(export => export is not null)
@@ -109,6 +118,21 @@ sealed partial class ReflectionProvider
             targetOnlyTypes = targetOnlyTypes.Length == 0 ? null : targetOnlyTypes,
             unsupportedExports = unsupportedExports.Length == 0 ? null : unsupportedExports,
         };
+    }
+
+    bool IncludesRequestedType(
+        Type type,
+        ISet<string>? requestedExports,
+        ISet<string>? requestedTargetIds,
+        ISet<string>? requestedMetadataNames)
+    {
+        if (requestedExports is null && requestedTargetIds is null && requestedMetadataNames is null)
+        {
+            return true;
+        }
+        return requestedExports?.Contains(ProviderSourceTypeName(type)) == true ||
+            requestedTargetIds?.Contains(TargetId(type)) == true ||
+            requestedMetadataNames?.Contains(MetadataName(type)) == true;
     }
 
     static object? ModuleAssemblyReference(Type[] types)

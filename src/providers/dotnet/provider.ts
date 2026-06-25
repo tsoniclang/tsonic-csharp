@@ -43,6 +43,8 @@ export interface DotnetProviderModuleContext {
   readonly targetFramework?: string;
   readonly references?: readonly string[];
   readonly requestedExports?: readonly string[];
+  readonly requestedTargetIds?: readonly string[];
+  readonly requestedMetadataNames?: readonly string[];
   readonly broadImport?: boolean;
 }
 

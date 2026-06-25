@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 import test from "node:test";
 
 import {
@@ -9,6 +10,9 @@ import {
   dotnetProviderTelemetryCounters,
   formatDotnetProviderTelemetrySnapshot,
 } from "../dist/providers/dotnet/index.js";
+import {
+  createDotnetProviderToolRunner,
+} from "../dist/providers/dotnet/reflection/tool.js";
 
 test(".NET provider telemetry exposes required performance counters", () => {
   const telemetry = createDotnetProviderTelemetry();
@@ -278,4 +282,51 @@ test(".NET reflection provider broker reuses module cache across provider instan
   assert.equal(secondSnapshot.memoryCacheMisses, 0);
   assert.equal(secondSnapshot.diskCacheHits, 0);
   assert.equal(secondSnapshot.diskCacheMisses, 0);
+});
+
+test(".NET reflection provider tool filters target-binding lookups without broad namespace exports", () => {
+  const telemetry = createDotnetProviderTelemetry();
+  const runner = createDotnetProviderToolRunner({
+    toolProjectPath: resolve("tools/dotnet-type-provider/DotnetTypeProvider.csproj"),
+    toolBuildRoot: resolve(".temp/test-dotnet-type-provider-tool"),
+    telemetry,
+  });
+  const byMetadata = runner.run([
+    "--namespace",
+    "System",
+    "--module-specifier",
+    "@tsonic/dotnet/System.js",
+    "--metadata-name",
+    "System.Convert",
+  ]);
+  assert.equal(byMetadata.status, 0, byMetadata.stderr);
+  const metadataModel = JSON.parse(byMetadata.stdout);
+  const metadataSourceNames = metadataModel.exports.map((declaration) => declaration.sourceName);
+  assert.equal(metadataSourceNames.includes("Convert"), true);
+  assert.equal(metadataSourceNames.includes("Console"), false);
+  assert.equal(metadataSourceNames.includes("Environment"), false);
+  assert.equal(metadataSourceNames.length < 40, true);
+  assert.equal(metadataModel.targetOnlyTypes, undefined);
+  assert.equal(metadataModel.unsupportedExports, undefined);
+
+  const targetId = metadataModel.exports[0].targetId;
+  assert.equal(typeof targetId, "string");
+  const byTargetId = runner.run([
+    "--namespace",
+    "System",
+    "--module-specifier",
+    "@tsonic/dotnet/System.js",
+    "--target-id",
+    targetId,
+  ]);
+  assert.equal(byTargetId.status, 0, byTargetId.stderr);
+  const targetIdModel = JSON.parse(byTargetId.stdout);
+  const targetIdExports = targetIdModel.exports.map((declaration) => declaration.targetId);
+  assert.equal(targetIdExports.includes(targetId), true);
+  assert.equal(targetIdModel.exports.map((declaration) => declaration.sourceName).includes("Environment"), false);
+  assert.equal(targetIdModel.targetOnlyTypes, undefined);
+
+  const snapshot = telemetry.snapshot();
+  assert.equal(snapshot.toolInvocations, 2);
+  assert.equal(snapshot.toolCliInvocations, 2);
 });

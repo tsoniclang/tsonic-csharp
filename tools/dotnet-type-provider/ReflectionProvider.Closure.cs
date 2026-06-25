@@ -8,7 +8,7 @@ sealed partial class ReflectionProvider
 {
     Type[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes)
     {
-        if (request.Exports.Count == 0)
+        if (request.Exports.Count == 0 && request.TargetIds.Count == 0 && request.MetadataNames.Count == 0)
         {
             return [];
         }

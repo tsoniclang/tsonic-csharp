@@ -76,7 +76,7 @@ const providerIdentity: DotnetProviderIdentity = {
   target: "csharp",
   displayName: "Tsonic C# .NET reflection provider",
 };
-const providerCacheAbiVersion = "dotnet-reflection-provider-cache-v4";
+const providerCacheAbiVersion = "dotnet-reflection-provider-cache-v5";
 const supportedTargetFramework = "net10.0";
 
 export function createDotnetReflectionTypeDataProvider(
@@ -159,6 +159,12 @@ export function createDotnetReflectionTypeDataProvider(
       for (const exportName of context.requestedExports ?? []) {
         args.push("--export", exportName);
       }
+      for (const targetId of context.requestedTargetIds ?? []) {
+        args.push("--target-id", targetId);
+      }
+      for (const metadataName of context.requestedMetadataNames ?? []) {
+        args.push("--metadata-name", metadataName);
+      }
     }
     pushReferenceArgs(args, context);
     const result = toolRunner.run(args);
@@ -203,7 +209,9 @@ export function createDotnetReflectionTypeDataProvider(
       targetFramework: context.targetFramework ?? options.targetFramework ?? supportedTargetFramework,
       moduleSpecifier: specifier,
       namespaceName,
-      requestedExports: context.requestedExports,
+      requestedExports: sortedNonEmpty(context.requestedExports),
+      requestedTargetIds: sortedNonEmpty(context.requestedTargetIds),
+      requestedMetadataNames: sortedNonEmpty(context.requestedMetadataNames),
       broadImport: context.broadImport,
       referenceDirectory: options.referenceDirectory,
       referenceIdentities: referenceIdentities([...(context.references ?? []), ...(options.references ?? [])]),
@@ -260,7 +268,7 @@ export function createDotnetReflectionTypeDataProvider(
       if (moduleSpecifier === undefined) {
         return undefined;
       }
-      const loaded = loadModule(moduleSpecifier, {});
+      const loaded = loadModule(moduleSpecifier, { requestedTargetIds: [targetId] });
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
@@ -276,7 +284,7 @@ export function createDotnetReflectionTypeDataProvider(
       if (moduleSpecifier === undefined) {
         return undefined;
       }
-      const loaded = loadModule(moduleSpecifier, {});
+      const loaded = loadModule(moduleSpecifier, { requestedMetadataNames: [metadataName] });
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
@@ -311,6 +319,10 @@ function isDotnetProviderDiagnostic(value: DotnetProviderModuleResult): value is
 
 function moduleMemoryCacheKey(request: DotnetProviderCacheRequest): string {
   return JSON.stringify(request);
+}
+
+function sortedNonEmpty(values: readonly string[] | undefined): readonly string[] | undefined {
+  return values === undefined || values.length === 0 ? undefined : [...new Set(values)].sort();
 }
 
 function findTargetBindingInLoadedModules(
