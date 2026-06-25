@@ -52,6 +52,8 @@ function typeMemberRequiresUnsafe(member: CsharpTypeMember): boolean {
   switch (member.kind) {
     case "ConstructorDeclaration":
       return constructorRequiresUnsafe(member);
+    case "StaticConstructorDeclaration":
+      return blockRequiresUnsafe(member.body);
     case "MethodDeclaration":
       return csharpTypeRequiresUnsafe(member.returnType) ||
         typeParametersRequireUnsafe(member.typeParameters) ||

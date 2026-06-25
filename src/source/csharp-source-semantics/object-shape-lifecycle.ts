@@ -170,7 +170,10 @@ function isNamespaceImportReceiverPropertyAccess(
       return;
     }
     const importDeclaration = compiler.ast.as.AsImportDeclaration(candidate);
-    const importClause = compiler.ast.as.AsImportClause(importDeclaration?.ImportClause);
+    const rawImportClause = asNodeSubject(importDeclaration?.ImportClause);
+    const importClause = rawImportClause === undefined
+      ? undefined
+      : compiler.ast.as.AsImportClause(rawImportClause);
     const namedBindings = importClause?.NamedBindings;
     if (namedBindings === undefined || compiler.ast.as.AsNamespaceImport(namedBindings) === undefined) {
       return;

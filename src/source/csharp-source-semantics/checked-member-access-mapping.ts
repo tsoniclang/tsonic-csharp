@@ -327,7 +327,10 @@ function isNamespaceImportReceiver(
       return;
     }
     const importDeclaration = ast.as.AsImportDeclaration(node);
-    const importClause = ast.as.AsImportClause(importDeclaration?.ImportClause);
+    const rawImportClause = asNodeSubject(importDeclaration?.ImportClause);
+    const importClause = rawImportClause === undefined
+      ? undefined
+      : ast.as.AsImportClause(rawImportClause);
     const namedBindings = importClause?.NamedBindings;
     if (namedBindings === undefined || ast.as.AsNamespaceImport(namedBindings) === undefined) {
       return;

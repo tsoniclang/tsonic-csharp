@@ -140,6 +140,8 @@ function printTypeMemberLines(member: CsharpTypeMember, context: CsharpPrintCont
     }
     case "ConstructorDeclaration":
       return printConstructorLines(member, context);
+    case "StaticConstructorDeclaration":
+      return printStaticConstructorLines(member, context);
     case "MethodDeclaration":
       return printMethodLines(member, context);
     case "PropertyDeclaration":
@@ -160,6 +162,18 @@ function printConstructorLines(
   return [
     ...context.printAttributes(constructor.attributes),
     `${modifiers}${constructor.name}(${parameters})${baseInitializer}`,
+    "{",
+    ...indentLines(context.printStatements(constructor.body.statements)),
+    "}",
+  ];
+}
+
+function printStaticConstructorLines(
+  constructor: Extract<CsharpTypeMember, { readonly kind: "StaticConstructorDeclaration" }>,
+  context: CsharpPrintContext,
+): string[] {
+  return [
+    `static ${constructor.name}()`,
     "{",
     ...indentLines(context.printStatements(constructor.body.statements)),
     "}",

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { planCsharpArtifacts } from "../dist/backend/planner/csharp-planner.js";
 import { planCsharpEntrypointSourceFile } from "../dist/backend/planner/csharp-entrypoint-planner.js";
 import { planSourceFile } from "../dist/backend/planner/csharp-source-file-planner.js";
+import { planCsharpModuleInitialization } from "../dist/backend/planner/csharp-module-initialization.js";
 import {
   KindExpressionStatement,
   KindStringLiteral,
@@ -13,13 +14,14 @@ test("executable output plans a Roslyn AST entrypoint that invokes module initia
     outputType: "Exe",
   });
   const diagnostics = [];
-  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics);
+  const moduleInitialization = planCsharpModuleInitialization(input);
+  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics, moduleInitialization);
 
   assert.deepEqual(diagnostics, []);
   assert.ok(plannedSource);
   assert.equal(plannedSource.hasModuleInitializer, true);
 
-  const entrypoint = planCsharpEntrypointSourceFile(input, [plannedSource]);
+  const entrypoint = planCsharpEntrypointSourceFile(input, [plannedSource], moduleInitialization);
 
   assert.ok(entrypoint);
   assert.equal(entrypoint.path, "generated/TsonicEntrypoint.cs");
@@ -60,10 +62,11 @@ test("executable output still materializes source artifacts from the planned Ros
 test("library output does not synthesize executable entrypoint AST or artifacts", () => {
   const input = fakeInput();
   const diagnostics = [];
-  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics);
+  const moduleInitialization = planCsharpModuleInitialization(input);
+  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics, moduleInitialization);
   assert.deepEqual(diagnostics, []);
   assert.ok(plannedSource);
-  assert.equal(planCsharpEntrypointSourceFile(input, [plannedSource]), undefined);
+  assert.equal(planCsharpEntrypointSourceFile(input, [plannedSource], moduleInitialization), undefined);
 
   const result = planCsharpArtifacts(input);
   assert.deepEqual(result.diagnostics, []);
@@ -72,8 +75,10 @@ test("library output does not synthesize executable entrypoint AST or artifacts"
 });
 
 function fakeInput(options = {}) {
+  const target = { id: "csharp", options };
   return {
-    target: { id: "csharp", options },
+    project: { entryPoint: "index.ts", targets: [target] },
+    target,
     runtimeReferences: [],
     sourceFiles: [sourceFile()],
     paths: { projectRoot: "/project" },
@@ -103,6 +108,7 @@ function sourceFile() {
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
+  getFileName: (sourceFile) => sourceFile?.FileName ?? "",
   getSourceFile: () => undefined,
   forEachChild: () => undefined,
   typeArguments: () => [],
@@ -157,6 +163,7 @@ const fakeSemantics = {
   getTargetBindingForReference: () => undefined,
   getProjectSourceReferenceForNode: () => undefined,
   getProjectSourceDeclarationForNode: () => undefined,
+  getProjectSourceModuleDependencies: () => [],
   getRuntimeCarrierForNode: () => undefined,
   getObjectShapeForNode: () => undefined,
   getResolvedSymbol: () => undefined,

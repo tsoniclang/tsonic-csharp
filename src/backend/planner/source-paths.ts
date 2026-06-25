@@ -1,6 +1,12 @@
 import { relative, resolve } from "node:path";
+import type { AstReader, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import {
+  KindClassDeclaration,
+  KindEnumDeclaration,
+  KindInterfaceDeclaration,
+  Node_Name,
+  Node_Text,
   SourceFile_FileName,
 } from "./source-ast.js";
 import {
@@ -60,7 +66,7 @@ function getSourceFileOutputRegistry(
     if (relativeName === undefined) {
       continue;
     }
-    const className = sourceFileModuleClassName(relativeName);
+    const className = sourceFileModuleClassName(input.ast, relativeName, sourceFile);
     const artifactPath = sourceFileModuleArtifactPath(relativeName, className);
     const existingFileName = byClassName.get(className);
     if (existingFileName !== undefined && existingFileName !== fileName) {
@@ -120,8 +126,32 @@ function sourceFileModuleArtifactPath(relativeName: string, className: string): 
   return `src/${parts.join("/")}`;
 }
 
-function sourceFileModuleClassName(relativeName: string): string {
-  return sanitizePascalIdentifier(stripFinalExtension(relativeName).split("/").join("_"), "Module");
+function sourceFileModuleClassName(ast: AstReader, relativeName: string, sourceFile: SourceFile): string {
+  const declarations = getTopLevelTypeDeclarationNames(ast, sourceFile);
+  let className = sanitizePascalIdentifier(stripFinalExtension(relativeName).split("/").join("_"), "Module");
+  while (declarations.has(className)) {
+    className = `${className}Module`;
+  }
+  return className;
+}
+
+function getTopLevelTypeDeclarationNames(ast: AstReader, sourceFile: SourceFile): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const statement of sourceFile.Statements?.Nodes ?? []) {
+    const kind = ast.kindName(statement);
+    if (
+      kind !== KindClassDeclaration &&
+      kind !== KindInterfaceDeclaration &&
+      kind !== KindEnumDeclaration
+    ) {
+      continue;
+    }
+    const name = Node_Text(Node_Name(statement));
+    if (name.length > 0) {
+      names.add(sanitizePascalIdentifier(name, name));
+    }
+  }
+  return names;
 }
 
 function stripFinalExtension(value: string): string {
