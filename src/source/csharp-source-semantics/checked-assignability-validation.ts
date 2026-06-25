@@ -155,16 +155,18 @@ function resolveObservedAssignabilitySource(
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
-  return host.getTargetTypeRefForSubject(fact.source, context, {
-      allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: true,
-      sourceFile: getFactSourceFile(fact, context),
-    }) ??
-    host.getTargetTypeRefForSubject(getObservedAssignabilitySourceNode(fact, context), context, {
-      allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: true,
-      sourceFile: getFactSourceFile(fact, context),
-    });
+  const source = host.getTargetTypeRefForSubject(fact.source, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: true,
+    sourceFile: getFactSourceFile(fact, context),
+  });
+  return source !== undefined || !canUseObservedContextFallback(fact.source)
+    ? source
+    : host.getTargetTypeRefForSubject(getObservedAssignabilitySourceNode(fact, context), context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: true,
+        sourceFile: getFactSourceFile(fact, context),
+      });
 }
 
 function resolveObservedAssignabilityTarget(
@@ -172,16 +174,29 @@ function resolveObservedAssignabilityTarget(
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
-  return host.getTargetTypeRefForSubject(fact.target, context, {
-      allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: true,
-      sourceFile: getFactSourceFile(fact, context),
-    }) ??
-    host.getTargetTypeRefForSubject(getObservedAssignabilityTargetNode(fact, context), context, {
-      allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: true,
-      sourceFile: getFactSourceFile(fact, context),
-    });
+  const target = host.getTargetTypeRefForSubject(fact.target, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: true,
+    sourceFile: getFactSourceFile(fact, context),
+  });
+  return target !== undefined || !canUseObservedContextFallback(fact.target)
+    ? target
+    : host.getTargetTypeRefForSubject(getObservedAssignabilityTargetNode(fact, context), context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: true,
+        sourceFile: getFactSourceFile(fact, context),
+      });
+}
+
+function canUseObservedContextFallback(subject: unknown): boolean {
+  if (typeof subject !== "object" || subject === null) {
+    return false;
+  }
+  const nodeKind = (subject as { readonly Kind?: unknown }).Kind;
+  return typeof nodeKind === "number" ||
+    typeof nodeKind === "string" ||
+    "flags" in subject ||
+    "symbol" in subject;
 }
 
 function isInferredLocalAssignmentObservation(

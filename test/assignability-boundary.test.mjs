@@ -151,7 +151,7 @@ test("C# post-check target assignability fails closed on TypeScript any boundari
     diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
   ) ?? [];
   assert.equal(targetDiagnostics.length, 1);
-  assert.match(targetDiagnostics[0].message, /requires finalized source and target type facts/u);
+  assert.match(targetDiagnostics[0].message, /cannot cross a TypeScript any boundary/u);
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === 2322), false);
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
 });
