@@ -60,7 +60,18 @@ export function findTargetMemberForCall(
     if (exactMember !== undefined) {
       return exactMember;
     }
-    return undefined;
+    return selectedMember === undefined
+      ? undefined
+      : selectTargetMember(
+          getTargetMemberCandidatesForSelectedMember(binding.members ?? [], selectedMember),
+          {
+            arguments: request.arguments,
+            receiver: request.calleeReceiver,
+          },
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
   }
   const candidates = getTargetMemberCandidates(binding, declaration);
   if (candidates.length === 1) {
@@ -111,7 +122,17 @@ export function findTargetMemberForElementAccess(
     if (exactMember !== undefined) {
       return exactMember;
     }
-    return undefined;
+    return selectedMember === undefined
+      ? undefined
+      : selectTargetMember(
+          getTargetMemberCandidatesForSelectedMember(binding.members ?? [], selectedMember),
+          {
+            arguments: [request.argument],
+          },
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
   }
   const candidates = getTargetMemberCandidates(binding, declaration);
   if (candidates.length === 1) {

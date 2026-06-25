@@ -113,15 +113,14 @@ export function selectProviderSelectedTargetMember(
       return undefined;
     }
     const argumentType = resolveTargetTypeRef(effectiveArgument.subject, context);
-    if (
-      argumentType !== undefined &&
-      !selectedTargetTypeAcceptsArgument(
-        getExpectedTargetTypeForArgument(parameter),
-        argumentType,
-        typeParameterBindings,
-        options,
-      )
-    ) {
+    if (!selectedTargetTypeAcceptsArgument(
+      getExpectedTargetTypeForArgument(parameter),
+      argumentType,
+      effectiveArgument.subject,
+      context,
+      typeParameterBindings,
+      options,
+    )) {
       return undefined;
     }
   }
@@ -513,22 +512,31 @@ function inferSelectedTargetTypeParameters(
 
 function selectedTargetTypeAcceptsArgument(
   expected: TargetTypeRef,
-  actual: TargetTypeRef,
+  actual: TargetTypeRef | undefined,
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
   typeParameterBindings: Map<string, TargetTypeRef>,
   options: TargetMemberSelectionOptions,
 ): boolean {
-  if (!inferSelectedTargetTypeParameters(expected, actual, typeParameterBindings)) {
+  if (actual !== undefined && !inferSelectedTargetTypeParameters(expected, actual, typeParameterBindings)) {
     return false;
   }
   const effectiveExpected = substituteTargetTypeRef(expected, typeParameterBindings);
+  if (isLiteralRepresentableAsTargetType(effectiveExpected, subject, context)) {
+    return true;
+  }
+  if (actual === undefined) {
+    return false;
+  }
   return targetTypeMatchesExpected(effectiveExpected, actual, typeParameterBindings, options) ||
-    selectedCollectionImplicitlyConverts(effectiveExpected, actual, typeParameterBindings, options) ||
+    selectedCollectionImplicitlyConverts(effectiveExpected, actual, context, typeParameterBindings, options) ||
     sourcePrimitiveImplicitlyConverts(effectiveExpected, actual);
 }
 
 function selectedCollectionImplicitlyConverts(
   expected: TargetTypeRef,
   actual: TargetTypeRef,
+  context: ExtensionObservationContext,
   typeParameterBindings: Map<string, TargetTypeRef>,
   options: TargetMemberSelectionOptions,
 ): boolean {
@@ -546,7 +554,7 @@ function selectedCollectionImplicitlyConverts(
   const actualElement = getCsharpCollectionElementTargetType(actual);
   return expectedElement !== undefined &&
     actualElement !== undefined &&
-    selectedTargetTypeAcceptsArgument(expectedElement, actualElement, typeParameterBindings, options);
+    selectedTargetTypeAcceptsArgument(expectedElement, actualElement, undefined, context, typeParameterBindings, options);
 }
 
 function sourcePrimitiveImplicitlyConverts(expected: TargetTypeRef, actual: TargetTypeRef): boolean {
