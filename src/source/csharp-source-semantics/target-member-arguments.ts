@@ -28,6 +28,20 @@ import type {
   TargetTypeRefResolver,
 } from "./target-type-ref-resolution.js";
 
+const implicitSourcePrimitiveConversions = new Map<string, ReadonlySet<string>>([
+  ["int8", new Set(["int16", "int32", "int64", "float32", "float64", "decimal"])],
+  ["uint8", new Set(["int16", "uint16", "int32", "uint32", "int64", "uint64", "float32", "float64", "decimal"])],
+  ["int16", new Set(["int32", "int64", "float32", "float64", "decimal"])],
+  ["uint16", new Set(["int32", "uint32", "int64", "uint64", "float32", "float64", "decimal"])],
+  ["char", new Set(["uint16", "int32", "uint32", "int64", "uint64", "float32", "float64", "decimal"])],
+  ["int32", new Set(["int64", "float32", "float64", "decimal"])],
+  ["uint32", new Set(["int64", "uint64", "float32", "float64", "decimal"])],
+  ["int64", new Set(["float32", "float64", "decimal"])],
+  ["uint64", new Set(["float32", "float64", "decimal"])],
+  ["float32", new Set(["float64"])],
+]);
+const noImplicitSourcePrimitiveConversions: ReadonlySet<string> = new Set();
+
 export interface TargetMemberSelectionRequest {
   readonly arguments: readonly ExtensionFactSubject[];
   readonly receiver?: ExtensionFactSubject;
@@ -69,6 +83,40 @@ export function selectExactTargetMember(
     member,
     getDeclaringTypeParameterBindings(options),
   );
+}
+
+export function selectProviderSelectedTargetMember(
+  member: TargetMember,
+  request: TargetMemberSelectionRequest,
+  context: ExtensionObservationContext,
+  resolveTargetTypeRef: TargetTypeRefResolver,
+  options: TargetMemberSelectionOptions = {},
+): TargetMember | undefined {
+  const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
+  if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
+    return undefined;
+  }
+  const typeParameterBindings = getDeclaringTypeParameterBindings(options);
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const parameter = getParameterForArgument(member.parameters, index);
+    const argument = arguments_[index];
+    if (parameter === undefined || argument === undefined) {
+      return undefined;
+    }
+    const argumentType = resolveTargetTypeRef(argument, context);
+    if (
+      argumentType !== undefined &&
+      !selectedTargetTypeAcceptsArgument(
+        getExpectedTargetTypeForArgument(parameter),
+        argumentType,
+        typeParameterBindings,
+        options,
+      )
+    ) {
+      return undefined;
+    }
+  }
+  return substituteTargetMemberTypeParameters(member, typeParameterBindings);
 }
 
 function targetMemberMatch(
@@ -341,6 +389,100 @@ function targetDelegateSignatureMatchesExpected(
   }
   return actualSignature.returnType !== undefined &&
     targetTypeMatchesExpected(expected.returnType, actualSignature.returnType, typeParameterBindings, options, seenActualTypes);
+}
+
+function inferSelectedTargetTypeParameters(
+  expected: TargetTypeRef,
+  actual: TargetTypeRef,
+  typeParameterBindings: Map<string, TargetTypeRef>,
+): boolean {
+  if (expected.kind === "type-parameter") {
+    return bindTargetTypeParameter(expected.name, actual, typeParameterBindings);
+  }
+  const effectiveExpected = substituteTargetTypeRef(expected, typeParameterBindings);
+  if (effectiveExpected.kind === "type-parameter") {
+    return bindTargetTypeParameter(effectiveExpected.name, actual, typeParameterBindings);
+  }
+  if (effectiveExpected.kind === "array" && actual.kind === "array" && (effectiveExpected.rank ?? 1) === (actual.rank ?? 1)) {
+    return inferSelectedTargetTypeParameters(effectiveExpected.element, actual.element, typeParameterBindings);
+  }
+  if (effectiveExpected.kind === "tuple" && actual.kind === "tuple" && effectiveExpected.elements.length === actual.elements.length) {
+    return effectiveExpected.elements.every((element, index) => {
+      const actualElement = actual.elements[index];
+      return actualElement !== undefined && inferSelectedTargetTypeParameters(element, actualElement, typeParameterBindings);
+    });
+  }
+  if (effectiveExpected.kind === "pointer" && actual.kind === "pointer") {
+    return inferSelectedTargetTypeParameters(effectiveExpected.pointee, actual.pointee, typeParameterBindings);
+  }
+  if (effectiveExpected.kind === "function-pointer" && actual.kind === "function-pointer" && effectiveExpected.args.length === actual.args.length) {
+    return inferSelectedTargetTypeParameters(effectiveExpected.result, actual.result, typeParameterBindings) &&
+      effectiveExpected.args.every((argument, index) => {
+        const actualArgument = actual.args[index];
+        return actualArgument !== undefined && inferSelectedTargetTypeParameters(argument, actualArgument, typeParameterBindings);
+      });
+  }
+  if (effectiveExpected.kind === "target-named" && actual.kind === "target-named" && effectiveExpected.id === actual.id) {
+    const expectedArgs = effectiveExpected.typeArguments ?? [];
+    const actualArgs = actual.typeArguments ?? [];
+    if (expectedArgs.length !== actualArgs.length) {
+      return true;
+    }
+    return expectedArgs.every((argument, index) => {
+      const actualArgument = actualArgs[index];
+      return actualArgument !== undefined && inferSelectedTargetTypeParameters(argument, actualArgument, typeParameterBindings);
+    });
+  }
+  return true;
+}
+
+function selectedTargetTypeAcceptsArgument(
+  expected: TargetTypeRef,
+  actual: TargetTypeRef,
+  typeParameterBindings: Map<string, TargetTypeRef>,
+  options: TargetMemberSelectionOptions,
+): boolean {
+  if (!inferSelectedTargetTypeParameters(expected, actual, typeParameterBindings)) {
+    return false;
+  }
+  const effectiveExpected = substituteTargetTypeRef(expected, typeParameterBindings);
+  return targetTypeMatchesExpected(effectiveExpected, actual, typeParameterBindings, options) ||
+    selectedCollectionImplicitlyConverts(effectiveExpected, actual, typeParameterBindings, options) ||
+    sourcePrimitiveImplicitlyConverts(effectiveExpected, actual);
+}
+
+function selectedCollectionImplicitlyConverts(
+  expected: TargetTypeRef,
+  actual: TargetTypeRef,
+  typeParameterBindings: Map<string, TargetTypeRef>,
+  options: TargetMemberSelectionOptions,
+): boolean {
+  if (actual.kind !== "array" || expected.kind !== "target-named") {
+    return false;
+  }
+  if (
+    expected.id !== "System.Collections.Generic.IEnumerable`1" &&
+    expected.id !== "System.Collections.Generic.IReadOnlyList`1" &&
+    expected.id !== "System.Collections.Generic.IList`1"
+  ) {
+    return false;
+  }
+  const expectedElement = getCsharpCollectionElementTargetType(expected);
+  const actualElement = getCsharpCollectionElementTargetType(actual);
+  return expectedElement !== undefined &&
+    actualElement !== undefined &&
+    selectedTargetTypeAcceptsArgument(expectedElement, actualElement, typeParameterBindings, options);
+}
+
+function sourcePrimitiveImplicitlyConverts(expected: TargetTypeRef, actual: TargetTypeRef): boolean {
+  if (expected.kind !== "source-primitive" || actual.kind !== "source-primitive") {
+    return false;
+  }
+  return getImplicitSourcePrimitiveConversions(actual.name).has(expected.name);
+}
+
+function getImplicitSourcePrimitiveConversions(actual: string): ReadonlySet<string> {
+  return implicitSourcePrimitiveConversions.get(actual) ?? noImplicitSourcePrimitiveConversions;
 }
 
 function getDeclaringTypeParameterBindings(
