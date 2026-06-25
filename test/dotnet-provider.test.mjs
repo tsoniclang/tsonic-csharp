@@ -1147,6 +1147,8 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
   assert.ok(rawTarget);
   const rawConstructors = rawTarget.members.filter((member) => member.kind === "constructor");
   assert.equal(rawConstructors.length, 6);
+  const rawConstructorIds = rawConstructors.flatMap((member) => member.signatures?.map((signature) => stripAssemblyQualifiers(signature.id)) ?? []);
+  assert.equal(rawConstructorIds.some((id) => id.includes("System.Decimal") || id.includes("System.Double")), false);
 
   const optionalConstructor = constructorSignature(rawTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32,System.String)");
   assert.deepEqual(optionalConstructor.parameters.map((parameter) => parameter.name), ["value", "label"]);
@@ -1176,6 +1178,10 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "ConstructorTarget");
   assert.ok(sourceTarget);
+  const sourceConstructorIds = sourceTarget.members
+    ?.filter((member) => member.kind === "constructor")
+    .flatMap((member) => member.signatures?.map((signature) => stripAssemblyQualifiers(signature.id)) ?? []) ?? [];
+  assert.equal(sourceConstructorIds.some((id) => id.includes("System.Decimal") || id.includes("System.Double")), false);
   const sourceOptionalConstructor = constructorSignature(sourceTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32,System.String)");
   assert.equal(sourceOptionalConstructor.parameters[1].optional, true);
   assert.equal("defaultValue" in sourceOptionalConstructor.parameters[1], false);
@@ -1183,6 +1189,10 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConstructorFixtures.js", "ProviderConstructorFixtures.ConstructorTarget");
   const targetOptionalConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32,System.String)");
   assert.ok(targetOptionalConstructor);
+  const targetConstructorIds = binding.members
+    ?.filter((member) => member.kind === "constructor")
+    .map((member) => stripAssemblyQualifiers(member.id)) ?? [];
+  assert.equal(targetConstructorIds.some((id) => id.includes("System.Decimal") || id.includes("System.Double")), false);
   assert.equal(targetOptionalConstructor.kind, "constructor");
   assert.equal(targetOptionalConstructor.targetName, ".ctor");
   assert.equal(stripAssemblyQualifiers(targetOptionalConstructor.overloadGroup), "ProviderConstructorFixtures.ConstructorTarget..ctor");
