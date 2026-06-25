@@ -1,0 +1,290 @@
+import type {
+  ProviderExportDeclaration,
+} from "@tsonic/tsts";
+import {
+  nodeBufferAllocExportName,
+  nodeBufferAllocMemberId,
+  nodeBufferAllocSignatureId,
+  nodeBufferAllocUnsafeExportName,
+  nodeBufferAllocUnsafeMemberId,
+  nodeBufferAllocUnsafeSignatureId,
+  nodeBufferAllocUnsafeSlowExportName,
+  nodeBufferAllocUnsafeSlowMemberId,
+  nodeBufferAllocUnsafeSlowSignatureId,
+  nodeBufferAtobExportName,
+  nodeBufferAtobSignatureId,
+  nodeBufferBtoaExportName,
+  nodeBufferBtoaSignatureId,
+  nodeBufferByteLengthExportName,
+  nodeBufferByteLengthMemberId,
+  nodeBufferByteLengthSignatureId,
+  nodeBufferCompareExportName,
+  nodeBufferCompareMemberId,
+  nodeBufferCompareSignatureId,
+  nodeBufferConcatExportName,
+  nodeBufferConcatMemberId,
+  nodeBufferConcatSignatureId,
+  nodeBufferEqualsExportName,
+  nodeBufferEqualsMemberId,
+  nodeBufferEqualsSignatureId,
+  nodeBufferExportName,
+  nodeBufferFromExportName,
+  nodeBufferFromStringMemberId,
+  nodeBufferFromStringSignatureId,
+  nodeBufferIsAsciiExportName,
+  nodeBufferIsAsciiSignatureId,
+  nodeBufferIsEncodingExportName,
+  nodeBufferIsEncodingMemberId,
+  nodeBufferIsEncodingSignatureId,
+  nodeBufferIsUtf8ExportName,
+  nodeBufferIsUtf8SignatureId,
+  nodeBufferLengthMemberId,
+  nodeBufferOfExportName,
+  nodeBufferOfMemberId,
+  nodeBufferOfSignatureId,
+  nodeBufferSliceExportName,
+  nodeBufferSliceMemberId,
+  nodeBufferSliceSignatureId,
+  nodeBufferSubarrayExportName,
+  nodeBufferSubarrayMemberId,
+  nodeBufferSubarraySignatureId,
+  nodeBufferTargetType,
+  nodeBufferToStringExportName,
+  nodeBufferToStringMemberId,
+  nodeBufferToStringSignatureId,
+} from "./identities.js";
+import {
+  nodeBufferBoolProviderType,
+  nodeBufferNumberProviderType,
+  nodeBufferProviderType,
+  nodeBufferStringProviderType,
+} from "./provider-types.js";
+
+export function nodeBufferExports(): readonly ProviderExportDeclaration[] {
+  return [
+    {
+      id: "node:buffer.Buffer",
+      name: nodeBufferExportName,
+      kind: "class",
+      targetIdentity: {
+        target: "csharp",
+        id: nodeBufferTargetType.id,
+        displayName: "Tsonic.CSharp.Node.Buffer",
+      },
+      members: [
+        {
+          id: nodeBufferFromStringMemberId,
+          name: nodeBufferFromExportName,
+          kind: "method",
+          static: true,
+          signatures: [{
+            id: nodeBufferFromStringSignatureId,
+            parameters: [
+              { name: "value", type: nodeBufferStringProviderType },
+              { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+            ],
+            returnType: nodeBufferProviderType,
+          }],
+        },
+        {
+          id: nodeBufferAllocMemberId,
+          name: nodeBufferAllocExportName,
+          kind: "method",
+          static: true,
+          signatures: [{
+            id: nodeBufferAllocSignatureId,
+            parameters: [{ name: "size", type: nodeBufferNumberProviderType }],
+            returnType: nodeBufferProviderType,
+          }],
+        },
+        {
+          id: nodeBufferAllocUnsafeMemberId,
+          name: nodeBufferAllocUnsafeExportName,
+          kind: "method",
+          static: true,
+          signatures: [{
+            id: nodeBufferAllocUnsafeSignatureId,
+            parameters: [{ name: "size", type: nodeBufferNumberProviderType }],
+            returnType: nodeBufferProviderType,
+          }],
+        },
+        {
+          id: nodeBufferAllocUnsafeSlowMemberId,
+          name: nodeBufferAllocUnsafeSlowExportName,
+          kind: "method",
+          static: true,
+          signatures: [{
+            id: nodeBufferAllocUnsafeSlowSignatureId,
+            parameters: [{ name: "size", type: nodeBufferNumberProviderType }],
+            returnType: nodeBufferProviderType,
+          }],
+        },
+        {
+          id: nodeBufferByteLengthMemberId,
+          name: nodeBufferByteLengthExportName,
+          kind: "method",
+          static: true,
+          signatures: [{
+            id: nodeBufferByteLengthSignatureId,
+            parameters: [
+              { name: "value", type: nodeBufferStringProviderType },
+              { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+            ],
+            returnType: nodeBufferNumberProviderType,
+          }],
+        },
+        {
+          id: nodeBufferCompareMemberId,
+          name: nodeBufferCompareExportName,
+          kind: "method",
+          static: true,
+          signatures: [{
+            id: nodeBufferCompareSignatureId,
+            parameters: [
+              { name: "buf1", type: nodeBufferProviderType },
+              { name: "buf2", type: nodeBufferProviderType },
+            ],
+            returnType: nodeBufferNumberProviderType,
+          }],
+        },
+        {
+          id: nodeBufferConcatMemberId,
+          name: nodeBufferConcatExportName,
+          kind: "method",
+          static: true,
+          signatures: [{
+            id: nodeBufferConcatSignatureId,
+            parameters: [
+              { name: "list", type: { kind: "array", elementType: nodeBufferProviderType } },
+              { name: "totalLength", type: nodeBufferNumberProviderType, optional: true },
+            ],
+            returnType: nodeBufferProviderType,
+          }],
+        },
+        {
+          id: nodeBufferIsEncodingMemberId,
+          name: nodeBufferIsEncodingExportName,
+          kind: "method",
+          static: true,
+          signatures: [{
+            id: nodeBufferIsEncodingSignatureId,
+            parameters: [{ name: "encoding", type: nodeBufferStringProviderType }],
+            returnType: nodeBufferBoolProviderType,
+          }],
+        },
+        {
+          id: nodeBufferOfMemberId,
+          name: nodeBufferOfExportName,
+          kind: "method",
+          static: true,
+          signatures: [{
+            id: nodeBufferOfSignatureId,
+            parameters: [{
+              name: "items",
+              type: { kind: "array", elementType: nodeBufferNumberProviderType },
+              rest: true,
+            }],
+            returnType: nodeBufferProviderType,
+          }],
+        },
+        {
+          id: nodeBufferLengthMemberId,
+          name: "length",
+          kind: "property",
+          readonly: true,
+          type: nodeBufferNumberProviderType,
+        },
+        {
+          id: nodeBufferEqualsMemberId,
+          name: nodeBufferEqualsExportName,
+          kind: "method",
+          signatures: [{
+            id: nodeBufferEqualsSignatureId,
+            parameters: [{ name: "otherBuffer", type: nodeBufferProviderType }],
+            returnType: nodeBufferBoolProviderType,
+          }],
+        },
+        {
+          id: nodeBufferSliceMemberId,
+          name: nodeBufferSliceExportName,
+          kind: "method",
+          signatures: [{
+            id: nodeBufferSliceSignatureId,
+            parameters: [
+              { name: "start", type: nodeBufferNumberProviderType, optional: true },
+              { name: "end", type: nodeBufferNumberProviderType, optional: true },
+            ],
+            returnType: nodeBufferProviderType,
+          }],
+        },
+        {
+          id: nodeBufferSubarrayMemberId,
+          name: nodeBufferSubarrayExportName,
+          kind: "method",
+          signatures: [{
+            id: nodeBufferSubarraySignatureId,
+            parameters: [
+              { name: "start", type: nodeBufferNumberProviderType, optional: true },
+              { name: "end", type: nodeBufferNumberProviderType, optional: true },
+            ],
+            returnType: nodeBufferProviderType,
+          }],
+        },
+        {
+          id: nodeBufferToStringMemberId,
+          name: nodeBufferToStringExportName,
+          kind: "method",
+          signatures: [{
+            id: nodeBufferToStringSignatureId,
+            parameters: [
+              { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+              { name: "start", type: nodeBufferNumberProviderType, optional: true },
+              { name: "end", type: nodeBufferNumberProviderType, optional: true },
+            ],
+            returnType: nodeBufferStringProviderType,
+          }],
+        },
+      ],
+    },
+    {
+      id: "node:buffer.atob",
+      name: nodeBufferAtobExportName,
+      kind: "function",
+      signatures: [{
+        id: nodeBufferAtobSignatureId,
+        parameters: [{ name: "data", type: nodeBufferStringProviderType }],
+        returnType: nodeBufferStringProviderType,
+      }],
+    },
+    {
+      id: "node:buffer.btoa",
+      name: nodeBufferBtoaExportName,
+      kind: "function",
+      signatures: [{
+        id: nodeBufferBtoaSignatureId,
+        parameters: [{ name: "data", type: nodeBufferStringProviderType }],
+        returnType: nodeBufferStringProviderType,
+      }],
+    },
+    {
+      id: "node:buffer.isAscii",
+      name: nodeBufferIsAsciiExportName,
+      kind: "function",
+      signatures: [{
+        id: nodeBufferIsAsciiSignatureId,
+        parameters: [{ name: "value", type: nodeBufferProviderType }],
+        returnType: nodeBufferBoolProviderType,
+      }],
+    },
+    {
+      id: "node:buffer.isUtf8",
+      name: nodeBufferIsUtf8ExportName,
+      kind: "function",
+      signatures: [{
+        id: nodeBufferIsUtf8SignatureId,
+        parameters: [{ name: "value", type: nodeBufferProviderType }],
+        returnType: nodeBufferBoolProviderType,
+      }],
+    },
+  ];
+}
