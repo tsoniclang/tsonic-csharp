@@ -4,11 +4,18 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
+  getCsharpArrayLikeElementType,
   getArrayTargetMembers,
 } from "../arrays.js";
 import {
   getDateTargetMembers,
 } from "../date.js";
+import {
+  getBooleanTargetMembers,
+} from "../booleans.js";
+import {
+  getCollectionTargetMembers,
+} from "../collections.js";
 import {
   getJsonTargetMembers,
 } from "../json.js";
@@ -35,6 +42,8 @@ import type {
 import {
   getSourceLibraryCallArgumentTargetTypes,
   getSourceLibraryCallReceiverElementType,
+  getSourceLibraryCallReceiverTargetTypes,
+  getSourceLibraryCallResultTargetType,
   isNewExpression,
   isStringKeyedRecordDictionaryTargetType,
 } from "./helpers.js";
@@ -50,6 +59,8 @@ export function getSourceLibraryCallMembers(
       return getMathTargetMembers(sourceMember.memberName);
     case "String":
       return getStringTargetMembers(sourceMember.memberName);
+    case "Boolean":
+      return getBooleanTargetMembers(sourceMember.memberName);
     case "RegExp":
       return getRegExpTargetMembers(sourceMember.memberName);
     case "Date":
@@ -68,7 +79,17 @@ export function getSourceLibraryCallMembers(
     case "ReadonlyArray":
       return getArrayTargetMembers(
         sourceMember.memberName,
-        getSourceLibraryCallReceiverElementType(request, context, host),
+        getSourceLibraryCallReceiverElementType(request, context, host) ??
+          getSourceLibraryCallArgumentTargetTypes(request, context, host).map(getCsharpArrayLikeElementType).find((element) => element !== undefined),
+      );
+    case "Map":
+    case "ReadonlyMap":
+    case "Set":
+    case "ReadonlySet":
+      return getCollectionTargetMembers(
+        sourceMember,
+        getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
+        getSourceLibraryCallResultTargetType(request, context, host),
       );
     default:
       return [];

@@ -53,6 +53,16 @@ import {
   isCsharpJsDateRuntimeCarrier,
 } from "./date.js";
 import {
+  isCsharpBooleanTargetType,
+  getBooleanTargetMembers,
+} from "./booleans.js";
+import {
+  getCollectionPropertyTargetMember,
+  getCollectionTargetMembers,
+  isCsharpJsMapTargetType,
+  isCsharpJsSetTargetType,
+} from "./collections.js";
+import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
 import {
@@ -181,14 +191,24 @@ function getSourceLibraryMemberFromReceiverType(
   const declaringName = isSourceLibraryType(receiverType, context, "Array")
     ? "Array"
     : isSourceLibraryType(receiverType, context, "ReadonlyArray")
-      ? "ReadonlyArray"
-      : isSourceLibraryType(receiverType, context, "String")
-        ? "String"
-        : isSourceLibraryType(receiverType, context, "RegExp")
-          ? "RegExp"
-          : isSourceLibraryType(receiverType, context, "Date")
-            ? "Date"
-            : undefined;
+        ? "ReadonlyArray"
+        : isSourceLibraryType(receiverType, context, "String")
+          ? "String"
+          : isSourceLibraryType(receiverType, context, "Boolean")
+            ? "Boolean"
+            : isSourceLibraryType(receiverType, context, "RegExp")
+              ? "RegExp"
+              : isSourceLibraryType(receiverType, context, "Date")
+                ? "Date"
+                : isSourceLibraryType(receiverType, context, "Map")
+                  ? "Map"
+                  : isSourceLibraryType(receiverType, context, "ReadonlyMap")
+                    ? "ReadonlyMap"
+                    : isSourceLibraryType(receiverType, context, "Set")
+                      ? "Set"
+                      : isSourceLibraryType(receiverType, context, "ReadonlySet")
+                        ? "ReadonlySet"
+                        : undefined;
   return declaringName === undefined ? undefined : { declaringName, memberName };
 }
 
@@ -251,7 +271,12 @@ function mapCsharpSourceLibraryPropertyOperation(
 }
 
 function sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {
-  return sourceMember.declaringName === "Array" || sourceMember.declaringName === "ReadonlyArray";
+  return sourceMember.declaringName === "Array" ||
+    sourceMember.declaringName === "ReadonlyArray" ||
+    sourceMember.declaringName === "Map" ||
+    sourceMember.declaringName === "ReadonlyMap" ||
+    sourceMember.declaringName === "Set" ||
+    sourceMember.declaringName === "ReadonlySet";
 }
 
 function sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember: SourceLibraryMember): boolean {
@@ -277,6 +302,15 @@ function sourceLibraryPropertyReceiverHasClosedFacts(
   }
   if (sourceMember.declaringName === "Date") {
     return isCsharpJsDateRuntimeCarrier(receiverType);
+  }
+  if (sourceMember.declaringName === "Boolean") {
+    return isCsharpBooleanTargetType(receiverType);
+  }
+  if (sourceMember.declaringName === "Map" || sourceMember.declaringName === "ReadonlyMap") {
+    return isCsharpJsMapTargetType(receiverType);
+  }
+  if (sourceMember.declaringName === "Set" || sourceMember.declaringName === "ReadonlySet") {
+    return isCsharpJsSetTargetType(receiverType);
   }
   return false;
 }
@@ -314,6 +348,11 @@ function getSourceLibraryPropertyMember(sourceMember: SourceLibraryMember, recei
         return getMathPropertyTargetMember(sourceMember.memberName);
       case "RegExp":
         return getRegExpPropertyTargetMember(sourceMember.memberName);
+      case "Map":
+      case "ReadonlyMap":
+      case "Set":
+      case "ReadonlySet":
+        return getCollectionPropertyTargetMember(sourceMember, receiverType);
       default:
         return undefined;
     }
@@ -354,6 +393,8 @@ function sourceLibrarySelectedDeclarationHasCallTarget(sourceMember: SourceLibra
       return getMathTargetMembers(sourceMember.memberName).length > 0;
     case "String":
       return getStringTargetMembers(sourceMember.memberName).length > 0;
+    case "Boolean":
+      return getBooleanTargetMembers(sourceMember.memberName).length > 0;
     case "Array":
     case "ReadonlyArray":
       return getArrayTargetMembers(sourceMember.memberName).length > 0 ||
@@ -364,6 +405,11 @@ function sourceLibrarySelectedDeclarationHasCallTarget(sourceMember: SourceLibra
       return getDateTargetMembers(sourceMember.memberName, "call").length > 0;
     case "JSON":
       return getJsonTargetMembers(sourceMember.memberName).length > 0;
+    case "Map":
+    case "ReadonlyMap":
+    case "Set":
+    case "ReadonlySet":
+      return getCollectionTargetMembers(sourceMember, undefined, undefined).length > 0;
     case "Object":
       return getObjectTargetMembers(sourceMember.memberName).length > 0;
     case "Console":

@@ -120,6 +120,23 @@ export function getSourceLibraryCallArgumentTargetTypes(
   });
 }
 
+export function getSourceLibraryCallResultTargetType(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  return host.unwrapNullableTargetType(
+    context.factResolver.resolve(request.call, selectedTargetSignatureFactKey)?.member.returnType ??
+      context.factResolver.resolve(request.call, runtimeCarrierFactKey)?.carrier ??
+      context.facts.get(request.call, selectedTargetSignatureFactKey)?.member.returnType ??
+      context.facts.get(request.call, runtimeCarrierFactKey)?.carrier ??
+      host.getTargetTypeRefForSubject(request.call, context, {
+        ...csharpJsCheckedTypeQuery,
+        allowRuntimeCarrier: true,
+      }),
+  );
+}
+
 export function isStringKeyedRecordDictionaryTargetType(
   type: TargetTypeRef,
   host: CsharpJsSurfaceHost,

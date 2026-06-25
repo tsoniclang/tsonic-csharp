@@ -11,6 +11,13 @@ import {
   isCsharpJsDateRuntimeCarrier,
 } from "../date.js";
 import {
+  isCsharpBooleanTargetType,
+} from "../booleans.js";
+import {
+  isCsharpJsMapTargetType,
+  isCsharpJsSetTargetType,
+} from "../collections.js";
+import {
   isCsharpJsJsonValueTargetType,
 } from "../json.js";
 import {
@@ -58,6 +65,8 @@ export function sourceLibraryCallReceiverHasClosedFacts(
       return receiverTypes.some((receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined);
     case "String":
       return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType));
+    case "Boolean":
+      return receiverTypes.some((receiverType) => isCsharpBooleanTargetType(receiverType));
     case "RegExp":
       return receiverTypes.some((receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType)) ||
         getCsharpJsRegExpRuntimeCarrierForSubject(request.calleeReceiver, context) !== undefined ||
@@ -67,6 +76,14 @@ export function sourceLibraryCallReceiverHasClosedFacts(
       return sourceLibraryDateStaticCallRequiresNoReceiver(sourceMember) ||
         request.sourceSelectedDeclaration !== undefined ||
         receiverTypes.some((receiverType) => isCsharpJsDateRuntimeCarrier(receiverType));
+    case "Map":
+    case "ReadonlyMap":
+      return sourceMember.memberName === "constructor" ||
+        receiverTypes.some((receiverType) => isCsharpJsMapTargetType(receiverType));
+    case "Set":
+    case "ReadonlySet":
+      return sourceMember.memberName === "constructor" ||
+        receiverTypes.some((receiverType) => isCsharpJsSetTargetType(receiverType));
     default:
       return true;
   }
@@ -168,12 +185,19 @@ function sourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMemb
       return true;
     case "String":
       return sourceMember.memberName !== "fromCharCode" && sourceMember.memberName !== "fromCodePoint";
+    case "Boolean":
+      return true;
     case "RegExp":
       return sourceMember.memberName !== "constructor";
     case "Date":
       return !sourceLibraryDateStaticCallRequiresNoReceiver(sourceMember);
     case "Object":
       return sourceMember.memberName === "hasOwnProperty";
+    case "Map":
+    case "ReadonlyMap":
+    case "Set":
+    case "ReadonlySet":
+      return sourceMember.memberName !== "constructor";
     default:
       return false;
   }

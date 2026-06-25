@@ -281,6 +281,121 @@ test("JS surface maps Array.from, Array.of, and Array.isArray from selected decl
   assert.equal(isArrayResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.isArray:native");
 });
 
+test("JS surface maps Boolean.toString from selected declaration and closed bool receiver facts", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, boolType()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Boolean", "toString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.BooleanOps.toString");
+  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
+});
+
+test("JS surface maps Map and Set runtime built-ins from selected declarations and closed carrier facts", () => {
+  const mapConstruct = { Kind: "KindNewExpression" };
+  const setConstruct = { Kind: "KindNewExpression" };
+  const mapReceiver = {};
+  const setReceiver = {};
+  const key = {};
+  const value = {};
+  const setValue = {};
+  const mapSize = {};
+  const setSize = {};
+  const mapType = jsMapType(stringType(), int32Type());
+  const setType = jsSetType(int32Type());
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [mapConstruct, mapType],
+    [setConstruct, setType],
+    [mapReceiver, mapType],
+    [setReceiver, setType],
+    [key, stringType()],
+    [value, int32Type()],
+    [setValue, int32Type()],
+  ])));
+
+  const mapConstructResult = provider.mapCheckedCall(jsCallRequest(mapConstruct, sourceLibraryMemberDeclaration("MapConstructor", ""), {
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+  const setConstructResult = provider.mapCheckedCall(jsCallRequest(setConstruct, sourceLibraryMemberDeclaration("SetConstructor", ""), {
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+  const mapSetResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Map", "set"), {
+    arguments: [key, value],
+    calleeReceiver: mapReceiver,
+  }), fakeContext(facts));
+  const setAddResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Set", "add"), {
+    arguments: [setValue],
+    calleeReceiver: setReceiver,
+  }), fakeContext(facts));
+  const mapEntriesResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Map", "entries"), {
+    calleeReceiver: mapReceiver,
+  }), fakeContext(facts));
+  const setValuesResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Set", "values"), {
+    calleeReceiver: setReceiver,
+  }), fakeContext(facts));
+  const mapSizeResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(mapSize, sourceLibraryMemberDeclaration("Map", "size"), "size", {
+    receiverType: mapReceiver,
+  }), fakeContext(facts));
+  const setSizeResult = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(setSize, sourceLibraryMemberDeclaration("Set", "size"), "size", {
+    receiverType: setReceiver,
+  }), fakeContext(facts));
+
+  assert.equal(mapConstructResult.kind, "accept");
+  assert.equal(mapConstructResult.value.selectedSignature.member.declaringType.id, "Tsonic.CSharp.Js.Map`2");
+  assert.equal(setConstructResult.kind, "accept");
+  assert.equal(setConstructResult.value.selectedSignature.member.declaringType.id, "Tsonic.CSharp.Js.Set`1");
+  assert.equal(mapSetResult.kind, "accept");
+  assert.equal(mapSetResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Map.set");
+  assert.equal(mapSetResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.Map`2");
+  assert.equal(setAddResult.kind, "accept");
+  assert.equal(setAddResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Set.add");
+  assert.equal(mapEntriesResult.kind, "accept");
+  assert.equal(mapEntriesResult.value.selectedSignature.member.returnType.typeArguments[0].kind, "tuple");
+  assert.equal(setValuesResult.kind, "accept");
+  assert.equal(setValuesResult.value.selectedSignature.member.returnType.typeArguments[0].name, "int32");
+  assert.equal(mapSizeResult.kind, "accept");
+  assert.equal(mapSizeResult.value.operation.operationId, "Tsonic.CSharp.Js.Map.size");
+  assert.equal(setSizeResult.kind, "accept");
+  assert.equal(setSizeResult.value.operation.operationId, "Tsonic.CSharp.Js.Set.size");
+});
+
+test("JS surface maps Array.from over Map and Set iterables from finalized collection carrier facts", () => {
+  const mapSource = {};
+  const setSource = {};
+  const mapFromCall = {};
+  const setFromCall = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [mapSource, jsMapType(stringType(), int32Type())],
+    [setSource, jsSetType(stringType())],
+  ])));
+
+  const mapFromResult = provider.mapCheckedCall(jsCallRequest(mapFromCall, arrayMemberDeclaration("from"), {
+    arguments: [mapSource],
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+  const setFromResult = provider.mapCheckedCall(jsCallRequest(setFromCall, arrayMemberDeclaration("from"), {
+    arguments: [setSource],
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+
+  assert.equal(mapFromResult.kind, "accept");
+  assert.equal(mapFromResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.from:array:native");
+  assert.equal(mapFromResult.value.selectedSignature.member.returnType.typeArguments[0].kind, "tuple");
+  assert.equal(setFromResult.kind, "accept");
+  assert.equal(setFromResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.from:array:native");
+  assert.equal(setFromResult.value.selectedSignature.member.returnType.typeArguments[0].id, "System.String");
+});
+
 test("JS surface maps Array.at and Array.map from selected declarations and closed callback facts", () => {
   const atCall = {};
   const mapCall = {};
@@ -2609,6 +2724,26 @@ function jsArrayType(elementType) {
     typeArguments: [elementType],
     csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "JSArray" },
     arrayLiteralElementType: elementType,
+  };
+}
+
+function jsMapType(keyType, valueType) {
+  return {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.Map`2",
+    typeArguments: [keyType, valueType],
+    csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "Map" },
+    csharpJsSurfaceKind: "map",
+  };
+}
+
+function jsSetType(elementType) {
+  return {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.Set`1",
+    typeArguments: [elementType],
+    csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "Set" },
+    csharpJsSurfaceKind: "set",
   };
 }
 

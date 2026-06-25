@@ -22,6 +22,9 @@ import {
 import {
   mapCsharpJsJsonRuntimeCarrier,
 } from "./json.js";
+import {
+  mapCsharpJsCollectionRuntimeCarrier,
+} from "./collections.js";
 import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
@@ -72,9 +75,13 @@ export function createCsharpJsSurfaceMappers(host: CsharpJsSurfaceHost): CsharpJ
         return regExpCarrier;
       }
       const dateCarrier = mapCsharpJsDateRuntimeCarrier(request, context);
-      return dateCarrier.kind === "defer"
-        ? mapCsharpJsJsonRuntimeCarrier(request, context, host)
-        : dateCarrier;
+      if (dateCarrier.kind !== "defer") {
+        return dateCarrier;
+      }
+      const jsonCarrier = mapCsharpJsJsonRuntimeCarrier(request, context, host);
+      return jsonCarrier.kind === "defer"
+        ? mapCsharpJsCollectionRuntimeCarrier(request, context, host)
+        : jsonCarrier;
     },
     mapCheckedCall(request, context) {
       if (request.target !== undefined && request.target !== host.targetId) {

@@ -10,6 +10,9 @@ import {
   isCsharpDenseMutableCollectionTargetType,
   isCsharpReadOnlyIndexableCollectionTargetType,
 } from "../../target-types.js";
+import {
+  getCsharpJsIterableElementType,
+} from "./collections.js";
 
 export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 
@@ -33,7 +36,9 @@ export function getCsharpJsArrayCarrierElementType(type: TargetTypeRef | undefin
 }
 
 export function getCsharpArrayLikeElementType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
-  return getCsharpJsArrayCarrierElementType(type) ?? getCsharpCollectionElementTargetType(type);
+  return getCsharpJsArrayCarrierElementType(type) ??
+    getCsharpJsIterableElementType(type) ??
+    getCsharpCollectionElementTargetType(type);
 }
 
 export function getCsharpArrayLengthMember(type: TargetTypeRef | undefined): string | undefined {

@@ -16,7 +16,7 @@ export interface SourceLibraryMember {
   readonly memberName: string;
 }
 
-export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "RegExp" | "Date" | "Math" | "Promise" | "Object" | "JSON" | "Console";
+export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "Boolean" | "RegExp" | "Date" | "Math" | "Promise" | "Object" | "JSON" | "Console" | "Map" | "ReadonlyMap" | "Set" | "ReadonlySet";
 
 export type SourceLibraryTypeName = SourceLibraryDeclaringName | "Record";
 
@@ -80,20 +80,30 @@ function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringName | 
 }
 
 function sourceLibraryConstructorMemberName(name: string): "constructor" | undefined {
-  return name === "RegExpConstructor" || name === "DateConstructor" ? "constructor" : undefined;
+  return name === "RegExpConstructor" ||
+    name === "DateConstructor" ||
+    name === "MapConstructor" ||
+    name === "SetConstructor"
+    ? "constructor"
+    : undefined;
 }
 
 function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclaringName {
   return name === "Array" ||
     name === "ReadonlyArray" ||
     name === "String" ||
+    name === "Boolean" ||
     name === "RegExp" ||
     name === "Date" ||
     name === "Math" ||
     name === "Promise" ||
     name === "Object" ||
     name === "JSON" ||
-    name === "Console";
+    name === "Console" ||
+    name === "Map" ||
+    name === "ReadonlyMap" ||
+    name === "Set" ||
+    name === "ReadonlySet";
 }
 
 function isSourceLibraryTypeName(name: string): name is SourceLibraryTypeName {
