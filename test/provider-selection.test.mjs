@@ -1791,6 +1791,121 @@ test("C# provider maps selected string indexers from provider signature identity
   assert.equal(result.value.operation.operationId, "Example.Headers.Item(System.String)");
 });
 
+test("C# provider maps selected byref indexers from source marker target expressions", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const outCall = {};
+  const value = {};
+  const recordedFacts = [];
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const binding = {
+    id: "Example.RefIndexer",
+    sourceName: "RefIndexer",
+    targetName: "RefIndexer",
+    target: "csharp",
+    kind: "class",
+    members: [{
+      id: "Example.RefIndexer.Item(out System.Int32)",
+      sourceName: "item",
+      targetName: "Item",
+      kind: "indexer",
+      parameters: [targetParameter("value", int32, "byref-writeonly-must-init")],
+      returnType: csharpStringType(),
+      overloadGroup: "Example.RefIndexer.Item",
+    }],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedDeclaration: selectedDeclaration,
+    argument: outCall,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: value,
+    },
+    sourcePrimitiveSubject: value,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.RefIndexer.Item", "item"),
+      signatureId: "Example.RefIndexer.Item(out System.Int32)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.operation.operationId, "Example.RefIndexer.Item(out System.Int32)");
+  const csharpOperation = recordedFacts.find((fact) => fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(csharpOperation?.selectedMember?.parameters[0]?.passingMode, "byref-writeonly-must-init");
+});
+
+test("C# provider rejects selected byref indexers without source marker facts", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const argument = {};
+  const recordedFacts = [];
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const binding = {
+    id: "Example.RefIndexer",
+    sourceName: "RefIndexer",
+    targetName: "RefIndexer",
+    target: "csharp",
+    kind: "class",
+    members: [{
+      id: "Example.RefIndexer.Item(out System.Int32)",
+      sourceName: "item",
+      targetName: "Item",
+      kind: "indexer",
+      parameters: [targetParameter("value", int32, "byref-writeonly-must-init")],
+      returnType: csharpStringType(),
+      overloadGroup: "Example.RefIndexer.Item",
+    }],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedDeclaration: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.RefIndexer.Item", "item"),
+      signatureId: "Example.RefIndexer.Item(out System.Int32)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_NOT_FOUND");
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
   const receiver = {};
   const validArgument = {};
