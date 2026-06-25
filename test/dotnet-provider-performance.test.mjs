@@ -18,6 +18,9 @@ import {
 import {
   createDotnetProviderToolRunner,
 } from "../dist/providers/dotnet/reflection/tool.js";
+import {
+  createDotnetProviderDependencyModuleSpecifier,
+} from "../dist/providers/dotnet/module-specifier.js";
 
 test(".NET provider telemetry exposes required performance counters", () => {
   const telemetry = createDotnetProviderTelemetry();
@@ -407,6 +410,103 @@ test(".NET target binding provider resolves dependency slices only from provider
   assert.deepEqual(observedContexts.get("@tsonic/dotnet/External.js").requestedExports, ["ExternalBase"]);
 });
 
+test(".NET target binding provider derives declaration slices from encoded dependency modules", () => {
+  const identity = {
+    id: "test.dotnet-provider-encoded-dependency-slice",
+    version: "1.0.0",
+    target: "csharp",
+    displayName: "Encoded dependency slice test provider",
+  };
+  const observedContexts = [];
+  const provider = {
+    identity,
+    ownsModule() {
+      return { kind: "owned" };
+    },
+    getModule(specifier, context) {
+      observedContexts.push({ specifier, context });
+      assert.equal(specifier, "@tsonic/dotnet/External.js");
+      assert.deepEqual(context.requestedExports, ["ExternalBase"]);
+      assert.notEqual(context.broadImport, true);
+      return {
+        moduleSpecifier: specifier,
+        namespaceName: "External",
+        exports: [{
+          kind: "type",
+          typeKind: "class",
+          sourceName: "ExternalBase",
+          namespaceName: "External",
+          targetId: "Example.Assembly::External.ExternalBase",
+          metadataName: "External.ExternalBase",
+          members: [],
+        }, {
+          kind: "type",
+          typeKind: "class",
+          sourceName: "Unrequested",
+          namespaceName: "External",
+          targetId: "Example.Assembly::External.Unrequested",
+          metadataName: "External.Unrequested",
+          members: [],
+        }],
+      };
+    },
+  };
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const dependencySpecifier = createDotnetProviderDependencyModuleSpecifier(
+    identity.id,
+    "@tsonic/dotnet/External.js",
+    ["ExternalBase"],
+  );
+  const declarationModel = bindingProvider.getDeclarationModel({
+    kind: "virtual",
+    moduleSpecifier: dependencySpecifier,
+    virtualFileName: "tsts-provider://test.dotnet-provider-encoded-dependency-slice/dependency.d.ts",
+    providerModuleId: "@tsonic/dotnet/External.js",
+  });
+
+  assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
+  assert.deepEqual(declarationModel.exports.map((declaration) => declaration.name), ["ExternalBase"]);
+  assert.equal(observedContexts.length, 1);
+});
+
+test(".NET target binding provider fails closed when a requested export is unproven", () => {
+  const provider = {
+    identity: {
+      id: "test.dotnet-provider-missing-slice-export",
+      version: "1.0.0",
+      target: "csharp",
+      displayName: "Missing sliced export test provider",
+    },
+    ownsModule() {
+      return { kind: "owned" };
+    },
+    getModule(specifier, context) {
+      assert.equal(specifier, "@tsonic/dotnet/Example.js");
+      assert.deepEqual(context.requestedExports, ["Widget"]);
+      assert.notEqual(context.broadImport, true);
+      return {
+        moduleSpecifier: specifier,
+        namespaceName: "Example",
+        exports: [{
+          kind: "type",
+          typeKind: "class",
+          sourceName: "Other",
+          namespaceName: "Example",
+          targetId: "Example.Assembly::Example.Other",
+          metadataName: "Example.Other",
+          members: [],
+        }],
+      };
+    },
+  };
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { requestedExports: ["Widget"] });
+  assert.equal(resolution.kind, "virtual");
+
+  const declarationModel = bindingProvider.getDeclarationModel(resolution);
+  assert.equal(declarationModel.extensionCode, "DOTNET_PROVIDER_REQUESTED_EXPORT_MISSING", JSON.stringify(declarationModel));
+});
+
 test(".NET reflection provider broker reuses module cache across provider instances", () => {
   const broker = createDotnetReflectionProviderBroker();
   const firstTelemetry = createDotnetProviderTelemetry();
@@ -458,6 +558,29 @@ test(".NET reflection provider records metadata target-binding lookups as sliced
   assert.equal(snapshot.moduleRequestedMetadataNames, 1);
   assert.equal(snapshot.requestsByKind.targetBindingByMetadataName, 1);
   assert.equal(snapshot.requestsByKind.module, 1);
+});
+
+test(".NET reflection declaration slices avoid broad unrelated namespace surfaces", () => {
+  const telemetry = createDotnetProviderTelemetry();
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    telemetry,
+  });
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+
+  const declarationModel = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
+  assert.deepEqual(declarationModel.exports.map((declaration) => declaration.name), ["Convert"]);
+  const serializedModel = JSON.stringify(declarationModel);
+  assert.equal(serializedModel.includes("System.Xml"), false);
+  assert.equal(serializedModel.includes("System.ComponentModel"), false);
+
+  const snapshot = provider.getTelemetrySnapshot();
+  assert.equal(snapshot.moduleBroadRequests, 0);
+  assert.equal(snapshot.moduleSlicedRequests >= 1, true);
+  assert.equal(snapshot.moduleRequestedExports >= 1, true);
 });
 
 test(".NET reflection provider tool filters target-binding lookups without broad namespace exports", () => {

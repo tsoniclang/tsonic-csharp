@@ -122,7 +122,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (module === undefined) {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
       }
-      const resolutionContext = dotnetProviderResolutionContext(resolution);
+      const resolutionContext = dotnetProviderResolutionContext(dotnetProviderModuleContext(resolution, module));
       if (resolutionContext === undefined) {
         return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, resolution.moduleSpecifier);
       }
@@ -130,12 +130,17 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
+      const augmentedModule = augmentDotnetModuleWithNativeArray(result, {
+        ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
+        ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
+      });
+      const missingRequestedExports = missingDotnetRequestedExports(augmentedModule, resolutionContext);
+      if (missingRequestedExports.length > 0) {
+        return dotnetProviderRequestedExportMissingDiagnostic(identity.id, module.moduleSpecifier, missingRequestedExports);
+      }
       const startedAt = performance.now();
       const resolvedModule = {
-        ...augmentDotnetModuleWithNativeArray(result, {
-          ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
-          ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
-        }),
+        ...sliceDotnetModuleExports(augmentedModule, resolutionContext),
         moduleSpecifier: resolution.moduleSpecifier,
       };
       const model = dotnetModuleToProviderDeclarationModel(resolvedModule, {
@@ -151,9 +156,13 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
             return undefined;
           }
           const resolved = options.provider.getModule(specifier, providerContext(dependencyResolutionContext, options));
-          return isDotnetProviderDiagnostic(resolved)
+          if (isDotnetProviderDiagnostic(resolved)) {
+            return undefined;
+          }
+          const augmentedDependencyModule = augmentDotnetModuleWithNativeArray(resolved, dependencyResolutionContext);
+          return missingDotnetRequestedExports(augmentedDependencyModule, dependencyResolutionContext).length > 0
             ? undefined
-            : augmentDotnetModuleWithNativeArray(resolved, dependencyResolutionContext);
+            : sliceDotnetModuleExports(augmentedDependencyModule, dependencyResolutionContext);
         },
       });
       options.provider.recordVirtualDeclarationModel?.(model, performance.now() - startedAt);
@@ -293,9 +302,48 @@ function dotnetProviderRequestSliceRequiredDiagnostic(extensionId: string, speci
   );
 }
 
+function dotnetProviderRequestedExportMissingDiagnostic(
+  extensionId: string,
+  specifier: string,
+  missingExports: readonly string[],
+): ExtensionDiagnostic {
+  return dotnetExtensionDiagnostic(
+    extensionId,
+    "DOTNET_PROVIDER_REQUESTED_EXPORT_MISSING",
+    9200005,
+    `.NET provider module '${specifier}' did not prove requested export(s): ${missingExports.join(", ")}.`,
+    [{ specifier, missingExports }],
+  );
+}
+
 function sortedNonEmpty(values: readonly string[] | undefined): readonly string[] | undefined {
   if (values === undefined || values.length === 0) {
     return undefined;
   }
   return [...new Set(values)].sort();
+}
+
+function missingDotnetRequestedExports(
+  module: DotnetModuleModel,
+  context: DotnetProviderResolutionContext,
+): readonly string[] {
+  if (context.broadImport === true || context.requestedExports === undefined) {
+    return [];
+  }
+  const exportedNames = new Set(module.exports.map((declaration) => declaration.sourceName));
+  return context.requestedExports.filter((exportName) => !exportedNames.has(exportName));
+}
+
+function sliceDotnetModuleExports(
+  module: DotnetModuleModel,
+  context: DotnetProviderResolutionContext,
+): DotnetModuleModel {
+  if (context.broadImport === true || context.requestedExports === undefined) {
+    return module;
+  }
+  const requestedExports = new Set(context.requestedExports);
+  return {
+    ...module,
+    exports: module.exports.filter((declaration) => requestedExports.has(declaration.sourceName)),
+  };
 }

@@ -18,7 +18,7 @@ export interface DotnetDeclarationContext {
   readonly sourceModuleSpecifier: string;
   readonly typesBySourceName: ReadonlyMap<string, DotnetTypeDeclaration>;
   readonly sourceMembersByTargetId: Map<string, readonly ProviderMemberDeclaration[]>;
-  readonly modulesBySpecifier: Map<string, DotnetModuleModel>;
+  readonly modulesBySpecifier: Map<string, DotnetModuleModel[]>;
   readonly dependencyModuleSpecifier?: (moduleSpecifier: string, sourceName: string) => string;
   readonly resolveModule?: (specifier: string, requestedExports: readonly string[]) => DotnetModuleModel | undefined;
 }
@@ -34,7 +34,7 @@ export function createDotnetDeclarationContext(
       .filter((declaration): declaration is DotnetTypeDeclaration => declaration.kind === "type")
       .map((declaration) => [declaration.sourceName, declaration])),
     sourceMembersByTargetId: new Map(),
-    modulesBySpecifier: new Map([[module.moduleSpecifier, module]]),
+    modulesBySpecifier: new Map([[module.moduleSpecifier, [module]]]),
     ...(options.dependencyModuleSpecifier !== undefined ? { dependencyModuleSpecifier: options.dependencyModuleSpecifier } : {}),
     ...(options.resolveModule !== undefined ? { resolveModule: options.resolveModule } : {}),
   };
@@ -68,13 +68,19 @@ export function getDotnetModuleBySpecifier(
   context: DotnetDeclarationContext,
   requestedExports: readonly string[],
 ): DotnetModuleModel | undefined {
-  const existing = context.modulesBySpecifier.get(moduleSpecifier);
-  if (existing !== undefined && dotnetModuleIncludesRequestedExports(existing, requestedExports)) {
+  const existing = context.modulesBySpecifier.get(moduleSpecifier)
+    ?.find((module) => dotnetModuleIncludesRequestedExports(module, requestedExports));
+  if (existing !== undefined) {
     return existing;
   }
   const resolved = context.resolveModule?.(moduleSpecifier, requestedExports);
   if (resolved !== undefined) {
-    context.modulesBySpecifier.set(moduleSpecifier, resolved);
+    const modules = context.modulesBySpecifier.get(moduleSpecifier);
+    if (modules === undefined) {
+      context.modulesBySpecifier.set(moduleSpecifier, [resolved]);
+    } else {
+      modules.push(resolved);
+    }
   }
   return resolved;
 }

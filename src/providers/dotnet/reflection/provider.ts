@@ -84,6 +84,8 @@ export function createDotnetReflectionTypeDataProvider(
 ): DotnetReflectionTypeDataProvider {
   const modules = new Map<string, DotnetModuleModel>();
   const diagnostics = new Map<string, DotnetProviderDiagnostic>();
+  const targetBindingsByTargetId = new Map<string, TargetBindingFact>();
+  const targetBindingsByMetadataName = new Map<string, TargetBindingFact | "ambiguous">();
   const toolProjectPath = options.toolProjectPath ?? defaultToolProjectPath();
   const telemetry = options.telemetry ?? dotnetProviderGlobalTelemetry;
   telemetry.providerInstance();
@@ -114,7 +116,14 @@ export function createDotnetReflectionTypeDataProvider(
     }
     const brokerModule = providerBroker?.readModule(cacheRequest);
     if (brokerModule !== undefined) {
-      modules.set(memoryKey, brokerModule);
+      const brokerDiagnostic = validateModuleSatisfiesRequest(brokerModule, cacheRequest);
+      if (brokerDiagnostic !== undefined) {
+        diagnostics.set(memoryKey, brokerDiagnostic);
+        providerBroker?.writeDiagnostic(cacheRequest, brokerDiagnostic);
+        telemetry.memoryCacheHit();
+        return brokerDiagnostic;
+      }
+      rememberModule(memoryKey, brokerModule);
       telemetry.memoryCacheHit();
       return brokerModule;
     }
@@ -145,7 +154,13 @@ export function createDotnetReflectionTypeDataProvider(
     const cached = persistentCache?.readModule(cacheRequest);
     if (cached !== undefined) {
       const module = augmentDotnetModuleWithNativeArray(cached, context);
-      modules.set(memoryKey, module);
+      const cachedDiagnostic = validateModuleSatisfiesRequest(module, cacheRequest);
+      if (cachedDiagnostic !== undefined) {
+        diagnostics.set(memoryKey, cachedDiagnostic);
+        providerBroker?.writeDiagnostic(cacheRequest, cachedDiagnostic);
+        return cachedDiagnostic;
+      }
+      rememberModule(memoryKey, module);
       providerBroker?.writeModule(cacheRequest, module);
       telemetry.modelBytes(JSON.stringify(cached).length);
       return module;
@@ -184,7 +199,13 @@ export function createDotnetReflectionTypeDataProvider(
       persistentCache?.writeModule(cacheRequest, rawModule);
       telemetry.modelBytes(result.stdout.length);
       const module = augmentDotnetModuleWithNativeArray(rawModule, context);
-      modules.set(memoryKey, module);
+      const moduleDiagnostic = validateModuleSatisfiesRequest(module, cacheRequest);
+      if (moduleDiagnostic !== undefined) {
+        diagnostics.set(memoryKey, moduleDiagnostic);
+        providerBroker?.writeDiagnostic(cacheRequest, moduleDiagnostic);
+        return moduleDiagnostic;
+      }
+      rememberModule(memoryKey, module);
       providerBroker?.writeModule(cacheRequest, module);
       return module;
     } catch (error) {
@@ -261,7 +282,7 @@ export function createDotnetReflectionTypeDataProvider(
     },
     findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined {
       telemetry.request("targetBindingByTargetId");
-      const existing = findTargetBindingInLoadedModules(modules, targetId);
+      const existing = targetBindingsByTargetId.get(targetId);
       if (existing !== undefined) {
         return existing;
       }
@@ -273,13 +294,16 @@ export function createDotnetReflectionTypeDataProvider(
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
-      return findTargetBindingInLoadedModules(modules, targetId);
+      return findTargetBindingInModule(loaded, targetId);
     },
     findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined {
       telemetry.request("targetBindingByMetadataName");
-      const existing = findUniqueTargetBindingByMetadataNameInLoadedModules(modules, metadataName);
-      if (existing !== undefined) {
+      const existing = targetBindingsByMetadataName.get(metadataName);
+      if (existing !== undefined && existing !== "ambiguous") {
         return existing;
+      }
+      if (existing === "ambiguous") {
+        return undefined;
       }
       const moduleSpecifier = dotnetModuleSpecifierForMetadataName(metadataName);
       if (moduleSpecifier === undefined) {
@@ -289,12 +313,53 @@ export function createDotnetReflectionTypeDataProvider(
       if (isDotnetProviderDiagnostic(loaded)) {
         return undefined;
       }
-      return findUniqueTargetBindingByMetadataNameInLoadedModules(modules, metadataName);
+      return findUniqueTargetBindingByMetadataNameInModule(loaded, metadataName);
     },
     getTelemetrySnapshot(): DotnetProviderTelemetrySnapshot {
       return telemetry.snapshot();
     },
   };
+
+  function rememberModule(memoryKey: string, module: DotnetModuleModel): void {
+    modules.set(memoryKey, module);
+    rememberModuleTargetBindings(module);
+  }
+
+  function rememberModuleTargetBindings(module: DotnetModuleModel): void {
+    for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
+      if (declaration.kind !== "type") {
+        continue;
+      }
+      const binding = dotnetExportToTargetBinding(declaration);
+      if (binding === undefined) {
+        continue;
+      }
+      targetBindingsByTargetId.set(declaration.targetId, binding);
+      const existing = targetBindingsByMetadataName.get(declaration.metadataName);
+      targetBindingsByMetadataName.set(
+        declaration.metadataName,
+        existing === undefined || (existing !== "ambiguous" && existing.id === binding.id) ? binding : "ambiguous",
+      );
+    }
+  }
+
+  function validateModuleSatisfiesRequest(
+    module: DotnetModuleModel,
+    request: DotnetProviderCacheRequest,
+  ): DotnetProviderDiagnostic | undefined {
+    const missingExports = missingRequestedExports(module, request.requestedExports);
+    const missingTargetIds = missingRequestedTargetIds(module, request.requestedTargetIds);
+    const missingMetadataNames = missingRequestedMetadataNames(module, request.requestedMetadataNames);
+    if (missingExports.length === 0 && missingTargetIds.length === 0 && missingMetadataNames.length === 0) {
+      return undefined;
+    }
+    return diagnostic("DOTNET_REFLECTION_REQUESTED_DECLARATION_MISSING", ".NET reflection provider did not prove all requested declarations.", {
+      specifier: request.moduleSpecifier,
+      missingExports,
+      missingTargetIds,
+      missingMetadataNames,
+    });
+  }
 }
 
 function countProviderVirtualDeclarations(model: ProviderDeclarationModel): number {
@@ -326,19 +391,6 @@ function sortedNonEmpty(values: readonly string[] | undefined): readonly string[
   return values === undefined || values.length === 0 ? undefined : [...new Set(values)].sort();
 }
 
-function findTargetBindingInLoadedModules(
-  modules: ReadonlyMap<string, DotnetModuleModel>,
-  targetId: string,
-): TargetBindingFact | undefined {
-  for (const module of modules.values()) {
-    const binding = findTargetBindingInModule(module, targetId);
-    if (binding !== undefined) {
-      return binding;
-    }
-  }
-  return undefined;
-}
-
 function findTargetBindingInModule(module: DotnetModuleModel, targetId: string): TargetBindingFact | undefined {
   for (const declaration of [...module.exports, ...(module.targetOnlyTypes ?? [])]) {
     if (declaration.kind === "type" && declaration.targetId === targetId) {
@@ -346,24 +398,6 @@ function findTargetBindingInModule(module: DotnetModuleModel, targetId: string):
     }
   }
   return undefined;
-}
-
-function findUniqueTargetBindingByMetadataNameInLoadedModules(
-  modules: ReadonlyMap<string, DotnetModuleModel>,
-  metadataName: string,
-): TargetBindingFact | undefined {
-  let result: TargetBindingFact | undefined;
-  for (const module of modules.values()) {
-    const binding = findUniqueTargetBindingByMetadataNameInModule(module, metadataName);
-    if (binding === undefined) {
-      continue;
-    }
-    if (result !== undefined && result.id !== binding.id) {
-      return undefined;
-    }
-    result = binding;
-  }
-  return result;
 }
 
 function findUniqueTargetBindingByMetadataNameInModule(
@@ -385,6 +419,43 @@ function findUniqueTargetBindingByMetadataNameInModule(
     result = binding;
   }
   return result;
+}
+
+function missingRequestedExports(
+  module: DotnetModuleModel,
+  requestedExports: readonly string[] | undefined,
+): readonly string[] {
+  if (requestedExports === undefined) {
+    return [];
+  }
+  const exports = new Set(module.exports.map((declaration) => declaration.sourceName));
+  return requestedExports.filter((exportName) => !exports.has(exportName));
+}
+
+function missingRequestedTargetIds(
+  module: DotnetModuleModel,
+  requestedTargetIds: readonly string[] | undefined,
+): readonly string[] {
+  if (requestedTargetIds === undefined) {
+    return [];
+  }
+  const targetIds = new Set([...module.exports, ...(module.targetOnlyTypes ?? [])]
+    .filter((declaration) => declaration.kind === "type")
+    .map((declaration) => declaration.targetId));
+  return requestedTargetIds.filter((targetId) => !targetIds.has(targetId));
+}
+
+function missingRequestedMetadataNames(
+  module: DotnetModuleModel,
+  requestedMetadataNames: readonly string[] | undefined,
+): readonly string[] {
+  if (requestedMetadataNames === undefined) {
+    return [];
+  }
+  const metadataNames = new Set([...module.exports, ...(module.targetOnlyTypes ?? [])]
+    .filter((declaration) => declaration.kind === "type")
+    .map((declaration) => declaration.metadataName));
+  return requestedMetadataNames.filter((metadataName) => !metadataNames.has(metadataName));
 }
 
 function diagnostic(

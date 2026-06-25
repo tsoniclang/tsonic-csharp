@@ -62,22 +62,8 @@ export function tryPlanCompatRuntimePropertySet(
   if (operation === undefined || receiverNode === undefined) {
     return invalidExpression("compat any property set operation");
   }
-  if (operation.operationKind === "property") {
-    return {
-      kind: "AssignmentExpression",
-      left: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: planExpression(receiverNode, sourceFile, input, diagnostics),
-        name: requireCsharpIdentifier(operation.memberName, diagnostics, "C# compat-runtime property setter member"),
-      },
-      operatorToken: { kind: "EqualsToken" },
-      right: rightNode === undefined
-        ? invalidExpression("compat any property set value")
-        : planExpression(rightNode, sourceFile, input, diagnostics),
-    };
-  }
   if (operation.operationKind !== "method") {
-    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `C# compat-runtime any property set requires a finalized method or property operation fact, but provider recorded '${operation.operationKind}'.`));
+    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `C# compat-runtime any property set requires a finalized method operation fact with explicit argument projection, but provider recorded '${operation.operationKind}'.`));
     return invalidExpression("compat any property set kind");
   }
   return planCompatRuntimeMethodInvocation(operationNode, operation, receiverNode, [rightNode], false, "C# compat-runtime any property set", sourceFile, input, diagnostics, planExpression);

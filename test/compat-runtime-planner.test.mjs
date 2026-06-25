@@ -84,6 +84,26 @@ test("compat any property set renders closed carrier setter operations from expl
   assert.equal(printCsharpExpression(expression), 'value.WriteCompatSlot("TargetSlot", 1)');
 });
 
+test("compat any property set rejects property assignment facts without explicit projection", () => {
+  const receiver = identifier("value");
+  const propertyAccess = property(receiver, "name");
+  const assignment = binary(propertyAccess, numeric("1"));
+  const diagnostics = [];
+  const operation = {
+    ...compatRuntimeOperation("WritableCompatSlot", undefined),
+    operationKind: "property",
+    argumentProjection: undefined,
+  };
+  const expression = planExpression(assignment, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[assignment, operation]]),
+  }), diagnostics);
+
+  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /property set requires a finalized method operation fact with explicit argument projection/u);
+});
+
 test("compat any element get renders closed carrier getter operations from explicit key projection", () => {
   const receiver = identifier("value");
   const key = identifier("key");
