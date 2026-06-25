@@ -65,10 +65,6 @@ export function resolveTargetTypeRefForTypeCore(
   if (types === undefined) {
     return resolveNonPrimitiveRuntimeCarrier(type, context, options, host, resolveTargetTypeArgumentsForType);
   }
-  const typeParameterName = getTypeParameterName(type, context);
-  if (typeParameterName !== undefined) {
-    return { kind: "type-parameter", name: typeParameterName };
-  }
   const sourceArray = getSourceArrayTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (sourceArray !== undefined) {
     return sourceArray;
@@ -80,6 +76,10 @@ export function resolveTargetTypeRefForTypeCore(
   const sourceRecord = getSourceRecordTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (sourceRecord !== undefined) {
     return sourceRecord;
+  }
+  const typeParameterName = getTypeParameterName(type, context);
+  if (typeParameterName !== undefined) {
+    return { kind: "type-parameter", name: typeParameterName };
   }
   const binding = resolveTargetBinding(type.symbol, context);
   if (binding !== undefined) {

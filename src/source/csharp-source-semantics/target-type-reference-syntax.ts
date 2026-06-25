@@ -23,6 +23,7 @@ import {
   isSourceLibraryType,
 } from "./source-library.js";
 import {
+  getAliasedSymbolIfAvailable,
   getSymbolDeclarations,
 } from "./symbol-utils.js";
 import type {
@@ -70,11 +71,15 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return undefined;
   }
   const sourceFile = ast.getSourceFile(node);
+  const symbol = checker.getSymbolAtLocation(typeName, { sourceFile });
+  const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
   const type = asType(checker.getTypeFromTypeNode(node, { sourceFile }));
   const typeAliasSymbol = (type as { readonly aliasSymbol?: ExtensionFactSubject } | undefined)?.aliasSymbol;
   const candidateSubjects: readonly (ExtensionFactSubject | undefined)[] = [
     node,
     typeName,
+    symbol,
+    aliasedSymbol,
     typeAliasSymbol,
     type?.symbol,
   ];
@@ -99,7 +104,7 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
   }
   const recordDictionaryType = getRecordDictionaryTypeRefFromTypeReference(
-    [typeAliasSymbol, type?.symbol],
+    candidateSubjects,
     node,
     context,
     options,

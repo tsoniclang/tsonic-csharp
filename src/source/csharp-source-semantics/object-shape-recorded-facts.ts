@@ -15,11 +15,13 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
+  isSemanticTypeQueryableValueExpressionNode,
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
   getAliasedSymbolIfAvailable,
   getDeclarationTypeNode,
+  getSymbolForDeclarationLookup,
 } from "./symbol-utils.js";
 import {
   getSourceCoreStructMarkerDeclarationFromSubject,
@@ -142,11 +144,11 @@ function getRecordedCsharpObjectShapeFactForReference(
     ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
     : undefined;
   const typeAliasSymbol = (type as { readonly aliasSymbol?: ExtensionFactSubject } | undefined)?.aliasSymbol;
-  const symbol = type === undefined ? getSafeSymbol(referenceName, context) : undefined;
-  const resolved = type === undefined ? getSafeResolvedSymbol(referenceName, context) : undefined;
+  const symbol = type === undefined
+    ? getSymbolForDeclarationLookup(compiler.ast, compiler.checker, referenceName, sourceFile)
+    : undefined;
   const aliasedSymbol = type === undefined ? getAliasedSymbolIfAvailable(compiler.checker, symbol, sourceFile) : undefined;
-  const aliasedResolved = type === undefined ? getAliasedSymbolIfAvailable(compiler.checker, resolved, sourceFile) : undefined;
-  for (const candidate of [node, referenceName, typeAliasSymbol, type?.symbol, symbol, resolved, aliasedSymbol, aliasedResolved]) {
+  for (const candidate of [node, referenceName, typeAliasSymbol, type, type?.symbol, symbol, aliasedSymbol]) {
     const fact = context.facts.get(candidate, csharpObjectShapeFactKey);
     if (fact !== undefined) {
       return fact;
@@ -164,10 +166,7 @@ function getRecordedCsharpObjectShapeFactForSemanticType(
   if (compiler === undefined || node === undefined) {
     return undefined;
   }
-  const sourceFile = compiler.ast.getSourceFile(node);
-  const type = isTypeSyntaxNode(compiler.ast, node)
-    ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
-    : compiler.checker.getTypeAtLocation(node, { sourceFile });
+  const type = getSemanticTypeForObjectShapeLookup(node, context);
   return context.facts.get(type, csharpObjectShapeFactKey) ??
     context.facts.get(type?.symbol, csharpObjectShapeFactKey);
 }
@@ -192,10 +191,7 @@ export function subjectHasSourceDeclaredStructRuntimeCarrier(
   if (compiler === undefined || node === undefined) {
     return false;
   }
-  const sourceFile = compiler.ast.getSourceFile(node);
-  const type = isTypeSyntaxNode(compiler.ast, node)
-    ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
-    : compiler.checker.getTypeAtLocation(node, { sourceFile });
+  const type = getSemanticTypeForObjectShapeLookup(node, context);
   return isSourceDeclaredStructRuntimeCarrier(context.facts.get(type, runtimeCarrierFactKey)?.carrier) ||
     isSourceDeclaredStructRuntimeCarrier(context.facts.get(type?.symbol, runtimeCarrierFactKey)?.carrier);
 }
@@ -212,31 +208,27 @@ function isSourceDeclaredStructRuntimeCarrier(carrier: unknown): boolean {
   return type?.kind === "target-named" && type.csharpSourceDeclarationKind === "struct";
 }
 
-function getSafeSymbol(
-  node: NonNullable<ReturnType<typeof asNodeSubject>>,
+function getSemanticTypeForObjectShapeLookup(
+  node: Node,
   context: ExtensionObservationContext,
 ) {
   const compiler = context.compiler;
   if (compiler === undefined) {
     return undefined;
   }
-  try {
-    return compiler.checker.getSymbolAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) });
-  } catch {
-    return undefined;
+  const sourceFile = compiler.ast.getSourceFile(node);
+  if (isTypeSyntaxNode(compiler.ast, node)) {
+    try {
+      return compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+    } catch {
+      return undefined;
+    }
   }
-}
-
-function getSafeResolvedSymbol(
-  node: NonNullable<ReturnType<typeof asNodeSubject>>,
-  context: ExtensionObservationContext,
-) {
-  const compiler = context.compiler;
-  if (compiler === undefined) {
+  if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)) {
     return undefined;
   }
   try {
-    return compiler.checker.getResolvedSymbol(node, { sourceFile: compiler.ast.getSourceFile(node) });
+    return compiler.checker.getTypeAtLocation(node, { sourceFile });
   } catch {
     return undefined;
   }

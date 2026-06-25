@@ -16,6 +16,9 @@ import type {
 import type {
   TargetTypeRefResolver,
 } from "./target-type-ref-resolution.js";
+import {
+  targetTypeRefEquals,
+} from "./target-ref-utils.js";
 
 export {
   selectTargetMember,
@@ -106,9 +109,51 @@ export function findTargetMember(
     return members.find((member) => member.id === declaration.signatureId);
   }
   if (declaration?.memberId !== undefined) {
-    return members.find((member) => member.id === declaration.memberId);
+    const selectedMember = members.find((member) => member.id === declaration.memberId);
+    if (selectedMember !== undefined) {
+      return selectedMember;
+    }
+    return createProviderSelectedMemberGroup(declaration.memberId, members.filter((member) => member.overloadGroup === declaration.memberId));
   }
   return undefined;
+}
+
+function createProviderSelectedMemberGroup(memberId: string, candidates: readonly TargetMember[]): TargetMember | undefined {
+  const first = candidates[0];
+  if (first === undefined) {
+    return undefined;
+  }
+  if (!candidates.every((candidate) => hasSameTargetMemberGroupOperation(first, candidate))) {
+    return undefined;
+  }
+  return {
+    id: memberId,
+    sourceName: first.sourceName,
+    targetName: first.targetName,
+    kind: first.kind,
+    parameters: [],
+    ...(first.static === true ? { static: true } : {}),
+    ...(first.readonly === true ? { readonly: true } : {}),
+    ...(first.receiverPassing !== undefined ? { receiverPassing: first.receiverPassing } : {}),
+    ...(first.declaringType !== undefined ? { declaringType: first.declaringType } : {}),
+  };
+}
+
+function hasSameTargetMemberGroupOperation(left: TargetMember, right: TargetMember): boolean {
+  return left.kind === right.kind &&
+    left.sourceName === right.sourceName &&
+    left.targetName === right.targetName &&
+    left.static === right.static &&
+    left.readonly === right.readonly &&
+    left.receiverPassing === right.receiverPassing &&
+    optionalTargetTypeRefEquals(left.declaringType, right.declaringType);
+}
+
+function optionalTargetTypeRefEquals(left: TargetMember["declaringType"], right: TargetMember["declaringType"]): boolean {
+  if (left === undefined || right === undefined) {
+    return left === right;
+  }
+  return targetTypeRefEquals(left, right);
 }
 
 function getTargetMemberCandidates(
