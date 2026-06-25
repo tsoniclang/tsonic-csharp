@@ -55,10 +55,6 @@ type CsharpTargetAssignabilityValidation =
       readonly evidence: readonly ExtensionEvidence[];
     }
   | {
-      readonly kind: "unvalidated";
-      readonly evidence: readonly ExtensionEvidence[];
-    }
-  | {
       readonly kind: "invalid";
       readonly message: string;
       readonly evidence: readonly ExtensionEvidence[];
@@ -126,6 +122,9 @@ function validateObservedAssignabilityFactsForNode(
     return;
   }
   validateObservedAssignmentTargetFact(fact, context);
+  if (diagnoseAnyTypedBoundaryForNode(node, context)) {
+    return;
+  }
   const source = host.getTargetTypeRefForSubject(fact.source, context);
   const target = host.getTargetTypeRefForSubject(fact.target, context);
   const validation = validateCsharpTargetAssignability(source, target, host, new Set());
@@ -148,40 +147,39 @@ function validateObservedAssignabilityFactsForNode(
 function diagnoseAnyTypedBoundaryForNode(
   node: Node,
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
-): void {
+): boolean {
   const compiler = context.compiler;
   if (compiler === undefined) {
-    return;
+    return false;
   }
   const ast = compiler.ast;
   if (ast.is.IsBinaryExpression(node) && getBinaryOperatorText(ast, node) === "=") {
-    appendAnyBoundaryDiagnostic(
+    return appendAnyBoundaryDiagnostic(
       node,
       context,
       context.facts.get(asNode(getNodeField(node, "Right")), runtimeCarrierFactKey)?.carrier,
       context.facts.get(asNode(getNodeField(node, "Left")), runtimeCarrierFactKey)?.carrier,
     );
-    return;
   }
   const kind = ast.kindName(node);
   if (kind === "KindVariableDeclaration" || kind === "KindPropertyDeclaration") {
-    appendAnyBoundaryDiagnostic(
+    return appendAnyBoundaryDiagnostic(
       node,
       context,
       context.facts.get(asNode(getNodeField(node, "Initializer")), runtimeCarrierFactKey)?.carrier,
       context.facts.get(node, runtimeCarrierFactKey)?.carrier ??
         context.facts.get(asNode(getNodeField(node, "Type")), runtimeCarrierFactKey)?.carrier,
     );
-    return;
   }
   if (kind === "KindReturnStatement") {
-    appendAnyBoundaryDiagnostic(
+    return appendAnyBoundaryDiagnostic(
       node,
       context,
       context.facts.get(asNode(getNodeField(node, "Expression")), runtimeCarrierFactKey)?.carrier,
       getEnclosingReturnTargetCarrier(node, context),
     );
   }
+  return false;
 }
 
 function appendAnyBoundaryDiagnostic(
@@ -189,9 +187,9 @@ function appendAnyBoundaryDiagnostic(
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
-): void {
+): boolean {
   if (!isAnyBoundary(source, target)) {
-    return;
+    return false;
   }
   context.diagnostics.append({
     ...csharpProviderDiagnostic(
@@ -208,6 +206,7 @@ function appendAnyBoundaryDiagnostic(
     ],
     identity: `csharp-target-assignability:${subjectIdentity(node)}`,
   });
+  return true;
 }
 
 function validateObservedAssignmentTargetFact(
@@ -329,9 +328,13 @@ function validateCsharpTargetAssignability(
 ): CsharpTargetAssignabilityValidation {
   if (source === undefined || target === undefined) {
     return {
-      kind: "unvalidated",
+      kind: "invalid",
+      message: "C# target assignment requires finalized source and target type facts after TSTS accepted the TypeScript relation.",
       evidence: [{
-        message: "C# post-check target assignability did not run because a source or target C# type fact was not finalized.",
+        message: "C# target validation reason",
+        details: "Target assignability validation is separate from TypeScript assignability, but emitted C# requires closed target type facts for both sides.",
+      }, {
+        message: "Finalized C# target type facts",
         details: {
           sourceResolved: source !== undefined,
           targetResolved: target !== undefined,
@@ -359,9 +362,13 @@ function validateCsharpTargetAssignability(
     return validateNamedCsharpTargetAssignability(source, target, host, visited);
   }
   return {
-    kind: "unvalidated",
+    kind: "invalid",
+    message: "C# target assignment requires a finalized target assignability proof after TSTS accepted the TypeScript relation.",
     evidence: [{
-      message: "C# post-check target assignability has no target-specific rule for this finalized source/target carrier pair.",
+      message: "C# target validation reason",
+      details: "No finalized C# target rule proves this source/target carrier pair can be emitted as an assignment.",
+    }, {
+      message: "Finalized C# target type facts",
       details: { source, target },
     }],
   };

@@ -83,6 +83,37 @@ test("C# post-check target assignability cannot make TypeScript-invalid assignme
   assert.equal(targetDiagnostics.length, 0);
 });
 
+test("C# post-check target assignability fails closed when target type facts are missing", () => {
+  const sourceText = `
+    declare let x: number;
+    declare let y: number;
+    x = y;
+  `;
+  const session = createNativeSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const assignment = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  assert.ok(assignment);
+  session.extensionHost?.facts.set(assignment, csharpObservedTargetAssignabilityFactKey, {
+    source: {},
+    target: {},
+    relation: "assignment",
+    expression: assignment,
+  }, [{ message: "Test-injected post-check assignment observation without target type facts." }]);
+
+  session.finalizeExtensions();
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 1);
+  assert.match(targetDiagnostics[0].message, /requires finalized source and target type facts/u);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === 2322), false);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
+});
+
 test("C# target generic constraints diagnose unproven provider type arguments after TSTS accepts source syntax", () => {
   const sourceText = `
     import type { SearchValues } from "@example/csharp/search-values.js";
@@ -102,7 +133,7 @@ test("C# target generic constraints diagnose unproven provider type arguments af
   assert.match(targetDiagnostics[0].message, /requires a finalized target type fact/u);
 });
 
-test("C# post-check target assignability fails closed on TypeScript any boundaries", () => {
+test("C# post-check target assignability fails closed on TypeScript any boundaries without changing the TS relation", () => {
   const sourceText = `
     declare let value: any;
     declare let target: number;
@@ -120,7 +151,8 @@ test("C# post-check target assignability fails closed on TypeScript any boundari
     diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
   ) ?? [];
   assert.equal(targetDiagnostics.length, 1);
-  assert.match(targetDiagnostics[0].message, /TypeScript any boundary/);
+  assert.match(targetDiagnostics[0].message, /requires finalized source and target type facts/u);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === 2322), false);
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
 });
 
@@ -147,7 +179,7 @@ test("C# post-check target assignment requires writable selected provider proper
   }, [{ message: "Test-injected post-check assignment observation after TSTS accepted the source assignment." }]);
   session.extensionHost?.facts.set(left, csharpTargetOperationFactKey, selectedMemberOperation({
     id: "Example.Target.ReadonlyValue",
-    sourceName: "value",
+    sourceName: "providerSelectedDeclarationName",
     targetName: "ReadonlyValue",
     kind: "property",
     readonly: true,
