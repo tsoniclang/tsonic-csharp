@@ -13,7 +13,7 @@ export function unsupportedCsharpSourceFlowMarkerDiagnostic(
     extensionId,
     "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED",
     9100135,
-    `C# target does not implement source flow marker '${sourceFlowMarkerName(flowState.state)}'; this intrinsic requires an explicit target contract and cannot be erased.`,
+    `C# target does not implement source flow marker '${sourceFlowMarkerName(flowState.state)}'; this intrinsic requires an explicit target contract and cannot be erased or lowered as an identity call.`,
   );
 }
 

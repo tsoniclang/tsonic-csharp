@@ -37,6 +37,7 @@ import {
   getCsharpTypeForUnionTypeNode,
   getCsharpTypeFromRuntimeCarrier,
   getCsharpTypeFromSelectedTargetCall,
+  getCsharpTypeFromSourceCoreTypeMarkerFact,
   isUnionTypeNode,
 } from "../csharp-type-facts.js";
 import {
@@ -93,6 +94,10 @@ export function getCsharpTypeForNode(
   const targetConversionType = getCsharpTypeFromTargetConversion(node, input, diagnostics);
   if (targetConversionType !== undefined) {
     return targetConversionType;
+  }
+  const sourceCoreTypeMarker = getCsharpTypeFromSourceCoreTypeMarkerFact(node, input, diagnostics);
+  if (sourceCoreTypeMarker !== undefined) {
+    return sourceCoreTypeMarker;
   }
   if (input.ast.kindName(node) === KindTypeLiteral) {
     const objectShape = getCsharpObjectShapeFactForNode(node, sourceFile, input);

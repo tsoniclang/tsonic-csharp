@@ -12,6 +12,9 @@ import {
 import type {
   UnsupportedProviderTargetMember,
 } from "../provider-unsupported-members.js";
+import {
+  unsupportedProviderTargetMemberEvidence,
+} from "../provider-unsupported-members.js";
 
 export function rejectPropertyAccessNotMapped(
   extensionId: string,
@@ -25,7 +28,13 @@ export function rejectTargetPropertyUnsupported(
   unsupportedMember: UnsupportedProviderTargetMember,
   targetId: string,
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_PROPERTY_UNSUPPORTED", 9100131, `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${targetId}'. ${unsupportedMember.reason}`));
+  return rejectObservation(csharpProviderDiagnostic(
+    extensionId,
+    "CSHARP_TARGET_PROPERTY_UNSUPPORTED",
+    9100131,
+    `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${targetId}'. ${unsupportedMember.reason}`,
+    unsupportedProviderTargetMemberEvidence(targetId, unsupportedMember),
+  ));
 }
 
 export function rejectTargetPropertyNotFound(
@@ -42,7 +51,24 @@ export function rejectTargetEventUnsupported(
   targetId: string,
   unsupportedMember: UnsupportedProviderTargetMember | undefined,
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_EVENT_UNSUPPORTED", 9100132, `C# provider selected event '${member.targetName}' on target '${targetId}', but source event subscription semantics are not modeled.${unsupportedMember === undefined ? "" : ` ${unsupportedMember.reason}`}`));
+  return rejectObservation(csharpProviderDiagnostic(
+    extensionId,
+    "CSHARP_TARGET_EVENT_UNSUPPORTED",
+    9100132,
+    `C# provider selected event '${member.targetName}' on target '${targetId}', but source event subscription semantics are not modeled.${unsupportedMember === undefined ? "" : ` ${unsupportedMember.reason}`}`,
+    unsupportedMember === undefined
+      ? [{
+          message: "C# provider selected a target event before source event subscription semantics were modeled.",
+          details: {
+            bindingId: targetId,
+            memberKind: member.kind,
+            sourceName: member.sourceName,
+            targetName: member.targetName,
+            targetId: member.id,
+          },
+        }]
+      : unsupportedProviderTargetMemberEvidence(targetId, unsupportedMember),
+  ));
 }
 
 export function rejectTargetPropertyNotRenderable(
@@ -63,7 +89,13 @@ export function rejectTargetIndexerUnsupported(
   unsupportedMember: UnsupportedProviderTargetMember,
   targetId: string,
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_INDEXER_UNSUPPORTED", 9100133, `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${targetId}'. ${unsupportedMember.reason}`));
+  return rejectObservation(csharpProviderDiagnostic(
+    extensionId,
+    "CSHARP_TARGET_INDEXER_UNSUPPORTED",
+    9100133,
+    `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${targetId}'. ${unsupportedMember.reason}`,
+    unsupportedProviderTargetMemberEvidence(targetId, unsupportedMember),
+  ));
 }
 
 export function rejectTargetIndexerNotFound(

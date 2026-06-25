@@ -54,6 +54,60 @@ export function getCsharpTypeFromSelectedTargetCall(
   return csharpType;
 }
 
+export function getCsharpTypeFromSourceCoreTypeMarkerFact(
+  node: Node,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  const pointer = input.facts.getPointerFact(node);
+  if (pointer !== undefined) {
+    const type = getCsharpTypeFromDirectSourceCoreTypeFact(node, input);
+    if (type !== undefined) {
+      return type;
+    }
+    diagnostics?.push({
+      ...unsupportedNodeDiagnostic(node, "Pointer type marker requires a finalized pointee target type before C# type emission."),
+      evidence: [`pointeeSubject=${sourceFactSubjectEvidence(pointer.pointee)}`],
+    });
+    return invalidCsharpType("pointer marker pointee type");
+  }
+  const functionPointer = input.facts.getFunctionPointerFact(node);
+  if (functionPointer !== undefined) {
+    const type = getCsharpTypeFromDirectSourceCoreTypeFact(node, input);
+    if (type !== undefined) {
+      return type;
+    }
+    diagnostics?.push({
+      ...unsupportedNodeDiagnostic(node, "Function pointer type marker requires finalized parameter and result target types before C# type emission."),
+      evidence: [
+        `parameterSubjects=${functionPointer.parameters.map(sourceFactSubjectEvidence).join(",")}`,
+        `resultSubject=${sourceFactSubjectEvidence(functionPointer.result)}`,
+      ],
+    });
+    return invalidCsharpType("function pointer marker type");
+  }
+  return undefined;
+}
+
+function getCsharpTypeFromDirectSourceCoreTypeFact(
+  node: Node,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const targetType = getTargetTypeRefFromDirectFacts(input, node);
+  return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+}
+
+function sourceFactSubjectEvidence(subject: unknown): string {
+  const node = asNodeSubject(subject);
+  if (node !== undefined) {
+    return `node:${String(node.Kind)}`;
+  }
+  if (subject !== null && typeof subject === "object" && "kind" in subject) {
+    return `fact:${String((subject as { readonly kind?: unknown }).kind)}`;
+  }
+  return typeof subject;
+}
+
 export function getCsharpTypeForUnionTypeNode(
   node: Node,
   sourceFile: SourceFile,

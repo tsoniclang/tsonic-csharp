@@ -8,6 +8,7 @@ import type {
   ExtensionEvidence,
   ExtensionFactSubject,
   ExtensionObservationContext,
+  FieldFact,
   Node,
   SourceFile,
   StructFact,
@@ -269,17 +270,20 @@ function getStructFactForDeclaration(
   if (compiler === undefined) {
     return undefined;
   }
-  const direct = context.facts.get(declaration, structFactKey);
+  const direct = context.facts.get(declaration, structFactKey) ??
+    context.factResolver.resolve(declaration, structFactKey);
   if (direct?.valueType === true) {
     return direct;
   }
   const initializer = asNodeSubject(getNodeField(declaration, "Initializer"));
-  const callFact = initializer === undefined ? undefined : context.facts.get(initializer, structFactKey);
+  const callFact = initializer === undefined ? undefined : context.facts.get(initializer, structFactKey) ??
+    context.factResolver.resolve(initializer, structFactKey);
   if (callFact?.valueType === true) {
     return callFact;
   }
   const symbol = getDeclarationSymbol(context, declaration);
-  const symbolFact = context.facts.get(symbol, structFactKey);
+  const symbolFact = symbol === undefined ? undefined : context.facts.get(symbol, structFactKey) ??
+    context.factResolver.resolve(symbol, structFactKey);
   if (symbolFact?.valueType === true) {
     return symbolFact;
   }
@@ -288,10 +292,10 @@ function getStructFactForDeclaration(
     !isSourceCoreStructMarkerCallExpression(initializer, context)) {
     return undefined;
   }
-  return getStructFactFromCallShape(context, initializer);
+  return getStructFactFromFinalizedFieldFacts(context, initializer);
 }
 
-function getStructFactFromCallShape(
+function getStructFactFromFinalizedFieldFacts(
   context: ExtensionObservationContext,
   callExpression: Node,
 ): StructFact | undefined {
@@ -301,19 +305,23 @@ function getStructFactFromCallShape(
   }
   const shape = getNodeList(getNodeField(callExpression, "Arguments"))[0];
   if (shape === undefined || compiler.ast.kindName(shape) !== "KindObjectLiteralExpression") {
-    return { valueType: true, fields: [] };
+    return undefined;
   }
-  const fields = getNodeList(getNodeField(shape, "Properties")).flatMap((property) => {
+  const fields: FieldFact[] = [];
+  for (const property of getNodeList(getNodeField(shape, "Properties"))) {
     if (compiler.ast.kindName(property) !== "KindPropertyAssignment") {
-      return [];
+      return undefined;
     }
     const initializer = asNodeSubject(getNodeField(property, "Initializer"));
     const field = context.facts.get(property, fieldFactKey) ??
       context.facts.get(initializer, fieldFactKey) ??
       context.factResolver.resolve(property, fieldFactKey) ??
       (initializer === undefined ? undefined : context.factResolver.resolve(initializer, fieldFactKey));
-    return field === undefined ? [] : [field];
-  });
+    if (field === undefined) {
+      return undefined;
+    }
+    fields.push(field);
+  }
   return {
     valueType: true,
     fields,

@@ -74,33 +74,57 @@ sealed partial class ReflectionProvider
             requestedTargetIds is not null ||
             requestedMetadataNames is not null;
         var sourceGroups = allTypes
-            .Where(type => IncludesRequestedType(type, requestedExports, requestedTargetIds, requestedMetadataNames))
             .GroupBy(ProviderSourceTypeName, StringComparer.Ordinal)
-            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => new
+            {
+                SourceName = group.Key,
+                AllTypes = group.OrderBy(TargetId, StringComparer.Ordinal).ToArray(),
+            })
+            .OrderBy(group => group.SourceName, StringComparer.Ordinal)
             .ToArray();
-        var exportCandidates = sourceGroups
-            .Where(group => group.Count() == 1)
-            .Select(group => group.First())
+        var requestedSourceGroups = sourceGroups
+            .Select(group => new
+            {
+                group.SourceName,
+                group.AllTypes,
+                RequestedTypes = group.AllTypes
+                    .Where(type => IncludesRequestedType(type, requestedExports, requestedTargetIds, requestedMetadataNames))
+                    .ToArray(),
+            })
+            .Where(group => group.RequestedTypes.Length > 0)
+            .ToArray();
+        var sourceExportableTargetIds = sourceGroups
+            .Where(group => group.AllTypes.Length == 1)
+            .Select(group => group.AllTypes[0])
+            .Where(type => UnsupportedSourceExportReason(type) is null)
+            .Select(TargetId)
+            .ToHashSet(StringComparer.Ordinal);
+        var exportCandidates = requestedSourceGroups
+            .Where(group => group.AllTypes.Length == 1)
+            .Select(group => group.RequestedTypes[0])
             .ToArray();
         var exportTypes = exportCandidates
             .Where(type => UnsupportedSourceExportReason(type) is null)
             .ToArray();
         var exportTypeNames = exportTypes.Select(TargetId).ToHashSet(StringComparer.Ordinal);
-        var closureTypes = SourceClosureTypes(allTypes, exportTypes);
-        var unsupportedExports = sourceGroups
-            .Where(group => group.Count() > 1)
-            .Select(ToUnsupportedTypeFamilyExport)
+        var closureTypes = SourceClosureTypes(allTypes, exportTypes, sourceExportableTargetIds);
+        var unsupportedExports = requestedSourceGroups
+            .Where(group => group.AllTypes.Length > 1)
+            .Select(group => ToUnsupportedTypeFamilyExport(group.SourceName, group.AllTypes))
             .Concat(exportCandidates
                 .Select(type => ToUnsupportedTypeExport(type, UnsupportedSourceExportReason(type)))
                 .Where(export => export is not null)
                 .Cast<object>())
             .ToArray();
-        var targetOnlyTypes = !requestedSlice ? allTypes
+        var targetOnlyCandidates = requestedSlice
+            ? allTypes.Where(type => IsRequestedTargetType(type, requestedTargetIds, requestedMetadataNames))
+            : allTypes;
+        var targetOnlyTypes = targetOnlyCandidates
             .Where(type => !exportTypeNames.Contains(TargetId(type)))
             .Select(ToTypeExport)
             .Where(export => export is not null)
             .Cast<object>()
-            .ToArray() : [];
+            .ToArray();
 
         var exports = exportTypes
             .Select(ToTypeExport)
@@ -132,6 +156,15 @@ sealed partial class ReflectionProvider
         }
         return requestedExports?.Contains(ProviderSourceTypeName(type)) == true ||
             requestedTargetIds?.Contains(TargetId(type)) == true ||
+            requestedMetadataNames?.Contains(MetadataName(type)) == true;
+    }
+
+    static bool IsRequestedTargetType(
+        Type type,
+        ISet<string>? requestedTargetIds,
+        ISet<string>? requestedMetadataNames)
+    {
+        return requestedTargetIds?.Contains(TargetId(type)) == true ||
             requestedMetadataNames?.Contains(MetadataName(type)) == true;
     }
 

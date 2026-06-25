@@ -9,12 +9,14 @@ import {
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
+  ArgumentPassingFact,
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
   ExtensionEvidence,
   ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
+  FlowStateFact,
   ProviderVirtualDeclarationFact,
   TargetMember,
   TargetTypeRef,
@@ -59,6 +61,7 @@ import type {
 } from "./target-member-arguments.js";
 import {
   findUnsupportedProviderTargetMember,
+  unsupportedProviderTargetMemberEvidence,
 } from "./provider-unsupported-members.js";
 import {
   getCsharpTargetTypeFromBinding,
@@ -94,6 +97,17 @@ export function mapCsharpCheckedCall(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const attributeFact = getCheckedAttributeBuilderFact(request, context);
+  const virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context);
+  const sourceMarkerCall = mapCsharpSourceMarkerCall(request, context, extensionId, virtualDeclaration, attributeFact);
+  if (sourceMarkerCall !== undefined) {
+    return sourceMarkerCall;
+  }
+  if (attributeFact !== undefined) {
+    return acceptObservation<CheckedCallMappingResult>({
+      selectedSignature: { member: erasedAttributeFactMember(attributeFact) },
+    }, [{ message: "C# attribute builder marker call was checked by finalized TSTS attribute facts and marked for fact-driven erasure." }]);
+  }
   const existingSelectedSignature = context.facts.get(request.call, selectedTargetSignatureFactKey);
   if (existingSelectedSignature !== undefined) {
     if (
@@ -110,52 +124,6 @@ export function mapCsharpCheckedCall(
     return acceptObservation<CheckedCallMappingResult>({
       selectedSignature: existingSelectedSignature,
     }, [{ message: "C# target call mapping reused the existing selected target signature for a repeated TSTS checker observation." }]);
-  }
-  const attributeFact = getCheckedAttributeBuilderFact(request, context);
-  const virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context);
-  if (isErasedFieldSourceSemanticsCall(virtualDeclaration)) {
-    const fieldFact = getCheckedFieldFact(request, context);
-    if (fieldFact === undefined) {
-      return rejectObservation(csharpProviderDiagnostic(
-        extensionId,
-        "CSHARP_FIELD_MARKER_FACT_NOT_PROVEN",
-        9100112,
-        "C# field marker call requires a finalized TSTS FieldFact with field type evidence before erasure.",
-      ));
-    }
-    return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member: erasedFieldFactMember(fieldFact) },
-    }, [{ message: "C# field marker call was checked by finalized TSTS field facts and marked for fact-driven erasure." }]);
-  }
-  if (isErasedSourceSemanticsCall(virtualDeclaration)) {
-    const member = erasedSourceSemanticsMember(virtualDeclaration) ??
-      (attributeFact === undefined ? undefined : erasedAttributeFactMember(attributeFact));
-    if (member === undefined) {
-      return rejectObservation(csharpProviderDiagnostic(
-        extensionId,
-        "CSHARP_ERASED_SOURCE_MARKER_IDENTITY_NOT_PROVEN",
-        9100111,
-        "C# source-semantics marker call was checked by TSTS, but no provider virtual member or signature identity proves the erased marker selection.",
-      ));
-    }
-    const missingFactDiagnostic = missingRequiredSourceMarkerFactDiagnostic(
-      request,
-      context,
-      virtualDeclaration,
-      extensionId,
-      attributeFact !== undefined,
-    );
-    if (missingFactDiagnostic !== undefined) {
-      return rejectObservation(missingFactDiagnostic);
-    }
-    return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member },
-    }, [{ message: "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure." }]);
-  }
-  if (attributeFact !== undefined) {
-    return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member: erasedAttributeFactMember(attributeFact) },
-    }, [{ message: "C# attribute builder marker call was checked by finalized TSTS attribute facts and marked for fact-driven erasure." }]);
   }
   const binding = findTargetBinding(context, [
     request.sourceSelectedDeclaration,
@@ -187,7 +155,7 @@ export function mapCsharpCheckedCall(
     : binding;
   const unsupportedSelectedMember = findUnsupportedProviderTargetMember(targetBinding, virtualDeclaration);
   if (getVirtualDeclarationSignatureId(virtualDeclaration) !== undefined && unsupportedSelectedMember !== undefined) {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_UNSUPPORTED", 9100130, `C# provider selected unsupported target ${unsupportedSelectedMember.memberKind} '${unsupportedSelectedMember.targetName}' on target '${targetBinding.id}'. ${unsupportedSelectedMember.reason}`));
+    return rejectUnsupportedTargetMember(extensionId, targetBinding.id, unsupportedSelectedMember);
   }
   const constructorDeclaringTargetType = request.calleePropertyName === undefined && targetBinding.members?.some((candidate) => candidate.kind === "constructor") === true
     ? getConstructorDeclaringTargetType(targetBinding, request, context, host)
@@ -214,7 +182,7 @@ export function mapCsharpCheckedCall(
   if (member === undefined) {
     const unsupportedMember = unsupportedSelectedMember;
     if (unsupportedMember !== undefined) {
-      return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_UNSUPPORTED", 9100130, `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${targetBinding.id}'. ${unsupportedMember.reason}`));
+      return rejectUnsupportedTargetMember(extensionId, targetBinding.id, unsupportedMember);
     }
     return rejectObservation(csharpProviderDiagnostic(
       extensionId,
@@ -259,6 +227,78 @@ export function mapCsharpCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: csharpMember },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function rejectUnsupportedTargetMember(
+  extensionId: string,
+  targetBindingId: string,
+  unsupportedMember: NonNullable<ReturnType<typeof findUnsupportedProviderTargetMember>>,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return rejectObservation(csharpProviderDiagnostic(
+    extensionId,
+    "CSHARP_TARGET_MEMBER_UNSUPPORTED",
+    9100130,
+    `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${targetBindingId}'. ${unsupportedMember.reason}`,
+    unsupportedProviderTargetMemberEvidence(targetBindingId, unsupportedMember),
+  ));
+}
+
+function mapCsharpSourceMarkerCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  extensionId: string,
+  virtualDeclaration: ProviderVirtualDeclarationFact | undefined,
+  attributeFact: ReturnType<typeof getCheckedAttributeBuilderFact>,
+): ExtensionObservation<CheckedCallMappingResult> | undefined {
+  if (isErasedFieldSourceSemanticsCall(virtualDeclaration)) {
+    const fieldFact = getCheckedFieldFact(request, context);
+    if (fieldFact === undefined) {
+      return rejectObservation(csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_FIELD_MARKER_FACT_NOT_PROVEN",
+        9100112,
+        "C# field marker call requires a finalized TSTS FieldFact with field type evidence before erasure.",
+      ));
+    }
+    if ((fieldFact as { readonly type?: unknown }).type === undefined) {
+      return rejectObservation(csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_FIELD_MARKER_TYPE_NOT_PROVEN",
+        9100152,
+        "C# field marker call requires finalized TSTS field type evidence before erasure.",
+        sourceMarkerFactEvidence("field", "field.type", fieldFact),
+      ));
+    }
+    return acceptObservation<CheckedCallMappingResult>({
+      selectedSignature: { member: erasedFieldFactMember(fieldFact) },
+    }, [{ message: "C# field marker call was checked by finalized TSTS field facts and marked for fact-driven erasure." }]);
+  }
+  if (isErasedSourceSemanticsCall(virtualDeclaration)) {
+    const member = erasedSourceSemanticsMember(virtualDeclaration) ??
+      (attributeFact === undefined ? undefined : erasedAttributeFactMember(attributeFact));
+    if (member === undefined) {
+      return rejectObservation(csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_ERASED_SOURCE_MARKER_IDENTITY_NOT_PROVEN",
+        9100111,
+        "C# source-semantics marker call was checked by TSTS, but no provider virtual member or signature identity proves the erased marker selection.",
+      ));
+    }
+    const missingFactDiagnostic = missingRequiredSourceMarkerFactDiagnostic(
+      request,
+      context,
+      virtualDeclaration,
+      extensionId,
+      attributeFact !== undefined,
+    );
+    if (missingFactDiagnostic !== undefined) {
+      return rejectObservation(missingFactDiagnostic);
+    }
+    return acceptObservation<CheckedCallMappingResult>({
+      selectedSignature: { member },
+    }, [{ message: "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure." }]);
+  }
+  return undefined;
 }
 
 function getVirtualDeclarationSignatureId(declaration: ProviderVirtualDeclarationFact | undefined): string | undefined {
@@ -396,14 +436,12 @@ function missingRequiredSourceMarkerFactDiagnostic(
     case "out":
     case "ref":
     case "inref":
-      return context.facts.get(request.call, argumentPassingFactKey) === undefined
-        ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN", declaration.exportName, "argument-passing")
-        : undefined;
+      return validateArgumentPassingMarkerFact(request, context, declaration.exportName, extensionId);
     case "borrow":
     case "borrowMut":
     case "move":
       {
-        const flowState = context.facts.get(request.call, flowStateFactKey);
+        const flowState = getFinalizedFlowStateFact(request, context);
         return flowState === undefined
           ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN", declaration.exportName, "source-flow")
           : unsupportedCsharpSourceFlowMarkerDiagnostic(extensionId, flowState);
@@ -413,12 +451,106 @@ function missingRequiredSourceMarkerFactDiagnostic(
         ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_ATTRIBUTE_MARKER_FACT_NOT_PROVEN", declaration.exportName, "attribute")
         : undefined;
     case "defaultof":
-      return context.facts.get(request.call, defaultValueFactKey) === undefined
-        ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_DEFAULT_MARKER_FACT_NOT_PROVEN", declaration.exportName, "default-value")
-        : undefined;
+      {
+        const defaultValue = getFinalizedDefaultValueFact(request, context);
+        if (defaultValue === undefined) {
+          return missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_DEFAULT_MARKER_FACT_NOT_PROVEN", declaration.exportName, "default-value");
+        }
+        return (defaultValue as { readonly type?: unknown }).type === undefined
+          ? csharpProviderDiagnostic(
+              extensionId,
+              "CSHARP_DEFAULT_MARKER_TYPE_NOT_PROVEN",
+              9100153,
+              "C# defaultof marker call requires finalized TSTS default-value type evidence before erasure.",
+              sourceMarkerFactEvidence("defaultof", "defaultValue.type", defaultValue),
+            )
+          : undefined;
+      }
     default:
       return undefined;
   }
+}
+
+function validateArgumentPassingMarkerFact(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  markerName: "out" | "ref" | "inref",
+  extensionId: string,
+): ReturnType<typeof csharpProviderDiagnostic> | undefined {
+  const passing = getFinalizedArgumentPassingFact(request, context);
+  if (passing === undefined) {
+    return missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN", markerName, "argument-passing");
+  }
+  const expectedMode = expectedArgumentPassingMode(markerName);
+  if (passing.mode !== expectedMode) {
+    return csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_ARGUMENT_MARKER_MODE_NOT_PROVEN",
+      9100150,
+      `C# source marker '${markerName}' requires finalized TSTS argument-passing mode '${expectedMode}', but received '${String(passing.mode)}'.`,
+      sourceMarkerFactEvidence(markerName, "argumentPassing.mode", passing),
+    );
+  }
+  if (passing.targetExpression === undefined) {
+    return csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_ARGUMENT_MARKER_STORAGE_NOT_PROVEN",
+      9100151,
+      `C# source marker '${markerName}' requires finalized TSTS storage target evidence before it can be erased.`,
+      sourceMarkerFactEvidence(markerName, "argumentPassing.targetExpression", passing),
+    );
+  }
+  return undefined;
+}
+
+function expectedArgumentPassingMode(markerName: "out" | "ref" | "inref"): ArgumentPassingFact["mode"] {
+  switch (markerName) {
+    case "out":
+      return "byref-writeonly-must-init";
+    case "ref":
+      return "byref-readwrite";
+    case "inref":
+      return "byref-readonly";
+  }
+}
+
+function getFinalizedArgumentPassingFact(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): ArgumentPassingFact | undefined {
+  return context.factResolver.resolve(request.call, argumentPassingFactKey) ??
+    context.facts.get(request.call, argumentPassingFactKey);
+}
+
+function getFinalizedFlowStateFact(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): FlowStateFact | undefined {
+  return context.factResolver.resolve(request.call, flowStateFactKey) ??
+    context.facts.get(request.call, flowStateFactKey);
+}
+
+function getFinalizedDefaultValueFact(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): { readonly type?: unknown } | undefined {
+  return context.factResolver.resolve(request.call, defaultValueFactKey) ??
+    context.facts.get(request.call, defaultValueFactKey);
+}
+
+function sourceMarkerFactEvidence(
+  markerName: string,
+  requiredField: string,
+  fact: unknown,
+): readonly ExtensionEvidence[] {
+  return [{
+    message: "C# source marker fact validation failed closed.",
+    details: {
+      markerName,
+      requiredField,
+      fact,
+    },
+  }];
 }
 
 function missingSourceMarkerFactDiagnostic(

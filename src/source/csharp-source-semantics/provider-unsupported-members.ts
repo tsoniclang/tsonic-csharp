@@ -1,4 +1,5 @@
 import type {
+  ExtensionEvidence,
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
   TargetMember,
@@ -32,4 +33,23 @@ export function findUnsupportedProviderTargetMember(
     return undefined;
   }
   return unsupportedMembers.find((member) => member.targetId === selectedId);
+}
+
+export function unsupportedProviderTargetMemberEvidence(
+  bindingId: string,
+  member: UnsupportedProviderTargetMember,
+): readonly ExtensionEvidence[] {
+  return [{
+    message: "C# provider target binding recorded an unsupported target member fact selected by TSTS.",
+    details: {
+      bindingId,
+      memberKind: member.memberKind,
+      sourceName: member.sourceName,
+      targetName: member.targetName,
+      targetId: member.targetId,
+      metadataName: member.metadataName,
+      ...(member.static !== undefined ? { static: member.static } : {}),
+      reason: member.reason,
+    },
+  }];
 }

@@ -955,11 +955,17 @@ test("source-semantics ignores local names that are not configured source-core i
     function out<T>(value: T): T {
       return value;
     }
+    function borrow<T>(value: T): T {
+      return value;
+    }
 
     type int = number;
+    type ptr<T> = T;
     type LocalInt = int;
+    type LocalPtr = ptr<number>;
     let value = 1;
     out(value);
+    borrow(value);
   `;
   const session = createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -985,10 +991,15 @@ test("source-semantics ignores local names that are not configured source-core i
   const extensionHost = session.finalizeExtensions();
   const localAlias = collectNodesByKind(sourceFile, session.ast, "KindTypeAliasDeclaration")
     .find((node) => session.ast.text(session.ast.name(node)) === "LocalInt");
+  const localPointerAlias = collectNodesByKind(sourceFile, session.ast, "KindTypeAliasDeclaration")
+    .find((node) => session.ast.text(session.ast.name(node)) === "LocalPtr");
   const outCall = collectCallsByCalleeText(sourceFile, session.ast, "out")[0];
+  const borrowCall = collectCallsByCalleeText(sourceFile, session.ast, "borrow")[0];
 
   assert.equal(extensionHost.facts.get(localAlias, sourcePrimitiveFactKey), undefined);
+  assert.equal(extensionHost.facts.get(localPointerAlias, pointerFactKey), undefined);
   assert.equal(extensionHost.facts.get(outCall, argumentPassingFactKey), undefined);
+  assert.equal(extensionHost.facts.get(borrowCall, flowStateFactKey), undefined);
   assert.deepEqual(extensionHost.diagnostics.all(), []);
 });
 

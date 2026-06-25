@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
 import { planCallArgumentCore } from "../dist/backend/planner/expression-call-arguments.js";
 import { planExpression } from "../dist/backend/planner/expressions.js";
+import { printCsharpType } from "../dist/print/csharp-printer.js";
 import {
   KindCallExpression,
   KindIdentifier,
@@ -94,6 +96,59 @@ test("planner rejects argument-passing facts without AST target expressions", ()
   assert.match(diagnostics[0].message, /Argument-passing facts must carry AST target expressions/);
 });
 
+test("planner emits ptr and fnptr only from finalized nested type facts", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const intType = typeReference("int32");
+  const boolType = typeReference("bool");
+  const pointerType = typeReference("ptr", [intType]);
+  const functionPointerType = typeReference("fnptr", [intType, boolType]);
+  const diagnostics = [];
+  const input = fakeInput(sourceFile, {
+    sourcePrimitives: new Map([
+      [intType, primitive("int32")],
+      [boolType, primitive("bool")],
+    ]),
+    pointerFacts: new Map([[pointerType, {
+      pointee: intType,
+      mutability: "target-defined",
+      unsafeRequired: true,
+    }]]),
+    functionPointerFacts: new Map([[functionPointerType, {
+      parameters: [intType],
+      result: boolType,
+      abi: ["target-default"],
+    }]]),
+  });
+
+  assert.equal(printCsharpType(getCsharpTypeForNode(pointerType, sourceFile, input, undefined, diagnostics)), "int*");
+  assert.equal(printCsharpType(getCsharpTypeForNode(functionPointerType, sourceFile, input, undefined, diagnostics)), "delegate*<int, bool>");
+  assert.deepEqual(diagnostics, []);
+
+  const missingDiagnostics = [];
+  const missingPointer = getCsharpTypeForNode(pointerType, sourceFile, fakeInput(sourceFile, {
+    pointerFacts: new Map([[pointerType, {
+      pointee: intType,
+      mutability: "target-defined",
+      unsafeRequired: true,
+    }]]),
+  }), undefined, missingDiagnostics);
+  const missingFunctionPointer = getCsharpTypeForNode(functionPointerType, sourceFile, fakeInput(sourceFile, {
+    functionPointerFacts: new Map([[functionPointerType, {
+      parameters: [intType],
+      result: boolType,
+      abi: ["target-default"],
+    }]]),
+  }), undefined, missingDiagnostics);
+
+  assert.equal(missingPointer.kind, "InvalidType");
+  assert.equal(missingFunctionPointer.kind, "InvalidType");
+  assert.equal(missingDiagnostics.length, 2);
+  assert.match(missingDiagnostics[0].message, /Pointer type marker requires a finalized pointee target type/);
+  assert.match(missingDiagnostics[1].message, /Function pointer type marker requires finalized parameter and result target types/);
+  assert.ok(missingDiagnostics[0].evidence?.some((entry) => entry.includes("pointeeSubject=")));
+  assert.ok(missingDiagnostics[1].evidence?.some((entry) => entry.includes("resultSubject=")));
+});
+
 function node(kind, properties = {}) {
   return { Kind: kind, ...properties };
 }
@@ -102,11 +157,11 @@ function identifier(text) {
   return node(KindIdentifier, { Text: text });
 }
 
-function typeReference(name) {
+function typeReference(name, typeArguments = []) {
   return node(KindTypeReference, {
     Text: name,
     TypeName: identifier(name),
-    TypeArguments: { Nodes: [] },
+    TypeArguments: { Nodes: typeArguments },
   });
 }
 
@@ -178,8 +233,8 @@ function fakeInput(sourceFile, options = {}) {
       getTargetBindingFact: () => undefined,
       getFact: () => undefined,
       getSourcePrimitiveFact: (subject) => options.sourcePrimitives?.get(subject),
-      getPointerFact: () => undefined,
-      getFunctionPointerFact: () => undefined,
+      getPointerFact: (subject) => options.pointerFacts?.get(subject),
+      getFunctionPointerFact: (subject) => options.functionPointerFacts?.get(subject),
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
       getTargetIterationFact: () => undefined,

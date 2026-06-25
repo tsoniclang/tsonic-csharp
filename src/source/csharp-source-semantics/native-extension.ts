@@ -85,7 +85,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
     },
     dependencies: {
       dependsOn: [tsonicCoreSourceExtensionId],
-      runsAfter: [csharpJsSurfaceExtensionId, csharpNodejsSurfaceExtensionId],
+      runsAfter: [tsonicCoreSourceExtensionId, csharpJsSurfaceExtensionId, csharpNodejsSurfaceExtensionId],
     },
     initialize(extensionContext): void {
       extensionContext.registerTargetBindingProvider(createDotnetTargetBindingProvider({

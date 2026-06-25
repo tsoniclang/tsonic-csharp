@@ -236,7 +236,7 @@ test("ptr and fnptr type references render only from finalized source-core type 
 
   assert.equal(missing.kind, "InvalidType");
   assert.equal(missingDiagnostics.length, 1);
-  assert.match(missingDiagnostics[0].message, /requires a closed target type from TSTS\/provider facts/);
+  assert.match(missingDiagnostics[0].message, /Pointer type marker requires a finalized pointee target type/);
 });
 
 test("advanced erased type syntax emits only from finalized runtime carrier facts", () => {

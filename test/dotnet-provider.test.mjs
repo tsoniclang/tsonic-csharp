@@ -2269,6 +2269,76 @@ test(".NET reflection provider classifies unsupported type families without sile
   assert.equal(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Func`2")?.kind, "delegate");
 });
 
+test(".NET reflection provider keeps requested unsupported type-family target IDs target-only", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.js", {
+    requestedMetadataNames: ["System.Span`1.Enumerator"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  assert.equal(module.exports.some((declaration) => declaration.sourceName === "Enumerator"), false);
+  const targetOnlyEnumerator = module.targetOnlyTypes?.find((declaration) =>
+    declaration.metadataName === "System.Span`1.Enumerator"
+  );
+  assert.ok(targetOnlyEnumerator);
+
+  const unsupportedFamily = module.unsupportedExports?.find((declaration) =>
+    declaration.kind === "unsupported-type-family" &&
+    declaration.sourceName === "Enumerator"
+  );
+  assert.ok(unsupportedFamily);
+  assert.ok(unsupportedFamily.metadataNames.includes("System.ArraySegment`1.Enumerator"));
+  assert.ok(unsupportedFamily.metadataNames.includes("System.Span`1.Enumerator"));
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  assert.equal(sourceModel.exports.some((declaration) => declaration.name === "Enumerator"), false);
+
+  const bindingProvider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const binding = bindingProvider.findTargetBindingByMetadataName("System.Span`1.Enumerator");
+  assert.ok(binding);
+  assert.equal(binding.kind, "struct");
+  assert.equal(binding.sourceName, "Enumerator");
+});
+
+test(".NET reflection provider keeps requested unsupported source exports target-only", () => {
+  const reference = buildUnsupportedMemberFixture();
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    references: [reference],
+  });
+  const module = provider.getModule("@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js", {
+    requestedMetadataNames: ["ProviderUnsupportedMemberFixtures.PointerDelegate"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  assert.equal(module.exports.some((declaration) => declaration.sourceName === "PointerDelegate"), false);
+  const targetOnlyPointerDelegate = module.targetOnlyTypes?.find((declaration) =>
+    declaration.metadataName === "ProviderUnsupportedMemberFixtures.PointerDelegate"
+  );
+  assert.ok(targetOnlyPointerDelegate);
+  assert.equal(targetOnlyPointerDelegate.typeKind, "delegate");
+
+  const unsupportedPointerDelegate = module.unsupportedExports?.find((declaration) =>
+    declaration.kind === "unsupported-type-export" &&
+    declaration.sourceName === "PointerDelegate"
+  );
+  assert.ok(unsupportedPointerDelegate);
+  assert.match(unsupportedPointerDelegate.reason, /Delegate invoke signature/u);
+  assert.match(unsupportedPointerDelegate.reason, /System\.Int32\*/u);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  assert.equal(sourceModel.exports.some((declaration) => declaration.name === "PointerDelegate"), false);
+
+  const bindingProvider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    references: [reference],
+  });
+  const binding = bindingProvider.findTargetBindingByMetadataName("ProviderUnsupportedMemberFixtures.PointerDelegate");
+  assert.ok(binding);
+  assert.equal(binding.kind, "delegate");
+  assert.equal(binding.sourceName, "PointerDelegate");
+});
+
 test(".NET reflection provider records unsupported members instead of silently dropping them", () => {
   const reference = buildUnsupportedMemberFixture();
   const provider = createDotnetReflectionTypeDataProvider({ references: [reference] });
@@ -2276,6 +2346,7 @@ test(".NET reflection provider records unsupported members instead of silently d
   assert.equal("exports" in module, true);
 
   const typeByName = new Map(module.exports.map((declaration) => [declaration.sourceName, declaration]));
+  const targetOnlyTypeByName = new Map(module.targetOnlyTypes?.map((declaration) => [declaration.sourceName, declaration]) ?? []);
   const staticInterface = typeByName.get("IStaticInterfaceMember");
   const genericHolder = typeByName.get("GenericHolder");
   const multiIndexer = typeByName.get("MultiIndexer");
@@ -2284,8 +2355,8 @@ test(".NET reflection provider records unsupported members instead of silently d
   const byRefReturnSignatures = typeByName.get("ByRefReturnSignatures");
   const genericNumber = typeByName.get("GenericNumber");
   const pointerConversion = typeByName.get("PointerConversion");
-  const pointerDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "PointerDelegate");
-  const refReturnDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "RefReturnDelegate");
+  const pointerDelegate = targetOnlyTypeByName.get("PointerDelegate");
+  const refReturnDelegate = targetOnlyTypeByName.get("RefReturnDelegate");
   assert.ok(staticInterface);
   assert.ok(genericHolder);
   assert.ok(multiIndexer);

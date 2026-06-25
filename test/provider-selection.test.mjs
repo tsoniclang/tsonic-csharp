@@ -5,8 +5,10 @@ import {
   attributeFactKey,
   defaultValueFactKey,
   deferObservation,
+  fieldFactKey,
   flowStateFactKey,
   providerVirtualDeclarationFactKey,
+  selectedTargetSignatureFactKey,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
 } from "@tsonic/tsts";
@@ -642,6 +644,147 @@ test("C# erased source marker rejects unsupported flow markers even with finaliz
     assert.equal(result.kind, "reject", marker);
     assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED");
     assert.match(result.diagnostic.message, new RegExp(marker, "u"));
+  }
+});
+
+test("C# source markers validate finalized facts before selected signature reuse", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedMember = {
+    id: "Example.Identity.SourceMarker",
+    sourceName: "out",
+    targetName: "SourceMarker",
+    kind: "method",
+    parameters: [],
+  };
+  const targetExpression = { Kind: 1, Text: "value" };
+  const outCall = {};
+  const outDeclaration = {};
+  const missingOut = provider.mapCheckedCall({
+    target: "csharp",
+    call: outCall,
+    callee: {},
+    calleePropertyName: "out",
+    sourceSelectedDeclaration: outDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: outDeclaration,
+    virtualDeclaration: coreLangMarker("out"),
+    selectedSignatureSubject: outCall,
+    selectedSignature: { member: selectedMember },
+  }));
+
+  assert.equal(missingOut.kind, "reject");
+  assert.equal(missingOut.diagnostic.extensionCode, "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN");
+
+  const borrowCall = {};
+  const borrowDeclaration = {};
+  const unsupportedBorrow = provider.mapCheckedCall({
+    target: "csharp",
+    call: borrowCall,
+    callee: {},
+    calleePropertyName: "borrow",
+    sourceSelectedDeclaration: borrowDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: borrowDeclaration,
+    virtualDeclaration: coreLangMarker("borrow"),
+    selectedSignatureSubject: borrowCall,
+    selectedSignature: { member: selectedMember },
+    flowStateSubject: borrowCall,
+    flowState: { state: "borrowed-shared" },
+  }));
+
+  assert.equal(unsupportedBorrow.kind, "reject");
+  assert.equal(unsupportedBorrow.diagnostic.extensionCode, "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED");
+
+  const validOutCall = {};
+  const validOutDeclaration = {};
+  const validOut = provider.mapCheckedCall({
+    target: "csharp",
+    call: validOutCall,
+    callee: {},
+    calleePropertyName: "out",
+    sourceSelectedDeclaration: validOutDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: validOutDeclaration,
+    virtualDeclaration: coreLangMarker("out"),
+    selectedSignatureSubject: validOutCall,
+    selectedSignature: { member: selectedMember },
+    argumentPassingSubject: validOutCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression,
+    },
+  }));
+
+  assert.equal(validOut.kind, "accept", validOut.kind === "reject" ? validOut.diagnostic.message : undefined);
+  assert.equal(validOut.value.selectedSignature.member.id, "@tsonic/core/lang.js::out");
+});
+
+test("C# source markers reject malformed finalized facts", () => {
+  const provider = getNativeSemanticProvider();
+  const targetExpression = { Kind: 1, Text: "value" };
+  const cases = [
+    {
+      marker: "out",
+      code: "CSHARP_ARGUMENT_MARKER_MODE_NOT_PROVEN",
+      options: {
+        argumentPassing: {
+          mode: "byref-readwrite",
+          targetExpression,
+        },
+      },
+    },
+    {
+      marker: "out",
+      code: "CSHARP_ARGUMENT_MARKER_STORAGE_NOT_PROVEN",
+      options: {
+        argumentPassing: {
+          mode: "byref-writeonly-must-init",
+        },
+      },
+    },
+    {
+      marker: "field",
+      code: "CSHARP_FIELD_MARKER_TYPE_NOT_PROVEN",
+      options: {
+        field: {
+          name: "value",
+        },
+      },
+    },
+    {
+      marker: "defaultof",
+      code: "CSHARP_DEFAULT_MARKER_TYPE_NOT_PROVEN",
+      options: {
+        defaultValue: {},
+      },
+    },
+  ];
+
+  for (const scenario of cases) {
+    const call = {};
+    const selectedDeclaration = {};
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call,
+      callee: {},
+      calleePropertyName: scenario.marker,
+      sourceSelectedDeclaration: selectedDeclaration,
+      arguments: [],
+    }, fakeObservationContext({
+      virtualDeclarationSubject: selectedDeclaration,
+      virtualDeclaration: coreLangMarker(scenario.marker),
+      argumentPassingSubject: call,
+      fieldSubject: call,
+      defaultValueSubject: call,
+      ...scenario.options,
+    }));
+
+    assert.equal(result.kind, "reject", scenario.marker);
+    assert.equal(result.diagnostic.extensionCode, scenario.code);
+    assert.ok(result.diagnostic.evidence?.length > 0);
   }
 });
 
@@ -1819,6 +1962,7 @@ test("C# provider reports selected unsupported property identities with provider
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_UNSUPPORTED");
   assert.match(result.diagnostic.message, /Property type cannot be represented/u);
   assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, "Example.Target.PointerProperty", "property");
   assert.equal("value" in result, false);
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
@@ -1861,6 +2005,7 @@ test("C# provider rejects events even when target facts exist until event source
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_EVENT_UNSUPPORTED");
   assert.match(result.diagnostic.message, /add\/remove subscription semantics/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, "Example.Target.Changed", "event");
   assert.equal("value" in result, false);
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
@@ -1916,6 +2061,7 @@ test("C# provider reports selected unsupported call identities with provider rea
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_UNSUPPORTED");
   assert.match(result.diagnostic.message, /Method return type cannot be represented/u);
   assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, signatureId, "method");
   assert.equal("value" in result, false);
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
@@ -1970,6 +2116,7 @@ test("C# provider reports selected unsupported constructor identities with provi
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_UNSUPPORTED");
   assert.match(result.diagnostic.message, /Constructor signature contains parameter 'pointer'/u);
   assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, signatureId, "constructor");
   assert.equal("value" in result, false);
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
@@ -2024,6 +2171,7 @@ test("C# provider reports selected unsupported indexer identities with provider 
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_UNSUPPORTED");
   assert.match(result.diagnostic.message, /Indexer signature contains parameter 'pointer'/u);
   assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, signatureId, "indexer");
   assert.equal("value" in result, false);
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
@@ -2831,6 +2979,15 @@ function unsupportedMember(memberKind, targetId, sourceName, targetName, reason,
   };
 }
 
+function assertUnsupportedDiagnosticEvidence(diagnostic, targetId, memberKind) {
+  assert.ok(diagnostic.evidence?.some((entry) =>
+    entry.message.includes("unsupported target member") &&
+    entry.details?.targetId === targetId &&
+    entry.details?.memberKind === memberKind &&
+    typeof entry.details.reason === "string"
+  ), JSON.stringify(diagnostic.evidence));
+}
+
 function indexer(id, parameterType, options = {}) {
   return {
     id,
@@ -2975,6 +3132,9 @@ function fakeObservationContext(options) {
   return {
     facts: {
       get(subject, key) {
+        if (subject === options.selectedSignatureSubject && key === selectedTargetSignatureFactKey) {
+          return options.selectedSignature;
+        }
         if (subject === options.virtualSignatureSubject && key === providerVirtualDeclarationFactKey) {
           return options.virtualSignatureDeclaration;
         }
@@ -2983,6 +3143,9 @@ function fakeObservationContext(options) {
         }
         if (subject === options.attributeSubject && key === attributeFactKey) {
           return options.attribute;
+        }
+        if (subject === options.fieldSubject && key === fieldFactKey) {
+          return options.field;
         }
         if (subject === options.argumentPassingSubject && key === argumentPassingFactKey) {
           return options.argumentPassing;
@@ -3001,11 +3164,29 @@ function fakeObservationContext(options) {
     },
     factResolver: {
       resolve(subject, key) {
+        if (subject === options.selectedSignatureSubject && key === selectedTargetSignatureFactKey) {
+          return options.selectedSignature;
+        }
         if (subject === options.virtualSignatureSubject && key === providerVirtualDeclarationFactKey) {
           return options.virtualSignatureDeclaration;
         }
         if (subject === options.virtualDeclarationSubject && key === providerVirtualDeclarationFactKey) {
           return options.virtualDeclaration;
+        }
+        if (subject === options.attributeSubject && key === attributeFactKey) {
+          return options.attribute;
+        }
+        if (subject === options.fieldSubject && key === fieldFactKey) {
+          return options.field;
+        }
+        if (subject === options.argumentPassingSubject && key === argumentPassingFactKey) {
+          return options.argumentPassing;
+        }
+        if (subject === options.defaultValueSubject && key === defaultValueFactKey) {
+          return options.defaultValue;
+        }
+        if (subject === options.flowStateSubject && key === flowStateFactKey) {
+          return options.flowState;
         }
         if (subject === options.targetBindingSubject && key === targetBindingFactKey) {
           return options.targetBinding;
