@@ -210,42 +210,59 @@ sealed partial class ReflectionProvider
 
     Dictionary<string, SourceReference> SourceReferencesByTargetId(IEnumerable<Type> loadedTypes)
     {
-        var candidates = loadedTypes
-            .Where(type => type.Namespace is not null)
-            .GroupBy(type => $"{type.Namespace}\0{SourceTypeName(type)}", StringComparer.Ordinal)
-            .Where(group => group.Count() == 1)
-            .Select(group => group.First())
+        var candidates = SourceReferenceCandidates(loadedTypes
+            .Where(type => type.Namespace is not null))
             .ToArray();
         var references = candidates
-            .Where(type => !IsDelegate(type))
+            .Where(candidate => !IsDelegate(candidate.Type))
             .ToDictionary(
-                type => TargetId(type),
-                ToSourceReference,
+                candidate => TargetId(candidate.Type),
+                candidate => candidate.Reference,
                 StringComparer.Ordinal);
         providerSourceReferencesByTargetId = references;
 
-        var pendingDelegates = candidates.Where(IsDelegate).ToList();
+        var pendingDelegates = candidates.Where(candidate => IsDelegate(candidate.Type)).ToList();
         var added = true;
         while (added)
         {
             added = false;
-            foreach (var type in pendingDelegates.ToArray())
+            foreach (var candidate in pendingDelegates.ToArray())
             {
-                if (DelegateSourceShape(type) is null)
+                if (DelegateSourceShape(candidate.Type) is null)
                 {
                     continue;
                 }
-                references[TargetId(type)] = ToSourceReference(type);
-                pendingDelegates.Remove(type);
+                references[TargetId(candidate.Type)] = candidate.Reference;
+                pendingDelegates.Remove(candidate);
                 added = true;
             }
         }
         return references;
     }
 
-    SourceReference ToSourceReference(Type type)
+    IEnumerable<SourceReferenceCandidate> SourceReferenceCandidates(IEnumerable<Type> types)
     {
-        return new SourceReference(SourceTypeName(type), ModuleSpecifierForNamespace(type.Namespace!));
+        foreach (var namespaceGroup in types.GroupBy(type => $"{type.Namespace}\0{SourceTypeBaseName(type)}", StringComparer.Ordinal))
+        {
+            var groupTypes = namespaceGroup.ToArray();
+            var disambiguateByArity = groupTypes.Length > 1;
+            foreach (var candidateGroup in groupTypes
+                .Select(type => new SourceReferenceCandidate(
+                    type,
+                    new SourceReference(SourceTypeName(type, disambiguateByArity), ModuleSpecifierForNamespace(type.Namespace!))))
+                .GroupBy(candidate => candidate.Reference.Name, StringComparer.Ordinal)
+                .Where(group => group.Count() == 1))
+            {
+                yield return candidateGroup.First();
+            }
+        }
+    }
+
+    string ProviderSourceTypeName(Type type)
+    {
+        return providerSourceReferencesByTargetId.TryGetValue(TargetId(type), out var reference)
+            ? reference.Name
+            : SourceTypeName(type);
     }
 
     string ModuleSpecifierForNamespace(string namespaceName)
@@ -292,4 +309,6 @@ sealed partial class ReflectionProvider
             returnType,
         };
     }
+
+    sealed record SourceReferenceCandidate(Type Type, SourceReference Reference);
 }

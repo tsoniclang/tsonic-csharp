@@ -124,12 +124,18 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       }
       const startedAt = performance.now();
       const resolvedModule = {
-        ...augmentDotnetModuleWithNativeArray(result),
+        ...augmentDotnetModuleWithNativeArray(result, {
+          ...(resolution.broadImport === true ? { broadImport: true as const } : {}),
+          ...(resolution.requestedExports !== undefined ? { requestedExports: resolution.requestedExports } : {}),
+        }),
         moduleSpecifier: resolution.moduleSpecifier,
       };
       const model = dotnetModuleToProviderDeclarationModel(resolvedModule, {
+        providerModuleId: resolution.providerModuleId,
         dependencyModuleSpecifier(moduleSpecifier, sourceName) {
-          return createDotnetProviderDependencyModuleSpecifier(identity.id, moduleSpecifier, [sourceName]);
+          return parseDotnetProviderDependencyModuleSpecifier(moduleSpecifier) === undefined
+            ? createDotnetProviderDependencyModuleSpecifier(identity.id, moduleSpecifier, [sourceName])
+            : moduleSpecifier;
         },
         resolveModule(specifier) {
           const resolved = options.provider.getModule(specifier, providerContext({}, options));

@@ -1,6 +1,7 @@
 import {
   acceptObservation,
   rejectObservation,
+  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -542,8 +543,17 @@ function getSourceLibraryCallArgumentTargetTypes(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly (TargetTypeRef | undefined)[] {
-  return request.arguments.map((argument) =>
-    host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, csharpJsCheckedTypeQuery)));
+  return request.arguments.map((argument) => {
+    const node = asNodeSubject(argument);
+    const isNestedCall = node !== undefined &&
+      (context.compiler?.ast.is.IsCallExpression(node) === true || context.compiler?.ast.is.IsNewExpression(node) === true);
+    return isNestedCall
+      ? host.unwrapNullableTargetType(context.facts.get(argument, runtimeCarrierFactKey)?.carrier)
+      : host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, {
+          ...csharpJsCheckedTypeQuery,
+          allowRuntimeCarrier: true,
+        }));
+  });
 }
 
 function getTargetTypeRefForOptionalSubject(

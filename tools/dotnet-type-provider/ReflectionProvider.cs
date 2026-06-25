@@ -64,8 +64,8 @@ sealed partial class ReflectionProvider
             ? null
             : request.Exports.ToHashSet(StringComparer.Ordinal);
         var sourceGroups = allTypes
-            .Where(type => requestedExports is null || requestedExports.Contains(SourceTypeName(type)))
-            .GroupBy(SourceTypeName, StringComparer.Ordinal)
+            .Where(type => requestedExports is null || requestedExports.Contains(ProviderSourceTypeName(type)))
+            .GroupBy(ProviderSourceTypeName, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal)
             .ToArray();
         var exportCandidates = sourceGroups

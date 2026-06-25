@@ -697,10 +697,10 @@ sealed partial class ReflectionProvider
             var defaultValue = ParameterDefaultValue(parameter, parameterType, ownerId, out var unsupportedDefaultValue);
             var attributes = ownerId is null
                 ? null
-                : AttributeFacts(parameter.GetCustomAttributesData(), "parameter", $"{ownerId}:parameter:{Identifier(parameter.Name ?? $"arg{index}")}");
+                : AttributeFacts(parameter.GetCustomAttributesData(), "parameter", $"{ownerId}:parameter:{ParameterIdentifier(parameter, index)}");
             result.Add(new
             {
-                name = Identifier(parameter.Name ?? $"arg{index}"),
+                name = ParameterIdentifier(parameter, index),
                 type,
                 passingMode = PassingMode(parameter),
                 optional = parameter.IsOptional ? true : (bool?)null,
@@ -786,7 +786,7 @@ sealed partial class ReflectionProvider
         var owner = parameter.Member.DeclaringType is null
             ? parameter.Member.Name
             : $"{MetadataName(parameter.Member.DeclaringType)}.{parameter.Member.Name}";
-        var parameterName = Identifier(parameter.Name ?? "");
+        var parameterName = ParameterIdentifier(parameter, 0);
         var idOwner = ownerId ?? owner;
         return new
         {

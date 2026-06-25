@@ -215,18 +215,16 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   assert.equal(nativeArray.targetId, dotnetNativeArrayTypeId);
 
   const model = dotnetModuleToProviderDeclarationModel(module);
-  const providerArray = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "interface");
-  const providerArrayNamespace = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "namespace");
+  const providerArray = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "class");
   assert.ok(providerArray);
-  assert.ok(providerArrayNamespace);
   assert.equal(providerArray.id, dotnetNativeArrayTypeId);
   assert.deepEqual(providerArray.typeParameters, [{ name: "T", defaultType: { kind: "unknown" } }]);
 
-  const create = providerArrayNamespace.members.find((member) => member.name === "create");
+  const create = providerArray.members.find((member) => member.name === "create");
   const length = providerArray.members.find((member) => member.name === "length");
   const indexer = providerArray.members.find((member) => member.kind === "indexer");
   assert.equal(create.id, dotnetNativeArrayCreateMemberId);
-  assert.equal(create.static, undefined);
+  assert.equal(create.static, true);
   assert.deepEqual(create.signatures[0].typeParameters, [{ name: "T" }]);
   assert.deepEqual(create.signatures[0].returnType, {
     kind: "provider-ref",
@@ -1510,6 +1508,7 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
   assert.deepEqual(sourceMemoryStream?.extends, [{
     kind: "provider-ref",
     name: "Stream",
+    moduleSpecifier: "@tsonic/dotnet/System.IO.js",
   }]);
 
   const tasksModule = provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", {});
@@ -2123,24 +2122,16 @@ test(".NET reflection provider classifies unsupported type families without sile
   assert.equal("exports" in systemModule, true);
 
   const unsupportedFamilies = new Map(systemModule.unsupportedExports?.map((declaration) => [declaration.sourceName, declaration]) ?? []);
-  const action = unsupportedFamilies.get("Action");
-  const func = unsupportedFamilies.get("Func");
+  const enumerator = unsupportedFamilies.get("Enumerator");
 
-  assert.ok(action);
-  assert.equal(action.kind, "unsupported-type-family");
-  assert.ok(action.metadataNames.includes("System.Action"));
-  assert.ok(action.metadataNames.includes("System.Action`1"));
-  assert.match(action.reason, /provider type-family declaration model/);
+  assert.ok(enumerator);
+  assert.equal(enumerator.kind, "unsupported-type-family");
+  assert.ok(enumerator.metadataNames.includes("System.ArraySegment`1.Enumerator"));
+  assert.ok(enumerator.metadataNames.includes("System.Span`1.Enumerator"));
+  assert.match(enumerator.reason, /provider type-family declaration model/);
 
-  assert.ok(func);
-  assert.equal(func.kind, "unsupported-type-family");
-  assert.ok(func.metadataNames.includes("System.Func`1"));
-  assert.ok(func.metadataNames.includes("System.Func`2"));
-  assert.match(func.reason, /provider type-family declaration model/);
-
-  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Action`1"));
-  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Func`2"));
-
+  assert.ok(systemModule.exports.some((declaration) => declaration.sourceName === "Action_1" && declaration.kind === "type"));
+  assert.ok(systemModule.exports.some((declaration) => declaration.sourceName === "Func_2" && declaration.kind === "type"));
   assert.equal(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Action`1")?.kind, "delegate");
   assert.equal(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Func`2")?.kind, "delegate");
 });

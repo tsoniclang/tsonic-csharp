@@ -143,7 +143,7 @@ export function createDotnetReflectionTypeDataProvider(
     const memoryKey = moduleMemoryCacheKey(cacheRequest);
     const cached = persistentCache?.readModule(cacheRequest);
     if (cached !== undefined) {
-      const module = augmentDotnetModuleWithNativeArray(cached);
+      const module = augmentDotnetModuleWithNativeArray(cached, context);
       modules.set(memoryKey, module);
       providerBroker?.writeModule(cacheRequest, module);
       telemetry.modelBytes(JSON.stringify(cached).length);
@@ -176,7 +176,7 @@ export function createDotnetReflectionTypeDataProvider(
       const rawModule = JSON.parse(result.stdout) as DotnetModuleModel;
       persistentCache?.writeModule(cacheRequest, rawModule);
       telemetry.modelBytes(result.stdout.length);
-      const module = augmentDotnetModuleWithNativeArray(rawModule);
+      const module = augmentDotnetModuleWithNativeArray(rawModule, context);
       modules.set(memoryKey, module);
       providerBroker?.writeModule(cacheRequest, module);
       return module;

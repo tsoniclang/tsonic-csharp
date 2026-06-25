@@ -6,7 +6,6 @@ import {
 import type {
   BeforeSemanticsFinalizedLifecycleRequest,
   CompilerExtension,
-  TargetSemanticProvider,
 } from "@tsonic/tsts";
 import type {
   TargetProviderContext,
@@ -96,10 +95,10 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         references: hosts.dotnetReflectionReferences,
         targetFramework: hosts.dotnetTargetFramework,
       }));
-      extensionContext.registerTargetSemanticProvider(withoutEagerCheckedCallObservation(createCsharpCompositeOperationsProvider(hosts.operationsProviderHost, {
+      extensionContext.registerTargetSemanticProvider(createCsharpCompositeOperationsProvider(hosts.operationsProviderHost, {
         jsSurface: context.selectedSurfaces.some((surface) => surface.id === "js"),
         nodejsSurface: context.selectedSurfaces.some((surface) => surface.id === "nodejs"),
-      })));
+      }));
       registerCsharpSelectedSurfaceProviders(context, extensionContext);
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(context, lifecycleContext, hosts);
@@ -136,9 +135,4 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       });
     },
   };
-}
-
-function withoutEagerCheckedCallObservation(provider: TargetSemanticProvider): TargetSemanticProvider {
-  const { mapCheckedCall: _mapCheckedCall, ...registeredProvider } = provider;
-  return registeredProvider;
 }

@@ -23,6 +23,7 @@ import {
 } from "./model.js";
 
 export interface DotnetProviderDeclarationModelOptions {
+  readonly providerModuleId?: string;
   readonly dependencyModuleSpecifier?: (moduleSpecifier: string, sourceName: string) => string;
   readonly resolveModule?: (specifier: string) => DotnetModuleModel | undefined;
 }
@@ -34,7 +35,7 @@ export function dotnetModuleToProviderDeclarationModel(
   const context = createDotnetDeclarationContext(module, options);
   return {
     moduleSpecifier: module.moduleSpecifier,
-    providerModuleId: module.moduleSpecifier,
+    providerModuleId: options.providerModuleId ?? module.moduleSpecifier,
     exports: module.exports
       .map((declaration) => {
         const providerExport = dotnetExportToProviderExport(declaration, context);
@@ -49,6 +50,7 @@ export function dotnetModuleToProviderDeclarationModel(
 
 interface DotnetDeclarationContext {
   readonly moduleSpecifier: string;
+  readonly sourceModuleSpecifier: string;
   readonly typesBySourceName: ReadonlyMap<string, DotnetTypeDeclaration>;
   readonly sourceMembersByTargetId: Map<string, readonly ProviderMemberDeclaration[]>;
   readonly modulesBySpecifier: Map<string, DotnetModuleModel>;
@@ -62,6 +64,7 @@ function createDotnetDeclarationContext(
 ): DotnetDeclarationContext {
   return {
     moduleSpecifier: module.moduleSpecifier,
+    sourceModuleSpecifier: options.providerModuleId ?? module.moduleSpecifier,
     typesBySourceName: new Map(module.exports
       .filter((declaration): declaration is DotnetTypeDeclaration => declaration.kind === "type")
       .map((declaration) => [declaration.sourceName, declaration])),
@@ -170,7 +173,8 @@ function dotnetBaseSourceMembers(
   if (baseDeclaration === undefined) {
     return [];
   }
-  const baseMembers = dotnetTypeSourceMembers(baseDeclaration, context) ?? [];
+  const baseMembers = (dotnetTypeSourceMembers(baseDeclaration, context) ?? [])
+    .filter((member) => member.static !== true);
   const baseModuleSpecifier = baseType.moduleSpecifier;
   const inheritedMembers = baseModuleSpecifier === undefined || baseModuleSpecifier === context.moduleSpecifier
     ? baseMembers
@@ -214,7 +218,14 @@ function dotnetProviderRefToTypeDeclaration(
   context: DotnetDeclarationContext,
 ): DotnetTypeDeclaration | undefined {
   if (baseType.moduleSpecifier === undefined || baseType.moduleSpecifier === context.moduleSpecifier) {
-    return context.typesBySourceName.get(baseType.name);
+    const local = context.typesBySourceName.get(baseType.name);
+    if (local !== undefined || context.sourceModuleSpecifier === context.moduleSpecifier) {
+      return local;
+    }
+    const sourceModule = getDotnetModuleBySpecifier(context.sourceModuleSpecifier, context);
+    return sourceModule?.exports.find((declaration): declaration is DotnetTypeDeclaration =>
+      declaration.kind === "type" && declaration.sourceName === baseType.name
+    );
   }
   const module = getDotnetModuleBySpecifier(baseType.moduleSpecifier, context);
   if (module === undefined) {
@@ -462,7 +473,11 @@ function qualifyProviderTypeModuleRefs(
     case "provider-ref":
       {
         const declaredModuleSpecifier = type.moduleSpecifier ??
-          (dotnetModuleExportsSourceName(moduleSpecifier, type.name, context) ? moduleSpecifier : undefined);
+          (dotnetModuleExportsSourceName(moduleSpecifier, type.name, context)
+            ? moduleSpecifier
+            : dotnetModuleExportsSourceName(context.sourceModuleSpecifier, type.name, context)
+              ? context.sourceModuleSpecifier
+              : undefined);
         const renderedModuleSpecifier = declaredModuleSpecifier === undefined || declaredModuleSpecifier === context.moduleSpecifier
           ? declaredModuleSpecifier
           : context.dependencyModuleSpecifier?.(declaredModuleSpecifier, type.name) ?? declaredModuleSpecifier;

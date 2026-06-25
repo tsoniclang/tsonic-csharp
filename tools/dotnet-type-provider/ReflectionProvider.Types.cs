@@ -21,7 +21,7 @@ sealed partial class ReflectionProvider
         {
             kind = "type",
             typeKind = TypeKind(type),
-            sourceName = SourceTypeName(type),
+            sourceName = ProviderSourceTypeName(type),
             namespaceName = activeNamespaceName,
             targetId = TargetId(type),
             metadataName = MetadataName(type),
@@ -85,7 +85,7 @@ sealed partial class ReflectionProvider
         };
     }
 
-    static object? ToUnsupportedTypeExport(Type type, string? reason)
+    object? ToUnsupportedTypeExport(Type type, string? reason)
     {
         if (reason is null)
         {
@@ -94,7 +94,7 @@ sealed partial class ReflectionProvider
         return new
         {
             kind = "unsupported-type-export",
-            sourceName = SourceTypeName(type),
+            sourceName = ProviderSourceTypeName(type),
             targetId = TargetId(type),
             metadataName = MetadataName(type),
             assembly = AssemblyReference(type.Assembly),
