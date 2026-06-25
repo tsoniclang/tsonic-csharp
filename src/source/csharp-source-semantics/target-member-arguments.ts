@@ -232,7 +232,9 @@ function targetArityMatches(parameters: readonly TargetParameter[], argumentCoun
   }
   const required = parameters.filter((parameter) => parameter.optional !== true && parameter.paramsArray !== true).length;
   const hasParamsArray = parameters.some((parameter) => parameter.paramsArray === true);
-  return argumentCount >= required && (hasParamsArray || argumentCount <= parameters.length);
+  return argumentCount >= required &&
+    (hasParamsArray || argumentCount <= parameters.length) &&
+    omittedTargetArgumentsAreRenderable(parameters, argumentCount);
 }
 
 function targetParameterListShapeIsValid(parameters: readonly TargetParameter[]): boolean {
@@ -280,6 +282,28 @@ function targetMemberArityPenalty(parameters: readonly TargetParameter[], argume
     }
   }
   return penalty;
+}
+
+function omittedTargetArgumentsAreRenderable(parameters: readonly TargetParameter[], argumentCount: number): boolean {
+  for (let index = argumentCount; index < parameters.length; index += 1) {
+    const parameter = parameters[index];
+    if (parameter === undefined) {
+      return false;
+    }
+    if (parameter.paramsArray === true) {
+      continue;
+    }
+    if (parameter.optional === true && hasSupportedTargetDefaultValue(parameter)) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+function hasSupportedTargetDefaultValue(parameter: TargetParameter): boolean {
+  return Object.prototype.hasOwnProperty.call(parameter, "defaultValue") &&
+    !Object.prototype.hasOwnProperty.call(parameter, "unsupportedDefaultValue");
 }
 
 function getParameterForArgument(parameters: readonly TargetParameter[], index: number): TargetParameter | undefined {

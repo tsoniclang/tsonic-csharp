@@ -180,12 +180,34 @@ test(".NET provider records unsupported default parameter values without exposin
 test(".NET selected target-member identity enforces optional and params-array arity facts", () => {
   const optionalMember = method("Example.Target.Optional(System.String,System.String)", [
     parameter("value", stringType()),
-    parameter("name", stringType(), { optional: true }),
+    parameter("name", stringType(), { optional: true, defaultValue: { kind: "string", value: "proved" } }),
   ]);
   assert.equal(selectBySignature(optionalMember, 1)?.id, optionalMember.id);
   assert.equal(selectBySignature(optionalMember, 2)?.id, optionalMember.id);
   assert.equal(selectBySignature(optionalMember, 0), undefined);
   assert.equal(selectBySignature(optionalMember, 3), undefined);
+
+  const optionalWithoutDefaultMember = method("Example.Target.OptionalWithoutDefault(System.String,System.String)", [
+    parameter("value", stringType()),
+    parameter("name", stringType(), { optional: true }),
+  ]);
+  assert.equal(selectBySignature(optionalWithoutDefaultMember, 1), undefined);
+  assert.equal(selectBySignature(optionalWithoutDefaultMember, 2)?.id, optionalWithoutDefaultMember.id);
+
+  const unsupportedDefaultMember = method("Example.Target.UnsupportedDefault(System.String,System.String)", [
+    parameter("value", stringType()),
+    parameter("name", stringType(), {
+      optional: true,
+      unsupportedDefaultValue: {
+        kind: "unsupported-default-value",
+        id: "Example.Target.UnsupportedDefault:parameter:name:default",
+        parameterName: "name",
+        reason: "Default is not representable.",
+      },
+    }),
+  ]);
+  assert.equal(selectBySignature(unsupportedDefaultMember, 1), undefined);
+  assert.equal(selectBySignature(unsupportedDefaultMember, 2)?.id, unsupportedDefaultMember.id);
 
   const paramsMember = method("Example.Target.Params(System.String,System.String[])", [
     parameter("format", stringType()),
