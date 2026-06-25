@@ -18,7 +18,7 @@ import {
 } from "./objects.js";
 
 const jsonRuntimeType = csharpTargetNamedType("Tsonic.CSharp.Js.JSON", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JSON"));
-const nullableObjectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "nullable" });
+const jsonValueTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.TsValue", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"));
 const stringTargetType = csharpStringTargetType();
 const boolTargetType = csharpSourcePrimitiveTargetType("bool");
 const numberTargetType = csharpSourcePrimitiveTargetType("float64");
@@ -33,7 +33,7 @@ export function getJsonTargetMembers(sourceName: string): readonly TargetMember[
       return [
         jsonStaticMethod("parse", "parse", [
           targetParameter("text", stringTargetType),
-        ], nullableObjectTargetType),
+        ], jsonValueTargetType),
       ];
     case "stringify":
       return [
@@ -52,8 +52,8 @@ export function getJsonTargetMembers(sourceName: string): readonly TargetMember[
         jsonStaticMethod("stringify:array", "stringify", [
           targetParameter("value", csharpJsArrayCarrierTargetType(jsonArrayElementType)),
         ], stringTargetType),
-        jsonStaticMethod("stringify:nullish", "stringify", [
-          targetParameter("value", nullableObjectTargetType),
+        jsonStaticMethod("stringify:tsvalue", "stringify", [
+          targetParameter("value", jsonValueTargetType),
         ], stringTargetType),
       ];
     default:

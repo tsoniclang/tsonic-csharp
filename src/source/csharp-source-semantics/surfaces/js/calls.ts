@@ -452,8 +452,13 @@ function isSupportedJsonValueTargetType(
       isNumericSourcePrimitive(type) ||
       (type.kind === "source-primitive" && type.name === "bool") ||
       isCsharpJsObjectCarrierTargetType(type) ||
-      isCsharpJsArrayCarrierTargetType(type)
+      isCsharpJsArrayCarrierTargetType(type) ||
+      isCsharpJsJsonValueTargetType(type)
     );
+}
+
+function isCsharpJsJsonValueTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Js.TsValue";
 }
 
 function sourceLibraryObjectCallHasClosedFacts(

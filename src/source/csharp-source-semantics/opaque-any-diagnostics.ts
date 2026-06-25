@@ -347,10 +347,7 @@ function hasClosedCompatRuntimeOperation(
 
 function isClosedCompatRuntimeOperationFact(operation: CsharpTargetOperationFact | undefined): boolean {
   return operation?.kind === "member" &&
-    (
-      isCsharpClosedCompatRuntimeCarrier(operation.declaringType) ||
-      isCsharpClosedCompatRuntimeCarrier(operation.resultType)
-    );
+    isCsharpClosedCompatRuntimeCarrier(operation.declaringType);
 }
 
 function hasOpaqueAnyCarrier(

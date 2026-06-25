@@ -464,24 +464,31 @@ test("JS surface maps JSON.parse from selected standard-library declaration and 
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.parse");
-  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Object");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.TsValue");
 });
 
 test("JS surface maps JSON.stringify only from closed JSON value carrier facts", () => {
   const call = {};
   const value = {};
+  const parsedValue = {};
   const facts = new TestFactStore();
   const targetTypes = new Map([
     [value, jsObjectType()],
+    [parsedValue, tsValueType()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [value],
   }), fakeContext(facts));
+  const parsedResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("JSON", "stringify"), {
+    arguments: [parsedValue],
+  }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.stringify:object");
+  assert.equal(parsedResult.kind, "accept");
+  assert.equal(parsedResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
 });
 
 test("JS surface rejects JSON.stringify without closed JSON value carrier facts", () => {
@@ -2010,6 +2017,14 @@ function jsObjectType() {
     kind: "target-named",
     id: "Tsonic.CSharp.Js.JSObject",
     csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "JSObject" },
+  };
+}
+
+function tsValueType() {
+  return {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.TsValue",
+    csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "TsValue" },
   };
 }
 
