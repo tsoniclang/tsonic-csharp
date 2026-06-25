@@ -40,6 +40,7 @@ import {
 } from "./date.js";
 import {
   getJsonTargetMembers,
+  isCsharpJsJsonValueTargetType,
 } from "./json.js";
 import type {
   CsharpJsSurfaceHost,
@@ -455,10 +456,6 @@ function isSupportedJsonValueTargetType(
       isCsharpJsArrayCarrierTargetType(type) ||
       isCsharpJsJsonValueTargetType(type)
     );
-}
-
-function isCsharpJsJsonValueTargetType(type: TargetTypeRef | undefined): boolean {
-  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Js.TsValue";
 }
 
 function sourceLibraryObjectCallHasClosedFacts(

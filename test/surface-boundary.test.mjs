@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { providerVirtualDeclarationFactKey, runtimeCarrierFactKey } from "@tsonic/tsts";
+import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey } from "@tsonic/tsts";
 import { csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension } from "../dist/index.js";
 import { createCsharpCompositeOperationsProvider, createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { createCsharpNodejsSurfaceBindingProvider } from "../dist/source/csharp-source-semantics/surfaces/nodejs/index.js";
 
@@ -56,6 +57,7 @@ test("native provider does not map JS Object, JSON, or console surface operation
   assert.equal(consoleResult.kind, "defer");
   assert.equal(facts.get(objectCall, csharpTargetOperationFactKey), undefined);
   assert.equal(facts.get(jsonCall, csharpTargetOperationFactKey), undefined);
+  assert.equal(facts.get(jsonCall, runtimeCarrierFactKey), undefined);
   assert.equal(facts.get(consoleExpression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -465,10 +467,12 @@ test("JS surface maps JSON.parse from selected standard-library declaration and 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.parse");
   assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.TsValue");
+  assert.equal(facts.get(call, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.TsValue");
 });
 
 test("JS surface maps JSON.stringify only from closed JSON value carrier facts", () => {
   const call = {};
+  const parsedStringifyCall = {};
   const value = {};
   const parsedValue = {};
   const facts = new TestFactStore();
@@ -481,7 +485,7 @@ test("JS surface maps JSON.stringify only from closed JSON value carrier facts",
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [value],
   }), fakeContext(facts));
-  const parsedResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("JSON", "stringify"), {
+  const parsedResult = provider.mapCheckedCall(jsCallRequest(parsedStringifyCall, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [parsedValue],
   }), fakeContext(facts));
 
@@ -489,6 +493,33 @@ test("JS surface maps JSON.stringify only from closed JSON value carrier facts",
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.stringify:object");
   assert.equal(parsedResult.kind, "accept");
   assert.equal(parsedResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
+  assert.equal(facts.get(parsedStringifyCall, runtimeCarrierFactKey)?.carrier.id, "System.String");
+});
+
+test("JS surface maps nested JSON.stringify(JSON.parse(value)) through finalized TsValue carrier facts", () => {
+  const parseCall = {};
+  const stringifyCall = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const parseResult = provider.mapCheckedCall(jsCallRequest(parseCall, sourceLibraryMemberDeclaration("JSON", "parse"), {
+    arguments: [value],
+  }), fakeContext(facts));
+  assert.equal(parseResult.kind, "accept");
+  facts.set(parseCall, selectedTargetSignatureFactKey, parseResult.value.selectedSignature);
+
+  const stringifyResult = provider.mapCheckedCall(jsCallRequest(stringifyCall, sourceLibraryMemberDeclaration("JSON", "stringify"), {
+    arguments: [parseCall],
+  }), fakeContext(facts));
+
+  assert.equal(facts.get(parseCall, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.TsValue");
+  assert.equal(stringifyResult.kind, "accept");
+  assert.equal(stringifyResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
+  assert.equal(facts.get(stringifyCall, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
 });
 
 test("JS surface rejects JSON.stringify without closed JSON value carrier facts", () => {
@@ -504,6 +535,44 @@ test("JS surface rejects JSON.stringify without closed JSON value carrier facts"
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
   assert.match(result.diagnostic.message, /JSON\.stringify/);
+});
+
+test("JS surface rejects JSON.stringify when the argument carrier fact is mutated away from TsValue", () => {
+  const call = {};
+  const value = {};
+  const facts = new TestFactStore();
+  facts.set(value, runtimeCarrierFactKey, { carrier: { kind: "opaque", id: "any" } });
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "stringify"), {
+    arguments: [value],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("selected JS surface finalizes source-level nested JSON.parse carrier for JSON.stringify", () => {
+  const session = createCsharpSession(`
+    export function roundtrip(value: string) {
+      return JSON.stringify(JSON.parse(value));
+    }
+  `, { selectedSurfaces: [{ id: "js" }], typescriptCompatibility: "compat" });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const calls = collectNodesByKind(sourceFile, session.ast, "KindCallExpression");
+  const stringifyCall = calls.find((call) =>
+    extensionHost.facts.get(call, selectedTargetSignatureFactKey)?.member.id === "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
+  const parseCall = calls.find((call) =>
+    extensionHost.facts.get(call, selectedTargetSignatureFactKey)?.member.id === "Tsonic.CSharp.Js.JSON.parse");
+
+  assert.equal(extensionHost.facts.get(parseCall, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.TsValue");
+  assert.equal(extensionHost.facts.get(stringifyCall, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
+  assert.equal(extensionHost.diagnostics.all().some((diagnostic) => diagnostic.extensionCode === "FACT_CONFLICT"), false);
+  assert.equal(extensionHost.diagnostics.all().some((diagnostic) => diagnostic.extensionCode === "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED"), false);
 });
 
 test("JS surface defers method-valued console property access to selected call facts", () => {
@@ -1893,7 +1962,10 @@ function fakeHost(receiverType, targetTypes = new Map(), targetBinding) {
   return {
     ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByTargetId: (targetId) => targetId === targetBinding.id ? targetBinding : undefined }),
     ...(targetBinding === undefined ? {} : { getCsharpTargetBindingByMetadataName: (metadataName) => metadataName === "System.Collections.Generic.Dictionary`2" ? targetBinding : undefined }),
-    getTargetTypeRefForSubject: (subject) => targetTypes.get(subject) ?? (subject === receiverType
+    getTargetTypeRefForSubject: (subject, context) => targetTypes.get(subject) ??
+      context?.factResolver?.resolve(subject, runtimeCarrierFactKey)?.carrier ??
+      context?.factResolver?.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+      (subject === receiverType
       ? { kind: "array", element: { kind: "source-primitive", name: "int32" } }
       : undefined),
     getCsharpObjectShapeFactForSubject: () => undefined,
@@ -1917,6 +1989,53 @@ function fakeContext(facts) {
       },
     },
   };
+}
+
+function createCsharpSession(sourceText, options = {}) {
+  const target = {
+    id: "csharp",
+    ...(options.typescriptCompatibility === undefined ? {} : { options: { typescriptCompatibility: options.typescriptCompatibility } }),
+  };
+  const context = {
+    project: {
+      entryPoint: "index.ts",
+      targets: [target],
+    },
+    target,
+    selectedSurfaces: options.selectedSurfaces ?? [],
+  };
+  return createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      module: "esnext",
+      moduleResolution: "bundler",
+      strictNullChecks: true,
+      target: "es2022",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createCsharpSourceSemanticsExtension(context),
+        createCsharpTargetSemanticsExtension(context),
+      ],
+    },
+  });
+}
+
+function collectNodesByKind(node, ast, kindName, result = []) {
+  if (node === undefined) {
+    return result;
+  }
+  if (ast.kindName(node) === kindName) {
+    result.push(node);
+  }
+  for (const child of ast.children(node) ?? []) {
+    collectNodesByKind(child, ast, kindName, result);
+  }
+  return result;
 }
 
 function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {

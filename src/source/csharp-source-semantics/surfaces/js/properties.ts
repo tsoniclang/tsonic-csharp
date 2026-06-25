@@ -32,6 +32,9 @@ import {
   hasObjectTargetMember,
 } from "./objects.js";
 import {
+  getJsonTargetMembers,
+} from "./json.js";
+import {
   getCsharpArrayLengthMember,
   getCsharpArrayLikeElementType,
 } from "./arrays.js";
@@ -161,6 +164,11 @@ function mapCsharpSourceLibraryPropertyOperation(
   }
   if (sourceMember.declaringName === "Object") {
     return hasObjectTargetMember(sourceMember.memberName)
+      ? undefined
+      : rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
+  }
+  if (sourceMember.declaringName === "JSON") {
+    return getJsonTargetMembers(sourceMember.memberName).length > 0
       ? undefined
       : rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }

@@ -19,6 +19,9 @@ import {
 import {
   mapCsharpJsDateRuntimeCarrier,
 } from "./date.js";
+import {
+  mapCsharpJsJsonRuntimeCarrier,
+} from "./json.js";
 import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
@@ -65,9 +68,13 @@ export function createCsharpJsSurfaceMappers(host: CsharpJsSurfaceHost): CsharpJ
         return deferObservation;
       }
       const regExpCarrier = mapCsharpJsRegExpRuntimeCarrier(request, context);
-      return regExpCarrier.kind === "defer"
-        ? mapCsharpJsDateRuntimeCarrier(request, context)
-        : regExpCarrier;
+      if (regExpCarrier.kind !== "defer") {
+        return regExpCarrier;
+      }
+      const dateCarrier = mapCsharpJsDateRuntimeCarrier(request, context);
+      return dateCarrier.kind === "defer"
+        ? mapCsharpJsJsonRuntimeCarrier(request, context, host)
+        : dateCarrier;
     },
     mapCheckedCall(request, context) {
       if (request.target !== undefined && request.target !== host.targetId) {

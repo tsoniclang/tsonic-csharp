@@ -39,6 +39,9 @@ import {
   recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/date.js";
 import {
+  recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization,
+} from "./surfaces/js/json.js";
+import {
   recordCsharpJsSurfaceIterationFactsBeforeFinalization,
 } from "./surfaces/js/iteration.js";
 
@@ -62,8 +65,10 @@ export function recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(
   hosts: CsharpExtensionSemanticHosts,
 ): void {
   if (targetHasSurface(context, "js")) {
+    const jsSurfaceHost = createCsharpJsSurfaceHost("tsonic.csharp.js.operations", hosts.operationsProviderHost);
     recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
     recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
+    recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
   }
 }
