@@ -5,9 +5,9 @@ import {
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
-  ExtensionObservation,
   ExtensionObservationContext,
   Node,
+  ExtensionObservation,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
   SourceFile,
@@ -35,12 +35,6 @@ import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
 } from "./source-library.js";
-import {
-  visitAstReaderNodes,
-} from "../../ast-utils.js";
-import {
-  createRuntimeCarrierLifecycleObservationContext,
-} from "../../runtime-carriers.js";
 import {
   getSymbolForDeclarationLookup,
 } from "../../symbol-utils.js";
@@ -143,26 +137,15 @@ export function getCsharpJsCollectionRuntimeCarrierForType(
   return undefined;
 }
 
-export function recordCsharpJsCollectionRuntimeCarrierFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+export function recordCsharpJsCollectionRuntimeCarrierFactForNode(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
 ): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
-      continue;
-    }
-    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      const carrier = getCsharpJsCollectionRuntimeCarrierForNode(node, sourceFile, context, host);
-      if (carrier === undefined) {
-        return;
-      }
-      recordCollectionRuntimeCarrierFact(node, carrier, sourceFile, context);
-    });
+  const carrier = getCsharpJsCollectionRuntimeCarrierForNode(node, sourceFile, context, host);
+  if (carrier !== undefined) {
+    recordCollectionRuntimeCarrierFact(node, carrier, sourceFile, context);
   }
 }
 
@@ -172,8 +155,20 @@ function getCsharpJsCollectionRuntimeCarrierForNode(
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
-  const type = context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
+  const type = checkedTypeAtLocation(node, sourceFile, context);
   return getCsharpJsCollectionRuntimeCarrierForType(type, context, host);
+}
+
+function checkedTypeAtLocation(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+): Type | undefined {
+  try {
+    return context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }
 
 function recordCollectionRuntimeCarrierFact(

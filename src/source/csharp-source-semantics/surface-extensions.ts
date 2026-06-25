@@ -67,9 +67,6 @@ import {
   recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/json.js";
 import {
-  recordCsharpJsCollectionRuntimeCarrierFactsBeforeFinalization,
-} from "./surfaces/js/collections.js";
-import {
   recordCsharpJsSurfaceIterationFactsBeforeFinalization,
 } from "./surfaces/js/iteration.js";
 
@@ -184,7 +181,6 @@ function recordCsharpJsSurfaceSeedFactsBeforeFinalization(
   recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
   recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
   recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-  recordCsharpJsCollectionRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayConstructorRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
 }

@@ -31,6 +31,9 @@ import {
   getCsharpJsArrayRuntimeCarrierForType,
 } from "../array-carriers.js";
 import {
+  recordCsharpJsCollectionRuntimeCarrierFactForNode,
+} from "../collections.js";
+import {
   getNodeParent,
   getPropertyAccessName,
   getSignatureDeclaration,
@@ -97,6 +100,7 @@ function recordCsharpSourceLibraryCallFact(
   const calleeReceiver = compiler.ast.is.IsPropertyAccessExpression(callee)
     ? asNodeSubject(getNodeField(callee, "Expression"))
     : undefined;
+  recordCollectionRuntimeCarrierFactsForSelectedCall(node, calleeReceiver, sourceFile, sourceMember, context, host);
   const calleeReceiverSymbol = calleeReceiver === undefined
     ? undefined
     : getSymbolForDeclarationLookup(compiler.ast, compiler.checker, calleeReceiver, sourceFile);
@@ -130,6 +134,35 @@ function recordCsharpSourceLibraryCallFact(
     mapped.value.selectedSignature,
     mapped.evidence ?? [{ message: "C# JS surface selected target signature recorded from checked TypeScript library call before finalization." }],
   );
+}
+
+function recordCollectionRuntimeCarrierFactsForSelectedCall(
+  node: Node,
+  calleeReceiver: Node | undefined,
+  sourceFile: SourceFile,
+  sourceMember: NonNullable<ReturnType<typeof getSourceLibraryMember>>,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): void {
+  if (!sourceMemberIsCollection(sourceMember)) {
+    return;
+  }
+  if (sourceMember.memberName === "constructor") {
+    recordCsharpJsCollectionRuntimeCarrierFactForNode(node, sourceFile, context, host);
+    return;
+  }
+  if (calleeReceiver !== undefined) {
+    recordCsharpJsCollectionRuntimeCarrierFactForNode(calleeReceiver, sourceFile, context, host);
+  }
+}
+
+function sourceMemberIsCollection(
+  sourceMember: NonNullable<ReturnType<typeof getSourceLibraryMember>>,
+): boolean {
+  return sourceMember.declaringName === "Map" ||
+    sourceMember.declaringName === "ReadonlyMap" ||
+    sourceMember.declaringName === "Set" ||
+    sourceMember.declaringName === "ReadonlySet";
 }
 
 function recordArrayConstructorRuntimeCarrierFact(
