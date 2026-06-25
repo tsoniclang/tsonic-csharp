@@ -129,7 +129,7 @@ export function resolveTargetTypeRefForTypeCore(
     if (nullable !== undefined) {
       return nullable;
     }
-    return undefined;
+    return getHomogeneousPrimitiveUnionTargetTypeRef(type, context);
   }
   const declaredShape = host.getSemanticTypeDeclarationShape(type, context);
   if (declaredShape !== undefined) {
@@ -138,6 +138,34 @@ export function resolveTargetTypeRefForTypeCore(
   const tuple = getTupleTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (tuple !== undefined) {
     return tuple;
+  }
+  return undefined;
+}
+
+function getHomogeneousPrimitiveUnionTargetTypeRef(
+  type: Type,
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  const types = context.compiler?.types;
+  if (types === undefined || !types.isUnion(type)) {
+    return undefined;
+  }
+  const members = types.getUnionOrIntersectionTypes(type)
+    .filter((member): member is Type => member !== undefined && !types.isNullish(member));
+  if (members.length === 0) {
+    return undefined;
+  }
+  if (members.every((member) => types.isStringLike(member))) {
+    return csharpStringTargetType();
+  }
+  if (members.every((member) => types.isBooleanLike(member))) {
+    return csharpSourcePrimitiveTargetType("bool");
+  }
+  if (members.every((member) => types.isNumberLike(member))) {
+    return csharpSourcePrimitiveTargetType("float64");
+  }
+  if (members.every((member) => types.isBigIntLike(member))) {
+    return csharpBigIntegerTargetType();
   }
   return undefined;
 }

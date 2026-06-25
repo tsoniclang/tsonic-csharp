@@ -19,6 +19,9 @@ import {
   getTargetTypeRefForNode,
 } from "./runtime-carriers.js";
 import {
+  getTargetTypeRefFromDirectFacts,
+} from "./runtime-carrier-direct-facts.js";
+import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
@@ -27,6 +30,9 @@ import {
 import {
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
+import {
+  asNodeSubject,
+} from "../../source/fact-subjects.js";
 
 export function getCsharpTypeFromSelectedTargetCall(
   node: Node,
@@ -88,6 +94,38 @@ export function getCsharpTypeFromRuntimeCarrier(subject: Node, input: TargetComp
   return carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
 }
 
+export function getCsharpTypeFromSourcePrimitiveTypeReference(
+  subject: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  if (input.ast.kindName(subject) !== "KindTypeReference") {
+    return undefined;
+  }
+  const typeName = asNodeSubject(Object.getOwnPropertyDescriptor(subject, "TypeName")?.value);
+  const sourcePrimitive = [
+    getSourcePrimitiveTypeRef(typeName, input),
+    getSourcePrimitiveTypeRef(
+      typeName === undefined ? undefined : input.semantics.getSymbolAtLocation(typeName, { sourceFile }),
+      input,
+    ),
+    getSourcePrimitiveTypeRef(
+      typeName === undefined ? undefined : input.semantics.getResolvedSymbol(typeName, { sourceFile }),
+      input,
+    ),
+    getSourcePrimitiveTypeRef(subject, input),
+  ].find((type) => type !== undefined);
+  return sourcePrimitive === undefined ? undefined : csharpTypeFromTargetTypeRef(sourcePrimitive);
+}
+
 export function isUnionTypeNode(input: TargetCompileInput, node: Node): boolean {
   return input.ast.kindName(node) === KindUnionType;
+}
+
+function getSourcePrimitiveTypeRef(
+  subject: Parameters<typeof getTargetTypeRefFromDirectFacts>[1],
+  input: TargetCompileInput,
+): ReturnType<typeof getTargetTypeRefFromDirectFacts> {
+  const type = getTargetTypeRefFromDirectFacts(input, subject, { includeRuntimeCarrier: false });
+  return type?.kind === "source-primitive" ? type : undefined;
 }

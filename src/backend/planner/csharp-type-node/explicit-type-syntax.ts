@@ -14,6 +14,7 @@ import type {
 } from "../../roslyn/syntax.js";
 import {
   getCsharpTypeFromRuntimeCarrier,
+  getCsharpTypeFromSourcePrimitiveTypeReference,
 } from "../csharp-type-facts.js";
 import {
   getCsharpTypeFromSemanticType,
@@ -57,15 +58,19 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   if (keywordType !== undefined) {
     return keywordType;
   }
-  const directType = getCsharpTypeFromRuntimeCarrier(node, input);
-  if (directType !== undefined) {
-    return directType;
+  const sourcePrimitiveType = getCsharpTypeFromSourcePrimitiveTypeReference(node, sourceFile, input);
+  if (sourcePrimitiveType !== undefined) {
+    return sourcePrimitiveType;
   }
   const callableSemanticType = IsTypeSyntaxNode(input.ast, node)
     ? getCsharpTypeFromSemanticType(input.semantics.getTypeFromTypeNode(node, { sourceFile }), sourceFile, input)
     : undefined;
   if (callableSemanticType !== undefined && isDelegateTypeNode(callableSemanticType)) {
     return callableSemanticType;
+  }
+  const directType = getCsharpTypeFromRuntimeCarrier(node, input);
+  if (directType !== undefined) {
+    return directType;
   }
   return getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
 }
