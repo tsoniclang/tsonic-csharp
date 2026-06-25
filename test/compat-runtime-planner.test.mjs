@@ -46,6 +46,26 @@ test("compat any property get fails closed without finalized operation facts", (
   assert.match(diagnostics[0].message, /compat-runtime any property get requires a finalized closed compat-runtime operation fact/u);
 });
 
+test("compat any property get rejects facts with only a closed result carrier", () => {
+  const receiver = identifier("value");
+  const propertyAccess = property(receiver, "name");
+  const diagnostics = [];
+  const expression = planExpression(propertyAccess, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[propertyAccess, {
+      ...compatRuntimeOperation("ReadCompatSlot", [
+        { kind: "literal", value: "TargetSlot" },
+      ]),
+      declaringType: undefined,
+      resultType: tsValueCarrier(),
+    }]]),
+  }), diagnostics);
+
+  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a closed TsValue\/TsObject\/TsArray\/TsFunction carrier/u);
+});
+
 test("compat any property set renders closed carrier setter operations from explicit projection", () => {
   const receiver = identifier("value");
   const propertyAccess = property(receiver, "name");
@@ -126,20 +146,25 @@ test("compat carrier facts are rejected in strict-native target mode", () => {
 });
 
 test("compat any operations do not apply to unknown or object carriers", () => {
-  const receiver = identifier("value");
-  const propertyAccess = property(receiver, "name");
-  const diagnostics = [];
-  const expression = tryPlanCompatRuntimePropertyGet(propertyAccess, receiver, false, {}, fakeInput({
-    runtimeCarriers: new Map([[receiver, { carrier: { kind: "opaque", id: "unknown" } }]]),
-    operations: new Map([[propertyAccess, compatRuntimeOperation("ReadCompatSlot", [
-      { kind: "literal", value: "TargetSlot" },
-    ])]]),
-  }), diagnostics, () => {
-    throw new Error("compat planner must not request expression planning for non-any carriers");
-  });
+  for (const [description, runtimeCarrier] of [
+    ["unknown", { carrier: { kind: "opaque", id: "unknown" } }],
+    ["object", { carrier: { kind: "target-named", id: "System.Object" } }],
+  ]) {
+    const receiver = identifier(description);
+    const propertyAccess = property(receiver, "name");
+    const diagnostics = [];
+    const expression = tryPlanCompatRuntimePropertyGet(propertyAccess, receiver, false, {}, fakeInput({
+      runtimeCarriers: new Map([[receiver, runtimeCarrier]]),
+      operations: new Map([[propertyAccess, compatRuntimeOperation("ReadCompatSlot", [
+        { kind: "literal", value: "TargetSlot" },
+      ])]]),
+    }), diagnostics, () => {
+      throw new Error("compat planner must not request expression planning for non-any carriers");
+    });
 
-  assert.equal(expression, undefined);
-  assert.deepEqual(diagnostics, []);
+    assert.equal(expression, undefined, description);
+    assert.deepEqual(diagnostics, [], description);
+  }
 });
 
 function fakeInput(options = {}) {

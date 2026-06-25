@@ -249,8 +249,7 @@ function getRequiredCompatRuntimeMemberOperation(
 }
 
 function isClosedCompatRuntimeOperation(operation: CsharpTargetMemberOperationFact): boolean {
-  return isCsharpClosedCompatRuntimeCarrier(operation.declaringType) ||
-    isCsharpClosedCompatRuntimeCarrier(operation.resultType);
+  return isCsharpClosedCompatRuntimeCarrier(operation.declaringType);
 }
 
 function isOpaqueAnyReceiver(
