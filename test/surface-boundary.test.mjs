@@ -3,17 +3,22 @@ import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
 import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import { csharpArrayBoundaryFactKey, csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension } from "../dist/index.js";
+import {
+  createCsharpJsSurfaceExtension,
+  createCsharpNodejsSurfaceExtension,
+  createCsharpSourceSemanticsExtension,
+  createCsharpTargetSemanticsExtension,
+} from "../dist/index.js";
 import { planArrayLiteralExpressionWithCarrier } from "../dist/backend/planner/array-literals.js";
-import { createCsharpCompositeOperationsProvider, createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
+import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
+import {
+  createCsharpJsSurfaceOperationsProvider as createProductCsharpJsSurfaceOperationsProvider,
+  createCsharpNodejsSurfaceOperationsProvider,
+} from "../dist/source/csharp-source-semantics/surface-extensions.js";
 import { createCsharpNodejsSurfaceBindingProvider } from "../dist/source/csharp-source-semantics/surfaces/nodejs/index.js";
 
 function createCsharpJsSurfaceOperationsProvider(host) {
-  return createCsharpCompositeOperationsProvider(host, { jsSurface: true });
-}
-
-function createCsharpNodejsSurfaceOperationsProvider() {
-  return createCsharpCompositeOperationsProvider(fakeHost(undefined), { nodejsSurface: true });
+  return createProductCsharpJsSurfaceOperationsProvider({ operationsProviderHost: host });
 }
 
 test("Array.length is rejected without the JS surface", () => {
@@ -58,14 +63,13 @@ test("native provider defers unowned JS calls and rejects unmapped JS property o
   assert.equal(objectResult.kind, "defer");
   assert.equal(jsonResult.kind, "defer");
   assert.equal(consoleResult.kind, "reject");
-  assert.equal(consoleResult.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
   assert.equal(facts.get(objectCall, csharpTargetOperationFactKey), undefined);
   assert.equal(facts.get(jsonCall, csharpTargetOperationFactKey), undefined);
   assert.equal(facts.get(jsonCall, runtimeCarrierFactKey), undefined);
   assert.equal(facts.get(consoleExpression, csharpTargetOperationFactKey), undefined);
 });
 
-test("JS surface rejects Array.length from receiver carrier without selected declaration", () => {
+test("JS surface defers Array.length from receiver carrier without selected declaration", () => {
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
@@ -73,12 +77,11 @@ test("JS surface rejects Array.length from receiver carrier without selected dec
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, undefined), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED");
+  assert.equal(result.kind, "defer");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("JS surface rejects Array.length without selected declaration and finalized receiver carrier", () => {
+test("JS surface defers Array.length without selected declaration and finalized receiver carrier", () => {
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
@@ -86,8 +89,7 @@ test("JS surface rejects Array.length without selected declaration and finalized
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, undefined), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
+  assert.equal(result.kind, "defer");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -124,7 +126,7 @@ test("JS surface attributes array element diagnostics to the selected surface op
   }, fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionId, "tsonic.csharp.js.operations");
+  assert.equal(result.diagnostic.extensionId, "tsonic.csharp.surface.js");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NON_INTEGRAL_ARRAY_INDEX");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
@@ -150,7 +152,7 @@ test("JS surface attributes string element diagnostics to the selected surface o
   }, fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionId, "tsonic.csharp.js.operations");
+  assert.equal(result.diagnostic.extensionId, "tsonic.csharp.surface.js");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NON_INTEGRAL_STRING_INDEX");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
@@ -178,7 +180,7 @@ test("JS surface maps array element access from finalized receiver carrier facts
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
 });
 
-test("JS surface element access fails closed when no finalized receiver carrier exists", () => {
+test("JS surface defers element access without selected receiver facts", () => {
   const expression = {};
   const receiver = {};
   const index = {};
@@ -195,8 +197,7 @@ test("JS surface element access fails closed when no finalized receiver carrier 
     argument: index,
   }, fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_ELEMENT_ACCESS_NOT_MAPPED");
+  assert.equal(result.kind, "defer");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -1239,7 +1240,7 @@ test("JS surface hard-rejects selected standard-library properties without targe
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("JS surface defers foreign JS calls and rejects foreign JS property operations without target facts", () => {
+test("JS surface defers foreign JS calls and foreign JS property operations without target facts", () => {
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
   const foreignFileName = "/src/globals.d.ts";
@@ -1250,8 +1251,7 @@ test("JS surface defers foreign JS calls and rejects foreign JS property operati
 
   assert.equal(objectResult.kind, "defer");
   assert.equal(jsonResult.kind, "defer");
-  assert.equal(consoleResult.kind, "reject");
-  assert.equal(consoleResult.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
+  assert.equal(consoleResult.kind, "defer");
 });
 
 test("JS surface maps Record element access through provider-owned Dictionary indexer facts", () => {
@@ -1549,7 +1549,7 @@ test("NodeJS assert provider declarations compile only when the nodejs surface i
     if (false) {
       fail("unreachable");
     }
-  `, { selectedSurfaces: [{ id: "nodejs" }] });
+  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
   const selectedSourceFile = selectedSession.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(selectedSession.ensureChecked(selectedSourceFile)), "");
 
@@ -2064,7 +2064,7 @@ test("NodeJS surface maps namespace property access from selected provider prope
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.platform");
 });
 
-test("NodeJS surface rejects namespace properties from import and property spelling alone", () => {
+test("NodeJS surface defers namespace properties from import and property spelling alone", () => {
   const expression = {};
   const receiver = { Kind: "Identifier", Text: "process" };
   const sourceFile = namespaceImportSourceFile(receiver, "process", "node:process");
@@ -2079,12 +2079,11 @@ test("NodeJS surface rejects namespace properties from import and property spell
     propertyName: "platform",
   }, fakeNamespaceImportContext(facts, sourceFile));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
+  assert.equal(result.kind, "defer");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("NodeJS surface rejects namespace properties from container facts and property spelling", () => {
+test("NodeJS surface defers namespace properties from container facts and property spelling", () => {
   const expression = {};
   const receiver = {};
   const facts = new TestFactStore();
@@ -2099,8 +2098,7 @@ test("NodeJS surface rejects namespace properties from container facts and prope
     propertyName: "platform",
   }, fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
+  assert.equal(result.kind, "defer");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -2261,10 +2259,22 @@ function createCsharpSession(sourceText, options = {}) {
         createTsonicCoreSourceExtension(),
         createCsharpSourceSemanticsExtension(context),
         createCsharpTargetSemanticsExtension(context),
+        ...context.selectedSurfaces.flatMap((surface) =>
+          surface.id === "js"
+            ? [createCsharpJsSurfaceExtension({ ...context, surface, targetPack: fakeTargetPack })]
+            : surface.id === "nodejs"
+            ? [createCsharpNodejsSurfaceExtension({ ...context, surface, targetPack: fakeTargetPack })]
+            : []
+        ),
       ],
     },
   });
 }
+
+const fakeTargetPack = {
+  id: "csharp",
+  displayName: "C#",
+};
 
 function collectNodesByKind(node, ast, kindName, result = []) {
   if (node === undefined) {

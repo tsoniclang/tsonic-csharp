@@ -20,6 +20,8 @@ import {
   csharpTargetSemanticsExtensionId,
   csharpProviderVersion,
   csharpTargetId,
+  csharpJsSurfaceExtensionId,
+  csharpNodejsSurfaceExtensionId,
 } from "./identity.js";
 import {
   csharpSourcePrimitiveTargetType,
@@ -28,7 +30,7 @@ import {
   asType,
 } from "./target-ref-utils.js";
 import {
-  createCsharpCompositeOperationsProvider,
+  createCsharpNativeOperationsProvider,
 } from "./operations-provider.js";
 import {
   recordCsharpRuntimeCarrierFactsBeforeFinalization,
@@ -69,16 +71,11 @@ import {
   recordCsharpAssertionConversionFactsBeforeFinalization,
 } from "./source-assertion-conversions.js";
 import {
-  createCsharpExtensionSemanticHosts,
+  getCsharpExtensionSemanticHosts,
 } from "./semantic-hosts.js";
-import {
-  recordCsharpSelectedSurfaceOperationFactsBeforeFinalization,
-  recordCsharpSelectedSurfaceSeedFactsBeforeFinalization,
-  registerCsharpSelectedSurfaceProviders,
-} from "./surface-extensions.js";
 
 export function createCsharpTargetSemanticsExtension(context: TargetProviderContext): CompilerExtension {
-  const hosts = createCsharpExtensionSemanticHosts(context);
+  const hosts = getCsharpExtensionSemanticHosts(context);
   return {
     identity: {
       id: csharpTargetSemanticsExtensionId,
@@ -91,6 +88,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
     },
     dependencies: {
       dependsOn: [tsonicCoreSourceExtensionId],
+      runsAfter: [csharpJsSurfaceExtensionId, csharpNodejsSurfaceExtensionId],
     },
     initialize(extensionContext): void {
       extensionContext.registerTargetBindingProvider(createDotnetTargetBindingProvider({
@@ -98,13 +96,8 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         references: hosts.dotnetReflectionReferences,
         targetFramework: hosts.dotnetTargetFramework,
       }));
-      extensionContext.registerTargetSemanticProvider(createCsharpCompositeOperationsProvider(hosts.operationsProviderHost, {
-        jsSurface: context.selectedSurfaces.some((surface) => surface.id === "js"),
-        nodejsSurface: context.selectedSurfaces.some((surface) => surface.id === "nodejs"),
-      }));
-      registerCsharpSelectedSurfaceProviders(context, extensionContext);
+      extensionContext.registerTargetSemanticProvider(createCsharpNativeOperationsProvider(hosts.operationsProviderHost));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(context, lifecycleContext, hosts);
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
         recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
         validateCsharpSourceFlowFactsBeforeFinalization(lifecycleContext);
@@ -116,7 +109,6 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost);
-        recordCsharpSelectedSurfaceOperationFactsBeforeFinalization(context, lifecycleContext, hosts);
         recordCsharpNativeArrayFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
         diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode);

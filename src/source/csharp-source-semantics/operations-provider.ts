@@ -3,8 +3,6 @@ import {
   deferObservation,
 } from "@tsonic/tsts";
 import type {
-  CheckedElementAccessMappingRequest,
-  CheckedPropertyAccessMappingRequest,
   ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
@@ -30,12 +28,6 @@ import {
 } from "./target-member-selection.js";
 import type { TargetMemberSelectionOptions, TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import {
-  createCsharpJsSurfaceMappers,
-} from "./surfaces/js/index.js";
-import {
-  createCsharpNodejsSurfaceMappers,
-} from "./surfaces/nodejs/index.js";
-import {
   mapCsharpCheckedCall,
 } from "./checked-call-mapping.js";
 import {
@@ -57,13 +49,6 @@ import {
 import {
   validateCsharpTargetConstraint,
 } from "./target-constraint-validation.js";
-import {
-  getSourceLibraryMember,
-  isSourceLibraryType,
-} from "./source-library.js";
-import {
-  asSemanticType,
-} from "../fact-subjects.js";
 
 export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
@@ -85,18 +70,6 @@ export interface CsharpOperationsProviderHost {
 }
 
 export function createCsharpNativeOperationsProvider(host: CsharpOperationsProviderHost): TargetSemanticProvider {
-  return createCsharpCompositeOperationsProvider(host, {});
-}
-
-export interface CsharpCompositeOperationsProviderOptions {
-  readonly jsSurface?: boolean;
-  readonly nodejsSurface?: boolean;
-}
-
-export function createCsharpCompositeOperationsProvider(
-  host: CsharpOperationsProviderHost,
-  options: CsharpCompositeOperationsProviderOptions,
-): TargetSemanticProvider {
   const identity: ProviderIdentity = {
     id: "tsonic.csharp.operations",
     version: csharpProviderVersion,
@@ -105,48 +78,21 @@ export function createCsharpCompositeOperationsProvider(
     providerKind: "semantic",
     displayName: "Tsonic C# semantic mapper",
   };
-  const jsSurface = options.jsSurface === true
-    ? createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost("tsonic.csharp.js.operations", host))
-    : undefined;
-  const nodejsSurface = options.nodejsSurface === true
-    ? createCsharpNodejsSurfaceMappers("tsonic.csharp.nodejs.operations")
-    : undefined;
   return {
     identity,
     resolveRuntimeCarrier(request, context) {
       if (request.target !== undefined && request.target !== csharpTargetId) {
         return deferObservation;
       }
-      return useObservationOrWhenDeferred(
-        jsSurface?.mapRuntimeCarrier(request, context) ?? deferObservation,
-        () => host.mapRuntimeCarrier(request, context),
-      );
+      return host.mapRuntimeCarrier(request, context);
     },
     mapCheckedCall(request, context) {
-      return useObservationOrWhenDeferred(
-        nodejsSurface?.mapCheckedCall(request, context) ?? deferObservation,
-        () => useObservationOrWhenDeferred(
-          jsSurface?.mapCheckedCall(request, context) ?? deferObservation,
-          () => mapCsharpCheckedCall(request, context, identity.id, host),
-        ),
-      );
+      return mapCsharpCheckedCall(request, context, identity.id, host);
     },
     mapCheckedPropertyAccess(request, context) {
-      const nodejsObservation = nodejsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation;
-      if (nodejsObservation.kind !== "defer") {
-        return nodejsObservation;
-      }
-      const jsObservation = jsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation;
-      if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedPropertyAccess(request, context))) {
-        return jsObservation;
-      }
       return mapCsharpCheckedPropertyAccess(request, context, identity.id, host);
     },
     mapCheckedElementAccess(request, context) {
-      const jsObservation = jsSurface?.mapCheckedElementAccess(request, context) ?? deferObservation;
-      if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedElementAccess(request, context))) {
-        return jsObservation;
-      }
       return mapCsharpCheckedElementAccess(request, context, identity.id, host);
     },
     mapCheckedOperator(request, context) {
@@ -159,10 +105,7 @@ export function createCsharpCompositeOperationsProvider(
       return validateCsharpTargetConstraint(request, context, host);
     },
     mapCheckedIteration(request, context) {
-      return useObservationOrWhenDeferred(
-        jsSurface?.mapCheckedIteration(request, context) ?? deferObservation,
-        () => mapCsharpNativeCheckedIteration(request, context, host),
-      );
+      return mapCsharpNativeCheckedIteration(request, context, host);
     },
     recordContextualTargetType(request, context) {
       return mapCsharpContextualTargetType(request, context, host);
@@ -209,24 +152,6 @@ export function createCsharpJsSurfaceHost(
     getCsharpObjectShapeFactForSubject: host.getCsharpObjectShapeFactForSubject,
     csharpProviderDiagnostic,
   };
-}
-
-function jsSurfaceOwnsCheckedPropertyAccess(
-  request: CheckedPropertyAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-): boolean {
-  return getSourceLibraryMember(request.sourceSelectedDeclaration, context) !== undefined;
-}
-
-function jsSurfaceOwnsCheckedElementAccess(
-  request: CheckedElementAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
-): boolean {
-  const receiverType = asSemanticType(request.receiverType);
-  return receiverType !== undefined && (
-    isSourceLibraryType(receiverType, context, "Array") ||
-    isSourceLibraryType(receiverType, context, "ReadonlyArray")
-  );
 }
 
 export function useObservationOrWhenDeferred<T>(

@@ -8,3 +8,7 @@ export {
 export {
   createCsharpSourceSemanticsExtension,
 } from "./csharp-source-semantics/source-extension.js";
+export {
+  createCsharpJsSurfaceExtension,
+  createCsharpNodejsSurfaceExtension,
+} from "./csharp-source-semantics/surface-extensions.js";

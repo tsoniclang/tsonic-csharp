@@ -19,6 +19,8 @@ import {
 import {
   createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
+  createCsharpJsSurfaceExtension,
+  createCsharpNodejsSurfaceExtension,
 } from "../source/csharp-source-semantics.js";
 import { createDotnetToolchain } from "../toolchain/dotnet-toolchain.js";
 
@@ -51,6 +53,9 @@ export function createCsharpTargetPack(): TargetPack {
       {
         id: "js",
         displayName: "JavaScript surface",
+        createExtensions(context) {
+          return [createCsharpJsSurfaceExtension(context)];
+        },
         runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
           return {
             references: [
@@ -63,6 +68,9 @@ export function createCsharpTargetPack(): TargetPack {
         id: "nodejs",
         displayName: "Node.js surface",
         requiredSurfaces: ["js"],
+        createExtensions(context) {
+          return [createCsharpNodejsSurfaceExtension(context)];
+        },
         runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
           return {
             references: [

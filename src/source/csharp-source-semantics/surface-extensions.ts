@@ -1,19 +1,41 @@
-import type {
-  ExtensionInitializeContext,
-  ExtensionObservationContext,
+import {
+  ExtensionLifecycleEvent,
+  TstsProviderContractVersion,
+  deferObservation,
 } from "@tsonic/tsts";
 import type {
-  TargetProviderContext,
+  BeforeSemanticsFinalizedLifecycleRequest,
+  CompilerExtension,
+  ExtensionObservationContext,
+  ProviderIdentity,
+  TargetSemanticProvider,
+} from "@tsonic/tsts";
+import type {
+  TargetSurfaceExtensionContext,
 } from "@tsonic/target-api";
 import {
   createCsharpJsSurfaceHost,
 } from "./operations-provider.js";
 import {
   type CsharpExtensionSemanticHosts,
+  getCsharpExtensionSemanticHosts,
 } from "./semantic-hosts.js";
 import {
+  createCsharpJsSurfaceMappers,
+} from "./surfaces/js/index.js";
+import {
   createCsharpNodejsSurfaceBindingProvider,
+  createCsharpNodejsSurfaceMappers,
 } from "./surfaces/nodejs/index.js";
+import {
+  csharpJsSurfaceExtensionId,
+  csharpNodejsSurfaceExtensionId,
+  csharpProviderVersion,
+  csharpTargetId,
+} from "./identity.js";
+import {
+  tsonicCoreSourceExtensionId,
+} from "@tsonic/source-core";
 import {
   recordCsharpSourceLibraryCallFactsBeforeFinalization,
 } from "./surfaces/js/calls.js";
@@ -50,45 +72,126 @@ type CsharpSurfaceLifecycleContext = {
   readonly compiler?: ExtensionObservationContext["compiler"];
 };
 
-export function registerCsharpSelectedSurfaceProviders(
-  context: TargetProviderContext,
-  extensionContext: ExtensionInitializeContext,
-): void {
-  if (targetHasSurface(context, "nodejs")) {
-    extensionContext.registerTargetBindingProvider(createCsharpNodejsSurfaceBindingProvider());
-  }
+export function createCsharpJsSurfaceExtension(context: TargetSurfaceExtensionContext): CompilerExtension {
+  const hosts = getCsharpExtensionSemanticHosts(context);
+  return {
+    identity: {
+      id: csharpJsSurfaceExtensionId,
+      version: csharpProviderVersion,
+      capabilityNamespace: "tsonic.csharp.surface.js",
+    },
+    composition: {
+      kind: "surface",
+      target: csharpTargetId,
+      surface: "js",
+    },
+    dependencies: {
+      dependsOn: [tsonicCoreSourceExtensionId],
+    },
+    initialize(extensionContext): void {
+      extensionContext.registerTargetSemanticProvider(createCsharpJsSurfaceOperationsProvider(hosts));
+      extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
+        recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts);
+        recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts);
+      });
+    },
+  };
 }
 
-export function recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(
-  context: TargetProviderContext,
+export function createCsharpNodejsSurfaceExtension(context: TargetSurfaceExtensionContext): CompilerExtension {
+  return {
+    identity: {
+      id: csharpNodejsSurfaceExtensionId,
+      version: csharpProviderVersion,
+      capabilityNamespace: "tsonic.csharp.surface.nodejs",
+    },
+    composition: {
+      kind: "surface",
+      target: csharpTargetId,
+      surface: "nodejs",
+    },
+    dependencies: {
+      dependsOn: [csharpJsSurfaceExtensionId],
+    },
+    initialize(extensionContext): void {
+      void context;
+      extensionContext.registerTargetBindingProvider(createCsharpNodejsSurfaceBindingProvider());
+      extensionContext.registerTargetSemanticProvider(createCsharpNodejsSurfaceOperationsProvider());
+    },
+  };
+}
+
+export function createCsharpJsSurfaceOperationsProvider(hosts: Pick<CsharpExtensionSemanticHosts, "operationsProviderHost">): TargetSemanticProvider {
+  const identity = surfaceSemanticProviderIdentity(csharpJsSurfaceExtensionId, "Tsonic C# JavaScript surface semantic mapper");
+  const mapper = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, hosts.operationsProviderHost));
+  return {
+    identity,
+    resolveRuntimeCarrier(request, context) {
+      return mapper.mapRuntimeCarrier(request, context);
+    },
+    mapCheckedCall(request, context) {
+      return mapper.mapCheckedCall(request, context);
+    },
+    mapCheckedPropertyAccess(request, context) {
+      return mapper.mapCheckedPropertyAccess(request, context);
+    },
+    mapCheckedElementAccess(request, context) {
+      return mapper.mapCheckedElementAccess(request, context);
+    },
+    mapCheckedIteration(request, context) {
+      return mapper.mapCheckedIteration(request, context);
+    },
+  };
+}
+
+export function createCsharpNodejsSurfaceOperationsProvider(): TargetSemanticProvider {
+  const identity = surfaceSemanticProviderIdentity(csharpNodejsSurfaceExtensionId, "Tsonic C# Node.js surface semantic mapper");
+  const mapper = createCsharpNodejsSurfaceMappers(csharpNodejsSurfaceExtensionId);
+  return {
+    identity,
+    mapCheckedCall(request, context) {
+      return mapper.mapCheckedCall(request, context);
+    },
+    mapCheckedPropertyAccess(request, context) {
+      return mapper.mapCheckedPropertyAccess(request, context);
+    },
+    mapCheckedElementAccess() {
+      return deferObservation;
+    },
+  };
+}
+
+function surfaceSemanticProviderIdentity(id: string, displayName: string): ProviderIdentity {
+  return {
+    id,
+    version: csharpProviderVersion,
+    target: csharpTargetId,
+    extensionContractVersion: TstsProviderContractVersion,
+    providerKind: "semantic",
+    displayName,
+  };
+}
+
+function recordCsharpJsSurfaceSeedFactsBeforeFinalization(
   lifecycleContext: CsharpSurfaceLifecycleContext,
   hosts: CsharpExtensionSemanticHosts,
 ): void {
-  if (targetHasSurface(context, "js")) {
-    const jsSurfaceHost = createCsharpJsSurfaceHost("tsonic.csharp.js.operations", hosts.operationsProviderHost);
-    recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
-    recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
-    recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-    recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
-  }
+  const jsSurfaceHost = createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, hosts.operationsProviderHost);
+  recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
+  recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
+  recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
 }
 
-export function recordCsharpSelectedSurfaceOperationFactsBeforeFinalization(
-  context: TargetProviderContext,
+function recordCsharpJsSurfaceOperationFactsBeforeFinalization(
   lifecycleContext: CsharpSurfaceLifecycleContext,
   hosts: CsharpExtensionSemanticHosts,
 ): void {
-  if (targetHasSurface(context, "js")) {
-    const jsSurfaceHost = createCsharpJsSurfaceHost("tsonic.csharp.js.operations", hosts.operationsProviderHost);
-    recordCsharpSourceLibraryPropertyFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-    recordCsharpJsArrayElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-    recordCsharpJsArrayMutationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-    recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-    recordCsharpJsSurfaceIterationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-    recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
-  }
-}
-
-function targetHasSurface(context: TargetProviderContext, surfaceId: string): boolean {
-  return context.selectedSurfaces.some((surface) => surface.id === surfaceId);
+  const jsSurfaceHost = createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, hosts.operationsProviderHost);
+  recordCsharpSourceLibraryPropertyFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpJsArrayElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpJsArrayMutationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpJsSurfaceIterationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
 }
