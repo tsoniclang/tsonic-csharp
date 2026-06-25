@@ -676,6 +676,95 @@ test("source-semantics keeps imported interface storage carriers separate from o
   assert.deepEqual(typeReferenceCarrierIds, ["Marker", "Named"]);
 });
 
+test("source-semantics closes generic structural object-literal carriers over type parameters", () => {
+  const sourceText = `
+    type Box<T> = { value: T };
+
+    export function create<T>(value: T): Box<T> {
+      return { value };
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const objectLiteral = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")[0];
+  const fact = extensionHost.facts.get(objectLiteral, csharpObjectShapeFactKey);
+
+  assert.match(fact?.targetType.id, /^__TsonicShape_/u);
+  assert.deepEqual(fact.targetType.typeArguments, [{ kind: "type-parameter", name: "T" }]);
+  assert.deepEqual(fact.members, [{
+    sourceName: "value",
+    targetName: "value",
+    memberKind: "property",
+    type: { kind: "type-parameter", name: "T" },
+  }]);
+  assert.deepEqual(extensionHost.facts.get(objectLiteral, runtimeCarrierFactKey)?.carrier, fact.targetType);
+});
+
+test("source-semantics records inline object parameter shapes for checked member access", () => {
+  const sourceText = `
+    export function read(input: { count: number }): number {
+      return input.count;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const typeLiteral = collectNodesByKind(sourceFile, session.ast, "KindTypeLiteral")[0];
+  const propertyAccess = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .find((node) => session.ast.text(node.Expression) === "input");
+  const fact = extensionHost.facts.get(typeLiteral, csharpObjectShapeFactKey);
+
+  assert.match(fact?.targetType.id, /^__TsonicShape_/u);
+  assert.deepEqual(fact.members.map((member) => [member.sourceName, member.targetName]), [["count", "count"]]);
+  assert.equal(extensionHost.facts.get(propertyAccess, targetOperationFactKey)?.targetOperation, "count");
+  assert.equal(extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey)?.memberName, "count");
+});
+
 test("source-semantics rejects source-core marker calls missing required type evidence", () => {
   const sourceText = `
     import { attribute, defaultof, field } from "@tsonic/core/lang.js";

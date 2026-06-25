@@ -23,7 +23,7 @@ import {
   visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
-  getObjectShapeTargetName,
+  createObjectShapeTargetType,
 } from "./object-shape-identity.js";
 import {
   csharpTargetMemberOperation,
@@ -32,9 +32,6 @@ import {
 import {
   getSymbolForDeclarationLookup,
 } from "./symbol-utils.js";
-import {
-  csharpTargetNamedType,
-} from "./target-types.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
   getRuntimeCarrierSubjectType,
@@ -82,9 +79,8 @@ export function recordCsharpObjectRestBindingFactsBeforeFinalization(
       if (members.length === sourceShape.members.length || members.length === 0) {
         return;
       }
-      const targetName = getObjectShapeTargetName("__TsonicShape", members);
       const restShape = {
-        targetType: csharpTargetNamedType(targetName, undefined, { kind: "named", name: targetName }),
+        targetType: createObjectShapeTargetType("__TsonicShape", members),
         members,
       } satisfies CsharpObjectShapeFact;
       recordCsharpObjectRestBindingFact(lifecycleContext, sourceFile, [node, restName], restShape);

@@ -4,9 +4,16 @@ import {
   csharpObjectShapeFactKey,
   csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
-import { objectShapeStorageMemberName } from "../dist/backend/planner/object-shapes.js";
+import {
+  beginObjectShapePlanning,
+  csharpTypeFromObjectShapeFact,
+  objectShapeStorageMemberName,
+  takeObjectShapeDeclarations,
+} from "../dist/backend/planner/object-shapes.js";
+import { planObjectLiteralExpressionWithExpectedType } from "../dist/backend/planner/expression-object-literals.js";
 import { planObjectShapeSpreadAssignments } from "../dist/backend/planner/expression-object-literal-spread.js";
 import { tryPlanRecordDictionaryLiteralWithExpectedType } from "../dist/backend/planner/expression-dictionary-literals.js";
+import { printCsharpCompilationUnit } from "../dist/print/csharp-printer.js";
 import {
   planElementAccessExpression,
   planPropertyAccessExpression,
@@ -14,17 +21,21 @@ import {
 import {
   KindElementAccessExpression,
   KindFalseKeyword,
+  KindGetAccessor,
   KindIdentifier,
+  KindMethodDeclaration,
   KindNumericLiteral,
   KindObjectLiteralExpression,
   KindPropertyAccessExpression,
   KindPropertyAssignment,
+  KindShorthandPropertyAssignment,
   KindSpreadAssignment,
   KindStringLiteral,
   KindTrueKeyword,
 } from "../dist/backend/planner/source-ast.js";
 import {
   csharpQualifiedTypeRenderShape,
+  csharpDelegateTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
@@ -272,6 +283,220 @@ test("object-shape method storage names require exact member identity", () => {
   );
 });
 
+test("generated structural carriers close over finalized type-parameter target arguments", () => {
+  const sourceExample = `
+    type Box<T> = { value: T };
+
+    export function create<T>(value: T): Box<T> {
+      return { value };
+    }
+  `;
+  assert.match(sourceExample, /Box<T>/);
+  assert.match(sourceExample, /return \{ value \}/);
+
+  const typeParameter = { kind: "type-parameter", name: "T" };
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__TsonicShape_Generic",
+      typeArguments: [typeParameter],
+      csharpRender: { kind: "named", name: "__TsonicShape_Generic" },
+    },
+    members: [{
+      sourceName: "value",
+      targetName: "value",
+      memberKind: "property",
+      type: typeParameter,
+    }],
+  };
+  const literal = objectLiteral([
+    shorthandPropertyAssignment(identifier("value")),
+  ]);
+  const input = fakeInput({ objectShapes: new Map([[literal, shape]]) });
+  const diagnostics = [];
+
+  beginObjectShapePlanning(input);
+  const planned = planObjectLiteralExpressionWithExpectedType(
+    literal,
+    {},
+    input,
+    diagnostics,
+    { kind: "IdentifierName", name: "__TsonicShape_Generic", typeArguments: [{ kind: "IdentifierName", name: "T" }] },
+    undefined,
+    planExpression,
+    planExpectedExpression,
+  );
+  const declarations = takeObjectShapeDeclarations(input);
+  const printed = printCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: declarations,
+  });
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "ObjectCreationExpression",
+    type: { kind: "IdentifierName", name: "__TsonicShape_Generic", typeArguments: [{ kind: "IdentifierName", name: "T" }] },
+    assignments: [{
+      kind: "AssignmentExpression",
+      name: "value",
+      expression: { kind: "IdentifierName", name: "value" },
+    }],
+  });
+  assert.match(printed, /public class __TsonicShape_Generic<T>/);
+  assert.match(printed, /public T value;/);
+});
+
+test("generated structural carriers fail closed when type-parameter facts are not declared on the carrier", () => {
+  const sourceExample = `
+    type Box<T> = { value: T };
+
+    export function create<T>(value: T): Box<T> {
+      return { value };
+    }
+  `;
+  assert.match(sourceExample, /value: T/);
+
+  const input = fakeInput();
+  const diagnostics = [];
+
+  beginObjectShapePlanning(input);
+  const renderedType = csharpTypeFromObjectShapeFact(
+    input,
+    {
+      targetType: {
+        kind: "target-named",
+        id: "__TsonicShape_OpenButUndeclared",
+        csharpRender: { kind: "named", name: "__TsonicShape_OpenButUndeclared" },
+      },
+      members: [{
+        sourceName: "value",
+        targetName: "value",
+        memberKind: "property",
+        type: { kind: "type-parameter", name: "T" },
+      }],
+    },
+    diagnostics,
+    identifier("shape"),
+  );
+  const declarations = takeObjectShapeDeclarations(input);
+
+  assert.deepEqual(renderedType, { kind: "IdentifierName", name: "__TsonicShape_OpenButUndeclared" });
+  assert.deepEqual(declarations, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /uses type parameter 'T' without declaring it/);
+});
+
+test("object-shape object literals fail closed for computed property names", () => {
+  const literal = objectLiteral([
+    propertyAssignment(binaryExpression(identifier("prefix"), identifier("suffix")), numericLiteral("1")),
+  ]);
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [{
+      sourceName: "value",
+      targetName: "value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const diagnostics = [];
+
+  const planned = planObjectLiteralExpressionWithExpectedType(
+    literal,
+    {},
+    fakeInput({ objectShapes: new Map([[literal, shape]]) }),
+    diagnostics,
+    { kind: "IdentifierName", name: "__Shape" },
+    undefined,
+    planExpression,
+    planExpectedExpression,
+  );
+
+  assert.deepEqual(planned.assignments, []);
+  assert.equal(diagnostics.length, 2);
+  assert.match(diagnostics[0].message, /require identifier or string-literal property names/);
+  assert.match(diagnostics[1].message, /must match a finalized provider object-shape member/);
+});
+
+test("object-shape object literals fail closed for accessors", () => {
+  const literal = objectLiteral([
+    getAccessor(identifier("value")),
+  ]);
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [{
+      sourceName: "value",
+      targetName: "value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const diagnostics = [];
+
+  const planned = planObjectLiteralExpressionWithExpectedType(
+    literal,
+    {},
+    fakeInput({ objectShapes: new Map([[literal, shape]]) }),
+    diagnostics,
+    { kind: "IdentifierName", name: "__Shape" },
+    undefined,
+    planExpression,
+    planExpectedExpression,
+  );
+
+  assert.deepEqual(planned.assignments, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object literal member is outside the current C# planning surface/);
+});
+
+test("object-shape object literals fail closed for generic methods", () => {
+  const method = methodDeclaration(identifier("map"), {
+    typeParameters: [identifier("T")],
+    parameters: [parameter(identifier("value"))],
+    body: block([]),
+  });
+  const literal = objectLiteral([method]);
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [{
+      sourceName: "map",
+      targetName: "map",
+      memberKind: "method",
+      type: csharpDelegateTargetType("System.Func", [{ kind: "source-primitive", name: "int32" }], { kind: "source-primitive", name: "int32" }),
+    }],
+  };
+  const diagnostics = [];
+
+  const planned = planObjectLiteralExpressionWithExpectedType(
+    literal,
+    {},
+    fakeInput({ objectShapes: new Map([[literal, shape]]) }),
+    diagnostics,
+    { kind: "IdentifierName", name: "__Shape" },
+    undefined,
+    planExpression,
+    planExpectedExpression,
+  );
+
+  assert.equal(planned.assignments.length, 1);
+  assert.deepEqual(planned.assignments[0].expression, { kind: "InvalidExpression", reason: "generic object literal method" });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object literal generic methods require finalized target delegate facts/);
+});
+
 test("record dictionary object literals lower through explicit nested Record carriers", () => {
   const sourceFile = {};
   const nestedLiteral = objectLiteral([
@@ -480,10 +705,25 @@ function numericLiteral(text) {
   };
 }
 
+function binaryExpression(left, right) {
+  return {
+    Kind: "KindBinaryExpression",
+    Left: left,
+    Right: right,
+  };
+}
+
 function objectLiteral(properties) {
   return {
     Kind: KindObjectLiteralExpression,
     Properties: { Nodes: properties },
+  };
+}
+
+function shorthandPropertyAssignment(name) {
+  return {
+    Kind: KindShorthandPropertyAssignment,
+    name,
   };
 }
 
@@ -499,6 +739,37 @@ function propertyAssignment(name, initializer) {
     Kind: KindPropertyAssignment,
     name,
     Initializer: initializer,
+  };
+}
+
+function getAccessor(name) {
+  return {
+    Kind: KindGetAccessor,
+    name,
+  };
+}
+
+function methodDeclaration(name, options = {}) {
+  return {
+    Kind: KindMethodDeclaration,
+    name,
+    TypeParameters: { Nodes: options.typeParameters ?? [] },
+    Parameters: { Nodes: options.parameters ?? [] },
+    Body: options.body,
+  };
+}
+
+function parameter(name) {
+  return {
+    Kind: "KindParameter",
+    name,
+  };
+}
+
+function block(statements) {
+  return {
+    Kind: "KindBlock",
+    Statements: { Nodes: statements },
   };
 }
 

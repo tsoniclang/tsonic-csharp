@@ -7,6 +7,7 @@ import {
   objectShapeDeclarationMatches,
   renderObjectShapeInterfaces,
   renderObjectShapeMembers,
+  renderObjectShapeTypeParameters,
 } from "./object-shape-declarations.js";
 
 export {
@@ -90,6 +91,10 @@ function registerObjectShapeDeclaration(
   if (interfaces === undefined) {
     return;
   }
+  const typeParameters = renderObjectShapeTypeParameters(fact, diagnostics, diagnosticSubject);
+  if (typeParameters === undefined) {
+    return;
+  }
   const implementsInterface = interfaces.length > 0;
   const members = renderObjectShapeMembers(fact, implementsInterface, diagnostics, diagnosticSubject);
   if (members === undefined) {
@@ -99,6 +104,7 @@ function registerObjectShapeDeclaration(
     kind: "ClassDeclaration",
     name,
     modifiers: ["public"],
+    ...(typeParameters.length === 0 ? {} : { typeParameters }),
     ...(interfaces.length === 0 ? {} : { interfaces }),
     members,
   });

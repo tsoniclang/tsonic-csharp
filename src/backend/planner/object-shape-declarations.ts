@@ -8,6 +8,7 @@ import type {
   CsharpClassDeclaration,
   CsharpExpression,
   CsharpParameter,
+  CsharpTypeParameter,
   CsharpTypeMember,
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
@@ -26,6 +27,9 @@ import {
 import {
   objectShapeStorageMemberName,
 } from "./object-shape-storage.js";
+import {
+  tryCsharpIdentifier,
+} from "./identifiers.js";
 
 export function renderObjectShapeMembers(
   fact: CsharpObjectShapeFact,
@@ -70,6 +74,10 @@ export function objectShapeDeclarationMatches(
   declaration: CsharpClassDeclaration,
   fact: CsharpObjectShapeFact,
 ): boolean {
+  const typeParameters = renderObjectShapeTypeParameters(fact, undefined, undefined);
+  if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
+    return false;
+  }
   for (const member of fact.members) {
     if (member.memberKind === "method") {
       const storageName = objectShapeStorageMemberName(fact, member);
@@ -101,6 +109,53 @@ export function objectShapeDeclarationMatches(
   });
 }
 
+export function renderObjectShapeTypeParameters(
+  fact: CsharpObjectShapeFact,
+  diagnostics: TargetDiagnostic[] | undefined,
+  diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
+): readonly CsharpTypeParameter[] | undefined {
+  if (fact.targetType.kind !== "target-named") {
+    return [];
+  }
+  const declaredTypeParameters: CsharpTypeParameter[] = [];
+  const declaredNames = new Set<string>();
+  for (const typeArgument of fact.targetType.typeArguments ?? []) {
+    if (typeArgument.kind !== "type-parameter") {
+      pushObjectShapeDeclarationDiagnostic(
+        diagnostics,
+        diagnosticSubject,
+        `Generated object-shape carrier '${fact.targetType.id}' may only declare type-parameter target arguments.`,
+      );
+      return undefined;
+    }
+    const name = tryCsharpIdentifier(typeArgument.name);
+    if (name === undefined) {
+      pushObjectShapeDeclarationDiagnostic(
+        diagnostics,
+        diagnosticSubject,
+        `Generated object-shape carrier '${fact.targetType.id}' type parameter '${typeArgument.name}' must be a valid C# identifier.`,
+      );
+      return undefined;
+    }
+    if (!declaredNames.has(typeArgument.name)) {
+      declaredNames.add(typeArgument.name);
+      declaredTypeParameters.push({ name });
+    }
+  }
+  const usedTypeParameters = collectObjectShapeTypeParameterNames(fact);
+  for (const usedName of usedTypeParameters) {
+    if (!declaredNames.has(usedName)) {
+      pushObjectShapeDeclarationDiagnostic(
+        diagnostics,
+        diagnosticSubject,
+        `Generated object-shape carrier '${fact.targetType.id}' uses type parameter '${usedName}' without declaring it in the finalized target carrier type.`,
+      );
+      return undefined;
+    }
+  }
+  return declaredTypeParameters;
+}
+
 export function renderObjectShapeInterfaces(
   fact: CsharpObjectShapeFact,
   diagnostics: TargetDiagnostic[] | undefined,
@@ -120,6 +175,79 @@ function isObjectShapeStorageDeclaration(
   member: CsharpTypeMember,
 ): member is Extract<CsharpTypeMember, { readonly kind: "FieldDeclaration" | "PropertyDeclaration" }> {
   return member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration";
+}
+
+function objectShapeTypeParametersMatch(
+  actual: readonly CsharpTypeParameter[] | undefined,
+  expected: readonly CsharpTypeParameter[],
+): boolean {
+  const actualParameters = actual ?? [];
+  return actualParameters.length === expected.length &&
+    actualParameters.every((parameter, index) => parameter.name === expected[index]?.name);
+}
+
+function pushObjectShapeDeclarationDiagnostic(
+  diagnostics: TargetDiagnostic[] | undefined,
+  diagnosticSubject: Parameters<typeof unsupportedNodeDiagnostic>[0] | undefined,
+  message: string,
+): void {
+  if (diagnostics !== undefined && diagnosticSubject !== undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, message));
+  }
+}
+
+function collectObjectShapeTypeParameterNames(
+  fact: CsharpObjectShapeFact,
+): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const member of fact.members) {
+    collectTargetTypeParameterNames(member.type, names);
+  }
+  for (const implementedType of fact.implements ?? []) {
+    collectTargetTypeParameterNames(implementedType, names);
+  }
+  return names;
+}
+
+function collectTargetTypeParameterNames(
+  type: TargetTypeRef,
+  names: Set<string>,
+): void {
+  switch (type.kind) {
+    case "type-parameter":
+      names.add(type.name);
+      return;
+    case "target-named":
+      for (const typeArgument of type.typeArguments ?? []) {
+        collectTargetTypeParameterNames(typeArgument, names);
+      }
+      return;
+    case "array":
+      collectTargetTypeParameterNames(type.element, names);
+      return;
+    case "tuple":
+      for (const element of type.elements) {
+        collectTargetTypeParameterNames(element, names);
+      }
+      return;
+    case "pointer":
+      collectTargetTypeParameterNames(type.pointee, names);
+      return;
+    case "function-pointer":
+      for (const argument of type.args) {
+        collectTargetTypeParameterNames(argument, names);
+      }
+      collectTargetTypeParameterNames(type.result, names);
+      return;
+    case "associated-type":
+      collectTargetTypeParameterNames(type.owner, names);
+      return;
+    case "source-primitive":
+    case "opaque":
+    case "lifetime":
+    case "target-specific":
+      return;
+  }
 }
 
 function renderObjectShapeMethodMember(

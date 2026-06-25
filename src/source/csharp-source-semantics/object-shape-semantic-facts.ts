@@ -26,7 +26,7 @@ import {
   isTypeSyntaxNode,
 } from "./ast-utils.js";
 import {
-  getObjectShapeTargetName,
+  createObjectShapeTargetType,
 } from "./object-shape-identity.js";
 import {
   getSymbolDeclarations,
@@ -182,9 +182,8 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
   const shapeNamePrefix = declaredShape?.kind === "interface"
     ? `__TsonicShape_${generatedObjectShapeMemberName(declaredShape.name)}`
     : "__TsonicShape";
-  const targetName = getObjectShapeTargetName(shapeNamePrefix, resolvedMembers, implementsTypes);
   return {
-    targetType: csharpTargetNamedType(targetName, undefined, { kind: "named", name: targetName }),
+    targetType: createObjectShapeTargetType(shapeNamePrefix, resolvedMembers, implementsTypes),
     members: resolvedMembers,
     ...(implementsTypes === undefined ? {} : { implements: implementsTypes }),
   };
