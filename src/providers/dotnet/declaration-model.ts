@@ -185,7 +185,7 @@ function mergeOwnAndBaseProviderMembers(
   }
   const members = [...baseMembers];
   for (const member of ownMembers) {
-    const matchingBaseMembers = members.filter((baseMember) =>
+    const matchingBaseMembers = baseMembers.filter((baseMember) =>
       baseMember.name === member.name &&
       baseMember.static === member.static
     );
@@ -275,6 +275,7 @@ function mergeProviderMemberList(members: readonly ProviderMemberDeclaration[]):
   const merged: ProviderMemberDeclaration[] = [];
   for (const member of members) {
     const index = merged.findIndex((candidate) =>
+      member.kind !== "indexer" &&
       candidate.name === member.name &&
       candidate.static === member.static &&
       candidate.kind === member.kind &&
@@ -634,7 +635,11 @@ function isSourceVisibleProviderIndexer(member: DotnetMemberDeclaration): boolea
     return false;
   }
   const parameterType = tryDotnetTypeRefToProviderType(signature.parameters[0]!.type);
-  return parameterType !== undefined && isProviderNumberIndexType(parameterType);
+  return parameterType !== undefined && isProviderTsCompatibleIndexType(parameterType);
+}
+
+function isProviderTsCompatibleIndexType(type: ReturnType<typeof tryDotnetTypeRefToProviderType>): boolean {
+  return isProviderNumberIndexType(type) || type?.kind === "string";
 }
 
 function isProviderNumberIndexType(type: ReturnType<typeof tryDotnetTypeRefToProviderType>): boolean {

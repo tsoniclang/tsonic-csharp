@@ -797,6 +797,44 @@ test("C# provider refines selected indexer overload groups from provider signatu
   assert.equal(result.value.operation.operationId, "Example.Target.Item(System.Int32)");
 });
 
+test("C# provider maps selected string indexers from provider signature identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const argument = csharpStringType();
+  const binding = {
+    id: "Example.Headers",
+    sourceName: "Headers",
+    targetName: "Headers",
+    target: "csharp",
+    kind: "class",
+    members: [
+      indexer("Example.Headers.Item(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "item", overloadGroup: "Example.Headers.Item" }),
+      indexer("Example.Headers.Item(System.String)", csharpStringType(), { sourceName: "item", overloadGroup: "Example.Headers.Item" }),
+    ],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedDeclaration: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Headers.Item", "item"),
+      signatureId: "Example.Headers.Item(System.String)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.operation.operationId, "Example.Headers.Item(System.String)");
+});
+
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
   const receiver = {};
   const validArgument = {};

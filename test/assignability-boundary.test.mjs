@@ -143,6 +143,51 @@ test("C# post-check target assignment requires writable selected provider proper
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === diagnostics[0].numericCode), true);
 });
 
+test("C# post-check target assignment requires writable selected provider indexer facts", () => {
+  const session = createNativeSession(`
+    declare class Headers { [key: string]: number }
+    declare let headers: Headers;
+    headers["Accept"] = 1;
+  `);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const assignment = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  const left = assignment?.Left;
+  assert.ok(assignment);
+  assert.ok(left);
+  session.extensionHost?.facts.set(assignment, csharpObservedTargetAssignabilityFactKey, {
+    source: { kind: "source-primitive", name: "float64" },
+    target: { kind: "source-primitive", name: "float64" },
+    relation: "assignment",
+    expression: assignment,
+  }, [{ message: "Test-injected post-check assignment observation after TSTS accepted the source assignment." }]);
+  session.extensionHost?.facts.set(left, csharpTargetOperationFactKey, selectedMemberOperation({
+    id: "Example.Headers.Item(System.String)",
+    sourceName: "item",
+    targetName: "Item",
+    kind: "indexer",
+    readonly: true,
+    parameters: [
+      {
+        name: "key",
+        type: { kind: "target-named", id: "System.String" },
+        passingMode: "by-value",
+      },
+    ],
+  }), [{ message: "Test-injected selected provider string indexer fact proving readonly target mutability." }]);
+
+  session.finalizeExtensions();
+
+  const diagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_MEMBER_WRITE_INVALID"
+  ) ?? [];
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /readonly indexer 'Item'/u);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === diagnostics[0].numericCode), true);
+});
+
 test("C# post-check target assignment accepts writable selected provider field facts", () => {
   const session = createNativeSession(`
     declare class Target { value: number }

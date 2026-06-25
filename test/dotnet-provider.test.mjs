@@ -1715,22 +1715,81 @@ test(".NET reflection provider records conversion operators as target-only facts
   assert.deepEqual(pointerSourceConversionBinding.unsupportedMembers, rawPointerSourceConversion.unsupportedMembers);
 });
 
-test(".NET provider source declarations keep readonly TS-compatible numeric indexers", () => {
+test(".NET provider source declarations expose readonly TS-compatible string indexers", () => {
+  const model = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@example/headers.js",
+    namespaceName: "Example",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "Headers",
+        namespaceName: "Example",
+        targetId: testTargetId("Example.Headers"),
+        metadataName: "Example.Headers",
+        members: [
+          {
+            kind: "indexer",
+            sourceName: "item",
+            targetName: "Item",
+            targetId: testTargetId("Example.Headers.Item(System.String)"),
+            metadataName: "Example.Headers.Item(System.String)",
+            readable: true,
+            writable: false,
+            signatures: [
+              {
+                id: testTargetId("Example.Headers.Item(System.String)"),
+                targetName: "Item",
+                parameters: [
+                  { name: "name", type: { kind: "string" } },
+                ],
+                returnType: { kind: "string" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  const headers = model.exports.find((declaration) => declaration.name === "Headers");
+  assert.ok(headers);
+  const indexers = headers.members.filter((member) => member.kind === "indexer");
+  assert.equal(indexers.length, 1);
+  assert.equal(indexers[0].readonly, true);
+  assert.deepEqual(indexers[0].signatures[0].parameters[0].type, { kind: "string" });
+  assert.deepEqual(indexers[0].signatures[0].returnType, { kind: "string" });
+});
+
+test(".NET provider source declarations keep TS-compatible numeric and string indexers", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const specializedModule = provider.getModule("@tsonic/dotnet/System.Collections.Specialized.js", {});
   assert.equal("exports" in specializedModule, true);
 
   const rawNameValueCollection = specializedModule.exports.find((declaration) => declaration.sourceName === "NameValueCollection");
   assert.ok(rawNameValueCollection);
-  assert.equal(rawNameValueCollection.members.filter((member) => member.kind === "indexer").length, 2);
+  const rawIndexers = rawNameValueCollection.members.filter((member) => member.kind === "indexer");
+  assert.equal(rawIndexers.length, 2);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(specializedModule);
   const nameValueCollection = declarationModel.exports.find((declaration) => declaration.name === "NameValueCollection");
   assert.ok(nameValueCollection);
   const indexers = nameValueCollection.members.filter((member) => member.kind === "indexer");
-  assert.equal(indexers.length, 1);
-  assert.equal(indexers[0].readonly, true);
-  assert.deepEqual(indexers[0].signatures[0].parameters[0].type, { kind: "source-primitive", name: "int32" });
+  assert.equal(indexers.length, 2);
+  assert.equal(indexers.some((member) =>
+    member.signatures[0].parameters[0].type.kind === "string"
+  ), true);
+  assert.equal(indexers.some((member) =>
+    member.signatures[0].parameters[0].type.kind === "source-primitive" &&
+    member.signatures[0].parameters[0].type.name === "int32"
+  ), true);
+  for (const indexer of indexers) {
+    const raw = rawIndexers.find((member) =>
+      JSON.stringify(member.signatures[0].parameters[0].type) === JSON.stringify(indexer.signatures[0].parameters[0].type)
+    );
+    assert.ok(raw);
+    assert.equal(indexer.readonly, raw.writable === true ? undefined : true);
+  }
 });
 
 test(".NET target bindings retain generic Dictionary indexers as target-only facts", () => {

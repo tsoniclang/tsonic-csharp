@@ -1,6 +1,7 @@
 import {
   acceptObservation,
   deferObservation,
+  rejectObservation,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -25,6 +26,9 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
+  csharpProviderDiagnostic,
+} from "./diagnostics.js";
+import {
   getCsharpConversionOperation,
 } from "./target-rules.js";
 import {
@@ -32,6 +36,7 @@ import {
 } from "./target-types.js";
 import {
   getCsharpProviderConversionOperator,
+  requiresCsharpProviderConversionEvidence,
 } from "./provider-conversion-operators.js";
 import {
   targetOperation,
@@ -39,6 +44,7 @@ import {
 import {
   asTargetParameter,
   targetTypeRefEquals,
+  targetTypeRefKey,
 } from "./target-ref-utils.js";
 import {
   isLiteralRepresentableAsTargetType,
@@ -136,23 +142,75 @@ export function mapCsharpCheckedConversion(
       convertedType: target,
     }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
   }
-  const providerConversion = getCsharpProviderConversionOperator(source, target, host, "implicit-only");
+  const providerConversion = getCsharpProviderConversionOperator(source, target, host, "explicit-or-implicit");
   if (providerConversion.kind === "matched") {
     context.facts.set(
       request.source,
       csharpTargetConversionOperationFactKey,
       providerConversion.csharpOperation,
-      [{ message: "C# provider implicit conversion operator recorded from reflected target member facts." }],
+      [{ message: "C# provider conversion operator recorded from reflected target member facts." }],
     );
     return acceptObservation<CheckedConversionMappingResult>({
       sourceType: providerConversion.operator.sourceType,
       convertedType: target,
       operation: providerConversion.operation,
-    }, [{ message: "C# target conversion recorded from reflected provider implicit conversion operator." }]);
+    }, [{ message: "C# target conversion recorded from reflected provider conversion operator." }]);
+  }
+  if (providerConversion.kind === "ambiguous") {
+    return rejectObservation({
+      ...csharpProviderDiagnostic(
+        context.extensionId,
+        "CSHARP_PROVIDER_CHECKED_CONVERSION_AMBIGUOUS",
+        9100137,
+        "C# provider checked conversion is ambiguous.",
+      ),
+      nodeOrSpan: request.expression,
+      evidence: [
+        {
+          message: "Candidate conversion operators",
+          details: providerConversion.candidateIds.join(", "),
+        },
+        {
+          message: "Source C# target type",
+          details: source ?? "unresolved",
+        },
+        {
+          message: "Target C# target type",
+          details: target,
+        },
+      ],
+      identity: `csharp-provider-checked-conversion-ambiguous:${subjectIdentity(request.expression)}:${source === undefined ? "unresolved" : targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`,
+    });
   }
   const operation = getCsharpConversionOperation(source, target);
   if (operation !== undefined) {
     context.facts.set(request.source, csharpTargetConversionOperationFactKey, operation.csharpOperation, [{ message: "C# target conversion static member recorded from selected target conversion." }]);
+  }
+  if (operation === undefined && requiresCsharpProviderConversionEvidence(source, target, host)) {
+    return rejectObservation({
+      ...csharpProviderDiagnostic(
+        context.extensionId,
+        "CSHARP_PROVIDER_CHECKED_CONVERSION_UNSUPPORTED",
+        9100138,
+        "C# provider checked conversion requires a finalized provider conversion operator fact.",
+      ),
+      nodeOrSpan: request.expression,
+      evidence: [
+        {
+          message: "Missing provider conversion operator",
+          details: "The source or target type is provider-owned, so checked conversion emission cannot synthesize a C# cast without a reflected op_Implicit or op_Explicit member matching the source and target types.",
+        },
+        {
+          message: "Source C# target type",
+          details: source ?? "unresolved",
+        },
+        {
+          message: "Target C# target type",
+          details: target,
+        },
+      ],
+      identity: `csharp-provider-checked-conversion-unsupported:${subjectIdentity(request.expression)}:${source === undefined ? "unresolved" : targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`,
+    });
   }
   return acceptObservation<CheckedConversionMappingResult>({
     ...(source !== undefined ? { sourceType: source } : {}),
@@ -178,4 +236,11 @@ export function mapCsharpParameterPassing(
       ...(request.argument !== undefined ? { targetExpression: request.argument } : {}),
     },
   }, [{ message: "C# argument passing recorded from selected target parameter." }]);
+}
+
+function subjectIdentity(subject: unknown): string {
+  if (subject !== null && typeof subject === "object" && "id" in subject) {
+    return String((subject as { readonly id?: unknown }).id ?? "unknown");
+  }
+  return "unknown";
 }
