@@ -10,6 +10,13 @@ import {
 import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
+import {
+  getCsharpTypeForNode,
+} from "./csharp-types.js";
+import {
+  getSourceCallTypeParameterSubstitutions,
+  substituteCsharpTypeNode,
+} from "./csharp-type-node/source-generic-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { invalidExpression } from "./invalid-expression.js";
 import {
@@ -377,7 +384,7 @@ export function planCallExpression(
   }
   return {
     kind: "InvocationExpression",
-    callee: planExpression(expression.Expression!, sourceFile, input, diagnostics),
+    callee: planSourceOwnedCallCallee(node, expression.Expression!, sourceFile, input, diagnostics, planExpression),
     arguments: (expression.Arguments?.Nodes ?? [])
       .filter((argument): argument is Node => argument !== undefined)
       .map((argument, index) => {
@@ -385,6 +392,39 @@ export function planCallExpression(
         return planCallArgument(argument, sourceFile, input, diagnostics, expected?.type, expected?.subject);
       }),
   };
+}
+
+function planSourceOwnedCallCallee(
+  callNode: Node,
+  calleeNode: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression {
+  const callee = planExpression(calleeNode, sourceFile, input, diagnostics);
+  const typeArguments = input.ast.typeArguments(callNode)
+    .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, undefined, diagnostics));
+  if (typeArguments.length === 0) {
+    return callee;
+  }
+  switch (callee.kind) {
+    case "IdentifierName":
+    case "QualifiedName":
+      return {
+        ...callee,
+        typeArguments: [...(callee.typeArguments ?? []), ...typeArguments],
+      };
+    case "SimpleMemberAccessExpression":
+    case "ConditionalAccessExpression":
+      return {
+        ...callee,
+        typeArguments: [...(callee.typeArguments ?? []), ...typeArguments],
+      };
+    default:
+      diagnostics.push(unsupportedNodeDiagnostic(callNode, "Source-owned generic call emission requires a callee that can carry finalized C# type arguments."));
+      return invalidExpression("source generic call callee");
+  }
 }
 
 function planNativeArrayCreationCall(
@@ -473,8 +513,16 @@ function getResolvedSourceCallArgumentExpectation(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): { readonly type?: CsharpTypeNode; readonly subject?: Node } | undefined {
+  const sourceCall = AsCallExpression(call);
   const declaration = input.semantics.getResolvedCallParameterDeclarations(call, { sourceFile })?.[argumentIndex];
   const declarationType = getNodeType(declaration);
+  const substitutedDeclarationType = getSubstitutedSourceCallParameterType(call, sourceCall, declarationType, sourceFile, input);
+  if (substitutedDeclarationType !== undefined) {
+    return {
+      type: substitutedDeclarationType,
+      subject: declarationType ?? declaration,
+    };
+  }
   const carrier = input.semantics.getResolvedCallParameterRuntimeCarriers(call, { sourceFile })?.[argumentIndex];
   if (carrier !== undefined) {
     const targetType = csharpTypeFromTargetTypeRef(carrier);
@@ -489,6 +537,38 @@ function getResolvedSourceCallArgumentExpectation(
   return renderedType === undefined && declaration === undefined
     ? undefined
     : { ...(renderedType !== undefined ? { type: renderedType } : {}), ...(subject !== undefined ? { subject } : {}) };
+}
+
+function getSubstitutedSourceCallParameterType(
+  callNode: Node,
+  call: ReturnType<typeof AsCallExpression>,
+  declarationType: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  if (call === undefined || declarationType === undefined) {
+    return undefined;
+  }
+  const sourceReference = input.semantics.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
+  if (sourceReference === undefined) {
+    return undefined;
+  }
+  const substitutions = getSourceCallTypeParameterSubstitutions(
+    callNode,
+    call,
+    sourceReference.declaration,
+    sourceFile,
+    input,
+    getCsharpTypeForNode,
+  );
+  if (substitutions.size === 0) {
+    return undefined;
+  }
+  const declarationSourceFile = input.ast.getSourceFile(declarationType) ?? sourceReference.sourceFile;
+  return substituteCsharpTypeNode(
+    getCsharpTypeForNode(declarationType, declarationSourceFile, input),
+    substitutions,
+  );
 }
 
 function getNodeType(node: Node | undefined): Node | undefined {

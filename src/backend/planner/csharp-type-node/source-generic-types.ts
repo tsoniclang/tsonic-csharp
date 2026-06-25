@@ -115,7 +115,7 @@ function getCsharpTypeFromSourceCallReturnAnnotation(
   return substituteCsharpTypeNode(returnType, substitutions);
 }
 
-function getSourceCallTypeParameterSubstitutions(
+export function getSourceCallTypeParameterSubstitutions(
   node: Node,
   call: NonNullable<ReturnType<typeof AsCallExpression>>,
   selectedDeclaration: Node,
@@ -177,7 +177,7 @@ function withCsharpTypeArguments(
     : type;
 }
 
-function substituteCsharpTypeNode(
+export function substituteCsharpTypeNode(
   type: CsharpTypeNode,
   substitutions: ReadonlyMap<string, CsharpTypeNode>,
 ): CsharpTypeNode {

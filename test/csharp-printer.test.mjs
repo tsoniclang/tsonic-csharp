@@ -42,6 +42,25 @@ test("printer renders cast expression nodes", () => {
   );
 });
 
+test("printer renders generic member invocation from Roslyn AST nodes", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "Helpers" },
+        name: "apply",
+        typeArguments: [
+          { kind: "PredefinedType", name: "int" },
+          { kind: "PredefinedType", name: "string" },
+        ],
+      },
+      arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "value" } }],
+    }),
+    "Helpers.apply<int, string>(value)",
+  );
+});
+
 test("printer fails closed for invalid or foreign raw syntax nodes", () => {
   assert.throws(
     () => printCsharpExpression({ kind: "InvalidExpression", reason: "unsupported expression" }),

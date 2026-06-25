@@ -43,9 +43,9 @@ export function printCsharpExpression(
     case "ParenthesizedExpression":
       return `(${context.printExpression(expression.expression)})`;
     case "SimpleMemberAccessExpression":
-      return `${context.printExpression(expression.receiver)}.${expression.name}`;
+      return `${context.printExpression(expression.receiver)}.${printMemberName(expression.name, expression.typeArguments, context)}`;
     case "ConditionalAccessExpression":
-      return `${context.printExpression(expression.receiver)}?.${expression.name}`;
+      return `${context.printExpression(expression.receiver)}?.${printMemberName(expression.name, expression.typeArguments, context)}`;
     case "ElementAccessExpression":
       return `${context.printExpression(expression.receiver)}[${context.printExpression(expression.argument)}]`;
     case "ConditionalElementAccessExpression":
@@ -95,6 +95,16 @@ export function printCsharpExpression(
       return printCsharpLambda(expression, context);
   }
   return failUnsupportedCsharpSyntax(expression, "expression");
+}
+
+function printMemberName(
+  name: string,
+  typeArguments: readonly CsharpTypeNode[] | undefined,
+  context: CsharpPrintContext,
+): string {
+  return typeArguments === undefined || typeArguments.length === 0
+    ? name
+    : `${name}<${typeArguments.map(context.printType).join(", ")}>`;
 }
 
 function printCsharpBinaryOperatorToken(token: CsharpBinaryOperatorToken): string {

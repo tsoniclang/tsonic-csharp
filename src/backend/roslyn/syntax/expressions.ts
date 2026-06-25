@@ -13,8 +13,8 @@ export type CsharpExpression =
   | { readonly kind: "AwaitExpression"; readonly expression: CsharpExpression }
   | CsharpObjectCreationExpression
   | { readonly kind: "CastExpression"; readonly type: CsharpTypeNode; readonly expression: CsharpExpression }
-  | { readonly kind: "SimpleMemberAccessExpression"; readonly receiver: CsharpExpression; readonly name: string }
-  | { readonly kind: "ConditionalAccessExpression"; readonly receiver: CsharpExpression; readonly name: string }
+  | { readonly kind: "SimpleMemberAccessExpression"; readonly receiver: CsharpExpression; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
+  | { readonly kind: "ConditionalAccessExpression"; readonly receiver: CsharpExpression; readonly name: string; readonly typeArguments?: readonly CsharpTypeNode[] }
   | { readonly kind: "ElementAccessExpression"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
   | { readonly kind: "ConditionalElementAccessExpression"; readonly receiver: CsharpExpression; readonly argument: CsharpExpression }
   | { readonly kind: "BinaryExpression"; readonly left: CsharpExpression; readonly operatorToken: CsharpBinaryOperatorToken; readonly right: CsharpExpression }
