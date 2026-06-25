@@ -43,6 +43,9 @@ import type {
   CsharpTargetOperationArgument,
 } from "../../source/csharp-facts.js";
 import {
+  isCsharpSourceOwnedPropertyOperation,
+} from "../../source/csharp-facts.js";
+import {
   getRequiredCsharpTargetOperation,
   getRequiredCsharpTargetOperationForSelectedSignature,
   getRequiredCsharpTargetMemberOperationForSelectedSignature,
@@ -87,7 +90,13 @@ export function planPropertyAccessExpression(
     return compatRuntimePropertyGet;
   }
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
-  if (targetOperation !== undefined && targetOperation.operationKind === "property") {
+  const sourceOwnedPropertyOperation = isCsharpSourceOwnedPropertyOperation(targetOperation);
+  if (sourceOwnedPropertyOperation) {
+    const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
+    if (sourceModuleMemberReference !== undefined) {
+      return sourceModuleMemberReference;
+    }
+  } else if (targetOperation !== undefined && targetOperation.operationKind === "property") {
     const csharpOperation = getRequiredCsharpTargetOperation(input, propertyAccess, targetOperation, diagnostics, "C# property access emission");
     if (csharpOperation === undefined) {
       return invalidExpression("missing C# target property operation fact");
@@ -106,7 +115,7 @@ export function planPropertyAccessExpression(
       name: csharpOperation.memberName,
     };
   }
-  if (targetOperation !== undefined) {
+  if (!sourceOwnedPropertyOperation && targetOperation !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
     return invalidExpression("selected target property");
   }

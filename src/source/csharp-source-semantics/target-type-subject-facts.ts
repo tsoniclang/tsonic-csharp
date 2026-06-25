@@ -32,6 +32,10 @@ export function resolveTargetTypeRefFromSubjectFacts(
   options: TargetTypeRefResolutionOptions,
   resolveSubject: SubjectTargetTypeResolver,
 ): TargetTypeRef | undefined {
+  const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
+  if (primitive !== undefined) {
+    return csharpSourcePrimitiveTargetType(primitive.kind);
+  }
   if (options.allowRuntimeCarrier !== false) {
     const direct = resolveRuntimeCarrier(subject, context);
     if (direct !== undefined) {
@@ -61,10 +65,6 @@ export function resolveTargetTypeRefFromSubjectFacts(
           result,
           ...(functionPointer.abi.length > 0 ? { abi: functionPointer.abi } : {}),
         };
-  }
-  const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
-  if (primitive !== undefined) {
-    return csharpSourcePrimitiveTargetType(primitive.kind);
   }
   const selectedCallReturn = context.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType;
   if (selectedCallReturn !== undefined) {

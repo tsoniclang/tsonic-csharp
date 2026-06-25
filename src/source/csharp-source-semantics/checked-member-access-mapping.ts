@@ -3,6 +3,7 @@ import {
   deferObservation,
   providerVirtualDeclarationFactKey,
   rejectObservation,
+  targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedElementAccessMappingRequest,
@@ -20,9 +21,13 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
+  csharpTargetOperationFactKey,
+} from "../csharp-facts.js";
+import {
   csharpTargetMemberOperation,
   csharpTargetOperationFromMember,
   recordCsharpTargetOperation,
+  sourceOwnedPropertyOperation,
   targetOperation,
   targetOperationFromMember,
 } from "./operations.js";
@@ -63,6 +68,7 @@ import type {
 } from "./operations-provider.js";
 import {
   asNodeSubject,
+  isDeclarationOrVirtualSourceFile,
   visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
@@ -110,7 +116,8 @@ export function mapCsharpCheckedPropertyAccess(
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
       mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ??
-      deferObservation;
+      mapCsharpProjectSourceCheckedPropertyAccess(request, context) ??
+      rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED", 9100144, `C# property access '${request.propertyName}' must be selected by TSTS/provider facts before emission.`));
   }
   if (binding.id === dotnetNativeArrayTypeId) {
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ?? deferObservation;
@@ -141,6 +148,24 @@ export function mapCsharpCheckedPropertyAccess(
   }, [{ message: "C# target property/member access selected from checked TSTS provider declaration." }]);
 }
 
+function mapCsharpProjectSourceCheckedPropertyAccess(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
+): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
+  const compiler = context.compiler;
+  if (selectedDeclaration === undefined || compiler === undefined) {
+    return undefined;
+  }
+  const declarationSourceFile = compiler.ast.getSourceFile(selectedDeclaration);
+  if (isDeclarationOrVirtualSourceFile(declarationSourceFile, compiler.ast)) {
+    return undefined;
+  }
+  return acceptObservation<CheckedOperationMappingResult>({
+    operation: sourceOwnedPropertyOperation(request.propertyName),
+  }, [{ message: "C# source-owned property access accepted from TSTS-selected project source declaration; backend renders source syntax without provider target-member facts." }]);
+}
+
 export function mapCsharpCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
@@ -156,7 +181,8 @@ export function mapCsharpCheckedElementAccess(
     request.receiver,
   ]);
   if (binding === undefined) {
-    return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
+    return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ??
+      rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_ELEMENT_ACCESS_NOT_MAPPED", 9100145, "C# element access must be selected by TSTS/provider facts before emission."));
   }
   if (binding.id === dotnetNativeArrayTypeId) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
@@ -271,6 +297,13 @@ function mapCsharpNativeArrayCheckedPropertyAccess(
   if (receiverType?.kind !== "array") {
     return undefined;
   }
+  const selectedOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
+  const selectedCsharpOperation = context.factResolver.resolve(request.expression, csharpTargetOperationFactKey);
+  if (selectedOperation !== undefined && selectedCsharpOperation !== undefined) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: selectedOperation,
+    }, [{ message: "C# array property access reused finalized provider/surface target operation facts." }]);
+  }
   const binding = findTargetBinding(context, [
     request.sourceSelectedContainerSymbol,
     request.sourceSelectedDeclarationContainer,
@@ -282,7 +315,7 @@ function mapCsharpNativeArrayCheckedPropertyAccess(
     request.receiverSymbol,
   ]);
   if (binding?.id !== dotnetNativeArrayTypeId) {
-    return undefined;
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED", 9100136, `C# native array source contract has no target-backed property '${request.propertyName}'. JavaScript array properties require an explicit selected surface carrier.`));
   }
   const selectedDeclarationFact = context.facts.get(request.sourceSelectedPropertySymbol, providerVirtualDeclarationFactKey) ??
     context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);

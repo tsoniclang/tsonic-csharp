@@ -592,7 +592,6 @@ function arrayFactSubjects(parameter: ArrayParameterAnalysis): readonly Extensio
     parameter.name,
     parameter.typeNode,
     parameter.symbol,
-    parameter.semanticType,
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }

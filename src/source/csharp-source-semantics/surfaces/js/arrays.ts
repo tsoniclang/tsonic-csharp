@@ -91,7 +91,13 @@ export function recordCsharpJsArrayElementAccessFactsBeforeFinalization(
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      if (!compiler.ast.is.IsElementAccessExpression(node) || lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
+      if (
+        !compiler.ast.is.IsElementAccessExpression(node) ||
+        context.host.facts.get(node, targetOperationFactKey) !== undefined ||
+        context.host.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
+        context.factResolver.resolve(node, targetOperationFactKey) !== undefined ||
+        context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined
+      ) {
         return;
       }
       recordCsharpJsArrayElementAccessFact(node, context, host);

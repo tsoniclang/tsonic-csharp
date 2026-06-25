@@ -581,13 +581,13 @@ function propagateCsharpRuntimeCarrierFactFromDeclarationType(
   const typeFact = isOptionalParameterDeclaration(compiler.ast, node)
     ? { carrier: csharpNullableTargetType(resolvedTypeFact.carrier) }
     : resolvedTypeFact;
-  const evidence = [{ message: "C# runtime carrier propagated from checked declaration type annotation." }];
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, typeFact, evidence);
+  const message = "C# runtime carrier propagated from checked declaration type annotation.";
+  setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, node, typeFact, message);
   if (name !== undefined) {
-    lifecycleContext.host.facts.set(name, runtimeCarrierFactKey, typeFact, evidence);
+    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, name, typeFact, message);
     const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
     if (symbol !== undefined) {
-      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, typeFact, evidence);
+      setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, symbol, typeFact, message);
     }
   }
 }

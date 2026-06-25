@@ -9,16 +9,21 @@ import type {
   ExtensionObservationContext,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
+  SourceFile,
   TargetMember,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
 import {
+  getNodeField,
   visitAstReaderNodes,
 } from "../../ast-utils.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../runtime-carriers.js";
+import {
+  getSymbolForDeclarationLookup,
+} from "../../symbol-utils.js";
 import {
   csharpRegularExpressionLiteralFactKey,
 } from "../../../csharp-facts.js";
@@ -87,7 +92,40 @@ export function recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(
           carrier: csharpJsRegExpTargetType(),
         }, [{ message: "C# JS surface RegExp literal runtime carrier recorded from source syntax." }]);
       }
+      recordCsharpJsRegExpBindingCarrierFact(node, sourceFile, context);
     });
+  }
+}
+
+function recordCsharpJsRegExpBindingCarrierFact(
+  literal: ExtensionFactSubject,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+): void {
+  const node = asNodeSubject(literal);
+  const compiler = context.compiler;
+  if (node === undefined || compiler === undefined) {
+    return;
+  }
+  const declaration = compiler.ast.parent(node);
+  if (
+    declaration === undefined ||
+    compiler.ast.kindName(declaration) !== "KindVariableDeclaration" ||
+    asNodeSubject(getNodeField(declaration, "Initializer")) !== node
+  ) {
+    return;
+  }
+  const name = asNodeSubject(getNodeField(declaration, "name"));
+  const fact = { carrier: csharpJsRegExpTargetType() };
+  const evidence = [{ message: "C# JS surface RegExp literal runtime carrier propagated to checked variable binding." }];
+  if (name !== undefined && context.host.facts.get(name, runtimeCarrierFactKey) === undefined) {
+    context.host.facts.set(name, runtimeCarrierFactKey, fact, evidence);
+  }
+  const symbol = name === undefined
+    ? undefined
+    : getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
+  if (symbol !== undefined && context.host.facts.get(symbol, runtimeCarrierFactKey) === undefined) {
+    context.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
   }
 }
 
@@ -154,6 +192,10 @@ export function getCsharpJsRegExpRuntimeCarrierForSubject(
   if (node !== undefined && ast?.is.IsRegularExpressionLiteral(node) === true) {
     return csharpJsRegExpTargetType();
   }
+  const direct = context.facts.get(subject, runtimeCarrierFactKey)?.carrier;
+  if (isCsharpJsRegExpRuntimeCarrier(direct)) {
+    return direct;
+  }
   const directType = asType(subject);
   if (directType !== undefined) {
     return getCsharpJsRegExpRuntimeCarrierForType(directType, context);
@@ -163,6 +205,16 @@ export function getCsharpJsRegExpRuntimeCarrierForSubject(
     return undefined;
   }
   const sourceFile = ast.getSourceFile(node);
+  const symbol = getSymbolForDeclarationLookup(ast, checker, node, sourceFile);
+  const symbolCarrier = context.facts.get(symbol, runtimeCarrierFactKey)?.carrier;
+  if (isCsharpJsRegExpRuntimeCarrier(symbolCarrier)) {
+    return symbolCarrier;
+  }
+  const resolvedSymbol = checker.getResolvedSymbol(node, { sourceFile });
+  const resolvedCarrier = context.facts.get(resolvedSymbol, runtimeCarrierFactKey)?.carrier;
+  if (isCsharpJsRegExpRuntimeCarrier(resolvedCarrier)) {
+    return resolvedCarrier;
+  }
   return getCsharpJsRegExpRuntimeCarrierForType(checker.getTypeAtLocation(node, { sourceFile }), context);
 }
 

@@ -126,6 +126,10 @@ export function getCsharpTypeForNode(
   if (nodeTypeParameterName !== undefined) {
     return { kind: "IdentifierName", name: nodeTypeParameterName };
   }
+  const explicitTypeSyntax = getCsharpTypeFromExplicitTypeSyntax(node, sourceFile, input, diagnostics);
+  if (explicitTypeSyntax !== undefined) {
+    return explicitTypeSyntax;
+  }
   const arrayBoundaryType = getCsharpTypeFromArrayBoundaryFact(node, input);
   if (arrayBoundaryType !== undefined) {
     return arrayBoundaryType;
@@ -178,8 +182,46 @@ export function getCsharpTypeForNode(
   if (semanticType !== undefined) {
     return semanticType;
   }
-  diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type from TSTS/provider facts; backend diagnostics must not render semantic type strings as C# type evidence."));
+  diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts; backend diagnostics must not render semantic type strings as C# type evidence. Kind: ${input.ast.kindName(node)}.`));
   return invalidCsharpType("unsupported semantic type");
+}
+
+function getCsharpTypeFromExplicitTypeSyntax(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics?: TargetDiagnostic[],
+): CsharpTypeNode | undefined {
+  if (!IsTypeSyntaxNode(input.ast, node)) {
+    return undefined;
+  }
+  const arrayBoundaryType = getCsharpTypeFromArrayBoundaryFact(node, input);
+  if (arrayBoundaryType !== undefined) {
+    return arrayBoundaryType;
+  }
+  if (input.ast.kindName(node) === KindArrayType) {
+    const elementTypeNode = (node as { readonly ElementType?: Node }).ElementType;
+    const elementType = getCsharpTypeForNode(elementTypeNode, sourceFile, input, invalidCsharpType("array element type"), diagnostics);
+    return elementType.kind === "InvalidType"
+      ? invalidCsharpType("array type")
+      : { kind: "ArrayType", elementType };
+  }
+  if (input.ast.kindName(node) === KindTupleType) {
+    const elements = input.ast.elements(node)
+      .map((element) => getCsharpTypeForNode(getTupleElementTypeNode(element), sourceFile, input, invalidCsharpType("tuple element type"), diagnostics));
+    return elements.some((element) => element.kind === "InvalidType")
+      ? invalidCsharpType("tuple type")
+      : { kind: "TupleType", elements };
+  }
+  const keywordType = getCsharpTypeFromKeywordTypeNode(node, input);
+  if (keywordType !== undefined) {
+    return keywordType;
+  }
+  const directType = getCsharpTypeFromRuntimeCarrier(node, input);
+  if (directType !== undefined) {
+    return directType;
+  }
+  return getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
 }
 
 function getTupleElementTypeNode(element: Node | undefined): Node | undefined {

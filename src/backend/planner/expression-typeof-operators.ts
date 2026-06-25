@@ -59,7 +59,9 @@ export function planTypeofExpression(
   }
   const operation = input.facts.getFact(node, csharpTargetOperationFactKey);
   if (operation === undefined || operation.operationId !== selectedOperator.operationId || operation.kind !== "typeof-runtime") {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Typeof expression expected a finalized C# typeof-runtime operation fact before emission."));
+    const operand = Node_Expression(node);
+    const ownership = getProviderOperationOwnership(operand, sourceFile, input);
+    pushMissingTargetFactDiagnostic(diagnostics, node, "C# typeof expression emission requires a selected provider typeof operator fact.", ownership);
     return invalidExpression("selected target non-typeof operator");
   }
   return { kind: "LiteralExpression", value: operation.runtimeKind };

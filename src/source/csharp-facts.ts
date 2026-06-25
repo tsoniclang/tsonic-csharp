@@ -1,5 +1,5 @@
 import { defineExtensionFactKey } from "@tsonic/tsts";
-import type { ExtensionEvidence, ExtensionFactSubject, TargetConstraint, TargetMember, TargetParameter, TargetTypeParameter, TargetTypeRef } from "@tsonic/tsts";
+import type { ExtensionEvidence, ExtensionFactSubject, TargetConstraint, TargetMember, TargetOperationFact, TargetParameter, TargetTypeParameter, TargetTypeRef } from "@tsonic/tsts";
 import {
   isCsharpNullableReferenceTargetType,
 } from "./csharp-source-semantics/target-types.js";
@@ -11,6 +11,13 @@ export const CsharpTargetOperatorOperation = {
 } as const;
 
 export type CsharpTargetOperatorOperation = typeof CsharpTargetOperatorOperation[keyof typeof CsharpTargetOperatorOperation];
+
+export const csharpSourceOwnedPropertyOperationPrefix = "tsonic.csharp.source.property:";
+
+export function isCsharpSourceOwnedPropertyOperation(operation: TargetOperationFact | undefined): boolean {
+  return operation?.operationKind === "property" &&
+    operation.operationId.startsWith(csharpSourceOwnedPropertyOperationPrefix);
+}
 
 export interface CsharpObjectShapeMemberFact {
   readonly sourceName: string;
@@ -262,7 +269,7 @@ export const csharpTargetIterationFactKey = defineExtensionFactKey<CsharpTargetI
     left.operationId === right.operationId
     && left.iterationKind === right.iterationKind
     && csharpTargetIterationLoweringEquals(left.lowering, right.lowering)
-    && left.elementType === right.elementType,
+    && extensionFactSubjectTypeRefEquals(left.elementType, right.elementType),
 });
 
 export const csharpTargetOperationFactKey = defineExtensionFactKey<CsharpTargetOperationFact>({
@@ -620,6 +627,20 @@ function targetTypeRefArrayEquals(left: readonly TargetTypeRef[] | undefined, ri
     return false;
   }
   return left.every((item, index) => targetTypeRefEquals(item, right[index]));
+}
+
+function extensionFactSubjectTypeRefEquals(left: ExtensionFactSubject | undefined, right: ExtensionFactSubject | undefined): boolean {
+  if (left === right) {
+    return true;
+  }
+  return isTargetTypeRefSubject(left) && isTargetTypeRefSubject(right) && targetTypeRefEquals(left, right);
+}
+
+function isTargetTypeRefSubject(subject: ExtensionFactSubject | undefined): subject is TargetTypeRef {
+  return typeof subject === "object" &&
+    subject !== null &&
+    "kind" in subject &&
+    typeof (subject as { readonly kind?: unknown }).kind === "string";
 }
 
 function targetTypeRefEquals(left: TargetTypeRef | undefined, right: TargetTypeRef | undefined): boolean {

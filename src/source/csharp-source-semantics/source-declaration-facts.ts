@@ -36,6 +36,9 @@ import {
 import {
   csharpTargetNamedType,
 } from "./target-types.js";
+import {
+  getSourceLibraryDeclarationName,
+} from "./source-library.js";
 import type {
   CsharpTargetNamedTypeRef,
 } from "./target-types.js";
@@ -62,7 +65,7 @@ export function recordCsharpSourceDeclarationFactsBeforeFinalization(
         recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, structDeclaration.targetType, structDeclaration.objectShape);
         return;
       }
-      const declarationTarget = getSourceDeclarationTargetType(compiler.ast, node);
+      const declarationTarget = getSourceDeclarationTargetType(compiler.ast, node, context);
       if (declarationTarget !== undefined) {
         recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, declarationTarget);
         return;
@@ -338,9 +341,13 @@ function getDeclarationNameText(
 function getSourceDeclarationTargetType(
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
   node: Node,
+  context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
   const kind = ast.kindName(node);
   if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
+    return undefined;
+  }
+  if (getSourceLibraryDeclarationName(node, context) !== undefined) {
     return undefined;
   }
   return sourceDeclarationTargetType(getNodeNameText(node), kind);

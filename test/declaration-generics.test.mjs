@@ -275,7 +275,7 @@ function fakeInput(sourceFile, options) {
       describeTypeAtLocation: () => undefined,
       getResolvedCallReturnRuntimeCarrier: () => undefined,
       getResolvedCallReturnType: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
+      getRuntimeCarrierForNode: (subject) => runtimeCarriers.get(subject),
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getProjectSourceReferenceForSymbol: () => undefined,

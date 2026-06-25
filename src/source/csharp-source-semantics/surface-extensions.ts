@@ -15,9 +15,6 @@ import {
   createCsharpNodejsSurfaceBindingProvider,
 } from "./surfaces/nodejs/index.js";
 import {
-  recordCsharpJsArrayElementAccessFactsBeforeFinalization,
-} from "./surfaces/js/arrays.js";
-import {
   recordCsharpSourceLibraryCallFactsBeforeFinalization,
 } from "./surfaces/js/calls.js";
 import {
@@ -83,7 +80,6 @@ export function recordCsharpSelectedSurfaceOperationFactsBeforeFinalization(
     recordCsharpSourceLibraryPropertyFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpJsArrayMutationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-    recordCsharpJsArrayElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpJsSurfaceIterationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
     recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
   }

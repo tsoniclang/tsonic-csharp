@@ -44,6 +44,8 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
+  getCsharpTypeForNode,
+  invalidCsharpType,
   sameCsharpType,
 } from "./csharp-types.js";
 import {
@@ -220,8 +222,17 @@ function getFinalizedNullishResultType(
     return undefined;
   }
   if (!sameCsharpType(resultType, expectedType)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "C# nullish coalescing expected-type emission requires the finalized operator result target type to match the enclosing expected target type."));
-    return undefined;
+    const unwrappedResultType = resultType.kind === "NullableType" ? resultType.inner : undefined;
+    const leftType = getCsharpTypeForNode(left, sourceFile, input, invalidCsharpType("nullish left type"));
+    const unwrappedLeftType = leftType.kind === "NullableType" ? leftType.inner : undefined;
+    if (
+      (unwrappedResultType === undefined || !sameCsharpType(unwrappedResultType, expectedType)) &&
+      (unwrappedLeftType === undefined || !sameCsharpType(unwrappedLeftType, expectedType))
+    ) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "C# nullish coalescing expected-type emission requires the finalized operator result or nullable left operand target type to match the enclosing expected target type."));
+      return undefined;
+    }
+    return expectedType;
   }
   return resultType;
 }

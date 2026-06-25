@@ -26,7 +26,13 @@ export function getTargetTypeRefForNode(
   if (sourceNode === undefined) {
     return undefined;
   }
-  return getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile) ??
+  const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile);
+  if (input.ast.kindName(sourceNode) === "KindTypeReference") {
+    return typeReferenceFact ??
+      getTargetTypeRefFromDirectFacts(input, sourceNode, { includeRuntimeCarrier: false }) ??
+      input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile });
+  }
+  return typeReferenceFact ??
     getTargetTypeRefFromDirectFacts(input, sourceNode) ??
     getTargetTypeRefFromDirectFacts(input, input.semantics.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.semantics.getResolvedSymbol(sourceNode, { sourceFile })) ??
@@ -44,9 +50,9 @@ function getTargetTypeRefFromTypeReferenceName(
   const typeName = asNodeSubject(getNodeField(sourceNode, "TypeName"));
   return typeName === undefined
     ? undefined
-    : getTargetTypeRefFromDirectFacts(input, typeName) ??
-      getTargetTypeRefFromDirectFacts(input, input.semantics.getSymbolAtLocation(typeName, { sourceFile })) ??
-      getTargetTypeRefFromDirectFacts(input, input.semantics.getResolvedSymbol(typeName, { sourceFile }));
+    : getTargetTypeRefFromDirectFacts(input, typeName, { includeRuntimeCarrier: false }) ??
+      getTargetTypeRefFromDirectFacts(input, input.semantics.getSymbolAtLocation(typeName, { sourceFile }), { includeRuntimeCarrier: false }) ??
+      getTargetTypeRefFromDirectFacts(input, input.semantics.getResolvedSymbol(typeName, { sourceFile }), { includeRuntimeCarrier: false });
 }
 
 function getNodeField(node: Node, field: string): unknown {

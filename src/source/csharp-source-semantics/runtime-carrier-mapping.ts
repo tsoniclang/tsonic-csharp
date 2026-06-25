@@ -49,6 +49,12 @@ export function mapRuntimeCarrier(
   if (subjectIsSourceCoreStructDeclarationPayload(request.sourceTypeReference, context)) {
     return deferObservation;
   }
+  const existingCarrier = getExistingRuntimeCarrier(request, context);
+  if (existingCarrier !== undefined) {
+    return acceptObservation<RuntimeCarrierFactResult>({
+      carrier: existingCarrier,
+    }, [{ message: "C# runtime carrier reused from finalized provider facts for this semantic subject." }]);
+  }
   const callableCarrier = getCallableRuntimeCarrier(request, context, host);
   if (callableCarrier !== undefined) {
     return acceptObservation<RuntimeCarrierFactResult>({
@@ -111,6 +117,15 @@ export function mapRuntimeCarrier(
   return acceptObservation<RuntimeCarrierFactResult>({
     carrier: csharpSourcePrimitiveTargetType(primitive.kind),
   }, [{ message: "C# runtime carrier mapped from source primitive fact." }]);
+}
+
+function getExistingRuntimeCarrier(
+  request: RuntimeCarrierFactRequest,
+  context: ExtensionObservationContext,
+): RuntimeCarrierFactResult["carrier"] | undefined {
+  return context.facts.get(request.sourceTypeReference, runtimeCarrierFactKey)?.carrier ??
+    context.facts.get(request.sourceTypeSymbol, runtimeCarrierFactKey)?.carrier ??
+    context.facts.get(request.type, runtimeCarrierFactKey)?.carrier;
 }
 
 function getNonNullishRuntimeUnionCarrier(

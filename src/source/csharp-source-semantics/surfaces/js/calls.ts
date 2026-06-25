@@ -32,6 +32,7 @@ import {
   mapCsharpJsConsoleCheckedCall,
 } from "./console.js";
 import {
+  getCsharpJsRegExpRuntimeCarrierForSubject,
   getRegExpTargetMembers,
   isCsharpJsRegExpRuntimeCarrier,
 } from "./regexp.js";
@@ -143,7 +144,9 @@ function getPrevalidatedSourceLibraryCallMember(
     sourceMember.memberName === "assign" &&
     candidates.length === 1
     ? candidates[0]
-    : undefined;
+    : candidates.length === 1
+      ? candidates[0]
+      : undefined;
 }
 
 function getPrevalidatedJsonCallMember(
@@ -410,6 +413,9 @@ function sourceLibraryCallReceiverHasClosedFacts(
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
   switch (sourceMember.declaringName) {
     case "Array":
+      if (sourceMember.memberName === "concat" && getSourceLibraryCallArgumentTargetTypes(request, context, host).some((argumentType) => argumentType === undefined)) {
+        return false;
+      }
       return sourceLibraryArrayStaticCallRequiresNoReceiver(sourceMember) ||
         receiverTypes.some((receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined);
     case "ReadonlyArray":
@@ -417,7 +423,10 @@ function sourceLibraryCallReceiverHasClosedFacts(
     case "String":
       return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType));
     case "RegExp":
-      return receiverTypes.some((receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType));
+      return receiverTypes.some((receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType)) ||
+        getCsharpJsRegExpRuntimeCarrierForSubject(request.calleeReceiver, context) !== undefined ||
+        getCsharpJsRegExpRuntimeCarrierForSubject(request.calleeReceiverSymbol, context) !== undefined ||
+        getCsharpJsRegExpRuntimeCarrierForSubject(request.calleeReceiverResolvedSymbol, context) !== undefined;
     case "Date":
       return sourceLibraryDateStaticCallRequiresNoReceiver(sourceMember) ||
         request.sourceSelectedDeclaration !== undefined ||

@@ -20,9 +20,6 @@ import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
 import {
-  csharpProviderDiagnostic,
-} from "./diagnostics.js";
-import {
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
   targetOperation,
@@ -30,6 +27,9 @@ import {
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carrier-context.js";
+import {
+  csharpProviderDiagnostic,
+} from "./diagnostics.js";
 import {
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
@@ -86,12 +86,6 @@ function recordNativeArrayLengthFact(
   }
   const propertyName = compiler.ast.text(compiler.ast.name(node));
   if (propertyName !== "length") {
-    context.diagnostics.append(csharpProviderDiagnostic(
-      "tsonic.csharp.operations",
-      "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED",
-      9100136,
-      "C# native array property access requires the provider-owned native array length member; other JavaScript array properties require an explicit selected surface.",
-    ));
     return;
   }
   const resultType = csharpSourcePrimitiveTargetType("int32");

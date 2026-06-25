@@ -32,6 +32,9 @@ import {
   getSymbolDeclarations,
 } from "./symbol-utils.js";
 import {
+  getSourceLibraryDeclarationName,
+} from "./source-library.js";
+import {
   isVoidTargetType,
 } from "./target-rules.js";
 import {
@@ -66,6 +69,9 @@ export function getSemanticTypeDeclarationShape(
   for (const declaration of declarations) {
     const kind = ast.kindName(declaration);
     if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
+      continue;
+    }
+    if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
       continue;
     }
     const name = getNodeNameText(declaration);
@@ -127,7 +133,7 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
   const contextualObjectShape = isObjectLiteral && contextualTargetType !== undefined
     ? context.facts.get(contextualTargetType, csharpObjectShapeFactKey)
     : undefined;
-  if (contextualObjectShape !== undefined) {
+  if (contextualObjectShape !== undefined && declaredShape?.kind !== "interface") {
     return contextualObjectShape;
   }
   if (declaredShape?.kind === "class") {

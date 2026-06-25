@@ -6,6 +6,7 @@ import type {
   ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
+  CheckedPropertyAccessMappingRequest,
   ProviderIdentity,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
@@ -52,6 +53,9 @@ import {
 import {
   observeCsharpPostCheckAssignability,
 } from "./checked-assignability-validation.js";
+import {
+  getSourceLibraryMember,
+} from "./source-library.js";
 
 export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByTargetId: (targetId: string) => TargetBindingFact | undefined;
@@ -120,13 +124,15 @@ export function createCsharpCompositeOperationsProvider(
       );
     },
     mapCheckedPropertyAccess(request, context) {
-      return useObservationOrWhenDeferred(
-        nodejsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation,
-        () => useObservationOrWhenDeferred(
-          jsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation,
-          () => mapCsharpCheckedPropertyAccess(request, context, identity.id, host),
-        ),
-      );
+      const nodejsObservation = nodejsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation;
+      if (nodejsObservation.kind !== "defer") {
+        return nodejsObservation;
+      }
+      const jsObservation = jsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation;
+      if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedPropertyAccess(request, context))) {
+        return jsObservation;
+      }
+      return mapCsharpCheckedPropertyAccess(request, context, identity.id, host);
     },
     mapCheckedElementAccess(request, context) {
       return useObservationOrWhenDeferred(
@@ -191,6 +197,13 @@ export function createCsharpJsSurfaceHost(
     getCsharpObjectShapeFactForSubject: host.getCsharpObjectShapeFactForSubject,
     csharpProviderDiagnostic,
   };
+}
+
+function jsSurfaceOwnsCheckedPropertyAccess(
+  request: CheckedPropertyAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
+): boolean {
+  return getSourceLibraryMember(request.sourceSelectedDeclaration, context) !== undefined;
 }
 
 export function useObservationOrWhenDeferred<T>(

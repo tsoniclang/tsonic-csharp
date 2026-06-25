@@ -24,6 +24,7 @@ import type {
   DestructuringPlannerState,
 } from "./bindings.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
+import { getCsharpTypeFromSemanticType } from "./csharp-semantic-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { requireCsharpIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
@@ -183,7 +184,11 @@ function getContextualTargetCsharpType(
 ): CsharpTypeNode | undefined {
   const fact = input.facts.getContextualTargetTypeFact(node);
   const targetType = fact?.targetType ?? getContextualTargetRefFromSubject(fact?.type, sourceFile, input);
-  return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+  const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+  if (csharpType !== undefined) {
+    return csharpType;
+  }
+  return getCsharpTypeFromSemanticType(asSemanticType(fact?.type), sourceFile, input);
 }
 
 function getContextualTargetRefFromSubject(

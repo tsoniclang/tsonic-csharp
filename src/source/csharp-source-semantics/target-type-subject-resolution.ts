@@ -49,6 +49,9 @@ import {
   getSymbolDeclarations,
 } from "./symbol-utils.js";
 import {
+  getSourceLibraryDeclarationName,
+} from "./source-library.js";
+import {
   sourceDeclarationTargetType,
 } from "./source-declaration-facts.js";
 import {
@@ -81,6 +84,15 @@ export function resolveTargetTypeRefForSubjectCore(
   const subjectType = asType(subject);
   if (subjectType !== undefined) {
     return resolveTargetTypeRefForType(subjectType, context, options, host);
+  }
+  const node = asNodeSubject(subject);
+  const checker = context.compiler?.checker;
+  const ast = context.compiler?.ast;
+  if (node !== undefined && ast !== undefined && isTypeSyntaxNode(ast, node)) {
+    const syntaxType = getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
+    if (syntaxType !== undefined) {
+      return syntaxType;
+    }
   }
   const directFact = resolveTargetTypeRefFromSubjectFacts(
     subject,
@@ -126,7 +138,9 @@ export function resolveTargetTypeRefForSubjectCore(
   if (providerVirtualTarget !== undefined) {
     return enrichCsharpTargetTypeRef(providerVirtualTarget, host);
   }
-  const syntaxType = getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
+  const syntaxType = node !== undefined && ast !== undefined && isTypeSyntaxNode(ast, node)
+    ? undefined
+    : getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
   if (syntaxType !== undefined) {
     return syntaxType;
   }
@@ -165,9 +179,6 @@ export function resolveTargetTypeRefForSubjectCore(
   if (declarationType !== undefined) {
     return declarationType;
   }
-  const node = asNodeSubject(subject);
-  const checker = context.compiler?.checker;
-  const ast = context.compiler?.ast;
   const type = node === undefined || checker === undefined || options.allowSemanticTypeQuery === false
     ? undefined
     : ast !== undefined && isControlFlowLabelIdentifier(ast, node)
@@ -246,6 +257,9 @@ function getSourceDeclarationTargetTypeRef(
   for (const declaration of getSymbolDeclarations(symbol)) {
     const kind = ast.kindName(declaration);
     if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
+      continue;
+    }
+    if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
       continue;
     }
     const name = getNodeNameText(declaration);

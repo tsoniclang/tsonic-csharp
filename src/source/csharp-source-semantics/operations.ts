@@ -7,9 +7,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
-import {
+  csharpSourceOwnedPropertyOperationPrefix,
   csharpTargetMutationOperationFactKey,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
@@ -37,6 +35,10 @@ export function targetOperation(
     targetOperation,
     ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
   };
+}
+
+export function sourceOwnedPropertyOperation(propertyName: string): CheckedOperationMappingResult["operation"] {
+  return targetOperation(`${csharpSourceOwnedPropertyOperationPrefix}${propertyName}`, "property", propertyName);
 }
 
 export function targetOperationFromMember(member: TargetMember): CheckedOperationMappingResult["operation"] {
@@ -207,11 +209,6 @@ export function recordCsharpTargetOperation(
   evidence: readonly ExtensionEvidence[] = [],
 ): void {
   context.facts.set(subject, csharpTargetOperationFactKey, operation, evidence);
-  if (operation.resultType !== undefined) {
-    context.facts.set(subject, runtimeCarrierFactKey, {
-      carrier: operation.resultType,
-    }, evidence);
-  }
 }
 
 export function recordCsharpTargetMutationOperation(
@@ -221,9 +218,4 @@ export function recordCsharpTargetMutationOperation(
   evidence: readonly ExtensionEvidence[] = [],
 ): void {
   context.facts.set(subject, csharpTargetMutationOperationFactKey, operation, evidence);
-  if (operation.resultType !== undefined) {
-    context.facts.set(subject, runtimeCarrierFactKey, {
-      carrier: operation.resultType,
-    }, evidence);
-  }
 }

@@ -2,6 +2,7 @@ import {
   acceptObservation,
   deferObservation,
   runtimeCarrierFactKey,
+  targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedOperationMappingResult,
@@ -16,6 +17,7 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
+  csharpTargetOperationFactKey,
   CsharpTargetOperatorOperation,
 } from "../csharp-facts.js";
 import {
@@ -65,6 +67,15 @@ export function mapCsharpCheckedOperator(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
+  if (existingOperation !== undefined) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: existingOperation,
+    }, [{ message: "C# source operator reused existing finalized target operation for repeated checked-operator observation." }]);
+  }
+  if (context.factResolver.resolve(request.expression, csharpTargetOperationFactKey) !== undefined) {
+    return acceptMissingCsharpOperatorFact(request, `C# operator '${request.operator}' already has a finalized C# target operation but no generic target operation fact.`);
+  }
   const typeofComparison = getTypeofComparisonOperation(request, context);
   if (typeofComparison !== undefined) {
     recordCsharpTargetOperation(context, request.expression, typeofComparison.csharpOperation, [{ message: "C# typeof comparison operation recorded from checked TSTS operator result." }]);
@@ -77,7 +88,7 @@ export function mapCsharpCheckedOperator(
       host.getTargetTypeRefForSubject(request.left, context, noRuntimeCarrierQuery);
     const runtimeKind = getTypeofRuntimeKind(operandType, { allowNullableUnwrap: false });
     if (runtimeKind === undefined) {
-      return deferObservation;
+      return acceptMissingCsharpOperatorFact(request, "C# typeof runtime operation requires finalized provider runtime-kind facts.");
     }
     const operationId = `tsonic.csharp.typeof.${runtimeKind}`;
     recordCsharpTargetOperation(context, request.expression, csharpTargetTypeofRuntimeOperation(operationId, runtimeKind), [{ message: "C# typeof runtime operation recorded from checked TSTS operand type." }]);
@@ -93,7 +104,7 @@ export function mapCsharpCheckedOperator(
   }
   const targetOperator = getCsharpOperatorTargetOperation(request.operator);
   if (targetOperator === undefined) {
-    return deferObservation;
+    return acceptMissingCsharpOperatorFact(request, `C# operator '${request.operator}' has no finalized provider target operation.`);
   }
   const operandQuery = getCheckedOperatorOperandQuery(request.operator);
   const sourceFile = getOperatorSourceFile(request.expression, context);
@@ -101,16 +112,16 @@ export function mapCsharpCheckedOperator(
   const left = operands.left;
   const right = operands.right;
   if (left === undefined || (request.right !== undefined && right === undefined)) {
-    return deferObservation;
+    return acceptMissingCsharpOperatorFact(request, `C# operator '${request.operator}' requires finalized provider operand carrier facts.`);
   }
   if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
-    return deferObservation;
+    return acceptMissingCsharpOperatorFact(request, `C# operator '${request.operator}' requires explicit compat-runtime carrier operation facts for any operands.`);
   }
   if (request.operator !== "=" && (left.kind === "type-parameter" || right?.kind === "type-parameter")) {
-    return deferObservation;
+    return acceptMissingCsharpOperatorFact(request, `C# operator '${request.operator}' requires finalized provider operator facts for type-parameter operands.`);
   }
   if (isCsharpBitwiseOperator(request.operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
-    return deferObservation;
+    return acceptMissingCsharpOperatorFact(request, `C# bitwise operator '${request.operator}' requires integral, enum, or explicit provider operator facts.`);
   }
   const resultType = getCsharpOperatorResultTypeRef(request, left, right);
   const operationId = `tsonic.csharp.operator.${targetOperator}`;
@@ -123,6 +134,15 @@ export function mapCsharpCheckedOperator(
       { resultType },
     ),
   }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
+}
+
+function acceptMissingCsharpOperatorFact(
+  request: CheckedOperatorMappingRequest,
+  message: string,
+): ExtensionObservation<CheckedOperationMappingResult> {
+  return acceptObservation<CheckedOperationMappingResult>({
+    operation: targetOperation(`tsonic.csharp.operator.missing.${request.operator}`, "operator", request.operator),
+  }, [{ message }]);
 }
 
 function getCheckedOperatorOperandTargetTypeRefs(

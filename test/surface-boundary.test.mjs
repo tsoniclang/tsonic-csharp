@@ -15,7 +15,7 @@ function createCsharpNodejsSurfaceOperationsProvider() {
   return createCsharpCompositeOperationsProvider(fakeHost(undefined), { nodejsSurface: true });
 }
 
-test("Array.length is not mapped without the JS surface", () => {
+test("Array.length is rejected without the JS surface", () => {
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
@@ -23,7 +23,8 @@ test("Array.length is not mapped without the JS surface", () => {
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, arrayLengthDeclaration()), fakeContext(facts));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -42,7 +43,7 @@ test("JS surface maps Array.length only from the selected standard-library decla
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
 });
 
-test("native provider does not map JS Object, JSON, or console surface operations", () => {
+test("native provider defers unowned JS calls and rejects unmapped JS property operations", () => {
   const facts = new TestFactStore();
   const provider = createCsharpNativeOperationsProvider(fakeHost(undefined));
   const objectCall = {};
@@ -55,14 +56,15 @@ test("native provider does not map JS Object, JSON, or console surface operation
 
   assert.equal(objectResult.kind, "defer");
   assert.equal(jsonResult.kind, "defer");
-  assert.equal(consoleResult.kind, "defer");
+  assert.equal(consoleResult.kind, "reject");
+  assert.equal(consoleResult.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
   assert.equal(facts.get(objectCall, csharpTargetOperationFactKey), undefined);
   assert.equal(facts.get(jsonCall, csharpTargetOperationFactKey), undefined);
   assert.equal(facts.get(jsonCall, runtimeCarrierFactKey), undefined);
   assert.equal(facts.get(consoleExpression, csharpTargetOperationFactKey), undefined);
 });
 
-test("JS surface does not map Array.length from receiver carrier without selected declaration", () => {
+test("JS surface rejects Array.length from receiver carrier without selected declaration", () => {
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
@@ -70,11 +72,12 @@ test("JS surface does not map Array.length from receiver carrier without selecte
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, undefined), fakeContext(facts));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("JS surface does not recover Array.length from property text without a finalized receiver carrier", () => {
+test("JS surface rejects Array.length without selected declaration and finalized receiver carrier", () => {
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
@@ -82,7 +85,8 @@ test("JS surface does not recover Array.length from property text without a fina
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, undefined), fakeContext(facts));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -468,7 +472,7 @@ test("JS surface maps JSON.parse from selected standard-library declaration and 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.parse");
   assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.TsValue");
-  assert.equal(facts.get(call, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.TsValue");
+  assert.equal(facts.get(call, runtimeCarrierFactKey), undefined);
 });
 
 test("JS surface maps JSON.stringify only from closed JSON value carrier facts", () => {
@@ -494,7 +498,8 @@ test("JS surface maps JSON.stringify only from closed JSON value carrier facts",
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.stringify:object");
   assert.equal(parsedResult.kind, "accept");
   assert.equal(parsedResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
-  assert.equal(facts.get(parsedStringifyCall, runtimeCarrierFactKey)?.carrier.id, "System.String");
+  assert.equal(parsedResult.value.selectedSignature.member.returnType.id, "System.String");
+  assert.equal(facts.get(parsedStringifyCall, runtimeCarrierFactKey), undefined);
 });
 
 test("JS surface maps nested JSON.stringify(JSON.parse(value)) through finalized TsValue carrier facts", () => {
@@ -512,6 +517,7 @@ test("JS surface maps nested JSON.stringify(JSON.parse(value)) through finalized
   }), fakeContext(facts));
   assert.equal(parseResult.kind, "accept");
   facts.set(parseCall, selectedTargetSignatureFactKey, parseResult.value.selectedSignature);
+  facts.set(parseCall, runtimeCarrierFactKey, { carrier: tsValueType() });
 
   const stringifyResult = provider.mapCheckedCall(jsCallRequest(stringifyCall, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [parseCall],
@@ -576,14 +582,15 @@ test("selected JS surface finalizes source-level nested JSON.parse carrier for J
   assert.equal(extensionHost.diagnostics.all().some((diagnostic) => diagnostic.extensionCode === "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED"), false);
 });
 
-test("JS surface defers method-valued console property access to selected call facts", () => {
+test("JS surface accepts method-valued console property access without C# operation facts", () => {
   const expression = {};
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
 
   const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("Console", "log"), "log"), fakeContext(facts));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "tsonic.csharp.js.Console.log.callee");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -894,14 +901,15 @@ test("JS surface rejects Object.assign without closed JSObject target facts", ()
   assert.match(callResult.diagnostic.message, /Object\.assign/);
 });
 
-test("JS surface defers Object.assign property-valued access to selected call facts", () => {
+test("JS surface accepts Object.assign property-valued access without C# operation facts", () => {
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
   const expression = {};
 
   const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), "assign"), fakeContext(facts));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "tsonic.csharp.js.Object.assign.callee");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -1110,7 +1118,7 @@ test("JS surface hard-rejects selected standard-library properties without targe
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("JS surface does not reject Object, JSON, or console by source spelling outside bundled declarations", () => {
+test("JS surface defers foreign JS calls and rejects foreign JS property operations without target facts", () => {
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
   const foreignFileName = "/src/globals.d.ts";
@@ -1121,7 +1129,8 @@ test("JS surface does not reject Object, JSON, or console by source spelling out
 
   assert.equal(objectResult.kind, "defer");
   assert.equal(jsonResult.kind, "defer");
-  assert.equal(consoleResult.kind, "defer");
+  assert.equal(consoleResult.kind, "reject");
+  assert.equal(consoleResult.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
 });
 
 test("JS surface maps Record element access through provider-owned Dictionary indexer facts", () => {
@@ -1934,7 +1943,7 @@ test("NodeJS surface maps namespace property access from selected provider prope
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.platform");
 });
 
-test("NodeJS surface does not map namespace properties from import and property spelling alone", () => {
+test("NodeJS surface rejects namespace properties from import and property spelling alone", () => {
   const expression = {};
   const receiver = { Kind: "Identifier", Text: "process" };
   const sourceFile = namespaceImportSourceFile(receiver, "process", "node:process");
@@ -1949,11 +1958,12 @@ test("NodeJS surface does not map namespace properties from import and property 
     propertyName: "platform",
   }, fakeNamespaceImportContext(facts, sourceFile));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("NodeJS surface does not map namespace properties from container facts and property spelling", () => {
+test("NodeJS surface rejects namespace properties from container facts and property spelling", () => {
   const expression = {};
   const receiver = {};
   const facts = new TestFactStore();
@@ -1968,7 +1978,8 @@ test("NodeJS surface does not map namespace properties from container facts and 
     propertyName: "platform",
   }, fakeContext(facts));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 

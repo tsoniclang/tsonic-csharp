@@ -41,12 +41,11 @@ export function getCsharpTypeFromSemanticType(
   ) {
     return undefined;
   }
-  const nextSeen = new Set(seen).add(type);
   const typeParameterName = getCsharpTypeParameterName(type, input);
   if (typeParameterName !== undefined) {
     return { kind: "IdentifierName", name: typeParameterName };
   }
-  const resolvedTargetType = getCsharpTargetTypeRefFromSemanticType(type, sourceFile, input, nextSeen);
+  const resolvedTargetType = getCsharpTargetTypeRefFromSemanticType(type, sourceFile, input, seen);
   const resolvedCsharpType = resolvedTargetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(resolvedTargetType);
@@ -60,6 +59,7 @@ export function getCsharpTypeFromSemanticType(
   if (directCsharpType !== undefined) {
     return directCsharpType;
   }
+  const nextSeen = new Set(seen).add(type);
   const callable = getCsharpCallableTypeFromSemanticType(type, sourceFile, input, nextSeen);
   if (callable !== undefined) {
     return callable;

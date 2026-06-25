@@ -1,4 +1,8 @@
-import { AsVariableDeclaration } from "./source-ast.js";
+import {
+  AsAsExpression,
+  AsTypeAssertion,
+  AsVariableDeclaration,
+} from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpLocalDeclaration, CsharpStatement } from "../roslyn/syntax.js";
@@ -58,6 +62,10 @@ function getInitializerTypeSubject(
 ): Node | undefined {
   if (initializer === undefined) {
     return undefined;
+  }
+  const assertedTarget = AsAsExpression(initializer)?.Type ?? AsTypeAssertion(initializer)?.Type;
+  if (assertedTarget !== undefined) {
+    return assertedTarget;
   }
   return input.facts.getRuntimeCarrierFact(initializer) !== undefined ||
     input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined
