@@ -56,7 +56,7 @@ test("regexp literal emission requires provider literal facts", () => {
     },
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires finalized provider pattern and flags facts/);
 });
@@ -86,7 +86,7 @@ test("regexp literal emission requires a renderable provider constructor result 
     },
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a renderable provider constructor result type fact/);
 });

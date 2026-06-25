@@ -25,9 +25,6 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
-import {
-  invalidExpression,
-} from "./invalid-expression.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
@@ -49,32 +46,37 @@ export function tryPlanJsArrayDeleteExpression(
   const operation = input.facts.getFact(node, csharpTargetMutationOperationFactKey);
   if (operation === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface delete emission requires a finalized JSArray.deleteAt mutation operation fact; delete is not approximated from syntax."));
-    return invalidExpression("missing C# JS array delete operation fact");
+    return undefined;
   }
   if (operation.kind !== "member" || operation.operationKind !== "method" || operation.operationId !== csharpJsArrayDeleteAtOperationId) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface delete emission requires the finalized JSArray.deleteAt operation fact."));
-    return invalidExpression("invalid JS array delete operation fact");
+    return undefined;
   }
   const operand = AsDeleteExpression(node)?.Expression;
   if (!HasSourceKind(input.ast, operand, KindElementAccessExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface delete emission currently supports checked array element deletion only."));
-    return invalidExpression("delete without element access");
+    return undefined;
   }
   const elementAccess = AsElementAccessExpression(operand)!;
   if (elementAccess.Expression === undefined || elementAccess.ArgumentExpression === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface delete emission requires finalized receiver and index expressions."));
-    return invalidExpression("delete element operands");
+    return undefined;
+  }
+  const receiver = planExpression(elementAccess.Expression, sourceFile, input, diagnostics);
+  const argument = planExpression(elementAccess.ArgumentExpression, sourceFile, input, diagnostics);
+  if (receiver === undefined || argument === undefined) {
+    return undefined;
   }
   return {
     kind: "InvocationExpression",
     callee: {
       kind: "SimpleMemberAccessExpression",
-      receiver: planExpression(elementAccess.Expression, sourceFile, input, diagnostics),
+      receiver,
       name: operation.memberName,
     },
     arguments: [{
       kind: "Argument",
-      expression: planExpression(elementAccess.ArgumentExpression, sourceFile, input, diagnostics),
+      expression: argument,
     }],
   };
 }
@@ -98,35 +100,40 @@ export function tryPlanJsArrayLengthMutationExpression(
   const operation = input.facts.getFact(node, csharpTargetMutationOperationFactKey);
   if (operation === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface Array.length mutation requires a finalized JSArray.setLength operation fact; it is not lowered as a C# property assignment."));
-    return invalidExpression("missing JS array length mutation fact");
+    return undefined;
   }
   if (operation.kind !== "member" || operation.operationKind !== "method" || operation.operationId !== csharpJsArraySetLengthOperationId) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface Array.length mutation requires the finalized JSArray.setLength operation fact."));
-    return invalidExpression("invalid JS array length mutation operation fact");
+    return undefined;
   }
   if (!isExpressionStatementExpression(node, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface Array.length assignment currently requires expression-statement position because TypeScript assignment value semantics require a finalized sequence-expression fact."));
-    return invalidExpression("JS array length assignment value position");
+    return undefined;
   }
   if (left === undefined || right === undefined || !HasSourceKind(input.ast, left, KindPropertyAccessExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface Array.length mutation requires finalized property receiver and length expressions."));
-    return invalidExpression("JS array length mutation operands");
+    return undefined;
   }
   const propertyAccess = AsPropertyAccessExpression(left)!;
   if (propertyAccess.Expression === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface Array.length mutation requires a finalized receiver expression."));
-    return invalidExpression("JS array length mutation receiver");
+    return undefined;
+  }
+  const receiver = planExpression(propertyAccess.Expression, sourceFile, input, diagnostics);
+  const argument = planExpression(right, sourceFile, input, diagnostics);
+  if (receiver === undefined || argument === undefined) {
+    return undefined;
   }
   return {
     kind: "InvocationExpression",
     callee: {
       kind: "SimpleMemberAccessExpression",
-      receiver: planExpression(propertyAccess.Expression, sourceFile, input, diagnostics),
+      receiver,
       name: operation.memberName,
     },
     arguments: [{
       kind: "Argument",
-      expression: planExpression(right, sourceFile, input, diagnostics),
+      expression: argument,
     }],
   };
 }

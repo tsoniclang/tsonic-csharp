@@ -15,7 +15,6 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
 import { requireCsharpIdentifier, sanitizeIdentifier } from "./identifiers.js";
 import { planIdentifierName } from "./names.js";
 import {
@@ -33,7 +32,7 @@ export function planIdentifierExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const sourceName = Node_Text(AsIdentifier(identifier));
   const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
   const referenceTargetBinding = input.semantics.getTargetBindingForReference(identifier, { sourceFile });
@@ -42,11 +41,11 @@ export function planIdentifierExpression(
   }
   if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
-    return invalidExpression("declaration identifier expression");
+    return undefined;
   }
   if (referenceTargetBinding !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
-    return invalidExpression("provider-owned identifier expression");
+    return undefined;
   }
   const directSymbol = input.semantics.getSymbolAtLocation(identifier, { sourceFile });
   const resolvedSymbol = input.semantics.getResolvedSymbol(identifier, { sourceFile });
@@ -57,7 +56,7 @@ export function planIdentifierExpression(
     isProviderVirtualDeclarationIdentifier(identifier, sourceFile, input)
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
-    return invalidExpression("provider-owned identifier expression");
+    return undefined;
   }
   const sourceModuleMemberReference = planProjectSourceModuleMemberReference(identifier, sourceFile, input, diagnostics);
   if (sourceModuleMemberReference !== undefined) {
@@ -110,7 +109,7 @@ export function planProjectSourceModuleMemberReference(
   }
   if (!isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Cross-file source reference requires a top-level function or variable declaration resolved by TSTS."));
-    return invalidExpression("cross-file source reference");
+    return undefined;
   }
   return {
     kind: "SimpleMemberAccessExpression",

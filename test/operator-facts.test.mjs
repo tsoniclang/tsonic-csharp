@@ -43,7 +43,7 @@ test("binary expression emission requires selected target operator fact even for
     runtimeCarrier: sourcePrimitiveCarrier("int32"),
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# binary operator emission requires a selected provider operator fact/);
   assert.match(diagnostics[0].message, /operand node runtime carrier/);
@@ -172,8 +172,7 @@ test("assignment expression fails closed when provider-owned storage lacks selec
     targetBindingSubject: receiver,
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
-  assert.equal(output.reason, "missing target property fact");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# property access 'value' must be selected by TSTS\/provider facts before emission/);
 });
@@ -202,7 +201,7 @@ test("destructuring assignment fails closed without finalized storage facts", ()
     },
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
 });
@@ -231,7 +230,7 @@ test("object destructuring assignment fails closed before ordinary assignment em
     },
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
 });
@@ -284,7 +283,7 @@ test("nullish coalescing expected-type emission fails closed without finalized r
     },
   }), diagnostics, { kind: "PredefinedType", name: "int" });
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized operator result target type/);
 });
@@ -339,7 +338,7 @@ test("operator token facts must map to supported Roslyn tokens", () => {
     },
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /unsupported finalized operator token 'raw C# fragment'/);
 });
@@ -357,7 +356,7 @@ test("prefix unary expression emission requires selected target operator fact", 
     runtimeCarrier: sourcePrimitiveCarrier("int32"),
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# prefix unary operator emission requires a selected provider operator fact/);
 });
@@ -371,7 +370,7 @@ test("bigint literal emission requires finalized runtime carrier fact", () => {
 
   const output = planExpression(expression, {}, fakeInput(), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /BigInt literal emission requires a finalized runtime carrier fact/);
 });
@@ -407,7 +406,7 @@ test("RegExp literal emission requires finalized runtime carrier facts", () => {
     regexpLiteral: { pattern: "value", flags: "g" },
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /RegExp literal emission requires a finalized JS surface RegExp runtime carrier fact/);
 });
@@ -446,7 +445,7 @@ test("template expression emission requires finalized string carrier facts", () 
 
   const output = planExpression(expression, {}, fakeInput(), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Template string emission requires a finalized target string runtime carrier fact/);
 });
@@ -474,7 +473,7 @@ test("no-substitution template literal requires finalized string carrier facts",
 
   const output = planExpression(expression, {}, fakeInput(), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /No-substitution template literal emission requires a finalized target string runtime carrier fact/);
 });
@@ -490,7 +489,7 @@ test("await expression emission requires finalized awaited Promise/Task carrier 
     ]),
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Await expression emission requires a finalized Promise\/Task target carrier fact/);
 });
@@ -507,7 +506,7 @@ test("await expression emission rejects mismatched await-result carrier facts", 
     ]),
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /await-result carrier to match the awaited Promise\/Task result carrier/);
 });

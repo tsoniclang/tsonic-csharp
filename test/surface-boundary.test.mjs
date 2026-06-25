@@ -735,8 +735,8 @@ test("C# planner rejects sparse array literal elisions before dense lowering", (
     planExpressionWithExpectedType: () => assert.fail("Sparse array literal elisions must fail before expected element planning."),
   });
 
-  assert.equal(result.kind, "InvalidExpression");
-  assert.equal(result.reason, "sparse array literal elision");
+  assert.equal(result, undefined);
+  assert.equal(diagnostics[0]?.code, "CSHARP_UNSUPPORTED_AST");
   assert.match(diagnostics[0]?.message, /Sparse array literal elisions require closed JSArray hole construction facts/);
 });
 

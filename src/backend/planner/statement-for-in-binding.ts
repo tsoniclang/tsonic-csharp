@@ -143,8 +143,12 @@ export function planForInKeyBindingStatement(
   keyType: ReturnType<typeof getCsharpTypeForNode>,
   indexName: string,
   selectedIteration: CsharpTargetIterationFact,
-): CsharpStatement {
-  return planForInKeyBindingStatementFromExpression(binding, keyType, forInKeyExpression(indexName, selectedIteration));
+  diagnostics: TargetDiagnostic[],
+): CsharpStatement | undefined {
+  const keyExpression = forInKeyExpression(indexName, selectedIteration, binding.node, diagnostics);
+  return keyExpression === undefined
+    ? undefined
+    : planForInKeyBindingStatementFromExpression(binding, keyType, keyExpression);
 }
 
 export function planForInKeyBindingStatementFromExpression(
@@ -168,12 +172,15 @@ export function planForInKeyBindingStatementFromExpression(
   });
 }
 
-function forInKeyExpression(indexName: string, selectedIteration: CsharpTargetIterationFact): CsharpExpression {
+function forInKeyExpression(
+  indexName: string,
+  selectedIteration: CsharpTargetIterationFact,
+  diagnosticNode: Node,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
   if (selectedIteration.lowering.kind !== "index-key" || selectedIteration.lowering.keyConversion !== "invariant-string") {
-    return {
-      kind: "InvalidExpression",
-      reason: "unsupported for-in key conversion",
-    };
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-in index-key lowering requires finalized invariant-string key conversion facts."));
+    return undefined;
   }
   return {
     kind: "InvocationExpression",

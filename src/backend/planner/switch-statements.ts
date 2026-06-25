@@ -27,7 +27,6 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpStatement, CsharpSwitchSection } from "../roslyn/syntax.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
 
 interface SwitchStatementPlanner {
   readonly planExpression: (
@@ -35,7 +34,7 @@ interface SwitchStatementPlanner {
     sourceFile: SourceFile,
     input: TargetCompileInput,
     diagnostics: TargetDiagnostic[],
-  ) => CsharpExpression;
+  ) => CsharpExpression | undefined;
   readonly planStatements: (
     node: Node,
     sourceFile: SourceFile,
@@ -52,12 +51,20 @@ export function planSwitchStatement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planner: SwitchStatementPlanner,
-): CsharpStatement {
+): CsharpStatement | undefined {
   const statement = AsSwitchStatement(node)!;
+  const expression = planSwitchExpression(statement.Expression, node, sourceFile, input, diagnostics, planner);
+  if (expression === undefined) {
+    return undefined;
+  }
+  const sections = planSwitchSections(statement.CaseBlock, sourceFile, input, diagnostics, state, planner);
+  if (sections === undefined) {
+    return undefined;
+  }
   return {
     kind: "SwitchStatement",
-    expression: planSwitchExpression(statement.Expression, node, sourceFile, input, diagnostics, planner),
-    sections: planSwitchSections(statement.CaseBlock, sourceFile, input, diagnostics, state, planner),
+    expression,
+    sections,
   };
 }
 
@@ -68,10 +75,10 @@ function planSwitchExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planner: SwitchStatementPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   if (expression === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, "Switch statement requires a governing expression before C# emission."));
-    return invalidExpression("missing switch expression");
+    return undefined;
   }
   return planner.planExpression(expression, sourceFile, input, diagnostics);
 }
@@ -83,7 +90,7 @@ function planSwitchSections(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planner: SwitchStatementPlanner,
-): readonly CsharpSwitchSection[] {
+): readonly CsharpSwitchSection[] | undefined {
   if (caseBlockNode === undefined) {
     return [];
   }
@@ -91,7 +98,14 @@ function planSwitchSections(
   const clauses = (caseBlock.Clauses?.Nodes ?? [])
     .filter((clause): clause is Node => clause !== undefined);
   diagnoseDuplicateDefaultClauses(clauses, input, diagnostics);
-  const sections = clauses.map((clause) => planSwitchSection(clause, sourceFile, input, diagnostics, state, planner));
+  const sections: CsharpSwitchSection[] = [];
+  for (const clause of clauses) {
+    const section = planSwitchSection(clause, sourceFile, input, diagnostics, state, planner);
+    if (section === undefined) {
+      return undefined;
+    }
+    sections.push(section);
+  }
   return sections.map((section, index) => {
     const last = section.statements[section.statements.length - 1];
     const next = sections[index + 1];
@@ -124,11 +138,15 @@ function planSwitchSection(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planner: SwitchStatementPlanner,
-): CsharpSwitchSection {
+): CsharpSwitchSection | undefined {
   const clause = AsCaseOrDefaultClause(clauseNode)!;
+  const label = planSwitchLabel(clauseNode, clause.Expression, sourceFile, input, diagnostics, planner);
+  if (label === undefined) {
+    return undefined;
+  }
   return {
     kind: "SwitchSection",
-    label: planSwitchLabel(clauseNode, clause.Expression, sourceFile, input, diagnostics, planner),
+    label,
     statements: (clause.Statements?.Nodes ?? [])
       .filter((statement): statement is Node => statement !== undefined)
       .flatMap((statement) => planner.planStatements(statement, sourceFile, input, diagnostics, state)),
@@ -142,18 +160,19 @@ function planSwitchLabel(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planner: SwitchStatementPlanner,
-): CsharpSwitchSection["label"] {
+): CsharpSwitchSection["label"] | undefined {
   if (HasSourceKind(input.ast, clauseNode, KindDefaultClause)) {
     return { kind: "DefaultSwitchLabel" };
   }
   if (expression === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(clauseNode, "Switch case clause requires an expression before C# emission."));
-    return { kind: "CaseSwitchLabel", expression: invalidExpression("missing switch case expression") };
+    return undefined;
   }
   if (!isNativeCsharpSwitchCaseLabelExpression(expression, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(expression, "Switch case labels must be C# compile-time constants; arbitrary TypeScript case expressions require finalized switch lowering facts before C# emission."));
   }
-  return { kind: "CaseSwitchLabel", expression: planner.planExpression(expression, sourceFile, input, diagnostics) };
+  const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
+  return planned === undefined ? undefined : { kind: "CaseSwitchLabel", expression: planned };
 }
 
 function diagnoseDuplicateDefaultClauses(

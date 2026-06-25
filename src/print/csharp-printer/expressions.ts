@@ -30,8 +30,6 @@ export function printCsharpExpression(
     return context.printType(expression);
   }
   switch (expression.kind) {
-    case "InvalidExpression":
-      throw new Error(`Invalid C# expression reached printer: ${expression.reason}`);
     case "LiteralExpression":
       return printLiteral(expression.value);
     case "NumericLiteralExpression":

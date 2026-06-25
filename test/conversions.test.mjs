@@ -188,7 +188,7 @@ test("planner diagnoses unsupported target conversion operations instead of inve
     },
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized C# target conversion operation fact/);
 });
@@ -208,7 +208,7 @@ test("planner rejects conversion methods without a finalized C# operation fact",
     },
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized C# target conversion operation fact/);
 });
@@ -237,7 +237,7 @@ test("planner rejects conversion methods whose finalized C# operation is not sta
     },
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized static C# member operation fact/);
 });

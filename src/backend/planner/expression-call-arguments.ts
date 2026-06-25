@@ -12,9 +12,6 @@ import {
   sameCsharpType,
 } from "./csharp-type-equality.js";
 import {
-  invalidExpression,
-} from "./invalid-expression.js";
-import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
@@ -26,7 +23,7 @@ export type ExpressionPlanner = (
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-) => CsharpExpression;
+) => CsharpExpression | undefined;
 
 export type ExpectedExpressionPlanner = (
   node: Node,
@@ -35,7 +32,7 @@ export type ExpectedExpressionPlanner = (
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
-) => CsharpExpression;
+) => CsharpExpression | undefined;
 
 export function planCallArgumentCore(
   node: Node,
@@ -47,19 +44,25 @@ export function planCallArgumentCore(
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
   expectedConversionType?: CsharpTypeNode,
-): CsharpArgument {
+): CsharpArgument | undefined {
   const argumentPassing = input.facts.getArgumentPassingFact(node);
   if (argumentPassing === undefined) {
-    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, expectedConversionType) };
+    const expression = planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, expectedConversionType);
+    return expression === undefined ? undefined : { kind: "Argument", expression };
   }
   if (!isAstNode(argumentPassing.targetExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
-    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, expectedConversionType) };
+    const expression = planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, expectedConversionType);
+    return expression === undefined ? undefined : { kind: "Argument", expression };
   }
   const passing = getCsharpArgumentPassing(argumentPassing.mode, node, diagnostics);
+  const expression = planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, expectedConversionType);
+  if (expression === undefined) {
+    return undefined;
+  }
   return {
     kind: "Argument",
-    expression: planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, expectedConversionType),
+    expression,
     ...(passing !== undefined ? { passing } : {}),
   };
 }
@@ -74,7 +77,7 @@ function planCallArgumentExpression(
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
   expectedConversionType?: CsharpTypeNode,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const conversion = input.facts.getTargetConversionFact(node);
   if (conversion?.operation !== undefined) {
     return planExpression(node, sourceFile, input, diagnostics);
@@ -83,7 +86,7 @@ function planCallArgumentExpression(
     const convertedType = csharpTypeFromTargetTypeRef(conversion.convertedType);
     if (convertedType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion requires a renderable target type before C# emission."));
-      return invalidExpression("target argument conversion type");
+      return undefined;
     }
     const semanticExpectedType = expectedConversionType ?? expectedType;
     if (semanticExpectedType !== undefined && !sameCsharpType(convertedType, semanticExpectedType)) {
@@ -95,7 +98,7 @@ function planCallArgumentExpression(
           `expectedCsharpType=${JSON.stringify(semanticExpectedType)}`,
         ],
       });
-      return invalidExpression("target argument conversion mismatch");
+      return undefined;
     }
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType ?? convertedType, expectedTypeSubject);
   }

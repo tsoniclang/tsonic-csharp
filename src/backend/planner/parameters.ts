@@ -197,6 +197,9 @@ function planParameterDefaultValue(
     return undefined;
   }
   const defaultValue = planExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, state);
+  if (defaultValue === undefined) {
+    return undefined;
+  }
   if (defaultValue.kind === "LiteralExpression" || defaultValue.kind === "CharacterLiteralExpression") {
     return defaultValue;
   }

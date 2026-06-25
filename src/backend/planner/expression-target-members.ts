@@ -18,7 +18,6 @@ import {
   substituteCsharpTypeNode,
 } from "./csharp-type-node/source-generic-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
 import {
   planIdentifierName,
 } from "./names.js";
@@ -86,16 +85,20 @@ export function planPropertyAccessExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const expression = AsPropertyAccessExpression(propertyAccess)!;
   const sourceName = Node_Text(expression.name!);
   const sourceModuleStaticMemberReference = tryPlanProjectSourceModuleStaticMemberReference(propertyAccess, sourceFile, input, diagnostics);
   if (sourceModuleStaticMemberReference !== undefined) {
     return sourceModuleStaticMemberReference;
   }
+  const compatDiagnosticsStart = diagnostics.length;
   const compatRuntimePropertyGet = tryPlanCompatRuntimePropertyGet(propertyAccess, expression.Expression, expression.QuestionDotToken !== undefined, sourceFile, input, diagnostics, planExpression);
   if (compatRuntimePropertyGet !== undefined) {
     return compatRuntimePropertyGet;
+  }
+  if (diagnostics.length > compatDiagnosticsStart) {
+    return undefined;
   }
   const targetOperation = input.facts.getSelectedTargetProperty(propertyAccess);
   const sourceOwnedPropertyOperation = isCsharpSourceOwnedPropertyOperation(targetOperation);
@@ -107,28 +110,32 @@ export function planPropertyAccessExpression(
   } else if (targetOperation !== undefined && targetOperation.operationKind === "property") {
     const csharpOperation = getRequiredCsharpTargetOperation(input, propertyAccess, targetOperation, diagnostics, "C# property access emission");
     if (csharpOperation === undefined) {
-      return invalidExpression("missing C# target property operation fact");
+      return undefined;
     }
     if (csharpOperation.kind !== "member" || csharpOperation.operationKind !== "property") {
       diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, "C# property access emission requires a finalized C# member property operation fact."));
-      return invalidExpression("selected target property operation");
+      return undefined;
     }
     if (csharpOperation.static === true) {
       const staticMember = targetStaticMemberExpression(csharpOperation, diagnostics, propertyAccess);
       if (staticMember !== undefined) {
         return staticMember;
       }
-      return invalidExpression("selected static target property");
+      return undefined;
+    }
+    const receiverExpression = planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression);
+    if (receiverExpression === undefined) {
+      return undefined;
     }
     return {
       kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-      receiver: planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression),
+      receiver: receiverExpression,
       name: csharpOperation.memberName,
     };
   }
   if (!sourceOwnedPropertyOperation && targetOperation !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
-    return invalidExpression("selected target property");
+    return undefined;
   }
   const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
   if (sourceModuleMemberReference !== undefined) {
@@ -142,11 +149,15 @@ export function planPropertyAccessExpression(
   const ownership = getSemanticOwnership(receiver, sourceFile, input);
   if (ownership.requiresTargetFact || !ownership.sourceOwned) {
     pushMissingTargetFactDiagnostic(diagnostics, propertyAccess, `C# property access '${sourceName}' must be selected by TSTS/provider facts before emission.`, ownership);
-    return invalidExpression("missing target property fact");
+    return undefined;
+  }
+  const receiverExpression = planExpression(expression.Expression!, sourceFile, input, diagnostics);
+  if (receiverExpression === undefined) {
+    return undefined;
   }
   return {
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-    receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
+    receiver: receiverExpression,
     name: planIdentifierName(expression.name, "InvalidPropertyName", input, diagnostics, "Source-owned property name"),
   };
 }
@@ -159,20 +170,24 @@ function planObjectShapePropertyAccess(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const expression = AsPropertyAccessExpression(propertyAccess)!;
   const member = objectShape.members.find((candidate) => candidate.sourceName === sourceName);
   if (member === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Object-shape property access '${sourceName}' must match a finalized object-shape member before C# emission.`));
-    return invalidExpression("missing object-shape member fact");
+    return undefined;
   }
   if (csharpTypeFromTargetTypeRef(member.type) === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
-    return invalidExpression("unrenderable object-shape member type");
+    return undefined;
+  }
+  const receiverExpression = planExpression(expression.Expression!, sourceFile, input, diagnostics);
+  if (receiverExpression === undefined) {
+    return undefined;
   }
   return {
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-    receiver: planExpression(expression.Expression!, sourceFile, input, diagnostics),
+    receiver: receiverExpression,
     name: member.targetName,
   };
 }
@@ -183,39 +198,50 @@ export function planElementAccessExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const expression = AsElementAccessExpression(elementAccess)!;
+  const tupleDiagnosticsStart = diagnostics.length;
   const tupleElementAccess = planTupleElementAccessExpression(elementAccess, expression.Expression, expression.ArgumentExpression, expression.QuestionDotToken !== undefined, sourceFile, input, diagnostics, planExpression);
   if (tupleElementAccess !== undefined) {
     return tupleElementAccess;
   }
+  if (diagnostics.length > tupleDiagnosticsStart) {
+    return undefined;
+  }
+  const compatDiagnosticsStart = diagnostics.length;
   const compatRuntimeElementGet = tryPlanCompatRuntimeElementGet(elementAccess, expression.Expression, expression.ArgumentExpression, expression.QuestionDotToken !== undefined, sourceFile, input, diagnostics, planExpression);
   if (compatRuntimeElementGet !== undefined) {
     return compatRuntimeElementGet;
   }
+  if (diagnostics.length > compatDiagnosticsStart) {
+    return undefined;
+  }
   if (!ensureElementAccessCanBeRendered(elementAccess, expression.Expression, sourceFile, input, diagnostics)) {
-    return invalidExpression("missing target element access fact");
+    return undefined;
   }
   const selectedElementAccess = input.facts.getSelectedTargetElementAccess(elementAccess);
   const csharpOperation = selectedElementAccess === undefined
     ? undefined
     : getRequiredCsharpTargetOperation(input, elementAccess, selectedElementAccess, diagnostics, "C# element access emission");
   if (selectedElementAccess !== undefined && csharpOperation === undefined) {
-    return invalidExpression("selected target element access operation");
+    return undefined;
   }
   if (selectedElementAccess !== undefined && csharpOperation?.operationId !== selectedElementAccess.operationId) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "C# element access emission received mismatched or missing finalized C# target operation facts."));
-    return invalidExpression("selected target element access operation");
+    return undefined;
   }
   if (csharpOperation !== undefined && csharpOperation.kind !== "member") {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `C# element access emission requires a finalized member/indexer operation fact, but provider recorded '${csharpOperation.kind}'.`));
-    return invalidExpression("selected target element access operation");
+    return undefined;
   }
   if (csharpOperation?.operationKind === "method" && csharpOperation.argumentProjection !== undefined) {
     const receiver = planExpression(expression.Expression!, sourceFile, input, diagnostics);
+    if (receiver === undefined) {
+      return undefined;
+    }
     const arguments_ = planCsharpTargetOperationArguments(csharpOperation, elementAccess, expression.ArgumentExpression, sourceFile, input, diagnostics, planExpression);
     if (arguments_ === undefined) {
-      return invalidExpression("selected target element access arguments");
+      return undefined;
     }
     return {
       kind: "InvocationExpression",
@@ -229,14 +255,19 @@ export function planElementAccessExpression(
   }
   if (csharpOperation !== undefined && csharpOperation.operationKind !== "indexer") {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `C# element access emission expected an indexer operation fact or projected member call, but provider recorded '${csharpOperation.operationKind}'.`));
-    return invalidExpression("selected target element access operation");
+    return undefined;
+  }
+  const receiverExpression = selectedElementAccess === undefined
+    ? planExpression(expression.Expression!, sourceFile, input, diagnostics)
+    : planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression);
+  const argumentExpression = planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics);
+  if (receiverExpression === undefined || argumentExpression === undefined) {
+    return undefined;
   }
   return {
     kind: expression.QuestionDotToken === undefined ? "ElementAccessExpression" : "ConditionalElementAccessExpression",
-    receiver: selectedElementAccess === undefined
-      ? planExpression(expression.Expression!, sourceFile, input, diagnostics)
-      : planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression),
-    argument: planExpression(expression.ArgumentExpression!, sourceFile, input, diagnostics),
+    receiver: receiverExpression,
+    argument: argumentExpression,
   };
 }
 
@@ -256,29 +287,33 @@ function planTupleElementAccessExpression(
   }
   if (optional) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Optional tuple element access requires finalized nullable tuple carrier facts before C# emission."));
-    return invalidExpression("optional tuple element access");
+    return undefined;
   }
   if (receiverNode === undefined || argumentNode === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires finalized receiver and argument facts before C# emission."));
-    return invalidExpression("tuple element access source facts");
+    return undefined;
   }
   const index = getFinalizedTupleElementIndex(argumentNode, sourceFile, input);
   if (index === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires a numeric-literal source index; non-literal tuple indexing needs finalized target element-access facts before C# emission."));
-    return invalidExpression("tuple element access index fact");
+    return undefined;
   }
   const elementCarrier = receiverCarrier.elements[index];
   if (elementCarrier === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `Tuple element access index ${index} requires a finalized tuple element carrier before C# emission.`));
-    return invalidExpression("tuple element access carrier fact");
+    return undefined;
   }
   if (csharpTypeFromTargetTypeRef(elementCarrier) === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `Tuple element access index ${index} requires a renderable tuple element carrier type before C# emission.`));
-    return invalidExpression("tuple element access element type");
+    return undefined;
+  }
+  const receiver = planExpression(receiverNode, sourceFile, input, diagnostics);
+  if (receiver === undefined) {
+    return undefined;
   }
   return {
     kind: "SimpleMemberAccessExpression",
-    receiver: planExpression(receiverNode, sourceFile, input, diagnostics),
+    receiver,
     name: `Item${index + 1}`,
   };
 }
@@ -359,11 +394,15 @@ export function planCallExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const expression = AsCallExpression(node)!;
+  const compatDiagnosticsStart = diagnostics.length;
   const compatRuntimeCall = tryPlanCompatRuntimeCall(node, expression.Expression, expression.Arguments?.Nodes ?? [], sourceFile, input, diagnostics, planExpression);
   if (compatRuntimeCall !== undefined) {
     return compatRuntimeCall;
+  }
+  if (diagnostics.length > compatDiagnosticsStart) {
+    return undefined;
   }
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
@@ -374,32 +413,62 @@ export function planCallExpression(
     }
     const csharpOperation = getRequiredCsharpTargetMemberOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");
     if (csharpOperation === undefined) {
-      return invalidExpression("missing C# target call operation fact");
+      return undefined;
     }
     const member = csharpOperation.selectedMember;
     if (member === undefined) {
-      return invalidExpression("missing selected target call member");
+      return undefined;
+    }
+    const callee = planSelectedTargetCallee(expression.Expression, csharpOperation, sourceFile, input, diagnostics, planExpression);
+    const arguments_ = planSelectedTargetCallArguments(expression.Expression, expression, member, csharpOperation.argumentArrayLiteralElementTypes, sourceFile, input, diagnostics, planCallArgument);
+    if (callee === undefined || arguments_ === undefined) {
+      return undefined;
     }
     return {
       kind: "InvocationExpression",
-      callee: planSelectedTargetCallee(expression.Expression, csharpOperation, sourceFile, input, diagnostics, planExpression),
-      arguments: planSelectedTargetCallArguments(expression.Expression, expression, member, csharpOperation.argumentArrayLiteralElementTypes, sourceFile, input, diagnostics, planCallArgument),
+      callee,
+      arguments: arguments_,
     };
   }
   if (ownership.requiresTargetFact || !ownership.sourceOwned) {
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# call emission requires a source-owned callable or a selected target signature fact.", ownership);
-    return invalidExpression("missing target call fact");
+    return undefined;
+  }
+  const callee = planSourceOwnedCallCallee(node, expression.Expression!, sourceFile, input, diagnostics, planExpression);
+  const arguments_ = planSourceOwnedCallArguments(node, expression.Arguments?.Nodes ?? [], sourceFile, input, diagnostics, planCallArgument);
+  if (callee === undefined || arguments_ === undefined) {
+    return undefined;
   }
   return {
     kind: "InvocationExpression",
-    callee: planSourceOwnedCallCallee(node, expression.Expression!, sourceFile, input, diagnostics, planExpression),
-    arguments: (expression.Arguments?.Nodes ?? [])
-      .filter((argument): argument is Node => argument !== undefined)
-      .map((argument, index) => {
-        const expected = getResolvedSourceCallArgumentExpectation(node, index, sourceFile, input);
-        return planCallArgument(argument, sourceFile, input, diagnostics, expected?.type, expected?.subject);
-      }),
+    callee,
+    arguments: arguments_,
   };
+}
+
+function planSourceOwnedCallArguments(
+  call: Node,
+  argumentsNodes: readonly (Node | undefined)[],
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planCallArgument: CallArgumentPlanner,
+): readonly CsharpArgument[] | undefined {
+  const planned: CsharpArgument[] = [];
+  let index = 0;
+  for (const argument of argumentsNodes) {
+    if (argument === undefined) {
+      continue;
+    }
+    const expected = getResolvedSourceCallArgumentExpectation(call, index, sourceFile, input);
+    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, expected?.type, expected?.subject);
+    if (plannedArgument === undefined) {
+      return undefined;
+    }
+    planned.push(plannedArgument);
+    index += 1;
+  }
+  return planned;
 }
 
 function planSourceOwnedCallCallee(
@@ -409,8 +478,11 @@ function planSourceOwnedCallCallee(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const callee = planExpression(calleeNode, sourceFile, input, diagnostics);
+  if (callee === undefined) {
+    return undefined;
+  }
   const typeArguments = input.ast.typeArguments(callNode)
     .map((argument) => getCsharpTypeForNode(argument, sourceFile, input, undefined, diagnostics));
   if (typeArguments.length === 0) {
@@ -431,7 +503,7 @@ function planSourceOwnedCallCallee(
       };
     default:
       diagnostics.push(unsupportedNodeDiagnostic(callNode, "Source-owned generic call emission requires a callee that can carry finalized C# type arguments."));
-      return invalidExpression("source generic call callee");
+      return undefined;
   }
 }
 
@@ -444,22 +516,26 @@ function planNativeArrayCreationCall(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planCallArgument: CallArgumentPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const lengthArgumentNode = expression.Arguments?.Nodes?.[operation.lengthArgumentIndex];
   if (lengthArgumentNode === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# native array creation requires the finalized length argument."));
-    return invalidExpression("native array length argument");
+    return undefined;
   }
   const elementType = substituteSelectedTargetTypeParameters(operation.elementType, selectedTargetCall);
   const csharpElementType = csharpTypeFromTargetTypeRef(elementType);
   if (csharpElementType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# native array creation requires a renderable finalized array element target type."));
-    return invalidExpression("native array element type");
+    return undefined;
+  }
+  const size = planCallArgument(lengthArgumentNode, sourceFile, input, diagnostics);
+  if (size === undefined) {
+    return undefined;
   }
   return {
     kind: "ArrayCreationExpression",
     elementType: csharpElementType,
-    size: planCallArgument(lengthArgumentNode, sourceFile, input, diagnostics).expression,
+    size: size.expression,
     elements: [],
   };
 }

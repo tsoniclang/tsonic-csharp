@@ -63,10 +63,6 @@ test("printer renders generic member invocation from Roslyn AST nodes", () => {
 
 test("printer fails closed for invalid or foreign raw syntax nodes", () => {
   assert.throws(
-    () => printCsharpExpression({ kind: "InvalidExpression", reason: "unsupported expression" }),
-    /Invalid C# expression reached printer: unsupported expression/,
-  );
-  assert.throws(
     () => printCsharpExpression({ kind: "RawExpression", code: "Console.WriteLine(1)" }),
     /Unsupported C# expression syntax reached printer: RawExpression/,
   );

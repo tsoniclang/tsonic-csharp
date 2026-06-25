@@ -30,6 +30,7 @@ import {
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
+import type { ExpressionPlanner, ExpectedExpressionPlanner } from "./expression-planner-types.js";
 import {
   planArrayLiteralExpression,
   planArrayLiteralExpressionWithCarrier,
@@ -39,7 +40,6 @@ import {
   getTargetTypeRefForNode,
 } from "./runtime-carriers.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
 import {
   planArrowFunctionExpression,
   planFunctionExpression,
@@ -56,20 +56,8 @@ import {
 } from "./expression-operators.js";
 
 export interface ExpectedTypeExpressionPlanners {
-  readonly planExpression: (
-    node: Node,
-    sourceFile: SourceFile,
-    input: TargetCompileInput,
-    diagnostics: TargetDiagnostic[],
-  ) => CsharpExpression;
-  readonly planExpressionWithExpectedType: (
-    node: Node,
-    sourceFile: SourceFile,
-    input: TargetCompileInput,
-    diagnostics: TargetDiagnostic[],
-    expectedType: CsharpTypeNode,
-    expectedTypeSubject?: Node,
-  ) => CsharpExpression;
+  readonly planExpression: ExpressionPlanner;
+  readonly planExpressionWithExpectedType: ExpectedExpressionPlanner;
 }
 
 export function planExpressionWithExpectedTypeCore(
@@ -80,7 +68,7 @@ export function planExpressionWithExpectedTypeCore(
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,
   planners: ExpectedTypeExpressionPlanners,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const expectedTypeLiteral = planExpectedTypeLiteral(node, input, expectedType, diagnostics);
   if (expectedTypeLiteral !== undefined) {
     return expectedTypeLiteral;
@@ -99,9 +87,13 @@ export function planExpressionWithExpectedTypeCore(
   }
   if (HasSourceKind(input.ast, node, KindParenthesizedExpression)) {
     const expression = AsParenthesizedExpression(node)!;
+    const inner = planners.planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    if (inner === undefined) {
+      return undefined;
+    }
     return {
       kind: "ParenthesizedExpression",
-      expression: planners.planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
+      expression: inner,
     };
   }
   if (HasSourceKind(input.ast, node, KindArrowFunction)) {
@@ -111,9 +103,13 @@ export function planExpressionWithExpectedTypeCore(
     return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
   }
   if (HasSourceKind(input.ast, node, KindObjectLiteralExpression)) {
+    const dictionaryDiagnosticsStart = diagnostics.length;
     const dictionaryLiteral = tryPlanRecordDictionaryLiteralWithExpectedType(node, sourceFile, input, diagnostics, expectedTypeSubject, planners.planExpressionWithExpectedType);
     if (dictionaryLiteral !== undefined) {
       return dictionaryLiteral;
+    }
+    if (diagnostics.length > dictionaryDiagnosticsStart) {
+      return undefined;
     }
     return planObjectLiteralExpressionWithExpectedType(
       node,
@@ -130,6 +126,7 @@ export function planExpressionWithExpectedTypeCore(
     return planners.planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType.inner, expectedTypeSubject);
   }
   if (HasSourceKind(input.ast, node, KindBinaryExpression)) {
+    const binaryDiagnosticsStart = diagnostics.length;
     const binaryExpression = tryPlanBinaryExpressionWithExpectedType(
       node,
       sourceFile,
@@ -142,6 +139,9 @@ export function planExpressionWithExpectedTypeCore(
     );
     if (binaryExpression !== undefined) {
       return binaryExpression;
+    }
+    if (diagnostics.length > binaryDiagnosticsStart) {
+      return undefined;
     }
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
@@ -158,11 +158,17 @@ export function planExpressionWithExpectedTypeCore(
   }
   if (HasSourceKind(input.ast, node, KindConditionalExpression)) {
     const expression = AsConditionalExpression(node)!;
+    const condition = planners.planExpression(expression.Condition!, sourceFile, input, diagnostics);
+    const whenTrue = planners.planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    const whenFalse = planners.planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    if (condition === undefined || whenTrue === undefined || whenFalse === undefined) {
+      return undefined;
+    }
     return {
       kind: "ConditionalExpression",
-      condition: planners.planExpression(expression.Condition!, sourceFile, input, diagnostics),
-      whenTrue: planners.planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
-      whenFalse: planners.planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject),
+      condition,
+      whenTrue,
+      whenFalse,
     };
   }
   return planners.planExpression(node, sourceFile, input, diagnostics);
@@ -175,10 +181,10 @@ function planExpectedTypeLiteral(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
   if (isCsharpFloatLiteralType(expectedType) && HasSourceKind(input.ast, node, KindNumericLiteral)) {
-    const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
+      const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
     if (value === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
-      return invalidExpression("invalid numeric literal");
+      return undefined;
     }
     return {
       kind: "NumericLiteralExpression",
@@ -193,7 +199,7 @@ function planExpectedTypeLiteral(
     }
     if (text.length !== 1) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "C# char literals require exactly one UTF-16 code unit from TSTS/source primitive typing."));
-      return invalidExpression("invalid char literal");
+      return undefined;
     }
     return { kind: "CharacterLiteralExpression", value: text };
   }

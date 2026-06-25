@@ -239,7 +239,7 @@ test("call argument emission rejects conversion facts that mismatch selected exp
     { kind: "PredefinedType", name: "int" },
   );
 
-  assert.equal(planned.expression.kind, "InvalidExpression");
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /conversion fact does not match/);
 });
@@ -304,7 +304,7 @@ test("selected target identifier calls reject instance members without a value r
     },
   );
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a value receiver/);
 });

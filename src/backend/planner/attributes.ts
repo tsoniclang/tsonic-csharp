@@ -32,7 +32,10 @@ export function planAttributesForSubject(
   if (attributeFacts.length === 0) {
     return undefined;
   }
-  return attributeFacts.map((attributeFact) => planAttribute(attributeFact, sourceFile, input, diagnostics));
+  return attributeFacts.flatMap((attributeFact) => {
+    const attribute = planAttribute(attributeFact, sourceFile, input, diagnostics);
+    return attribute === undefined ? [] : [attribute];
+  });
 }
 
 export function isErasedAttributeExpressionStatement(
@@ -81,20 +84,40 @@ function planAttribute(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): CsharpAttribute {
+): CsharpAttribute | undefined {
   const targetSpecifier = planAttributeTargetSpecifier(attribute, sourceFile, input, diagnostics);
+  const arguments_ = planAttributeArguments(attribute, sourceFile, input, diagnostics);
+  if (arguments_ === undefined) {
+    return undefined;
+  }
   return {
     ...(targetSpecifier === undefined ? {} : { targetSpecifier }),
     type: isAstNode(attribute.target)
       ? expressionToCsharpType(attribute.target, sourceFile, input, diagnostics)
       : unsupportedAttributeTarget(attribute, diagnostics),
-    arguments: (attribute.arguments ?? []).map((argument): CsharpArgument => ({
-      kind: "Argument",
-      expression: isAstNode(argument)
-        ? planExpression(argument, sourceFile, input, diagnostics)
-        : unsupportedAttributeArgument(attribute, diagnostics),
-    })),
+    arguments: arguments_,
   };
+}
+
+function planAttributeArguments(
+  attribute: AttributeFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpArgument[] | undefined {
+  const arguments_: CsharpArgument[] = [];
+  for (const argument of attribute.arguments ?? []) {
+    if (!isAstNode(argument)) {
+      unsupportedAttributeArgument(attribute, diagnostics);
+      return undefined;
+    }
+    const expression = planExpression(argument, sourceFile, input, diagnostics);
+    if (expression === undefined) {
+      return undefined;
+    }
+    arguments_.push({ kind: "Argument", expression });
+  }
+  return arguments_;
 }
 
 function planAttributeTargetSpecifier(
@@ -175,14 +198,13 @@ function unsupportedAttributeTarget(
 function unsupportedAttributeArgument(
   attribute: AttributeFact,
   diagnostics: TargetDiagnostic[],
-): CsharpArgument["expression"] {
+): void {
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_ATTRIBUTE_FACT",
     category: "error",
     source: "tsonic-csharp",
     message: `C# attribute '${attribute.attributeName}' argument must carry an AST expression subject from finalized TSTS facts.`,
   });
-  return { kind: "InvalidExpression", reason: "unsupported attribute argument" };
 }
 
 function collectAttributeFactsForSubject(

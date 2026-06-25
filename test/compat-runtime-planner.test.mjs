@@ -42,7 +42,7 @@ test("compat any property get fails closed without finalized operation facts", (
     runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /compat-runtime any property get requires a finalized closed compat-runtime operation fact/u);
 });
@@ -62,7 +62,7 @@ test("compat any property get rejects facts with only a closed result carrier", 
     }]]),
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a closed TsValue\/TsObject\/TsArray\/TsFunction carrier/u);
 });
@@ -99,7 +99,7 @@ test("compat any property set rejects property assignment facts without explicit
     operations: new Map([[assignment, operation]]),
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /property set requires a finalized method operation fact with explicit argument projection/u);
 });
@@ -150,7 +150,7 @@ test("compat any element get fails closed when key projection is missing", () =>
     ])]]),
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires source argument index 1/u);
 });
@@ -168,7 +168,7 @@ test("compat any property set fails closed when projection is missing", () => {
     }]]),
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires an explicit finalized argument projection/u);
 });
@@ -212,7 +212,7 @@ test("compat carrier facts are rejected in strict-native target mode", () => {
     ])]]),
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /only valid when the C# target selects typescriptCompatibility: "compat"/u);
 });

@@ -6,7 +6,6 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import type {
   ExpectedExpressionPlanner,
@@ -29,7 +28,7 @@ export function planObjectLiteralExpressionWithExpectedType(
   expectedTypeSubject: Node | undefined,
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const objectShape = getExpectedObjectShapeFact(node, sourceFile, input) ??
     getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input);
   if (objectShape !== undefined) {
@@ -37,7 +36,7 @@ export function planObjectLiteralExpressionWithExpectedType(
   }
   void expectedType;
   diagnostics.push(unsupportedNodeDiagnostic(node, "Object literal emission requires finalized TSTS/provider object-shape facts before C# emission."));
-  return invalidExpression("object literal without finalized object-shape facts");
+  return undefined;
 }
 
 function planObjectLiteralExpressionWithObjectShape(
@@ -48,10 +47,10 @@ function planObjectLiteralExpressionWithObjectShape(
   objectShape: CsharpObjectShapeFact,
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const type = csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, node);
   if (type === undefined) {
-    return invalidExpression("object literal with unrenderable object-shape carrier");
+    return undefined;
   }
   const literal = AsObjectLiteralExpression(node)!;
   const assignments = mergeObjectInitializerAssignments((literal.Properties?.Nodes ?? [])

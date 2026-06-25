@@ -71,11 +71,15 @@ export function planForOfStatement(
     diagnostics.push(unsupportedNodeDiagnostic(statementNode, `C# for-of emission does not support provider iteration lowering '${selectedIteration.lowering.kind}' with kind '${selectedIteration.iterationKind}'.`));
     return [];
   }
+  const collection = planForOfCollectionExpression(statement.Expression, binding.type, sourceFile, input, diagnostics);
+  if (collection === undefined) {
+    return [];
+  }
   return [{
     kind: "ForEachStatement",
     itemType: binding.type,
     itemName: binding.name,
-    collection: planForOfCollectionExpression(statement.Expression, binding.type, sourceFile, input, diagnostics),
+    collection,
     body: {
       kind: "Block",
       statements: [
@@ -92,7 +96,7 @@ function planForOfCollectionExpression(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): CsharpExpression {
+): CsharpExpression | undefined {
   if (expression === undefined) {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_FOR_OF_COLLECTION",
@@ -100,7 +104,7 @@ function planForOfCollectionExpression(
       source: "tsonic-csharp",
       message: "For-of requires a collection expression.",
     });
-    return { kind: "InvalidExpression", reason: "missing for-of collection" };
+    return undefined;
   }
   if (HasSourceKind(input.ast, expression, KindArrayLiteralExpression)) {
     return planExpressionWithExpectedType(

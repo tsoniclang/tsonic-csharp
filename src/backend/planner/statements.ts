@@ -105,11 +105,13 @@ export function planStatements(
       const statement = AsLabeledStatement(node)!;
       return [planLabeledStatement(statement, sourceFile, input, diagnostics, state, planNestedStatementBody)];
     }
-    case KindSwitchStatement:
-      return [planSwitchStatement(node, sourceFile, input, diagnostics, state, {
+    case KindSwitchStatement: {
+      const statement = planSwitchStatement(node, sourceFile, input, diagnostics, state, {
         planExpression,
         planStatements,
-      })];
+      });
+      return statement === undefined ? [] : [statement];
+    }
     case KindTryStatement:
       return [planTryStatement(node, sourceFile, input, diagnostics, state, planBlockStatements)];
     case KindExpressionStatement:

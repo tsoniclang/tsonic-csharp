@@ -30,9 +30,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  invalidExpression,
-} from "./invalid-expression.js";
-import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import type {
@@ -59,18 +56,21 @@ export function planSelectedTargetCallArguments(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planCallArgument: CallArgumentPlanner,
-): readonly CsharpArgument[] {
+): readonly CsharpArgument[] | undefined {
   const receiverArgument = planSelectedTargetReceiverArgument(callee, member, argumentArrayLiteralElementTypes, sourceFile, input, diagnostics, planCallArgument);
   const parameterOffset = receiverArgument === undefined ? 0 : 1;
-  const argumentsList = (expression?.Arguments?.Nodes ?? [])
-    .filter((argument): argument is Node => argument !== undefined)
-    .map((argument, index) => {
-      const parameter = getTargetParameterForArgument(member.parameters, index + parameterOffset);
-      const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
-      const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(argument, targetType, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
-      const expectedConversionType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
-      return planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, expectedConversionType);
-    });
+  const argumentsList: CsharpArgument[] = [];
+  for (const [index, argument] of (expression?.Arguments?.Nodes ?? []).filter((candidate): candidate is Node => candidate !== undefined).entries()) {
+    const parameter = getTargetParameterForArgument(member.parameters, index + parameterOffset);
+    const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
+    const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(argument, targetType, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
+    const expectedConversionType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+    const planned = planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, expectedConversionType);
+    if (planned === undefined) {
+      return undefined;
+    }
+    argumentsList.push(planned);
+  }
   return receiverArgument === undefined ? argumentsList : [receiverArgument, ...argumentsList];
 }
 
@@ -80,12 +80,12 @@ export function planSelectedTargetReceiverExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   if (HasSourceKind(input.ast, receiver, KindIdentifier)) {
     const sourceName = Node_Text(AsIdentifier(receiver));
     if (isExternalDeclarationReference(input.semantics.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile, input)) {
       diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
-      return invalidExpression("provider declaration receiver");
+      return undefined;
     }
   }
   return planExpression(receiver, sourceFile, input, diagnostics);
@@ -106,7 +106,7 @@ export function planSelectedTargetCallee(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   if (operation.operationKind !== "method" && operation.operationKind !== "constructor" && operation.operationKind !== "operator") {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_AST",
@@ -114,16 +114,20 @@ export function planSelectedTargetCallee(
       source: "tsonic-csharp",
       message: `Selected target call requires a C# method, constructor, or operator operation fact, but provider recorded '${operation.operationKind}'.`,
     });
-    return invalidExpression("selected target call operation kind");
+    return undefined;
   }
   if (callee !== undefined && HasSourceKind(input.ast, callee, KindPropertyAccessExpression)) {
     const property = AsPropertyAccessExpression(callee)!;
     if (operation.static === true) {
       return planSelectedStaticTargetCallee(operation, diagnostics, callee);
     }
+    const receiver = planSelectedTargetReceiverExpression(property.Expression!, sourceFile, input, diagnostics, planExpression);
+    if (receiver === undefined) {
+      return undefined;
+    }
     return {
       kind: property.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-      receiver: planSelectedTargetReceiverExpression(property.Expression!, sourceFile, input, diagnostics, planExpression),
+      receiver,
       name: operation.memberName,
     };
   }
@@ -132,7 +136,7 @@ export function planSelectedTargetCallee(
       return planSelectedStaticTargetCallee(operation, diagnostics, callee);
     }
     diagnostics.push(unsupportedNodeDiagnostic(callee, `Selected instance target call '${operation.memberName}' requires a value receiver before C# emission.`));
-    return invalidExpression("selected target instance call receiver");
+    return undefined;
   }
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_AST",
@@ -140,16 +144,15 @@ export function planSelectedTargetCallee(
     source: "tsonic-csharp",
     message: "Selected target call requires an identifier or property-access callee before C# emission.",
   });
-  return invalidExpression("selected target call callee");
+  return undefined;
 }
 
 function planSelectedStaticTargetCallee(
   operation: CsharpTargetMemberOperationFact,
   diagnostics: TargetDiagnostic[],
   node: Node,
-): CsharpExpression {
-  return csharpStaticMemberExpression(operation, diagnostics, node, "Selected static target call") ??
-    invalidExpression("selected target static call");
+): CsharpExpression | undefined {
+  return csharpStaticMemberExpression(operation, diagnostics, node, "Selected static target call");
 }
 
 function planSelectedTargetReceiverArgument(

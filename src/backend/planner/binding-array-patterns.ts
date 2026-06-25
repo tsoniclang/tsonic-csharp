@@ -89,7 +89,7 @@ export type BindingDefaultExpressionPlanner = (
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
-) => CsharpExpression;
+) => CsharpExpression | undefined;
 
 function planArrayBindingElement(
   elementNode: Node,
@@ -132,6 +132,9 @@ function planArrayBindingElement(
       return [];
     }
     const fallback = planArrayBindingDefaultProjection(sourceExpression, index, projected, sourceCarrier, element.Initializer, sourceFile, input, diagnostics, projectedType, state, planDefaultExpressionWithExpectedType);
+    if (fallback === undefined) {
+      return [];
+    }
     return planBindingNameFromProjection(name, fallback, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
   }
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
@@ -168,7 +171,11 @@ function planArrayBindingDefaultProjection(
   projectedType: CsharpTypeNode,
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
+  const whenFalse = planDefaultExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, projectedType, initializer, state);
+  if (whenFalse === undefined) {
+    return undefined;
+  }
   return {
     kind: "ConditionalExpression",
     condition: {
@@ -182,7 +189,7 @@ function planArrayBindingDefaultProjection(
       right: { kind: "LiteralExpression", value: index },
     },
     whenTrue: projected,
-    whenFalse: planDefaultExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, projectedType, initializer, state),
+    whenFalse,
   };
 }
 

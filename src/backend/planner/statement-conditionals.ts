@@ -29,9 +29,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  invalidExpression,
-} from "./invalid-expression.js";
-import {
   getRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
@@ -50,9 +47,13 @@ export function planIfStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const statement = AsIfStatement(node)!;
+  const condition = planConditionExpression(statement.Expression, "If statement", sourceFile, input, diagnostics, state);
+  if (condition === undefined) {
+    return [];
+  }
   return [{
     kind: "IfStatement",
-    condition: planConditionExpression(statement.Expression, "If statement", sourceFile, input, diagnostics, state),
+    condition,
     thenBody: {
       kind: "Block",
       statements: planNestedStatementBody(statement.ThenStatement, sourceFile, input, diagnostics, state),
@@ -72,9 +73,13 @@ export function planWhileStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const statement = AsWhileStatement(node)!;
+  const condition = planConditionExpression(statement.Expression, "While statement", sourceFile, input, diagnostics, state);
+  if (condition === undefined) {
+    return [];
+  }
   return [{
     kind: "WhileStatement",
-    condition: planConditionExpression(statement.Expression, "While statement", sourceFile, input, diagnostics, state),
+    condition,
     body: {
       kind: "Block",
       statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
@@ -91,13 +96,17 @@ export function planDoStatement(
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
   const statement = AsDoStatement(node)!;
+  const condition = planConditionExpression(statement.Expression, "Do statement", sourceFile, input, diagnostics, state);
+  if (condition === undefined) {
+    return [];
+  }
   return [{
     kind: "DoStatement",
     body: {
       kind: "Block",
       statements: planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
     },
-    condition: planConditionExpression(statement.Expression, "Do statement", sourceFile, input, diagnostics, state),
+    condition,
   }];
 }
 
@@ -108,14 +117,14 @@ export function planConditionExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
-): CsharpExpression {
+): CsharpExpression | undefined {
   if (expression === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(sourceFile, `${statementKind} requires a condition expression.`));
-    return invalidExpression("missing condition expression");
+    return undefined;
   }
   if (!hasBooleanConditionCarrier(expression, sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(expression, `${statementKind} condition requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission.`));
-    return invalidExpression("non-bool condition expression");
+    return undefined;
   }
   return planExpression(expression, sourceFile, input, diagnostics, state);
 }

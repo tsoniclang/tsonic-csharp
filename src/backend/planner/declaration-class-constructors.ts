@@ -1,6 +1,7 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
+  CsharpArgument,
   CsharpConstructorDeclaration,
 } from "../roslyn/syntax.js";
 import {
@@ -71,6 +72,19 @@ export function planConstructorDeclaration(
   const leadingSuperCall = getLeadingSuperCall(bodyStatements, input);
   const state = createDestructuringPlannerState(node, input.ast);
   const parameters = planParametersWithPrelude(declaration.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state);
+  const baseArguments = leadingSuperCall === undefined
+    ? undefined
+    : planBaseConstructorArguments(leadingSuperCall.Arguments?.Nodes ?? [], sourceFile, input, diagnostics);
+  if (leadingSuperCall !== undefined && baseArguments === undefined) {
+    return {
+      kind: "ConstructorDeclaration",
+      name: className,
+      modifiers: ["public"],
+      attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
+      parameters: parameters.parameters,
+      body: { kind: "Block", statements: [] },
+    };
+  }
   if (leadingSuperCall !== undefined && parameters.prelude.length > 0 && (leadingSuperCall.Arguments?.Nodes ?? []).length > 0) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Constructor base arguments cannot reference destructured parameter locals until base-argument rewriting is finalized."));
   }
@@ -82,11 +96,7 @@ export function planConstructorDeclaration(
     parameters: parameters.parameters,
     ...(leadingSuperCall === undefined
       ? {}
-      : {
-          baseArguments: (leadingSuperCall.Arguments?.Nodes ?? [])
-            .filter((argument): argument is Node => argument !== undefined)
-            .map((argument) => planCallArgument(argument, sourceFile, input, diagnostics)),
-        }),
+      : { baseArguments }),
     body: {
       kind: "Block",
       statements: leadingSuperCall === undefined
@@ -103,6 +113,26 @@ export function planConstructorDeclaration(
           ],
     },
   };
+}
+
+function planBaseConstructorArguments(
+  argumentNodes: readonly (Node | undefined)[],
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): readonly CsharpArgument[] | undefined {
+  const planned: CsharpArgument[] = [];
+  for (const argument of argumentNodes) {
+    if (argument === undefined) {
+      continue;
+    }
+    const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics);
+    if (plannedArgument === undefined) {
+      return undefined;
+    }
+    planned.push(plannedArgument);
+  }
+  return planned;
 }
 
 function getLeadingSuperCall(statements: readonly (Node | undefined)[], input: TargetCompileInput): NonNullable<ReturnType<typeof AsCallExpression>> | undefined {

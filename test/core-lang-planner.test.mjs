@@ -86,12 +86,11 @@ test("planner rejects argument-passing facts without AST target expressions", ()
       }]]),
     }),
     diagnostics,
-    () => ({ kind: "InvalidExpression", reason: "fallback marker call" }),
-    () => ({ kind: "InvalidExpression", reason: "fallback marker call" }),
+    () => undefined,
+    () => undefined,
   );
 
-  assert.equal(planned.passing, undefined);
-  assert.equal(planned.expression.kind, "InvalidExpression");
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Argument-passing facts must carry AST target expressions/);
 });

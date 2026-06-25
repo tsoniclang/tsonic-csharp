@@ -36,7 +36,7 @@ type ExpressionPlanner = (
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-) => CsharpExpression;
+) => CsharpExpression | undefined;
 
 export function planArrowFunctionExpression(
   node: Node,
@@ -46,7 +46,7 @@ export function planArrowFunctionExpression(
   planExpression: ExpressionPlanner,
   expectedType?: CsharpTypeNode,
   state?: DestructuringPlannerState,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const expression = AsArrowFunction(node)!;
   const targetType = getLambdaTargetContext(node, sourceFile, input, expectedType);
   diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetType);
@@ -61,11 +61,15 @@ export function planArrowFunctionExpression(
       },
     };
   }
+  const body = planExpression(expression.Body!, sourceFile, input, diagnostics);
+  if (body === undefined) {
+    return undefined;
+  }
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
     parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetType),
-    body: planExpression(expression.Body!, sourceFile, input, diagnostics),
+    body,
   };
 }
 

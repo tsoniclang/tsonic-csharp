@@ -6,12 +6,15 @@ import type {
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
 
+export type PlannedExpression = CsharpExpression | undefined;
+export type PlannedArgument = CsharpArgument | undefined;
+
 export type ExpressionPlanner = (
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-) => CsharpExpression;
+) => PlannedExpression;
 
 export type CallArgumentPlanner = (
   node: Node,
@@ -21,7 +24,7 @@ export type CallArgumentPlanner = (
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
   expectedConversionType?: CsharpTypeNode,
-) => CsharpArgument;
+) => PlannedArgument;
 
 export type ExpectedExpressionPlanner = (
   node: Node,
@@ -30,4 +33,4 @@ export type ExpectedExpressionPlanner = (
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
-) => CsharpExpression;
+) => PlannedExpression;

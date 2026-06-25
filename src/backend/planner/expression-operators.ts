@@ -17,7 +17,6 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpBinaryOperatorToken, CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
 import {
   getProviderOperationOwnership,
   pushMissingTargetFactDiagnostic,
@@ -46,8 +45,6 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
-  getCsharpTypeForNode,
-  invalidCsharpType,
   sameCsharpType,
 } from "./csharp-types.js";
 import {
@@ -81,62 +78,79 @@ export function tryPlanBinaryExpression(
   const left = getBinaryLeft(expression);
   const right = getBinaryRight(expression);
   if (SourceKind(input.ast, expression.OperatorToken) === "KindEqualsToken") {
+    const propertyDiagnosticsStart = diagnostics.length;
     const compatRuntimePropertySet = tryPlanCompatRuntimePropertySet(node, getCompatRuntimePropertySetReceiver(left, input), right, sourceFile, input, diagnostics, planExpression);
     if (compatRuntimePropertySet !== undefined) {
       return compatRuntimePropertySet;
     }
+    if (diagnostics.length > propertyDiagnosticsStart) {
+      return undefined;
+    }
     const compatRuntimeElementSetSource = getCompatRuntimeElementSetSource(left, input);
+    const elementDiagnosticsStart = diagnostics.length;
     const compatRuntimeElementSet = tryPlanCompatRuntimeElementSet(node, compatRuntimeElementSetSource?.receiver, compatRuntimeElementSetSource?.argument, right, sourceFile, input, diagnostics, planExpression);
     if (compatRuntimeElementSet !== undefined) {
       return compatRuntimeElementSet;
     }
+    if (diagnostics.length > elementDiagnosticsStart) {
+      return undefined;
+    }
+    const jsArrayDiagnosticsStart = diagnostics.length;
     const jsArrayLengthMutation = tryPlanJsArrayLengthMutationExpression(node, sourceFile, input, diagnostics, planExpression);
     if (jsArrayLengthMutation !== undefined) {
       return jsArrayLengthMutation;
     }
+    if (diagnostics.length > jsArrayDiagnosticsStart) {
+      return undefined;
+    }
   }
   if (selectedOperator !== undefined && selectedOperator.operationKind !== "operator") {
     diagnostics.push(unsupportedNodeDiagnostic(node, `Binary expression expected a provider operator fact, but provider selected a ${selectedOperator.operationKind} operation.`));
-    return invalidExpression("selected target operator");
+    return undefined;
   }
   if (isDestructuringAssignmentExpression(node, input)) {
     pushMissingDestructuringAssignmentFactsDiagnostic(left ?? node, diagnostics);
-    return invalidExpression("destructuring assignment without target storage facts");
+    return undefined;
   }
+  const typeTestDiagnosticsStart = diagnostics.length;
   const typeTest = tryPlanTypeTestExpression(expression, selectedOperator, sourceFile, input, diagnostics, planExpression);
   if (typeTest !== undefined) {
     return typeTest;
   }
+  if (diagnostics.length > typeTestDiagnosticsStart) {
+    return undefined;
+  }
+  const typeofDiagnosticsStart = diagnostics.length;
   const typeofComparison = tryPlanTypeofComparisonExpression(expression, selectedOperator, sourceFile, input, diagnostics, planExpression);
   if (typeofComparison !== undefined) {
     return typeofComparison;
+  }
+  if (diagnostics.length > typeofDiagnosticsStart) {
+    return undefined;
   }
   if (selectedOperator === undefined) {
     const leftOwnership = getProviderOperationOwnership(left, sourceFile, input);
     const rightOwnership = getProviderOperationOwnership(right, sourceFile, input);
     const ownership = combineOwnership(leftOwnership, rightOwnership);
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a selected provider operator fact.", ownership);
-    return invalidExpression("missing target operator fact");
+    return undefined;
   }
   const csharpOperator = input.facts.getFact(node, csharpTargetOperationFactKey);
   if (csharpOperator?.kind !== "operator-token" || csharpOperator.operationId !== selectedOperator.operationId) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# binary operator emission requires a finalized C# operator-token fact matching the selected TSTS/provider operator."));
-    return invalidExpression("missing C# operator token fact");
+    return undefined;
   }
   const binaryOperatorToken = csharpBinaryOperatorTokenFromText(csharpOperator.operator);
   const assignmentOperatorToken = csharpAssignmentOperatorTokenFromText(csharpOperator.operator);
   if (binaryOperatorToken === undefined && assignmentOperatorToken === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, `C# binary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
-    return invalidExpression("unsupported C# operator token");
+    return undefined;
   }
   if (assignmentOperatorToken !== undefined) {
     const leftExpression = planExpression(left!, sourceFile, input, diagnostics);
     const rightExpression = planExpression(right!, sourceFile, input, diagnostics);
-    if (leftExpression.kind === "InvalidExpression") {
-      return leftExpression;
-    }
-    if (rightExpression.kind === "InvalidExpression") {
-      return rightExpression;
+    if (leftExpression === undefined || rightExpression === undefined) {
+      return undefined;
     }
     return {
       kind: "AssignmentExpression",
@@ -147,13 +161,18 @@ export function tryPlanBinaryExpression(
   }
   if (binaryOperatorToken === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, `C# binary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
-    return invalidExpression("unsupported C# binary operator token");
+    return undefined;
+  }
+  const leftExpression = planBinaryOperand(left!, binaryOperatorToken, sourceFile, input, diagnostics, planExpression);
+  const rightExpression = planBinaryOperand(right!, binaryOperatorToken, sourceFile, input, diagnostics, planExpression);
+  if (leftExpression === undefined || rightExpression === undefined) {
+    return undefined;
   }
   return {
     kind: "BinaryExpression",
-    left: planBinaryOperand(left!, binaryOperatorToken, sourceFile, input, diagnostics, planExpression),
+    left: leftExpression,
     operatorToken: binaryOperatorToken,
-    right: planBinaryOperand(right!, binaryOperatorToken, sourceFile, input, diagnostics, planExpression),
+    right: rightExpression,
   };
 }
 
@@ -178,17 +197,22 @@ export function tryPlanBinaryExpressionWithExpectedType(
   const right = getBinaryRight(expression);
   if (left === undefined || right === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Nullish coalescing expected-type emission requires both operands before C# emission."));
-    return invalidExpression("nullish coalescing operands");
+    return undefined;
   }
   const expectedResultType = getFinalizedNullishResultType(node, left, right, sourceFile, input, diagnostics, expectedType);
   if (expectedResultType === undefined) {
-    return invalidExpression("nullish coalescing expected result type");
+    return undefined;
+  }
+  const leftExpression = planExpression(left, sourceFile, input, diagnostics);
+  const rightExpression = planExpressionWithExpectedType(right, sourceFile, input, diagnostics, expectedResultType, expectedTypeSubject);
+  if (leftExpression === undefined || rightExpression === undefined) {
+    return undefined;
   }
   return {
     kind: "BinaryExpression",
-    left: planExpression(left, sourceFile, input, diagnostics),
+    left: leftExpression,
     operatorToken: { kind: "QuestionQuestionToken" },
-    right: planExpressionWithExpectedType(right, sourceFile, input, diagnostics, expectedResultType, expectedTypeSubject),
+    right: rightExpression,
   };
 }
 
@@ -233,17 +257,8 @@ function getFinalizedNullishResultType(
     return undefined;
   }
   if (!sameCsharpType(resultType, expectedType)) {
-    const unwrappedResultType = resultType.kind === "NullableType" ? resultType.inner : undefined;
-    const leftType = getCsharpTypeForNode(left, sourceFile, input, invalidCsharpType("nullish left type"));
-    const unwrappedLeftType = leftType.kind === "NullableType" ? leftType.inner : undefined;
-    if (
-      (unwrappedResultType === undefined || !sameCsharpType(unwrappedResultType, expectedType)) &&
-      (unwrappedLeftType === undefined || !sameCsharpType(unwrappedLeftType, expectedType))
-    ) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "C# nullish coalescing expected-type emission requires the finalized operator result or nullable left operand target type to match the enclosing expected target type."));
-      return undefined;
-    }
-    return expectedType;
+    diagnostics.push(unsupportedNodeDiagnostic(node, "C# nullish coalescing expected-type emission requires the finalized operator result target type to match the enclosing expected target type."));
+    return undefined;
   }
   return resultType;
 }
@@ -255,7 +270,7 @@ function planBinaryOperand(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   return isNullishEqualityOperand(operand, operatorToken, sourceFile, input)
     ? { kind: "LiteralExpression", value: null }
     : planExpression(operand, sourceFile, input, diagnostics);

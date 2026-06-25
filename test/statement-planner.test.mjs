@@ -95,11 +95,7 @@ test("switch statements fail closed when the governing expression is missing", (
 
   const output = planStatements(statement, sourceFile, fakeInput(), diagnostics);
 
-  assert.equal(output[0].kind, "SwitchStatement");
-  assert.deepEqual(output[0].expression, {
-    kind: "InvalidExpression",
-    reason: "missing switch expression",
-  });
+  assert.deepEqual(output, []);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Switch statement requires a governing expression/);
 });
@@ -186,11 +182,7 @@ test("conditions fail closed without finalized bool carrier facts", () => {
 
   const output = planStatements(statement, sourceFile, fakeInput(), diagnostics);
 
-  assert.equal(output[0].kind, "WhileStatement");
-  assert.deepEqual(output[0].condition, {
-    kind: "InvalidExpression",
-    reason: "non-bool condition expression",
-  });
+  assert.deepEqual(output, []);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /condition requires a finalized C# bool runtime carrier/);
 });
@@ -255,11 +247,7 @@ test("for conditions fail closed without finalized bool carrier facts", () => {
 
   const output = planStatements(statement, sourceFile, fakeInput(), diagnostics);
 
-  assert.equal(output[0].kind, "ForStatement");
-  assert.deepEqual(output[0].condition, {
-    kind: "InvalidExpression",
-    reason: "non-bool condition expression",
-  });
+  assert.deepEqual(output, []);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /For statement condition requires a finalized C# bool runtime carrier/);
 });

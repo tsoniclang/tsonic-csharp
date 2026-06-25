@@ -96,7 +96,7 @@ test("object-shape property access diagnoses missing finalized member evidence",
     planExpression,
   );
 
-  assert.deepEqual(planned, { kind: "InvalidExpression", reason: "missing object-shape member fact" });
+  assert.equal(planned, undefined);
   assert.match(diagnostics[0].message, /must match a finalized object-shape member/);
 });
 
@@ -113,7 +113,7 @@ test("provider-owned property access without selected operation facts fails clos
     planExpression,
   );
 
-  assert.deepEqual(planned, { kind: "InvalidExpression", reason: "missing target property fact" });
+  assert.equal(planned, undefined);
   assert.match(diagnostics[0].message, /must be selected by TSTS\/provider facts before emission/);
 });
 
@@ -160,7 +160,7 @@ test("provider-owned property access rejects generic selected fact without C# op
     planExpression,
   );
 
-  assert.deepEqual(planned, { kind: "InvalidExpression", reason: "missing C# target property operation fact" });
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
   assert.match(diagnostics[0].message, /generic TSTS target operation 'Example\.Values\.Actual' is not enough/);
@@ -209,7 +209,7 @@ test("provider-owned element access rejects generic selected indexer without C# 
     planExpression,
   );
 
-  assert.deepEqual(planned, { kind: "InvalidExpression", reason: "selected target element access operation" });
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
 });
@@ -260,7 +260,7 @@ test("tuple element access fails closed instead of reading semantic type strings
 
   const planned = planElementAccessExpression(access, {}, input, diagnostics, planExpression);
 
-  assert.deepEqual(planned, { kind: "InvalidExpression", reason: "tuple element access index fact" });
+  assert.equal(planned, undefined);
   assert.match(diagnostics[0].message, /numeric-literal source index/);
 });
 
@@ -491,8 +491,7 @@ test("object-shape object literals fail closed for generic methods", () => {
     planExpectedExpression,
   );
 
-  assert.equal(planned.assignments.length, 1);
-  assert.deepEqual(planned.assignments[0].expression, { kind: "InvalidExpression", reason: "generic object literal method" });
+  assert.equal(planned.assignments.length, 0);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal generic methods require finalized target delegate facts/);
 });

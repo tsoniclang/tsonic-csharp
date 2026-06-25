@@ -81,6 +81,10 @@ export function planForInStatement(
     return [];
   }
   const { indexName, collectionName } = allocateForInNames(state);
+  const bindingStatement = planForInKeyBindingStatement(binding, keyType, indexName, selectedIteration, diagnostics);
+  if (bindingStatement === undefined) {
+    return [];
+  }
   const plannedLoop: CsharpStatement = {
     kind: "ForStatement",
     initializer: {
@@ -110,7 +114,7 @@ export function planForInStatement(
     body: {
       kind: "Block",
       statements: [
-        planForInKeyBindingStatement(binding, keyType, indexName, selectedIteration),
+        bindingStatement,
         ...planNestedStatementBody(statement.Statement, sourceFile, input, diagnostics, state),
       ],
     },

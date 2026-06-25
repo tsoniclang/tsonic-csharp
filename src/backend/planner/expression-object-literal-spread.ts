@@ -55,6 +55,9 @@ export function planObjectShapeSpreadAssignments(
     return [];
   }
   const sourceExpression = planExpression(expression, sourceFile, input, diagnostics);
+  if (sourceExpression === undefined) {
+    return [];
+  }
   const assignments: CsharpObjectInitializerAssignment[] = [];
   for (const sourceMember of sourceShape.members) {
     const targetMember = targetShape.members.find((member) => member.sourceName === sourceMember.sourceName);
