@@ -69,6 +69,7 @@ import {
 } from "./target-types.js";
 import {
   tryPlanCompatRuntimeCall,
+  tryPlanCompatRuntimeElementGet,
   tryPlanCompatRuntimePropertyGet,
 } from "./compat-runtime-operations.js";
 import {
@@ -184,6 +185,10 @@ export function planElementAccessExpression(
   const tupleElementAccess = planTupleElementAccessExpression(elementAccess, expression.Expression, expression.ArgumentExpression, expression.QuestionDotToken !== undefined, sourceFile, input, diagnostics, planExpression);
   if (tupleElementAccess !== undefined) {
     return tupleElementAccess;
+  }
+  const compatRuntimeElementGet = tryPlanCompatRuntimeElementGet(elementAccess, expression.Expression, expression.ArgumentExpression, expression.QuestionDotToken !== undefined, sourceFile, input, diagnostics, planExpression);
+  if (compatRuntimeElementGet !== undefined) {
+    return compatRuntimeElementGet;
   }
   if (!ensureElementAccessCanBeRendered(elementAccess, expression.Expression, sourceFile, input, diagnostics)) {
     return invalidExpression("missing target element access fact");

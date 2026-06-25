@@ -83,6 +83,46 @@ export function tryPlanCompatRuntimePropertySet(
   return planCompatRuntimeMethodInvocation(operationNode, operation, receiverNode, [rightNode], false, "C# compat-runtime any property set", sourceFile, input, diagnostics, planExpression);
 }
 
+export function tryPlanCompatRuntimeElementGet(
+  operationNode: Node,
+  receiverNode: Node | undefined,
+  argumentNode: Node | undefined,
+  optional: boolean,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  if (!isOpaqueAnyReceiver(receiverNode, sourceFile, input)) {
+    return undefined;
+  }
+  return planCompatRuntimeReceiverOperation(operationNode, receiverNode, optional, [argumentNode], "C# compat-runtime any element get", sourceFile, input, diagnostics, planExpression);
+}
+
+export function tryPlanCompatRuntimeElementSet(
+  operationNode: Node,
+  receiverNode: Node | undefined,
+  argumentNode: Node | undefined,
+  rightNode: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  if (!isOpaqueAnyReceiver(receiverNode, sourceFile, input)) {
+    return undefined;
+  }
+  const operation = getRequiredCompatRuntimeMemberOperation(operationNode, "C# compat-runtime any element set", input, diagnostics);
+  if (operation === undefined || receiverNode === undefined) {
+    return invalidExpression("compat any element set operation");
+  }
+  if (operation.operationKind !== "method") {
+    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `C# compat-runtime any element set requires a finalized method operation fact, but provider recorded '${operation.operationKind}'.`));
+    return invalidExpression("compat any element set kind");
+  }
+  return planCompatRuntimeMethodInvocation(operationNode, operation, receiverNode, [argumentNode, rightNode], false, "C# compat-runtime any element set", sourceFile, input, diagnostics, planExpression);
+}
+
 export function tryPlanCompatRuntimeCall(
   operationNode: Node,
   calleeNode: Node | undefined,

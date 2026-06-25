@@ -1,8 +1,10 @@
 import {
   AsBinaryExpression,
+  AsElementAccessExpression,
   AsIdentifier,
   HasSourceKind,
   KindBinaryExpression,
+  KindElementAccessExpression,
   KindIdentifier,
   KindNullKeyword,
   KindPropertyAccessExpression,
@@ -53,6 +55,7 @@ import {
   pushMissingDestructuringAssignmentFactsDiagnostic,
 } from "./destructuring-assignment.js";
 import {
+  tryPlanCompatRuntimeElementSet,
   tryPlanCompatRuntimePropertySet,
 } from "./compat-runtime-operations.js";
 import {
@@ -81,6 +84,11 @@ export function tryPlanBinaryExpression(
     const compatRuntimePropertySet = tryPlanCompatRuntimePropertySet(node, getCompatRuntimePropertySetReceiver(left, input), right, sourceFile, input, diagnostics, planExpression);
     if (compatRuntimePropertySet !== undefined) {
       return compatRuntimePropertySet;
+    }
+    const compatRuntimeElementSetSource = getCompatRuntimeElementSetSource(left, input);
+    const compatRuntimeElementSet = tryPlanCompatRuntimeElementSet(node, compatRuntimeElementSetSource?.receiver, compatRuntimeElementSetSource?.argument, right, sourceFile, input, diagnostics, planExpression);
+    if (compatRuntimeElementSet !== undefined) {
+      return compatRuntimeElementSet;
     }
     const jsArrayLengthMutation = tryPlanJsArrayLengthMutationExpression(node, sourceFile, input, diagnostics, planExpression);
     if (jsArrayLengthMutation !== undefined) {
@@ -257,6 +265,20 @@ function getCompatRuntimePropertySetReceiver(
   return HasSourceKind(input.ast, node, KindPropertyAccessExpression)
     ? Node_Expression(node)
     : undefined;
+}
+
+function getCompatRuntimeElementSetSource(
+  node: Node | undefined,
+  input: TargetCompileInput,
+): { readonly receiver: Node | undefined; readonly argument: Node | undefined } | undefined {
+  if (!HasSourceKind(input.ast, node, KindElementAccessExpression)) {
+    return undefined;
+  }
+  const elementAccess = AsElementAccessExpression(node)!;
+  return {
+    receiver: elementAccess.Expression,
+    argument: elementAccess.ArgumentExpression,
+  };
 }
 
 function isNullishEqualityOperand(

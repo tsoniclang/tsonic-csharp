@@ -8,6 +8,7 @@ import {
   KindBinaryExpression,
   KindCallExpression,
   KindEqualsToken,
+  KindElementAccessExpression,
   KindIdentifier,
   KindNewExpression,
   KindNumericLiteral,
@@ -81,6 +82,57 @@ test("compat any property set renders closed carrier setter operations from expl
 
   assert.deepEqual(diagnostics, []);
   assert.equal(printCsharpExpression(expression), 'value.WriteCompatSlot("TargetSlot", 1)');
+});
+
+test("compat any element get renders closed carrier getter operations from explicit key projection", () => {
+  const receiver = identifier("value");
+  const key = identifier("key");
+  const elementAccess = element(receiver, key);
+  const diagnostics = [];
+  const expression = planExpression(elementAccess, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[elementAccess, compatRuntimeOperation("ReadCompatElement", [
+      { kind: "source-argument", index: 0 },
+    ])]]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "value.ReadCompatElement(key)");
+});
+
+test("compat any element set renders closed carrier setter operations from explicit key and value projection", () => {
+  const receiver = identifier("value");
+  const key = identifier("key");
+  const elementAccess = element(receiver, key);
+  const assignment = binary(elementAccess, numeric("1"));
+  const diagnostics = [];
+  const expression = planExpression(assignment, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[assignment, compatRuntimeOperation("WriteCompatElement", [
+      { kind: "source-argument", index: 0 },
+      { kind: "source-argument", index: 1 },
+    ])]]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "value.WriteCompatElement(key, 1)");
+});
+
+test("compat any element get fails closed when key projection is missing", () => {
+  const receiver = identifier("value");
+  const key = identifier("key");
+  const elementAccess = element(receiver, key);
+  const diagnostics = [];
+  const expression = planExpression(elementAccess, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[elementAccess, compatRuntimeOperation("ReadCompatElement", [
+      { kind: "source-argument", index: 1 },
+    ])]]),
+  }), diagnostics);
+
+  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires source argument index 1/u);
 });
 
 test("compat any property set fails closed when projection is missing", () => {
@@ -265,6 +317,14 @@ function property(receiver, name) {
     Kind: KindPropertyAccessExpression,
     Expression: receiver,
     name: identifier(name),
+  };
+}
+
+function element(receiver, argument) {
+  return {
+    Kind: KindElementAccessExpression,
+    Expression: receiver,
+    ArgumentExpression: argument,
   };
 }
 
