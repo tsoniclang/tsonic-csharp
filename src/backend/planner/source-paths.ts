@@ -1,12 +1,6 @@
 import { relative, resolve } from "node:path";
-import type { AstReader, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import {
-  KindClassDeclaration,
-  KindEnumDeclaration,
-  KindInterfaceDeclaration,
-  Node_Name,
-  Node_Text,
   SourceFile_FileName,
 } from "./source-ast.js";
 import {
@@ -25,38 +19,44 @@ export function validateSourceFileOutputIdentities(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): void {
-  const registry = getSourceFileOutputRegistry(input, diagnostics);
-  void registry;
+  const existing = outputIdentityRegistries.get(input);
+  if (existing !== undefined) {
+    return;
+  }
+  const registry = buildSourceFileOutputRegistry(input, diagnostics);
+  if (registry !== undefined) {
+    outputIdentityRegistries.set(input, registry);
+  }
 }
 
 export function sourceFileClassName(input: TargetCompileInput, fileName: string): string {
   return requireSourceFileOutputIdentity(input, fileName).className;
 }
 
-export function sourceFileArtifactPath(input: TargetCompileInput, fileName: string, className: string): string {
-  void className;
+export function sourceFileArtifactPath(input: TargetCompileInput, fileName: string): string {
   return requireSourceFileOutputIdentity(input, fileName).artifactPath;
 }
 
 function requireSourceFileOutputIdentity(input: TargetCompileInput, fileName: string): SourceFileOutputIdentity {
-  const identity = getSourceFileOutputRegistry(input).get(fileName);
+  const registry = outputIdentityRegistries.get(input);
+  if (registry === undefined) {
+    throw new Error("Missing C# output identity registry. Call validateSourceFileOutputIdentities and stop on diagnostics before planning source files.");
+  }
+  const identity = registry.get(fileName);
   if (identity === undefined) {
-    throw new Error(`Missing C# output identity for source file '${fileName}'. Call validateSourceFileOutputIdentities and stop on diagnostics before planning source files.`);
+    throw new Error(`Missing C# output identity for source file '${fileName}'. The source file was not part of the validated C# output identity plan.`);
   }
   return identity;
 }
 
-function getSourceFileOutputRegistry(
+function buildSourceFileOutputRegistry(
   input: TargetCompileInput,
-  diagnostics?: TargetDiagnostic[],
-): ReadonlyMap<string, SourceFileOutputIdentity> {
-  const existing = outputIdentityRegistries.get(input);
-  if (existing !== undefined) {
-    return existing;
-  }
+  diagnostics: TargetDiagnostic[],
+): ReadonlyMap<string, SourceFileOutputIdentity> | undefined {
   const byFileName = new Map<string, SourceFileOutputIdentity>();
   const byClassName = new Map<string, string>();
   const byArtifactPath = new Map<string, string>();
+  let hasErrors = false;
   for (const sourceFile of input.sourceFiles) {
     if (sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, sourceFile)) {
       continue;
@@ -64,52 +64,57 @@ function getSourceFileOutputRegistry(
     const fileName = SourceFile_FileName(sourceFile);
     const relativeName = projectRelativeSourcePath(input, fileName, diagnostics);
     if (relativeName === undefined) {
+      hasErrors = true;
       continue;
     }
-    const className = sourceFileModuleClassName(input.ast, relativeName, sourceFile);
+    const className = sourceFileModuleClassName(relativeName);
     const artifactPath = sourceFileModuleArtifactPath(relativeName, className);
+    let hasCollision = false;
     const existingFileName = byClassName.get(className);
     if (existingFileName !== undefined && existingFileName !== fileName) {
-      diagnostics?.push({
+      diagnostics.push({
         code: "CSHARP_SOURCE_IDENTITY_COLLISION",
         category: "error",
         source: "tsonic-csharp",
-        message: `Source files '${existingFileName}' and '${fileName}' produced the same C# output identity '${className}'.`,
+        message: `Source files '${existingFileName}' and '${fileName}' produced the same deterministic C# output-plan class identity '${className}'.`,
       });
-      continue;
+      hasCollision = true;
     }
     const existingArtifactFileName = byArtifactPath.get(artifactPath);
     if (existingArtifactFileName !== undefined && existingArtifactFileName !== fileName) {
-      diagnostics?.push({
+      diagnostics.push({
         code: "CSHARP_SOURCE_ARTIFACT_COLLISION",
         category: "error",
         source: "tsonic-csharp",
-        message: `Source files '${existingArtifactFileName}' and '${fileName}' produced the same C# artifact path '${artifactPath}'.`,
+        message: `Source files '${existingArtifactFileName}' and '${fileName}' produced the same deterministic C# output-plan artifact path '${artifactPath}'.`,
       });
+      hasCollision = true;
+    }
+    if (hasCollision) {
+      hasErrors = true;
       continue;
     }
     byClassName.set(className, fileName);
     byArtifactPath.set(artifactPath, fileName);
     byFileName.set(fileName, { fileName, className, artifactPath });
   }
-  outputIdentityRegistries.set(input, byFileName);
-  return byFileName;
+  return hasErrors ? undefined : byFileName;
 }
 
 function projectRelativeSourcePath(
   input: TargetCompileInput,
   fileName: string,
-  diagnostics?: TargetDiagnostic[],
+  diagnostics: TargetDiagnostic[],
 ): string | undefined {
   const projectRoot = normalizePath(resolve(input.paths.projectRoot));
   const absoluteFileName = normalizePath(resolve(fileName));
   const relativeName = normalizePath(relative(projectRoot, absoluteFileName));
   if (relativeName.length === 0 || relativeName === "." || relativeName.startsWith("../") || relativeName === "..") {
-    diagnostics?.push({
+    diagnostics.push({
       code: "CSHARP_SOURCE_OUTSIDE_PROJECT_ROOT",
       category: "error",
       source: "tsonic-csharp",
-      message: `Source file '${fileName}' is outside project root '${input.paths.projectRoot}'. C# output identity must be rooted in the project source graph.`,
+      message: `Source file '${fileName}' is outside project root '${input.paths.projectRoot}'. C# output-plan identity must be rooted in the TSTS project source graph.`,
     });
     return undefined;
   }
@@ -126,32 +131,8 @@ function sourceFileModuleArtifactPath(relativeName: string, className: string): 
   return `src/${parts.join("/")}`;
 }
 
-function sourceFileModuleClassName(ast: AstReader, relativeName: string, sourceFile: SourceFile): string {
-  const declarations = getTopLevelTypeDeclarationNames(ast, sourceFile);
-  let className = sanitizePascalIdentifier(stripFinalExtension(relativeName).split("/").join("_"), "Module");
-  while (declarations.has(className)) {
-    className = `${className}Module`;
-  }
-  return className;
-}
-
-function getTopLevelTypeDeclarationNames(ast: AstReader, sourceFile: SourceFile): ReadonlySet<string> {
-  const names = new Set<string>();
-  for (const statement of sourceFile.Statements?.Nodes ?? []) {
-    const kind = ast.kindName(statement);
-    if (
-      kind !== KindClassDeclaration &&
-      kind !== KindInterfaceDeclaration &&
-      kind !== KindEnumDeclaration
-    ) {
-      continue;
-    }
-    const name = Node_Text(Node_Name(statement));
-    if (name.length > 0) {
-      names.add(sanitizePascalIdentifier(name, name));
-    }
-  }
-  return names;
+function sourceFileModuleClassName(relativeName: string): string {
+  return sanitizePascalIdentifier(stripFinalExtension(relativeName).split("/").join("_"), "Module");
 }
 
 function stripFinalExtension(value: string): string {

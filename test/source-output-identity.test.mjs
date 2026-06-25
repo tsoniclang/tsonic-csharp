@@ -1,89 +1,74 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { planCsharpArtifacts } from "../dist/backend/planner/csharp-planner.js";
-import { planCsharpEntrypointSourceFile } from "../dist/backend/planner/csharp-entrypoint-planner.js";
-import { planSourceFile } from "../dist/backend/planner/csharp-source-file-planner.js";
-import { planCsharpModuleInitialization } from "../dist/backend/planner/csharp-module-initialization.js";
-import { validateSourceFileOutputIdentities } from "../dist/backend/planner/source-paths.js";
+import { sourceFileClassName } from "../dist/backend/planner/source-paths.js";
 import {
   KindExpressionStatement,
   KindStringLiteral,
 } from "../dist/backend/planner/source-ast.js";
 
-test("executable output plans a Roslyn AST entrypoint that invokes module initializers", () => {
-  const input = fakeInput({
-    outputType: "Exe",
-  });
-  const diagnostics = [];
-  validateSourceFileOutputIdentities(input, diagnostics);
-  const moduleInitialization = planCsharpModuleInitialization(input);
-  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics, moduleInitialization);
-
-  assert.deepEqual(diagnostics, []);
-  assert.ok(plannedSource);
-  assert.equal(plannedSource.hasModuleInitializer, true);
-
-  const entrypoint = planCsharpEntrypointSourceFile(input, [plannedSource], moduleInitialization);
-
-  assert.ok(entrypoint);
-  assert.equal(entrypoint.path, "generated/TsonicEntrypoint.cs");
-  const namespace = entrypoint.unit.members[0];
-  assert.equal(namespace.kind, "NamespaceDeclaration");
-  const entrypointClass = namespace.members[0];
-  assert.equal(entrypointClass.kind, "ClassDeclaration");
-  assert.equal(entrypointClass.name, "TsonicEntrypoint");
-  const mainMethod = entrypointClass.members[0];
-  assert.equal(mainMethod.kind, "MethodDeclaration");
-  assert.equal(mainMethod.name, "Main");
-  assert.deepEqual(mainMethod.modifiers, ["public", "static"]);
-  assert.equal(mainMethod.returnType.name, "void");
-  assert.deepEqual(mainMethod.body.statements, [{
-    kind: "ExpressionStatement",
-    expression: {
-      kind: "InvocationExpression",
-      callee: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: { kind: "IdentifierName", name: "Index" },
-        name: "__tsonic_module_init",
-      },
-      arguments: [],
-    },
-  }]);
-});
-
-test("executable output still materializes source artifacts from the planned Roslyn AST", () => {
+test("source output identity emits deterministic artifacts for multiple project files", () => {
   const result = planCsharpArtifacts(fakeInput({
-    outputType: "Exe",
+    sourceFiles: [
+      sourceFile("/project/index.ts"),
+      sourceFile("/project/nested/util.ts"),
+    ],
   }));
 
   assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.artifacts.some((artifact) => artifact.path === "generated/TsonicEntrypoint.cs"), true);
-  assert.equal(result.artifacts.some((artifact) => artifact.path === "src/Index.cs"), true);
+  assert.deepEqual(sourceArtifactPaths(result), [
+    "src/Index.cs",
+    "src/nested/Nested_util.cs",
+  ]);
+  assert.match(sourceArtifact(result, "src/Index.cs").text, /public static class Index/);
+  assert.match(sourceArtifact(result, "src/nested/Nested_util.cs").text, /public static class Nested_util/);
 });
 
-test("library output does not synthesize executable entrypoint AST or artifacts", () => {
-  const input = fakeInput();
-  const diagnostics = [];
-  validateSourceFileOutputIdentities(input, diagnostics);
-  const moduleInitialization = planCsharpModuleInitialization(input);
-  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics, moduleInitialization);
-  assert.deepEqual(diagnostics, []);
-  assert.ok(plannedSource);
-  assert.equal(planCsharpEntrypointSourceFile(input, [plannedSource], moduleInitialization), undefined);
+test("source output identity rejects files outside the project root", () => {
+  const result = planCsharpArtifacts(fakeInput({
+    sourceFiles: [sourceFile("/external/index.ts")],
+  }));
 
-  const result = planCsharpArtifacts(input);
-  assert.deepEqual(result.diagnostics, []);
-  assert.equal(result.artifacts.some((artifact) => artifact.path === "generated/TsonicEntrypoint.cs"), false);
-  assert.equal(result.artifacts.some((artifact) => artifact.kind === "source"), true);
+  assert.deepEqual(result.diagnostics.map((diagnostic) => diagnostic.code), [
+    "CSHARP_SOURCE_OUTSIDE_PROJECT_ROOT",
+  ]);
+  assert.match(result.diagnostics[0].message, /outside project root '\/project'/);
+  assert.deepEqual(result.artifacts, []);
+});
+
+test("source output identity rejects deterministic class and artifact collisions", () => {
+  const result = planCsharpArtifacts(fakeInput({
+    sourceFiles: [
+      sourceFile("/project/foo-bar.ts"),
+      sourceFile("/project/foo@bar.ts"),
+    ],
+  }));
+
+  assert.deepEqual(result.diagnostics.map((diagnostic) => diagnostic.code), [
+    "CSHARP_SOURCE_IDENTITY_COLLISION",
+    "CSHARP_SOURCE_ARTIFACT_COLLISION",
+  ]);
+  assert.match(result.diagnostics[0].message, /class identity 'FooBar'/);
+  assert.match(result.diagnostics[1].message, /artifact path 'src\/FooBar.cs'/);
+  assert.deepEqual(result.artifacts, []);
+});
+
+test("source output identity fails closed without a validated registry", () => {
+  const input = fakeInput();
+
+  assert.throws(
+    () => sourceFileClassName(input, "/project/index.ts"),
+    /Missing C# output identity registry/,
+  );
 });
 
 function fakeInput(options = {}) {
-  const target = { id: "csharp", options };
+  const target = { id: "csharp", options: options.targetOptions ?? {} };
   return {
     project: { entryPoint: "index.ts", targets: [target] },
     target,
     runtimeReferences: [],
-    sourceFiles: [sourceFile()],
+    sourceFiles: options.sourceFiles ?? [sourceFile("/project/index.ts")],
     paths: { projectRoot: "/project" },
     ast: fakeAst,
     facts: fakeFacts,
@@ -92,9 +77,9 @@ function fakeInput(options = {}) {
   };
 }
 
-function sourceFile() {
+function sourceFile(fileName) {
   return {
-    FileName: "/project/index.ts",
+    FileName: fileName,
     IsDeclarationFile: false,
     Statements: {
       Nodes: [{
@@ -106,6 +91,18 @@ function sourceFile() {
       }],
     },
   };
+}
+
+function sourceArtifactPaths(result) {
+  return result.artifacts
+    .filter((artifact) => artifact.kind === "source")
+    .map((artifact) => artifact.path);
+}
+
+function sourceArtifact(result, path) {
+  const artifact = result.artifacts.find((candidate) => candidate.kind === "source" && candidate.path === path);
+  assert.ok(artifact, `Missing source artifact ${path}`);
+  return artifact;
 }
 
 const fakeAst = {

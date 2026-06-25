@@ -36,7 +36,7 @@ test("C# build emits default class imports as project-source class references", 
   ]));
 
   assert.deepEqual(result.diagnostics, []);
-  assert.match(sourceArtifact(result, "src/BoxModule.cs"), /public class Box/);
+  assert.match(sourceArtifact(result, "src/Box.cs"), /public class Box/);
   const main = sourceArtifact(result, "src/Main.cs");
   assert.match(main, /public static Box create\(\)/);
   assert.match(main, /return new Box\(\);/);
@@ -71,7 +71,7 @@ test("C# build emits re-exported default classes as original project-source clas
   ]));
 
   assert.deepEqual(result.diagnostics, []);
-  assert.match(sourceArtifact(result, "src/BoxModule.cs"), /public class Box/);
+  assert.match(sourceArtifact(result, "src/Box.cs"), /public class Box/);
   const main = sourceArtifact(result, "src/Main.cs");
   assert.match(main, /public static Box create\(\)/);
   assert.match(main, /return new Box\(\);/);

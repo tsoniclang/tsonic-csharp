@@ -44,7 +44,7 @@ export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningRe
     }),
     sources: [
       ...plannedSources.map((source) => ({
-        path: sourceFileArtifactPath(input, source.fileName, source.moduleClassName),
+        path: sourceFileArtifactPath(input, source.fileName),
         unit: source.unit,
       })),
       ...[planCsharpEntrypointSourceFile(input, plannedSources, moduleInitialization)].filter((source): source is NonNullable<typeof source> => source !== undefined),
