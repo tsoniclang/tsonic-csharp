@@ -20,7 +20,6 @@ import type {
   DotnetExportDeclaration,
   DotnetMemberDeclaration,
   DotnetParameterDeclaration,
-  DotnetParameterDefaultValue,
   DotnetRenderShape,
   DotnetSignatureDeclaration,
   DotnetTypeDeclaration,
@@ -29,7 +28,6 @@ import type {
   DotnetTypeRef,
   DotnetUnsupportedAttributeDeclaration,
   DotnetUnsupportedConstraintDeclaration,
-  DotnetUnsupportedDefaultValueDeclaration,
   DotnetUnsupportedMemberDeclaration,
 } from "./model-types.js";
 import {
@@ -44,17 +42,13 @@ import {
   csharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 
-export type DotnetTargetParameter = TargetParameter & {
-  readonly defaultValue?: DotnetParameterDefaultValue;
-  readonly unsupportedDefaultValue?: DotnetUnsupportedDefaultValueDeclaration;
-};
+export type DotnetTargetParameter = TargetParameter;
 
 export type DotnetTargetTypeParameter = TargetTypeParameter & {
   readonly unsupportedConstraints?: readonly DotnetUnsupportedConstraintDeclaration[];
 };
 
 export type DotnetTargetMember = TargetMember & {
-  readonly parameters: readonly DotnetTargetParameter[];
   readonly typeParameters?: readonly DotnetTargetTypeParameter[];
 };
 
@@ -180,7 +174,7 @@ function dotnetUnsupportedConstraintToTargetConstraint(constraint: DotnetUnsuppo
   };
 }
 
-function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringType: TargetTypeRef): readonly TargetMember[] {
+function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, declaringType: TargetTypeRef): readonly DotnetTargetMember[] {
   switch (member.kind) {
     case "method":
     case "constructor":

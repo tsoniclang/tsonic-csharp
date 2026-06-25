@@ -301,8 +301,7 @@ function omittedTargetArgumentsAreRenderable(parameters: readonly TargetParamete
 }
 
 function hasSupportedTargetDefaultValue(parameter: TargetParameter): boolean {
-  return Object.prototype.hasOwnProperty.call(parameter, "defaultValue") &&
-    !Object.prototype.hasOwnProperty.call(parameter, "unsupportedDefaultValue");
+  return parameter.defaultValue !== undefined && parameter.unsupportedDefaultValue === undefined;
 }
 
 function getParameterForArgument(parameters: readonly TargetParameter[], index: number): TargetParameter | undefined {

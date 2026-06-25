@@ -11,6 +11,7 @@ import type {
   Node,
   SourceFile,
   TargetMember,
+  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -67,8 +68,9 @@ export function planSelectedTargetCallArguments(
   const argumentsList = (expression?.Arguments?.Nodes ?? [])
     .filter((argument): argument is Node => argument !== undefined)
     .map((argument, index) => {
-      const parameter = member.parameters[index + parameterOffset];
-      const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(argument, parameter.type, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
+      const parameter = getTargetParameterForArgument(member.parameters, index + parameterOffset);
+      const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
+      const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(argument, targetType, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
       return planCallArgument(argument, sourceFile, input, diagnostics, expectedType);
     });
   return receiverArgument === undefined ? argumentsList : [receiverArgument, ...argumentsList];
@@ -189,8 +191,24 @@ function planSelectedTargetReceiverArgument(
     return undefined;
   }
   const parameter = member.parameters[0];
-  const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(receiver, parameter.type, input, argumentArrayLiteralElementTypes?.[0]);
+  const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
+  const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(receiver, targetType, input, argumentArrayLiteralElementTypes?.[0]);
   return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType);
+}
+
+function getTargetParameterForArgument(parameters: readonly TargetParameter[], index: number): TargetParameter | undefined {
+  const parameter = parameters[index];
+  if (parameter !== undefined) {
+    return parameter;
+  }
+  const last = parameters[parameters.length - 1];
+  return last?.paramsArray === true ? last : undefined;
+}
+
+function getTargetParameterRenderType(parameter: TargetParameter): TargetTypeRef {
+  return parameter.paramsArray === true && parameter.type.kind === "array"
+    ? parameter.type.element
+    : parameter.type;
 }
 
 function isProviderStaticContainerReceiver(

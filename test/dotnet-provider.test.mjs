@@ -890,7 +890,7 @@ test(".NET reflection provider records attribute facts as target data without so
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceTarget = declarationModel.exports.find((declaration) => declaration.name === "AttributeTarget");
   assert.ok(sourceTarget);
-  assert.equal(JSON.stringify(sourceTarget).includes("SampleAttribute"), false);
+  assert.equal(JSON.stringify(stripTargetPayload(sourceTarget)).includes("SampleAttribute"), false);
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderAttributeFixtures.js", "ProviderAttributeFixtures.AttributeTarget");
   assert.equal(binding.attributes?.length, rawTarget.attributes?.length);
@@ -1119,6 +1119,58 @@ test(".NET target binding provider uses configured provider identity for diagnos
     resolution.virtualFileName,
     /^tsts-provider:\/\/acme\.dotnet\.fixture-provider\/%40tsonic%2Fdotnet%2FSystem\.Text\.js\/broad\.d\.ts$/u,
   );
+});
+
+test(".NET target binding provider preserves requested-export slices through declaration model loading", () => {
+  const identity = {
+    id: "acme.dotnet.sliced-provider",
+    version: "1.2.3",
+    target: "csharp",
+    displayName: "Acme .NET Sliced Provider",
+  };
+  const observedContexts = [];
+  const bindingProvider = createDotnetTargetBindingProvider({
+    provider: {
+      identity,
+      ownsModule() {
+        return { kind: "owned" };
+      },
+      getModule(specifier, context) {
+        observedContexts.push({ specifier, context });
+        return {
+          moduleSpecifier: specifier,
+          namespaceName: "System",
+          exports: (context.requestedExports ?? []).map((sourceName) => ({
+            kind: "type",
+            typeKind: "class",
+            sourceName,
+            namespaceName: "System",
+            targetId: testTargetId(`System.${sourceName}`),
+            metadataName: `System.${sourceName}`,
+          })),
+        };
+      },
+    },
+  });
+
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", {
+    requestedExports: ["Convert"],
+  });
+  assert.equal(resolution.kind, "virtual");
+  assert.deepEqual(resolution.requestedExports, ["Convert"]);
+  assert.equal(resolution.broadImport, undefined);
+  assert.match(
+    resolution.virtualFileName,
+    /^tsts-provider:\/\/acme\.dotnet\.sliced-provider\/%40tsonic%2Fdotnet%2FSystem\.js\/slice-Convert\.d\.ts$/u,
+  );
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in model, true, JSON.stringify(model));
+  assert.deepEqual(observedContexts, [{
+    specifier: "@tsonic/dotnet/System.js",
+    context: { requestedExports: ["Convert"] },
+  }]);
+  assert.deepEqual(model.exports.map((declaration) => declaration.name), ["Convert"]);
 });
 
 test(".NET reflection provider proves collection constructor array-literal element metadata", () => {
@@ -1892,7 +1944,7 @@ test(".NET provider source declarations omit signatures that reference unexporta
   const declarationModel = dotnetModuleToProviderDeclarationModel(threadingModule);
   const preAllocatedOverlapped = declarationModel.exports.find((declaration) => declaration.name === "PreAllocatedOverlapped");
   assert.ok(preAllocatedOverlapped);
-  assert.doesNotMatch(JSON.stringify(preAllocatedOverlapped), /IOCompletionCallback/);
+  assert.doesNotMatch(JSON.stringify(stripTargetPayload(preAllocatedOverlapped)), /IOCompletionCallback/);
 });
 
 test(".NET reflection provider exposes delegates with source shells and target delegate identity", () => {
@@ -2443,6 +2495,20 @@ function parameterFacts(parameters) {
     ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
     ...(parameter.unsupportedDefaultValue !== undefined ? { unsupportedDefaultValue: parameter.unsupportedDefaultValue } : {}),
   }));
+}
+
+function stripTargetPayload(value) {
+  if (Array.isArray(value)) {
+    return value.map(stripTargetPayload);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== "targetBinding" && key !== "targetIdentity")
+        .map(([key, nested]) => [key, stripTargetPayload(nested)]),
+    );
+  }
+  return value;
 }
 
 function typeFact(type) {

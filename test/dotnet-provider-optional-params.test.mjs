@@ -286,6 +286,7 @@ function stripAssemblyQualifiers(id) {
 }
 
 function selectBySignature(member, argumentCount) {
+  const arguments_ = Array.from({ length: argumentCount }, () => ({}));
   return findTargetMemberForCall(
     {
       id: "Example.Target",
@@ -296,9 +297,9 @@ function selectBySignature(member, argumentCount) {
       members: [member],
     },
     { signatureId: member.id },
-    { arguments: Array.from({ length: argumentCount }, () => ({})) },
+    { arguments: arguments_ },
     {},
-    () => undefined,
+    (subject) => arguments_.includes(subject) ? stringType() : undefined,
   );
 }
 
