@@ -613,6 +613,69 @@ test("C# target maps source-core struct declarations to one named value-type car
   assert.deepEqual(propertyAccesses.map((node) => extensionHost.facts.get(node, csharpTargetOperationFactKey)?.memberName), ["x", "x"]);
 });
 
+test("source-semantics keeps imported interface storage carriers separate from object-literal adapter carriers", () => {
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/types.ts", `
+        export const touched = 1;
+        export interface Marker {
+          value: number;
+        }
+        export interface Named {
+          name: string;
+        }
+      `],
+      ["/src/index.ts", `
+        import type { Marker } from "./types.js";
+        import { type Named } from "./types.js";
+
+        const marker: Marker = { value: 1 };
+        const named: Named = { name: "item" };
+
+        export function read(): string {
+          return named.name;
+        }
+      `],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const objectLiteralCarrierIds = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier.id);
+  assert.equal(objectLiteralCarrierIds.length, 2);
+  assert.match(objectLiteralCarrierIds[0], /^__TsonicShape_Marker_/u);
+  assert.match(objectLiteralCarrierIds[1], /^__TsonicShape_Named_/u);
+
+  const declaredStorageCarrierIds = collectNodesByKind(sourceFile, session.ast, "KindVariableDeclaration")
+    .map((node) => session.ast.name(node))
+    .filter((name) => name !== undefined && ["marker", "named"].includes(session.ast.text(name)))
+    .map((name) => extensionHost.facts.get(name, runtimeCarrierFactKey)?.carrier.id);
+  assert.deepEqual(declaredStorageCarrierIds, ["Marker", "Named"]);
+
+  const typeReferenceCarrierIds = collectNodesByKind(sourceFile, session.ast, "KindTypeReference")
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier.id)
+    .filter((id) => id === "Marker" || id === "Named");
+  assert.deepEqual(typeReferenceCarrierIds, ["Marker", "Named"]);
+});
+
 test("source-semantics rejects source-core marker calls missing required type evidence", () => {
   const sourceText = `
     import { attribute, defaultof, field } from "@tsonic/core/lang.js";

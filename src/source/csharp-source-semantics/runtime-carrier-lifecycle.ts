@@ -149,14 +149,24 @@ function recordCsharpRuntimeCarrierFact(
     carrier: result.value.carrier,
     ...(result.value.requiresAllocation !== undefined ? { requiresAllocation: result.value.requiresAllocation } : {}),
   };
+  if (isObjectLiteralInterfaceDeclarationCarrier(compiler.ast, node, fact.carrier)) {
+    return;
+  }
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, result.evidence ?? []);
-  if (runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(fact.carrier)) {
+  if (
+    runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(fact.carrier) &&
+    !isObjectLiteralGeneratedShapeCarrier(compiler.ast, node, fact.carrier)
+  ) {
     lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, fact, result.evidence ?? []);
   }
-  if (symbol !== undefined) {
+  if (symbol !== undefined && !isObjectLiteralGeneratedShapeCarrier(compiler.ast, node, fact.carrier)) {
     lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
   }
-  if (type.symbol !== undefined && runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(fact.carrier)) {
+  if (
+    type.symbol !== undefined &&
+    runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(fact.carrier) &&
+    !isObjectLiteralGeneratedShapeCarrier(compiler.ast, node, fact.carrier)
+  ) {
     lifecycleContext.host.facts.set(type.symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
   }
 }
@@ -166,6 +176,30 @@ function runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(type: TargetTypeRe
     return false;
   }
   return type.kind === "target-named" && (type.typeArguments?.length ?? 0) === 0;
+}
+
+function isObjectLiteralInterfaceDeclarationCarrier(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+  carrier: TargetTypeRef,
+): boolean {
+  return ast.is.IsObjectLiteralExpression(node) &&
+    carrier.kind === "target-named" &&
+    (carrier as { readonly csharpSourceDeclarationKind?: unknown }).csharpSourceDeclarationKind === "interface";
+}
+
+function isObjectLiteralGeneratedShapeCarrier(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+  carrier: TargetTypeRef,
+): boolean {
+  return ast.is.IsObjectLiteralExpression(node) &&
+    isGeneratedObjectShapeCarrier(carrier);
+}
+
+function isGeneratedObjectShapeCarrier(carrier: TargetTypeRef): boolean {
+  return carrier.kind === "target-named" &&
+    carrier.id.startsWith("__TsonicShape_");
 }
 
 function recordCsharpRuntimeCarrierSyntaxFact(
@@ -472,6 +506,9 @@ function propagateCsharpRuntimeCarrierFactFromReferencedSymbol(
 }
 
 function shouldReplaceUseSiteRuntimeCarrier(existing: TargetTypeRef, replacement: TargetTypeRef): boolean {
+  if (isGeneratedObjectShapeCarrier(replacement)) {
+    return false;
+  }
   if (isSourceDeclarationCarrier(existing) && !isSourceDeclarationCarrier(replacement)) {
     return true;
   }
