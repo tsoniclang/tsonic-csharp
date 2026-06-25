@@ -6,6 +6,9 @@ import {
 import {
   targetTypeRefContainsSourcePrimitive,
 } from "../../source/csharp-source-semantics/target-ref-utils.js";
+import {
+  asNodeSubject,
+} from "../../source/fact-subjects.js";
 
 export function getRuntimeCarrierForExpression(
   input: TargetCompileInput,
@@ -23,10 +26,31 @@ export function getTargetTypeRefForNode(
   if (sourceNode === undefined) {
     return undefined;
   }
-  return getTargetTypeRefFromDirectFacts(input, sourceNode) ??
+  return getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile) ??
+    getTargetTypeRefFromDirectFacts(input, sourceNode) ??
     getTargetTypeRefFromDirectFacts(input, input.semantics.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.semantics.getResolvedSymbol(sourceNode, { sourceFile })) ??
     input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile });
+}
+
+function getTargetTypeRefFromTypeReferenceName(
+  input: TargetCompileInput,
+  sourceNode: Node,
+  sourceFile: SourceFile,
+): TargetTypeRef | undefined {
+  if (input.ast.kindName(sourceNode) !== "KindTypeReference") {
+    return undefined;
+  }
+  const typeName = asNodeSubject(getNodeField(sourceNode, "TypeName"));
+  return typeName === undefined
+    ? undefined
+    : getTargetTypeRefFromDirectFacts(input, typeName) ??
+      getTargetTypeRefFromDirectFacts(input, input.semantics.getSymbolAtLocation(typeName, { sourceFile })) ??
+      getTargetTypeRefFromDirectFacts(input, input.semantics.getResolvedSymbol(typeName, { sourceFile }));
+}
+
+function getNodeField(node: Node, field: string): unknown {
+  return Object.getOwnPropertyDescriptor(node, field)?.value;
 }
 
 export function getTargetTypeRefForType(

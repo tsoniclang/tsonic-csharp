@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey } from "@tsonic/tsts";
+import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import { csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension } from "../dist/index.js";
 import { createCsharpCompositeOperationsProvider, createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
@@ -1323,6 +1324,113 @@ test("NodeJS surface maps expanded crypto and os calls from selected provider si
   assert.equal(osResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.os.tmpdir()");
 });
 
+test("NodeJS surface exposes assert and assert/strict as provider-owned virtual modules", () => {
+  const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
+
+  const bareOwnership = bindingProvider.ownsModule("assert", {});
+  const nodeOwnership = bindingProvider.ownsModule("node:assert", {});
+  const strictOwnership = bindingProvider.ownsModule("node:assert/strict", {});
+  const resolution = bindingProvider.resolveModule("node:assert/strict", {});
+  assert.equal(bareOwnership.kind, "owned");
+  assert.equal(nodeOwnership.kind, "owned");
+  assert.equal(strictOwnership.kind, "owned");
+  assert.equal(resolution.kind, "virtual");
+  assert.equal(resolution.providerModuleId, "node:assert");
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal(model.moduleSpecifier, "node:assert/strict");
+  assert.equal(model.providerModuleId, "node:assert");
+  const ok = model.exports.find((entry) => entry.name === "ok");
+  const strictEqual = model.exports.find((entry) => entry.name === "strictEqual");
+  const deepStrictEqual = model.exports.find((entry) => entry.name === "deepStrictEqual");
+  assert.equal(ok?.kind, "function");
+  assert.equal(ok?.signatures?.[0]?.id, "node:assert.ok(System.Boolean,System.String)");
+  assert.equal(ok?.signatures?.[0]?.parameters[0]?.type.kind, "boolean");
+  assert.equal(strictEqual?.signatures?.[0]?.id, "node:assert.strictEqual(System.Object,System.Object,System.String)");
+  assert.equal(strictEqual?.signatures?.[0]?.parameters[0]?.type.kind, "unknown");
+  assert.equal(deepStrictEqual?.signatures?.[0]?.id, "node:assert.deepStrictEqual(System.Object,System.Object,System.String)");
+
+  const strictEqualIdentity = bindingProvider.getTargetIdentity({
+    moduleSpecifier: "node:assert/strict",
+    exportName: "strictEqual",
+    signatureId: "node:assert.strictEqual(System.Object,System.Object,System.String)",
+  });
+  const unsupportedIdentity = bindingProvider.getTargetIdentity({
+    moduleSpecifier: "assert",
+    exportName: "deepStrictEqual",
+    signatureId: "node:assert.deepStrictEqual(System.Object,System.Object,System.String)",
+  });
+  assert.equal(strictEqualIdentity?.id, "Tsonic.CSharp.Node.assert.strictEqual(System.Object,System.Object,System.String)");
+  assert.equal(unsupportedIdentity?.id, "unsupported:Tsonic.CSharp.Node.assert.deepStrictEqual(System.Object,System.Object,System.String)");
+});
+
+test("NodeJS surface maps supported assert calls from selected provider signature identity", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const okCall = {};
+  const okSignature = {};
+  const failCall = {};
+  const failSignature = {};
+  const strictEqualCall = {};
+  const strictEqualSignature = {};
+  facts.set(okSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:assert", "ok", "node:assert.ok(System.Boolean,System.String)"));
+  facts.set(failSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("assert", "fail", "node:assert.fail(System.String)"));
+  facts.set(strictEqualSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:assert/strict", "strictEqual", "node:assert.strictEqual(System.Object,System.Object,System.String)"));
+
+  const okResult = provider.mapCheckedCall(nodejsCallRequest(okCall, okSignature), fakeContext(facts));
+  const failResult = provider.mapCheckedCall(nodejsCallRequest(failCall, failSignature), fakeContext(facts));
+  const strictEqualResult = provider.mapCheckedCall(nodejsCallRequest(strictEqualCall, strictEqualSignature), fakeContext(facts));
+
+  assert.equal(okResult.kind, "accept");
+  assert.equal(okResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.assert.ok(System.Boolean,System.String)");
+  assert.equal(okResult.value.selectedSignature.member.parameters[1]?.optional, true);
+  assert.equal(failResult.kind, "accept");
+  assert.equal(failResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.assert.fail(System.String)");
+  assert.equal(strictEqualResult.kind, "accept");
+  assert.equal(strictEqualResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.assert.strictEqual(System.Object,System.Object,System.String)");
+});
+
+test("NodeJS surface fails closed for unsupported assert provider identities", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const deepStrictEqualCall = {};
+  const deepStrictEqualSignature = {};
+  const matchCall = {};
+  const matchSignature = {};
+  facts.set(deepStrictEqualSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:assert/strict", "deepStrictEqual", "node:assert.deepStrictEqual(System.Object,System.Object,System.String)"));
+  facts.set(matchSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:assert", "match", "node:assert.match(System.String,System.Object,System.String)"));
+
+  const deepStrictEqualResult = provider.mapCheckedCall(nodejsCallRequest(deepStrictEqualCall, deepStrictEqualSignature), fakeContext(facts));
+  const matchResult = provider.mapCheckedCall(nodejsCallRequest(matchCall, matchSignature), fakeContext(facts));
+
+  assert.equal(deepStrictEqualResult.kind, "reject");
+  assert.equal(deepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.match(deepStrictEqualResult.diagnostic.message, /node:assert\/strict/);
+  assert.match(deepStrictEqualResult.diagnostic.message, /deepStrictEqual/);
+  assert.equal(matchResult.kind, "reject");
+  assert.equal(matchResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.match(matchResult.diagnostic.message, /match/);
+});
+
+test("NodeJS assert provider declarations compile only when the nodejs surface is selected", () => {
+  const selectedSession = createCsharpSession(`
+    import { fail, ok } from "node:assert/strict";
+    ok(true);
+    if (false) {
+      fail("unreachable");
+    }
+  `, { selectedSurfaces: [{ id: "nodejs" }] });
+  const selectedSourceFile = selectedSession.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(selectedSession.ensureChecked(selectedSourceFile)), "");
+
+  const nativeSession = createCsharpSession(`
+    import { ok } from "node:assert/strict";
+    ok(true);
+  `);
+  const nativeSourceFile = nativeSession.getSourceFile("/src/index.ts");
+  assert.match(formatDiagnostics(nativeSession.ensureChecked(nativeSourceFile)), /Cannot find name 'node:assert\/strict'/);
+});
+
 test("NodeJS surface exposes util as a provider-owned virtual module", () => {
   const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
 
@@ -2018,6 +2126,7 @@ function createCsharpSession(sourceText, options = {}) {
     extensionHostOptions: {
       activeTarget: "csharp",
       extensions: [
+        createTsonicCoreSourceExtension(),
         createCsharpSourceSemanticsExtension(context),
         createCsharpTargetSemanticsExtension(context),
       ],

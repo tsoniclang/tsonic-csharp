@@ -28,6 +28,7 @@ import {
   tsonicCoreSourceSemanticsModules,
 } from "@tsonic/source-core";
 import {
+  csharpObjectShapeFactKey,
   csharpTargetOperationFactKey,
   csharpTargetConversionOperationFactKey,
 } from "../dist/source/csharp-facts.js";
@@ -535,6 +536,77 @@ test("source-semantics records source-core marker facts and rejects unproven sto
     session.ast.kindName(entry.fact.result) === "KindTypeReference" &&
     entry.fact.abi.join(",") === "target-default"
   ));
+});
+
+test("C# target maps source-core struct declarations to one named value-type carrier", () => {
+  const sourceText = `
+    import { field, struct } from "@tsonic/core/lang.js";
+
+    const Point = struct({ x: field<number>(), y: field<number>() });
+    type Point = typeof Point;
+
+    function createPoint(x: number, y: number): Point {
+      return { x, y };
+    }
+
+    function distance(p1: Point, p2: Point): number {
+      return p2.x - p1.x;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const objectLiterals = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression");
+  assert.equal(objectLiterals.length, 2);
+  assert.equal(extensionHost.facts.get(objectLiterals[0], runtimeCarrierFactKey), undefined);
+  assert.equal(extensionHost.facts.get(objectLiterals[0], csharpObjectShapeFactKey), undefined);
+  assert.equal(extensionHost.facts.get(objectLiterals[1], runtimeCarrierFactKey)?.carrier.id, "Point");
+  assert.equal(extensionHost.facts.get(objectLiterals[1], csharpObjectShapeFactKey)?.targetType.id, "Point");
+
+  const pointReferences = collectNodesByKind(sourceFile, session.ast, "KindTypeReference")
+    .filter((node) => session.ast.text(node.TypeName) === "Point");
+  assert.equal(pointReferences.length, 3);
+  assert.deepEqual(pointReferences.map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier.id), [
+    "Point",
+    "Point",
+    "Point",
+  ]);
+  assert.deepEqual(pointReferences.map((node) => extensionHost.facts.get(node, csharpObjectShapeFactKey)?.targetType.id), [
+    "Point",
+    "Point",
+    "Point",
+  ]);
+
+  const propertyAccesses = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .filter((node) => ["p1", "p2"].includes(session.ast.text(node.Expression)));
+  assert.equal(propertyAccesses.length, 2);
+  assert.deepEqual(propertyAccesses.map((node) => extensionHost.facts.get(node, targetOperationFactKey)?.targetOperation), ["x", "x"]);
+  assert.deepEqual(propertyAccesses.map((node) => extensionHost.facts.get(node, csharpTargetOperationFactKey)?.memberName), ["x", "x"]);
 });
 
 test("source-semantics rejects source-core marker calls missing required type evidence", () => {

@@ -25,6 +25,7 @@ sealed partial class ReflectionProvider
             namespaceName = activeNamespaceName,
             targetId = TargetId(type),
             metadataName = MetadataName(type),
+            assembly = AssemblyReference(type.Assembly),
             displayName = DisplayName(type),
             renderShape = RenderShape(type),
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,

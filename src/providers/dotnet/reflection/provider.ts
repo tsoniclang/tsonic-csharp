@@ -76,7 +76,7 @@ const providerIdentity: DotnetProviderIdentity = {
   target: "csharp",
   displayName: "Tsonic C# .NET reflection provider",
 };
-const providerCacheAbiVersion = "dotnet-reflection-provider-cache-v3";
+const providerCacheAbiVersion = "dotnet-reflection-provider-cache-v4";
 const supportedTargetFramework = "net10.0";
 
 export function createDotnetReflectionTypeDataProvider(

@@ -15,6 +15,10 @@ export function getCsharpObjectShapeFactForNode(
   if (node === undefined) {
     return undefined;
   }
+  const typeReference = getCsharpObjectShapeFactForTypeReferenceName(node, sourceFile, input);
+  if (typeReference !== undefined) {
+    return typeReference;
+  }
   const direct = input.facts.getFact(node, csharpObjectShapeFactKey);
   if (direct !== undefined) {
     return direct;
@@ -46,6 +50,23 @@ function getCsharpObjectShapeFactForDeclarationAnnotation(
     }
   }
   return undefined;
+}
+
+function getCsharpObjectShapeFactForTypeReferenceName(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpObjectShapeFact | undefined {
+  if (input.ast.kindName(node) !== "KindTypeReference") {
+    return undefined;
+  }
+  const typeName = asNodeSubject(getNodeField(node, "TypeName"));
+  if (typeName === undefined) {
+    return undefined;
+  }
+  return input.facts.getFact(typeName, csharpObjectShapeFactKey) ??
+    input.facts.getFact(input.semantics.getSymbolAtLocation(typeName, { sourceFile }), csharpObjectShapeFactKey) ??
+    input.facts.getFact(input.semantics.getResolvedSymbol(typeName, { sourceFile }), csharpObjectShapeFactKey);
 }
 
 function getNodeField(node: Node | undefined, field: string): unknown {

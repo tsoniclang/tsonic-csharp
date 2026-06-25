@@ -31,6 +31,9 @@ import {
   recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects,
   recordCsharpObjectShapeFactOnRuntimeCarrierSubjects,
 } from "./runtime-carrier-object-shapes.js";
+import {
+  subjectIsSourceCoreStructDeclarationPayload,
+} from "./object-shape-recorded-facts.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "./runtime-carrier-types.js";
@@ -43,6 +46,9 @@ export function mapRuntimeCarrier(
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
+  if (subjectIsSourceCoreStructDeclarationPayload(request.sourceTypeReference, context)) {
+    return deferObservation;
+  }
   const callableCarrier = getCallableRuntimeCarrier(request, context, host);
   if (callableCarrier !== undefined) {
     return acceptObservation<RuntimeCarrierFactResult>({

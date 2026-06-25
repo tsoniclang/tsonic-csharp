@@ -14,6 +14,9 @@ import type {
   CsharpObjectShapeMemberFact,
 } from "../csharp-facts.js";
 import {
+  csharpObjectShapeFactKey,
+} from "../csharp-facts.js";
+import {
   asNodeSubject,
   getNodeField,
   getNodeList,
@@ -31,6 +34,9 @@ import {
 import {
   isVoidTargetType,
 } from "./target-rules.js";
+import {
+  isSourceLibraryType,
+} from "./source-library.js";
 import {
   asType,
   generatedObjectShapeMemberName,
@@ -109,13 +115,21 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     compiler.types.isNumberLike(semanticType) ||
     compiler.types.isBooleanLike(semanticType) ||
     compiler.types.isBigIntLike(semanticType) ||
-    compiler.types.isArrayLike(semanticType, { sourceFile }) ||
+    compiler.types.isTuple(semanticType) ||
+    isSourceLibraryType(semanticType, context, "Array") ||
+    isSourceLibraryType(semanticType, context, "ReadonlyArray") ||
     compiler.types.isUnion(semanticType)) {
     return undefined;
   }
   const contextualTargetType = asType(node === undefined ? undefined : context.facts.get(node, contextualTargetTypeFactKey)?.type);
   const declaredShape = getSemanticTypeDeclarationShape(contextualTargetType ?? semanticType, context, host);
   const isObjectLiteral = node !== undefined && compiler.ast.is.IsObjectLiteralExpression(node);
+  const contextualObjectShape = isObjectLiteral && contextualTargetType !== undefined
+    ? context.facts.get(contextualTargetType, csharpObjectShapeFactKey)
+    : undefined;
+  if (contextualObjectShape !== undefined) {
+    return contextualObjectShape;
+  }
   if (declaredShape?.kind === "class") {
     if (!isObjectLiteral) {
       return undefined;
@@ -135,7 +149,16 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
   }
   if (declaredShape?.kind === "interface" &&
     (node === undefined || (!compiler.ast.is.IsObjectLiteralExpression(node) && compiler.ast.kindName(node) !== "KindObjectLiteralExpression"))) {
-    return undefined;
+    const interfaceMembers = deriveCsharpObjectShapeMembersForSemanticType(semanticType, context, sourceFile, host, "callable-property-as-method");
+    const resolvedInterfaceMembers = interfaceMembers === undefined
+      ? undefined
+      : substituteCsharpObjectShapeMemberTypeParameters(interfaceMembers, semanticType, declaredShape.targetType, context);
+    return resolvedInterfaceMembers === undefined
+      ? undefined
+      : {
+          targetType: declaredShape.targetType,
+          members: resolvedInterfaceMembers,
+        };
   }
   const memberSourceType = declaredShape?.kind === "interface" && isObjectLiteral && contextualTargetType !== undefined
     ? contextualTargetType

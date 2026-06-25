@@ -14,6 +14,9 @@ import {
   createDotnetTargetBindingProvider,
 } from "../../providers/dotnet/index.js";
 import {
+  tsonicCoreSourceExtensionId,
+} from "@tsonic/source-core";
+import {
   csharpTargetSemanticsExtensionId,
   csharpProviderVersion,
   csharpTargetId,
@@ -89,6 +92,9 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       kind: "target",
       target: csharpTargetId,
     },
+    dependencies: {
+      dependsOn: [tsonicCoreSourceExtensionId],
+    },
     initialize(extensionContext): void {
       extensionContext.registerTargetBindingProvider(createDotnetTargetBindingProvider({
         provider: hosts.dotnetProvider,
@@ -103,12 +109,13 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(context, lifecycleContext, hosts);
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
-        recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext);
+        recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
         validateCsharpSourceFlowFactsBeforeFinalization(lifecycleContext);
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
         recordCsharpAssertionConversionFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
         recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
         recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
+        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost);

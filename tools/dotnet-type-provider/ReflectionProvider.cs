@@ -60,6 +60,7 @@ sealed partial class ReflectionProvider
         var allTypes = loadedTypes
             .Where(type => type.Namespace == activeNamespaceName)
             .ToArray();
+        var assembly = ModuleAssemblyReference(allTypes);
         var requestedExports = request.Exports.Count == 0
             ? null
             : request.Exports.ToHashSet(StringComparer.Ordinal);
@@ -103,9 +104,19 @@ sealed partial class ReflectionProvider
         {
             moduleSpecifier = activeModuleSpecifier,
             namespaceName = activeNamespaceName,
+            assembly,
             exports,
             targetOnlyTypes = targetOnlyTypes.Length == 0 ? null : targetOnlyTypes,
             unsupportedExports = unsupportedExports.Length == 0 ? null : unsupportedExports,
         };
+    }
+
+    static object? ModuleAssemblyReference(Type[] types)
+    {
+        var assemblies = types
+            .Select(type => type.Assembly)
+            .GroupBy(AssemblyIdentity, StringComparer.Ordinal)
+            .ToArray();
+        return assemblies.Length == 1 ? AssemblyReference(assemblies[0].First()) : null;
     }
 }

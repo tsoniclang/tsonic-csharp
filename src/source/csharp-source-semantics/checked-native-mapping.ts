@@ -1,5 +1,6 @@
 import {
   acceptObservation,
+  contextualTargetTypeFactKey,
   deferObservation,
   rejectObservation,
   selectedTargetSignatureFactKey,
@@ -25,6 +26,9 @@ import type { CsharpTargetIterationFact } from "../csharp-facts.js";
 import {
   csharpTargetId,
 } from "./identity.js";
+import {
+  subjectIsSourceCoreStructDeclarationPayload,
+} from "./source-core-struct-markers.js";
 import {
   csharpProviderDiagnostic,
 } from "./diagnostics.js";
@@ -90,17 +94,34 @@ export function mapCsharpNativeCheckedIteration(
 export function mapCsharpContextualTargetType(
   request: ContextualTargetTypeRequest,
   context: ExtensionObservationContext<"type.recordContextualTargetType">,
-  _host: CsharpOperationsProviderHost,
+  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<ContextualTargetTypeResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const existing = context.facts.get(request.expression, contextualTargetTypeFactKey);
+  if (subjectIsSourceCoreStructDeclarationPayload(request.expression, context)) {
+    return acceptObservation<ContextualTargetTypeResult>(
+      existing ?? { type: request.context },
+      [{ message: "C# acknowledged TSTS contextual type for source-core struct schema payload without target metadata; schema payload is source metadata, not emitted code." }],
+    );
+  }
   if (isAttributeSelectorCallbackExpression(request.expression, context)) {
     return deferObservation;
   }
+  const targetType = host.getTargetTypeRefForSubject(request.context, context);
+  if (targetType === undefined) {
+    if (existing !== undefined) {
+      return acceptObservation<ContextualTargetTypeResult>(existing, [{ message: "C# reused existing contextual target type fact for repeated TSTS contextual observation." }]);
+    }
+    return acceptObservation<ContextualTargetTypeResult>({
+      type: request.context,
+    }, [{ message: "C# acknowledged TSTS contextual type without target metadata; no deterministic C# target type was available." }]);
+  }
   return acceptObservation<ContextualTargetTypeResult>({
     type: request.context,
-  }, [{ message: "C# contextual target type recorded from checked TSTS contextual type for post-check target mapping." }]);
+    targetType,
+  }, [{ message: "C# contextual target type recorded from checked TSTS contextual type and deterministic C# target type." }]);
 }
 
 export function mapCsharpCheckedConversion(

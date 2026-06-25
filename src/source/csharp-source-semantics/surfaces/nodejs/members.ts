@@ -15,6 +15,11 @@ import {
   csharpTargetId,
 } from "../../identity.js";
 import {
+  nodeAssertCallTargetMembers,
+  nodeAssertModuleSpecifier,
+  nodeAssertUnsupportedTargetIdentities,
+} from "./assert.js";
+import {
   getNodeBufferLengthTargetMember,
   getNodeBufferTargetMember,
   nodeBufferAllocExportName,
@@ -224,6 +229,7 @@ const nodejsCallTargetMembersByDeclarationIdentity = new Map<string, TargetMembe
   ...nodejsCallTargetMemberEntries(nodeBufferModuleSpecifier, "btoa", "node:buffer.btoa(System.String)", requiredNodeBufferTargetMember(undefined, "node:buffer.btoa(System.String)")),
   ...nodejsCallTargetMemberEntries(nodeBufferModuleSpecifier, "isAscii", "node:buffer.isAscii(Tsonic.CSharp.Node.Buffer)", requiredNodeBufferTargetMember(undefined, "node:buffer.isAscii(Tsonic.CSharp.Node.Buffer)")),
   ...nodejsCallTargetMemberEntries(nodeBufferModuleSpecifier, "isUtf8", "node:buffer.isUtf8(Tsonic.CSharp.Node.Buffer)", requiredNodeBufferTargetMember(undefined, "node:buffer.isUtf8(Tsonic.CSharp.Node.Buffer)")),
+  ...nodejsCallTargetMemberEntriesForModule(nodeAssertModuleSpecifier, nodeAssertCallTargetMembers()),
   ...nodejsCallTargetMemberEntriesForModule(nodePathModuleSpecifier, nodePathCallTargetMembers()),
   ...nodejsCallTargetMemberEntriesForModule(nodeFsModuleSpecifier, nodeFsCallTargetMembers()),
   ...nodejsCallTargetMemberEntriesForModule(nodeCryptoModuleSpecifier, nodeCryptoCallTargetMembers()),
@@ -255,6 +261,7 @@ const nodejsTargetMembersByProviderSymbolIdentity = new Map<string, TargetMember
   ...nodejsProviderMemberSymbolTargetMemberEntries(nodeBufferModuleSpecifier, nodeBufferExportName, nodeBufferSubarrayExportName, nodeBufferSubarraySignatureId, requiredNodeBufferTargetMember(nodeBufferSubarrayMemberId, nodeBufferSubarraySignatureId)),
   ...nodejsProviderMemberSymbolTargetMemberEntries(nodeBufferModuleSpecifier, nodeBufferExportName, nodeBufferToStringExportName, nodeBufferToStringSignatureId, requiredNodeBufferTargetMember(nodeBufferToStringMemberId, nodeBufferToStringSignatureId)),
   [nodejsProviderSymbolIdentityKey({ moduleSpecifier: nodeBufferModuleSpecifier, exportName: nodeBufferExportName, memberName: "length" }), getNodeBufferLengthTargetMember()],
+  ...nodejsProviderSymbolTargetMemberEntriesForModule(nodeAssertModuleSpecifier, nodeAssertCallTargetMembers()),
   ...nodejsProviderSymbolTargetMemberEntriesForModule(nodePathModuleSpecifier, nodePathCallTargetMembers()),
   ...nodejsProviderPropertySymbolTargetMemberEntriesForModule(nodePathModuleSpecifier, nodePathPropertyTargetMembers()),
   ...nodejsProviderSymbolTargetMemberEntriesForModule(nodeFsModuleSpecifier, nodeFsCallTargetMembers()),
@@ -271,6 +278,9 @@ const nodejsTargetMembersByProviderSymbolIdentity = new Map<string, TargetMember
 
 const nodejsUnsupportedTargetIdentitiesByProviderSymbol = new Map(
   [
+    ...nodeAssertUnsupportedTargetIdentities().flatMap((identity) =>
+      nodejsProviderUnsupportedSymbolIdentityEntries(nodeAssertModuleSpecifier, identity)
+    ),
     ...nodeUtilUnsupportedTargetIdentities().flatMap((identity) => [
       [nodejsProviderExportSymbolIdentityKey(nodeUtilModuleSpecifier, identity.exportName, undefined), identity] as const,
       [nodejsProviderExportSymbolIdentityKey(nodeUtilModuleSpecifier, identity.exportName, identity.signatureId), identity] as const,

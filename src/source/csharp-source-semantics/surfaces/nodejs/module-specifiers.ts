@@ -1,4 +1,7 @@
 import {
+  nodeAssertModuleSpecifier,
+} from "./assert.js";
+import {
   nodeBufferModuleSpecifier,
 } from "./buffer.js";
 import {
@@ -24,6 +27,10 @@ import {
 } from "./url.js";
 
 const canonicalBySpecifier = new Map<string, string>([
+  ["assert", nodeAssertModuleSpecifier],
+  [nodeAssertModuleSpecifier, nodeAssertModuleSpecifier],
+  ["assert/strict", nodeAssertModuleSpecifier],
+  ["node:assert/strict", nodeAssertModuleSpecifier],
   ["buffer", nodeBufferModuleSpecifier],
   [nodeBufferModuleSpecifier, nodeBufferModuleSpecifier],
   ["crypto", nodeCryptoModuleSpecifier],

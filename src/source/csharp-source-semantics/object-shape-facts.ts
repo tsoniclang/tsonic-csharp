@@ -9,11 +9,16 @@ import type {
 import {
   csharpObjectShapeFactKey,
 } from "../csharp-facts.js";
+import {
+  runtimeCarrierFactKey,
+} from "@tsonic/tsts";
 import type {
   CsharpObjectShapeFact,
 } from "../csharp-facts.js";
 import {
   asNodeSubject,
+  getNodeField,
+  getNodeList,
   isControlFlowLabelIdentifier,
   isSemanticTypeQueryableValueExpressionNode,
   visitAstReaderNodes,
@@ -32,7 +37,12 @@ import {
 } from "./object-shape-type-literal-facts.js";
 import {
   getRecordedCsharpObjectShapeFactForSubject,
+  subjectHasSourceDeclaredStructRuntimeCarrier,
+  subjectIsSourceCoreStructDeclarationPayload,
 } from "./object-shape-recorded-facts.js";
+import {
+  getCsharpSourceStructDeclarationTargetForSubject,
+} from "./source-declaration-facts.js";
 import type {
   CsharpObjectShapeSemanticsHost,
 } from "./object-shape-types.js";
@@ -56,6 +66,10 @@ export function getCsharpObjectShapeFactForSubject(
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
 ): CsharpObjectShapeFact | undefined {
+  const sourceDeclaredStruct = getCsharpSourceStructDeclarationTargetForSubject(subject, context, host);
+  if (sourceDeclaredStruct !== undefined) {
+    return sourceDeclaredStruct.objectShape;
+  }
   const recorded = getRecordedCsharpObjectShapeFactForSubject(subject, context);
   if (recorded !== undefined) {
     return recorded;
@@ -92,7 +106,69 @@ export function recordCsharpObjectShapeFactsBeforeFinalization(
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       getCsharpObjectShapeFactForSubject(node, context, host);
     });
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+      recordObjectBindingMemberRuntimeCarriers(lifecycleContext, sourceFile, node, context, host);
+    });
   }
+}
+
+function recordObjectBindingMemberRuntimeCarriers(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  sourceFile: SourceFile,
+  node: Node,
+  context: ExtensionObservationContext,
+  host: CsharpObjectShapeSemanticsHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || compiler.ast.kindName(node) !== "KindVariableDeclaration") {
+    return;
+  }
+  const pattern = asNodeSubject(getNodeField(node, "name"));
+  if (pattern === undefined || compiler.ast.kindName(pattern) !== "KindObjectBindingPattern") {
+    return;
+  }
+  const sourceExpression = asNodeSubject(getNodeField(node, "Initializer")) ??
+    asNodeSubject(getNodeField(node, "Type"));
+  const objectShape = getCsharpObjectShapeFactForSubject(sourceExpression, context, host);
+  if (objectShape === undefined) {
+    return;
+  }
+  const evidence = [{ message: "C# runtime carrier propagated from finalized object-shape destructuring member facts." }];
+  for (const bindingElement of getNodeList(getNodeField(pattern, "Elements"))) {
+    const bindingName = asNodeSubject(getNodeField(bindingElement, "name"));
+    if (bindingName === undefined || compiler.ast.kindName(bindingName) !== "KindIdentifier") {
+      continue;
+    }
+    const sourceName = getObjectBindingElementSourceName(compiler.ast, bindingElement);
+    const member = sourceName === undefined
+      ? undefined
+      : objectShape.members.find((candidate) => candidate.sourceName === sourceName);
+    if (member === undefined) {
+      continue;
+    }
+    const fact = { carrier: member.type };
+    lifecycleContext.host.facts.set(bindingElement, runtimeCarrierFactKey, fact, evidence);
+    lifecycleContext.host.facts.set(bindingName, runtimeCarrierFactKey, fact, evidence);
+    const symbol = getSafeObjectShapeSymbol(bindingName, sourceFile, context);
+    if (symbol !== undefined) {
+      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
+    }
+  }
+}
+
+function getObjectBindingElementSourceName(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  bindingElement: Node,
+): string | undefined {
+  const propertyName = asNodeSubject(getNodeField(bindingElement, "PropertyName")) ??
+    asNodeSubject(getNodeField(bindingElement, "name"));
+  if (propertyName === undefined) {
+    return undefined;
+  }
+  const kind = ast.kindName(propertyName);
+  return kind === "KindIdentifier" || kind === "KindStringLiteral"
+    ? ast.text(propertyName)
+    : undefined;
 }
 
 function deriveCsharpObjectShapeFactForCanonicalSubject(
@@ -100,6 +176,12 @@ function deriveCsharpObjectShapeFactForCanonicalSubject(
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
 ): CsharpObjectShapeFact | undefined {
+  if (subjectHasSourceDeclaredStructRuntimeCarrier(subject, context)) {
+    return undefined;
+  }
+  if (subjectIsSourceCoreStructDeclarationPayload(subject, context)) {
+    return undefined;
+  }
   const semanticFact = deriveCsharpObjectShapeFactForSemanticSubject(subject, context, host);
   if (semanticFact !== undefined) {
     return semanticFact;
@@ -113,13 +195,24 @@ function recordCsharpObjectShapeFactForSubject(
   context: ExtensionObservationContext,
   fact: CsharpObjectShapeFact,
 ): void {
+  if (subjectHasSourceDeclaredStructRuntimeCarrier(subject, context) && !isSourceDeclaredStructObjectShapeFact(fact)) {
+    return;
+  }
   const evidence = [{ message: "C# object-shape fact recorded by canonical object-shape resolver." }];
   if (subject !== undefined) {
     context.facts.set(subject, csharpObjectShapeFactKey, fact, evidence);
   }
   for (const semanticSubject of getSemanticSubjects(subject, context)) {
+    if (subjectHasSourceDeclaredStructRuntimeCarrier(semanticSubject, context) && !isSourceDeclaredStructObjectShapeFact(fact)) {
+      continue;
+    }
     context.facts.set(semanticSubject, csharpObjectShapeFactKey, fact, evidence);
   }
+}
+
+function isSourceDeclaredStructObjectShapeFact(fact: CsharpObjectShapeFact): boolean {
+  return fact.targetType.kind === "target-named" &&
+    (fact.targetType as { readonly csharpSourceDeclarationKind?: string }).csharpSourceDeclarationKind === "struct";
 }
 
 function getSemanticSubjects(

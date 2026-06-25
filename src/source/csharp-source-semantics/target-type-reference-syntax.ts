@@ -23,7 +23,6 @@ import {
   isSourceLibraryType,
 } from "./source-library.js";
 import {
-  getAliasedSymbolIfAvailable,
   getSymbolDeclarations,
 } from "./symbol-utils.js";
 import type {
@@ -71,16 +70,13 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return undefined;
   }
   const sourceFile = ast.getSourceFile(node);
-  const typeNameSymbol = checker.getSymbolAtLocation(typeName, { sourceFile });
-  const typeNameResolvedSymbol = getResolvedSymbolIfAvailable(checker, typeName, sourceFile);
-  const type = asType(checker.getTypeFromTypeNode(node));
+  const type = asType(checker.getTypeFromTypeNode(node, { sourceFile }));
+  const typeAliasSymbol = (type as { readonly aliasSymbol?: ExtensionFactSubject } | undefined)?.aliasSymbol;
   const candidateSubjects: readonly (ExtensionFactSubject | undefined)[] = [
     node,
     typeName,
-    typeNameSymbol,
-    typeNameResolvedSymbol,
-    getAliasedSymbolIfAvailable(checker, typeNameSymbol, sourceFile),
-    getAliasedSymbolIfAvailable(checker, typeNameResolvedSymbol, sourceFile),
+    typeAliasSymbol,
+    type?.symbol,
   ];
   for (const candidate of candidateSubjects) {
     if (candidate === undefined) {
@@ -103,7 +99,7 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
   }
   const recordDictionaryType = getRecordDictionaryTypeRefFromTypeReference(
-    [typeNameSymbol, getAliasedSymbolIfAvailable(checker, typeNameSymbol, sourceFile)],
+    [typeAliasSymbol, type?.symbol],
     node,
     context,
     options,
@@ -130,18 +126,6 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return aliasedType;
   }
   return undefined;
-}
-
-function getResolvedSymbolIfAvailable(
-  checker: NonNullable<ExtensionObservationContext["compiler"]>["checker"],
-  node: Node,
-  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
-): ExtensionFactSubject | undefined {
-  try {
-    return checker.getResolvedSymbolOrNil(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
 }
 
 function getRecordDictionaryTypeRefFromTypeReference(

@@ -19,7 +19,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpThrowable?: true;
   readonly csharpTypeofRuntimeKind?: CsharpTypeofRuntimeKind;
   readonly csharpSpecialType?: "string" | "void" | "nullable";
-  readonly csharpSourceDeclarationKind?: "class" | "interface" | "enum";
+  readonly csharpSourceDeclarationKind?: "class" | "interface" | "enum" | "struct";
   readonly csharpValueType?: true;
   readonly csharpArrayLiteralElementType?: TargetTypeRef;
 };
@@ -516,7 +516,8 @@ export function isCsharpValueTypeTargetType(type: TargetTypeRef): boolean {
   const csharpType = type as CsharpTargetNamedTypeRef;
   return csharpType.csharpSpecialType === "nullable" ||
     csharpType.csharpValueType === true ||
-    csharpType.csharpSourceDeclarationKind === "enum";
+    csharpType.csharpSourceDeclarationKind === "enum" ||
+    csharpType.csharpSourceDeclarationKind === "struct";
 }
 
 export function getCsharpArrayLiteralElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
