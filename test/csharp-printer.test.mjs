@@ -79,6 +79,10 @@ test("printer fails closed for invalid or foreign raw syntax nodes", () => {
     /Unsupported C# type syntax reached printer: RawType/,
   );
   assert.throws(
+    () => printCsharpType({ kind: "InvalidType", reason: "missing fact" }),
+    /Invalid C# type reached printer: missing fact/,
+  );
+  assert.throws(
     () => printCsharpCompilationUnit({
       kind: "CompilationUnit",
       usings: [],

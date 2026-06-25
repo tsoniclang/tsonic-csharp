@@ -53,7 +53,7 @@ export function printCsharpStatement(
           : [
               statement.catchClause.variableName === undefined
                 ? "catch"
-                : `catch (${context.printType(statement.catchClause.variableType ?? { kind: "InvalidType", reason: "missing catch variable type" })} ${statement.catchClause.variableName})`,
+                : `catch (${context.printType(statement.catchClause.variableType)} ${statement.catchClause.variableName})`,
               "{",
               ...indentLines(context.printStatements(statement.catchClause.body.statements)),
               "}",

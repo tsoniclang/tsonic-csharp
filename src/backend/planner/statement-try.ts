@@ -87,10 +87,20 @@ function planCatchClause(
         },
       };
     }
+    if (variable.name === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(clause.VariableDeclaration, "Catch variable declarations require a source binding name before C# emission."));
+      return {
+        kind: "CatchClause",
+        body: {
+          kind: "Block",
+          statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
+        },
+      };
+    }
     return {
       kind: "CatchClause",
       variableType,
-      variableName: variable.name === undefined ? undefined : requireCsharpIdentifier(Node_Text(variable.name), diagnostics, "Catch variable"),
+      variableName: requireCsharpIdentifier(Node_Text(variable.name), diagnostics, "Catch variable"),
       body: {
         kind: "Block",
         statements: planBlockStatements(clause.Block, sourceFile, input, diagnostics, state),
