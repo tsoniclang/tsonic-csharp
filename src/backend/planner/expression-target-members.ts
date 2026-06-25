@@ -267,6 +267,9 @@ function getFinalizedTupleElementIndex(
   if (HasSourceKind(input.ast, argumentNode, KindNumericLiteral)) {
     return getNonNegativeSafeIntegerIndex(parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(argumentNode))));
   }
+  if (input.types === undefined) {
+    return undefined;
+  }
   const literalValue = input.types.getLiteralValue(input.semantics.getTypeAtLocation(argumentNode, { sourceFile }));
   return typeof literalValue === "number"
     ? getNonNegativeSafeIntegerIndex(literalValue)

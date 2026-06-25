@@ -13,6 +13,7 @@ import {
   type CsharpTargetNamedTypeRef,
   getCsharpCollectionElementTargetType,
   getCsharpArrayLiteralElementTargetType,
+  getCsharpNullableElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
   isCsharpReadOnlyIndexableCollectionTargetType,
 } from "./target-types.js";
@@ -223,6 +224,10 @@ function targetTypeMatchesExpected(
     return bindTargetTypeParameter(expected.name, actual, typeParameterBindings);
   }
   if (targetTypeRefEquals(expected, actual)) {
+    return true;
+  }
+  const expectedNullableElement = getCsharpNullableElementTargetType(expected);
+  if (expectedNullableElement !== undefined && targetTypeMatchesExpected(expectedNullableElement, actual, typeParameterBindings, options, seenActualTypes)) {
     return true;
   }
   const expectedDelegate = getCsharpDelegateSignature(expected);

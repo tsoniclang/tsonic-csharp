@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { attributeFactKey, providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
+import { attributeFactKey, deferObservation, providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { createCsharpTargetSemanticsExtension } from "../dist/index.js";
+import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
 
 test("C# provider rejects ambiguous target members instead of ranking candidates", () => {
@@ -1257,32 +1257,24 @@ test("target member selection does not treat opaque any or unknown as wildcard t
 });
 
 function getNativeSemanticProvider() {
-  const semanticProviders = [];
-  const target = { id: "csharp" };
-  const extension = createCsharpTargetSemanticsExtension({
-    project: {
-      entryPoint: "index.ts",
-      targets: [target],
+  return createCsharpNativeOperationsProvider({
+    getCsharpTargetBindingByTargetId: () => undefined,
+    getCsharpTargetBindingByMetadataName: () => undefined,
+    getTargetTypeRefForSubject(subject, context) {
+      if (subject !== undefined && typeof subject === "object" && typeof subject.kind === "string") {
+        return subject;
+      }
+      const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
+      return primitive === undefined ? undefined : {
+        kind: "source-primitive",
+        name: primitive.kind,
+      };
     },
-    target,
-    selectedSurfaces: [],
-  });
-  extension.initialize({
-    registerTargetBindingProvider: () => true,
-    registerTargetSemanticProvider(provider) {
-      semanticProviders.push(provider);
-      return true;
-    },
-    registerLifecycleHook: () => true,
-    factResolver: {
-      register: () => true,
-    },
-    facts: {
-      set() {},
+    getCsharpObjectShapeFactForSubject: () => undefined,
+    mapRuntimeCarrier() {
+      return deferObservation;
     },
   });
-  assert.equal(semanticProviders.length, 1);
-  return semanticProviders[0];
 }
 
 function method(id, parameterType, options = {}) {

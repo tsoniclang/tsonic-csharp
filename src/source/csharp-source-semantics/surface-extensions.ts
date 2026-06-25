@@ -36,6 +36,9 @@ import {
   recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/regexp.js";
 import {
+  recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization,
+} from "./surfaces/js/date.js";
+import {
   recordCsharpJsSurfaceIterationFactsBeforeFinalization,
 } from "./surfaces/js/iteration.js";
 
@@ -60,6 +63,7 @@ export function recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(
 ): void {
   if (targetHasSurface(context, "js")) {
     recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
+    recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
     recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
   }
 }

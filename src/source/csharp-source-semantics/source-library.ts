@@ -16,7 +16,7 @@ export interface SourceLibraryMember {
   readonly memberName: string;
 }
 
-export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "RegExp" | "Math" | "Promise" | "Object" | "JSON" | "Console";
+export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "RegExp" | "Date" | "Math" | "Promise" | "Object" | "JSON" | "Console";
 
 export type SourceLibraryTypeName = SourceLibraryDeclaringName | "Record";
 
@@ -80,7 +80,7 @@ function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringName | 
 }
 
 function sourceLibraryConstructorMemberName(name: string): "constructor" | undefined {
-  return name === "RegExpConstructor" ? "constructor" : undefined;
+  return name === "RegExpConstructor" || name === "DateConstructor" ? "constructor" : undefined;
 }
 
 function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclaringName {
@@ -88,6 +88,7 @@ function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclar
     name === "ReadonlyArray" ||
     name === "String" ||
     name === "RegExp" ||
+    name === "Date" ||
     name === "Math" ||
     name === "Promise" ||
     name === "Object" ||

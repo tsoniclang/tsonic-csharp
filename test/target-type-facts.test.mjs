@@ -28,6 +28,10 @@ import {
   csharpJsRegExpTargetType,
   isCsharpJsRegExpRuntimeCarrier,
 } from "../dist/source/csharp-source-semantics/surfaces/js/regexp.js";
+import {
+  csharpJsDateTargetType,
+  isCsharpJsDateRuntimeCarrier,
+} from "../dist/source/csharp-source-semantics/surfaces/js/date.js";
 
 test("throwable carriers require explicit C# target capability metadata", () => {
   assert.equal(isCsharpThrowableCarrier({ kind: "target-named", id: "System.Exception" }), false);
@@ -81,6 +85,11 @@ test("collection literal acceptance requires explicit C# target metadata", () =>
 test("JS RegExp runtime carrier requires explicit JS surface metadata", () => {
   assert.equal(isCsharpJsRegExpRuntimeCarrier({ kind: "target-named", id: "Tsonic.CSharp.Js.RegExp" }), false);
   assert.equal(isCsharpJsRegExpRuntimeCarrier(csharpJsRegExpTargetType()), true);
+});
+
+test("JS Date runtime carrier requires explicit JS surface metadata", () => {
+  assert.equal(isCsharpJsDateRuntimeCarrier({ kind: "target-named", id: "Tsonic.CSharp.Js.Date" }), false);
+  assert.equal(isCsharpJsDateRuntimeCarrier(csharpJsDateTargetType()), true);
 });
 
 test("type parameter constraints render finalized C# type facts", () => {

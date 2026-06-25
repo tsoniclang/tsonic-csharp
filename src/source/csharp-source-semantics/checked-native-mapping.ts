@@ -105,7 +105,7 @@ export function mapCsharpCheckedConversion(
   if (request.targetPlatform !== undefined && request.targetPlatform !== csharpTargetId) {
     return deferObservation;
   }
-  const source = host.getTargetTypeRefForSubject(request.source, context);
+  const source = host.getTargetTypeRefForSubject(request.source, context, expressionEvidenceQuery);
   const target = host.getTargetTypeRefForSubject(request.target, context);
   if (target === undefined) {
     return deferObservation;

@@ -34,6 +34,10 @@ import {
   getRegExpTargetMembers,
   isCsharpJsRegExpRuntimeCarrier,
 } from "./regexp.js";
+import {
+  getDateTargetMembers,
+  isCsharpJsDateRuntimeCarrier,
+} from "./date.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
@@ -91,13 +95,17 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (candidates.length === 0) {
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
+  const prevalidatedMember = getPrevalidatedSourceLibraryCallMember(sourceMember, candidates, request, context, host);
+  if (sourceMember.declaringName === "Date" && prevalidatedMember === undefined) {
+    return undefined;
+  }
   if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceMember.declaringName}.${sourceMember.memberName}' because the selected receiver lacks finalized target runtime facts.`));
   }
-  if (candidates.length > 1 && request.sourceSelectedSignature === undefined) {
+  if (candidates.length > 1 && request.sourceSelectedSignature === undefined && prevalidatedMember === undefined) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE", 9100113, `C# JS surface call '${sourceMember.declaringName}.${sourceMember.memberName}' requires exact selected TypeScript library signature identity because the declaration maps to multiple target members.`));
   }
-  const member = getPrevalidatedSourceLibraryCallMember(sourceMember, candidates) ??
+  const member = prevalidatedMember ??
     host.selectTargetMember(candidates, {
       arguments: request.arguments,
       receiver: request.calleeReceiver,
@@ -114,12 +122,124 @@ export function mapCsharpSourceLibraryCheckedCall(
 function getPrevalidatedSourceLibraryCallMember(
   sourceMember: SourceLibraryMember,
   candidates: readonly TargetMember[],
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
+  const dateMember = getPrevalidatedDateCallMember(sourceMember, candidates, request, context, host);
+  if (dateMember !== undefined) {
+    return dateMember;
+  }
   return sourceMember.declaringName === "Object" &&
     sourceMember.memberName === "assign" &&
     candidates.length === 1
     ? candidates[0]
     : undefined;
+}
+
+function getPrevalidatedDateCallMember(
+  sourceMember: SourceLibraryMember,
+  candidates: readonly TargetMember[],
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetMember | undefined {
+  if (sourceMember.declaringName !== "Date") {
+    return undefined;
+  }
+  if (sourceMember.memberName !== "constructor") {
+    return candidates.length === 1 ? candidates[0] : undefined;
+  }
+  if (!isNewExpression(request.call, context)) {
+    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date.call");
+  }
+  const argumentCount = request.arguments.length;
+  if (argumentCount === 0) {
+    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor()");
+  }
+  if (argumentCount === 1) {
+    const argument = request.arguments[0];
+    if (dateSingleArgumentIsString(argument, context, host)) {
+      return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor(System.String)");
+    }
+    if (dateSingleArgumentIsNumber(argument, context, host)) {
+      return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor(System.Double)");
+    }
+    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor(System.Object)");
+  }
+  return argumentCount <= 7
+    ? candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32)")
+    : undefined;
+}
+
+function dateSingleArgumentIsString(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  if (subject === undefined) {
+    return false;
+  }
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  if (node !== undefined && ast !== undefined && (ast.kindName(node) === "KindStringLiteral" || ast.kindName(node) === "KindNoSubstitutionTemplateLiteral")) {
+    return true;
+  }
+  return targetTypeIsString(context.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType) ||
+    targetTypeIsString(getNonSemanticTargetType(subject, context, host));
+}
+
+function dateSingleArgumentIsNumber(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  if (subject === undefined) {
+    return false;
+  }
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  if (node !== undefined && ast !== undefined && ast.kindName(node) === "KindNumericLiteral") {
+    return true;
+  }
+  const returnType = context.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+    getNonSemanticTargetType(subject, context, host);
+  return isNumericSourcePrimitive(returnType);
+}
+
+function getNonSemanticTargetType(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  if (node !== undefined && ast !== undefined && (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node))) {
+    return undefined;
+  }
+  return host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(subject, context, {
+    ...csharpJsCheckedTypeQuery,
+    allowSemanticTypeQuery: false,
+  }));
+}
+
+function isNumericSourcePrimitive(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "source-primitive" &&
+    (
+      type.name === "float64" ||
+      type.name === "float32" ||
+      type.name === "int32" ||
+      type.name === "uint32" ||
+      type.name === "int16" ||
+      type.name === "uint16" ||
+      type.name === "int8" ||
+      type.name === "uint8"
+    );
+}
+
+function targetTypeIsString(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" &&
+    (type as { readonly csharpSpecialType?: unknown }).csharpSpecialType === "string";
 }
 
 export function recordCsharpSourceLibraryCallFactsBeforeFinalization(
@@ -135,9 +255,15 @@ export function recordCsharpSourceLibraryCallFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
+    const checkedCallNodes: Node[] = [];
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      recordCsharpSourceLibraryCallFact(node, sourceFile, context, host);
+      if (compiler.ast.is.IsCallExpression(node) || compiler.ast.is.IsNewExpression(node)) {
+        checkedCallNodes.push(node);
+      }
     });
+    for (const node of checkedCallNodes.reverse()) {
+      recordCsharpSourceLibraryCallFact(node, sourceFile, context, host);
+    }
   }
 }
 
@@ -150,7 +276,7 @@ function recordCsharpSourceLibraryCallFact(
   const compiler = context.compiler;
   if (
     compiler === undefined ||
-    !compiler.ast.is.IsCallExpression(node) ||
+    (!compiler.ast.is.IsCallExpression(node) && !compiler.ast.is.IsNewExpression(node)) ||
     context.host.facts.get(node, selectedTargetSignatureFactKey) !== undefined
   ) {
     return;
@@ -173,9 +299,6 @@ function recordCsharpSourceLibraryCallFact(
   const calleeReceiverResolvedSymbol = calleeReceiver === undefined
     ? undefined
     : compiler.checker.getResolvedSymbol(calleeReceiver, { sourceFile });
-  const calleeReceiverType = calleeReceiver === undefined
-    ? undefined
-    : compiler.checker.getTypeAtLocation(calleeReceiver, { sourceFile });
   const sourceSelectedDeclarationContainer = getNodeParent(sourceSelectedDeclaration);
   const mapped = mapCsharpSourceLibraryCheckedCall({
     call: node,
@@ -183,7 +306,6 @@ function recordCsharpSourceLibraryCallFact(
     ...(calleeReceiver !== undefined ? { calleeReceiver } : {}),
     ...(calleeReceiverSymbol !== undefined ? { calleeReceiverSymbol } : {}),
     ...(calleeReceiverResolvedSymbol !== undefined ? { calleeReceiverResolvedSymbol } : {}),
-    ...(calleeReceiverType !== undefined ? { calleeReceiverType } : {}),
     ...(getPropertyAccessName(callee, compiler.ast) !== undefined ? { calleePropertyName: getPropertyAccessName(callee, compiler.ast) } : {}),
     arguments: getNodeList(getNodeField(node, "Arguments")),
     ...(sourceSelectedSignature !== undefined ? { sourceSelectedSignature } : {}),
@@ -268,6 +390,10 @@ function sourceLibraryCallReceiverHasClosedFacts(
       return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType));
     case "RegExp":
       return receiverTypes.some((receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType));
+    case "Date":
+      return sourceLibraryDateStaticCallRequiresNoReceiver(sourceMember) ||
+        request.sourceSelectedDeclaration !== undefined ||
+        receiverTypes.some((receiverType) => isCsharpJsDateRuntimeCarrier(receiverType));
     default:
       return true;
   }
@@ -368,7 +494,10 @@ function getTargetTypeRefForOptionalSubject(
 ): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
   return subject === undefined
     ? undefined
-    : host.getTargetTypeRefForSubject(subject, context, csharpJsCheckedTypeQuery);
+    : host.getTargetTypeRefForSubject(subject, context, {
+        ...csharpJsCheckedTypeQuery,
+        allowSemanticTypeQuery: false,
+      });
 }
 
 function sourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMember): boolean {
@@ -381,6 +510,8 @@ function sourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMemb
       return sourceMember.memberName !== "fromCharCode" && sourceMember.memberName !== "fromCodePoint";
     case "RegExp":
       return sourceMember.memberName !== "constructor";
+    case "Date":
+      return !sourceLibraryDateStaticCallRequiresNoReceiver(sourceMember);
     case "Object":
       return sourceMember.memberName === "hasOwnProperty";
     default:
@@ -401,6 +532,11 @@ function getSourceLibraryCallMembers(
       return getStringTargetMembers(sourceMember.memberName);
     case "RegExp":
       return getRegExpTargetMembers(sourceMember.memberName);
+    case "Date":
+      return getDateTargetMembers(
+        sourceMember.memberName,
+        isNewExpression(request.call, context) ? "new" : "call",
+      );
     case "Object":
       return [
         ...getObjectTargetMembers(sourceMember.memberName),
@@ -415,6 +551,25 @@ function getSourceLibraryCallMembers(
     default:
       return [];
   }
+}
+
+function sourceLibraryDateStaticCallRequiresNoReceiver(sourceMember: SourceLibraryMember): boolean {
+  return sourceMember.declaringName === "Date" &&
+    (
+      sourceMember.memberName === "constructor" ||
+      sourceMember.memberName === "now" ||
+      sourceMember.memberName === "parse" ||
+      sourceMember.memberName === "UTC"
+    );
+}
+
+function isNewExpression(
+  subject: unknown,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  const node = asNodeSubject(subject as ExtensionFactSubject | undefined);
+  return context.compiler?.ast.is?.IsNewExpression(node) === true ||
+    (subject as { readonly Kind?: unknown }).Kind === "KindNewExpression";
 }
 
 function getSourceLibraryCallReceiverElementType(

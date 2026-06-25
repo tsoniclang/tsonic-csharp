@@ -251,8 +251,9 @@ test("JS surface maps Array.at and Array.map from selected declarations and clos
   }), fakeContext(facts));
 
   assert.equal(atResult.kind, "accept");
-  assert.equal(atResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.at");
-  assert.equal(atResult.value.selectedSignature.member.returnType.name, "int32");
+  assert.equal(atResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.at:value");
+  assert.equal(atResult.value.selectedSignature.member.returnType.id, "System.Nullable`1");
+  assert.equal(atResult.value.selectedSignature.member.returnType.typeArguments[0].name, "int32");
   assert.equal(mapResult.kind, "accept");
   assert.equal(mapResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.map:1");
   assert.equal(mapResult.value.selectedSignature.member.returnType.id, "System.Collections.Generic.List`1");
@@ -299,6 +300,85 @@ test("JS surface maps Math.PI through the selected JS runtime declaration", () =
   assert.equal(result.kind, "accept");
   assert.equal(result.value.operation.operationId, "Tsonic.CSharp.Js.Math.PI");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.Math.PI");
+});
+
+test("JS surface maps Date static calls through selected JS runtime declarations", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("DateConstructor", "now")), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date.now");
+  assert.equal(result.value.selectedSignature.member.declaringType.id, "Tsonic.CSharp.Js.Date");
+});
+
+test("JS surface maps Date call and construction from selected declaration identity", () => {
+  const call = { Kind: "KindCallExpression" };
+  const construct = { Kind: "KindNewExpression" };
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+  const selectedDeclaration = sourceLibraryMemberDeclaration("DateConstructor", "");
+
+  const callResult = provider.mapCheckedCall(jsCallRequest(call, selectedDeclaration), fakeContext(facts));
+  const constructResult = provider.mapCheckedCall(jsCallRequest(construct, selectedDeclaration, {
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+
+  assert.equal(callResult.kind, "accept");
+  assert.equal(callResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date.call");
+  assert.equal(callResult.value.selectedSignature.member.kind, "method");
+  assert.equal(constructResult.kind, "accept");
+  assert.equal(constructResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date..ctor()");
+  assert.equal(constructResult.value.selectedSignature.member.kind, "constructor");
+});
+
+test("JS surface maps unresolved one-argument Date construction to closed Date value carrier", () => {
+  const construct = { Kind: "KindNewExpression" };
+  const value = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(construct, sourceLibraryMemberDeclaration("DateConstructor", ""), {
+    arguments: [value],
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date..ctor(System.Object)");
+  assert.equal(result.value.selectedSignature.member.parameters[0].type.id, "System.Object");
+});
+
+test("JS surface maps Date instance methods only with closed Date receiver facts", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, dateType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Date", "toISOString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date.toISOString");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
+});
+
+test("JS surface maps selected Date instance methods from selected declaration identity", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Date", "toISOString"), {
+    calleeReceiver: {},
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date.toISOString");
 });
 
 test("JS surface maps zero-argument Math.max to JS runtime semantics", () => {
@@ -1893,6 +1973,15 @@ function regexpType() {
     id: "Tsonic.CSharp.Js.RegExp",
     csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "RegExp" },
     csharpJsSurfaceKind: "regexp",
+  };
+}
+
+function dateType() {
+  return {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.Date",
+    csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "Date" },
+    csharpJsSurfaceKind: "date",
   };
 }
 

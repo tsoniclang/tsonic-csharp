@@ -134,14 +134,16 @@ export function resolveTargetTypeRefForSubjectCore(
   if (sourceDeclarationTarget !== undefined) {
     return sourceDeclarationTarget;
   }
-  const callableExpressionTarget = getCallableExpressionTargetTypeRefForSubject(
-    subject,
-    context,
-    options,
-    host,
-    recursiveTargetTypeResolver,
-    resolveTargetTypeRefForType,
-  );
+  const callableExpressionTarget = options.allowSemanticTypeQuery === false
+    ? undefined
+    : getCallableExpressionTargetTypeRefForSubject(
+        subject,
+        context,
+        options,
+        host,
+        recursiveTargetTypeResolver,
+        resolveTargetTypeRefForType,
+      );
   if (callableExpressionTarget !== undefined) {
     return callableExpressionTarget;
   }

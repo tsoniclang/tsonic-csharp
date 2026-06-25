@@ -40,6 +40,9 @@ import {
   getRegExpPropertyTargetMember,
 } from "./regexp.js";
 import {
+  isCsharpJsDateRuntimeCarrier,
+} from "./date.js";
+import {
   rejectUnmappedCsharpJsSourceLibraryPropertyAccess,
   rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
 } from "./unsupported.js";
@@ -90,6 +93,9 @@ function recordCsharpSourceLibraryPropertyFact(
   if (compiler === undefined || !compiler.ast.is.IsPropertyAccessExpression(node)) {
     return;
   }
+  if (isCallCalleePropertyAccess(node, compiler.ast)) {
+    return;
+  }
   const receiver = asNodeSubject(getNodeField(node, "Expression"));
   const name = asNodeSubject(getNodeField(node, "name"));
   if (receiver === undefined || name === undefined) {
@@ -124,6 +130,16 @@ function recordCsharpSourceLibraryPropertyFact(
     mapped.value.operation,
     mapped.evidence ?? [{ message: "C# JS surface selected target property operation recorded from checked TypeScript library property before finalization." }],
   );
+}
+
+function isCallCalleePropertyAccess(
+  node: Node,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+): boolean {
+  const parent = ast.parent(node);
+  return parent !== undefined &&
+    ast.is.IsCallExpression(parent) &&
+    asNodeSubject(getNodeField(parent, "Expression")) === node;
 }
 
 function firstSymbolDeclaration(symbol: unknown): Node | undefined {
@@ -189,6 +205,9 @@ function sourceLibraryPropertyReceiverHasClosedFacts(
   }
   if (sourceMember.declaringName === "RegExp") {
     return isCsharpJsRegExpRuntimeCarrier(receiverType);
+  }
+  if (sourceMember.declaringName === "Date") {
+    return isCsharpJsDateRuntimeCarrier(receiverType);
   }
   return false;
 }

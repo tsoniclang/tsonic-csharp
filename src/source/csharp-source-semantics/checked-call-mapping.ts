@@ -34,7 +34,6 @@ import {
 } from "../../providers/dotnet/native-array.js";
 import {
   findTargetBinding,
-  resolveTargetBindingForReference,
 } from "./provider-bindings.js";
 import {
   instantiateSelectedTargetMember,
@@ -122,7 +121,7 @@ export function mapCsharpCheckedCall(
     request.calleeReceiverAliasedSymbol,
     request.calleeReceiverResolvedSymbol,
     request.calleeReceiverSymbol,
-  ]) ?? resolveTargetBindingForReference(request.callee, context);
+  ]);
   const nativeArrayCreate = mapDotnetNativeArrayCreateCall(request, context, extensionId, host, virtualDeclaration);
   if (nativeArrayCreate !== undefined) {
     return nativeArrayCreate;
@@ -327,6 +326,6 @@ function isProviderStaticContainerReceiver(
     request.calleeReceiverAliasedSymbol,
     request.calleeReceiverResolvedSymbol,
     request.calleeReceiverSymbol,
-  ]) ?? resolveTargetBindingForReference(request.calleeReceiver, context);
+  ]);
   return receiverBinding?.target === targetBinding.target && receiverBinding.id === targetBinding.id;
 }
