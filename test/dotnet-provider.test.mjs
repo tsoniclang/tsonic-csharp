@@ -1119,7 +1119,7 @@ test(".NET target binding provider uses configured provider identity for diagnos
   assert.equal(resolution.providerModuleId, "@tsonic/dotnet/System.Text.js");
   assert.match(
     resolution.virtualFileName,
-    /^tsts-provider:\/\/acme\.dotnet\.fixture-provider\/%40tsonic%2Fdotnet%2FSystem\.Text\.js\.d\.ts$/u,
+    /^tsts-provider:\/\/acme\.dotnet\.fixture-provider\/%40tsonic%2Fdotnet%2FSystem\.Text\.js\/broad\.d\.ts$/u,
   );
 });
 

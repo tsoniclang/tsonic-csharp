@@ -93,20 +93,22 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (ownership.kind !== "owned") {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_UNOWNED", 9200002, `.NET provider does not own '${specifier}'.`);
       }
+      const resolutionContext = dotnetProviderResolutionContext(context);
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: providerVirtualDeclarationFileName(identity.id, specifier),
+        virtualFileName: providerVirtualDeclarationFileName(identity.id, specifier, resolutionContext),
         providerModuleId: specifier,
         packageName: dotnetPackageName,
-        ...(context.broadImport === true ? { broadImport: true as const } : {}),
-        ...(context.requestedExports !== undefined ? { requestedExports: context.requestedExports } : {}),
+        ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
+        ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
       };
     },
     getDeclarationModel(resolution) {
       const result = options.provider.getModule(resolution.moduleSpecifier, providerContext({
-        broadImport: true,
+        ...(resolution.broadImport === true ? { broadImport: true as const } : {}),
+        ...(resolution.requestedExports !== undefined ? { requestedExports: resolution.requestedExports } : {}),
       }, options));
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
@@ -127,8 +129,22 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
   };
 }
 
-function providerVirtualDeclarationFileName(providerId: string, specifier: string): string {
-  return `tsts-provider://${providerId}/${encodeURIComponent(specifier)}.d.ts`;
+function dotnetProviderResolutionContext(context: ProviderModuleContext): Pick<ProviderModuleContext, "broadImport" | "requestedExports"> {
+  if (context.broadImport === true || context.requestedExports === undefined || context.requestedExports.length === 0) {
+    return { broadImport: true as const };
+  }
+  return { requestedExports: [...context.requestedExports].sort() };
+}
+
+function providerVirtualDeclarationFileName(
+  providerId: string,
+  specifier: string,
+  context: Pick<ProviderModuleContext, "broadImport" | "requestedExports">,
+): string {
+  const sliceKey = context.broadImport === true
+    ? "broad"
+    : `slice-${encodeURIComponent(context.requestedExports?.join(",") ?? "")}`;
+  return `tsts-provider://${providerId}/${encodeURIComponent(specifier)}/${sliceKey}.d.ts`;
 }
 
 function providerContext(

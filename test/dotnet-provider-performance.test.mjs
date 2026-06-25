@@ -106,6 +106,47 @@ test(".NET target binding provider records virtual declaration model metrics", (
   assert.equal(snapshot.virtualDeclarationRenderMs >= 0, true);
 });
 
+test(".NET target binding provider preserves requested export slices for virtual declaration models", () => {
+  const observedContexts = [];
+  const provider = {
+    identity: {
+      id: "test.dotnet-provider-slicing",
+      version: "1.0.0",
+      target: "csharp",
+      displayName: "Slicing test provider",
+    },
+    ownsModule() {
+      return { kind: "owned" };
+    },
+    getModule(_specifier, context) {
+      observedContexts.push(context);
+      return {
+        moduleSpecifier: "@tsonic/dotnet/Example.js",
+        namespaceName: "Example",
+        exports: [{
+          kind: "type",
+          typeKind: "class",
+          sourceName: "Widget",
+          namespaceName: "Example",
+          targetId: "Example.Assembly::Example.Widget",
+          metadataName: "Example.Widget",
+          members: [],
+        }],
+      };
+    },
+  };
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Example.js", { requestedExports: ["Widget"] });
+  assert.equal(resolution.kind, "virtual");
+
+  const declarationModel = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
+
+  assert.equal(observedContexts.length, 1);
+  assert.deepEqual(observedContexts[0].requestedExports, ["Widget"]);
+  assert.equal(observedContexts[0].broadImport, undefined);
+});
+
 test(".NET reflection provider broker reuses module cache across provider instances", () => {
   const broker = createDotnetReflectionProviderBroker();
   const firstTelemetry = createDotnetProviderTelemetry();
