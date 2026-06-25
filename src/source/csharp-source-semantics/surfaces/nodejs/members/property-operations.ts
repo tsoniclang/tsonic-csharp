@@ -7,6 +7,7 @@ import type {
 } from "../../../../csharp-facts.js";
 import {
   csharpTargetOperationFromMember,
+  targetOperation,
   targetOperationFromMember,
 } from "../../../operations.js";
 import {
@@ -70,7 +71,11 @@ export function getCsharpNodejsPropertyOperation(
   return member === undefined
     ? undefined
     : {
-        operation: targetOperationFromMember(member),
+        operation: member.returnType === undefined
+          ? targetOperationFromMember(member)
+          : targetOperation(member.id, member.kind === "field" || member.kind === "event" ? "property" : member.kind, member.targetName, {
+              resultType: member.returnType,
+            }),
         csharpOperation: csharpTargetOperationFromMember(member),
       };
 }

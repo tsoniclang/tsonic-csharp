@@ -14,16 +14,28 @@ import {
   targetParameter,
   targetProperty,
 } from "../js/source-library.js";
+import {
+  csharpJsDateTargetType,
+} from "../js/date.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
 const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
 const voidProviderType = { kind: "void" } satisfies ProviderTypeExpression;
+const dateProviderType = {
+  kind: "target-named",
+  target: "csharp",
+  id: "Tsonic.CSharp.Js.Date",
+  displayName: "Date",
+  sourceShape: { kind: "provider-ref", name: "Date" },
+} satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
 const boolTargetType = csharpSourcePrimitiveTargetType("bool");
 const intTargetType = csharpSourcePrimitiveTargetType("int32");
 const longTargetType = csharpSourcePrimitiveTargetType("int64");
+const doubleTargetType = csharpSourcePrimitiveTargetType("float64");
 const voidTargetType = csharpVoidTargetType();
+const dateTargetType = csharpJsDateTargetType();
 const fsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.fs", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "fs"));
 const statsProviderType = { kind: "provider-ref", name: "Stats" } satisfies ProviderTypeExpression;
 const statsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.Stats", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "Stats"));
@@ -49,6 +61,14 @@ export const nodeFsExistsSyncSignatureId = "node:fs.existsSync(System.String)";
 export const nodeFsStatSyncExportName = "statSync";
 export const nodeFsStatSyncSignatureId = "node:fs.statSync(System.String)";
 export const nodeFsStatsSizeMemberId = "node:fs.Stats.size";
+export const nodeFsStatsAtimeMemberId = "node:fs.Stats.atime";
+export const nodeFsStatsAtimeMsMemberId = "node:fs.Stats.atimeMs";
+export const nodeFsStatsMtimeMemberId = "node:fs.Stats.mtime";
+export const nodeFsStatsMtimeMsMemberId = "node:fs.Stats.mtimeMs";
+export const nodeFsStatsCtimeMemberId = "node:fs.Stats.ctime";
+export const nodeFsStatsCtimeMsMemberId = "node:fs.Stats.ctimeMs";
+export const nodeFsStatsBirthtimeMemberId = "node:fs.Stats.birthtime";
+export const nodeFsStatsBirthtimeMsMemberId = "node:fs.Stats.birthtimeMs";
 export const nodeFsStatsIsFileMemberId = "node:fs.Stats.isFile";
 export const nodeFsStatsIsFileSignatureId = "node:fs.Stats.isFile()";
 export const nodeFsStatsIsDirectoryMemberId = "node:fs.Stats.isDirectory";
@@ -210,6 +230,7 @@ function nodeFsStatsExportDeclaration(): ProviderExportDeclaration {
         readonly: true,
         type: numberProviderType,
       },
+      ...nodeFsStatsTimestampProviderMembers(),
       {
         id: nodeFsStatsIsFileMemberId,
         name: "isFile",
@@ -252,8 +273,59 @@ function nodeFsUnsupportedCallDeclarations(): readonly ProviderExportDeclaration
   ];
 }
 
+function nodeFsStatsTimestampProviderMembers(): readonly {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: "property";
+  readonly readonly: true;
+  readonly type: ProviderTypeExpression;
+}[] {
+  return [
+    nodeFsStatsTimestampProviderMember("atime", nodeFsStatsAtimeMemberId, dateProviderType),
+    nodeFsStatsTimestampProviderMember("atimeMs", nodeFsStatsAtimeMsMemberId, numberProviderType),
+    nodeFsStatsTimestampProviderMember("mtime", nodeFsStatsMtimeMemberId, dateProviderType),
+    nodeFsStatsTimestampProviderMember("mtimeMs", nodeFsStatsMtimeMsMemberId, numberProviderType),
+    nodeFsStatsTimestampProviderMember("ctime", nodeFsStatsCtimeMemberId, dateProviderType),
+    nodeFsStatsTimestampProviderMember("ctimeMs", nodeFsStatsCtimeMsMemberId, numberProviderType),
+    nodeFsStatsTimestampProviderMember("birthtime", nodeFsStatsBirthtimeMemberId, dateProviderType),
+    nodeFsStatsTimestampProviderMember("birthtimeMs", nodeFsStatsBirthtimeMsMemberId, numberProviderType),
+  ];
+}
+
+function nodeFsStatsTimestampProviderMember(
+  name: string,
+  id: string,
+  type: ProviderTypeExpression,
+): {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: "property";
+  readonly readonly: true;
+  readonly type: ProviderTypeExpression;
+} {
+  return {
+    id,
+    name,
+    kind: "property",
+    readonly: true,
+    type,
+  };
+}
+
 function getNodeFsStatsSizeTargetMember(): TargetMember {
   return targetProperty("Tsonic.CSharp.Node.Stats.size", "size", "size", longTargetType, {
+    declaringType: statsTargetType,
+  });
+}
+
+function getNodeFsStatsDateTargetMember(sourceName: string): TargetMember {
+  return targetProperty(`Tsonic.CSharp.Node.Stats.${sourceName}`, sourceName, sourceName, dateTargetType, {
+    declaringType: statsTargetType,
+  });
+}
+
+function getNodeFsStatsUnixMillisecondsTargetMember(sourceName: string): TargetMember {
+  return targetProperty(`Tsonic.CSharp.Node.Stats.${sourceName}`, sourceName, sourceName, doubleTargetType, {
     declaringType: statsTargetType,
   });
 }
@@ -308,6 +380,14 @@ function fsCall(
 
 const nodeFsTargetMembersByIdentity = new Map<string, TargetMember>([
   [nodeFsStatsSizeMemberId, getNodeFsStatsSizeTargetMember()],
+  [nodeFsStatsAtimeMemberId, getNodeFsStatsDateTargetMember("atime")],
+  [nodeFsStatsAtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("atimeMs")],
+  [nodeFsStatsMtimeMemberId, getNodeFsStatsDateTargetMember("mtime")],
+  [nodeFsStatsMtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("mtimeMs")],
+  [nodeFsStatsCtimeMemberId, getNodeFsStatsDateTargetMember("ctime")],
+  [nodeFsStatsCtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("ctimeMs")],
+  [nodeFsStatsBirthtimeMemberId, getNodeFsStatsDateTargetMember("birthtime")],
+  [nodeFsStatsBirthtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("birthtimeMs")],
   [nodeFsStatsIsFileMemberId, getNodeFsStatsIsFileTargetMember()],
   [nodeFsStatsIsFileSignatureId, getNodeFsStatsIsFileTargetMember()],
   [nodeFsStatsIsDirectoryMemberId, getNodeFsStatsIsDirectoryTargetMember()],
