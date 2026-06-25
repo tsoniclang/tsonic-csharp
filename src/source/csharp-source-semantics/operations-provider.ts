@@ -3,6 +3,7 @@ import {
   deferObservation,
 } from "@tsonic/tsts";
 import type {
+  CheckedCallMappingRequest,
   CheckedElementAccessMappingRequest,
   CheckedPropertyAccessMappingRequest,
   ExtensionFactSubject,
@@ -128,13 +129,15 @@ export function createCsharpTargetOperationsProvider(
       );
     },
     mapCheckedCall(request, context) {
-      return useObservationOrWhenDeferred(
-        nodejsSurface?.mapCheckedCall(request, context) ?? deferObservation,
-        () => useObservationOrWhenDeferred(
-          jsSurface?.mapCheckedCall(request, context) ?? deferObservation,
-          () => mapCsharpCheckedCall(request, context, identity.id, host),
-        ),
-      );
+      const nodejsObservation = nodejsSurface?.mapCheckedCall(request, context) ?? deferObservation;
+      if (nodejsObservation.kind !== "defer") {
+        return nodejsObservation;
+      }
+      const jsObservation = jsSurface?.mapCheckedCall(request, context) ?? deferObservation;
+      if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedCall(request, context))) {
+        return jsObservation;
+      }
+      return mapCsharpCheckedCall(request, context, identity.id, host);
     },
     mapCheckedPropertyAccess(request, context) {
       const nodejsObservation = nodejsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation;
@@ -214,6 +217,13 @@ export function createCsharpJsSurfaceHost(
     getCsharpObjectShapeFactForSubject: host.getCsharpObjectShapeFactForSubject,
     csharpProviderDiagnostic,
   };
+}
+
+function jsSurfaceOwnsCheckedCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  return getSourceLibraryMember(request.sourceSelectedDeclaration, context) !== undefined;
 }
 
 function jsSurfaceOwnsCheckedPropertyAccess(

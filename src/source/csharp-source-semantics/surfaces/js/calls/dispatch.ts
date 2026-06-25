@@ -64,8 +64,12 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (consoleCall !== undefined) {
     return consoleCall;
   }
+  const canWaitForFinalizedFacts = sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase);
   const candidates = getSourceLibraryCallMembers(sourceMember, request, context, host);
   if (candidates.length === 0) {
+    if (canWaitForFinalizedFacts) {
+      return undefined;
+    }
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
   const prevalidatedMember = getPrevalidatedSourceLibraryCallMember(sourceMember, candidates, request, context, host);
@@ -78,7 +82,6 @@ export function mapCsharpSourceLibraryCheckedCall(
     }
     return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
-  const canWaitForFinalizedFacts = sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase);
   const jsonStringifyMayNeedFinalFacts = options.phase !== "finalization" &&
     sourceMember.declaringName === "JSON" &&
     sourceMember.memberName === "stringify";
@@ -113,6 +116,9 @@ function sourceLibraryCallCanWaitForFinalizedFacts(
     return (phase === "checking" || (phase === undefined && compilerContextCanRunLifecycleFinalization(context))) &&
       sourceLibraryObjectCallCanWaitForFinalizedFacts(sourceMember);
   }
+  if (sourceLibraryCollectionOrPrimitiveCallCanWaitForFinalizedFacts(sourceMember)) {
+    return phase !== "finalization" && compilerContextCanRunLifecycleFinalization(context);
+  }
   if (phase === "finalization" || sourceMember.declaringName !== "JSON" || sourceMember.memberName !== "stringify") {
     return false;
   }
@@ -137,7 +143,18 @@ function sourceLibraryObjectCallCanWaitForFinalizedFacts(
     sourceMember.memberName === "values" ||
     sourceMember.memberName === "entries" ||
     sourceMember.memberName === "hasOwn" ||
-    sourceMember.memberName === "assign";
+    sourceMember.memberName === "assign" ||
+    sourceMember.memberName === "toString";
+}
+
+function sourceLibraryCollectionOrPrimitiveCallCanWaitForFinalizedFacts(
+  sourceMember: SourceLibraryMember,
+): boolean {
+  return sourceMember.declaringName === "Boolean" ||
+    sourceMember.declaringName === "Map" ||
+    sourceMember.declaringName === "ReadonlyMap" ||
+    sourceMember.declaringName === "Set" ||
+    sourceMember.declaringName === "ReadonlySet";
 }
 
 function targetTypeIsOpaqueAny(type: TargetTypeRef): boolean {

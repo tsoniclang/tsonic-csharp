@@ -1,12 +1,16 @@
 import {
   acceptObservation,
   deferObservation,
+  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
+  ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
+  Node,
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
+  SourceFile,
   TargetMember,
   TargetParameter,
   TargetTypeRef,
@@ -31,6 +35,15 @@ import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
 } from "./source-library.js";
+import {
+  visitAstReaderNodes,
+} from "../../ast-utils.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "../../runtime-carriers.js";
+import {
+  getSymbolForDeclarationLookup,
+} from "../../symbol-utils.js";
 
 const csharpJsMapTypeId = "Tsonic.CSharp.Js.Map`2";
 const csharpJsSetTypeId = "Tsonic.CSharp.Js.Set`1";
@@ -128,6 +141,65 @@ export function getCsharpJsCollectionRuntimeCarrierForType(
       : csharpJsSetTargetType(elementType);
   }
   return undefined;
+}
+
+export function recordCsharpJsCollectionRuntimeCarrierFactsBeforeFinalization(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  host: CsharpJsSurfaceHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+      const carrier = getCsharpJsCollectionRuntimeCarrierForNode(node, sourceFile, context, host);
+      if (carrier === undefined) {
+        return;
+      }
+      recordCollectionRuntimeCarrierFact(node, carrier, sourceFile, context);
+    });
+  }
+}
+
+function getCsharpJsCollectionRuntimeCarrierForNode(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  const type = context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
+  return getCsharpJsCollectionRuntimeCarrierForType(type, context, host);
+}
+
+function recordCollectionRuntimeCarrierFact(
+  node: Node,
+  carrier: TargetTypeRef,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+): void {
+  const fact = { carrier };
+  const evidence = [{ message: "C# JS surface collection runtime carrier recorded from checked TypeScript Map/Set library type." }];
+  setCollectionRuntimeCarrierFactIfAbsent(node, fact, evidence, context);
+  const symbol = context.compiler === undefined
+    ? undefined
+    : getSymbolForDeclarationLookup(context.compiler.ast, context.compiler.checker, node, sourceFile);
+  setCollectionRuntimeCarrierFactIfAbsent(symbol, fact, evidence, context);
+}
+
+function setCollectionRuntimeCarrierFactIfAbsent(
+  subject: ExtensionFactSubject | undefined,
+  fact: { readonly carrier: TargetTypeRef },
+  evidence: readonly { readonly message: string }[],
+  context: ExtensionObservationContext,
+): void {
+  if (subject !== undefined && context.host.facts.get(subject, runtimeCarrierFactKey) === undefined) {
+    context.host.facts.set(subject, runtimeCarrierFactKey, fact, evidence);
+  }
 }
 
 export function getCollectionTargetMembers(

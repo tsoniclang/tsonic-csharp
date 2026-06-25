@@ -73,6 +73,7 @@ export function getSourceLibraryCallMembers(
     case "Object":
       return [
         ...getObjectTargetMembers(sourceMember.memberName),
+        ...getObjectPrimitiveReceiverCallMembers(request, context, host, sourceMember),
         ...getObjectRecordDictionaryCallMembers(sourceMember, request, context, host),
       ];
     case "Array":
@@ -89,11 +90,30 @@ export function getSourceLibraryCallMembers(
       return getCollectionTargetMembers(
         sourceMember,
         getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
-        getSourceLibraryCallResultTargetType(request, context, host),
+        sourceMember.memberName === "constructor"
+          ? getSourceLibraryCallResultTargetType(request, context, host)
+          : undefined,
       );
     default:
       return [];
   }
+}
+
+function getObjectPrimitiveReceiverCallMembers(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+  sourceMember: SourceLibraryMember,
+): readonly TargetMember[] {
+  if (sourceMember.memberName !== "toString") {
+    return [];
+  }
+  const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
+  return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType))
+    ? getStringTargetMembers(sourceMember.memberName)
+    : receiverTypes.some((receiverType) => receiverType?.kind === "source-primitive" && receiverType.name === "bool")
+      ? getBooleanTargetMembers(sourceMember.memberName)
+      : [];
 }
 
 function getObjectRecordDictionaryCallMembers(
