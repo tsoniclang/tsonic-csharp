@@ -2397,7 +2397,11 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
 
   const binding = dotnetExportToTargetBinding(declaration);
 
-  assert.equal(binding.typeParameters[0].constraints[0].kind, "reference-type");
+  assert.deepEqual(binding.typeParameters[0].constraints.map((constraint) => constraint.kind), [
+    "reference-type",
+    "unsupported",
+  ]);
+  assert.equal(binding.typeParameters[0].constraints[1].id, testTargetId("ProviderModelFixtures.PointerContract"));
   assert.deepEqual(binding.typeParameters[0].unsupportedConstraints, declaration.typeParameters[0].unsupportedConstraints);
   assert.equal(binding.implementedContracts[0].kind, "implements");
   assert.deepEqual(binding.unsupportedImplementedContracts, declaration.unsupportedImplementedContracts);

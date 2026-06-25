@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   TstsProviderContractVersion,
   createCompilerSessionFromFiles,
@@ -14,8 +16,10 @@ import {
   csharpObservedTargetAssignabilityFactKey,
   csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
+import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
 const searchValuesModule = "@example/csharp/search-values.js";
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 test("C# post-check target assignability reports target invalidity without changing the TS relation", () => {
   const sourceText = `
@@ -131,6 +135,27 @@ test("C# target generic constraints diagnose unproven provider type arguments af
   ) ?? [];
   assert.equal(targetDiagnostics.length, 1);
   assert.match(targetDiagnostics[0].message, /requires a finalized target type fact/u);
+});
+
+test("C# target generic constraints diagnose reflected notnull violations through TSTS type references", () => {
+  const sourceText = `
+    import type { int32 } from "@tsonic/core/types.js";
+    import type { NotNullTarget } from "@tsonic/dotnet/ProviderConstraintFixtures.js";
+
+    type Good = NotNullTarget<int32>;
+    type Bad = NotNullTarget<null>;
+  `;
+  const session = createDotnetConstraintSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 9100145), true, formatDiagnostics(diagnostics));
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_CONSTRAINT_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 1);
+  assert.match(targetDiagnostics[0].message, /notnull|target type fact/u);
 });
 
 test("C# post-check target assignability fails closed on TypeScript any boundaries without changing the TS relation", () => {
@@ -357,6 +382,49 @@ function createSearchValuesSession(sourceText) {
   });
 }
 
+function createDotnetConstraintSession(sourceText) {
+  const constraintAssembly = buildConstraintFixture();
+  const target = {
+    id: "csharp",
+    options: {
+      references: {
+        assemblies: [{ include: constraintAssembly }],
+      },
+    },
+  };
+  return createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", JSON.stringify({
+        name: "@tsonic/core",
+        version: "1.0.0",
+        type: "module",
+        exports: {
+          "./types.js": {
+            types: "./types.d.ts",
+            default: "./types.js",
+          },
+        },
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strictNullChecks: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createTsonicCoreSourceExtension(),
+        createCsharpSourceSemanticsExtension(csharpProviderContext(target)),
+        createCsharpTargetSemanticsExtension(csharpProviderContext(target)),
+      ],
+    },
+  });
+}
+
 function createNativeSession(sourceText) {
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -500,8 +568,7 @@ function createProviderBackedSearchValuesExtension() {
   };
 }
 
-function csharpProviderContext() {
-  const target = { id: "csharp" };
+function csharpProviderContext(target = { id: "csharp" }) {
   return {
     project: {
       entryPoint: "index.ts",
@@ -510,4 +577,17 @@ function csharpProviderContext() {
     target,
     selectedSurfaces: [],
   };
+}
+
+function buildConstraintFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/constraints/ConstraintProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/obj/");
+  return buildDotnetFixture({
+    project,
+    outputDirectory,
+    intermediateDirectory,
+    outputAssemblyName: "ConstraintProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/constraints"),
+  });
 }

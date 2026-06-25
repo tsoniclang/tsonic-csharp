@@ -607,6 +607,12 @@ function targetConstraintEquals(left: TargetConstraint | undefined, right: Targe
         && left.target === right.target
         && left.name === right.name
         && Object.is(left.value, right.value);
+    case "unsupported":
+      return right.kind === "unsupported"
+        && left.target === right.target
+        && left.id === right.id
+        && left.reason === right.reason
+        && Object.is(left.value, right.value);
     case "value-type":
     case "reference-type":
     case "constructible":

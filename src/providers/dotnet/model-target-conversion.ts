@@ -156,15 +156,27 @@ function dotnetTypeKindToTargetBindingKind(kind: DotnetTypeKind): TargetBindingF
 }
 
 function dotnetTypeParameterToTargetTypeParameter(parameter: DotnetTypeParameterDeclaration): DotnetTargetTypeParameter {
+  const unsupportedConstraints = parameter.unsupportedConstraints?.map(dotnetUnsupportedConstraintToTargetConstraint) ?? [];
+  const supportedConstraints = parameter.constraints?.map(dotnetConstraintToTargetConstraint) ?? [];
   return {
     name: parameter.name,
-    ...(parameter.constraints !== undefined && parameter.constraints.length > 0
-      ? { constraints: parameter.constraints.map(dotnetConstraintToTargetConstraint) }
+    ...(supportedConstraints.length > 0 || unsupportedConstraints.length > 0
+      ? { constraints: [...supportedConstraints, ...unsupportedConstraints] }
       : {}),
     ...(parameter.unsupportedConstraints !== undefined && parameter.unsupportedConstraints.length > 0
       ? { unsupportedConstraints: parameter.unsupportedConstraints }
       : {}),
     ...(parameter.variance !== undefined ? { variance: parameter.variance } : {}),
+  };
+}
+
+function dotnetUnsupportedConstraintToTargetConstraint(constraint: DotnetUnsupportedConstraintDeclaration): TargetConstraint {
+  return {
+    kind: "unsupported",
+    target: "csharp",
+    id: constraint.targetId,
+    reason: constraint.reason,
+    value: constraint.metadataName,
   };
 }
 

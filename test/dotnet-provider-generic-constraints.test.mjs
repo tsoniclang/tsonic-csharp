@@ -129,6 +129,9 @@ function targetConstraintKindOrName(constraint) {
   if (constraint.kind === "target-specific") {
     return `${constraint.kind}:${constraint.target}:${constraint.name}`;
   }
+  if (constraint.kind === "unsupported") {
+    return `${constraint.kind}:${constraint.target}:${stripAssemblyQualifiers(constraint.id).split(".").at(-1)}`;
+  }
   if (constraint.kind !== "implements") {
     return constraint.kind;
   }

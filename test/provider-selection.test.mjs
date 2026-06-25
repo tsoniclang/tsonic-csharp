@@ -293,6 +293,19 @@ test("C# provider rejects generic constraints without finalized target proof", (
   }, fakeObservationContext({}));
   assert.equal(unsupportedConstraint.kind, "reject");
 
+  const unsupportedTargetConstraint = provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: {
+      kind: "unsupported",
+      target: "csharp",
+      id: "Example.PointerContract",
+      reason: "Constraint uses a provider type-ref that is not representable.",
+    },
+  }, fakeObservationContext({}));
+  assert.equal(unsupportedTargetConstraint.kind, "reject");
+  assert.match(unsupportedTargetConstraint.diagnostic.message, /not supported by the C# target provider/u);
+
   const nullableValue = provider.validateTargetConstraint({
     target: "csharp",
     source: csharpNullableValueTargetType({ kind: "source-primitive", name: "int32" }),

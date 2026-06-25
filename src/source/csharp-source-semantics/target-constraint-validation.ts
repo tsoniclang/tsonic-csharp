@@ -99,6 +99,11 @@ function validateCsharpTargetConstraintForType(
         `C# target-specific generic constraint '${constraint.target}:${constraint.name}' is not supported by the C# target provider.`,
         constraintEvidence(source, constraint),
       );
+    case "unsupported":
+      return invalidConstraint(
+        `C# target generic constraint '${constraint.id}' is not supported by the C# target provider: ${constraint.reason}`,
+        constraintEvidence(source, constraint),
+      );
     case "copy":
     case "clone":
     case "default":
