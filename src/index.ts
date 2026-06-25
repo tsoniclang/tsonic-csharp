@@ -52,6 +52,7 @@ export type {
   DotnetParameterDefaultValue,
   DotnetProviderDiagnostic,
   DotnetProviderIdentity,
+  DotnetProviderModuleRequestTelemetry,
   DotnetProviderModuleContext,
   DotnetProviderModuleResult,
   DotnetProviderOwnership,

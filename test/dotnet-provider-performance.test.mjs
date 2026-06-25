@@ -3,6 +3,11 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import {
+  createCompilerSessionFromFiles,
+  formatDiagnostics,
+} from "@tsonic/tsts";
+import {
+  augmentDotnetModuleWithNativeArray,
   createDotnetProviderTelemetry,
   createDotnetReflectionProviderBroker,
   createDotnetReflectionTypeDataProvider,
@@ -18,6 +23,8 @@ test(".NET provider telemetry exposes required performance counters", () => {
   const telemetry = createDotnetProviderTelemetry();
   telemetry.providerInstance();
   telemetry.request("module");
+  telemetry.moduleRequest({ requestedExports: ["Convert"], requestedMetadataNames: ["System.Convert"] });
+  telemetry.moduleRequest({ broadImport: true });
   telemetry.memoryCacheHit();
   telemetry.memoryCacheMiss();
   telemetry.diskCacheHit();
@@ -35,6 +42,11 @@ test(".NET provider telemetry exposes required performance counters", () => {
 
   assert.equal(counters["provider.instances"], 1);
   assert.equal(counters["provider.requests.total"], 1);
+  assert.equal(counters["provider.requests.module.broad"], 1);
+  assert.equal(counters["provider.requests.module.sliced"], 1);
+  assert.equal(counters["provider.requests.module.requestedExports"], 1);
+  assert.equal(counters["provider.requests.module.requestedTargetIds"], 0);
+  assert.equal(counters["provider.requests.module.requestedMetadataNames"], 1);
   assert.equal(counters["provider.cache.memory.hit"], 1);
   assert.equal(counters["provider.cache.memory.miss"], 1);
   assert.equal(counters["provider.cache.disk.hit"], 1);
@@ -50,6 +62,7 @@ test(".NET provider telemetry exposes required performance counters", () => {
   assert.equal(counters["tsts.providerVirtual.checkMs"], 6.5);
   assert.equal(counters["generatedProject.dotnetBuild.elapsedMs"], 7.25);
   assert.match(formatDotnetProviderTelemetrySnapshot(snapshot), /provider\.requests\.byKind\.module=1/u);
+  assert.match(formatDotnetProviderTelemetrySnapshot(snapshot), /provider\.requests\.module\.sliced=1/u);
 });
 
 test(".NET target binding provider records virtual declaration model metrics", () => {
@@ -149,6 +162,93 @@ test(".NET target binding provider preserves requested export slices for virtual
   assert.equal(observedContexts.length, 1);
   assert.deepEqual(observedContexts[0].requestedExports, ["Widget"]);
   assert.equal(observedContexts[0].broadImport, undefined);
+});
+
+test(".NET native Array augmentation stays out of unrelated System export slices", () => {
+  const module = augmentDotnetModuleWithNativeArray({
+    moduleSpecifier: "@tsonic/dotnet/System.js",
+    namespaceName: "System",
+    exports: [{
+      kind: "type",
+      typeKind: "interface",
+      sourceName: "IFormatProvider",
+      namespaceName: "System",
+      targetId: "Test.Assembly::System.IFormatProvider",
+      metadataName: "System.IFormatProvider",
+      members: [],
+    }],
+  }, { requestedExports: ["IFormatProvider"] });
+
+  assert.deepEqual(module.exports.map((declaration) => declaration.sourceName).sort(), ["IFormatProvider"]);
+});
+
+test(".NET target binding provider receives requested export slices from TSTS named imports end to end", () => {
+  const observedContexts = [];
+  const provider = {
+    identity: {
+      id: "test.dotnet-provider-tsts-import-slicing",
+      version: "1.0.0",
+      target: "csharp",
+      displayName: "TSTS import slicing test provider",
+    },
+    ownsModule() {
+      return { kind: "owned" };
+    },
+    getModule(specifier, context) {
+      observedContexts.push(context);
+      assert.equal(specifier, "@tsonic/dotnet/System.js");
+      assert.deepEqual(context.requestedExports, ["Convert"]);
+      assert.notEqual(context.broadImport, true);
+      return {
+        moduleSpecifier: specifier,
+        namespaceName: "System",
+        exports: [{
+          kind: "type",
+          typeKind: "class",
+          sourceName: "Convert",
+          namespaceName: "System",
+          targetId: "Test.Assembly::System.Convert",
+          metadataName: "System.Convert",
+          members: [],
+        }],
+      };
+    },
+  };
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", `
+        import { Convert as DotnetConvert } from "@tsonic/dotnet/System.js";
+        export const convert = DotnetConvert;
+      `],
+      ["/src/node_modules/@tsonic/dotnet/package.json", JSON.stringify({
+        name: "@tsonic/dotnet",
+        version: "1.0.0",
+        type: "module",
+        exports: {
+          "./System.js": {
+            types: "./System.d.ts",
+            default: "./System.js",
+          },
+        },
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [createDotnetBindingTestExtension(provider)],
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+  assert.equal(observedContexts.length, 1);
 });
 
 test(".NET target binding provider rejects implicit broad virtual module requests", () => {
@@ -338,6 +438,28 @@ test(".NET reflection provider broker reuses module cache across provider instan
   assert.equal(secondSnapshot.diskCacheMisses, 0);
 });
 
+test(".NET reflection provider records metadata target-binding lookups as sliced module requests", () => {
+  const telemetry = createDotnetProviderTelemetry();
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    telemetry,
+  });
+
+  const binding = provider.findTargetBindingByMetadataName("System.Convert");
+  assert.ok(binding);
+  assert.equal(binding.id.endsWith("::System.Convert"), true);
+
+  const snapshot = provider.getTelemetrySnapshot();
+  assert.equal(snapshot.toolInvocations, 1);
+  assert.equal(snapshot.moduleBroadRequests, 0);
+  assert.equal(snapshot.moduleSlicedRequests, 1);
+  assert.equal(snapshot.moduleRequestedExports, 0);
+  assert.equal(snapshot.moduleRequestedTargetIds, 0);
+  assert.equal(snapshot.moduleRequestedMetadataNames, 1);
+  assert.equal(snapshot.requestsByKind.targetBindingByMetadataName, 1);
+  assert.equal(snapshot.requestsByKind.module, 1);
+});
+
 test(".NET reflection provider tool filters target-binding lookups without broad namespace exports", () => {
   const telemetry = createDotnetProviderTelemetry();
   const runner = createDotnetProviderToolRunner({
@@ -384,3 +506,16 @@ test(".NET reflection provider tool filters target-binding lookups without broad
   assert.equal(snapshot.toolInvocations, 2);
   assert.equal(snapshot.toolCliInvocations, 2);
 });
+
+function createDotnetBindingTestExtension(provider) {
+  return {
+    identity: {
+      id: `${provider.identity.id}-extension`,
+      version: provider.identity.version,
+      capabilityNamespace: provider.identity.id,
+    },
+    initialize(context) {
+      context.registerTargetBindingProvider(createDotnetTargetBindingProvider({ provider }));
+    },
+  };
+}

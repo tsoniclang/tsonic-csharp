@@ -151,7 +151,9 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
             return undefined;
           }
           const resolved = options.provider.getModule(specifier, providerContext(dependencyResolutionContext, options));
-          return isDotnetProviderDiagnostic(resolved) ? undefined : augmentDotnetModuleWithNativeArray(resolved);
+          return isDotnetProviderDiagnostic(resolved)
+            ? undefined
+            : augmentDotnetModuleWithNativeArray(resolved, dependencyResolutionContext);
         },
       });
       options.provider.recordVirtualDeclarationModel?.(model, performance.now() - startedAt);

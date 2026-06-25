@@ -2,6 +2,11 @@ export interface DotnetProviderTelemetrySnapshot {
   readonly providerInstances: number;
   readonly requestsTotal: number;
   readonly requestsByKind: Readonly<Record<string, number>>;
+  readonly moduleBroadRequests: number;
+  readonly moduleSlicedRequests: number;
+  readonly moduleRequestedExports: number;
+  readonly moduleRequestedTargetIds: number;
+  readonly moduleRequestedMetadataNames: number;
   readonly memoryCacheHits: number;
   readonly memoryCacheMisses: number;
   readonly diskCacheHits: number;
@@ -21,9 +26,17 @@ export interface DotnetProviderTelemetrySnapshot {
   readonly generatedDotnetBuildElapsedMs: number;
 }
 
+export interface DotnetProviderModuleRequestTelemetry {
+  readonly broadImport?: boolean;
+  readonly requestedExports?: readonly string[];
+  readonly requestedTargetIds?: readonly string[];
+  readonly requestedMetadataNames?: readonly string[];
+}
+
 export interface DotnetProviderTelemetry {
   providerInstance(): void;
   request(kind: string): void;
+  moduleRequest(request: DotnetProviderModuleRequestTelemetry): void;
   memoryCacheHit(): void;
   memoryCacheMiss(): void;
   diskCacheHit(): void;
@@ -44,6 +57,11 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
   let providerInstances = 0;
   let requestsTotal = 0;
   const requestsByKind = new Map<string, number>();
+  let moduleBroadRequests = 0;
+  let moduleSlicedRequests = 0;
+  let moduleRequestedExports = 0;
+  let moduleRequestedTargetIds = 0;
+  let moduleRequestedMetadataNames = 0;
   let memoryCacheHits = 0;
   let memoryCacheMisses = 0;
   let diskCacheHits = 0;
@@ -68,6 +86,23 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
     request(kind: string): void {
       requestsTotal += 1;
       requestsByKind.set(kind, (requestsByKind.get(kind) ?? 0) + 1);
+    },
+    moduleRequest(request: DotnetProviderModuleRequestTelemetry): void {
+      if (request.broadImport === true) {
+        moduleBroadRequests += 1;
+        return;
+      }
+      const requestedExports = request.requestedExports?.length ?? 0;
+      const requestedTargetIds = request.requestedTargetIds?.length ?? 0;
+      const requestedMetadataNames = request.requestedMetadataNames?.length ?? 0;
+      if (requestedExports > 0 || requestedTargetIds > 0 || requestedMetadataNames > 0) {
+        moduleSlicedRequests += 1;
+        moduleRequestedExports += requestedExports;
+        moduleRequestedTargetIds += requestedTargetIds;
+        moduleRequestedMetadataNames += requestedMetadataNames;
+        return;
+      }
+      moduleBroadRequests += 1;
     },
     memoryCacheHit(): void {
       memoryCacheHits += 1;
@@ -116,6 +151,11 @@ export function createDotnetProviderTelemetry(): DotnetProviderTelemetry {
         providerInstances,
         requestsTotal,
         requestsByKind: Object.fromEntries(requestsByKind),
+        moduleBroadRequests,
+        moduleSlicedRequests,
+        moduleRequestedExports,
+        moduleRequestedTargetIds,
+        moduleRequestedMetadataNames,
         memoryCacheHits,
         memoryCacheMisses,
         diskCacheHits,
@@ -146,6 +186,11 @@ export function dotnetProviderTelemetryCounters(
   return {
     "provider.instances": snapshot.providerInstances,
     "provider.requests.total": snapshot.requestsTotal,
+    "provider.requests.module.broad": snapshot.moduleBroadRequests,
+    "provider.requests.module.sliced": snapshot.moduleSlicedRequests,
+    "provider.requests.module.requestedExports": snapshot.moduleRequestedExports,
+    "provider.requests.module.requestedTargetIds": snapshot.moduleRequestedTargetIds,
+    "provider.requests.module.requestedMetadataNames": snapshot.moduleRequestedMetadataNames,
     "provider.cache.memory.hit": snapshot.memoryCacheHits,
     "provider.cache.memory.miss": snapshot.memoryCacheMisses,
     "provider.cache.disk.hit": snapshot.diskCacheHits,

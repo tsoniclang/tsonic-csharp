@@ -100,6 +100,7 @@ export function createDotnetReflectionTypeDataProvider(
 
   function loadModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
     telemetry.request("module");
+    telemetry.moduleRequest(context);
     const parsed = parseDotnetModuleSpecifier(specifier);
     if (parsed === undefined) {
       return diagnostic("DOTNET_REFLECTION_SPECIFIER_INVALID", `.NET reflection provider does not own '${specifier}'.`, { specifier });
