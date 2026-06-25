@@ -5,6 +5,7 @@ import type {
   ExtensionObservationContext,
   Node,
   SourceFile,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpObjectShapeFactKey,
@@ -70,6 +71,7 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
     }
   }
   const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
+    getClosedSyntaxRuntimeCarrier(lifecycleContext, node, host) ??
     getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, host) ??
     getRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
     getUseSiteRuntimeCarrierTargetTypeRef(lifecycleContext, sourceFile, node, host);
@@ -79,6 +81,21 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
   const fact = { carrier };
   const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+}
+
+function getClosedSyntaxRuntimeCarrier(
+  lifecycleContext: RuntimeCarrierLifecycleFactsContext,
+  node: Node,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): TargetTypeRef | undefined {
+  return host.getTargetTypeRefForSubject(
+    node,
+    createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
+    {
+      allowRuntimeCarrier: false,
+      allowSemanticTypeQuery: false,
+    },
+  );
 }
 
 function isObjectShapeRuntimeCarrierSyntaxNode(

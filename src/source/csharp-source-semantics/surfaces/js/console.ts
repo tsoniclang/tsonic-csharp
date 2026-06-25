@@ -43,7 +43,7 @@ export function mapCsharpJsConsoleCheckedCall(
   const argumentTypes = request.arguments.map((argument) =>
     host.getTargetTypeRefForSubject(argument, context, {
       allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: false,
+      allowSemanticTypeQuery: true,
     }));
   const invalidArgumentIndex = argumentTypes.findIndex((type) => !isClosedConsoleArgumentTargetType(type));
   if (invalidArgumentIndex >= 0) {

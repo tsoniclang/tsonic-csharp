@@ -27,6 +27,9 @@ import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
+import {
+  getArrayBoundaryCoreCarrierForExpression,
+} from "./array-boundary-facts.js";
 
 export function planBindingPatternFromExpression(
   patternNode: Node,
@@ -117,7 +120,8 @@ export function getCsharpTypeForExpressionCarrier(
   diagnosticNode: Node,
   description: string,
 ): CsharpTypeNode {
-  const carrier = getRuntimeCarrierForExpression(input, expression, sourceFile);
+  const carrier = getArrayBoundaryCoreCarrierForExpression(input, expression, sourceFile) ??
+    getRuntimeCarrierForExpression(input, expression, sourceFile);
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
   if (type !== undefined) {
     return type;

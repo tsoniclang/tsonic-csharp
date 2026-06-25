@@ -125,8 +125,11 @@ function validateObservedAssignabilityFactsForNode(
   if (diagnoseAnyTypedBoundaryForNode(node, context)) {
     return;
   }
-  const source = host.getTargetTypeRefForSubject(fact.source, context);
-  const target = host.getTargetTypeRefForSubject(fact.target, context);
+  if (isInferredLocalAssignmentObservation(fact, context)) {
+    return;
+  }
+  const source = resolveObservedAssignabilitySource(fact, context, host);
+  const target = resolveObservedAssignabilityTarget(fact, context, host);
   const validation = validateCsharpTargetAssignability(source, target, host, new Set());
   if (validation.kind !== "invalid") {
     return;
@@ -139,9 +142,195 @@ function validateObservedAssignabilityFactsForNode(
       validation.message,
     ),
     nodeOrSpan: fact.expression ?? fact.errorNode,
-    evidence: validation.evidence,
+    evidence: [
+      ...getObservedAssignabilityEvidence(fact, context, source, target),
+      ...validation.evidence,
+    ],
     identity: `csharp-target-assignability:${subjectIdentity(fact.expression ?? fact.errorNode ?? fact.target)}`,
   });
+}
+
+function resolveObservedAssignabilitySource(
+  fact: CsharpObservedTargetAssignabilityFact,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  return host.getTargetTypeRefForSubject(fact.source, context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: true,
+      sourceFile: getFactSourceFile(fact, context),
+    }) ??
+    host.getTargetTypeRefForSubject(getObservedAssignabilitySourceNode(fact, context), context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: true,
+      sourceFile: getFactSourceFile(fact, context),
+    });
+}
+
+function resolveObservedAssignabilityTarget(
+  fact: CsharpObservedTargetAssignabilityFact,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  return host.getTargetTypeRefForSubject(fact.target, context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: true,
+      sourceFile: getFactSourceFile(fact, context),
+    }) ??
+    host.getTargetTypeRefForSubject(getObservedAssignabilityTargetNode(fact, context), context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: true,
+      sourceFile: getFactSourceFile(fact, context),
+    });
+}
+
+function isInferredLocalAssignmentObservation(
+  fact: CsharpObservedTargetAssignabilityFact,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): boolean {
+  if (fact.relation !== "assignment") {
+    return false;
+  }
+  const ast = context.compiler?.ast;
+  const expression = asNode(fact.expression ?? fact.errorNode);
+  if (ast === undefined || expression === undefined) {
+    return false;
+  }
+  if (ast.kindName(expression) === "KindVariableDeclaration") {
+    return asNode(getNodeField(expression, "Type")) === undefined;
+  }
+  const parent = ast.parent(expression);
+  return parent !== undefined &&
+    ast.kindName(parent) === "KindVariableDeclaration" &&
+    asNode(getNodeField(parent, "Initializer")) === expression &&
+    asNode(getNodeField(parent, "Type")) === undefined;
+}
+
+function getObservedAssignabilitySourceNode(
+  fact: CsharpObservedTargetAssignabilityFact,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): Node | undefined {
+  const ast = context.compiler?.ast;
+  const expression = asNode(fact.expression ?? fact.errorNode);
+  if (ast === undefined || expression === undefined) {
+    return undefined;
+  }
+  if (ast.is.IsBinaryExpression(expression)) {
+    return asNode(getNodeField(expression, "Right"));
+  }
+  const kind = ast.kindName(expression);
+  if (kind === "KindVariableDeclaration" || kind === "KindPropertyDeclaration") {
+    return asNode(getNodeField(expression, "Initializer"));
+  }
+  if (kind === "KindReturnStatement") {
+    return asNode(getNodeField(expression, "Expression"));
+  }
+  return expression;
+}
+
+function getObservedAssignabilityContextTargetNode(
+  expression: Node,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): Node | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  const parent = ast.parent(expression);
+  if (parent === undefined) {
+    return undefined;
+  }
+  if (ast.is.IsBinaryExpression(parent) && asNode(getNodeField(parent, "Right")) === expression) {
+    return asNode(getNodeField(parent, "Left"));
+  }
+  const parentKind = ast.kindName(parent);
+  if (
+    (parentKind === "KindVariableDeclaration" || parentKind === "KindPropertyDeclaration") &&
+    asNode(getNodeField(parent, "Initializer")) === expression
+  ) {
+    return asNode(getNodeField(parent, "Type")) ?? asNode(getNodeField(parent, "name"));
+  }
+  if (parentKind === "KindReturnStatement" && asNode(getNodeField(parent, "Expression")) === expression) {
+    return getEnclosingReturnTypeNode(parent, context);
+  }
+  return undefined;
+}
+
+function getObservedAssignabilityTargetNode(
+  fact: CsharpObservedTargetAssignabilityFact,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): Node | undefined {
+  const ast = context.compiler?.ast;
+  const expression = asNode(fact.expression ?? fact.errorNode);
+  if (ast === undefined || expression === undefined) {
+    return undefined;
+  }
+  if (ast.is.IsBinaryExpression(expression)) {
+    return asNode(getNodeField(expression, "Left"));
+  }
+  const kind = ast.kindName(expression);
+  if (kind === "KindVariableDeclaration" || kind === "KindPropertyDeclaration") {
+    return asNode(getNodeField(expression, "Type")) ?? asNode(getNodeField(expression, "name"));
+  }
+  if (kind === "KindReturnStatement") {
+    return getEnclosingReturnTypeNode(expression, context);
+  }
+  return getObservedAssignabilityContextTargetNode(expression, context);
+}
+
+function getFactSourceFile(
+  fact: CsharpObservedTargetAssignabilityFact,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+) {
+  const ast = context.compiler?.ast;
+  const node = asNode(fact.expression ?? fact.errorNode) ??
+    getObservedAssignabilitySourceNode(fact, context) ??
+    getObservedAssignabilityTargetNode(fact, context);
+  return ast === undefined || node === undefined ? undefined : ast.getSourceFile(node);
+}
+
+function getEnclosingReturnTypeNode(
+  returnStatement: Node,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): Node | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  let current = ast.parent(returnStatement);
+  while (current !== undefined) {
+    const kind = ast.kindName(current);
+    if (
+      kind === "KindFunctionDeclaration" ||
+      kind === "KindMethodDeclaration" ||
+      kind === "KindFunctionExpression" ||
+      kind === "KindArrowFunction" ||
+      kind === "KindGetAccessor"
+    ) {
+      return asNode(getNodeField(current, "Type"));
+    }
+    current = ast.parent(current);
+  }
+  return undefined;
+}
+
+function getObservedAssignabilityEvidence(
+  fact: CsharpObservedTargetAssignabilityFact,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  source: TargetTypeRef | undefined,
+  target: TargetTypeRef | undefined,
+): readonly ExtensionEvidence[] {
+  const expression = asNode(fact.expression ?? fact.errorNode);
+  const ast = context.compiler?.ast;
+  return [{
+    message: "Observed assignability relation",
+    details: {
+      relation: fact.relation,
+      expressionKind: expression === undefined || ast === undefined ? undefined : ast.kindName(expression),
+      sourceResolved: source !== undefined,
+      targetResolved: target !== undefined,
+    },
+  }];
 }
 
 function diagnoseAnyTypedBoundaryForNode(

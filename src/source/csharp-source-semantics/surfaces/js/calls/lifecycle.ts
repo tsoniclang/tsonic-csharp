@@ -91,7 +91,7 @@ function recordCsharpSourceLibraryCallFact(
     : getSymbolForDeclarationLookup(compiler.ast, compiler.checker, calleeReceiver, sourceFile);
   const calleeReceiverResolvedSymbol = calleeReceiver === undefined
     ? undefined
-    : compiler.checker.getResolvedSymbol(calleeReceiver, { sourceFile });
+    : getSymbolForDeclarationLookup(compiler.ast, compiler.checker, calleeReceiver, sourceFile);
   const sourceSelectedDeclarationContainer = getNodeParent(sourceSelectedDeclaration);
   const mapped = mapCsharpSourceLibraryCheckedCall({
     call: node,

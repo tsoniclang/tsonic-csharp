@@ -10,6 +10,9 @@ import type {
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
+import {
+  getArrayBoundaryCoreCarrierForExpression,
+} from "./array-boundary-facts.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -40,7 +43,9 @@ export function planArrayBindingPattern(
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,
   sourceCarrierOverride?: TargetTypeRef,
 ): readonly CsharpStatement[] {
-  const sourceCarrier = sourceCarrierOverride ?? getRuntimeCarrierForExpression(input, sourceNode, sourceFile);
+  const sourceCarrier = sourceCarrierOverride ??
+    getArrayBoundaryCoreCarrierForExpression(input, sourceNode, sourceFile) ??
+    getRuntimeCarrierForExpression(input, sourceNode, sourceFile);
   const bindingCarrier = arrayBindingCarrier(sourceCarrier);
   if (bindingCarrier === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression."));
