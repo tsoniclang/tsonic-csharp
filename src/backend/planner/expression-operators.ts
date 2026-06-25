@@ -132,8 +132,11 @@ export function tryPlanBinaryExpression(
   if (assignmentOperatorToken !== undefined) {
     const leftExpression = planExpression(left!, sourceFile, input, diagnostics);
     const rightExpression = planExpression(right!, sourceFile, input, diagnostics);
-    if (leftExpression.kind === "InvalidExpression" || rightExpression.kind === "InvalidExpression") {
-      return invalidExpression("assignment operand facts");
+    if (leftExpression.kind === "InvalidExpression") {
+      return leftExpression;
+    }
+    if (rightExpression.kind === "InvalidExpression") {
+      return rightExpression;
     }
     return {
       kind: "AssignmentExpression",

@@ -173,7 +173,7 @@ test("assignment expression fails closed when provider-owned storage lacks selec
   }), diagnostics);
 
   assert.equal(output.kind, "InvalidExpression");
-  assert.equal(output.reason, "assignment operand facts");
+  assert.equal(output.reason, "missing target property fact");
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# property access 'value' must be selected by TSTS\/provider facts before emission/);
 });
