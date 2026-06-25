@@ -1,0 +1,59 @@
+import type {
+  TargetTypeRef,
+} from "@tsonic/tsts";
+import type {
+  CsharpDelegateTargetTypeRef,
+  CsharpTaskTargetTypeRef,
+} from "./definitions.js";
+import {
+  isCsharpVoidTargetType,
+} from "./identity.js";
+import {
+  csharpQualifiedTypeRenderShape,
+} from "./render-shapes.js";
+import {
+  csharpTargetNamedType,
+} from "./target-refs.js";
+
+export function csharpDelegateTargetType(
+  kind: "System.Action" | "System.Func",
+  parameters: readonly TargetTypeRef[],
+  returnType?: TargetTypeRef,
+): CsharpDelegateTargetTypeRef {
+  const typeArguments = returnType === undefined
+    ? parameters
+    : [...parameters, returnType];
+  const id = kind === "System.Action"
+    ? parameters.length === 0 ? "System.Action" : `System.Action\`${parameters.length}`
+    : `System.Func\`${parameters.length + 1}`;
+  const targetType = csharpTargetNamedType(id, typeArguments, { kind: "named", name: kind === "System.Action" ? "Action" : "Func" });
+  return {
+    kind: "target-named",
+    id: targetType.id,
+    ...(targetType.typeArguments !== undefined ? { typeArguments: targetType.typeArguments } : {}),
+    ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
+    csharpDelegateSignature: {
+      parameters,
+      ...(returnType !== undefined ? { returnType } : {}),
+    },
+  } satisfies CsharpDelegateTargetTypeRef;
+}
+
+export function csharpTaskTargetType(resultType: TargetTypeRef): CsharpTaskTargetTypeRef {
+  const targetType = isCsharpVoidTargetType(resultType)
+    ? csharpTargetNamedType("System.Threading.Tasks.Task", undefined, csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"))
+    : csharpTargetNamedType("System.Threading.Tasks.Task`1", [resultType], csharpQualifiedTypeRenderShape("System.Threading.Tasks", "Task"));
+  return {
+    kind: "target-named",
+    id: targetType.id,
+    ...(targetType.typeArguments !== undefined ? { typeArguments: targetType.typeArguments } : {}),
+    ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
+    csharpTaskResultType: resultType,
+  } satisfies CsharpTaskTargetTypeRef;
+}
+
+export function getCsharpTaskResultTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  return type?.kind === "target-named"
+    ? (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType
+    : undefined;
+}
