@@ -4,6 +4,7 @@ import {
 import type {
   CompilerExtension,
   ExtensionObservationContext,
+  ExtensionObservationPointName,
 } from "@tsonic/tsts";
 import {
   csharpTargetSemanticsExtensionId,
@@ -20,8 +21,20 @@ export type CsharpLifecycleObservationContext =
 export function createRuntimeCarrierLifecycleObservationContext(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
 ): ExtensionObservationContext<typeof ExtensionObservationPoint.resolveRuntimeCarrier> {
+  return createCsharpLifecycleObservationContext(
+    lifecycleContext,
+    ExtensionObservationPoint.resolveRuntimeCarrier,
+  );
+}
+
+export function createCsharpLifecycleObservationContext<
+  TObservation extends ExtensionObservationPointName,
+>(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  observation: TObservation,
+): ExtensionObservationContext<TObservation> {
   return {
-    observation: ExtensionObservationPoint.resolveRuntimeCarrier,
+    observation,
     extensionId: csharpTargetSemanticsExtensionId,
     host: lifecycleContext.host,
     facts: lifecycleContext.host.facts,

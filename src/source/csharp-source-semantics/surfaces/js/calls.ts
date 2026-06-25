@@ -1,4 +1,5 @@
 import {
+  ExtensionObservationPoint,
   acceptObservation,
   rejectObservation,
   runtimeCarrierFactKey,
@@ -68,7 +69,7 @@ import {
   visitAstReaderNodes,
 } from "../../ast-utils.js";
 import {
-  createRuntimeCarrierLifecycleObservationContext,
+  createCsharpLifecycleObservationContext,
 } from "../../runtime-carriers.js";
 import {
   getSymbolForDeclarationLookup,
@@ -278,7 +279,7 @@ export function recordCsharpSourceLibraryCallFactsBeforeFinalization(
   if (compiler === undefined) {
     return;
   }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext) as unknown as ExtensionObservationContext<"operation.mapCheckedCall">;
+  const context = createCsharpLifecycleObservationContext(lifecycleContext, ExtensionObservationPoint.mapCheckedCall);
   for (const sourceFile of compiler.getSourceFiles()) {
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;

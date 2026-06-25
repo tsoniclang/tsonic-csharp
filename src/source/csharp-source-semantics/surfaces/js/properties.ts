@@ -1,4 +1,5 @@
 import {
+  ExtensionObservationPoint,
   acceptObservation,
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
@@ -67,7 +68,7 @@ import {
   visitAstReaderNodes,
 } from "../../ast-utils.js";
 import {
-  createRuntimeCarrierLifecycleObservationContext,
+  createCsharpLifecycleObservationContext,
 } from "../../runtime-carriers.js";
 
 export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
@@ -87,7 +88,7 @@ export function recordCsharpSourceLibraryPropertyFactsBeforeFinalization(
   if (compiler === undefined) {
     return;
   }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext) as unknown as ExtensionObservationContext<"operation.mapCheckedPropertyAccess">;
+  const context = createCsharpLifecycleObservationContext(lifecycleContext, ExtensionObservationPoint.mapCheckedPropertyAccess);
   for (const sourceFile of compiler.getSourceFiles()) {
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
