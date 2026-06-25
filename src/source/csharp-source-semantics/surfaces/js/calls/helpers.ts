@@ -1,5 +1,6 @@
 import {
   runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedCallMappingRequest,
@@ -108,7 +109,10 @@ export function getSourceLibraryCallArgumentTargetTypes(
     const isNestedCall = node !== undefined &&
       (context.compiler?.ast.is.IsCallExpression(node) === true || context.compiler?.ast.is.IsNewExpression(node) === true);
     return isNestedCall
-      ? host.unwrapNullableTargetType(context.facts.get(argument, runtimeCarrierFactKey)?.carrier)
+      ? host.unwrapNullableTargetType(
+          context.factResolver.resolve(argument, selectedTargetSignatureFactKey)?.member.returnType ??
+            context.facts.get(argument, runtimeCarrierFactKey)?.carrier,
+        )
       : host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, {
           ...csharpJsCheckedTypeQuery,
           allowRuntimeCarrier: true,

@@ -71,6 +71,119 @@ test("target member selection does not treat System.Object as an implicit wildca
   );
 });
 
+test("target member selection uses source marker target expression for byref parameters", () => {
+  const key = {};
+  const outCall = {};
+  const value = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const member = {
+    id: "Example.Target.tryGetValue(System.String,out System.Int32)",
+    sourceName: "tryGetValue",
+    targetName: "TryGetValue",
+    kind: "method",
+    parameters: [
+      targetParameter("key", csharpStringType()),
+      targetParameter("value", int32, "byref-writeonly-must-init"),
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const context = fakeObservationContext({
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: value,
+    },
+  });
+  const resolveTargetTypeRef = (subject) => {
+    if (subject === key) {
+      return csharpStringType();
+    }
+    if (subject === value) {
+      return int32;
+    }
+    return undefined;
+  };
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [key, outCall] }, context, resolveTargetTypeRef)?.id,
+    member.id,
+  );
+});
+
+test("target member selection rejects byref parameters without source marker facts", () => {
+  const key = {};
+  const outCall = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const member = {
+    id: "Example.Target.tryGetValue(System.String,out System.Int32)",
+    sourceName: "tryGetValue",
+    targetName: "TryGetValue",
+    kind: "method",
+    parameters: [
+      targetParameter("key", csharpStringType()),
+      targetParameter("value", int32, "byref-writeonly-must-init"),
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const resolveTargetTypeRef = (subject) => subject === key ? csharpStringType() : int32;
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [key, outCall] }, fakeObservationContext({}), resolveTargetTypeRef),
+    undefined,
+  );
+});
+
+test("target member selection rejects byref parameter mode mismatches", () => {
+  const key = {};
+  const outCall = {};
+  const value = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const member = {
+    id: "Example.Target.tryGetValue(System.String,out System.Int32)",
+    sourceName: "tryGetValue",
+    targetName: "TryGetValue",
+    kind: "method",
+    parameters: [
+      targetParameter("key", csharpStringType()),
+      targetParameter("value", int32, "byref-writeonly-must-init"),
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const context = fakeObservationContext({
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-readwrite",
+      targetExpression: value,
+    },
+  });
+  const resolveTargetTypeRef = (subject) => subject === key ? csharpStringType() : int32;
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [key, outCall] }, context, resolveTargetTypeRef),
+    undefined,
+  );
+});
+
+test("target member selection rejects source marker wrappers for by-value parameters", () => {
+  const outCall = {};
+  const value = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const member = method("Example.Target.m(System.Int32)", int32);
+  const context = fakeObservationContext({
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: value,
+    },
+  });
+  const resolveTargetTypeRef = (subject) => subject === value ? int32 : undefined;
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [outCall] }, context, resolveTargetTypeRef),
+    undefined,
+  );
+});
+
 test("C# provider validates generic constraints only from finalized target facts", () => {
   const provider = getNativeSemanticProvider({
     bindings: [
@@ -638,7 +751,7 @@ test("C# provider rejects exact selected generic signatures with contradictory t
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
 });
 
-test("C# provider rejects overloaded member selections without exact signature identity", () => {
+test("C# provider resolves overloaded member selections from provider member identity and target facts", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -685,8 +798,8 @@ test("C# provider rejects overloaded member selections without exact signature i
     },
   }));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
 test("C# provider honors exact selected call signature identity over sibling argument matches", () => {
@@ -739,6 +852,160 @@ test("C# provider honors exact selected call signature identity over sibling arg
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
+});
+
+test("C# provider selects within a proven overload group from target argument facts", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      method("Example.Target.m(System.Int64)", { kind: "source-primitive", name: "int64" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
+test("C# provider maps calls from TSTS-selected callee symbol virtual declaration facts", () => {
+  const provider = getNativeSemanticProvider();
+  const calleeSymbol = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      method("Example.Target.m(System.Int64)", { kind: "source-primitive", name: "int64" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleeSymbol,
+    calleePropertyName: "m",
+    calleeReceiverSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: calleeSymbol,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
+test("C# provider reselects within a proven overload group when TS-selected target signature is incompatible", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Byte)", { kind: "source-primitive", name: "uint8" }),
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+      signatureId: "Example.Target.m(System.Byte)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
 test("C# provider does not search target members outside the selected provider overload group", () => {
@@ -1557,6 +1824,7 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
   const selectedDeclaration = {};
   const containerSymbol = {};
   const call = {};
+  const outCall = {};
   const int32 = { kind: "source-primitive", name: "int32" };
   const receiver = spanType(int32);
   const other = readOnlySpanType(int32);
@@ -1571,7 +1839,7 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
     calleePropertyName: "overlaps",
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
-    arguments: [other, offset],
+    arguments: [other, outCall],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: overlapExtensionsBinding(),
@@ -1579,6 +1847,11 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
     virtualDeclaration: {
       ...virtualMember("Example.MemoryExtensions.Overlaps", "overlaps"),
       signatureId: "Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)",
+    },
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: offset,
     },
     recordedFacts,
   }));
@@ -2043,6 +2316,12 @@ function fakeObservationContext(options) {
     },
     factResolver: {
       resolve(subject, key) {
+        if (subject === options.virtualSignatureSubject && key === providerVirtualDeclarationFactKey) {
+          return options.virtualSignatureDeclaration;
+        }
+        if (subject === options.virtualDeclarationSubject && key === providerVirtualDeclarationFactKey) {
+          return options.virtualDeclaration;
+        }
         if (subject === options.targetBindingSubject && key === targetBindingFactKey) {
           return options.targetBinding;
         }

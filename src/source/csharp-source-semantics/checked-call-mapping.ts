@@ -11,6 +11,7 @@ import {
 import type {
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
+  ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
@@ -176,6 +177,10 @@ export function mapCsharpCheckedCall(
   const targetBinding = binding.target === csharpTargetId
     ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
     : binding;
+  const unsupportedSelectedMember = findUnsupportedProviderTargetMember(targetBinding, virtualDeclaration);
+  if (getVirtualDeclarationSignatureId(virtualDeclaration) !== undefined && unsupportedSelectedMember !== undefined) {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_UNSUPPORTED", 9100130, `C# provider selected unsupported target ${unsupportedSelectedMember.memberKind} '${unsupportedSelectedMember.targetName}' on target '${targetBinding.id}'. ${unsupportedSelectedMember.reason}`));
+  }
   const constructorDeclaringTargetType = request.calleePropertyName === undefined && targetBinding.members?.some((candidate) => candidate.kind === "constructor") === true
     ? getConstructorDeclaringTargetType(targetBinding, request, context, host)
     : undefined;
@@ -198,7 +203,7 @@ export function mapCsharpCheckedCall(
     },
   );
   if (member === undefined) {
-    const unsupportedMember = findUnsupportedProviderTargetMember(targetBinding, virtualDeclaration);
+    const unsupportedMember = unsupportedSelectedMember;
     if (unsupportedMember !== undefined) {
       return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_UNSUPPORTED", 9100130, `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${targetBinding.id}'. ${unsupportedMember.reason}`));
     }
@@ -236,6 +241,10 @@ export function mapCsharpCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: csharpMember },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function getVirtualDeclarationSignatureId(declaration: ProviderVirtualDeclarationFact | undefined): string | undefined {
+  return declaration === undefined ? undefined : declaration.signatureId;
 }
 
 function missingRequiredSourceMarkerFactDiagnostic(
@@ -367,9 +376,13 @@ function getSelectedCallProviderVirtualDeclaration(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ProviderVirtualDeclarationFact | undefined {
-  return context.facts.get(request.sourceSelectedSignature, providerVirtualDeclarationFactKey) ??
-    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey) ??
-    getCalleePropertyProviderVirtualDeclaration(request, context);
+  return getProviderVirtualDeclaration(context, [
+    request.sourceSelectedSignature,
+    request.sourceSelectedDeclaration,
+    request.calleeSymbol,
+    request.calleeResolvedSymbol,
+    request.calleeAliasedSymbol,
+  ]) ?? getCalleePropertyProviderVirtualDeclaration(request, context);
 }
 
 function getCalleePropertyProviderVirtualDeclaration(
@@ -385,8 +398,23 @@ function getCalleePropertyProviderVirtualDeclaration(
   if (propertyName === undefined) {
     return undefined;
   }
-  return context.facts.get(callee, providerVirtualDeclarationFactKey) ??
-    context.facts.get(propertyName, providerVirtualDeclarationFactKey);
+  return getProviderVirtualDeclaration(context, [callee, propertyName]);
+}
+
+function getProviderVirtualDeclaration(
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+): ProviderVirtualDeclarationFact | undefined {
+  for (const subject of subjects) {
+    if (subject === undefined) {
+      continue;
+    }
+    const declaration = context.factResolver.resolve(subject, providerVirtualDeclarationFactKey);
+    if (declaration !== undefined) {
+      return declaration;
+    }
+  }
+  return undefined;
 }
 
 function getConstructorDeclaringTargetType(

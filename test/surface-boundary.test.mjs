@@ -576,7 +576,7 @@ test("JS surface maps nested JSON.stringify(JSON.parse(value)) through finalized
   assert.equal(facts.get(stringifyCall, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.JSON.stringify:tsvalue");
 });
 
-test("JS surface rejects JSON.stringify without closed JSON value carrier facts", () => {
+test("JS surface defers JSON.stringify without closed JSON value carrier facts until finalization", () => {
   const call = {};
   const value = {};
   const facts = new TestFactStore();
@@ -586,9 +586,7 @@ test("JS surface rejects JSON.stringify without closed JSON value carrier facts"
     arguments: [value],
   }), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
-  assert.match(result.diagnostic.message, /JSON\.stringify/);
+  assert.equal(result.kind, "defer");
 });
 
 test("JS surface rejects JSON.stringify when the argument carrier fact is mutated away from TsValue", () => {
@@ -1205,6 +1203,8 @@ test("JS surface rejects selected string helpers without closed string receiver 
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /String\.normalize/);
+  assert.match(result.diagnostic.message, /receiver lacks finalized target runtime facts/);
 });
 
 test("JS surface maps Math.max only with provider-proven numeric arguments", () => {

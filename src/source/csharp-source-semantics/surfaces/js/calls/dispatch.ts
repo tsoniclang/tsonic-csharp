@@ -3,6 +3,10 @@ import type {
   CheckedCallMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
+  TargetTypeRef,
+} from "@tsonic/tsts";
+import {
+  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
   mapCsharpJsConsoleCheckedCall,
@@ -13,6 +17,9 @@ import type {
 import {
   getSourceLibraryMember,
 } from "../source-library.js";
+import type {
+  SourceLibraryMember,
+} from "../source-library.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryCall,
   rejectUnsupportedCsharpJsSourceLibraryCall,
@@ -20,6 +27,9 @@ import {
 import {
   sourceLibraryCallReceiverHasClosedFacts,
 } from "./closed-facts.js";
+import {
+  getSourceLibraryCallArgumentTargetTypes,
+} from "./helpers.js";
 import {
   rejectSourceLibraryCallMissingSelectedSignature,
   rejectSourceLibraryCallWithoutClosedFacts,
@@ -40,6 +50,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
+  options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
   const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
@@ -62,18 +73,53 @@ export function mapCsharpSourceLibraryCheckedCall(
     return undefined;
   }
   if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
+    if (options.phase !== "finalization" && sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host)) {
+      return undefined;
+    }
     return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
+  const canWaitForFinalizedFacts = options.phase !== "finalization" &&
+    sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host);
+  const jsonStringifyMayNeedFinalFacts = options.phase !== "finalization" &&
+    sourceMember.declaringName === "JSON" &&
+    sourceMember.memberName === "stringify";
   if (candidates.length > 1 && request.sourceSelectedSignature === undefined && prevalidatedMember === undefined) {
+    if (canWaitForFinalizedFacts || jsonStringifyMayNeedFinalFacts) {
+      return undefined;
+    }
     return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
   }
   const member = prevalidatedMember ??
     host.selectTargetMember(candidates, {
       arguments: request.arguments,
       receiver: request.calleeReceiver,
-    }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
+  }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
   if (member === undefined) {
+    if (canWaitForFinalizedFacts || jsonStringifyMayNeedFinalFacts) {
+      return undefined;
+    }
     return rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host);
   }
   return acceptSourceLibraryCheckedCall(request, sourceMember, member, context);
+}
+
+function sourceLibraryCallCanWaitForFinalizedFacts(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  if (sourceMember.declaringName !== "JSON" || sourceMember.memberName !== "stringify") {
+    return false;
+  }
+  const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
+  return request.arguments.some((argument, index) => {
+    const argumentType = argumentTypes[index];
+    return context.facts.get(argument, runtimeCarrierFactKey) === undefined &&
+      (argumentType === undefined || targetTypeIsOpaqueAny(argumentType));
+  });
+}
+
+function targetTypeIsOpaqueAny(type: TargetTypeRef): boolean {
+  return type.kind === "opaque" && type.id === "any";
 }

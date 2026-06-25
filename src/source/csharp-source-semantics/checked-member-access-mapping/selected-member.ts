@@ -44,8 +44,10 @@ export function selectCheckedPropertyTargetMember(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
 ): SelectedTargetMemberIdentity {
-  const selectedDeclaration = context.facts.get(request.sourceSelectedPropertySymbol, providerVirtualDeclarationFactKey) ??
-    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
+    request.sourceSelectedPropertySymbol,
+    request.sourceSelectedDeclaration,
+  ]);
   return {
     selectedDeclaration,
     member: findTargetMember(binding, selectedDeclaration),
@@ -59,7 +61,7 @@ export function selectCheckedElementTargetMember(
   host: CsharpOperationsProviderHost,
   declaringTargetType: TargetTypeRef | undefined,
 ): SelectedTargetMemberIdentity {
-  const selectedDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  const selectedDeclaration = resolveProviderVirtualDeclaration(context, [request.sourceSelectedDeclaration]);
   return {
     selectedDeclaration,
     member: findTargetMemberForElementAccess(
@@ -75,6 +77,22 @@ export function selectCheckedElementTargetMember(
       },
     ),
   };
+}
+
+function resolveProviderVirtualDeclaration(
+  context: ExtensionObservationContext,
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+): ProviderVirtualDeclarationFact | undefined {
+  for (const subject of subjects) {
+    if (subject === undefined) {
+      continue;
+    }
+    const declaration = context.factResolver.resolve(subject, providerVirtualDeclarationFactKey);
+    if (declaration !== undefined) {
+      return declaration;
+    }
+  }
+  return undefined;
 }
 
 export function getDeclaringTargetType(

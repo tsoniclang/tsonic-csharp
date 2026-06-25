@@ -54,8 +54,12 @@ export function recordCsharpSourceLibraryCallFactsBeforeFinalization(
         checkedCallNodes.push(node);
       }
     });
-    for (const node of checkedCallNodes.reverse()) {
-      recordCsharpSourceLibraryCallFact(node, sourceFile, context, host);
+    const innerFirst = checkedCallNodes.reverse();
+    for (const node of innerFirst) {
+      recordCsharpSourceLibraryCallFact(node, sourceFile, context, host, "checking");
+    }
+    for (const node of innerFirst) {
+      recordCsharpSourceLibraryCallFact(node, sourceFile, context, host, "finalization");
     }
   }
 }
@@ -65,6 +69,7 @@ function recordCsharpSourceLibraryCallFact(
   sourceFile: SourceFile,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
+  phase: "checking" | "finalization",
 ): void {
   const compiler = context.compiler;
   if (
@@ -105,7 +110,7 @@ function recordCsharpSourceLibraryCallFact(
     ...(sourceSelectedDeclaration !== undefined ? { sourceSelectedDeclaration } : {}),
     ...(sourceSelectedDeclarationContainer !== undefined ? { sourceSelectedDeclarationContainer } : {}),
     ...(host.targetId !== undefined ? { target: host.targetId } : {}),
-  }, context, host);
+  }, context, host, { phase });
   if (mapped?.kind === "reject") {
     context.diagnostics.append(mapped.diagnostic);
     return;

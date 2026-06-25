@@ -89,8 +89,10 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
   if (binding?.id !== dotnetNativeArrayTypeId) {
     return rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName, true);
   }
-  const selectedDeclarationFact = context.facts.get(request.sourceSelectedPropertySymbol, providerVirtualDeclarationFactKey) ??
-    context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  const selectedDeclarationFact = resolveProviderVirtualDeclaration(context, [
+    request.sourceSelectedPropertySymbol,
+    request.sourceSelectedDeclaration,
+  ]);
   const member = findTargetMember(binding, selectedDeclarationFact);
   if (member?.id !== dotnetNativeArrayLengthMemberId) {
     return rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName);
@@ -122,7 +124,7 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   if (binding?.id !== dotnetNativeArrayTypeId) {
     return undefined;
   }
-  const virtualDeclaration = context.facts.get(request.sourceSelectedDeclaration, providerVirtualDeclarationFactKey);
+  const virtualDeclaration = resolveProviderVirtualDeclaration(context, [request.sourceSelectedDeclaration]);
   const member = findTargetMemberForElementAccess(
     binding,
     virtualDeclaration,
@@ -147,6 +149,22 @@ export function mapCsharpNativeArrayCheckedElementAccess(
       resultType: receiverType.element,
     }),
   }, [{ message: "C# native array indexer selected from checked TypeScript element access on provider-owned array contract." }]);
+}
+
+function resolveProviderVirtualDeclaration(
+  context: CheckedElementAccessContext | CheckedPropertyAccessContext,
+  subjects: readonly (object | undefined)[],
+) {
+  for (const subject of subjects) {
+    if (subject === undefined) {
+      continue;
+    }
+    const declaration = context.factResolver.resolve(subject, providerVirtualDeclarationFactKey);
+    if (declaration !== undefined) {
+      return declaration;
+    }
+  }
+  return undefined;
 }
 
 export function mapCsharpSourceArrayCheckedElementAccess(

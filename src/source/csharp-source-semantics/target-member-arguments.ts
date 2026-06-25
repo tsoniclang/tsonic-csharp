@@ -1,10 +1,15 @@
 import type {
+  ArgumentPassingFact,
+  ArgumentPassingMode,
   ExtensionFactSubject,
   ExtensionObservationContext,
   TargetMember,
   TargetParameter,
   TargetTypeParameter,
   TargetTypeRef,
+} from "@tsonic/tsts";
+import {
+  argumentPassingFactKey,
 } from "@tsonic/tsts";
 import {
   isLiteralRepresentableAsTargetType,
@@ -103,7 +108,11 @@ export function selectProviderSelectedTargetMember(
     if (parameter === undefined || argument === undefined) {
       return undefined;
     }
-    const argumentType = resolveTargetTypeRef(argument, context);
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context);
+    if (effectiveArgument === undefined) {
+      return undefined;
+    }
+    const argumentType = resolveTargetTypeRef(effectiveArgument.subject, context);
     if (
       argumentType !== undefined &&
       !selectedTargetTypeAcceptsArgument(
@@ -141,8 +150,12 @@ function targetMemberMatch(
     if (parameter === undefined || argument === undefined) {
       return undefined;
     }
-    const argumentType = resolveTargetTypeRef(argument, context);
-    if (!targetTypeAcceptsArgument(getExpectedTargetTypeForArgument(parameter), argumentType, argument, context, typeParameterBindings, options)) {
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context);
+    if (effectiveArgument === undefined) {
+      return undefined;
+    }
+    const argumentType = resolveTargetTypeRef(effectiveArgument.subject, context);
+    if (!targetTypeAcceptsArgument(getExpectedTargetTypeForArgument(parameter), argumentType, effectiveArgument.subject, context, typeParameterBindings, options)) {
       return undefined;
     }
   }
@@ -173,6 +186,44 @@ function getExpectedTargetTypeForArgument(parameter: TargetParameter): TargetTyp
   return parameter.paramsArray === true && parameter.type.kind === "array"
     ? parameter.type.element
     : parameter.type;
+}
+
+function getEffectiveArgumentForTargetParameter(
+  parameter: TargetParameter,
+  argument: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+): { readonly subject: ExtensionFactSubject; readonly passing?: ArgumentPassingFact } | undefined {
+  const passing = getArgumentPassingFact(argument, context);
+  if (parameter.passingMode === "by-value") {
+    return passing === undefined
+      ? { subject: argument }
+      : undefined;
+  }
+  if (passing === undefined || !argumentPassingModeMatchesTargetParameter(parameter.passingMode, passing.mode)) {
+    return undefined;
+  }
+  return passing.targetExpression === undefined
+    ? undefined
+    : {
+        subject: passing.targetExpression,
+        passing,
+      };
+}
+
+function getArgumentPassingFact(
+  argument: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+): ArgumentPassingFact | undefined {
+  const factContext = context as {
+    readonly factResolver?: ExtensionObservationContext["factResolver"];
+    readonly facts?: ExtensionObservationContext["facts"];
+  };
+  return factContext.factResolver?.resolve(argument, argumentPassingFactKey) ??
+    factContext.facts?.get(argument, argumentPassingFactKey);
+}
+
+function argumentPassingModeMatchesTargetParameter(expected: ArgumentPassingMode, actual: ArgumentPassingMode): boolean {
+  return expected === actual;
 }
 
 function targetArityMatches(parameters: readonly TargetParameter[], argumentCount: number): boolean {

@@ -8,6 +8,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   selectExactTargetMember,
+  selectTargetMember,
   selectProviderSelectedTargetMember,
 } from "./target-member-arguments.js";
 import type {
@@ -44,10 +45,28 @@ export function findTargetMemberForCall(
 ): TargetMember | undefined {
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(binding, declaration.signatureId);
-    return selectedMember === undefined
+    const exactMember = selectedMember === undefined
       ? undefined
       : selectProviderSelectedTargetMember(
           selectedMember,
+          {
+            arguments: request.arguments,
+            receiver: request.calleeReceiver,
+          },
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
+    if (exactMember !== undefined) {
+      return exactMember;
+    }
+    const groupCandidates = declaration.memberId === undefined
+      ? []
+      : getTargetMemberCandidatesForMemberId(binding, declaration.memberId);
+    return groupCandidates.length === 0
+      ? undefined
+      : selectTargetMember(
+          groupCandidates,
           {
             arguments: request.arguments,
             receiver: request.calleeReceiver,
@@ -68,7 +87,18 @@ export function findTargetMemberForCall(
       options,
     );
   }
-  return undefined;
+  return declaration?.memberId === undefined
+    ? undefined
+    : selectTargetMember(
+        candidates,
+        {
+          arguments: request.arguments,
+          receiver: request.calleeReceiver,
+        },
+        context,
+        resolveTargetTypeRef,
+        options,
+      );
 }
 
 export function findTargetMemberForElementAccess(
@@ -81,10 +111,27 @@ export function findTargetMemberForElementAccess(
 ): TargetMember | undefined {
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(binding, declaration.signatureId);
-    return selectedMember === undefined
+    const exactMember = selectedMember === undefined
       ? undefined
       : selectProviderSelectedTargetMember(
           selectedMember,
+          {
+            arguments: [request.argument],
+          },
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
+    if (exactMember !== undefined) {
+      return exactMember;
+    }
+    const groupCandidates = declaration.memberId === undefined
+      ? []
+      : getTargetMemberCandidatesForMemberId(binding, declaration.memberId);
+    return groupCandidates.length === 0
+      ? undefined
+      : selectTargetMember(
+          groupCandidates,
           {
             arguments: [request.argument],
           },
@@ -103,7 +150,17 @@ export function findTargetMemberForElementAccess(
       options,
     );
   }
-  return undefined;
+  return declaration?.memberId === undefined
+    ? undefined
+    : selectTargetMember(
+        candidates,
+        {
+          arguments: [request.argument],
+        },
+        context,
+        resolveTargetTypeRef,
+        options,
+      );
 }
 
 export function findTargetMember(
@@ -166,19 +223,26 @@ function getTargetMemberCandidates(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
 ): readonly TargetMember[] {
-  const members = binding.members ?? [];
   if (declaration?.signatureId !== undefined) {
     const signatureMember = getTargetMemberById(binding, declaration.signatureId);
     return signatureMember === undefined ? [] : [signatureMember];
   }
   if (declaration?.memberId !== undefined) {
-    const selectedMember = members.find((member) => member.id === declaration.memberId);
-    if (selectedMember !== undefined) {
-      return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
-    }
-    return members.filter((member) => member.overloadGroup === declaration.memberId);
+    return getTargetMemberCandidatesForMemberId(binding, declaration.memberId);
   }
   return [];
+}
+
+function getTargetMemberCandidatesForMemberId(
+  binding: TargetBindingFact,
+  memberId: string,
+): readonly TargetMember[] {
+  const members = binding.members ?? [];
+  const selectedMember = members.find((member) => member.id === memberId);
+  if (selectedMember !== undefined) {
+    return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
+  }
+  return members.filter((member) => member.overloadGroup === memberId);
 }
 
 function getTargetMemberById(
