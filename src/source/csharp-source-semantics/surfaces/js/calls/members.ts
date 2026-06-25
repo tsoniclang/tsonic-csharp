@@ -5,6 +5,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   getCsharpArrayLikeElementType,
+  getCsharpJsArrayCarrierElementType,
   getArrayTargetMembers,
 } from "../arrays.js";
 import {
@@ -78,11 +79,18 @@ export function getSourceLibraryCallMembers(
       ];
     case "Array":
     case "ReadonlyArray":
-      return getArrayTargetMembers(
-        sourceMember.memberName,
-        getSourceLibraryCallReceiverElementType(request, context, host) ??
-          getSourceLibraryCallArgumentTargetTypes(request, context, host).map(getCsharpArrayLikeElementType).find((element) => element !== undefined),
-      );
+      {
+        const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
+        if (sourceMember.memberName === "constructor" && resultElementType === undefined) {
+          return [];
+        }
+        return getArrayTargetMembers(
+          sourceMember.memberName,
+          resultElementType ??
+            getSourceLibraryCallReceiverElementType(request, context, host) ??
+            getSourceLibraryCallArgumentTargetTypes(request, context, host).map(getCsharpArrayLikeElementType).find((element) => element !== undefined),
+        );
+      }
     case "Map":
     case "ReadonlyMap":
     case "Set":

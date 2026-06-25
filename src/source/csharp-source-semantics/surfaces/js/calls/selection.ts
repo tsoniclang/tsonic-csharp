@@ -43,6 +43,10 @@ export function getPrevalidatedSourceLibraryCallMember(
   if (jsonMember !== undefined) {
     return jsonMember;
   }
+  const arrayConstructorMember = getPrevalidatedArrayConstructorCallMember(sourceMember, candidates, request, context, host);
+  if (arrayConstructorMember !== undefined) {
+    return arrayConstructorMember;
+  }
   const arrayFromMember = getPrevalidatedArrayFromCallMember(sourceMember, candidates, request, context, host);
   if (arrayFromMember !== undefined) {
     return arrayFromMember;
@@ -77,6 +81,29 @@ export function sourceLibraryCallSelectionOptions(
         declaringTargetType: receiverType,
         declaringTypeParameters: [{ name: "T" }],
       };
+}
+
+function getPrevalidatedArrayConstructorCallMember(
+  sourceMember: SourceLibraryMember,
+  candidates: readonly TargetMember[],
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetMember | undefined {
+  if (sourceMember.declaringName !== "Array" || sourceMember.memberName !== "constructor" || !isNewExpression(request.call, context)) {
+    return undefined;
+  }
+  if (request.arguments.length === 0) {
+    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.JSArray..ctor()");
+  }
+  if (request.arguments.length !== 1) {
+    return undefined;
+  }
+  return host.selectTargetMember(
+    candidates.filter((candidate) => candidate.id === "Tsonic.CSharp.Js.JSArray..ctor(System.Double)"),
+    { arguments: request.arguments },
+    context,
+  );
 }
 
 function getPrevalidatedJsonCallMember(

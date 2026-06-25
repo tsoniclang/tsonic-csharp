@@ -1,5 +1,6 @@
 import {
   acceptObservation,
+  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedCallMappingRequest,
@@ -15,6 +16,9 @@ import {
   csharpTargetOperationFromMember,
   recordCsharpTargetOperation,
 } from "../source-library.js";
+import {
+  isCsharpJsArrayCarrierTargetType,
+} from "../arrays.js";
 
 export function acceptSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -23,6 +27,16 @@ export function acceptSourceLibraryCheckedCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> {
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# JS surface target call operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+  const returnType = member.returnType;
+  if (
+    sourceMember.declaringName === "Array" &&
+    sourceMember.memberName === "constructor" &&
+    returnType !== undefined &&
+    isCsharpJsArrayCarrierTargetType(returnType) &&
+    context.facts.get(request.call, runtimeCarrierFactKey) === undefined
+  ) {
+    context.facts.set(request.call, runtimeCarrierFactKey, { carrier: returnType }, [{ message: "C# JS surface Array constructor runtime carrier recorded from selected TypeScript Array constructor facts." }]);
+  }
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
   }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);

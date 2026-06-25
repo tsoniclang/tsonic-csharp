@@ -164,7 +164,7 @@ function isSupportedObjectHelperSourceTargetType(
 
 function sourceLibraryArrayStaticCallRequiresNoReceiver(sourceMember: SourceLibraryMember): boolean {
   return sourceMember.declaringName === "Array" &&
-    (sourceMember.memberName === "from" || sourceMember.memberName === "of" || sourceMember.memberName === "isArray");
+    (sourceMember.memberName === "constructor" || sourceMember.memberName === "from" || sourceMember.memberName === "of" || sourceMember.memberName === "isArray");
 }
 
 function sourceLibraryDateStaticCallRequiresNoReceiver(sourceMember: SourceLibraryMember): boolean {

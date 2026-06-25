@@ -8,5 +8,6 @@ export {
 export {
   getCsharpArrayLengthMember,
   getCsharpArrayLikeElementType,
+  getCsharpJsArrayCarrierElementType,
   isCsharpJsArrayCarrierTargetType,
 } from "./array-carriers.js";

@@ -46,6 +46,9 @@ import {
   recordCsharpJsArrayCarrierFactsBeforeFinalization,
 } from "./surfaces/js/array-carrier-lifecycle.js";
 import {
+  recordCsharpJsArrayConstructorRuntimeCarrierFactsBeforeFinalization,
+} from "./surfaces/js/array-carriers.js";
+import {
   recordCsharpJsArrayElementAccessFactsBeforeFinalization,
 } from "./surfaces/js/arrays.js";
 import {
@@ -182,6 +185,7 @@ function recordCsharpJsSurfaceSeedFactsBeforeFinalization(
   recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
   recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsCollectionRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpJsArrayConstructorRuntimeCarrierFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
 }
 

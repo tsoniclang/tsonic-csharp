@@ -20,6 +20,9 @@ import {
   targetMethod,
   targetParameter,
 } from "../source-library.js";
+import {
+  csharpJsArrayCarrierTargetType,
+} from "../array-carriers.js";
 
 export function getArrayTargetMembers(sourceName: string, receiverElementType?: TargetTypeRef): readonly TargetMember[] {
   const itemType: TargetTypeRef = receiverElementType ?? { kind: "type-parameter", name: "T" };
@@ -28,10 +31,19 @@ export function getArrayTargetMembers(sourceName: string, receiverElementType?: 
   const readOnlyListType: TargetTypeRef = csharpReadOnlyListTargetType(itemType);
   const listType: TargetTypeRef = csharpListTargetType(itemType);
   const intType = csharpSourcePrimitiveTargetType("int32");
+  const doubleType = csharpSourcePrimitiveTargetType("float64");
   const boolType = csharpSourcePrimitiveTargetType("bool");
   const stringType = csharpStringTargetType();
   const arrayHelpersType = csharpTargetNamedType("Tsonic.CSharp.Js.Array", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Array"));
   switch (sourceName) {
+    case "constructor":
+      {
+        const arrayType = csharpJsArrayCarrierTargetType(itemType);
+        return [
+          arrayConstructor("Tsonic.CSharp.Js.JSArray..ctor()", arrayType, []),
+          arrayConstructor("Tsonic.CSharp.Js.JSArray..ctor(System.Double)", arrayType, [targetParameter("length", doubleType)]),
+        ];
+      }
     case "from":
       return [
         arrayStaticMethod(sourceName, "from", [targetParameter("iterable", enumerableType)], listType, arrayHelpersType, "from:array:native"),
@@ -199,6 +211,22 @@ function arrayStaticMethod(
 ): TargetMember {
   const owner = declaringType.kind === "target-named" ? declaringType.id.replace(/`.*$/, "") : "Tsonic.CSharp.Js.Array";
   return targetMethod(`${owner}.${idSuffix}`, sourceName, targetName, parameters, returnType, { declaringType, static: true });
+}
+
+function arrayConstructor(
+  id: string,
+  declaringType: TargetTypeRef,
+  parameters: readonly TargetParameter[],
+): TargetMember {
+  return {
+    id,
+    sourceName: "constructor",
+    targetName: "JSArray",
+    kind: "constructor",
+    parameters,
+    returnType: declaringType,
+    declaringType,
+  };
 }
 
 function arrayHelperMethod(

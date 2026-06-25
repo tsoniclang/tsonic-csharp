@@ -281,6 +281,47 @@ test("JS surface maps Array.from, Array.of, and Array.isArray from selected decl
   assert.equal(isArrayResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.isArray:native");
 });
 
+test("JS surface maps Array length construction from selected declaration and closed result carrier facts", () => {
+  const construct = { Kind: "KindNewExpression" };
+  const length = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [construct, jsArrayType(int32Type())],
+    [length, float64Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(construct, arrayConstructorDeclaration(), {
+    arguments: [length],
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.JSArray..ctor(System.Double)");
+  assert.equal(result.value.selectedSignature.member.kind, "constructor");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSArray`1");
+  assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].name, "int32");
+  assert.equal(facts.get(construct, csharpTargetOperationFactKey)?.operationKind, "constructor");
+});
+
+test("JS surface rejects Array construction without closed result carrier facts", () => {
+  const construct = { Kind: "KindNewExpression" };
+  const length = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [length, float64Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(construct, arrayConstructorDeclaration(), {
+    arguments: [length],
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Array\.constructor/);
+  assert.equal(facts.get(construct, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps Boolean.toString from selected declaration and closed bool receiver facts", () => {
   const call = {};
   const receiver = {};
@@ -765,6 +806,26 @@ test("selected JS surface finalizes array element and length operations from car
   assert.equal(extensionHost.facts.get(lengthAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
   assert.equal(extensionHost.facts.get(lengthAccess, csharpTargetOperationFactKey)?.memberName, "Count");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).includes("CSHARP_JS_ARRAY_ELEMENT_ACCESS_REQUIRES_CARRIER"), false);
+});
+
+test("selected JS surface finalizes Array length construction to JSArray carrier", () => {
+  const session = createCsharpSession(`
+    export function make(size: number): number {
+      const values = new Array<number>(size);
+      return values.length;
+    }
+  `, { selectedSurfaces: [{ id: "js" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const construct = collectNodesByKind(sourceFile, session.ast, "KindNewExpression")[0];
+
+  assert.ok(construct);
+  assert.equal(extensionHost.facts.get(construct, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.JSArray`1");
+  assert.equal(extensionHost.facts.get(construct, selectedTargetSignatureFactKey)?.member.id, "Tsonic.CSharp.Js.JSArray..ctor(System.Double)");
+  assert.equal(extensionHost.facts.get(construct, csharpTargetOperationFactKey)?.operationKind, "constructor");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
 
 test("selected JS surface classifies array hole-presence as full JS without inventing operation facts", () => {
@@ -2420,6 +2481,10 @@ function arrayLengthDeclaration() {
 
 function arrayMemberDeclaration(memberName) {
   return sourceLibraryMemberDeclaration("Array", memberName);
+}
+
+function arrayConstructorDeclaration() {
+  return sourceLibraryMemberDeclaration("ArrayConstructor", "");
 }
 
 function sourceLibraryMemberDeclaration(declaringName, memberName, fileName = "bundled:///libs/lib.es5.d.ts") {

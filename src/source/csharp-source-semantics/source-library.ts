@@ -81,6 +81,7 @@ function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringName | 
 
 function sourceLibraryConstructorMemberName(name: string): "constructor" | undefined {
   return name === "RegExpConstructor" ||
+    name === "ArrayConstructor" ||
     name === "DateConstructor" ||
     name === "MapConstructor" ||
     name === "SetConstructor"

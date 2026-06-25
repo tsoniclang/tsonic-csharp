@@ -119,6 +119,9 @@ function sourceLibraryCallCanWaitForFinalizedFacts(
   if (sourceLibraryCollectionOrPrimitiveCallCanWaitForFinalizedFacts(sourceMember)) {
     return phase !== "finalization" && compilerContextCanRunLifecycleFinalization(context);
   }
+  if (sourceMember.declaringName === "Array" && sourceMember.memberName === "constructor") {
+    return phase === "checking" || (phase === undefined && compilerContextCanRunLifecycleFinalization(context));
+  }
   if (phase === "finalization" || sourceMember.declaringName !== "JSON" || sourceMember.memberName !== "stringify") {
     return false;
   }

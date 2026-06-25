@@ -1,5 +1,6 @@
 import {
   ExtensionObservationPoint,
+  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -26,6 +27,9 @@ import type {
 import {
   getSourceLibraryMember,
 } from "../source-library.js";
+import {
+  getCsharpJsArrayRuntimeCarrierForType,
+} from "../array-carriers.js";
 import {
   getNodeParent,
   getPropertyAccessName,
@@ -85,9 +89,11 @@ function recordCsharpSourceLibraryCallFact(
   }
   const sourceSelectedSignature = compiler.checker.getResolvedSignature(node, { sourceFile }) as ExtensionFactSubject | undefined;
   const sourceSelectedDeclaration = getSignatureDeclaration(sourceSelectedSignature);
-  if (getSourceLibraryMember(sourceSelectedDeclaration, context) === undefined) {
+  const sourceMember = getSourceLibraryMember(sourceSelectedDeclaration, context);
+  if (sourceMember === undefined) {
     return;
   }
+  recordArrayConstructorRuntimeCarrierFact(node, sourceFile, sourceMember, context, host);
   const calleeReceiver = compiler.ast.is.IsPropertyAccessExpression(callee)
     ? asNodeSubject(getNodeField(callee, "Expression"))
     : undefined;
@@ -124,4 +130,26 @@ function recordCsharpSourceLibraryCallFact(
     mapped.value.selectedSignature,
     mapped.evidence ?? [{ message: "C# JS surface selected target signature recorded from checked TypeScript library call before finalization." }],
   );
+}
+
+function recordArrayConstructorRuntimeCarrierFact(
+  node: Node,
+  sourceFile: SourceFile,
+  sourceMember: NonNullable<ReturnType<typeof getSourceLibraryMember>>,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): void {
+  if (
+    sourceMember.declaringName !== "Array" ||
+    sourceMember.memberName !== "constructor" ||
+    context.host.facts.get(node, runtimeCarrierFactKey) !== undefined
+  ) {
+    return;
+  }
+  const semanticType = context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
+  const carrier = getCsharpJsArrayRuntimeCarrierForType(semanticType, context, host);
+  if (carrier === undefined) {
+    return;
+  }
+  context.host.facts.set(node, runtimeCarrierFactKey, { carrier }, [{ message: "C# JS surface Array constructor runtime carrier recorded from checked TypeScript Array construction type facts." }]);
 }
