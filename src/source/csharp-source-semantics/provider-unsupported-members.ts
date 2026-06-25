@@ -31,5 +31,5 @@ export function findUnsupportedProviderTargetMember(
   if (selectedId === undefined) {
     return undefined;
   }
-  return unsupportedMembers.find((member) => member.targetId === selectedId || member.metadataName === selectedId);
+  return unsupportedMembers.find((member) => member.targetId === selectedId);
 }

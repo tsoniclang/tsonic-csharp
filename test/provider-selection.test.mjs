@@ -742,12 +742,16 @@ test("C# provider reports selected unsupported property identities with provider
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
+  const recordedFacts = [];
   const binding = {
     id: "Example.Target",
     sourceName: "Target",
     targetName: "Target",
     target: "csharp",
     kind: "class",
+    members: [
+      property("Example.Target.FallbackPointerProperty", "pointerProperty", "FallbackPointerProperty"),
+    ],
     unsupportedMembers: [
       unsupportedMember("property", "Example.Target.PointerProperty", "pointerProperty", "PointerProperty", "Property type cannot be represented as closed .NET target type facts. System.Int32* is unsupported."),
     ],
@@ -765,18 +769,22 @@ test("C# provider reports selected unsupported property identities with provider
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Target.PointerProperty", "pointerProperty"),
+    recordedFacts,
   }));
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_UNSUPPORTED");
   assert.match(result.diagnostic.message, /Property type cannot be represented/u);
   assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
 test("C# provider rejects events even when target facts exist until event source semantics exist", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
+  const recordedFacts = [];
   const binding = {
     id: "Example.Target",
     sourceName: "Target",
@@ -784,6 +792,7 @@ test("C# provider rejects events even when target facts exist until event source
     target: "csharp",
     kind: "class",
     members: [
+      property("Example.Target.FallbackChanged", "changed", "FallbackChanged"),
       eventMember("Example.Target.Changed", "changed", "Changed"),
     ],
     unsupportedMembers: [
@@ -803,17 +812,22 @@ test("C# provider rejects events even when target facts exist until event source
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Target.Changed", "changed"),
+    recordedFacts,
   }));
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_EVENT_UNSUPPORTED");
   assert.match(result.diagnostic.message, /add\/remove subscription semantics/u);
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
 test("C# provider reports selected unsupported call identities with provider reason", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
+  const argument = {};
+  const recordedFacts = [];
   const signatureId = "Example.Target.PointerReturn(System.Int32*)";
   const binding = {
     id: "Example.Target",
@@ -821,6 +835,9 @@ test("C# provider reports selected unsupported call identities with provider rea
     targetName: "Target",
     target: "csharp",
     kind: "class",
+    members: [
+      method("Example.Target.FallbackPointerReturn(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "pointerReturn", targetName: "PointerReturn", overloadGroup: "Example.Target.FallbackPointerReturn" }),
+    ],
     unsupportedMembers: [
       unsupportedMember("method", signatureId, "pointerReturn", "PointerReturn", "Method return type cannot be represented as closed .NET target type facts. System.Int32* is unsupported."),
     ],
@@ -833,21 +850,175 @@ test("C# provider reports selected unsupported call identities with provider rea
     calleePropertyName: "notUsedForSelection",
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
-    arguments: [],
+    arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: {
       ...virtualMember("Example.Target.PointerReturn", "pointerReturn"),
       signatureId,
     },
+    recordedFacts,
   }));
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_UNSUPPORTED");
   assert.match(result.diagnostic.message, /Method return type cannot be represented/u);
   assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
+test("C# provider reports selected unsupported constructor identities with provider reason", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const recordedFacts = [];
+  const signatureId = "Example.Target..ctor(System.Int32*)";
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      constructorMember("Example.Target..ctor(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+    unsupportedMembers: [
+      unsupportedMember("constructor", signatureId, "constructor", ".ctor", "Constructor signature contains parameter 'pointer' with type 'System.Int32*' that cannot be represented as closed .NET target type facts."),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target..ctor", "constructor"),
+      signatureId,
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Constructor signature contains parameter 'pointer'/u);
+  assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
+test("C# provider reports selected unsupported indexer identities with provider reason", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const argument = {};
+  const recordedFacts = [];
+  const signatureId = "Example.Target.Item(System.Int32*)";
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      indexer("Example.Target.FallbackItem(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "item", overloadGroup: "Example.Target.FallbackItem" }),
+    ],
+    unsupportedMembers: [
+      unsupportedMember("indexer", signatureId, "item", "Item", "Indexer signature contains parameter 'pointer' with type 'System.Int32*' that cannot be represented as closed .NET target type facts."),
+    ],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedDeclaration: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.Item", "item"),
+      signatureId,
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Indexer signature contains parameter 'pointer'/u);
+  assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
+test("C# provider does not infer unsupported identity from metadata-name-only matches", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const binding = {
+    id: "Test.Assembly::Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    unsupportedMembers: [
+      unsupportedMember("property", "Test.Assembly::Example.Target.PointerProperty", "pointerProperty", "PointerProperty", "Property type cannot be represented as closed .NET target type facts.", {
+        metadataName: "Example.Target.PointerProperty",
+      }),
+    ],
+  };
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    propertyName: "pointerProperty",
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target.PointerProperty", "pointerProperty"),
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_NOT_FOUND");
+  assert.doesNotMatch(result.diagnostic.message, /Property type cannot be represented/u);
 });
 
 test("C# provider refines selected indexer overload groups from provider signature identity", () => {
@@ -1468,14 +1639,29 @@ function eventMember(id, sourceName, targetName) {
   };
 }
 
-function unsupportedMember(memberKind, targetId, sourceName, targetName, reason) {
+function constructorMember(id, parameterType) {
+  return {
+    id,
+    sourceName: "constructor",
+    targetName: ".ctor",
+    kind: "constructor",
+    parameters: [{
+      name: "value",
+      type: parameterType,
+      passingMode: "by-value",
+    }],
+    overloadGroup: "Example.Target..ctor",
+  };
+}
+
+function unsupportedMember(memberKind, targetId, sourceName, targetName, reason, options = {}) {
   return {
     kind: "unsupported-member",
     memberKind,
     sourceName,
     targetName,
     targetId,
-    metadataName: targetId,
+    metadataName: options.metadataName ?? targetId,
     reason,
   };
 }
@@ -1643,6 +1829,7 @@ function fakeObservationContext(options) {
       ast: {
         kindName: (node) => node === undefined ? "Undefined" : node.Kind === 1 ? "KindNumericLiteral" : String(node.Kind),
         text: (node) => node?.Text ?? "",
+        typeArguments: () => [],
         is: {
           IsStringLiteral: () => false,
         },
