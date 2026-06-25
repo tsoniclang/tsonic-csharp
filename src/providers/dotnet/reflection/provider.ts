@@ -1,6 +1,12 @@
 import { dirname, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
-import type { TargetBindingFact } from "@tsonic/tsts";
+import type {
+  ProviderDeclarationModel,
+  ProviderExportDeclaration,
+  ProviderMemberDeclaration,
+  TargetBindingFact,
+} from "@tsonic/tsts";
 import type {
   DotnetModuleModel,
   DotnetProviderIdentity,
@@ -27,6 +33,9 @@ import {
 import type {
   DotnetProviderCacheRequest,
 } from "./cache.js";
+import type {
+  DotnetReflectionProviderBroker,
+} from "./broker.js";
 import {
   dotnetModuleSpecifierForMetadataName,
   dotnetModuleSpecifierForTargetId,
@@ -51,6 +60,7 @@ export interface DotnetReflectionTypeDataProviderOptions {
   readonly toolBuildRoot?: string;
   readonly cacheRoot?: string;
   readonly disablePersistentCache?: boolean;
+  readonly providerBroker?: DotnetReflectionProviderBroker;
   readonly telemetry?: DotnetProviderTelemetry;
 }
 
@@ -83,6 +93,7 @@ export function createDotnetReflectionTypeDataProvider(
     toolBuildRoot,
     telemetry,
   });
+  const providerBroker = options.providerBroker;
   const persistentCache = options.disablePersistentCache === true
     ? undefined
     : createDotnetProviderCache(options.cacheRoot ?? defaultProviderCacheRoot(), telemetry);
@@ -100,11 +111,24 @@ export function createDotnetReflectionTypeDataProvider(
       telemetry.memoryCacheHit();
       return existing;
     }
-    telemetry.memoryCacheMiss();
+    const brokerModule = providerBroker?.readModule(cacheRequest);
+    if (brokerModule !== undefined) {
+      modules.set(memoryKey, brokerModule);
+      telemetry.memoryCacheHit();
+      return brokerModule;
+    }
     const existingDiagnostic = diagnostics.get(memoryKey);
     if (existingDiagnostic !== undefined) {
+      telemetry.memoryCacheHit();
       return existingDiagnostic;
     }
+    const brokerDiagnostic = providerBroker?.readDiagnostic(cacheRequest);
+    if (brokerDiagnostic !== undefined) {
+      diagnostics.set(memoryKey, brokerDiagnostic);
+      telemetry.memoryCacheHit();
+      return brokerDiagnostic;
+    }
+    telemetry.memoryCacheMiss();
     return loadSingleModule(cacheRequest, context);
   }
 
@@ -121,6 +145,7 @@ export function createDotnetReflectionTypeDataProvider(
     if (cached !== undefined) {
       const module = augmentDotnetModuleWithNativeArray(cached);
       modules.set(memoryKey, module);
+      providerBroker?.writeModule(cacheRequest, module);
       telemetry.modelBytes(JSON.stringify(cached).length);
       return module;
     }
@@ -144,6 +169,7 @@ export function createDotnetReflectionTypeDataProvider(
         stderr: result.stderr,
       });
       diagnostics.set(memoryKey, error);
+      providerBroker?.writeDiagnostic(cacheRequest, error);
       return error;
     }
     try {
@@ -152,6 +178,7 @@ export function createDotnetReflectionTypeDataProvider(
       telemetry.modelBytes(result.stdout.length);
       const module = augmentDotnetModuleWithNativeArray(rawModule);
       modules.set(memoryKey, module);
+      providerBroker?.writeModule(cacheRequest, module);
       return module;
     } catch (error) {
       const parseError = diagnostic("DOTNET_REFLECTION_PROVIDER_INVALID_JSON", ".NET reflection provider emitted invalid JSON.", {
@@ -159,6 +186,7 @@ export function createDotnetReflectionTypeDataProvider(
         error: error instanceof Error ? error.message : String(error),
       });
       diagnostics.set(memoryKey, parseError);
+      providerBroker?.writeDiagnostic(cacheRequest, parseError);
       return parseError;
     }
   }
@@ -211,7 +239,19 @@ export function createDotnetReflectionTypeDataProvider(
     getModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult {
       return loadModule(specifier, context);
     },
+    recordVirtualDeclarationModel(model: ProviderDeclarationModel, elapsedMs: number): void {
+      const startedAt = performance.now();
+      const declarationCount = countProviderVirtualDeclarations(model);
+      const declarationBytes = JSON.stringify(model).length;
+      const instrumentationElapsedMs = performance.now() - startedAt;
+      telemetry.virtualDeclarations(
+        declarationCount,
+        declarationBytes,
+        elapsedMs + instrumentationElapsedMs,
+      );
+    },
     findTargetBindingByTargetId(targetId: string): TargetBindingFact | undefined {
+      telemetry.request("targetBindingByTargetId");
       const existing = findTargetBindingInLoadedModules(modules, targetId);
       if (existing !== undefined) {
         return existing;
@@ -227,6 +267,7 @@ export function createDotnetReflectionTypeDataProvider(
       return findTargetBindingInLoadedModules(modules, targetId);
     },
     findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined {
+      telemetry.request("targetBindingByMetadataName");
       const existing = findUniqueTargetBindingByMetadataNameInLoadedModules(modules, metadataName);
       if (existing !== undefined) {
         return existing;
@@ -245,6 +286,23 @@ export function createDotnetReflectionTypeDataProvider(
       return telemetry.snapshot();
     },
   };
+}
+
+function countProviderVirtualDeclarations(model: ProviderDeclarationModel): number {
+  return model.exports.reduce((count, declaration) => count + countProviderExportDeclaration(declaration), 0);
+}
+
+function countProviderExportDeclaration(declaration: ProviderExportDeclaration): number {
+  return 1
+    + (declaration.signatures?.length ?? 0)
+    + countProviderMemberDeclarations(declaration.members);
+}
+
+function countProviderMemberDeclarations(members: readonly ProviderMemberDeclaration[] | undefined): number {
+  return (members ?? []).reduce(
+    (count, member) => count + 1 + (member.signatures?.length ?? 0),
+    0,
+  );
 }
 
 function isDotnetProviderDiagnostic(value: DotnetProviderModuleResult): value is DotnetProviderDiagnostic {

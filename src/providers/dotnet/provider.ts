@@ -1,8 +1,12 @@
 import {
+  performance,
+} from "node:perf_hooks";
+import {
   TstsProviderContractVersion,
 } from "@tsonic/tsts";
 import type {
   ExtensionDiagnostic,
+  ProviderDeclarationModel,
   ProviderIdentity,
   ProviderModuleContext,
   ProviderModuleResolution,
@@ -29,6 +33,7 @@ export interface DotnetTypeDataProvider {
   ownsModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderOwnership;
   getModule(specifier: string, context: DotnetProviderModuleContext): DotnetProviderModuleResult;
   getTargetIdentity?(symbol: ProviderSymbolIdentity): TargetIdentity | undefined;
+  recordVirtualDeclarationModel?(model: ProviderDeclarationModel, elapsedMs: number): void;
 }
 
 export interface DotnetProviderModuleContext {
@@ -106,12 +111,15 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
-      return dotnetModuleToProviderDeclarationModel(augmentDotnetModuleWithNativeArray(result), {
+      const startedAt = performance.now();
+      const model = dotnetModuleToProviderDeclarationModel(augmentDotnetModuleWithNativeArray(result), {
         resolveModule(specifier) {
           const resolved = options.provider.getModule(specifier, providerContext({}, options));
           return isDotnetProviderDiagnostic(resolved) ? undefined : augmentDotnetModuleWithNativeArray(resolved);
         },
       });
+      options.provider.recordVirtualDeclarationModel?.(model, performance.now() - startedAt);
+      return model;
     },
     getTargetIdentity(symbol) {
       return options.provider.getTargetIdentity?.(symbol);

@@ -45,7 +45,7 @@ export function createDotnetProviderToolRunner(options: DotnetProviderToolRunner
       dllPath,
     },
     run(args: readonly string[]): DotnetProviderToolResult {
-      ensureProviderToolBuilt(projectPath, buildRoot, dllPath);
+      ensureProviderToolBuilt(projectPath, buildRoot, dllPath, options.telemetry);
       const startedAt = performance.now();
       const result = spawnSync("dotnet", [dllPath, ...args], {
         encoding: "utf8",
@@ -61,10 +61,16 @@ export function createDotnetProviderToolRunner(options: DotnetProviderToolRunner
   };
 }
 
-function ensureProviderToolBuilt(projectPath: string, buildRoot: string, dllPath: string): void {
+function ensureProviderToolBuilt(
+  projectPath: string,
+  buildRoot: string,
+  dllPath: string,
+  telemetry: DotnetProviderTelemetry,
+): void {
   if (existsSync(dllPath)) {
     return;
   }
+  const startedAt = performance.now();
   const result = spawnSync("dotnet", [
     "build",
     projectPath,
@@ -77,6 +83,7 @@ function ensureProviderToolBuilt(projectPath: string, buildRoot: string, dllPath
     encoding: "utf8",
     maxBuffer: 512 * 1024 * 1024,
   });
+  telemetry.toolBuild(performance.now() - startedAt);
   if (result.status !== 0) {
     throw new Error(`.NET provider tool build failed.\n${result.stdout}\n${result.stderr}`);
   }
