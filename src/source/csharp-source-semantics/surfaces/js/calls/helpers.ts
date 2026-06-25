@@ -135,10 +135,19 @@ function getTargetTypeRefForOptionalSubject(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
-  return subject === undefined
-    ? undefined
-    : host.getTargetTypeRefForSubject(subject, context, {
-        ...csharpJsCheckedTypeQuery,
-        allowSemanticTypeQuery: false,
-      });
+  if (subject === undefined) {
+    return undefined;
+  }
+  const node = asNodeSubject(subject);
+  const ast = context.compiler?.ast;
+  if (node !== undefined && ast !== undefined && (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node))) {
+    return context.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+      context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier ??
+      context.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+      context.facts.get(subject, runtimeCarrierFactKey)?.carrier;
+  }
+  return host.getTargetTypeRefForSubject(subject, context, {
+    ...csharpJsCheckedTypeQuery,
+    allowSemanticTypeQuery: false,
+  });
 }

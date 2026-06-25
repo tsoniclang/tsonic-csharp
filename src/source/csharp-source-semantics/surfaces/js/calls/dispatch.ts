@@ -73,13 +73,12 @@ export function mapCsharpSourceLibraryCheckedCall(
     return undefined;
   }
   if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
-    if (options.phase !== "finalization" && sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host)) {
+    if (sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase)) {
       return undefined;
     }
     return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
-  const canWaitForFinalizedFacts = options.phase !== "finalization" &&
-    sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host);
+  const canWaitForFinalizedFacts = sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase);
   const jsonStringifyMayNeedFinalFacts = options.phase !== "finalization" &&
     sourceMember.declaringName === "JSON" &&
     sourceMember.memberName === "stringify";
@@ -108,8 +107,13 @@ function sourceLibraryCallCanWaitForFinalizedFacts(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
+  phase: "checking" | "finalization" | undefined,
 ): boolean {
-  if (sourceMember.declaringName !== "JSON" || sourceMember.memberName !== "stringify") {
+  if (sourceMember.declaringName === "Object") {
+    return (phase === "checking" || (phase === undefined && compilerContextCanRunLifecycleFinalization(context))) &&
+      sourceLibraryObjectCallCanWaitForFinalizedFacts(sourceMember);
+  }
+  if (phase === "finalization" || sourceMember.declaringName !== "JSON" || sourceMember.memberName !== "stringify") {
     return false;
   }
   const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
@@ -118,6 +122,22 @@ function sourceLibraryCallCanWaitForFinalizedFacts(
     return context.facts.get(argument, runtimeCarrierFactKey) === undefined &&
       (argumentType === undefined || targetTypeIsOpaqueAny(argumentType));
   });
+}
+
+function compilerContextCanRunLifecycleFinalization(
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  return typeof (context.compiler as { readonly getSourceFiles?: unknown } | undefined)?.getSourceFiles === "function";
+}
+
+function sourceLibraryObjectCallCanWaitForFinalizedFacts(
+  sourceMember: SourceLibraryMember,
+): boolean {
+  return sourceMember.memberName === "keys" ||
+    sourceMember.memberName === "values" ||
+    sourceMember.memberName === "entries" ||
+    sourceMember.memberName === "hasOwn" ||
+    sourceMember.memberName === "assign";
 }
 
 function targetTypeIsOpaqueAny(type: TargetTypeRef): boolean {

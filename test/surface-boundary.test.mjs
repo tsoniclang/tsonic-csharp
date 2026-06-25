@@ -676,6 +676,43 @@ test("selected JS surface classifies array hole-presence as full JS without inve
   assert.equal(extensionHost.facts.get(holePresence, csharpTargetOperationFactKey), undefined);
 });
 
+test("selected JS surface finalizes unchanged chained standard-library TypeScript operations", () => {
+  const session = createCsharpSession(`
+    export function existingTs(values: number[], text: string): string {
+      const normalized = text.trim().toUpperCase();
+      const joined = values.join(",");
+      const keys = Object.keys(values).join("|");
+      const encoded = JSON.stringify(JSON.parse(text));
+      const stamp = new Date(0).toISOString();
+      const matched = /ok/u.test(encoded);
+      console.log(normalized, joined, keys, stamp, matched, Math.max(values.length, 1));
+      return normalized + joined + keys + encoded + stamp;
+    }
+  `, { selectedSurfaces: [{ id: "js" }], typescriptCompatibility: "compat" });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const selectedMemberIds = collectFactValues(sourceFile, session, extensionHost, selectedTargetSignatureFactKey)
+    .map((fact) => fact.member.id);
+  const operationIds = collectFactValues(sourceFile, session, extensionHost, targetOperationFactKey)
+    .map((fact) => fact.operationId);
+
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.String.trim"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.String.toUpperCase"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Array.join"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Object.keys:jsarray"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.JSON.parse"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.JSON.stringify:tsvalue"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Date..ctor(System.Double)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Date.toISOString"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.RegExp.test"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.console.log"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Js.Math.max"));
+  assert.ok(operationIds.includes("tsonic.csharp.js.Array.length"));
+});
+
 test("C# planner rejects sparse array literal elisions before dense lowering", () => {
   const diagnostics = [];
   const literal = {
@@ -1650,6 +1687,66 @@ test("NodeJS assert provider declarations compile only when the nodejs surface i
   assert.match(formatDiagnostics(nativeSession.ensureChecked(nativeSourceFile)), /Cannot find name 'node:assert\/strict'/);
 });
 
+test("selected NodeJS surface finalizes unchanged ESM Node import operations", () => {
+  const session = createCsharpSession(`
+    import { ok } from "assert/strict";
+    import { Buffer } from "buffer";
+    import { existsSync, readFileSync, statSync } from "fs";
+    import * as path from "node:path";
+    import * as process from "node:process";
+    import { cwd } from "node:process";
+    import { URL, fileURLToPath } from "url";
+    import { stripVTControlCharacters } from "util";
+
+    export function existingNode(file: string): string {
+      ok(existsSync(file), "missing");
+      const data = readFileSync(file, "utf8");
+      const stats = statSync(file);
+      const url = new URL("file:///workspace/index.ts");
+      const buffer = Buffer.from(data, "utf8");
+      const clean = stripVTControlCharacters(data);
+      return stats.isFile()
+        ? path.join(cwd(), file) + path.sep + process.argv.length + buffer.length + fileURLToPath(url) + clean
+        : process.platform;
+    }
+  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const selectedMemberIds = collectFactValues(sourceFile, session, extensionHost, selectedTargetSignatureFactKey)
+    .map((fact) => fact.member.id);
+  const operationIds = collectFactValues(sourceFile, session, extensionHost, targetOperationFactKey)
+    .map((fact) => fact.operationId);
+
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.assert.ok(System.Boolean,System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs.existsSync(System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs.readFileSync(System.String,System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs.statSync(System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.Stats.IsFile()"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.URL..ctor(System.String,System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.Buffer.from(System.String,System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.util.stripVTControlCharacters(System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.path.join(System.String[])"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.cwd()"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.url.fileURLToPath(Tsonic.CSharp.Node.URL)"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.path.sep"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.argv"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.platform"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.Buffer.length"));
+});
+
+test("NodeJS provider imports remain unavailable without the selected NodeJS surface", () => {
+  const nativeSession = createCsharpSession(`
+    import { existsSync } from "fs";
+    export const value = existsSync("package.json");
+  `);
+  const nativeSourceFile = nativeSession.getSourceFile("/src/index.ts");
+
+  assert.match(formatDiagnostics(nativeSession.ensureChecked(nativeSourceFile)), /Cannot find name 'fs'/);
+});
+
 test("NodeJS surface exposes util as a provider-owned virtual module", () => {
   const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
 
@@ -2374,6 +2471,23 @@ function collectNodesByKind(node, ast, kindName, result = []) {
   }
   for (const child of ast.children(node) ?? []) {
     collectNodesByKind(child, ast, kindName, result);
+  }
+  return result;
+}
+
+function collectFactValues(sourceFile, session, extensionHost, factKey) {
+  return collectAllNodes(sourceFile, session.ast)
+    .map((node) => extensionHost.facts.get(node, factKey))
+    .filter((fact) => fact !== undefined);
+}
+
+function collectAllNodes(node, ast, result = []) {
+  if (node === undefined) {
+    return result;
+  }
+  result.push(node);
+  for (const child of ast.children(node) ?? []) {
+    collectAllNodes(child, ast, result);
   }
   return result;
 }
