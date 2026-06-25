@@ -34,6 +34,6 @@ export function mapCsharpSourceLibraryCheckedElementAccess(
       host.getTargetTypeRefForSubject(request.receiver, context, { allowRuntimeCarrier: false }),
   );
   return mapCsharpJsArrayElementAccess(request, context, receiverType ?? semanticReceiverType, host) ??
-    mapCsharpJsRecordDictionaryElementAccess(request, context, semanticReceiverType, host) ??
+    mapCsharpJsRecordDictionaryElementAccess(request, context, receiverType ?? semanticReceiverType, host) ??
     mapCsharpJsStringElementAccess(request, context, receiverType, host);
 }

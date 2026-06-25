@@ -197,6 +197,11 @@ function nodeFsStatsExportDeclaration(): ProviderExportDeclaration {
     id: `node:fs.${nodeFsStatsExportName}`,
     name: nodeFsStatsExportName,
     kind: "class",
+    targetIdentity: {
+      target: "csharp",
+      id: statsTargetType.id,
+      displayName: "Tsonic.CSharp.Node.Stats",
+    },
     members: [
       {
         id: nodeFsStatsSizeMemberId,

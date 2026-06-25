@@ -3,6 +3,7 @@ import {
   deferObservation,
   providerVirtualDeclarationFactKey,
   rejectObservation,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedCallMappingRequest,
@@ -13,6 +14,9 @@ import type {
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  csharpTargetOperationFactKey,
+} from "../csharp-facts.js";
 import {
   csharpProviderDiagnostic,
 } from "./diagnostics.js";
@@ -51,6 +55,12 @@ import {
   targetMemberIsClosed,
 } from "./target-ref-utils.js";
 import {
+  getCsharpTypeofRuntimeKindForTargetType,
+} from "./target-types.js";
+import {
+  unwrapNullableTargetType,
+} from "./target-rules.js";
+import {
   erasedAttributeFactMember,
   erasedFieldFactMember,
   erasedSourceSemanticsMember,
@@ -71,6 +81,23 @@ export function mapCsharpCheckedCall(
 ): ExtensionObservation<CheckedCallMappingResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
+  }
+  const existingSelectedSignature = context.facts.get(request.call, selectedTargetSignatureFactKey);
+  if (existingSelectedSignature !== undefined) {
+    if (
+      context.facts.get(request.call, csharpTargetOperationFactKey) === undefined &&
+      targetMemberIsClosed(existingSelectedSignature.member)
+    ) {
+      recordCsharpTargetOperation(
+        context,
+        request.call,
+        csharpTargetOperationFromMember(existingSelectedSignature.member),
+        [{ message: "C# target call operation reused from the existing finalized TSTS selected target signature for this checked call." }],
+      );
+    }
+    return acceptObservation<CheckedCallMappingResult>({
+      selectedSignature: existingSelectedSignature,
+    }, [{ message: "C# target call mapping reused the existing selected target signature for a repeated TSTS checker observation." }]);
   }
   const attributeFact = getCheckedAttributeBuilderFact(request, context);
   const virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context);
@@ -127,6 +154,10 @@ export function mapCsharpCheckedCall(
     return nativeArrayCreate;
   }
   if (binding === undefined) {
+    const unsupportedNativeReceiverCall = rejectUnsupportedNativeReceiverCall(request, context, extensionId, host);
+    if (unsupportedNativeReceiverCall !== undefined) {
+      return unsupportedNativeReceiverCall;
+    }
     return deferObservation;
   }
   const targetBinding = binding.target === csharpTargetId
@@ -192,6 +223,29 @@ export function mapCsharpCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: csharpMember },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function rejectUnsupportedNativeReceiverCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  extensionId: string,
+  host: CsharpOperationsProviderHost,
+): ExtensionObservation<CheckedCallMappingResult> | undefined {
+  const sourceName = request.calleePropertyName;
+  if (sourceName === undefined) {
+    return undefined;
+  }
+  const receiverType = unwrapNullableTargetType(
+    host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
+      host.getTargetTypeRefForSubject(request.calleeReceiver, context),
+  );
+  if (receiverType?.kind === "array" || (receiverType?.kind === "target-named" && receiverType.id === dotnetNativeArrayTypeId)) {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED", 9100136, `C# native array source contract has no target-backed property '${sourceName}'.`));
+  }
+  if (getCsharpTypeofRuntimeKindForTargetType(receiverType) === "string") {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_PROPERTY_ACCESS_NOT_MAPPED", 9100144, `C# property access '${sourceName}' must be selected by TSTS/provider facts before emission.`));
+  }
+  return undefined;
 }
 
 function mapDotnetNativeArrayCreateCall(

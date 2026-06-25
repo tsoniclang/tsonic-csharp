@@ -1,6 +1,10 @@
 import {
+  AsVariableDeclaration,
   AsVariableDeclarationList,
   AsVariableStatement,
+  HasSourceKind,
+  KindArrayBindingPattern,
+  KindObjectBindingPattern,
   NodeFlagsConst,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -44,8 +48,11 @@ export function planTopLevelVariableStatement(
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
     }
-    const destructured = planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state);
-    if (destructured.length > 1 || (destructured.length === 1 && destructured[0]?.kind !== "LocalDeclarationStatement")) {
+    const variable = AsVariableDeclaration(declaration)!;
+    const destructured = isBindingPattern(variable.name, input)
+      ? planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)
+      : undefined;
+    if (destructured !== undefined) {
       moduleMembers.push(...topLevelBindingFields(destructured, isConst, diagnostics, declaration));
       continue;
     }
@@ -86,4 +93,9 @@ function topLevelBindingFields(
     });
   }
   return fields;
+}
+
+function isBindingPattern(node: Node | undefined, input: TargetCompileInput): boolean {
+  return HasSourceKind(input.ast, node, KindObjectBindingPattern) ||
+    HasSourceKind(input.ast, node, KindArrayBindingPattern);
 }

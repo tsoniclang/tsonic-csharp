@@ -150,15 +150,22 @@ function recordCsharpRuntimeCarrierFact(
     ...(result.value.requiresAllocation !== undefined ? { requiresAllocation: result.value.requiresAllocation } : {}),
   };
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, result.evidence ?? []);
-  if (!targetTypeRefContainsSourcePrimitive(fact.carrier)) {
+  if (runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(fact.carrier)) {
     lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, fact, result.evidence ?? []);
   }
   if (symbol !== undefined) {
     lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
   }
-  if (type.symbol !== undefined && !targetTypeRefContainsSourcePrimitive(fact.carrier)) {
+  if (type.symbol !== undefined && runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(fact.carrier)) {
     lifecycleContext.host.facts.set(type.symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
   }
+}
+
+function runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(type: TargetTypeRef): boolean {
+  if (targetTypeRefContainsSourcePrimitive(type)) {
+    return false;
+  }
+  return type.kind === "target-named" && (type.typeArguments?.length ?? 0) === 0;
 }
 
 function recordCsharpRuntimeCarrierSyntaxFact(
@@ -468,7 +475,7 @@ function shouldReplaceUseSiteRuntimeCarrier(existing: TargetTypeRef, replacement
   if (isSourceDeclarationCarrier(existing) && !isSourceDeclarationCarrier(replacement)) {
     return true;
   }
-  return existing.kind === "array" && replacement.kind === "array";
+  return false;
 }
 
 function isSourceDeclarationCarrier(type: TargetTypeRef): boolean {

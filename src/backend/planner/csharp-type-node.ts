@@ -3,9 +3,11 @@ import {
   AsNewExpression,
   AsPropertyAccessExpression,
   KindAnyKeyword,
+  KindArrowFunction,
   KindArrayType,
   KindArrayBindingPattern,
   KindCallExpression,
+  KindFunctionExpression,
   KindNewExpression,
   KindObjectBindingPattern,
   KindObjectKeyword,
@@ -126,6 +128,16 @@ export function getCsharpTypeForNode(
   if (nodeTypeParameterName !== undefined) {
     return { kind: "IdentifierName", name: nodeTypeParameterName };
   }
+  if (input.ast.kindName(node) === KindArrowFunction || input.ast.kindName(node) === KindFunctionExpression) {
+    const contextualCallableType = getCsharpCallableContextualType(node, input);
+    if (contextualCallableType !== undefined) {
+      return contextualCallableType;
+    }
+    const callableType = getCsharpTypeFromSemanticType(nodeType, sourceFile, input);
+    if (callableType !== undefined && isDelegateTypeNode(callableType)) {
+      return callableType;
+    }
+  }
   const explicitTypeSyntax = getCsharpTypeFromExplicitTypeSyntax(node, sourceFile, input, diagnostics);
   if (explicitTypeSyntax !== undefined) {
     return explicitTypeSyntax;
@@ -217,11 +229,38 @@ function getCsharpTypeFromExplicitTypeSyntax(
   if (keywordType !== undefined) {
     return keywordType;
   }
+  const callableSemanticType = IsTypeSyntaxNode(input.ast, node)
+    ? getCsharpTypeFromSemanticType(input.semantics.getTypeFromTypeNode(node, { sourceFile }), sourceFile, input)
+    : undefined;
+  if (callableSemanticType !== undefined && isDelegateTypeNode(callableSemanticType)) {
+    return callableSemanticType;
+  }
   const directType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (directType !== undefined) {
     return directType;
   }
   return getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
+}
+
+function isDelegateTypeNode(type: CsharpTypeNode): boolean {
+  if (type.kind === "NullableType") {
+    return isDelegateTypeNode(type.inner);
+  }
+  return type.kind === "IdentifierName" &&
+    (type.name === "Func" || type.name === "Action" || type.name === "Predicate");
+}
+
+function getCsharpCallableContextualType(
+  node: Node,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const contextualTargetType = input.facts.getContextualTargetTypeFact(node)?.targetType;
+  const csharpType = contextualTargetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(contextualTargetType);
+  return csharpType !== undefined && isDelegateTypeNode(csharpType)
+    ? csharpType
+    : undefined;
 }
 
 function getTupleElementTypeNode(element: Node | undefined): Node | undefined {

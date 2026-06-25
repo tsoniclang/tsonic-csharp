@@ -235,6 +235,11 @@ function nodeUrlUrlExportDeclaration(): ProviderExportDeclaration {
     id: `node:url.${nodeUrlUrlExportName}`,
     name: nodeUrlUrlExportName,
     kind: "class",
+    targetIdentity: {
+      target: "csharp",
+      id: urlTargetType.id,
+      displayName: "Tsonic.CSharp.Node.URL",
+    },
     members: [
       ...nodeUrlClassCallTargetMembers().map(providerMemberForUrlClassCall),
       ...nodeUrlClassPropertyTargetMembers().map(providerMemberForUrlClassProperty),

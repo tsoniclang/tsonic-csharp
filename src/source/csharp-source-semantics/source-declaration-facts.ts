@@ -1,5 +1,6 @@
 import {
   fieldFactKey,
+  providerVirtualDeclarationFactKey,
   runtimeCarrierFactKey,
   structFactKey,
 } from "@tsonic/tsts";
@@ -55,7 +56,11 @@ export function recordCsharpSourceDeclarationFactsBeforeFinalization(
     return;
   }
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (
+      sourceFile === undefined ||
+      sourceFile.IsDeclarationFile === true ||
+      lifecycleContext.host.facts.get(sourceFile, providerVirtualDeclarationFactKey) !== undefined
+    ) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {

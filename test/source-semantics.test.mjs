@@ -332,12 +332,12 @@ test("source-semantics does not synthesize C# operator facts for opaque any oper
     .find((node) => session.ast.parent(node) === binary);
 
   assert.deepEqual(extensionHost.facts.get(dynamicUse, runtimeCarrierFactKey)?.carrier, { kind: "opaque", id: "any" });
-  assert.deepEqual(extensionHost.facts.get(binary, targetOperationFactKey), {
-    operationId: "tsonic.csharp.operator.missing.+",
-    operationKind: "operator",
-    targetOperation: "+",
-  });
+  assert.equal(extensionHost.facts.get(binary, targetOperationFactKey), undefined);
   assert.equal(extensionHost.facts.get(binary, csharpTargetOperationFactKey), undefined);
+  assert.ok(extensionHost.diagnostics.all().some((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_OPERATOR_NOT_MAPPED" &&
+    diagnostic.message.includes("explicit compat-runtime carrier operation facts")
+  ));
   const anyOperationDiagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
     diagnostic.extensionCode === "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED"
   );

@@ -1,4 +1,5 @@
 import type {
+  Node,
   SourceFile,
   Symbol,
   TargetTypeRef,
@@ -11,6 +12,7 @@ import type {
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import {
+  getTargetTypeRefForNode,
   getTargetTypeRefForType,
 } from "./runtime-carriers.js";
 import {
@@ -45,6 +47,11 @@ export function getCsharpTypeFromSemanticType(
   if (typeParameterName !== undefined) {
     return { kind: "IdentifierName", name: typeParameterName };
   }
+  const nextSeen = new Set(seen).add(type);
+  const callable = getCsharpCallableTypeFromSemanticType(type, sourceFile, input, nextSeen);
+  if (callable !== undefined) {
+    return callable;
+  }
   const resolvedTargetType = getCsharpTargetTypeRefFromSemanticType(type, sourceFile, input, seen);
   const resolvedCsharpType = resolvedTargetType === undefined
     ? undefined
@@ -58,11 +65,6 @@ export function getCsharpTypeFromSemanticType(
     : csharpTypeFromTargetTypeRef(directTargetType);
   if (directCsharpType !== undefined) {
     return directCsharpType;
-  }
-  const nextSeen = new Set(seen).add(type);
-  const callable = getCsharpCallableTypeFromSemanticType(type, sourceFile, input, nextSeen);
-  if (callable !== undefined) {
-    return callable;
   }
   if (input.types.isTuple(type)) {
     const elements = input.types.getTupleElementTypes(type, { sourceFile })
@@ -110,14 +112,6 @@ function getCsharpTargetTypeRefFromSemanticType(
   ) {
     return undefined;
   }
-  const directTargetType = getTargetTypeRefForType(input, type, sourceFile);
-  const instantiatedDirectTargetType = instantiateSemanticTargetNamedType(directTargetType, type, sourceFile, input, seen);
-  if (instantiatedDirectTargetType !== undefined) {
-    return instantiatedDirectTargetType;
-  }
-  if (directTargetType !== undefined) {
-    return directTargetType;
-  }
   const typeParameterName = getCsharpTypeParameterName(type, input);
   if (typeParameterName !== undefined) {
     return { kind: "type-parameter", name: typeParameterName };
@@ -126,6 +120,14 @@ function getCsharpTargetTypeRefFromSemanticType(
   const callable = getCsharpCallableTargetTypeRefFromSemanticType(type, sourceFile, input, nextSeen);
   if (callable !== undefined) {
     return callable;
+  }
+  const directTargetType = getTargetTypeRefForType(input, type, sourceFile);
+  const instantiatedDirectTargetType = instantiateSemanticTargetNamedType(directTargetType, type, sourceFile, input, seen);
+  if (instantiatedDirectTargetType !== undefined) {
+    return instantiatedDirectTargetType;
+  }
+  if (directTargetType !== undefined) {
+    return directTargetType;
   }
   if (input.types.isTuple(type)) {
     const elements = input.types.getTupleElementTypes(type, { sourceFile })
@@ -205,17 +207,12 @@ function getCsharpCallableTargetTypeRefFromSemanticType(
     return undefined;
   }
   const parameters = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
-    .map((parameter) => getCsharpTargetTypeRefFromSemanticType(
-      input.semantics.getTypeOfSymbol(parameter, { sourceFile }),
-      sourceFile,
-      input,
-      seen,
-    ));
+    .map((parameter) => getCallableParameterTargetTypeRef(parameter, sourceFile, input, seen));
   if (parameters.some((parameter) => parameter === undefined)) {
     return undefined;
   }
   const returnType = input.types.getReturnTypeOfSignature(signature, { sourceFile });
-  const returnCsharpType = getCsharpTargetTypeRefFromSemanticType(returnType, sourceFile, input, seen);
+  const returnCsharpType = getCallableReturnTargetTypeRef(signature, returnType, sourceFile, input, seen);
   return input.types.isVoidLike(returnType) || returnCsharpType === undefined
     ? csharpDelegateTargetType("System.Action", parameters as readonly TargetTypeRef[])
     : csharpDelegateTargetType("System.Func", parameters as readonly TargetTypeRef[], returnCsharpType);
@@ -232,17 +229,18 @@ function getCsharpCallableTypeFromSemanticType(
     return undefined;
   }
   const parameters = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
-    .map((parameter) => getCsharpTypeFromSemanticType(
-      input.semantics.getTypeOfSymbol(parameter, { sourceFile }),
-      sourceFile,
-      input,
-      seen,
-    ));
+    .map((parameter) => {
+      const targetType = getCallableParameterTargetTypeRef(parameter, sourceFile, input, seen);
+      return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+    });
   if (parameters.some((parameter) => parameter === undefined)) {
     return undefined;
   }
   const returnType = input.types.getReturnTypeOfSignature(signature, { sourceFile });
-  const returnCsharpType = getCsharpTypeFromSemanticType(returnType, sourceFile, input, seen);
+  const returnTargetType = getCallableReturnTargetTypeRef(signature, returnType, sourceFile, input, seen);
+  const returnCsharpType = returnTargetType === undefined
+    ? undefined
+    : csharpTypeFromTargetTypeRef(returnTargetType);
   if (returnCsharpType === undefined || input.types.isVoidLike(returnType)) {
     return {
       kind: "IdentifierName",
@@ -255,6 +253,72 @@ function getCsharpCallableTypeFromSemanticType(
     name: "Func",
     typeArguments: [...parameters as readonly CsharpTypeNode[], returnCsharpType],
   };
+}
+
+function getCallableParameterTargetTypeRef(
+  parameter: Symbol,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  seen: ReadonlySet<Type>,
+): TargetTypeRef | undefined {
+  const explicitType = getSymbolDeclarations(parameter)
+    .map((declaration) => getNodeField(declaration, "Type"))
+    .map((typeNode) => getTargetTypeRefForNode(input, typeNode, sourceFile) ??
+      getCsharpTargetTypeRefFromSemanticType(typeNode === undefined ? undefined : input.semantics.getTypeFromTypeNode(typeNode, { sourceFile }), sourceFile, input, seen))
+    .find((type): type is TargetTypeRef => type !== undefined);
+  if (explicitType !== undefined) {
+    return explicitType;
+  }
+  return getCsharpTargetTypeRefFromSemanticType(
+    input.semantics.getTypeOfSymbol(parameter, { sourceFile }),
+    sourceFile,
+    input,
+    seen,
+  );
+}
+
+function getCallableReturnTargetTypeRef(
+  signature: unknown,
+  returnType: Type | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  seen: ReadonlySet<Type>,
+): TargetTypeRef | undefined {
+  const explicitReturn = getSignatureDeclarations(signature)
+    .map((declaration) => getNodeField(declaration, "Type"))
+    .map((typeNode) => getTargetTypeRefForNode(input, typeNode, sourceFile) ??
+      getCsharpTargetTypeRefFromSemanticType(typeNode === undefined ? undefined : input.semantics.getTypeFromTypeNode(typeNode, { sourceFile }), sourceFile, input, seen))
+    .find((type): type is TargetTypeRef => type !== undefined);
+  return explicitReturn ??
+    getCsharpTargetTypeRefFromSemanticType(returnType, sourceFile, input, seen);
+}
+
+function getSymbolDeclarations(symbol: Symbol): readonly Node[] {
+  return (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node }).Declarations ??
+    ((symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
+}
+
+function getSignatureDeclarations(signature: unknown): readonly Node[] {
+  const typed = signature as {
+    readonly declaration?: Node;
+    readonly Declaration?: Node;
+    readonly Declarations?: readonly Node[];
+  };
+  if (typed.Declarations !== undefined) {
+    return typed.Declarations;
+  }
+  if (typed.declaration !== undefined) {
+    return [typed.declaration];
+  }
+  return typed.Declaration === undefined ? [] : [typed.Declaration];
+}
+
+function getNodeField(node: Node | undefined, field: string): Node | undefined {
+  if (node === undefined) {
+    return undefined;
+  }
+  const value = Object.getOwnPropertyDescriptor(node, field)?.value;
+  return typeof value === "object" && value !== null ? value as Node : undefined;
 }
 
 export function getCsharpTypeParameterName(type: Type, input: TargetCompileInput): string | undefined {

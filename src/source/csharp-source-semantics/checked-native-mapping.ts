@@ -1,5 +1,6 @@
 import {
   acceptObservation,
+  argumentPassingFactKey,
   contextualTargetTypeFactKey,
   deferObservation,
   rejectObservation,
@@ -100,9 +101,15 @@ export function mapCsharpContextualTargetType(
     return deferObservation;
   }
   const existing = context.facts.get(request.expression, contextualTargetTypeFactKey);
+  if (existing !== undefined) {
+    return acceptObservation<ContextualTargetTypeResult>(
+      existing,
+      [{ message: "C# reused existing contextual target type fact for repeated TSTS contextual observation." }],
+    );
+  }
   if (subjectIsSourceCoreStructDeclarationPayload(request.expression, context)) {
     return acceptObservation<ContextualTargetTypeResult>(
-      existing ?? { type: request.context },
+      { type: request.context },
       [{ message: "C# acknowledged TSTS contextual type for source-core struct schema payload without target metadata; schema payload is source metadata, not emitted code." }],
     );
   }
@@ -111,9 +118,6 @@ export function mapCsharpContextualTargetType(
   }
   const targetType = host.getTargetTypeRefForSubject(request.context, context);
   if (targetType === undefined) {
-    if (existing !== undefined) {
-      return acceptObservation<ContextualTargetTypeResult>(existing, [{ message: "C# reused existing contextual target type fact for repeated TSTS contextual observation." }]);
-    }
     return acceptObservation<ContextualTargetTypeResult>({
       type: request.context,
     }, [{ message: "C# acknowledged TSTS contextual type without target metadata; no deterministic C# target type was available." }]);
@@ -132,7 +136,7 @@ export function mapCsharpCheckedConversion(
   if (request.targetPlatform !== undefined && request.targetPlatform !== csharpTargetId) {
     return deferObservation;
   }
-  const source = host.getTargetTypeRefForSubject(request.source, context, expressionEvidenceQuery);
+  const source = host.getTargetTypeRefForSubject(request.source, context, noRuntimeCarrierQuery);
   const target = host.getTargetTypeRefForSubject(request.target, context);
   if (target === undefined) {
     return deferObservation;
@@ -242,7 +246,7 @@ export function mapCsharpCheckedConversion(
 
 export function mapCsharpParameterPassing(
   request: ParameterPassingRequest,
-  _context: ExtensionObservationContext<"parameter.resolvePassing">,
+  context: ExtensionObservationContext<"parameter.resolvePassing">,
 ): ExtensionObservation<ParameterPassingResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
@@ -250,6 +254,20 @@ export function mapCsharpParameterPassing(
   const parameter = asTargetParameter(request.parameter);
   if (parameter === undefined) {
     return deferObservation;
+  }
+  const sourceMarkerPassing = context.facts.get(request.argument, argumentPassingFactKey);
+  if (sourceMarkerPassing !== undefined) {
+    if (sourceMarkerPassing.mode !== parameter.passingMode) {
+      return rejectObservation(csharpProviderDiagnostic(
+        context.extensionId,
+        "CSHARP_ARGUMENT_PASSING_MODE_MISMATCH",
+        9100148,
+        `C# parameter passing requires '${parameter.passingMode}', but the selected source marker provided '${sourceMarkerPassing.mode}'.`,
+      ));
+    }
+    return acceptObservation<ParameterPassingResult>({
+      passing: sourceMarkerPassing,
+    }, [{ message: "C# argument passing reused the finalized source-core storage marker fact for the selected provider parameter." }]);
   }
   return acceptObservation<ParameterPassingResult>({
     passing: {

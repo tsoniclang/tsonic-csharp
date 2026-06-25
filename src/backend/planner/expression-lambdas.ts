@@ -49,12 +49,13 @@ export function planArrowFunctionExpression(
   state?: DestructuringPlannerState,
 ): CsharpExpression {
   const expression = AsArrowFunction(node)!;
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
+  const targetType = getLambdaTargetContext(node, sourceFile, input, expectedType);
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetType);
   if (HasSourceKind(input.ast, expression.Body, KindBlock)) {
     return {
       kind: "LambdaExpression",
       ...(isAsyncExpression(node) ? { async: true } : {}),
-      parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, expectedType),
+      parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetType),
       body: {
         kind: "Block",
         statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics, state),
@@ -64,7 +65,7 @@ export function planArrowFunctionExpression(
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
-    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, expectedType),
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetType),
     body: planExpression(expression.Body!, sourceFile, input, diagnostics),
   };
 }
@@ -78,11 +79,12 @@ export function planFunctionExpression(
   state?: DestructuringPlannerState,
 ): CsharpExpression {
   const expression = AsFunctionExpression(node)!;
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
+  const targetType = getLambdaTargetContext(node, sourceFile, input, expectedType);
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetType);
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
-    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, expectedType),
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetType),
     body: {
       kind: "Block",
       statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics, state),
@@ -156,14 +158,33 @@ export function diagnoseMissingLambdaTargetContext(
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
 ): void {
-  if (expectedType !== undefined && isCsharpDelegateType(expectedType)) {
-    return;
-  }
-  const contextualType = getContextualTargetCsharpType(node, sourceFile, input);
-  if (contextualType !== undefined && isCsharpDelegateType(contextualType)) {
+  if (getLambdaTargetContext(node, sourceFile, input, expectedType) !== undefined) {
     return;
   }
   diagnostics.push(unsupportedNodeDiagnostic(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."));
+}
+
+export function getLambdaTargetContext(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  expectedType?: CsharpTypeNode,
+  options?: { readonly allowSelfSemanticType?: boolean },
+): CsharpTypeNode | undefined {
+  if (expectedType !== undefined && isCsharpDelegateType(expectedType)) {
+    return expectedType;
+  }
+  const contextualType = getContextualTargetCsharpType(node, sourceFile, input);
+  if (contextualType !== undefined && isCsharpDelegateType(contextualType)) {
+    return contextualType;
+  }
+  if (options?.allowSelfSemanticType !== true) {
+    return undefined;
+  }
+  const semanticType = getCsharpTypeFromSemanticType(input.semantics.getTypeAtLocation(node, { sourceFile }), sourceFile, input);
+  return semanticType !== undefined && isCsharpDelegateType(semanticType)
+    ? semanticType
+    : undefined;
 }
 
 export function isCsharpDelegateType(type: CsharpTypeNode): boolean {

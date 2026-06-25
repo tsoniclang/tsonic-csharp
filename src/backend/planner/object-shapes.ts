@@ -51,8 +51,16 @@ export function csharpTypeFromObjectShapeFact(
   if (fact.constructible === true) {
     return targetType;
   }
+  if (isSourceDeclaredNominalShape(fact)) {
+    return targetType;
+  }
   registerObjectShapeDeclaration(input, targetType.name, fact, diagnostics, diagnosticSubject);
   return targetType;
+}
+
+function isSourceDeclaredNominalShape(fact: CsharpObjectShapeFact): boolean {
+  return fact.targetType.kind === "target-named" &&
+    (fact.targetType as { readonly csharpSourceDeclarationKind?: unknown }).csharpSourceDeclarationKind !== undefined;
 }
 
 function registerObjectShapeDeclaration(

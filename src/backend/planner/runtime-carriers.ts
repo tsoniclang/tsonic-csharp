@@ -28,9 +28,9 @@ export function getTargetTypeRefForNode(
   }
   const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile);
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
-    return typeReferenceFact ??
-      getTargetTypeRefFromDirectFacts(input, sourceNode, { includeRuntimeCarrier: false }) ??
-      input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile });
+    return getTargetTypeRefFromDirectFacts(input, sourceNode) ??
+      input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile }) ??
+      typeReferenceFact;
   }
   return typeReferenceFact ??
     getTargetTypeRefFromDirectFacts(input, sourceNode) ??

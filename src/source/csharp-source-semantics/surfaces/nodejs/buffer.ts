@@ -74,6 +74,11 @@ export function nodeBufferExports(): readonly ProviderExportDeclaration[] {
       id: "node:buffer.Buffer",
       name: nodeBufferExportName,
       kind: "class",
+      targetIdentity: {
+        target: "csharp",
+        id: bufferTargetType.id,
+        displayName: "Tsonic.CSharp.Node.Buffer",
+      },
       members: [
         {
           id: nodeBufferFromStringMemberId,

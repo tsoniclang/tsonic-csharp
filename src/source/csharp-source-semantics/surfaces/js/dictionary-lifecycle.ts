@@ -81,9 +81,11 @@ export function recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization
         return;
       }
       const candidates = getCsharpRecordDictionaryIndexerTargetMembers(receiverType, host);
-      const member = selectTargetMember(candidates, { arguments: [argument] }, context, host.getTargetTypeRefForSubject, {
-        getBaseTargetTypeRef: host.getBaseTargetTypeRef,
-      });
+      const member = candidates.length === 1
+        ? candidates[0]
+        : selectTargetMember(candidates, { arguments: [argument] }, context, host.getTargetTypeRefForSubject, {
+            getBaseTargetTypeRef: host.getBaseTargetTypeRef,
+          });
       if (member === undefined) {
         return;
       }

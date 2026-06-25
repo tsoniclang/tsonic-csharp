@@ -74,9 +74,12 @@ function getRecordedCsharpObjectShapeFactForObjectLiteralContext(
     return undefined;
   }
   const typeNode = getObjectLiteralTargetTypeNode(node, context);
-  return typeNode === undefined
+  const contextualShape = typeNode === undefined
     ? undefined
     : getRecordedCsharpObjectShapeFactForReference(typeNode, context);
+  return isSourceDeclaredStructRuntimeCarrier(contextualShape?.targetType)
+    ? contextualShape
+    : undefined;
 }
 
 function getObjectLiteralTargetTypeNode(

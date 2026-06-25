@@ -38,9 +38,18 @@ export function mapCsharpJsRecordDictionaryElementAccess(
     getCsharpTargetBindingByTargetId: host.getCsharpTargetBindingByTargetId,
     getCsharpTargetBindingByMetadataName: host.getCsharpTargetBindingByMetadataName,
   });
-  const member = host.selectTargetMember(candidates, { arguments: [request.argument] }, context);
+  const member = candidates.length === 1
+    ? candidates[0]
+    : host.selectTargetMember(candidates, { arguments: [request.argument] }, context);
   if (member === undefined) {
-    return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_RECORD_DICTIONARY_INDEXER_NOT_MAPPED", 9100114, "C# Record dictionary surface could not map checked TypeScript element access to a provider-owned Dictionary indexer from finalized key facts."));
+    return rejectObservation({
+      ...host.csharpProviderDiagnostic(host.extensionId, "CSHARP_RECORD_DICTIONARY_INDEXER_NOT_MAPPED", 9100114, "C# Record dictionary surface could not map checked TypeScript element access to a provider-owned Dictionary indexer from finalized key facts."),
+      evidence: [
+        { message: "Record dictionary receiver target type", details: receiverType },
+        { message: "Candidate indexer ids", details: candidates.map((candidate) => candidate.id) },
+        { message: "Argument target type", details: host.getTargetTypeRefForSubject(request.argument, context) ?? "unresolved" },
+      ],
+    });
   }
   recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: "C# Record dictionary indexer operation recorded from checked TypeScript Record carrier and provider-owned Dictionary indexer facts." }]);
   return acceptObservation<CheckedOperationMappingResult>({

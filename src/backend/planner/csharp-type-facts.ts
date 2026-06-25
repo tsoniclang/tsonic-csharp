@@ -36,7 +36,7 @@ export function getCsharpTypeFromSelectedTargetCall(
   const operation = input.facts.getFact(node, csharpTargetOperationFactKey);
   const returnType = operation?.kind === "member"
     ? operation.selectedMember?.returnType ?? operation.resultType
-    : undefined;
+    : operation?.resultType;
   if (returnType === undefined) {
     return undefined;
   }

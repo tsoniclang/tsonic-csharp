@@ -77,14 +77,21 @@ export function recordCsharpCheckedOperatorFactsBeforeFinalization(
     while (progressed) {
       progressed = false;
       for (const node of pending) {
-        if (lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
+        const existingTargetOperation = lifecycleContext.host.facts.get(node, targetOperationFactKey);
+        const existingCsharpOperation = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey);
+        if (existingTargetOperation !== undefined && existingCsharpOperation !== undefined) {
           continue;
         }
         const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
         if (operation !== undefined) {
-          lifecycleContext.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
-          lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
-          progressed = true;
+          if (existingTargetOperation === undefined) {
+            lifecycleContext.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
+            lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
+            progressed = true;
+          } else if (existingCsharpOperation === undefined && existingTargetOperation.operationId === operation.operation.operationId) {
+            lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from existing checked TSTS/provider operator fact." }]);
+            progressed = true;
+          }
         }
       }
     }
