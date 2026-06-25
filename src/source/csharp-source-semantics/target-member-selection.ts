@@ -60,21 +60,7 @@ export function findTargetMemberForCall(
     if (exactMember !== undefined) {
       return exactMember;
     }
-    const groupCandidates = declaration.memberId === undefined
-      ? []
-      : getTargetMemberCandidatesForMemberId(binding, declaration.memberId);
-    return groupCandidates.length === 0
-      ? undefined
-      : selectTargetMember(
-          groupCandidates,
-          {
-            arguments: request.arguments,
-            receiver: request.calleeReceiver,
-          },
-          context,
-          resolveTargetTypeRef,
-          options,
-        );
+    return undefined;
   }
   const candidates = getTargetMemberCandidates(binding, declaration);
   if (candidates.length === 1) {
@@ -125,20 +111,7 @@ export function findTargetMemberForElementAccess(
     if (exactMember !== undefined) {
       return exactMember;
     }
-    const groupCandidates = declaration.memberId === undefined
-      ? []
-      : getTargetMemberCandidatesForMemberId(binding, declaration.memberId);
-    return groupCandidates.length === 0
-      ? undefined
-      : selectTargetMember(
-          groupCandidates,
-          {
-            arguments: [request.argument],
-          },
-          context,
-          resolveTargetTypeRef,
-          options,
-        );
+    return undefined;
   }
   const candidates = getTargetMemberCandidates(binding, declaration);
   if (candidates.length === 1) {
