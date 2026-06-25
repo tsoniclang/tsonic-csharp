@@ -1249,6 +1249,38 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
   assert.equal(targetOptionalConstructor.targetName, ".ctor");
   assert.equal(stripAssemblyQualifiers(targetOptionalConstructor.overloadGroup), "ProviderConstructorFixtures.ConstructorTarget..ctor");
   assert.deepEqual(targetOptionalConstructor.parameters[1].defaultValue, { kind: "string", value: "default" });
+  const targetParamsConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32[])");
+  const targetRefConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(ref System.Int64)");
+  const targetOutConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(out System.Int16)");
+  const targetInConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(in System.Boolean,System.Char)");
+  assert.ok(targetParamsConstructor);
+  assert.ok(targetRefConstructor);
+  assert.ok(targetOutConstructor);
+  assert.ok(targetInConstructor);
+  assert.deepEqual(parameterFacts(targetParamsConstructor.parameters), [
+    {
+      name: "values",
+      type: { kind: "array", element: { kind: "source-primitive", name: "int32" } },
+      passingMode: "by-value",
+      paramsArray: true,
+    },
+  ]);
+  assert.deepEqual(parameterFacts(targetRefConstructor.parameters), [
+    { name: "value", type: { kind: "source-primitive", name: "int64" }, passingMode: "byref-readwrite" },
+  ]);
+  assert.deepEqual(parameterFacts(targetOutConstructor.parameters), [
+    { name: "value", type: { kind: "source-primitive", name: "int16" }, passingMode: "byref-writeonly-must-init" },
+  ]);
+  assert.deepEqual(parameterFacts(targetInConstructor.parameters), [
+    { name: "flag", type: { kind: "source-primitive", name: "bool" }, passingMode: "byref-readonly" },
+    {
+      name: "marker",
+      type: { kind: "source-primitive", name: "char" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "source-primitive", name: "char", value: "x" },
+    },
+  ]);
 
   const unsupportedTarget = module.exports.find((declaration) => declaration.sourceName === "UnsupportedConstructorTarget");
   assert.ok(unsupportedTarget);

@@ -165,6 +165,132 @@ test("target member selection rejects byref parameter mode mismatches", () => {
   );
 });
 
+test("C# provider derives out/ref/in passing from selected target parameter facts", () => {
+  const provider = getNativeSemanticProvider();
+  const argument = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const cases = [
+    ["notNamedOut", "byref-writeonly-must-init"],
+    ["notNamedRef", "byref-readwrite"],
+    ["notNamedIn", "byref-readonly"],
+  ];
+
+  for (const [name, mode] of cases) {
+    const result = provider.resolveParameterPassing({
+      target: "csharp",
+      parameter: targetParameter(name, int32, mode),
+      argument,
+    }, fakeObservationContext({}));
+
+    assert.equal(result.kind, "accept", name);
+    assert.deepEqual(result.value.passing, {
+      mode,
+      targetExpression: argument,
+    });
+  }
+
+  const markerCall = {};
+  const mismatch = provider.resolveParameterPassing({
+    target: "csharp",
+    parameter: targetParameter("notNamedOut", int32, "byref-writeonly-must-init"),
+    argument: markerCall,
+  }, fakeObservationContext({
+    argumentPassingSubject: markerCall,
+    argumentPassing: {
+      mode: "byref-readwrite",
+      targetExpression: argument,
+    },
+  }));
+
+  assert.equal(mismatch.kind, "reject");
+  assert.equal(mismatch.diagnostic.extensionCode, "CSHARP_ARGUMENT_PASSING_MODE_MISMATCH");
+});
+
+test("C# provider rejects missing or mutated target parameter-mode facts before recording selected operations", () => {
+  const provider = getNativeSemanticProvider();
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const outCall = {};
+  const value = int32;
+  const scenarios = [
+    {
+      name: "missing omitted optional passing mode",
+      arguments: [],
+      member: {
+        ...method("Example.Target.missing(System.String)", csharpStringType(), {
+          sourceName: "missing",
+          targetName: "Missing",
+          overloadGroup: "Example.Target.missing",
+        }),
+        parameters: [{
+          name: "notNamedOptional",
+          type: csharpStringType(),
+          optional: true,
+          defaultValue: { kind: "string", value: "proved" },
+        }],
+      },
+    },
+    {
+      name: "mutated noncanonical passing mode",
+      arguments: [outCall],
+      context: {
+        argumentPassingSubject: outCall,
+        argumentPassing: {
+          mode: "out",
+          targetExpression: value,
+        },
+      },
+      member: {
+        ...method("Example.Target.mutated(out System.Int32)", int32, {
+          sourceName: "mutated",
+          targetName: "Mutated",
+          overloadGroup: "Example.Target.mutated",
+        }),
+        parameters: [{
+          name: "notNamedOut",
+          type: int32,
+          passingMode: "out",
+        }],
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const selectedDeclaration = {};
+    const containerSymbol = {};
+    const recordedFacts = [];
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call: {},
+      callee: {},
+      calleePropertyName: scenario.member.sourceName,
+      sourceSelectedDeclaration: selectedDeclaration,
+      sourceSelectedContainerSymbol: containerSymbol,
+      arguments: scenario.arguments,
+    }, fakeObservationContext({
+      ...scenario.context,
+      targetBindingSubject: containerSymbol,
+      targetBinding: {
+        id: "Example.Target",
+        sourceName: "Target",
+        targetName: "Target",
+        target: "csharp",
+        kind: "class",
+        members: [scenario.member],
+      },
+      virtualDeclarationSubject: selectedDeclaration,
+      virtualDeclaration: {
+        ...virtualMember(scenario.member.overloadGroup, scenario.member.sourceName),
+        signatureId: scenario.member.id,
+      },
+      recordedFacts,
+    }));
+
+    assert.equal(result.kind, "reject", scenario.name);
+    assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND", scenario.name);
+    assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false, scenario.name);
+  }
+});
+
 test("target member selection rejects source marker wrappers for by-value parameters", () => {
   const outCall = {};
   const value = {};

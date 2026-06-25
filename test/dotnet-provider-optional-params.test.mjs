@@ -194,6 +194,13 @@ test(".NET selected target-member identity enforces optional and params-array ar
   assert.equal(selectBySignature(optionalWithoutDefaultMember, 1), undefined);
   assert.equal(selectBySignature(optionalWithoutDefaultMember, 2)?.id, optionalWithoutDefaultMember.id);
 
+  const defaultWithoutOptionalMember = method("Example.Target.DefaultWithoutOptional(System.String,System.String)", [
+    parameter("value", stringType()),
+    parameter("name", stringType(), { defaultValue: { kind: "string", value: "not-optional" } }),
+  ]);
+  assert.equal(selectBySignature(defaultWithoutOptionalMember, 1), undefined);
+  assert.equal(selectBySignature(defaultWithoutOptionalMember, 2)?.id, defaultWithoutOptionalMember.id);
+
   const unsupportedDefaultMember = method("Example.Target.UnsupportedDefault(System.String,System.String)", [
     parameter("value", stringType()),
     parameter("name", stringType(), {
@@ -217,6 +224,13 @@ test(".NET selected target-member identity enforces optional and params-array ar
   assert.equal(selectBySignature(paramsMember, 3)?.id, paramsMember.id);
   assert.equal(selectBySignature(paramsMember, 0), undefined);
 
+  const arrayWithoutParamsMember = method("Example.Target.ArrayWithoutParams(System.String,System.String[])", [
+    parameter("format", stringType()),
+    parameter("values", { kind: "array", element: stringType() }),
+  ]);
+  assert.equal(selectBySignature(arrayWithoutParamsMember, 1), undefined);
+  assert.equal(selectBySignature(arrayWithoutParamsMember, 3), undefined);
+
   const requiredMember = method("Example.Target.Required(System.String,System.String)", [
     parameter("value", stringType()),
     parameter("name", stringType()),
@@ -228,6 +242,22 @@ test(".NET selected target-member identity enforces optional and params-array ar
     parameter("tail", stringType()),
   ]);
   assert.equal(selectBySignature(malformedParamsMember, 2), undefined);
+
+  const malformedParamsTypeMember = method("Example.Target.MalformedParamsType(System.String,System.String)", [
+    parameter("format", stringType()),
+    parameter("values", stringType(), { paramsArray: true }),
+  ]);
+  assert.equal(selectBySignature(malformedParamsTypeMember, 1), undefined);
+  assert.equal(selectBySignature(malformedParamsTypeMember, 2), undefined);
+
+  const malformedParamsPassingMember = method("Example.Target.MalformedParamsPassing(System.String,System.String[])", [
+    parameter("format", stringType()),
+    parameter("values", { kind: "array", element: stringType() }, {
+      paramsArray: true,
+      passingMode: "byref-readwrite",
+    }),
+  ]);
+  assert.equal(selectBySignature(malformedParamsPassingMember, 1), undefined);
 });
 
 function rawSignature(module, typeName, memberName, signatureId) {

@@ -225,6 +225,18 @@ function argumentPassingModeMatchesTargetParameter(expected: ArgumentPassingMode
   return expected === actual;
 }
 
+function targetParameterPassingModeIsValid(mode: unknown): mode is ArgumentPassingMode {
+  switch (mode) {
+    case "by-value":
+    case "byref-writeonly-must-init":
+    case "byref-readwrite":
+    case "byref-readonly":
+      return true;
+    default:
+      return false;
+  }
+}
+
 function targetArityMatches(parameters: readonly TargetParameter[], argumentCount: number): boolean {
   if (!targetParameterListShapeIsValid(parameters)) {
     return false;
@@ -244,11 +256,14 @@ function targetParameterListShapeIsValid(parameters: readonly TargetParameter[])
     if (parameter === undefined) {
       return false;
     }
+    if (!targetParameterPassingModeIsValid(parameter.passingMode)) {
+      return false;
+    }
     if (parameter.optional === true && parameter.paramsArray === true) {
       return false;
     }
     if (parameter.paramsArray === true) {
-      if (paramsArrayIndex !== undefined || index !== parameters.length - 1) {
+      if (parameter.passingMode !== "by-value" || parameter.type.kind !== "array" || paramsArrayIndex !== undefined || index !== parameters.length - 1) {
         return false;
       }
       paramsArrayIndex = index;
