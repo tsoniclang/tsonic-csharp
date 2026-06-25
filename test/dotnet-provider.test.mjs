@@ -320,6 +320,29 @@ test(".NET reflection provider keeps requested-export memory slices isolated fro
   assert.equal(snapshot.memoryCacheHits, 1);
 });
 
+test(".NET reflection provider target-binding cache preserves member-complete bindings after virtual declaration slicing", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", { requestedExports: ["Exception"] });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in model, true, JSON.stringify(model));
+  const exception = model.exports.find((declaration) => declaration.name === "Exception");
+  assert.ok(exception);
+
+  const binding = provider.findTargetBindingByTargetId(exception.targetIdentity.id);
+  assert.ok(binding);
+  assert.equal(
+    binding.members?.some((member) => member.id === `${exception.targetIdentity.id}..ctor(System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e::System.String)`),
+    true,
+  );
+  assert.equal(
+    binding.members?.some((member) => member.id === `${exception.targetIdentity.id}.ToString()`),
+    true,
+  );
+});
+
 test(".NET provider declaration model omits source members without truthful source shapes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@tsonic/dotnet/System.js",

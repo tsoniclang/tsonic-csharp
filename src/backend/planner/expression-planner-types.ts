@@ -20,6 +20,7 @@ export type CallArgumentPlanner = (
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
+  expectedConversionType?: CsharpTypeNode,
 ) => CsharpArgument;
 
 export type ExpectedExpressionPlanner = (

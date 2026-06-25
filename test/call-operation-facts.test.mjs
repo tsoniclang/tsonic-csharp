@@ -194,6 +194,33 @@ test("call argument emission applies explicit target conversion facts before sel
   });
 });
 
+test("call argument emission separates semantic conversion type from render expected type", () => {
+  const argument = identifier("value");
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: { kind: "source-primitive", name: "int32" },
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+    { kind: "PredefinedType", name: "long" },
+    undefined,
+    { kind: "PredefinedType", name: "int" },
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "Argument",
+    expression: { kind: "IdentifierName", name: "value_as_long" },
+  });
+});
+
 test("call argument emission rejects conversion facts that mismatch selected expected types", () => {
   const argument = identifier("value");
   const diagnostics = [];

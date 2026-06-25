@@ -109,13 +109,16 @@ export function planPropertyAccessExpression(
     if (csharpOperation === undefined) {
       return invalidExpression("missing C# target property operation fact");
     }
-    const staticMember = targetStaticMemberExpression(csharpOperation, diagnostics, propertyAccess);
-    if (staticMember !== undefined) {
-      return staticMember;
-    }
     if (csharpOperation.kind !== "member" || csharpOperation.operationKind !== "property") {
       diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, "C# property access emission requires a finalized C# member property operation fact."));
       return invalidExpression("selected target property operation");
+    }
+    if (csharpOperation.static === true) {
+      const staticMember = targetStaticMemberExpression(csharpOperation, diagnostics, propertyAccess);
+      if (staticMember !== undefined) {
+        return staticMember;
+      }
+      return invalidExpression("selected static target property");
     }
     return {
       kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",

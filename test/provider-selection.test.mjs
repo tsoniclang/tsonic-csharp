@@ -924,6 +924,40 @@ test("C# provider maps constructors from exact selected signature identity", () 
   });
 });
 
+test("C# provider selects provider constructors from a selected provider type identity", () => {
+  const provider = getNativeSemanticProvider();
+  const containerSymbol = {};
+  const argument = csharpStringType();
+  const binding = {
+    id: "Example.Exception",
+    sourceName: "Exception",
+    targetName: "Exception",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Exception" },
+    members: [
+      {
+        ...constructorMember("Example.Exception..ctor(System.String)", csharpStringType()),
+        overloadGroup: "Example.Exception..ctor",
+      },
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: { Kind: "KindNewExpression" },
+    callee: {},
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, "Example.Exception..ctor(System.String)");
+});
+
 test("C# provider selects constructor overloads only within the proven provider constructor group", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -1401,7 +1435,7 @@ test("C# provider maps calls from TSTS-selected callee symbol virtual declaratio
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
-test("C# provider rejects mismatched exact selected signatures instead of sibling overload search", () => {
+test("C# provider may refine an exact source signature inside the same provider overload group", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1449,8 +1483,8 @@ test("C# provider rejects mismatched exact selected signatures instead of siblin
     },
   }));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
 test("C# provider accepts literal arguments for exact selected target signatures", () => {
@@ -1592,6 +1626,52 @@ test("C# provider rejects same-spelling call members without selected provider i
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+});
+
+test("C# provider maps checked source contract members on provider-owned receivers", () => {
+  const receiver = {};
+  const receiverType = {
+    kind: "target-named",
+    id: "Example.Exception",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Exception" },
+  };
+  const binding = {
+    id: "Example.Exception",
+    sourceName: "Exception",
+    targetName: "Exception",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Exception" },
+    members: [
+      {
+        id: "Example.Exception.ToString()",
+        sourceName: "toString",
+        targetName: "ToString",
+        kind: "method",
+        parameters: [],
+        returnType: csharpStringType(),
+        overloadGroup: "Example.Exception.ToString",
+        declaringType: receiverType,
+      },
+    ],
+  };
+  const provider = getNativeSemanticProvider({ bindings: [binding] });
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleeReceiver: receiver,
+    calleeReceiverType: receiverType,
+    calleePropertyName: "toString",
+    arguments: [],
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, "Example.Exception.ToString()");
 });
 
 test("C# provider maps property access from selected provider member identity instead of property text", () => {

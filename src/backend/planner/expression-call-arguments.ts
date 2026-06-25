@@ -46,19 +46,20 @@ export function planCallArgumentCore(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
+  expectedConversionType?: CsharpTypeNode,
 ): CsharpArgument {
   const argumentPassing = input.facts.getArgumentPassingFact(node);
   if (argumentPassing === undefined) {
-    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject) };
+    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, expectedConversionType) };
   }
   if (!isAstNode(argumentPassing.targetExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
-    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject) };
+    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, expectedConversionType) };
   }
   const passing = getCsharpArgumentPassing(argumentPassing.mode, node, diagnostics);
   return {
     kind: "Argument",
-    expression: planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject),
+    expression: planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, expectedConversionType),
     ...(passing !== undefined ? { passing } : {}),
   };
 }
@@ -72,6 +73,7 @@ function planCallArgumentExpression(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
+  expectedConversionType?: CsharpTypeNode,
 ): CsharpExpression {
   const conversion = input.facts.getTargetConversionFact(node);
   if (conversion?.operation !== undefined) {
@@ -83,11 +85,19 @@ function planCallArgumentExpression(
       diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion requires a renderable target type before C# emission."));
       return invalidExpression("target argument conversion type");
     }
-    if (expectedType !== undefined && !sameCsharpType(convertedType, expectedType)) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion fact does not match the finalized selected parameter target type."));
+    const semanticExpectedType = expectedConversionType ?? expectedType;
+    if (semanticExpectedType !== undefined && !sameCsharpType(convertedType, semanticExpectedType)) {
+      diagnostics.push({
+        ...unsupportedNodeDiagnostic(node, "Selected target argument conversion fact does not match the finalized selected parameter target type."),
+        evidence: [
+          `convertedTargetType=${JSON.stringify(conversion.convertedType)}`,
+          `convertedCsharpType=${JSON.stringify(convertedType)}`,
+          `expectedCsharpType=${JSON.stringify(semanticExpectedType)}`,
+        ],
+      });
       return invalidExpression("target argument conversion mismatch");
     }
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, convertedType, expectedTypeSubject);
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType ?? convertedType, expectedTypeSubject);
   }
   if (expectedType !== undefined) {
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);

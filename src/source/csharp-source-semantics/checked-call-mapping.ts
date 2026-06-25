@@ -11,6 +11,7 @@ import {
 import type {
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
+  ExtensionEvidence,
   ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
@@ -51,10 +52,8 @@ import {
 } from "./selected-target-member-instantiation.js";
 import {
   findTargetMemberForCall,
+  selectTargetMember,
 } from "./target-member-selection.js";
-import {
-  selectProviderSelectedTargetMember,
-} from "./target-member-arguments.js";
 import type {
   TargetMemberSelectionOptions,
 } from "./target-member-arguments.js";
@@ -217,7 +216,13 @@ export function mapCsharpCheckedCall(
     if (unsupportedMember !== undefined) {
       return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_UNSUPPORTED", 9100130, `C# provider selected unsupported target ${unsupportedMember.memberKind} '${unsupportedMember.targetName}' on target '${targetBinding.id}'. ${unsupportedMember.reason}`));
     }
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_FOUND", 9100100, `C# provider could not map checked call '${request.calleePropertyName ?? "<anonymous>"}' on target '${targetBinding.id}'.`));
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_TARGET_MEMBER_NOT_FOUND",
+      9100100,
+      `C# provider could not map checked call '${request.calleePropertyName ?? "<anonymous>"}' on target '${targetBinding.id}'.`,
+      targetMemberMissEvidence(targetBinding, virtualDeclaration, request, selectionOptions),
+    ));
   }
   if (member.kind !== "method" && member.kind !== "constructor") {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_CALLABLE", 9100101, `C# provider mapped checked call '${request.calleePropertyName ?? "<anonymous>"}' to non-callable target member '${member.id}'.`));
@@ -268,22 +273,7 @@ function findCsharpTargetMemberForCall(
   host: CsharpOperationsProviderHost,
   options: TargetMemberSelectionOptions,
 ): TargetMember | undefined {
-  if (declaration?.signatureId !== undefined) {
-    const selectedMember = (binding.members ?? []).find((candidate) => candidate.id === declaration.signatureId);
-    return selectedMember === undefined
-      ? undefined
-      : selectProviderSelectedTargetMember(
-          selectedMember,
-          {
-            arguments: request.arguments,
-            receiver: request.calleeReceiver,
-          },
-          context,
-          host.getTargetTypeRefForSubject,
-          options,
-        );
-  }
-  return findTargetMemberForCall(
+  const selectedMember = findTargetMemberForCall(
     binding,
     declaration,
     request,
@@ -291,6 +281,108 @@ function findCsharpTargetMemberForCall(
     host.getTargetTypeRefForSubject,
     options,
   );
+  if (selectedMember !== undefined) {
+    return selectedMember;
+  }
+  const constructorMember = findConstructorTargetMemberForProviderType(
+    binding,
+    declaration,
+    request,
+    context,
+    host,
+    options,
+  );
+  if (constructorMember !== undefined) {
+    return constructorMember;
+  }
+  return findSourceContractTargetMemberForProviderReceiver(
+    binding,
+    declaration,
+    request,
+    context,
+    host,
+    options,
+  );
+}
+
+function findConstructorTargetMemberForProviderType(
+  binding: NonNullable<ReturnType<typeof findTargetBinding>>,
+  declaration: ProviderVirtualDeclarationFact | undefined,
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+  options: TargetMemberSelectionOptions,
+): TargetMember | undefined {
+  if (declaration?.memberId !== undefined || declaration?.signatureId !== undefined || request.calleePropertyName !== undefined) {
+    return undefined;
+  }
+  return selectTargetMember(
+    (binding.members ?? []).filter((candidate) => candidate.kind === "constructor"),
+    {
+      arguments: request.arguments,
+      receiver: request.calleeReceiver,
+    },
+    context,
+    host.getTargetTypeRefForSubject,
+    options,
+  );
+}
+
+function findSourceContractTargetMemberForProviderReceiver(
+  binding: NonNullable<ReturnType<typeof findTargetBinding>>,
+  declaration: ProviderVirtualDeclarationFact | undefined,
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+  options: TargetMemberSelectionOptions,
+): TargetMember | undefined {
+  if (declaration !== undefined || request.calleePropertyName === undefined || request.calleeReceiver === undefined) {
+    return undefined;
+  }
+  if (isProviderStaticContainerReceiver(request, context, binding)) {
+    return undefined;
+  }
+  const declaringTargetType = options.declaringTargetType;
+  if (declaringTargetType?.kind !== "target-named" || declaringTargetType.id !== binding.id) {
+    return undefined;
+  }
+  return selectTargetMember(
+    (binding.members ?? []).filter((candidate) => candidate.sourceName === request.calleePropertyName),
+    {
+      arguments: request.arguments,
+      receiver: request.calleeReceiver,
+    },
+    context,
+    host.getTargetTypeRefForSubject,
+    options,
+  );
+}
+
+function targetMemberMissEvidence(
+  binding: NonNullable<ReturnType<typeof findTargetBinding>>,
+  declaration: ProviderVirtualDeclarationFact | undefined,
+  request: CheckedCallMappingRequest,
+  options: TargetMemberSelectionOptions,
+): readonly ExtensionEvidence[] {
+  return [
+    {
+      message: "C# provider target binding was resolved, but no target member matched the checked TSTS call observation.",
+      details: {
+        bindingId: binding.id,
+        calleePropertyName: request.calleePropertyName,
+        argumentCount: request.arguments.length,
+        hasReceiver: request.calleeReceiver !== undefined,
+        selectedMemberId: declaration?.memberId,
+        selectedSignatureId: declaration?.signatureId,
+        selectedExportName: declaration?.exportName,
+        selectedMemberName: declaration?.memberName,
+        selectedTargetIdentity: declaration?.targetIdentity,
+        declaringTargetType: options.declaringTargetType,
+        firstArgumentReceiver: options.firstArgumentReceiver === false ? false : options.firstArgumentReceiver !== undefined,
+        candidateMemberIds: (binding.members ?? []).map((candidate) => candidate.id),
+      },
+    },
+  ];
 }
 
 function missingRequiredSourceMarkerFactDiagnostic(

@@ -68,7 +68,8 @@ export function planSelectedTargetCallArguments(
       const parameter = getTargetParameterForArgument(member.parameters, index + parameterOffset);
       const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
       const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(argument, targetType, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
-      return planCallArgument(argument, sourceFile, input, diagnostics, expectedType);
+      const expectedConversionType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+      return planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, expectedConversionType);
     });
   return receiverArgument === undefined ? argumentsList : [receiverArgument, ...argumentsList];
 }
@@ -188,7 +189,8 @@ function planSelectedTargetReceiverArgument(
   const parameter = member.parameters[0];
   const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
   const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(receiver, targetType, input, argumentArrayLiteralElementTypes?.[0]);
-  return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType);
+  const expectedConversionType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+  return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType, undefined, expectedConversionType);
 }
 
 function getTargetParameterForArgument(parameters: readonly TargetParameter[], index: number): TargetParameter | undefined {

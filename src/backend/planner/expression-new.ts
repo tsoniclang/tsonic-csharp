@@ -1,10 +1,11 @@
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
-  CsharpArgument,
   CsharpExpression,
-  CsharpTypeNode,
 } from "../roslyn/syntax.js";
+import type {
+  CallArgumentPlanner,
+} from "./expression-planner-types.js";
 import {
   AsNewExpression,
   KindClassDeclaration,
@@ -38,14 +39,6 @@ import {
 import {
   tryPlanCompatRuntimeConstruct,
 } from "./compat-runtime-operations.js";
-
-export type CallArgumentPlanner = (
-  node: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[],
-  expectedType?: CsharpTypeNode,
-) => CsharpArgument;
 
 export function planNewExpression(
   node: Node,
