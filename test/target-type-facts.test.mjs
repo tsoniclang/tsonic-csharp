@@ -196,6 +196,49 @@ test("provider-owned generic target type references require finalized target arg
   assert.match(missingDiagnostics[0].message, /requires target type facts for every type argument/);
 });
 
+test("ptr and fnptr type references render only from finalized source-core type facts", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const intType = typeReferenceNode("int32");
+  const boolType = typeReferenceNode("bool");
+  const pointerType = typeReferenceNode("ptr", [intType]);
+  const functionPointerType = typeReferenceNode("fnptr", [intType, boolType]);
+  const diagnostics = [];
+  const input = fakeTypeInput(sourceFile, {
+    sourcePrimitives: new Map([
+      [intType, sourcePrimitive("int32")],
+      [boolType, sourcePrimitive("bool")],
+    ]),
+    pointerFacts: new Map([[pointerType, {
+      pointee: intType,
+      mutability: "target-defined",
+      unsafeRequired: true,
+    }]]),
+    functionPointerFacts: new Map([[functionPointerType, {
+      parameters: [intType],
+      result: boolType,
+      abi: ["target-default"],
+      unsafeRequired: true,
+    }]]),
+  });
+
+  assert.equal(printCsharpType(getCsharpTypeForNode(pointerType, sourceFile, input, undefined, diagnostics)), "int*");
+  assert.equal(printCsharpType(getCsharpTypeForNode(functionPointerType, sourceFile, input, undefined, diagnostics)), "delegate*<int, bool>");
+  assert.deepEqual(diagnostics, []);
+
+  const missingDiagnostics = [];
+  const missing = getCsharpTypeForNode(pointerType, sourceFile, fakeTypeInput(sourceFile, {
+    pointerFacts: new Map([[pointerType, {
+      pointee: intType,
+      mutability: "target-defined",
+      unsafeRequired: true,
+    }]]),
+  }), undefined, missingDiagnostics);
+
+  assert.equal(missing.kind, "InvalidType");
+  assert.equal(missingDiagnostics.length, 1);
+  assert.match(missingDiagnostics[0].message, /requires a closed target type from TSTS\/provider facts/);
+});
+
 test("advanced erased type syntax emits only from TSTS semantic result facts", () => {
   const sourceExample = `
     type Result<T> = T extends string ? Readonly<{ value: T }> : never;
@@ -244,6 +287,15 @@ function typeReferenceNode(name, typeArguments = []) {
 
 function sourceFileNode(fileName) {
   return { Kind: "KindSourceFile", FileName: fileName, IsDeclarationFile: false, Statements: { Nodes: [] } };
+}
+
+function sourcePrimitive(kind) {
+  return {
+    kind,
+    runtimeBase: kind === "bool" ? "boolean" : "number",
+    signed: kind !== "bool",
+    width: kind === "bool" ? undefined : 32,
+  };
 }
 
 function fakeInput(options) {
@@ -308,9 +360,9 @@ function fakeTypeInput(sourceFile, options = {}) {
       getObjectShapeFact: () => undefined,
       getTargetBindingFact: () => undefined,
       getFact: () => undefined,
-      getSourcePrimitiveFact: () => undefined,
-      getPointerFact: () => undefined,
-      getFunctionPointerFact: () => undefined,
+      getSourcePrimitiveFact: (subject) => options.sourcePrimitives?.get(subject),
+      getPointerFact: (subject) => options.pointerFacts?.get(subject),
+      getFunctionPointerFact: (subject) => options.functionPointerFacts?.get(subject),
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
       getTargetIterationFact: () => undefined,

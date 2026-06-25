@@ -32,6 +32,9 @@ import {
 import {
   getCsharpTypeFromTargetBindingForReference,
 } from "./provider-types.js";
+import {
+  getCsharpTypeFromProjectSourceTypeReferenceNode,
+} from "../project-source-types.js";
 import type {
   CsharpTypeResolver,
 } from "./types.js";
@@ -61,6 +64,10 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   const sourcePrimitiveType = getCsharpTypeFromSourcePrimitiveTypeReference(node, sourceFile, input);
   if (sourcePrimitiveType !== undefined) {
     return sourcePrimitiveType;
+  }
+  const projectSourceType = getCsharpTypeFromProjectSourceTypeReferenceNode(node, sourceFile, input, resolveCsharpType, diagnostics);
+  if (projectSourceType !== undefined) {
+    return projectSourceType;
   }
   const callableSemanticType = IsTypeSyntaxNode(input.ast, node)
     ? getCsharpTypeFromSemanticType(input.semantics.getTypeFromTypeNode(node, { sourceFile }), sourceFile, input)

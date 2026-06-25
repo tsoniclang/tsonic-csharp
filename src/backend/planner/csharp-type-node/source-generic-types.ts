@@ -31,6 +31,9 @@ import {
 import {
   getCsharpTypeFromSemanticType,
 } from "../csharp-semantic-types.js";
+import {
+  getCsharpTypeFromProjectSourceReference,
+} from "../project-source-types.js";
 import type {
   CsharpTypeResolver,
 } from "./types.js";
@@ -84,13 +87,13 @@ export function getCsharpTypeFromSourceNewExpression(
   if (expression === undefined || reference === undefined || !input.ast.is.IsClassDeclaration(reference.declaration)) {
     return undefined;
   }
+  const baseType = getCsharpTypeFromProjectSourceReference(reference, input, diagnostics);
+  if (baseType === undefined) {
+    return undefined;
+  }
   const typeArguments = input.ast.typeArguments(node)
     .filter((argument): argument is Node => argument !== undefined)
     .map((argument) => resolveCsharpType(argument, sourceFile, input, invalidCsharpType("source construction type argument"), diagnostics));
-  if (typeArguments.length === 0) {
-    return undefined;
-  }
-  const baseType = resolveCsharpType(expression.Expression, sourceFile, input, invalidCsharpType("source construction type"), diagnostics);
   return withCsharpTypeArguments(baseType, typeArguments);
 }
 

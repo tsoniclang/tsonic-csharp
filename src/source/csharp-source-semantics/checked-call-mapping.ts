@@ -1,6 +1,9 @@
 import {
   acceptObservation,
+  argumentPassingFactKey,
+  defaultValueFactKey,
   deferObservation,
+  flowStateFactKey,
   providerVirtualDeclarationFactKey,
   rejectObservation,
   selectedTargetSignatureFactKey,
@@ -126,6 +129,16 @@ export function mapCsharpCheckedCall(
         "C# source-semantics marker call was checked by TSTS, but no provider virtual member or signature identity proves the erased marker selection.",
       ));
     }
+    const missingFactDiagnostic = missingRequiredSourceMarkerFactDiagnostic(
+      request,
+      context,
+      virtualDeclaration,
+      extensionId,
+      attributeFact !== undefined,
+    );
+    if (missingFactDiagnostic !== undefined) {
+      return rejectObservation(missingFactDiagnostic);
+    }
     return acceptObservation<CheckedCallMappingResult>({
       selectedSignature: { member },
     }, [{ message: "C# source-semantics marker call was checked by TSTS and marked for fact-driven erasure." }]);
@@ -223,6 +236,53 @@ export function mapCsharpCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: csharpMember },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function missingRequiredSourceMarkerFactDiagnostic(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  declaration: ProviderVirtualDeclarationFact,
+  extensionId: string,
+  hasAttributeFact: boolean,
+): ReturnType<typeof csharpProviderDiagnostic> | undefined {
+  switch (declaration.exportName) {
+    case "out":
+    case "ref":
+    case "inref":
+      return context.facts.get(request.call, argumentPassingFactKey) === undefined
+        ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN", declaration.exportName, "argument-passing")
+        : undefined;
+    case "borrow":
+    case "borrowMut":
+    case "move":
+      return context.facts.get(request.call, flowStateFactKey) === undefined
+        ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN", declaration.exportName, "source-flow")
+        : undefined;
+    case "attribute":
+      return !hasAttributeFact
+        ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_ATTRIBUTE_MARKER_FACT_NOT_PROVEN", declaration.exportName, "attribute")
+        : undefined;
+    case "defaultof":
+      return context.facts.get(request.call, defaultValueFactKey) === undefined
+        ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_DEFAULT_MARKER_FACT_NOT_PROVEN", declaration.exportName, "default-value")
+        : undefined;
+    default:
+      return undefined;
+  }
+}
+
+function missingSourceMarkerFactDiagnostic(
+  extensionId: string,
+  code: string,
+  markerName: string,
+  factName: string,
+): ReturnType<typeof csharpProviderDiagnostic> {
+  return csharpProviderDiagnostic(
+    extensionId,
+    code,
+    9100149,
+    `C# source marker '${markerName}' requires a finalized TSTS ${factName} fact before the marker call can be erased.`,
+  );
 }
 
 function rejectUnsupportedNativeReceiverCall(

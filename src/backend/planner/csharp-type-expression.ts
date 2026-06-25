@@ -1,12 +1,8 @@
 import {
   AsExpressionWithTypeArguments,
-  KindClassDeclaration,
-  KindEnumDeclaration,
   KindExpressionWithTypeArguments,
   KindIdentifier,
-  KindInterfaceDeclaration,
   KindPropertyAccessExpression,
-  Node_Name,
 } from "./source-ast.js";
 import type {
   Node,
@@ -22,7 +18,6 @@ import type {
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
-import { planIdentifierName } from "./names.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
@@ -39,8 +34,8 @@ import {
   invalidCsharpType,
 } from "./csharp-type-primitives.js";
 import {
-  isProviderVirtualSourceFile,
-} from "./provider-virtual-source-files.js";
+  getCsharpTypeFromProjectSourceReferenceNode,
+} from "./project-source-types.js";
 
 export function expressionToCsharpType(
   node: Node | undefined,
@@ -83,11 +78,7 @@ function getCsharpTypeForExpressionReference(
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
-  const sourceReferenceType = getProjectSourceReferenceType(
-    input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }),
-    input,
-    diagnostics,
-  );
+  const sourceReferenceType = getCsharpTypeFromProjectSourceReferenceNode(node, sourceFile, input, diagnostics);
   if (sourceReferenceType !== undefined) {
     return sourceReferenceType;
   }
@@ -108,42 +99,4 @@ function getCsharpTypeForExpressionReference(
   }
   diagnostics?.push(unsupportedNodeDiagnostic(node, "C# type expression emission requires a provider target binding or a project-source class/interface declaration."));
   return invalidCsharpType("unresolved type expression");
-}
-
-function getProjectSourceReferenceType(
-  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
-  input: TargetCompileInput,
-  diagnostics: TargetDiagnostic[] | undefined,
-): CsharpTypeNode | undefined {
-  if (reference === undefined) {
-    return undefined;
-  }
-  if (input.facts.getTargetBindingFact(reference.symbol) !== undefined) {
-    return undefined;
-  }
-  if (reference.sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, reference.sourceFile)) {
-    return undefined;
-  }
-  if (
-    input.ast.kindName(reference.declaration) !== KindClassDeclaration &&
-    input.ast.kindName(reference.declaration) !== KindInterfaceDeclaration &&
-    input.ast.kindName(reference.declaration) !== KindEnumDeclaration
-  ) {
-    return undefined;
-  }
-  const nameNode = Node_Name(reference.declaration);
-  if (nameNode === undefined) {
-    diagnostics?.push(unsupportedNodeDiagnostic(reference.declaration, "Project source type reference requires a declaration name resolved by TSTS."));
-    return invalidCsharpType("project source type reference");
-  }
-  return {
-    kind: "IdentifierName",
-    name: planIdentifierName(
-      nameNode,
-      "InvalidProjectSourceTypeReference",
-      input,
-      diagnostics ?? [],
-      "Project source type reference",
-    ),
-  };
 }

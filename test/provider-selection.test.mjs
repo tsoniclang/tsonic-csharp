@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { attributeFactKey, deferObservation, providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
+import {
+  argumentPassingFactKey,
+  attributeFactKey,
+  defaultValueFactKey,
+  deferObservation,
+  flowStateFactKey,
+  providerVirtualDeclarationFactKey,
+  sourcePrimitiveFactKey,
+  targetBindingFactKey,
+} from "@tsonic/tsts";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
@@ -254,6 +263,88 @@ test("C# erased source marker rejects missing provider member identity", () => {
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_ERASED_SOURCE_MARKER_IDENTITY_NOT_PROVEN");
   assert.equal("value" in result, false);
+});
+
+test("C# erased source marker rejects missing finalized source facts", () => {
+  const provider = getNativeSemanticProvider();
+  const cases = [
+    ["out", "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN"],
+    ["ref", "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN"],
+    ["inref", "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN"],
+    ["borrow", "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN"],
+    ["borrowMut", "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN"],
+    ["move", "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN"],
+    ["field", "CSHARP_FIELD_MARKER_FACT_NOT_PROVEN"],
+    ["attribute", "CSHARP_ATTRIBUTE_MARKER_FACT_NOT_PROVEN"],
+    ["defaultof", "CSHARP_DEFAULT_MARKER_FACT_NOT_PROVEN"],
+  ];
+
+  for (const [marker, code] of cases) {
+    const call = {};
+    const selectedDeclaration = {};
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call,
+      callee: {},
+      calleePropertyName: marker,
+      sourceSelectedDeclaration: selectedDeclaration,
+      arguments: [],
+    }, fakeObservationContext({
+      virtualDeclarationSubject: selectedDeclaration,
+      virtualDeclaration: coreLangMarker(marker),
+    }));
+
+    assert.equal(result.kind, "reject", marker);
+    assert.equal(result.diagnostic.extensionCode, code);
+  }
+});
+
+test("C# erased source marker accepts supported markers only with finalized source facts", () => {
+  const provider = getNativeSemanticProvider();
+  const outCall = {};
+  const outDeclaration = {};
+  const defaultCall = {};
+  const defaultDeclaration = {};
+  const targetExpression = { Kind: 1, Text: "value" };
+  const typeNode = { Kind: "KindTypeReference", Text: "int32" };
+
+  const outResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: outCall,
+    callee: {},
+    calleePropertyName: "out",
+    sourceSelectedDeclaration: outDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: outDeclaration,
+    virtualDeclaration: coreLangMarker("out"),
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression,
+    },
+  }));
+
+  const defaultResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: defaultCall,
+    callee: {},
+    calleePropertyName: "defaultof",
+    sourceSelectedDeclaration: defaultDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: defaultDeclaration,
+    virtualDeclaration: coreLangMarker("defaultof"),
+    defaultValueSubject: defaultCall,
+    defaultValue: {
+      type: typeNode,
+    },
+  }));
+
+  assert.equal(outResult.kind, "accept", outResult.kind === "reject" ? outResult.diagnostic.message : undefined);
+  assert.equal(outResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::out");
+  assert.equal(defaultResult.kind, "accept", defaultResult.kind === "reject" ? defaultResult.diagnostic.message : undefined);
+  assert.equal(defaultResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::defaultof");
 });
 
 test("C# attribute builder marker identity comes from finalized attribute facts", () => {
@@ -1898,6 +1989,18 @@ function readOnlySpanType(element) {
   };
 }
 
+function coreLangMarker(exportName) {
+  return {
+    providerId: "test",
+    providerVersion: "0",
+    providerModuleId: "@tsonic/core/lang.js",
+    moduleSpecifier: "@tsonic/core/lang.js",
+    virtualFileName: "tsts-provider://@tsonic/core/lang.js",
+    exportName,
+    memberId: `@tsonic/core/lang.js::${exportName}`,
+  };
+}
+
 function virtualMember(memberId, memberName = "m") {
   return {
     providerId: "test",
@@ -1922,6 +2025,15 @@ function fakeObservationContext(options) {
         }
         if (subject === options.attributeSubject && key === attributeFactKey) {
           return options.attribute;
+        }
+        if (subject === options.argumentPassingSubject && key === argumentPassingFactKey) {
+          return options.argumentPassing;
+        }
+        if (subject === options.defaultValueSubject && key === defaultValueFactKey) {
+          return options.defaultValue;
+        }
+        if (subject === options.flowStateSubject && key === flowStateFactKey) {
+          return options.flowState;
         }
         return undefined;
       },

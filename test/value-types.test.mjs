@@ -70,6 +70,26 @@ test("planner diagnoses struct markers whose field shape is not an object litera
   assert.match(diagnostics[0].message, /object-literal field shape/);
 });
 
+test("planner rejects struct field names without finalized field facts", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const initializer = node(KindCallExpression);
+  const declaration = variableDeclaration("Point", callExpression(objectLiteral([
+    propertyAssignment("x", initializer),
+  ])));
+  const diagnostics = [];
+
+  const planned = planValueTypeDeclaration(declaration, {
+    valueType: true,
+    fields: [],
+  }, sourceFile, fakeInput(sourceFile), diagnostics);
+
+  assert.equal(planned.kind, "StructDeclaration");
+  assert.deepEqual(planned.members, []);
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "CSHARP_UNSUPPORTED_AST");
+  assert.match(diagnostics[0].message, /Value-type member 'x' requires a finalized field fact/);
+});
+
 function node(kind, properties = {}) {
   return { Kind: kind, ...properties };
 }
