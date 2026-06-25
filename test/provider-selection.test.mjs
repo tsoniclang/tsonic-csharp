@@ -13,7 +13,10 @@ import {
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
-import { csharpNullableValueTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpNullableValueTargetType,
+  csharpSourcePrimitiveDotnetMetadataName,
+} from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("C# provider rejects ambiguous target members instead of ranking candidates", () => {
   const provider = getNativeSemanticProvider();
@@ -439,6 +442,47 @@ test("C# provider rejects generic constraints without finalized target proof", (
   }, fakeObservationContext({}));
   assert.equal(nullableValue.kind, "reject");
   assert.equal(nullableValue.diagnostic.extensionCode, "CSHARP_TARGET_CONSTRAINT_INVALID");
+});
+
+test("C# provider validates source primitive generic constraints from reflected primitive contract facts", () => {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const int64 = { kind: "source-primitive", name: "int64" };
+  const int32Binding = {
+    id: "System.Int32",
+    sourceName: "Int32",
+    targetName: "Int32",
+    target: "csharp",
+    kind: "struct",
+    implementedContracts: [{
+      kind: "implements",
+      contract: "System.IEquatable`1",
+      typeArguments: [int32],
+    }],
+  };
+  const provider = getNativeSemanticProvider({
+    bindings: [int32Binding],
+    metadataBindings: [[csharpSourcePrimitiveDotnetMetadataName("int32"), int32Binding]],
+  });
+
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: int32,
+    constraint: { kind: "implements", contract: "System.IEquatable`1", typeArguments: [int32] },
+  }, fakeObservationContext({})).kind, "accept");
+
+  const mismatchedArgument = provider.validateTargetConstraint({
+    target: "csharp",
+    source: int32,
+    constraint: { kind: "implements", contract: "System.IEquatable`1", typeArguments: [int64] },
+  }, fakeObservationContext({}));
+  assert.equal(mismatchedArgument.kind, "reject");
+
+  const missingArgument = provider.validateTargetConstraint({
+    target: "csharp",
+    source: int32,
+    constraint: { kind: "implements", contract: "System.IEquatable`1" },
+  }, fakeObservationContext({}));
+  assert.equal(missingArgument.kind, "reject");
 });
 
 test("C# provider selects from a proven provider binding using checked source member and target argument facts", () => {
@@ -2606,10 +2650,11 @@ test("target member selection does not treat opaque any or unknown as wildcard t
 
 function getNativeSemanticProvider(options = {}) {
   const bindings = new Map((options.bindings ?? []).map((binding) => [binding.id, binding]));
+  const metadataBindings = new Map(options.metadataBindings ?? []);
   const baseTypes = new Map(options.baseTypes ?? []);
   return createCsharpNativeOperationsProvider({
     getCsharpTargetBindingByTargetId: (targetId) => bindings.get(targetId),
-    getCsharpTargetBindingByMetadataName: () => undefined,
+    getCsharpTargetBindingByMetadataName: (metadataName) => metadataBindings.get(metadataName),
     getTargetTypeRefForSubject(subject, context) {
       if (subject !== undefined && typeof subject === "object" && typeof subject.kind === "string") {
         return subject;

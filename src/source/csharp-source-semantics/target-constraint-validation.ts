@@ -7,6 +7,7 @@ import type {
   ExtensionEvidence,
   ExtensionObservation,
   ExtensionObservationContext,
+  SourcePrimitiveKind,
   TargetConstraint,
   TargetConstraintValidationRequest,
   TargetTypeRef,
@@ -21,7 +22,7 @@ import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
 import {
-  csharpSourcePrimitiveTargetType,
+  csharpSourcePrimitiveDotnetMetadataName,
   getCsharpNullableElementTargetType,
 } from "./target-types.js";
 import {
@@ -186,7 +187,7 @@ function implementsCsharpContract(
   visited: Set<string>,
 ): boolean {
   if (source.kind === "source-primitive") {
-    return primitiveImplementsCsharpContract(source.name, constraint);
+    return primitiveImplementsCsharpContract(source.name, constraint, host);
   }
   if (source.kind !== "target-named") {
     return false;
@@ -205,15 +206,12 @@ function implementsCsharpContract(
 }
 
 function primitiveImplementsCsharpContract(
-  primitive: string,
+  primitive: SourcePrimitiveKind,
   constraint: Extract<TargetConstraint, { readonly kind: "implements" }>,
+  host: CsharpOperationsProviderHost,
 ): boolean {
-  const primitiveTarget = csharpSourcePrimitiveTargetType(primitive as Parameters<typeof csharpSourcePrimitiveTargetType>[0]);
-  return primitiveTarget.kind === "target-named" &&
-    (constraint.contract === "System.IEquatable`1" || constraint.contract.endsWith("::System.IEquatable`1")) &&
-    (constraint.typeArguments === undefined ||
-      constraint.typeArguments.length === 0 ||
-      constraint.typeArguments.some((argument) => targetTypeRefEquals(argument, primitiveTarget)));
+  const binding = host.getCsharpTargetBindingByMetadataName(csharpSourcePrimitiveDotnetMetadataName(primitive));
+  return binding?.implementedContracts?.some((candidate) => implementedContractMatches(candidate, constraint)) === true;
 }
 
 function implementedContractMatches(
@@ -225,9 +223,6 @@ function implementedContractMatches(
   }
   const candidateArguments = candidate.typeArguments ?? [];
   const expectedArguments = expected.typeArguments ?? [];
-  if (expectedArguments.length === 0) {
-    return true;
-  }
   return candidateArguments.length === expectedArguments.length &&
     candidateArguments.every((argument, index) => targetTypeRefEquals(argument, expectedArguments[index]!));
 }

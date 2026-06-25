@@ -6,29 +6,9 @@ import type {
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
   csharpRenderShapeForTargetNamedType,
+  csharpSourcePrimitiveCsharpPredefinedName,
   isCsharpNullableReferenceTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
-
-const primitiveTargetNames = new Map<SourcePrimitiveKind, string>([
-  ["bool", "bool"],
-  ["char", "char"],
-  ["int8", "sbyte"],
-  ["uint8", "byte"],
-  ["int16", "short"],
-  ["uint16", "ushort"],
-  ["int32", "int"],
-  ["uint32", "uint"],
-  ["int64", "long"],
-  ["uint64", "ulong"],
-  ["native-int", "nint"],
-  ["native-uint", "nuint"],
-  ["float16", "Half"],
-  ["float32", "float"],
-  ["float64", "double"],
-  ["decimal", "decimal"],
-  ["int128", "Int128"],
-  ["uint128", "UInt128"],
-]);
 
 export function csharpTypeFromTargetTypeRef(type: TargetTypeRef): CsharpTypeNode | undefined {
   const rendered = csharpTypeFromEnrichedTargetTypeRef(type);
@@ -87,7 +67,7 @@ function csharpTypeParameterName(name: string): CsharpTypeNode | undefined {
 export function csharpTypeFromSourcePrimitiveKind(kind: SourcePrimitiveKind): CsharpTypeNode {
   return {
     kind: "PredefinedType",
-    name: primitiveTargetNames.get(kind)!,
+    name: csharpSourcePrimitiveCsharpPredefinedName(kind),
   };
 }
 
