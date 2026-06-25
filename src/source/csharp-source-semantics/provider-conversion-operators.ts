@@ -42,10 +42,11 @@ export function requiresCsharpProviderConversionEvidence(
   if (source !== undefined && targetTypeRefEquals(source, target)) {
     return false;
   }
-  return isProviderOwnedTargetType(source, host) || isProviderOwnedTargetType(target, host);
+  return isCsharpProviderOwnedTargetType(source, host) || isCsharpProviderOwnedTargetType(target, host);
 }
 
-export function getCsharpProviderConversionOperator(
+export function getCsharpProviderConversionOperatorById(
+  selectedOperatorId: string,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef,
   host: CsharpProviderConversionOperatorHost,
@@ -55,18 +56,18 @@ export function getCsharpProviderConversionOperator(
     return { kind: "none" };
   }
   const matches = providerConversionCandidates(source, target, host)
+    .filter((member) => member.id === selectedOperatorId)
     .filter((member) => isAllowedConversionOperator(member, mode));
   if (matches.length === 0) {
     return { kind: "none" };
   }
-  const unique = uniqueConversionOperatorsById(matches);
-  if (unique.length > 1) {
+  if (matches.length > 1) {
     return {
       kind: "ambiguous",
-      candidateIds: unique.map((member) => member.id),
+      candidateIds: matches.map((member) => member.id),
     };
   }
-  const member = unique[0]!;
+  const member = matches[0]!;
   return {
     kind: "matched",
     operation: targetOperation(member.id, "operator", member.conversionKind, { resultType: target }),
@@ -175,11 +176,7 @@ function isAllowedConversionOperator(
   return mode === "explicit-or-implicit" && operator.conversionKind === "explicit";
 }
 
-function uniqueConversionOperatorsById(members: readonly TargetConversionOperatorFact[]): readonly TargetConversionOperatorFact[] {
-  return [...new Map(members.map((member) => [member.id, member] as const)).values()];
-}
-
-function isProviderOwnedTargetType(
+export function isCsharpProviderOwnedTargetType(
   type: TargetTypeRef | undefined,
   host: CsharpProviderConversionOperatorHost,
 ): boolean {

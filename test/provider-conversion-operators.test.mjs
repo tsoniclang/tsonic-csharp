@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  getCsharpProviderConversionOperator,
+  getCsharpProviderConversionOperatorById,
   requiresCsharpProviderConversionEvidence,
 } from "../dist/source/csharp-source-semantics/provider-conversion-operators.js";
 import {
@@ -48,21 +48,59 @@ const meterBinding = {
   ],
 };
 
-test("provider conversion operator selection requires reflected operator identity", () => {
+test("provider conversion operator selection requires exact selected operator identity", () => {
   const host = hostForBindings([meterBinding]);
 
-  const explicitResult = getCsharpProviderConversionOperator(doubleType, meterType, host, "explicit-or-implicit");
+  const explicitResult = getCsharpProviderConversionOperatorById(
+    "ProviderConversionFixtures.Meter.op_Explicit(System.Double)",
+    doubleType,
+    meterType,
+    host,
+    "explicit-or-implicit",
+  );
   assert.equal(explicitResult.kind, "matched");
   assert.equal(explicitResult.operation.operationId, "ProviderConversionFixtures.Meter.op_Explicit(System.Double)");
   assert.equal(explicitResult.csharpOperation.kind, "conversion-operator");
   assert.deepEqual(explicitResult.csharpOperation.targetType, meterType);
 
-  const implicitOnly = getCsharpProviderConversionOperator(doubleType, meterType, host, "implicit-only");
+  const implicitOnly = getCsharpProviderConversionOperatorById(
+    "ProviderConversionFixtures.Meter.op_Explicit(System.Double)",
+    doubleType,
+    meterType,
+    host,
+    "implicit-only",
+  );
   assert.equal(implicitOnly.kind, "none");
 
-  const implicitResult = getCsharpProviderConversionOperator(meterType, doubleType, host, "implicit-only");
+  const implicitResult = getCsharpProviderConversionOperatorById(
+    "ProviderConversionFixtures.Meter.op_Implicit(ProviderConversionFixtures.Meter)",
+    meterType,
+    doubleType,
+    host,
+    "implicit-only",
+  );
   assert.equal(implicitResult.kind, "matched");
   assert.equal(implicitResult.operation.operationId, "ProviderConversionFixtures.Meter.op_Implicit(ProviderConversionFixtures.Meter)");
+});
+
+test("provider conversion operator selection does not match metadata-name-only evidence", () => {
+  const metadataOnlyBinding = {
+    ...meterBinding,
+    conversionOperators: [{
+      ...meterBinding.conversionOperators[0],
+      id: "ProviderConversionFixtures.Meter.MetadataOnlyShadow",
+      metadataName: "ProviderConversionFixtures.Meter.op_Explicit(System.Double)",
+    }],
+  };
+  const result = getCsharpProviderConversionOperatorById(
+    "ProviderConversionFixtures.Meter.op_Explicit(System.Double)",
+    doubleType,
+    meterType,
+    hostForBindings([metadataOnlyBinding]),
+    "explicit-or-implicit",
+  );
+
+  assert.equal(result.kind, "none");
 });
 
 test("provider conversion evidence is required only for provider-owned target types", () => {
@@ -73,28 +111,33 @@ test("provider conversion evidence is required only for provider-owned target ty
   assert.equal(requiresCsharpProviderConversionEvidence(meterType, meterType, host), false);
 });
 
-test("provider conversion operator selection reports ambiguity instead of choosing by order", () => {
+test("provider conversion operator selection reports exact-id ambiguity instead of choosing by order", () => {
   const duplicateBinding = {
     ...meterBinding,
     conversionOperators: [
       ...meterBinding.conversionOperators,
       {
         ...meterBinding.conversionOperators[0],
-        id: "ProviderConversionFixtures.Meter.op_Explicit(System.Double)#duplicate",
       },
     ],
   };
   const host = hostForBindings([duplicateBinding]);
 
-  const result = getCsharpProviderConversionOperator(doubleType, meterType, host, "explicit-or-implicit");
+  const result = getCsharpProviderConversionOperatorById(
+    "ProviderConversionFixtures.Meter.op_Explicit(System.Double)",
+    doubleType,
+    meterType,
+    host,
+    "explicit-or-implicit",
+  );
   assert.equal(result.kind, "ambiguous");
   assert.deepEqual(result.candidateIds, [
     "ProviderConversionFixtures.Meter.op_Explicit(System.Double)",
-    "ProviderConversionFixtures.Meter.op_Explicit(System.Double)#duplicate",
+    "ProviderConversionFixtures.Meter.op_Explicit(System.Double)",
   ]);
 });
 
-test("checked provider conversions record reflected conversion operators", () => {
+test("checked provider conversions fail closed without selected provider conversion identity", () => {
   const source = { id: "source-argument" };
   const target = { id: "target-parameter" };
   const { context, writes } = fakeContext();
@@ -108,14 +151,10 @@ test("checked provider conversions record reflected conversion operators", () =>
     [target, meterType],
   ])));
 
-  assert.equal(result.kind, "accept");
-  assert.equal(result.value.operation.operationId, "ProviderConversionFixtures.Meter.op_Explicit(System.Double)");
-  assert.deepEqual(result.value.sourceType, doubleType);
-  assert.deepEqual(result.value.convertedType, meterType);
-  const operationWrite = writes.find((write) => write.key === csharpTargetConversionOperationFactKey);
-  assert.equal(operationWrite?.subject, source);
-  assert.equal(operationWrite?.value.kind, "conversion-operator");
-  assert.equal(operationWrite?.value.conversionKind, "explicit");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROVIDER_CHECKED_CONVERSION_UNSUPPORTED");
+  assert.match(String(result.diagnostic.evidence[0].details), /exact TSTS-selected provider conversion operator identity/u);
+  assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
 });
 
 test("checked provider conversions reject missing reflected conversion evidence", () => {
@@ -138,7 +177,7 @@ test("checked provider conversions reject missing reflected conversion evidence"
   assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
 });
 
-test("checked provider conversions reject ambiguous reflected conversion evidence", () => {
+test("checked provider conversions do not inspect ambiguous type-pair candidates without selected identity", () => {
   const source = { id: "source-argument" };
   const target = { id: "target-parameter" };
   const { context, writes } = fakeContext();
@@ -162,8 +201,8 @@ test("checked provider conversions reject ambiguous reflected conversion evidenc
   ])));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROVIDER_CHECKED_CONVERSION_AMBIGUOUS");
-  assert.match(String(result.diagnostic.evidence[0].details), /#duplicate/u);
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_PROVIDER_CHECKED_CONVERSION_UNSUPPORTED");
+  assert.doesNotMatch(JSON.stringify(result.diagnostic.evidence), /#duplicate/u);
   assert.equal(writes.some((write) => write.key === csharpTargetConversionOperationFactKey), false);
 });
 

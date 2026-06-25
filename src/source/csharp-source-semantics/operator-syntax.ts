@@ -58,6 +58,8 @@ function getOperatorTextFromKindName(kind: string): string | undefined {
       return ">>";
     case "KindGreaterThanGreaterThanGreaterThanToken":
       return ">>>";
+    case "KindInKeyword":
+      return "in";
     case "KindPlusToken":
       return "+";
     case "KindMinusToken":

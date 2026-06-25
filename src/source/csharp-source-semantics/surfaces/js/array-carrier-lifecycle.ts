@@ -182,6 +182,9 @@ function classifyIdentifierArrayUse(
     }
     return parentIsWriteTarget(parent, ast) ? ["dense-mutation"] : ["index-read"];
   }
+  if (ast.is.IsBinaryExpression(parent) && asNodeSubject(getNodeField(parent, "Right")) === identifier && getBinaryOperatorText(ast, parent) === "in") {
+    return ["full-js"];
+  }
   if (ast.is.IsPropertyAccessExpression(parent) && asNodeSubject(getNodeField(parent, "Expression")) === identifier) {
     const sourceMember = getSelectedArraySourceLibraryMemberForPropertyAccess(parent, sourceFile, lifecycleContext);
     if (sourceMember === undefined) {

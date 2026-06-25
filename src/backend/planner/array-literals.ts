@@ -2,6 +2,7 @@ import {
   AsArrayLiteralExpression,
   AsSpreadElement,
   HasSourceKind,
+  KindOmittedExpression,
   KindSpreadElement,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -57,6 +58,9 @@ export function planArrayLiteralExpressionWithCarrier(
   carrier: ReturnType<typeof getRuntimeCarrierForExpression>,
   planner: ArrayLiteralPlanner,
 ): CsharpExpression {
+  if (arrayLiteralHasElision(node, input)) {
+    return rejectSparseArrayLiteralElision(node, diagnostics);
+  }
   if (carrier?.kind === "array") {
     const elementType = csharpTypeFromTargetTypeRef(carrier.element);
     if (elementType !== undefined) {
@@ -330,6 +334,9 @@ export function planTupleLiteralExpression(
   planner: ArrayLiteralPlanner,
 ): CsharpExpression {
   const literal = AsArrayLiteralExpression(node)!;
+  if (arrayLiteralHasElision(node, input)) {
+    return rejectSparseArrayLiteralElision(node, diagnostics);
+  }
   return {
     kind: "TupleExpression",
     elements: (literal.Elements?.Nodes ?? [])
@@ -347,6 +354,9 @@ export function planArrayLiteralExpression(
   planner: ArrayLiteralPlanner,
 ): CsharpExpression {
   const literal = AsArrayLiteralExpression(node)!;
+  if (arrayLiteralHasElision(node, input)) {
+    return rejectSparseArrayLiteralElision(node, diagnostics);
+  }
   if ((literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindSpreadElement))) {
     return planArraySpreadLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner);
   }
@@ -357,6 +367,22 @@ export function planArrayLiteralExpression(
       .filter((element): element is Node => element !== undefined)
       .map((element) => planner.planExpressionWithExpectedType(element, sourceFile, input, diagnostics, elementType)),
   };
+}
+
+function arrayLiteralHasElision(
+  node: Node,
+  input: TargetCompileInput,
+): boolean {
+  const literal = AsArrayLiteralExpression(node);
+  return (literal?.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindOmittedExpression));
+}
+
+function rejectSparseArrayLiteralElision(
+  node: Node,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  diagnostics.push(unsupportedNodeDiagnostic(node, "Sparse array literal elisions require closed JSArray hole construction facts before C# emission; dense array carriers must not compact holes."));
+  return invalidExpression("sparse array literal elision");
 }
 
 function planArraySpreadLiteralExpression(

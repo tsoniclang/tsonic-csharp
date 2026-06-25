@@ -162,6 +162,7 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
   } satisfies CsharpObjectShapeLifecycleHost;
   const checkedOperatorLifecycleHost = {
     getTargetTypeRefForSubject,
+    getCsharpTargetBindingByTargetId: targetTypeResolutionHost.getCsharpTargetBindingByTargetId,
   } satisfies CsharpCheckedOperatorLifecycleHost;
   const runtimeCarrierHost = {
     getTargetTypeRefForSubject,

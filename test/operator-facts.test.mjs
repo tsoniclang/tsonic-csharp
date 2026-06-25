@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { targetOperationFactKey } from "@tsonic/tsts";
 import { planExpression, planExpressionWithExpectedType } from "../dist/backend/planner/expressions.js";
 import {
   KindArrayLiteralExpression,
@@ -27,6 +28,9 @@ import {
   csharpTaskTargetType,
   csharpVoidTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  mapCsharpCheckedOperator,
+} from "../dist/source/csharp-source-semantics/checked-operator-mapping.js";
 
 test("binary expression emission requires selected target operator fact even for source primitives", () => {
   const left = identifier("left");
@@ -69,6 +73,53 @@ test("binary expression emission uses the finalized selected target operator fac
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(output.operatorToken, { kind: "PlusToken" });
   assert.equal(printCsharpExpression(output), "left + right");
+});
+
+test("checked provider-owned binary operators fail closed without selected provider operator identity", () => {
+  const left = identifier("left");
+  const right = identifier("right");
+  const expression = binary(left, right);
+  const providerType = csharpTargetNamedType("ProviderOperators.Number", undefined, csharpQualifiedTypeRenderShape("ProviderOperators", "Number"));
+  const context = fakeObservationContext();
+  const result = mapCsharpCheckedOperator({
+    expression,
+    operator: "+",
+    left,
+    right,
+    target: "csharp",
+  }, context, fakeOperatorHost(providerType));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_OPERATOR_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /requires an exact finalized provider operator identity selected by TSTS/u);
+  assert.equal(context.writes.length, 0);
+});
+
+test("checked provider-owned binary operators consume finalized exact provider operator identity", () => {
+  const left = identifier("left");
+  const right = identifier("right");
+  const expression = binary(left, right);
+  const providerType = csharpTargetNamedType("ProviderOperators.Number", undefined, csharpQualifiedTypeRenderShape("ProviderOperators", "Number"));
+  const selectedOperation = {
+    operationId: "ProviderOperators.Number.op_Addition(ProviderOperators.Number,ProviderOperators.Number)",
+    operationKind: "operator",
+    targetOperation: "op_Addition",
+    resultType: providerType,
+  };
+  const context = fakeObservationContext(new Map([
+    [factEntryKey(expression, targetOperationFactKey), selectedOperation],
+  ]));
+  const result = mapCsharpCheckedOperator({
+    expression,
+    operator: "+",
+    left,
+    right,
+    target: "csharp",
+  }, context, fakeOperatorHost(providerType));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation, selectedOperation);
+  assert.equal(context.writes.length, 0);
 });
 
 test("assignment expression emission uses canonical assignment AST", () => {
@@ -546,6 +597,43 @@ function sourcePrimitiveCarrier(name) {
       name,
     },
   };
+}
+
+function fakeOperatorHost(providerType) {
+  const binding = {
+    id: providerType.id,
+    target: "csharp",
+    kind: "struct",
+    sourceName: "Number",
+    targetName: "ProviderOperators.Number",
+  };
+  return {
+    getTargetTypeRefForSubject: (subject) => subject?.Kind === KindIdentifier ? providerType : undefined,
+    getCsharpTargetBindingByTargetId: (targetId) => targetId === providerType.id ? binding : undefined,
+  };
+}
+
+function fakeObservationContext(entries = new Map()) {
+  const writes = [];
+  return {
+    writes,
+    extensionId: "tsonic.csharp.operations",
+    facts: {
+      get: (subject, key) => entries.get(factEntryKey(subject, key)),
+      set: (subject, key, value, evidence = []) => {
+        writes.push({ subject, key, value, evidence });
+        entries.set(factEntryKey(subject, key), value);
+        return "inserted";
+      },
+    },
+    factResolver: {
+      resolve: (subject, key) => entries.get(factEntryKey(subject, key)),
+    },
+  };
+}
+
+function factEntryKey(subject, key) {
+  return `${subject?.Text ?? subject?.Kind ?? "subject"}:${key.id}`;
 }
 
 function fakeInput(options = {}) {

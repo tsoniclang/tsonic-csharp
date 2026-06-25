@@ -40,7 +40,6 @@ import {
   getCsharpCollectionElementTargetType,
 } from "./target-types.js";
 import {
-  getCsharpProviderConversionOperator,
   requiresCsharpProviderConversionEvidence,
 } from "./provider-conversion-operators.js";
 import {
@@ -167,46 +166,6 @@ export function mapCsharpCheckedConversion(
       convertedType: target,
     }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
   }
-  const providerConversion = getCsharpProviderConversionOperator(source, target, host, "explicit-or-implicit");
-  if (providerConversion.kind === "matched") {
-    context.facts.set(
-      request.source,
-      csharpTargetConversionOperationFactKey,
-      providerConversion.csharpOperation,
-      [{ message: "C# provider conversion operator recorded from reflected target member facts." }],
-    );
-    return acceptObservation<CheckedConversionMappingResult>({
-      sourceType: providerConversion.operator.sourceType,
-      convertedType: target,
-      operation: providerConversion.operation,
-    }, [{ message: "C# target conversion recorded from reflected provider conversion operator." }]);
-  }
-  if (providerConversion.kind === "ambiguous") {
-    return rejectObservation({
-      ...csharpProviderDiagnostic(
-        context.extensionId,
-        "CSHARP_PROVIDER_CHECKED_CONVERSION_AMBIGUOUS",
-        9100137,
-        "C# provider checked conversion is ambiguous.",
-      ),
-      nodeOrSpan: request.expression,
-      evidence: [
-        {
-          message: "Candidate conversion operators",
-          details: providerConversion.candidateIds.join(", "),
-        },
-        {
-          message: "Source C# target type",
-          details: source ?? "unresolved",
-        },
-        {
-          message: "Target C# target type",
-          details: target,
-        },
-      ],
-      identity: `csharp-provider-checked-conversion-ambiguous:${subjectIdentity(request.expression)}:${source === undefined ? "unresolved" : targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`,
-    });
-  }
   const operation = getCsharpConversionOperation(source, target);
   if (operation !== undefined) {
     context.facts.set(request.source, csharpTargetConversionOperationFactKey, operation.csharpOperation, [{ message: "C# target conversion static member recorded from selected target conversion." }]);
@@ -223,7 +182,7 @@ export function mapCsharpCheckedConversion(
       evidence: [
         {
           message: "Missing provider conversion operator",
-          details: "The source or target type is provider-owned, so checked conversion emission cannot synthesize a C# cast without a reflected op_Implicit or op_Explicit member matching the source and target types.",
+          details: "The source or target type is provider-owned, so checked conversion emission requires an exact TSTS-selected provider conversion operator identity. The current checked conversion observation request exposes source and target types only, not the selected provider conversion operator id.",
         },
         {
           message: "Source C# target type",

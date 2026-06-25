@@ -4,7 +4,7 @@ import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import { csharpTargetConversionOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { getCsharpProviderConversionOperator } from "../dist/source/csharp-source-semantics/provider-conversion-operators.js";
+import { getCsharpProviderConversionOperatorById } from "../dist/source/csharp-source-semantics/provider-conversion-operators.js";
 import { csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
@@ -237,7 +237,13 @@ test("provider generic conversion operators substitute target type arguments bef
     }],
   };
 
-  const result = getCsharpProviderConversionOperator(wrapperInt, boxInt, hostForBindings([binding]), "implicit-only");
+  const result = getCsharpProviderConversionOperatorById(
+    "Example.Box`1.op_Implicit(Example.Wrapper`1<T>)",
+    wrapperInt,
+    boxInt,
+    hostForBindings([binding]),
+    "implicit-only",
+  );
 
   assert.equal(result.kind, "matched");
   assert.equal(result.operation.operationId, "Example.Box`1.op_Implicit(Example.Wrapper`1<T>)");

@@ -68,6 +68,10 @@ import {
 import {
   sourceDeclarationTargetType,
 } from "./source-declaration-facts.js";
+import {
+  type CsharpProviderConversionOperatorHost,
+  isCsharpProviderOwnedTargetType,
+} from "./provider-conversion-operators.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
 
@@ -148,6 +152,9 @@ export function mapCsharpCheckedOperator(
   }
   if (isCsharpBitwiseOperator(request.operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# bitwise operator '${request.operator}' requires integral, enum, or explicit provider operator facts.`);
+  }
+  if (operatorRequiresSelectedProviderIdentity(request.operator, left, right, host)) {
+    return rejectMissingCsharpOperatorFact(context.extensionId, `C# provider-owned operator '${request.operator}' requires an exact finalized provider operator identity selected by TSTS. The current checked operator observation request exposes operands and symbols only, not a selected provider operator member id.`);
   }
   const resultType = getCsharpOperatorResultTypeRef(request, left, right);
   const operationId = `tsonic.csharp.operator.${targetOperator}`;
@@ -404,6 +411,9 @@ function getNestedCheckedOperatorTargetTypeRef(
   if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
     return undefined;
   }
+  if (operatorRequiresSelectedProviderIdentity(operator, left, right, host)) {
+    return undefined;
+  }
   const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right);
   const operationId = `tsonic.csharp.operator.${targetOperator}`;
   const operation = targetOperation(
@@ -446,6 +456,18 @@ export function getCsharpOperatorResultTypeRefForOperator(
 
 export function getCheckedOperatorOperandQuery(_operator: string): TargetTypeRefResolutionOptions {
   return {};
+}
+
+export function operatorRequiresSelectedProviderIdentity(
+  operator: string,
+  left: TargetTypeRef | undefined,
+  right: TargetTypeRef | undefined,
+  host: CsharpProviderConversionOperatorHost,
+): boolean {
+  if (operator === "=") {
+    return false;
+  }
+  return isCsharpProviderOwnedTargetType(left, host) || isCsharpProviderOwnedTargetType(right, host);
 }
 
 export function getLiteralTargetTypeRefForKnownOperatorOperand(

@@ -2,8 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
 import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
-import { csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpArrayBoundaryFactKey, csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { createCsharpSourceSemanticsExtension, createCsharpTargetSemanticsExtension } from "../dist/index.js";
+import { planArrayLiteralExpressionWithCarrier } from "../dist/backend/planner/array-literals.js";
 import { createCsharpCompositeOperationsProvider, createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { createCsharpNodejsSurfaceBindingProvider } from "../dist/source/csharp-source-semantics/surfaces/nodejs/index.js";
 
@@ -649,6 +650,57 @@ test("selected JS surface finalizes array element and length operations from car
   assert.equal(extensionHost.facts.get(lengthAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
   assert.equal(extensionHost.facts.get(lengthAccess, csharpTargetOperationFactKey)?.memberName, "Count");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).includes("CSHARP_JS_ARRAY_ELEMENT_ACCESS_REQUIRES_CARRIER"), false);
+});
+
+test("selected JS surface classifies array hole-presence as full JS without inventing operation facts", () => {
+  const session = createCsharpSession(`
+    export function hasSlot(values: number[], index: number): boolean {
+      return index in values;
+    }
+  `, { selectedSurfaces: [{ id: "js" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const valuesIdentifier = collectNodesByKind(sourceFile, session.ast, "KindIdentifier")
+    .filter((node) => session.ast.text(node) === "values")
+    .find((node) => extensionHost.facts.get(node, runtimeCarrierFactKey) !== undefined);
+  const holePresence = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+
+  assert.ok(valuesIdentifier);
+  assert.ok(holePresence);
+  assert.equal(extensionHost.facts.get(valuesIdentifier, csharpArrayBoundaryFactKey)?.coreCarrierLane, "js-full-internal");
+  assert.equal(extensionHost.facts.get(valuesIdentifier, csharpArrayBoundaryFactKey)?.publicShape, "compat-facade");
+  assert.equal(extensionHost.facts.get(valuesIdentifier, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.JSArray`1");
+  assert.equal(extensionHost.facts.get(holePresence, targetOperationFactKey), undefined);
+  assert.equal(extensionHost.facts.get(holePresence, csharpTargetOperationFactKey), undefined);
+});
+
+test("C# planner rejects sparse array literal elisions before dense lowering", () => {
+  const diagnostics = [];
+  const literal = {
+    Kind: "KindArrayLiteralExpression",
+    Elements: {
+      Nodes: [
+        { Kind: "KindNumericLiteral", Text: "1" },
+        { Kind: "KindOmittedExpression" },
+        { Kind: "KindNumericLiteral", Text: "3" },
+      ],
+    },
+  };
+
+  const result = planArrayLiteralExpressionWithCarrier(literal, {}, {
+    ast: {
+      kindName: (node) => node?.Kind ?? "Undefined",
+    },
+  }, diagnostics, { kind: "array", element: int32Type() }, {
+    planExpression: () => assert.fail("Sparse array literal elisions must fail before element expression planning."),
+    planExpressionWithExpectedType: () => assert.fail("Sparse array literal elisions must fail before expected element planning."),
+  });
+
+  assert.equal(result.kind, "InvalidExpression");
+  assert.equal(result.reason, "sparse array literal elision");
+  assert.match(diagnostics[0]?.message, /Sparse array literal elisions require closed JSArray hole construction facts/);
 });
 
 test("JS surface accepts method-valued console property access without C# operation facts", () => {

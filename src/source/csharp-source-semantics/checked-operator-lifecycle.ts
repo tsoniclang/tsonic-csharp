@@ -39,6 +39,7 @@ import {
   getCsharpOperatorResultTypeRefForOperator,
   getLiteralTargetTypeRefForKnownOperatorOperand,
   getNullishTargetTypeRefForKnownOperatorOperand,
+  operatorRequiresSelectedProviderIdentity,
 } from "./checked-operator-mapping.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
@@ -46,6 +47,9 @@ import {
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
+import type {
+  CsharpProviderConversionOperatorHost,
+} from "./provider-conversion-operators.js";
 
 export interface CsharpCheckedOperatorLifecycleHost {
   readonly getTargetTypeRefForSubject: (
@@ -53,6 +57,7 @@ export interface CsharpCheckedOperatorLifecycleHost {
     context: ExtensionObservationContext,
     options?: TargetTypeRefResolutionOptions,
   ) => TargetTypeRef | undefined;
+  readonly getCsharpTargetBindingByTargetId: CsharpProviderConversionOperatorHost["getCsharpTargetBindingByTargetId"];
 }
 
 export function recordCsharpCheckedOperatorFactsBeforeFinalization(
@@ -156,6 +161,9 @@ function getCsharpCheckedOperatorFactsFromSyntax(
     return undefined;
   }
   if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
+    return undefined;
+  }
+  if (operatorRequiresSelectedProviderIdentity(operator, left, right, host)) {
     return undefined;
   }
   const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right);
