@@ -444,6 +444,37 @@ test("C# erased source marker rejects missing finalized source facts", () => {
   }
 });
 
+test("C# erased source marker rejects unsupported flow markers even with finalized source facts", () => {
+  const provider = getNativeSemanticProvider();
+  const cases = [
+    ["borrow", "borrowed-shared"],
+    ["borrowMut", "borrowed-mut"],
+    ["move", "moved"],
+  ];
+
+  for (const [marker, state] of cases) {
+    const call = {};
+    const selectedDeclaration = {};
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call,
+      callee: {},
+      calleePropertyName: marker,
+      sourceSelectedDeclaration: selectedDeclaration,
+      arguments: [],
+    }, fakeObservationContext({
+      virtualDeclarationSubject: selectedDeclaration,
+      virtualDeclaration: coreLangMarker(marker),
+      flowStateSubject: call,
+      flowState: { state },
+    }));
+
+    assert.equal(result.kind, "reject", marker);
+    assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED");
+    assert.match(result.diagnostic.message, new RegExp(marker, "u"));
+  }
+});
+
 test("C# erased source marker accepts supported markers only with finalized source facts", () => {
   const provider = getNativeSemanticProvider();
   const outCall = {};

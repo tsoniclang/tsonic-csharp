@@ -25,6 +25,9 @@ import {
   csharpProviderDiagnostic,
 } from "./diagnostics.js";
 import {
+  unsupportedCsharpSourceFlowMarkerDiagnostic,
+} from "./source-flow-diagnostics.js";
+import {
   csharpTargetId,
 } from "./identity.js";
 import {
@@ -267,9 +270,12 @@ function missingRequiredSourceMarkerFactDiagnostic(
     case "borrow":
     case "borrowMut":
     case "move":
-      return context.facts.get(request.call, flowStateFactKey) === undefined
-        ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN", declaration.exportName, "source-flow")
-        : undefined;
+      {
+        const flowState = context.facts.get(request.call, flowStateFactKey);
+        return flowState === undefined
+          ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN", declaration.exportName, "source-flow")
+          : unsupportedCsharpSourceFlowMarkerDiagnostic(extensionId, flowState);
+      }
     case "attribute":
       return !hasAttributeFact
         ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_ATTRIBUTE_MARKER_FACT_NOT_PROVEN", declaration.exportName, "attribute")
