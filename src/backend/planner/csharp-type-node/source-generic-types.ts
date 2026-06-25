@@ -29,9 +29,6 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
 import {
-  getCsharpTypeFromSemanticType,
-} from "../csharp-semantic-types.js";
-import {
   getCsharpTypeFromProjectSourceReference,
 } from "../project-source-types.js";
 import type {
@@ -66,8 +63,8 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
     }
     return csharpType;
   }
-  const returnType = input.semantics.getResolvedCallReturnType(node, { sourceFile });
-  return getCsharpTypeFromSemanticType(returnType, sourceFile, input);
+  diagnostics?.push(unsupportedNodeDiagnostic(node, "Source-owned call return emission requires a finalized return carrier fact; backend must not infer C# return types from raw TSTS semantic types."));
+  return invalidCsharpType("source call return carrier");
 }
 
 export function getCsharpTypeFromSourceNewExpression(

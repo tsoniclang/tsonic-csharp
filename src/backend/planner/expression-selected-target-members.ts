@@ -30,9 +30,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  requireCsharpIdentifier,
-} from "./identifiers.js";
-import {
   invalidExpression,
 } from "./invalid-expression.js";
 import {
@@ -83,15 +80,14 @@ export function planSelectedTargetReceiverExpression(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression {
-  if (!HasSourceKind(input.ast, receiver, KindIdentifier)) {
-    return planExpression(receiver, sourceFile, input, diagnostics);
+  if (HasSourceKind(input.ast, receiver, KindIdentifier)) {
+    const sourceName = Node_Text(AsIdentifier(receiver));
+    if (isExternalDeclarationReference(input.semantics.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile, input)) {
+      diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
+      return invalidExpression("provider declaration receiver");
+    }
   }
-  const sourceName = Node_Text(AsIdentifier(receiver));
-  if (isExternalDeclarationReference(input.semantics.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
-    return invalidExpression("provider declaration receiver");
-  }
-  return { kind: "IdentifierName", name: requireCsharpIdentifier(sourceName, diagnostics, "Selected target receiver") };
+  return planExpression(receiver, sourceFile, input, diagnostics);
 }
 
 export function targetStaticMemberExpression(
@@ -131,12 +127,11 @@ export function planSelectedTargetCallee(
     };
   }
   if (callee !== undefined && HasSourceKind(input.ast, callee, KindIdentifier)) {
-    return operation.static === true
-      ? planSelectedStaticTargetCallee(operation, diagnostics, callee)
-      : {
-          kind: "IdentifierName",
-          name: operation.memberName,
-        };
+    if (operation.static === true) {
+      return planSelectedStaticTargetCallee(operation, diagnostics, callee);
+    }
+    diagnostics.push(unsupportedNodeDiagnostic(callee, `Selected instance target call '${operation.memberName}' requires a value receiver before C# emission.`));
+    return invalidExpression("selected target instance call receiver");
   }
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_AST",

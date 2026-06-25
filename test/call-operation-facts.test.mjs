@@ -2,6 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import { getRequiredCsharpTargetMemberOperationForSelectedSignature } from "../dist/backend/planner/csharp-target-operations.js";
+import {
+  planSelectedTargetCallee,
+  planSelectedTargetReceiverExpression,
+} from "../dist/backend/planner/expression-selected-target-members.js";
+import {
+  KindIdentifier,
+} from "../dist/backend/planner/source-ast.js";
 
 test("call emission requires finalized C# target member operation facts", () => {
   const call = { Kind: 1 };
@@ -134,6 +141,46 @@ test("call emission rejects operation facts that change target parameter passing
   assert.match(diagnostics[0].message, /parameter-passing/);
 });
 
+test("selected target receiver expression uses planned binding identity instead of source text", () => {
+  const receiver = identifier("array");
+  const diagnostics = [];
+  const expression = planSelectedTargetReceiverExpression(
+    receiver,
+    sourceFile,
+    fakeSelectedInput(),
+    diagnostics,
+    () => ({ kind: "IdentifierName", name: "array_1" }),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(expression, { kind: "IdentifierName", name: "array_1" });
+});
+
+test("selected target identifier calls reject instance members without a value receiver", () => {
+  const callee = identifier("parse");
+  const diagnostics = [];
+  const expression = planSelectedTargetCallee(
+    callee,
+    {
+      kind: "member",
+      operationId: "Example.Parser.Parse",
+      operationKind: "method",
+      memberName: "Parse",
+      static: false,
+    },
+    sourceFile,
+    fakeSelectedInput(),
+    diagnostics,
+    () => {
+      throw new Error("bare instance target call must not ask expression planner for a callee");
+    },
+  );
+
+  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a value receiver/);
+});
+
 function selectedMember() {
   return {
     id: "Example.Box.identity``1",
@@ -207,3 +254,24 @@ function fakeInput(options = {}) {
     },
   };
 }
+
+function fakeSelectedInput() {
+  return {
+    ast: {
+      kindName: (node) => String(node?.Kind),
+    },
+    semantics: {
+      getProjectSourceReferenceForNode: () => undefined,
+      getTargetBindingForReference: () => undefined,
+    },
+  };
+}
+
+function identifier(text) {
+  return { Kind: KindIdentifier, Text: text };
+}
+
+const sourceFile = {
+  FileName: "/src/index.ts",
+  IsDeclarationFile: false,
+};

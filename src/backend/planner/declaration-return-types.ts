@@ -1,6 +1,6 @@
 import type { Node, SourceFile, Type } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
-import { getCsharpTypeForNode, getCsharpTypeFromSemanticType, invalidCsharpType } from "./csharp-types.js";
+import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   getTargetTypeRefForNode,
@@ -24,9 +24,7 @@ export function getExplicitReturnType(
     const returnType = returnCarrier === undefined
       ? getInferredSignatureReturnType(declarationNode, sourceFile, input)
       : undefined;
-    const inferred = returnCarrier === undefined
-      ? getCsharpTypeFromSemanticType(returnType, sourceFile, input)
-      : csharpTypeFromTargetTypeRef(returnCarrier);
+    const inferred = returnCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(returnCarrier);
     if (inferred === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         declarationNode,

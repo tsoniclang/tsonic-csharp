@@ -73,8 +73,13 @@ export function csharpStaticMemberExpression(
   node: Node,
   purpose: string,
 ): CsharpExpression | undefined {
-  if (operation.kind !== "member" || operation.static !== true) {
-    return undefined;
+  if (operation.kind !== "member") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `${purpose} requires a finalized C# member operation fact, but provider recorded '${operation.kind}'.`));
+    return invalidExpression(`${purpose} operation kind`);
+  }
+  if (operation.static !== true) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `${purpose} requires a finalized static C# member operation fact before emission.`));
+    return invalidExpression(`${purpose} static member`);
   }
   const declaringType = operation.declaringType === undefined ? undefined : csharpTypeFromTargetTypeRef(operation.declaringType);
   if (declaringType === undefined) {

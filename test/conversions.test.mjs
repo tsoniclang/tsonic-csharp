@@ -213,6 +213,35 @@ test("planner rejects conversion methods without a finalized C# operation fact",
   assert.match(diagnostics[0].message, /requires a finalized C# target conversion operation fact/);
 });
 
+test("planner rejects conversion methods whose finalized C# operation is not static", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      convertedType: { kind: "target-named", id: "System.Byte" },
+      operation: {
+        operationId: "System.Convert.ToByte",
+        operationKind: "method",
+        targetOperation: "ToByte",
+      },
+    },
+    csharpOperationSubject: value,
+    csharpOperation: {
+      kind: "member",
+      operationId: "System.Convert.ToByte",
+      operationKind: "method",
+      memberName: "ToByte",
+      static: false,
+      declaringType: csharpTargetNamedType("System.Convert", undefined, csharpQualifiedTypeRenderShape("System", "Convert")),
+    },
+  }), diagnostics);
+
+  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a finalized static C# member operation fact/);
+});
+
 test("provider generic conversion operators substitute target type arguments before checked conversion emission", () => {
   const intType = { kind: "source-primitive", name: "int32" };
   const typeParameter = { kind: "type-parameter", name: "T" };

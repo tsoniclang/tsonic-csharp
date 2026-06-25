@@ -17,15 +17,9 @@ import {
   getCsharpTypeFromSourcePrimitiveTypeReference,
 } from "../csharp-type-facts.js";
 import {
-  getCsharpTypeFromSemanticType,
-} from "../csharp-semantic-types.js";
-import {
   getCsharpTypeFromArrayBoundaryFact,
   getCsharpTypeFromArrayOrTupleTypeNode,
 } from "./array-types.js";
-import {
-  isDelegateTypeNode,
-} from "./callable-types.js";
 import {
   getCsharpTypeFromKeywordTypeNode,
 } from "./predefined-types.js";
@@ -68,12 +62,6 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   const projectSourceType = getCsharpTypeFromProjectSourceTypeReferenceNode(node, sourceFile, input, resolveCsharpType, diagnostics);
   if (projectSourceType !== undefined) {
     return projectSourceType;
-  }
-  const callableSemanticType = IsTypeSyntaxNode(input.ast, node)
-    ? getCsharpTypeFromSemanticType(input.semantics.getTypeFromTypeNode(node, { sourceFile }), sourceFile, input)
-    : undefined;
-  if (callableSemanticType !== undefined && isDelegateTypeNode(callableSemanticType)) {
-    return callableSemanticType;
   }
   const directType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (directType !== undefined) {

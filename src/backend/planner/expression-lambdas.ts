@@ -24,7 +24,6 @@ import type {
   DestructuringPlannerState,
 } from "./bindings.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
-import { getCsharpTypeFromSemanticType } from "./csharp-semantic-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { requireCsharpIdentifier } from "./identifiers.js";
 import { diagnoseTypeScriptOnlyRuntimeShapeModifiers } from "./modifiers.js";
@@ -169,7 +168,6 @@ export function getLambdaTargetContext(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   expectedType?: CsharpTypeNode,
-  options?: { readonly allowSelfSemanticType?: boolean },
 ): CsharpTypeNode | undefined {
   if (expectedType !== undefined && isCsharpDelegateType(expectedType)) {
     return expectedType;
@@ -178,13 +176,7 @@ export function getLambdaTargetContext(
   if (contextualType !== undefined && isCsharpDelegateType(contextualType)) {
     return contextualType;
   }
-  if (options?.allowSelfSemanticType !== true) {
-    return undefined;
-  }
-  const semanticType = getCsharpTypeFromSemanticType(input.semantics.getTypeAtLocation(node, { sourceFile }), sourceFile, input);
-  return semanticType !== undefined && isCsharpDelegateType(semanticType)
-    ? semanticType
-    : undefined;
+  return undefined;
 }
 
 export function isCsharpDelegateType(type: CsharpTypeNode): boolean {
@@ -209,7 +201,7 @@ function getContextualTargetCsharpType(
   if (csharpType !== undefined) {
     return csharpType;
   }
-  return getCsharpTypeFromSemanticType(asSemanticType(fact?.type), sourceFile, input);
+  return undefined;
 }
 
 function getContextualTargetRefFromSubject(

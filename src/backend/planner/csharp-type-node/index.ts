@@ -40,7 +40,6 @@ import {
   isUnionTypeNode,
 } from "../csharp-type-facts.js";
 import {
-  getCsharpTypeFromSemanticType,
   getCsharpTypeParameterName,
 } from "../csharp-semantic-types.js";
 import {
@@ -49,7 +48,6 @@ import {
 } from "./array-types.js";
 import {
   getCsharpCallableContextualType,
-  isDelegateTypeNode,
 } from "./callable-types.js";
 import {
   getCsharpTypeFromExplicitTypeSyntax,
@@ -128,10 +126,6 @@ export function getCsharpTypeForNode(
     if (contextualCallableType !== undefined) {
       return contextualCallableType;
     }
-    const callableType = getCsharpTypeFromSemanticType(nodeType, sourceFile, input);
-    if (callableType !== undefined && isDelegateTypeNode(callableType)) {
-      return callableType;
-    }
   }
   const explicitTypeSyntax = getCsharpTypeFromExplicitTypeSyntax(node, sourceFile, input, getCsharpTypeForNode, diagnostics);
   if (explicitTypeSyntax !== undefined) {
@@ -175,10 +169,7 @@ export function getCsharpTypeForNode(
       return csharpType;
     }
   }
-  const semanticType = getCsharpTypeFromSemanticType(nodeType, sourceFile, input);
-  if (semanticType !== undefined) {
-    return semanticType;
-  }
+  void nodeType;
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts; backend diagnostics must not render semantic type strings as C# type evidence. Kind: ${input.ast.kindName(node)}.`));
   return invalidCsharpType("unsupported semantic type");
 }

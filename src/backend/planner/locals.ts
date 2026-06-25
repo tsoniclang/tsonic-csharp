@@ -34,7 +34,7 @@ export function planLocalDeclaration(
     ? undefined
     : getCsharpTypeForNode(variable.Type, sourceFile, input, undefined, diagnostics);
   const inferredLambdaType = variable.Initializer !== undefined
-    ? getLambdaTargetContext(variable.Initializer, sourceFile, input, explicitType, { allowSelfSemanticType: true })
+    ? getLambdaTargetContext(variable.Initializer, sourceFile, input, explicitType)
     : undefined;
   const type = inferredLambdaType ??
     explicitType ??

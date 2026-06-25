@@ -91,7 +91,7 @@ function planTargetConversionMethodCall(
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
   const callee = targetConversionStaticMethodCallee(input, operation, diagnostics, node);
-  if (callee === undefined) {
+  if (callee === undefined || callee.kind === "InvalidExpression") {
     return invalidExpression("target conversion method");
   }
   return {

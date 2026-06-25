@@ -239,7 +239,7 @@ test("ptr and fnptr type references render only from finalized source-core type 
   assert.match(missingDiagnostics[0].message, /requires a closed target type from TSTS\/provider facts/);
 });
 
-test("advanced erased type syntax emits only from TSTS semantic result facts", () => {
+test("advanced erased type syntax emits only from finalized runtime carrier facts", () => {
   const sourceExample = `
     type Result<T> = T extends string ? Readonly<{ value: T }> : never;
   `;
@@ -250,21 +250,45 @@ test("advanced erased type syntax emits only from TSTS semantic result facts", (
   const conditionalType = { Kind: "KindConditionalType" };
   const mappedType = { Kind: "KindMappedType" };
   const utilityType = typeReferenceNode("Readonly");
+  const semanticOnlyType = typeReferenceNode("Partial");
   const tstsStringResult = { kind: "semantic-string-result" };
   const diagnostics = [];
   const input = fakeTypeInput(sourceFile, {
     semanticTypes: new Map([
       [conditionalType, tstsStringResult],
       [utilityType, tstsStringResult],
+      [semanticOnlyType, tstsStringResult],
+    ]),
+    runtimeCarriers: new Map([
+      [conditionalType, csharpStringTargetType()],
+      [utilityType, csharpStringTargetType()],
     ]),
     stringSemanticTypes: new Set([tstsStringResult]),
   });
 
   assert.equal(printCsharpType(getCsharpTypeForNode(conditionalType, sourceFile, input, undefined, diagnostics)), "string");
   assert.equal(printCsharpType(getCsharpTypeForNode(utilityType, sourceFile, input, undefined, diagnostics)), "string");
+  const semanticOnly = getCsharpTypeForNode(semanticOnlyType, sourceFile, input, undefined, diagnostics);
   const missing = getCsharpTypeForNode(mappedType, sourceFile, input, undefined, diagnostics);
 
+  assert.equal(semanticOnly.kind, "InvalidType");
   assert.equal(missing.kind, "InvalidType");
+  assert.equal(diagnostics.length, 2);
+  assert.match(diagnostics[0].message, /requires a closed target type from TSTS\/provider facts/);
+  assert.match(diagnostics[1].message, /requires a closed target type from TSTS\/provider facts/);
+});
+
+test("backend type rendering rejects primitive semantic shapes without finalized carriers", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const value = { Kind: KindIdentifier, Text: "value" };
+  const numberType = { kind: "semantic-number" };
+  const diagnostics = [];
+  const rendered = getCsharpTypeForNode(value, sourceFile, fakeTypeInput(sourceFile, {
+    semanticTypes: new Map([[value, numberType]]),
+    numberSemanticTypes: new Set([numberType]),
+  }), undefined, diagnostics);
+
+  assert.equal(rendered.kind, "InvalidType");
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a closed target type from TSTS\/provider facts/);
 });
@@ -390,7 +414,7 @@ function fakeTypeInput(sourceFile, options = {}) {
     types: {
       isAny: () => false,
       isUnknown: () => false,
-      isNumberLike: () => false,
+      isNumberLike: (type) => options.numberSemanticTypes?.has(type) === true,
       isStringLike: (type) => options.stringSemanticTypes?.has(type) === true,
       isBooleanLike: () => false,
       isBigIntLike: () => false,
