@@ -14,6 +14,7 @@ import {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
+  SourceLibraryMemberId,
 } from "../source-library.js";
 import {
   asNodeSubject,
@@ -55,8 +56,7 @@ export function getPrevalidatedSourceLibraryCallMember(
   if (arrayCallbackMember !== undefined) {
     return arrayCallbackMember;
   }
-  return sourceMember.declaringName === "Object" &&
-    sourceMember.memberName === "assign" &&
+  return sourceMember.id === "Object.assign" &&
     candidates.length === 1
     ? candidates[0]
     : candidates.length === 1
@@ -70,7 +70,7 @@ export function sourceLibraryCallSelectionOptions(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): Parameters<CsharpJsSurfaceHost["selectTargetMember"]>[3] {
-  if (sourceMember.declaringName !== "Array" && sourceMember.declaringName !== "ReadonlyArray") {
+  if (!arraySelectionOptionSourceMemberIds.has(sourceMember.id)) {
     return {};
   }
   const receiverType = getSourceLibraryCallReceiverTargetTypes(request, context, host)
@@ -90,7 +90,7 @@ function getPrevalidatedArrayConstructorCallMember(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
-  if (sourceMember.declaringName !== "Array" || sourceMember.memberName !== "constructor" || !isNewExpression(request.call, context)) {
+  if (sourceMember.id !== "Array.constructor" || !isNewExpression(request.call, context)) {
     return undefined;
   }
   if (request.arguments.length === 0) {
@@ -113,7 +113,7 @@ function getPrevalidatedJsonCallMember(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
-  if (sourceMember.declaringName !== "JSON") {
+  if (!jsonCallSourceMemberIds.has(sourceMember.id)) {
     return undefined;
   }
   return host.selectTargetMember(candidates, {
@@ -129,10 +129,10 @@ function getPrevalidatedDateCallMember(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
-  if (sourceMember.declaringName !== "Date") {
+  if (!dateCallSourceMemberIds.has(sourceMember.id)) {
     return undefined;
   }
-  if (sourceMember.memberName !== "constructor") {
+  if (sourceMember.id !== "Date.constructor") {
     return candidates.length === 1 ? candidates[0] : undefined;
   }
   if (!isNewExpression(request.call, context)) {
@@ -164,7 +164,7 @@ function getPrevalidatedArrayFromCallMember(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
-  if (sourceMember.declaringName !== "Array" || sourceMember.memberName !== "from" || request.arguments.length !== 1) {
+  if (sourceMember.id !== "Array.from" || request.arguments.length !== 1) {
     return undefined;
   }
   const sourceType = getSourceLibraryCallArgumentTargetTypes(request, context, host)[0];
@@ -185,36 +185,106 @@ function getPrevalidatedArrayCallbackCallMember(
 ): TargetMember | undefined {
   if (
     request.sourceSelectedSignature === undefined ||
-    (sourceMember.declaringName !== "Array" && sourceMember.declaringName !== "ReadonlyArray") ||
-    !arrayCallbackSourceMembers.has(sourceMember.memberName)
+    !arrayCallbackSourceMemberIds.has(sourceMember.id)
   ) {
     return undefined;
   }
-  const callbackArgumentIndex = sourceMember.memberName === "from" ? 1 : 0;
+  const callbackArgumentIndex = sourceMember.id === "Array.from" ? 1 : 0;
   const callbackParameterCount = getSourceFunctionParameterCount(request.arguments[callbackArgumentIndex], context);
   if (callbackParameterCount === undefined) {
     return undefined;
   }
-  const targetCallbackParameterIndex = sourceMember.memberName === "from" ? 1 : 1;
+  const targetCallbackParameterIndex = sourceMember.id === "Array.from" ? 1 : 1;
   const matching = candidates.filter((candidate) =>
     getTargetDelegateParameterCount(candidate.parameters[targetCallbackParameterIndex]?.type) === callbackParameterCount
   );
   return matching.length === 1 ? matching[0] : undefined;
 }
 
-const arrayCallbackSourceMembers = new Set([
-  "every",
-  "filter",
-  "find",
-  "findIndex",
-  "findLast",
-  "findLastIndex",
-  "forEach",
-  "from",
-  "map",
-  "some",
-  "sort",
+const jsonCallSourceMemberIds = sourceMemberIdSet([
+  "JSON.parse",
+  "JSON.stringify",
 ]);
+
+const dateCallSourceMemberIds = sourceMemberIdSet([
+  "Date.constructor",
+  "Date.now",
+  "Date.parse",
+  "Date.UTC",
+]);
+
+const arrayCallbackSourceMemberIds = sourceMemberIdSet([
+  "Array.every",
+  "Array.filter",
+  "Array.find",
+  "Array.findIndex",
+  "Array.findLast",
+  "Array.findLastIndex",
+  "Array.forEach",
+  "Array.from",
+  "Array.map",
+  "Array.some",
+  "Array.sort",
+  "ReadonlyArray.every",
+  "ReadonlyArray.filter",
+  "ReadonlyArray.find",
+  "ReadonlyArray.findIndex",
+  "ReadonlyArray.findLast",
+  "ReadonlyArray.findLastIndex",
+  "ReadonlyArray.forEach",
+  "ReadonlyArray.map",
+  "ReadonlyArray.some",
+]);
+
+const arraySelectionOptionSourceMemberIds = sourceMemberIdSet([
+  "Array.constructor",
+  "Array.from",
+  "Array.of",
+  "Array.isArray",
+  "Array.push",
+  "Array.pop",
+  "Array.shift",
+  "Array.unshift",
+  "Array.concat",
+  "Array.at",
+  "Array.includes",
+  "Array.indexOf",
+  "Array.lastIndexOf",
+  "Array.join",
+  "Array.slice",
+  "Array.splice",
+  "Array.reverse",
+  "Array.sort",
+  "Array.forEach",
+  "Array.some",
+  "Array.every",
+  "Array.filter",
+  "Array.map",
+  "Array.find",
+  "Array.findIndex",
+  "Array.findLast",
+  "Array.findLastIndex",
+  "ReadonlyArray.concat",
+  "ReadonlyArray.at",
+  "ReadonlyArray.includes",
+  "ReadonlyArray.indexOf",
+  "ReadonlyArray.lastIndexOf",
+  "ReadonlyArray.join",
+  "ReadonlyArray.slice",
+  "ReadonlyArray.forEach",
+  "ReadonlyArray.some",
+  "ReadonlyArray.every",
+  "ReadonlyArray.filter",
+  "ReadonlyArray.map",
+  "ReadonlyArray.find",
+  "ReadonlyArray.findIndex",
+  "ReadonlyArray.findLast",
+  "ReadonlyArray.findLastIndex",
+]);
+
+function sourceMemberIdSet(ids: readonly SourceLibraryMemberId[]): ReadonlySet<SourceLibraryMemberId> {
+  return new Set(ids);
+}
 
 function getSourceFunctionParameterCount(
   subject: ExtensionFactSubject | undefined,
