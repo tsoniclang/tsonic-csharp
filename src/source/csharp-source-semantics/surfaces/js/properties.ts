@@ -25,12 +25,6 @@ import {
   targetOperationFromMember,
 } from "./source-library.js";
 import {
-  hasObjectTargetMember,
-} from "./objects.js";
-import {
-  getJsonTargetMembers,
-} from "./json.js";
-import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
 import {
@@ -40,6 +34,7 @@ import {
   csharpJsSourceLibraryPropertyReceiverHasClosedFacts,
   csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection,
   csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts,
+  csharpJsSourceLibraryPropertyPrecheck,
   getCsharpJsSourceLibraryMemberFromReceiverType,
   getCsharpJsSourceLibraryPropertyMember,
 } from "./property-policy.js";
@@ -173,18 +168,12 @@ function mapCsharpSourceLibraryPropertyOperation(
       ),
     }, [{ message: `C# JS surface callable property accepted from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'. Call expressions record the concrete target member; standalone callable values require finalized callable carrier facts before emission.` }]);
   }
-  if (sourceMember.declaringName === "Console") {
+  const precheck = csharpJsSourceLibraryPropertyPrecheck(sourceMember);
+  if (precheck === "defer") {
     return undefined;
   }
-  if (sourceMember.declaringName === "Object") {
-    return hasObjectTargetMember(sourceMember.memberName)
-      ? undefined
-      : rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
-  }
-  if (sourceMember.declaringName === "JSON") {
-    return getJsonTargetMembers(sourceMember.memberName).length > 0
-      ? undefined
-      : rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
+  if (precheck === "reject-unmapped") {
+    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }
   const unsupported = rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   if (unsupported !== undefined) {

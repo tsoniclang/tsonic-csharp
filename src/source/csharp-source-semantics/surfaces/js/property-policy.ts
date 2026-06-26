@@ -22,8 +22,14 @@ import {
   getMathPropertyTargetMember,
 } from "./math.js";
 import {
+  getJsonTargetMembers,
+} from "./json.js";
+import {
   getNumberPropertyTargetMember,
 } from "./numbers.js";
+import {
+  hasObjectTargetMember,
+} from "./objects.js";
 import {
   getRegExpPropertyTargetMember,
   isCsharpJsRegExpRuntimeCarrier,
@@ -76,9 +82,22 @@ export function getCsharpJsSourceLibraryPropertyMember(
     ?.resolve(sourceMember, receiverType);
 }
 
+export type CsharpJsSourceLibraryPropertyPrecheck = "continue" | "defer" | "reject-unmapped";
+
+export function csharpJsSourceLibraryPropertyPrecheck(sourceMember: SourceLibraryMember): CsharpJsSourceLibraryPropertyPrecheck {
+  return propertyPrecheckRules
+    .find((rule) => rule.matches(sourceMember))
+    ?.result(sourceMember) ?? "continue";
+}
+
 interface CsharpJsPropertyMemberResolver {
   readonly matches: (sourceMember: SourceLibraryMember) => boolean;
   readonly resolve: (sourceMember: SourceLibraryMember, receiverType: TargetTypeRef | undefined) => TargetMember | undefined;
+}
+
+interface CsharpJsPropertyPrecheckRule {
+  readonly matches: (sourceMember: SourceLibraryMember) => boolean;
+  readonly result: (sourceMember: SourceLibraryMember) => CsharpJsSourceLibraryPropertyPrecheck;
 }
 
 const propertyReceiverSourceTypeNames = [
@@ -172,6 +191,21 @@ const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
             csharpSourcePrimitiveTargetType("int32"),
           );
     },
+  },
+];
+
+const propertyPrecheckRules: readonly CsharpJsPropertyPrecheckRule[] = [
+  {
+    matches: (sourceMember) => sourceMember.declaringName === "Console",
+    result: () => "defer",
+  },
+  {
+    matches: (sourceMember) => sourceMember.declaringName === "Object",
+    result: (sourceMember) => hasObjectTargetMember(sourceMember.memberName) ? "defer" : "reject-unmapped",
+  },
+  {
+    matches: (sourceMember) => sourceMember.declaringName === "JSON",
+    result: (sourceMember) => getJsonTargetMembers(sourceMember.memberName).length > 0 ? "defer" : "reject-unmapped",
   },
 ];
 
