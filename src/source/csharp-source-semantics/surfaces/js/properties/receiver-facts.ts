@@ -15,9 +15,6 @@ import {
   isCsharpJsDateRuntimeCarrier,
 } from "../date/index.js";
 import {
-  numberPropertyTargetMemberForSourceName,
-} from "../numbers.js";
-import {
   isCsharpJsRegExpRuntimeCarrier,
 } from "../regexp/index.js";
 import type {
@@ -27,7 +24,6 @@ import type {
 } from "../source-library.js";
 import {
   sourceLibraryMemberMatches,
-  sourceLibraryMemberName,
 } from "../source-library.js";
 
 export function csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {
@@ -44,7 +40,7 @@ export function csharpJsSourceLibraryPropertyReceiverHasClosedFacts(
   host: CsharpJsSurfaceHost,
 ): boolean {
   const policy = propertyReceiverValidatorPolicies.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
-  return propertyReceiverRequirementIsSatisfied(policy?.requirement, receiverType, sourceMember, host);
+  return propertyReceiverRequirementIsSatisfied(policy?.requirement, receiverType, host);
 }
 
 interface PropertyReceiverValidatorPolicy {
@@ -59,7 +55,7 @@ type PropertyReceiverRequirement =
   | "regexp"
   | "date"
   | "boolean"
-  | "number-property-exists"
+  | "number-static"
   | "map"
   | "set";
 
@@ -78,7 +74,7 @@ const propertyReceiverValidatorPolicies: readonly PropertyReceiverValidatorPolic
   { identity: { prefixes: ["RegExp."] }, requirement: "regexp" },
   { identity: { prefixes: ["Date."] }, requirement: "date" },
   { identity: { prefixes: ["Boolean."] }, requirement: "boolean" },
-  { identity: { prefixes: ["Number."] }, requirement: "number-property-exists" },
+  { identity: { prefixes: ["Number."] }, requirement: "number-static" },
   { identity: { prefixes: ["Map.", "ReadonlyMap."] }, requirement: "map" },
   { identity: { prefixes: ["Set.", "ReadonlySet."] }, requirement: "set" },
 ];
@@ -86,7 +82,6 @@ const propertyReceiverValidatorPolicies: readonly PropertyReceiverValidatorPolic
 function propertyReceiverRequirementIsSatisfied(
   requirement: PropertyReceiverRequirement | undefined,
   receiverType: TargetTypeRef | undefined,
-  sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
   switch (requirement) {
@@ -102,8 +97,8 @@ function propertyReceiverRequirementIsSatisfied(
       return isCsharpJsDateRuntimeCarrier(receiverType);
     case "boolean":
       return isCsharpBooleanTargetType(receiverType);
-    case "number-property-exists":
-      return numberPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)) !== undefined;
+    case "number-static":
+      return true;
     case "map":
       return isCsharpJsMapTargetType(receiverType);
     case "set":

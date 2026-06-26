@@ -37,6 +37,8 @@ import {
   objectToStringIdentityPolicy,
 } from "./identities.js";
 
+const objectToStringSourceName = "toString";
+
 export function getObjectPrimitiveReceiverCallMembers(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
@@ -48,10 +50,10 @@ export function getObjectPrimitiveReceiverCallMembers(
   }
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
   return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType))
-    ? stringTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))
+      ? stringTargetMembersForSourceName(objectToStringSourceName)
     : receiverTypes.some((receiverType) => receiverType?.kind === "source-primitive" && receiverType.name === "bool")
-      ? booleanTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))
-      : numberOrNoObjectPrimitiveReceiverMembers(sourceMember, receiverTypes);
+      ? booleanTargetMembersForSourceName(objectToStringSourceName)
+      : numberOrNoObjectPrimitiveReceiverMembers(receiverTypes);
 }
 
 export function getObjectRecordDictionaryCallMembers(
@@ -72,10 +74,9 @@ export function getObjectRecordDictionaryCallMembers(
 }
 
 function numberOrNoObjectPrimitiveReceiverMembers(
-  sourceMember: SourceLibraryMember,
   receiverTypes: ReturnType<typeof getSourceLibraryCallReceiverTargetTypes>,
 ): readonly TargetMember[] {
   return receiverTypes.some((receiverType) => isCsharpNumberTargetType(receiverType))
-    ? numberTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))
+    ? numberTargetMembersForSourceName(objectToStringSourceName)
     : [];
 }
