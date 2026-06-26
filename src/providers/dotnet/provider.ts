@@ -27,8 +27,24 @@ import {
   createDotnetProviderDependencyModuleSpecifier,
   dotnetPackageName,
   parseDotnetProviderDependencyModuleSpecifier,
-  parseDotnetModuleSpecifier,
 } from "./module-specifier.js";
+import {
+  dotnetExtensionDiagnostic,
+  dotnetProviderDiagnosticToExtensionDiagnostic,
+  dotnetProviderRequestedExportMissingDiagnostic,
+  dotnetProviderRequestSliceRequiredDiagnostic,
+  isDotnetProviderDiagnostic,
+} from "./provider-diagnostics.js";
+import {
+  dotnetProviderModuleContext,
+  dotnetProviderModuleRequest,
+  providerVirtualDeclarationFileName,
+} from "./provider-request.js";
+import {
+  dotnetProviderResolutionContext,
+  missingDotnetRequestedExports,
+  sliceDotnetModuleExports,
+} from "./provider-slices.js";
 
 export interface DotnetTypeDataProvider {
   readonly identity: DotnetProviderIdentity;
@@ -60,8 +76,6 @@ export interface DotnetProviderDiagnostic {
   readonly message: string;
   readonly evidence?: readonly Readonly<Record<string, unknown>>[];
 }
-
-type DotnetProviderResolutionContext = Pick<ProviderModuleContext, "broadImport" | "requestedExports">;
 
 export interface DotnetBindingProviderOptions {
   readonly provider: DotnetTypeDataProvider;
@@ -174,69 +188,6 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
   };
 }
 
-interface DotnetProviderModuleRequest {
-  readonly moduleSpecifier: string;
-  readonly requestedExports?: readonly string[];
-  readonly internal?: boolean;
-}
-
-function dotnetProviderModuleRequest(
-  specifier: string,
-  providerId: string,
-  context?: ProviderModuleContext,
-): DotnetProviderModuleRequest | undefined {
-  const dependency = parseDotnetProviderDependencyModuleSpecifier(specifier);
-  if (dependency !== undefined) {
-    return dependency.providerId === providerId && isProviderGeneratedContainingFile(context)
-      ? {
-          moduleSpecifier: dependency.moduleSpecifier,
-          requestedExports: dependency.requestedExports,
-          internal: true,
-        }
-      : undefined;
-  }
-  return parseDotnetModuleSpecifier(specifier) === undefined
-    ? undefined
-    : { moduleSpecifier: specifier };
-}
-
-function isProviderGeneratedContainingFile(context: ProviderModuleContext | undefined): boolean {
-  return context?.containingFile?.startsWith("tsts-provider:") === true;
-}
-
-function dotnetProviderModuleContext(
-  context: ProviderModuleContext,
-  module: DotnetProviderModuleRequest,
-): ProviderModuleContext {
-  if (module.requestedExports === undefined) {
-    return context;
-  }
-  return {
-    ...context,
-    requestedExports: module.requestedExports,
-    broadImport: false,
-  };
-}
-
-function dotnetProviderResolutionContext(context: DotnetProviderResolutionContext): DotnetProviderResolutionContext | undefined {
-  if (context.broadImport === true) {
-    return { broadImport: true as const };
-  }
-  const requestedExports = sortedNonEmpty(context.requestedExports);
-  return requestedExports === undefined ? undefined : { requestedExports };
-}
-
-function providerVirtualDeclarationFileName(
-  providerId: string,
-  specifier: string,
-  context: Pick<ProviderModuleContext, "broadImport" | "requestedExports">,
-): string {
-  const sliceKey = context.broadImport === true
-    ? "broad"
-    : `slice-${encodeURIComponent(context.requestedExports?.join(",") ?? "")}`;
-  return `tsts-provider://${providerId}/${encodeURIComponent(specifier)}/${sliceKey}.d.ts`;
-}
-
 function providerContext(
   context: ProviderModuleContext,
   options: DotnetBindingProviderOptions,
@@ -262,88 +213,4 @@ function mapDotnetOwnership(extensionId: string, ownership: DotnetProviderOwners
         diagnostic: dotnetProviderDiagnosticToExtensionDiagnostic(extensionId, ownership.diagnostic),
       };
   }
-}
-
-function isDotnetProviderDiagnostic(value: DotnetProviderModuleResult): value is DotnetProviderDiagnostic {
-  return "code" in value && "message" in value;
-}
-
-function dotnetProviderDiagnosticToExtensionDiagnostic(
-  extensionId: string,
-  diagnostic: DotnetProviderDiagnostic,
-): ExtensionDiagnostic {
-  return dotnetExtensionDiagnostic(extensionId, diagnostic.code, 9200000, diagnostic.message, diagnostic.evidence);
-}
-
-function dotnetExtensionDiagnostic(
-  extensionId: string,
-  extensionCode: string,
-  numericCode: number,
-  message: string,
-  evidence?: readonly Readonly<Record<string, unknown>>[],
-): ExtensionDiagnostic {
-  return {
-    extensionId,
-    extensionCode,
-    numericCode,
-    category: "error",
-    message,
-    ...(evidence !== undefined ? { evidence: evidence.map((details) => ({ message: "Provider evidence", details })) } : {}),
-  };
-}
-
-function dotnetProviderRequestSliceRequiredDiagnostic(extensionId: string, specifier: string): ExtensionDiagnostic {
-  return dotnetExtensionDiagnostic(
-    extensionId,
-    "DOTNET_PROVIDER_REQUEST_SLICE_REQUIRED",
-    9200004,
-    `.NET provider module '${specifier}' requires an explicit requested export slice or explicit broad import.`,
-    [{ specifier }],
-  );
-}
-
-function dotnetProviderRequestedExportMissingDiagnostic(
-  extensionId: string,
-  specifier: string,
-  missingExports: readonly string[],
-): ExtensionDiagnostic {
-  return dotnetExtensionDiagnostic(
-    extensionId,
-    "DOTNET_PROVIDER_REQUESTED_EXPORT_MISSING",
-    9200005,
-    `.NET provider module '${specifier}' did not prove requested export(s): ${missingExports.join(", ")}.`,
-    [{ specifier, missingExports }],
-  );
-}
-
-function sortedNonEmpty(values: readonly string[] | undefined): readonly string[] | undefined {
-  if (values === undefined || values.length === 0) {
-    return undefined;
-  }
-  return [...new Set(values)].sort();
-}
-
-function missingDotnetRequestedExports(
-  module: DotnetModuleModel,
-  context: DotnetProviderResolutionContext,
-): readonly string[] {
-  if (context.broadImport === true || context.requestedExports === undefined) {
-    return [];
-  }
-  const exportedNames = new Set(module.exports.map((declaration) => declaration.sourceName));
-  return context.requestedExports.filter((exportName) => !exportedNames.has(exportName));
-}
-
-function sliceDotnetModuleExports(
-  module: DotnetModuleModel,
-  context: DotnetProviderResolutionContext,
-): DotnetModuleModel {
-  if (context.broadImport === true || context.requestedExports === undefined) {
-    return module;
-  }
-  const requestedExports = new Set(context.requestedExports);
-  return {
-    ...module,
-    exports: module.exports.filter((declaration) => requestedExports.has(declaration.sourceName)),
-  };
 }
