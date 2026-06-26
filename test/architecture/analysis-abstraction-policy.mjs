@@ -288,20 +288,6 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
     "JS call selection must finish moving from source-family policy records to provider/runtime metadata rows and generic selector selection.",
   ),
   entry(
-    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/object-members.ts",
-    { "source-member-name-to-target-lookup": 1 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Object helper dictionary member selection must use provider/runtime metadata rows instead of deriving target lookup from source member names.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/index.ts",
-    { "dynamic-target-member-from-source-member": 1 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Collection property metadata must be predeclared provider/runtime metadata instead of synthesized from source member identity.",
-  ),
-  entry(
     "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/precheck-rules.ts",
     { "source-id-analysis-table-definition": 1 },
     "surface-policy-candidate",

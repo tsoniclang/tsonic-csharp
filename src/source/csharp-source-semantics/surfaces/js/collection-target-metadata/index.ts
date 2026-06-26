@@ -11,7 +11,6 @@ import type {
   SourceLibraryMember,
 } from "../source-library.js";
 import {
-  sourceLibraryMemberIdentity,
   sourceLibraryMemberMatches,
 } from "../source-library.js";
 import {
@@ -80,7 +79,7 @@ export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMem
     return undefined;
   }
   return jsSurfaceTargetMemberFromMetadata({
-    id: `Tsonic.CSharp.Js.${sourceLibraryMemberIdentity(sourceMember)}`,
+    id: `Tsonic.CSharp.Js.${policy.targetName}.size`,
     sourceName: "size",
     targetName: "size",
     kind: "property",

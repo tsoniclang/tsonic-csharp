@@ -11,7 +11,7 @@ import {
   numberTargetMembersForSourceName,
 } from "../../numbers.js";
 import {
-  objectRecordDictionaryTargetMembersForSourceName,
+  objectRecordDictionaryTargetMembersForOperation,
 } from "../../objects.js";
 import type {
   CsharpJsSurfaceHost,
@@ -19,7 +19,7 @@ import type {
 } from "../../source-library.js";
 import {
   sourceLibraryMemberMatches,
-  sourceLibraryMemberName,
+  sourceLibraryMemberIdSet,
 } from "../../source-library.js";
 import {
   stringTargetMembersForSourceName,
@@ -38,6 +38,11 @@ import {
 } from "./identities.js";
 
 const objectToStringSourceName = "toString";
+const objectRecordDictionaryCallPolicies = [
+  { identity: { ids: sourceLibraryMemberIdSet(["Object.keys"]) }, operation: "keys" },
+  { identity: { ids: sourceLibraryMemberIdSet(["Object.values"]) }, operation: "values" },
+  { identity: { ids: sourceLibraryMemberIdSet(["Object.entries"]) }, operation: "entries" },
+] as const;
 
 export function getObjectPrimitiveReceiverCallMembers(
   request: CheckedCallMappingRequest,
@@ -62,7 +67,8 @@ export function getObjectRecordDictionaryCallMembers(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  if (!sourceLibraryMemberMatches(sourceMember, objectRecordDictionaryIdentityPolicy)) {
+  const policy = objectRecordDictionaryCallPolicies.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
+  if (policy === undefined || !sourceLibraryMemberMatches(sourceMember, objectRecordDictionaryIdentityPolicy)) {
     return [];
   }
   const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request, context, host)
@@ -70,7 +76,7 @@ export function getObjectRecordDictionaryCallMembers(
       argumentType !== undefined && isStringKeyedRecordDictionaryTargetType(argumentType, host));
   return dictionaryType === undefined
     ? []
-    : objectRecordDictionaryTargetMembersForSourceName(sourceLibraryMemberName(sourceMember), dictionaryType);
+    : objectRecordDictionaryTargetMembersForOperation(policy.operation, dictionaryType);
 }
 
 function numberOrNoObjectPrimitiveReceiverMembers(

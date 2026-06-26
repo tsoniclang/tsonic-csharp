@@ -77,8 +77,8 @@ function objectHelperMethod(
   );
 }
 
-export function objectRecordDictionaryTargetMembersForSourceName(
-  sourceName: string,
+export function objectRecordDictionaryTargetMembersForOperation(
+  operation: "keys" | "values" | "entries",
   dictionaryType: CsharpRecordDictionaryTargetTypeRef,
 ): readonly TargetMember[] {
   const valueType = dictionaryType.typeArguments?.[1];
@@ -91,7 +91,7 @@ export function objectRecordDictionaryTargetMembersForSourceName(
       objectHelperMethod("values", "dictionary", dictionaryType, valueType),
       objectHelperMethod("entries", "dictionary", dictionaryType, { kind: "tuple", elements: [csharpStringTargetType(), valueType] }),
     ]),
-    sourceName,
+    operation,
   );
 }
 
