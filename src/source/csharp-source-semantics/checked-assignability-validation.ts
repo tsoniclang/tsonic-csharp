@@ -160,7 +160,7 @@ function resolveObservedAssignabilitySource(
     allowSemanticTypeQuery: true,
     sourceFile: getFactSourceFile(fact, context),
   });
-  return source !== undefined || !canUseObservedContextFallback(fact.source)
+  return source !== undefined || !canUseObservedContextSubject(fact.source)
     ? source
     : host.getTargetTypeRefForSubject(getObservedAssignabilitySourceNode(fact, context), context, {
         allowRuntimeCarrier: true,
@@ -179,7 +179,7 @@ function resolveObservedAssignabilityTarget(
     allowSemanticTypeQuery: true,
     sourceFile: getFactSourceFile(fact, context),
   });
-  return target !== undefined || !canUseObservedContextFallback(fact.target)
+  return target !== undefined || !canUseObservedContextSubject(fact.target)
     ? target
     : host.getTargetTypeRefForSubject(getObservedAssignabilityTargetNode(fact, context), context, {
         allowRuntimeCarrier: true,
@@ -188,7 +188,7 @@ function resolveObservedAssignabilityTarget(
       });
 }
 
-function canUseObservedContextFallback(subject: unknown): boolean {
+function canUseObservedContextSubject(subject: unknown): boolean {
   if (typeof subject !== "object" || subject === null) {
     return false;
   }

@@ -109,10 +109,10 @@ export interface MissingCarrierDiagnosticDetail {
 
 export function missingCarrierDiagnosticDetail(
   resolution: TargetCarrierResolution | undefined,
-  fallbackReason: string,
+  defaultReason: string,
 ): MissingCarrierDiagnosticDetail {
   if (resolution?.kind !== "missing") {
-    return { reason: fallbackReason, evidence: [] };
+    return { reason: defaultReason, evidence: [] };
   }
   return {
     reason: resolution.reason,
@@ -125,8 +125,8 @@ export function pushMissingCarrierDiagnostic(
   node: Node,
   message: string,
   resolution: TargetCarrierResolution | undefined,
-  fallbackReason: string,
+  defaultReason: string,
 ): void {
-  const detail = missingCarrierDiagnosticDetail(resolution, fallbackReason);
+  const detail = missingCarrierDiagnosticDetail(resolution, defaultReason);
   diagnostics.push(unsupportedNodeDiagnostic(node, `${message} ${detail.reason}`, detail.evidence));
 }
