@@ -20,7 +20,6 @@ import {
   asNodeSubject,
   getNodeField,
   getNodeList,
-  getNodeNameText,
   isControlFlowLabelIdentifier,
   isSemanticTypeQueryableValueExpressionNode,
   isTypeSyntaxNode,
@@ -31,9 +30,6 @@ import {
 import {
   getSymbolDeclarations,
 } from "./symbol-utils.js";
-import {
-  getSourceLibraryDeclarationName,
-} from "./source-library.js";
 import {
   isVoidTargetType,
 } from "./target-rules.js";
@@ -46,60 +42,20 @@ import {
 } from "./target-ref-utils.js";
 import {
   csharpDelegateTargetType,
-  csharpTargetNamedType,
-  substituteTargetTypeParameters,
 } from "./target-types.js";
-import type {
-  CsharpSemanticTypeDeclarationShape,
-} from "./target-type-resolution.js";
 import type {
   CsharpObjectShapeSemanticsHost,
 } from "./object-shape-types.js";
+import {
+  getSemanticTypeDeclarationShape,
+} from "./object-shape-semantic/declaration-shape.js";
+import {
+  substituteCsharpObjectShapeMemberTypeParameters,
+} from "./object-shape-semantic/type-parameter-substitution.js";
 
-export function getSemanticTypeDeclarationShape(
-  type: Type,
-  context: ExtensionObservationContext,
-  host: CsharpObjectShapeSemanticsHost,
-): CsharpSemanticTypeDeclarationShape | undefined {
-  const ast = context.compiler?.ast;
-  if (ast === undefined) {
-    return undefined;
-  }
-  const declarations = getSymbolDeclarations(type.symbol);
-  for (const declaration of declarations) {
-    const kind = ast.kindName(declaration);
-    if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
-      continue;
-    }
-    if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
-      continue;
-    }
-    const name = getNodeNameText(declaration);
-    if (name.length === 0) {
-      continue;
-    }
-    const targetTypeArguments = host.getTargetTypeArgumentsForType(type, context, {});
-    if (targetTypeArguments === undefined) {
-      return undefined;
-    }
-    const targetType = {
-      ...csharpTargetNamedType(name, targetTypeArguments, { kind: "named", name }),
-      csharpSourceDeclarationKind: kind === "KindClassDeclaration"
-        ? "class" as const
-        : kind === "KindInterfaceDeclaration"
-          ? "interface" as const
-          : "enum" as const,
-    };
-    if (kind === "KindClassDeclaration") {
-      return { kind: "class", name, targetType };
-    }
-    if (kind === "KindInterfaceDeclaration") {
-      return { kind: "interface", name, targetType };
-    }
-    return { kind: "enum", name, targetType };
-  }
-  return undefined;
-}
+export {
+  getSemanticTypeDeclarationShape,
+} from "./object-shape-semantic/declaration-shape.js";
 
 export function deriveCsharpObjectShapeFactForSemanticSubject(
   subject: ExtensionFactSubject | undefined,
@@ -186,44 +142,6 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     members: resolvedMembers,
     ...(implementsTypes === undefined ? {} : { implements: implementsTypes }),
   };
-}
-
-function substituteCsharpObjectShapeMemberTypeParameters(
-  members: readonly CsharpObjectShapeMemberFact[],
-  ownerType: Type,
-  ownerTargetType: TargetTypeRef | undefined,
-  context: ExtensionObservationContext,
-): readonly CsharpObjectShapeMemberFact[] {
-  const substitutions = getSemanticTypeParameterSubstitutions(ownerType, ownerTargetType, context);
-  if (substitutions.size === 0) {
-    return members;
-  }
-  return members.map((member) => ({
-    ...member,
-    type: substituteTargetTypeParameters(member.type, substitutions),
-  }));
-}
-
-function getSemanticTypeParameterSubstitutions(
-  ownerType: Type,
-  ownerTargetType: TargetTypeRef | undefined,
-  context: ExtensionObservationContext,
-): ReadonlyMap<string, TargetTypeRef> {
-  if (ownerTargetType?.kind !== "target-named" || ownerTargetType.typeArguments === undefined) {
-    return new Map();
-  }
-  const ast = context.compiler?.ast;
-  if (ast === undefined) {
-    return new Map();
-  }
-  const names = getSymbolDeclarations(ownerType.symbol)
-    .flatMap((declaration) => getNodeList(getNodeField(declaration, "TypeParameters")))
-    .map(getNodeNameText)
-    .filter((name) => name.length > 0);
-  if (names.length !== ownerTargetType.typeArguments.length) {
-    return new Map();
-  }
-  return new Map(names.map((name, index) => [name, ownerTargetType.typeArguments![index]!] as const));
 }
 
 function deriveCsharpObjectShapeMembersForSemanticType(
