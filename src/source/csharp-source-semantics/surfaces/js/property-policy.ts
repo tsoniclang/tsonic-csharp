@@ -38,6 +38,7 @@ import type {
   CsharpJsSurfaceHost,
   SourceLibraryDeclaringName,
   SourceLibraryMember,
+  SourceLibraryMemberId,
 } from "./source-library.js";
 import {
   createSourceLibraryMember,
@@ -63,11 +64,11 @@ export function getCsharpJsSourceLibraryMemberFromReceiverType(
 }
 
 export function csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {
-  return seededReceiverFactSourceNames.has(sourceMember.declaringName);
+  return sourceMemberIdMatchesAnyPrefix(sourceMember.id, seededReceiverFactSourceMemberIdPrefixes);
 }
 
 export function csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember: SourceLibraryMember): boolean {
-  return finalCarrierSelectionSourceNames.has(sourceMember.declaringName);
+  return sourceMemberIdMatchesAnyPrefix(sourceMember.id, finalCarrierSelectionSourceMemberIdPrefixes);
 }
 
 export function csharpJsSourceLibraryPropertyReceiverHasClosedFacts(
@@ -75,7 +76,9 @@ export function csharpJsSourceLibraryPropertyReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  return propertyReceiverValidatorsByDeclaringName.get(sourceMember.declaringName)?.(receiverType, sourceMember, host) ?? false;
+  return propertyReceiverValidatorPolicies
+    .find((policy) => sourceMemberIdMatchesAnyPrefix(sourceMember.id, policy.sourceMemberIdPrefixes))
+    ?.validate(receiverType, sourceMember, host) ?? false;
 }
 
 export function getCsharpJsSourceLibraryPropertyMember(
@@ -83,7 +86,7 @@ export function getCsharpJsSourceLibraryPropertyMember(
   receiverType: TargetTypeRef | undefined,
 ): TargetMember | undefined {
   return propertyMemberResolvers
-    .find((resolver) => resolver.matches(sourceMember))
+    .find((resolver) => propertyMemberResolverApplies(resolver, sourceMember))
     ?.resolve(sourceMember, receiverType);
 }
 
@@ -91,19 +94,32 @@ export type CsharpJsSourceLibraryPropertyPrecheck = "continue" | "defer" | "reje
 
 export function csharpJsSourceLibraryPropertyPrecheck(sourceMember: SourceLibraryMember): CsharpJsSourceLibraryPropertyPrecheck {
   return propertyPrecheckRules
-    .find((rule) => rule.matches(sourceMember))
+    .find((rule) => propertyPrecheckRuleApplies(rule, sourceMember))
     ?.result(sourceMember) ?? "continue";
 }
 
 interface CsharpJsPropertyMemberResolver {
-  readonly matches: (sourceMember: SourceLibraryMember) => boolean;
+  readonly sourceMemberIdPrefixes?: readonly SourceLibraryMemberIdPrefix[];
+  readonly sourceMemberIds?: ReadonlySet<SourceLibraryMemberId>;
+  readonly excludedSourceMemberIds?: ReadonlySet<SourceLibraryMemberId>;
   readonly resolve: (sourceMember: SourceLibraryMember, receiverType: TargetTypeRef | undefined) => TargetMember | undefined;
 }
 
 interface CsharpJsPropertyPrecheckRule {
-  readonly matches: (sourceMember: SourceLibraryMember) => boolean;
+  readonly sourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[];
   readonly result: (sourceMember: SourceLibraryMember) => CsharpJsSourceLibraryPropertyPrecheck;
 }
+
+interface CsharpJsPropertyReceiverValidatorPolicy {
+  readonly sourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[];
+  readonly validate: (
+    receiverType: TargetTypeRef | undefined,
+    sourceMember: SourceLibraryMember,
+    host: CsharpJsSurfaceHost,
+  ) => boolean;
+}
+
+type SourceLibraryMemberIdPrefix = `${SourceLibraryDeclaringName}.`;
 
 const propertyReceiverSourceTypeNames = new Set<SourceLibraryDeclaringName>([
   "Array",
@@ -118,71 +134,64 @@ const propertyReceiverSourceTypeNames = new Set<SourceLibraryDeclaringName>([
   "ReadonlySet",
 ]);
 
-const seededReceiverFactSourceNames = new Set<SourceLibraryDeclaringName>([
-  "Array",
-  "ReadonlyArray",
-  "Map",
-  "ReadonlyMap",
-  "Set",
-  "ReadonlySet",
-]);
+const seededReceiverFactSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = [
+  "Array.",
+  "ReadonlyArray.",
+  "Map.",
+  "ReadonlyMap.",
+  "Set.",
+  "ReadonlySet.",
+];
 
-const finalCarrierSelectionSourceNames = new Set<SourceLibraryDeclaringName>([
-  "Array",
-  "ReadonlyArray",
-]);
+const finalCarrierSelectionSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = [
+  "Array.",
+  "ReadonlyArray.",
+];
 
-const propertyReceiverValidatorsByDeclaringName = new Map<SourceLibraryDeclaringName, (
-  receiverType: TargetTypeRef | undefined,
-  sourceMember: SourceLibraryMember,
-  host: CsharpJsSurfaceHost,
-) => boolean>([
-  ["Math", () => true],
-  ["Array", (receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined],
-  ["ReadonlyArray", (receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined],
-  ["String", (receiverType, _sourceMember, host) => host.isCsharpStringType(receiverType)],
-  ["RegExp", (receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType)],
-  ["Date", (receiverType) => isCsharpJsDateRuntimeCarrier(receiverType)],
-  ["Boolean", (receiverType) => isCsharpBooleanTargetType(receiverType)],
-  ["Number", (_receiverType, sourceMember) => getNumberPropertyTargetMember(sourceMember.memberName) !== undefined],
-  ["Map", (receiverType) => isCsharpJsMapTargetType(receiverType)],
-  ["ReadonlyMap", (receiverType) => isCsharpJsMapTargetType(receiverType)],
-  ["Set", (receiverType) => isCsharpJsSetTargetType(receiverType)],
-  ["ReadonlySet", (receiverType) => isCsharpJsSetTargetType(receiverType)],
-]);
+const propertyReceiverValidatorPolicies: readonly CsharpJsPropertyReceiverValidatorPolicy[] = [
+  { sourceMemberIdPrefixes: ["Math."], validate: () => true },
+  { sourceMemberIdPrefixes: ["Array.", "ReadonlyArray."], validate: (receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined },
+  { sourceMemberIdPrefixes: ["String."], validate: (receiverType, _sourceMember, host) => host.isCsharpStringType(receiverType) },
+  { sourceMemberIdPrefixes: ["RegExp."], validate: (receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType) },
+  { sourceMemberIdPrefixes: ["Date."], validate: (receiverType) => isCsharpJsDateRuntimeCarrier(receiverType) },
+  { sourceMemberIdPrefixes: ["Boolean."], validate: (receiverType) => isCsharpBooleanTargetType(receiverType) },
+  { sourceMemberIdPrefixes: ["Number."], validate: (_receiverType, sourceMember) => getNumberPropertyTargetMember(sourceMemberName(sourceMember)) !== undefined },
+  { sourceMemberIdPrefixes: ["Map.", "ReadonlyMap."], validate: (receiverType) => isCsharpJsMapTargetType(receiverType) },
+  { sourceMemberIdPrefixes: ["Set.", "ReadonlySet."], validate: (receiverType) => isCsharpJsSetTargetType(receiverType) },
+];
 
 const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
   {
-    matches: (sourceMember) => sourceMember.memberName !== "length" && sourceMember.declaringName === "Math",
-    resolve: (sourceMember) => getMathPropertyTargetMember(sourceMember.memberName),
+    sourceMemberIdPrefixes: ["Math."],
+    excludedSourceMemberIds: sourceMemberIdSet(["Math.length"]),
+    resolve: (sourceMember) => getMathPropertyTargetMember(sourceMemberName(sourceMember)),
   },
   {
-    matches: (sourceMember) => sourceMember.memberName !== "length" && sourceMember.declaringName === "RegExp",
-    resolve: (sourceMember) => getRegExpPropertyTargetMember(sourceMember.memberName),
+    sourceMemberIdPrefixes: ["RegExp."],
+    excludedSourceMemberIds: sourceMemberIdSet(["RegExp.length"]),
+    resolve: (sourceMember) => getRegExpPropertyTargetMember(sourceMemberName(sourceMember)),
   },
   {
-    matches: (sourceMember) => sourceMember.memberName !== "length" && sourceMember.declaringName === "Number",
-    resolve: (sourceMember) => getNumberPropertyTargetMember(sourceMember.memberName),
+    sourceMemberIdPrefixes: ["Number."],
+    excludedSourceMemberIds: sourceMemberIdSet(["Number.length"]),
+    resolve: (sourceMember) => getNumberPropertyTargetMember(sourceMemberName(sourceMember)),
   },
   {
-    matches: (sourceMember) =>
-      sourceMember.memberName !== "length" &&
-      collectionPropertySourceNames.has(sourceMember.declaringName),
+    sourceMemberIdPrefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."],
+    excludedSourceMemberIds: sourceMemberIdSet(["Map.length", "ReadonlyMap.length", "Set.length", "ReadonlySet.length"]),
     resolve: getCollectionPropertyTargetMember,
   },
   {
-    matches: (sourceMember) => sourceMember.memberName === "length" && sourceMember.declaringName === "String",
+    sourceMemberIds: sourceMemberIdSet(["String.length"]),
     resolve: (sourceMember) => targetProperty(
-      `tsonic.csharp.js.${sourceMember.declaringName}.length`,
-      sourceMember.memberName,
+      "tsonic.csharp.js.String.length",
+      sourceMemberName(sourceMember),
       "Length",
       csharpSourcePrimitiveTargetType("int32"),
     ),
   },
   {
-    matches: (sourceMember) =>
-      sourceMember.memberName === "length" &&
-      (sourceMember.declaringName === "Array" || sourceMember.declaringName === "ReadonlyArray"),
+    sourceMemberIds: sourceMemberIdSet(["Array.length", "ReadonlyArray.length"]),
     resolve: (sourceMember, receiverType) => {
       const lengthMember = receiverType?.kind === "array"
         ? "length"
@@ -190,8 +199,8 @@ const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
       return lengthMember === undefined
         ? undefined
         : targetProperty(
-            `tsonic.csharp.js.${sourceMember.declaringName}.length`,
-            sourceMember.memberName,
+            `tsonic.csharp.js.${sourceMember.id}`,
+            sourceMemberName(sourceMember),
             lengthMember,
             csharpSourcePrimitiveTargetType("int32"),
           );
@@ -201,22 +210,40 @@ const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
 
 const propertyPrecheckRules: readonly CsharpJsPropertyPrecheckRule[] = [
   {
-    matches: (sourceMember) => sourceMember.declaringName === "Console",
+    sourceMemberIdPrefixes: ["Console."],
     result: () => "defer",
   },
   {
-    matches: (sourceMember) => sourceMember.declaringName === "Object",
-    result: (sourceMember) => hasObjectTargetMember(sourceMember.memberName) ? "defer" : "reject-unmapped",
+    sourceMemberIdPrefixes: ["Object."],
+    result: (sourceMember) => hasObjectTargetMember(sourceMemberName(sourceMember)) ? "defer" : "reject-unmapped",
   },
   {
-    matches: (sourceMember) => sourceMember.declaringName === "JSON",
-    result: (sourceMember) => getJsonTargetMembers(sourceMember.memberName).length > 0 ? "defer" : "reject-unmapped",
+    sourceMemberIdPrefixes: ["JSON."],
+    result: (sourceMember) => getJsonTargetMembers(sourceMemberName(sourceMember)).length > 0 ? "defer" : "reject-unmapped",
   },
 ];
 
-const collectionPropertySourceNames = new Set<SourceLibraryDeclaringName>([
-  "Map",
-  "ReadonlyMap",
-  "Set",
-  "ReadonlySet",
-]);
+function propertyMemberResolverApplies(resolver: CsharpJsPropertyMemberResolver, sourceMember: SourceLibraryMember): boolean {
+  return (resolver.sourceMemberIds === undefined || resolver.sourceMemberIds.has(sourceMember.id)) &&
+    (resolver.sourceMemberIdPrefixes === undefined || sourceMemberIdMatchesAnyPrefix(sourceMember.id, resolver.sourceMemberIdPrefixes)) &&
+    resolver.excludedSourceMemberIds?.has(sourceMember.id) !== true;
+}
+
+function propertyPrecheckRuleApplies(rule: CsharpJsPropertyPrecheckRule, sourceMember: SourceLibraryMember): boolean {
+  return sourceMemberIdMatchesAnyPrefix(sourceMember.id, rule.sourceMemberIdPrefixes);
+}
+
+function sourceMemberIdSet(ids: readonly SourceLibraryMemberId[]): ReadonlySet<SourceLibraryMemberId> {
+  return new Set(ids);
+}
+
+function sourceMemberIdMatchesAnyPrefix(
+  sourceMemberId: SourceLibraryMemberId,
+  prefixes: readonly SourceLibraryMemberIdPrefix[],
+): boolean {
+  return prefixes.some((prefix) => sourceMemberId.startsWith(prefix));
+}
+
+function sourceMemberName(sourceMember: SourceLibraryMember): string {
+  return sourceMember.id.slice(sourceMember.id.indexOf(".") + 1);
+}
