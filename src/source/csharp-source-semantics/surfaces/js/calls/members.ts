@@ -8,7 +8,7 @@ import type {
 } from "../source-library.js";
 import {
   getCsharpJsSourceLibraryCallMembersFromProviders,
-} from "./member-providers.js";
+} from "./member-providers/index.js";
 
 export function getSourceLibraryCallMembers(
   sourceMember: SourceLibraryMember,

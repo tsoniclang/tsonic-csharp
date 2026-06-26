@@ -9,95 +9,66 @@ import {
   getCsharpArrayLikeElementType,
   getCsharpJsArrayCarrierElementType,
   arrayTargetMembersForSourceName,
-} from "../arrays.js";
+} from "../../arrays.js";
 import {
   booleanTargetMembersForSourceName,
-} from "../booleans.js";
+} from "../../booleans.js";
 import {
   mapCsharpJsConsoleCheckedCall,
-} from "../console.js";
+} from "../../console.js";
 import {
   collectionTargetMembersForSourceMember,
-} from "../collections.js";
+} from "../../collections.js";
 import {
   dateTargetMembersForSourceName,
-} from "../date/index.js";
+} from "../../date/index.js";
 import {
   jsonTargetMembersForSourceName,
-} from "../json.js";
+} from "../../json.js";
 import {
   mathTargetMembersForSourceName,
-} from "../math.js";
+} from "../../math.js";
 import {
-  isCsharpNumberTargetType,
   numberTargetMembersForSourceName,
-} from "../numbers.js";
+} from "../../numbers.js";
 import {
-  objectRecordDictionaryTargetMembersForSourceName,
   objectTargetMembersForSourceName,
-} from "../objects.js";
+} from "../../objects.js";
 import {
   regExpTargetMembersForSourceName,
-} from "../regexp/index.js";
+} from "../../regexp/index.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
   SourceLibraryMemberIdentityPolicy,
-} from "../source-library.js";
+} from "../../source-library.js";
 import {
-  sourceLibraryMemberIdSet,
   sourceLibraryMemberMatches,
   sourceLibraryMemberName,
-} from "../source-library.js";
+} from "../../source-library.js";
 import {
   stringTargetMembersForSourceName,
-} from "../strings.js";
-import type {
-  CsharpRecordDictionaryTargetTypeRef,
-} from "../../../dictionaries.js";
+} from "../../strings.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
   getSourceLibraryCallReceiverElementType,
   getSourceLibraryCallReceiverTargetTypes,
   getSourceLibraryCallResultTargetType,
   isNewExpression,
-  isStringKeyedRecordDictionaryTargetType,
-} from "./helpers.js";
-
-export interface CsharpJsSurfaceSourceLibraryPolicy {
-  readonly identity: SourceLibraryMemberIdentityPolicy;
-  readonly mapCall?: (
-    request: CheckedCallMappingRequest,
-    context: ExtensionObservationContext<"operation.mapCheckedCall">,
-    sourceMember: SourceLibraryMember,
-    host: CsharpJsSurfaceHost,
-    options: { readonly phase?: "checking" | "finalization" },
-  ) => ExtensionObservation<CheckedCallMappingResult> | undefined;
-  readonly getCallMembers?: (
-    sourceMember: SourceLibraryMember,
-    request: CheckedCallMappingRequest,
-    context: ExtensionObservationContext<"operation.mapCheckedCall">,
-    host: CsharpJsSurfaceHost,
-  ) => readonly TargetMember[];
-  readonly hasCallableProperty?: (sourceMember: SourceLibraryMember) => boolean;
-}
-
-export const collectionIdentityPolicy = {
-  prefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."],
-} satisfies SourceLibraryMemberIdentityPolicy;
-
-export const arrayConstructorIdentityPolicy = {
-  ids: sourceLibraryMemberIdSet(["Array.constructor"]),
-} satisfies SourceLibraryMemberIdentityPolicy;
-
-export const collectionConstructorIdentityPolicy = {
-  ids: sourceLibraryMemberIdSet([
-    "Map.constructor",
-    "ReadonlyMap.constructor",
-    "Set.constructor",
-    "ReadonlySet.constructor",
-  ]),
-} satisfies SourceLibraryMemberIdentityPolicy;
+} from "../helpers.js";
+import {
+  arrayCallSurfaceMemberNames,
+  arrayConstructorIdentityPolicy,
+  collectionConstructorIdentityPolicy,
+  collectionIdentityPolicy,
+} from "./identities.js";
+import {
+  getObjectPrimitiveReceiverCallMembers,
+  getObjectRecordDictionaryCallMembers,
+} from "./object-members.js";
+import type {
+  CsharpJsSurfaceSourceLibraryPolicy,
+} from "./types.js";
 
 export function getCsharpJsSourceLibraryCallMembersFromProviders(
   sourceMember: SourceLibraryMember,
@@ -122,15 +93,6 @@ export function mapCsharpJsSourceLibraryProviderCheckedCall(
   options: { readonly phase?: "checking" | "finalization" },
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
   return providerForSourceMember(sourceMember)?.mapCall?.(request, context, sourceMember, host, options);
-}
-
-export function csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember: SourceLibraryMember | undefined): boolean {
-  return sourceMember !== undefined &&
-    sourceLibraryMemberMatches(sourceMember, arrayConstructorIdentityPolicy);
-}
-
-export function csharpJsSourceLibraryMemberIsCollection(sourceMember: SourceLibraryMember | undefined): boolean {
-  return sourceMember !== undefined && sourceLibraryMemberMatches(sourceMember, collectionIdentityPolicy);
 }
 
 function providerForSourceMember(sourceMember: SourceLibraryMember): CsharpJsSurfaceSourceLibraryPolicy | undefined {
@@ -211,87 +173,3 @@ function simpleCallProvider(
     hasCallableProperty: (sourceMember) => getMembers(sourceMember).length > 0,
   };
 }
-
-function getObjectPrimitiveReceiverCallMembers(
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpJsSurfaceHost,
-  sourceMember: SourceLibraryMember,
-): readonly TargetMember[] {
-  if (!sourceLibraryMemberMatches(sourceMember, objectToStringIdentityPolicy)) {
-    return [];
-  }
-  const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
-  return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType))
-    ? stringTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))
-    : receiverTypes.some((receiverType) => receiverType?.kind === "source-primitive" && receiverType.name === "bool")
-      ? booleanTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))
-      : numberOrNoObjectPrimitiveReceiverMembers(sourceMember, receiverTypes);
-}
-
-function numberOrNoObjectPrimitiveReceiverMembers(
-  sourceMember: SourceLibraryMember,
-  receiverTypes: ReturnType<typeof getSourceLibraryCallReceiverTargetTypes>,
-): readonly TargetMember[] {
-  return receiverTypes.some((receiverType) => isCsharpNumberTargetType(receiverType))
-    ? numberTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))
-    : [];
-}
-
-function getObjectRecordDictionaryCallMembers(
-  sourceMember: SourceLibraryMember,
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpJsSurfaceHost,
-): readonly TargetMember[] {
-  if (!sourceLibraryMemberMatches(sourceMember, objectRecordDictionaryIdentityPolicy)) {
-    return [];
-  }
-  const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request, context, host)
-    .find((argumentType): argumentType is CsharpRecordDictionaryTargetTypeRef =>
-      argumentType !== undefined && isStringKeyedRecordDictionaryTargetType(argumentType, host));
-  return dictionaryType === undefined
-    ? []
-    : objectRecordDictionaryTargetMembersForSourceName(sourceLibraryMemberName(sourceMember), dictionaryType);
-}
-
-const arrayCallSurfaceMemberNames = new Set([
-  "from",
-  "of",
-  "isArray",
-  "push",
-  "pop",
-  "shift",
-  "unshift",
-  "concat",
-  "at",
-  "includes",
-  "indexOf",
-  "lastIndexOf",
-  "join",
-  "slice",
-  "splice",
-  "reverse",
-  "sort",
-  "forEach",
-  "some",
-  "every",
-  "filter",
-  "map",
-  "find",
-  "findIndex",
-  "findLast",
-  "findLastIndex",
-]);
-
-const objectToStringIdentityPolicy = {
-  ids: sourceLibraryMemberIdSet(["Object.toString"]),
-} satisfies SourceLibraryMemberIdentityPolicy;
-
-const objectRecordDictionaryIdentityPolicy = {
-  ids: sourceLibraryMemberIdSet([
-    "Object.keys",
-    "Object.values",
-    "Object.entries",
-  ]),
-} satisfies SourceLibraryMemberIdentityPolicy;

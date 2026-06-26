@@ -36,7 +36,7 @@ import {
   collectionConstructorIdentityPolicy,
   csharpJsSourceLibraryMemberIsArrayConstructor,
   csharpJsSourceLibraryMemberIsCollection,
-} from "./member-providers.js";
+} from "./member-providers/index.js";
 import {
   getCsharpJsArrayRuntimeCarrierForType,
 } from "../array-carriers.js";

@@ -41,7 +41,7 @@ import {
 } from "./collections.js";
 import {
   csharpJsSourceLibraryMemberIsArrayConstructor,
-} from "./calls/member-providers.js";
+} from "./calls/member-providers/index.js";
 import {
   isSourceStandardLibraryArrayLikeType,
 } from "../../source-type-classification.js";

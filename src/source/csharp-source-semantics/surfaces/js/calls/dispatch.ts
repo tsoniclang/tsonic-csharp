@@ -20,7 +20,7 @@ import {
 } from "./closed-facts/index.js";
 import {
   mapCsharpJsSourceLibraryProviderCheckedCall,
-} from "./member-providers.js";
+} from "./member-providers/index.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryCall,
   rejectUnsupportedCsharpJsSourceLibraryCall,

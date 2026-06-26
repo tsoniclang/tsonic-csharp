@@ -31,7 +31,7 @@ import {
 } from "../../../csharp-facts.js";
 import {
   csharpJsSourceLibraryMemberHasCallableProvider,
-} from "./calls/member-providers.js";
+} from "./calls/member-providers/index.js";
 import {
   getCsharpJsSourceLibraryMemberFromReceiverType,
 } from "./properties/source-identity.js";

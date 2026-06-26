@@ -11,7 +11,7 @@ import {
   arrayConstructorIdentityPolicy,
   collectionConstructorIdentityPolicy,
   collectionIdentityPolicy,
-} from "../member-providers.js";
+} from "../member-providers/index.js";
 import {
   numberStaticCallRequiresNoReceiver,
 } from "../../numbers.js";
