@@ -56,7 +56,7 @@ import {
 } from "./target-member-selection.js";
 import type {
   TargetMemberSelectionOptions,
-} from "./target-member-arguments.js";
+} from "./target-member-arguments/index.js";
 import {
   findUnsupportedProviderTargetMember,
   unsupportedProviderTargetMemberEvidence,

@@ -10,10 +10,10 @@ import {
   selectExactTargetMember,
   selectTargetMember,
   selectProviderSelectedTargetMember,
-} from "./target-member-arguments.js";
+} from "./target-member-arguments/index.js";
 import type {
   TargetMemberSelectionOptions,
-} from "./target-member-arguments.js";
+} from "./target-member-arguments/index.js";
 import type {
   TargetTypeRefResolver,
 } from "./target-type-ref-resolution.js";
@@ -23,13 +23,13 @@ import {
 
 export {
   selectTargetMember,
-} from "./target-member-arguments.js";
+} from "./target-member-arguments/index.js";
 export {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-literals.js";
 export type {
   TargetMemberSelectionOptions,
-} from "./target-member-arguments.js";
+} from "./target-member-arguments/index.js";
 export type {
   TargetTypeRefResolutionOptions,
   TargetTypeRefResolver,

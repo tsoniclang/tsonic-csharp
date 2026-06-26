@@ -1,0 +1,166 @@
+import type {
+  ExtensionFactSubject,
+  ExtensionObservationContext,
+  TargetMember,
+  TargetParameter,
+} from "@tsonic/tsts";
+import {
+  getEffectiveArgumentForTargetParameter,
+} from "./argument-passing.js";
+import {
+  getParameterForArgument,
+  targetArityMatches,
+  targetMemberArityPenalty,
+} from "./arity.js";
+import {
+  selectedTargetTypeAcceptsArgument,
+  targetTypeArgumentMatchScore,
+} from "./type-matching.js";
+import {
+  getDeclaringTypeParameterBindings,
+  substituteTargetMemberTypeParameters,
+} from "./type-substitution.js";
+import type {
+  TargetMemberSelectionOptions,
+  TargetMemberSelectionRequest,
+  TargetTypeRefResolver,
+} from "./types.js";
+
+export function selectTargetMember(
+  candidates: readonly TargetMember[],
+  request: TargetMemberSelectionRequest,
+  context: ExtensionObservationContext,
+  resolveTargetTypeRef: TargetTypeRefResolver,
+  options: TargetMemberSelectionOptions = {},
+): TargetMember | undefined {
+  const matching = candidates.flatMap((member) => {
+    const match = targetMemberMatch(member, request, context, resolveTargetTypeRef, options);
+    return match === undefined ? [] : [match];
+  });
+  const bestScore = Math.min(...matching.map((match) => match.score));
+  const best = matching.filter((match) => match.score === bestScore);
+  return best.length === 1 ? best[0]?.member : undefined;
+}
+
+export function selectExactTargetMember(
+  member: TargetMember,
+  request: TargetMemberSelectionRequest,
+  options: TargetMemberSelectionOptions = {},
+): TargetMember | undefined {
+  const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
+  if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
+    return undefined;
+  }
+  return substituteTargetMemberTypeParameters(
+    member,
+    getDeclaringTypeParameterBindings(options),
+  );
+}
+
+export function selectProviderSelectedTargetMember(
+  member: TargetMember,
+  request: TargetMemberSelectionRequest,
+  context: ExtensionObservationContext,
+  resolveTargetTypeRef: TargetTypeRefResolver,
+  options: TargetMemberSelectionOptions = {},
+): TargetMember | undefined {
+  const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
+  if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
+    return undefined;
+  }
+  const typeParameterBindings = getDeclaringTypeParameterBindings(options);
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const parameter = getParameterForArgument(member.parameters, index);
+    const argument = arguments_[index];
+    if (parameter === undefined || argument === undefined) {
+      return undefined;
+    }
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context);
+    if (effectiveArgument === undefined) {
+      return undefined;
+    }
+    const argumentType = resolveTargetTypeRef(effectiveArgument.subject, context);
+    if (!selectedTargetTypeAcceptsArgument(
+      getExpectedTargetTypeForArgument(parameter),
+      argumentType,
+      effectiveArgument.subject,
+      context,
+      typeParameterBindings,
+      options,
+    )) {
+      return undefined;
+    }
+  }
+  return substituteTargetMemberTypeParameters(member, typeParameterBindings);
+}
+
+function targetMemberMatch(
+  member: TargetMember,
+  request: TargetMemberSelectionRequest,
+  context: ExtensionObservationContext,
+  resolveTargetTypeRef: TargetTypeRefResolver,
+  options: TargetMemberSelectionOptions,
+): { readonly member: TargetMember; readonly score: number } | undefined {
+  const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
+  if (arguments_ === undefined) {
+    return undefined;
+  }
+  const parameters = member.parameters;
+  if (!targetArityMatches(parameters, arguments_.length)) {
+    return undefined;
+  }
+  const typeParameterBindings = getDeclaringTypeParameterBindings(options);
+  let argumentScore = 0;
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const parameter = getParameterForArgument(parameters, index);
+    const argument = arguments_[index];
+    if (parameter === undefined || argument === undefined) {
+      return undefined;
+    }
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context);
+    if (effectiveArgument === undefined) {
+      return undefined;
+    }
+    const argumentType = resolveTargetTypeRef(effectiveArgument.subject, context);
+    if (argumentType === undefined && targetParameterAcceptsCheckedSourceArgument(parameter) && request.sourceSelectedSignature !== undefined) {
+      argumentScore += 20;
+      continue;
+    }
+    const matchScore = targetTypeArgumentMatchScore(getExpectedTargetTypeForArgument(parameter), argumentType, effectiveArgument.subject, context, typeParameterBindings, options);
+    if (matchScore === undefined) {
+      return undefined;
+    }
+    argumentScore += matchScore;
+  }
+  return {
+    member: substituteTargetMemberTypeParameters(member, typeParameterBindings),
+    score: argumentScore + targetMemberArityPenalty(parameters, arguments_.length),
+  };
+}
+
+function targetParameterAcceptsCheckedSourceArgument(parameter: TargetParameter): boolean {
+  return (parameter as TargetParameter & { readonly csharpAcceptsCheckedSourceArgument?: true }).csharpAcceptsCheckedSourceArgument === true;
+}
+
+function getTargetArgumentSubjectsForMember(
+  member: TargetMember,
+  request: TargetMemberSelectionRequest,
+  options: TargetMemberSelectionOptions = {},
+): readonly ExtensionFactSubject[] | undefined {
+  if (member.receiverPassing !== "first-argument") {
+    return request.arguments;
+  }
+  if (options.firstArgumentReceiver === false) {
+    return request.arguments;
+  }
+  const receiver = options.firstArgumentReceiver ?? request.receiver;
+  return receiver === undefined
+    ? undefined
+    : [receiver, ...request.arguments];
+}
+
+function getExpectedTargetTypeForArgument(parameter: TargetParameter) {
+  return parameter.paramsArray === true && parameter.type.kind === "array"
+    ? parameter.type.element
+    : parameter.type;
+}
