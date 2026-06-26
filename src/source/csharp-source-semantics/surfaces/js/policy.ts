@@ -18,7 +18,7 @@ import {
   isCsharpBooleanTargetType,
 } from "./booleans.js";
 import {
-  getCollectionTargetMembers,
+  collectionTargetMembersForSourceMember,
   isCsharpJsMapTargetType,
   isCsharpJsSetTargetType,
 } from "./collections.js";
@@ -218,14 +218,14 @@ const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy
   },
   {
     sourceMemberIdPrefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."],
-    getCallMembers: (sourceMember, request, context, host) => getCollectionTargetMembers(
+    getCallMembers: (sourceMember, request, context, host) => collectionTargetMembersForSourceMember(
       sourceMember,
       getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
       sourceLibraryMemberMatchesAny(sourceMember, collectionConstructorSourceMemberIds)
         ? getSourceLibraryCallResultTargetType(request, context, host)
         : undefined,
     ),
-    hasCallableProperty: (sourceMember) => getCollectionTargetMembers(sourceMember, undefined, undefined).length > 0,
+    hasCallableProperty: (sourceMember) => collectionTargetMembersForSourceMember(sourceMember, undefined, undefined).length > 0,
   },
   {
     sourceMemberIdPrefixes: ["Console."],

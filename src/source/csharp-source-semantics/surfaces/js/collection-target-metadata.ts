@@ -14,10 +14,14 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
-  targetMethod,
   targetParameter,
-  targetProperty,
 } from "./source-library.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceTargetMemberFromMetadata,
+} from "./target-member-metadata.js";
 import type {
   SourceLibraryDeclaringName,
   SourceLibraryMember,
@@ -61,7 +65,7 @@ interface CsharpJsCollectionMemberPolicy {
     policy: CsharpJsCollectionTypePolicy,
     declaringType: TargetTypeRef,
     typeArguments: readonly TargetTypeRef[],
-  ) => readonly TargetMember[];
+  ) => readonly JsSurfaceTargetMemberMetadata[];
 }
 
 export function csharpJsMapTargetType(keyType: TargetTypeRef, valueType: TargetTypeRef): CsharpJsMapTargetTypeRef {
@@ -112,7 +116,7 @@ export function createCsharpJsCollectionTargetTypeForSourceType(
   return collectionPolicyForSourceType(type, context)?.createClosedType(typeArguments);
 }
 
-export function getCollectionTargetMembers(
+export function collectionTargetMembersForSourceMember(
   sourceMember: SourceLibraryMember,
   receiverType: TargetTypeRef | undefined,
   resultType: TargetTypeRef | undefined,
@@ -125,7 +129,7 @@ export function getCollectionTargetMembers(
   const memberPolicy = policy?.members.find((member) => collectionMemberPolicyApplies(policy, member, sourceMember));
   return policy === undefined || collectionType === undefined || memberPolicy === undefined
     ? []
-    : memberPolicy.createMembers(policy, collectionType, typeArguments);
+    : memberPolicy.createMembers(policy, collectionType, typeArguments).map(jsSurfaceTargetMemberFromMetadata);
 }
 
 export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMember, receiverType: TargetTypeRef | undefined): TargetMember | undefined {
@@ -136,13 +140,14 @@ export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMem
   if (policy === undefined || !policy.isTargetType(receiverType)) {
     return undefined;
   }
-  return targetProperty(
-    `Tsonic.CSharp.Js.${sourceLibraryMemberIdentity(sourceMember)}`,
-    "size",
-    "size",
-    csharpSourcePrimitiveTargetType("int32"),
-    { declaringType: receiverType },
-  );
+  return jsSurfaceTargetMemberFromMetadata({
+    id: `Tsonic.CSharp.Js.${sourceLibraryMemberIdentity(sourceMember)}`,
+    sourceName: "size",
+    targetName: "size",
+    kind: "property",
+    returnType: csharpSourcePrimitiveTargetType("int32"),
+    declaringType: receiverType,
+  });
 }
 
 function closedCollectionTypeForPolicy(
@@ -159,7 +164,7 @@ function closedCollectionTypeForPolicy(
   return policy.createOpenType();
 }
 
-function collectionConstructor(policy: CsharpJsCollectionTypePolicy, id: string, declaringType: TargetTypeRef, parameters: readonly TargetParameter[]): TargetMember {
+function collectionConstructor(policy: CsharpJsCollectionTypePolicy, id: string, declaringType: TargetTypeRef, parameters: readonly TargetParameter[]): JsSurfaceTargetMemberMetadata {
   return {
     id,
     sourceName: "constructor",
@@ -177,13 +182,19 @@ function collectionMethod(
   declaringType: TargetTypeRef,
   parameters: readonly TargetParameter[],
   returnType: TargetTypeRef,
-): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.${policy.targetName}.${sourceName}`, sourceName, sourceName, parameters, returnType, {
+): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.${policy.targetName}.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    parameters,
+    returnType,
     declaringType,
-  });
+  };
 }
 
-function mapForEachMembers(policy: CsharpJsCollectionTypePolicy, mapType: TargetTypeRef, keyType: TargetTypeRef, valueType: TargetTypeRef): readonly TargetMember[] {
+function mapForEachMembers(policy: CsharpJsCollectionTypePolicy, mapType: TargetTypeRef, keyType: TargetTypeRef, valueType: TargetTypeRef): readonly JsSurfaceTargetMemberMetadata[] {
   return [
     collectionMethod(policy, "forEach", mapType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [valueType]))], csharpVoidTargetType()),
     collectionMethod(policy, "forEach", mapType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [valueType, keyType]))], csharpVoidTargetType()),
@@ -191,7 +202,7 @@ function mapForEachMembers(policy: CsharpJsCollectionTypePolicy, mapType: Target
   ];
 }
 
-function setForEachMembers(policy: CsharpJsCollectionTypePolicy, setType: TargetTypeRef, elementType: TargetTypeRef): readonly TargetMember[] {
+function setForEachMembers(policy: CsharpJsCollectionTypePolicy, setType: TargetTypeRef, elementType: TargetTypeRef): readonly JsSurfaceTargetMemberMetadata[] {
   return [
     collectionMethod(policy, "forEach", setType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [elementType]))], csharpVoidTargetType()),
     collectionMethod(policy, "forEach", setType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [elementType, elementType]))], csharpVoidTargetType()),

@@ -36,8 +36,8 @@ import {
 export {
   csharpJsMapTargetType,
   csharpJsSetTargetType,
+  collectionTargetMembersForSourceMember,
   getCollectionPropertyTargetMember,
-  getCollectionTargetMembers,
   getCsharpJsIterableElementType,
   isCsharpJsMapTargetType,
   isCsharpJsSetTargetType,
