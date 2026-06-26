@@ -221,13 +221,6 @@ export const analysisAbstractionDebtOwners = Object.freeze([
 
 export const analysisAbstractionDebtCatalog = Object.freeze([
   entry(
-    "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/receiver-validation.ts",
-    { "source-family-closed-facts-validator": 6 },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Replace source-family closed-fact validator tables with policy/provider facts over selected declarations and generic analysis.",
-  ),
-  entry(
     "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/registry.ts",
     { "source-family-call-provider-registry": 13 },
     "surface-policy-candidate",
