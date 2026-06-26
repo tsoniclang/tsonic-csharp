@@ -18,7 +18,7 @@ import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
 import {
-  getCsharpRecordDictionaryIndexerTargetMembers as recordDictionaryIndexerCandidates,
+  csharpRecordDictionaryIndexerMemberCandidates as recordDictionaryIndexerCandidates,
   isCsharpRecordDictionaryTargetType,
 } from "../../dictionaries.js";
 

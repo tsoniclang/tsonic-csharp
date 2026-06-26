@@ -52,7 +52,7 @@ export function isCsharpRecordDictionaryTargetType(
     (type as Partial<CsharpRecordDictionaryTargetTypeRef>).csharpCollectionSurface === "record";
 }
 
-export function getCsharpRecordDictionaryIndexerTargetMembers(
+export function csharpRecordDictionaryIndexerMemberCandidates(
   dictionaryType: CsharpRecordDictionaryTargetTypeRef,
   host: CsharpTargetEnrichmentHost,
 ): readonly TargetMember[] {
@@ -63,7 +63,7 @@ export function getCsharpRecordDictionaryIndexerTargetMembers(
     .filter((member): member is TargetMember => member !== undefined && targetMemberIsClosed(member));
 }
 
-export function getCsharpRecordDictionaryKeysTargetMembers(
+export function csharpRecordDictionaryKeysMemberCandidates(
   dictionaryType: CsharpRecordDictionaryTargetTypeRef,
   host: CsharpTargetEnrichmentHost,
 ): readonly TargetMember[] {

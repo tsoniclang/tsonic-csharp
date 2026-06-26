@@ -32,7 +32,7 @@ import {
   csharpTargetOperationFromMember,
 } from "./source-library.js";
 import {
-  getCsharpRecordDictionaryKeysTargetMembers as recordDictionaryKeyCollectionCandidates,
+  csharpRecordDictionaryKeysMemberCandidates as recordDictionaryKeyCollectionCandidates,
   isCsharpRecordDictionaryTargetType,
 } from "../../dictionaries.js";
 import {

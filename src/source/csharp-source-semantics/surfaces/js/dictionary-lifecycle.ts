@@ -30,7 +30,7 @@ import type {
   TargetTypeRefResolutionOptions,
 } from "../../target-type-ref-resolution.js";
 import {
-  getCsharpRecordDictionaryIndexerTargetMembers as recordDictionaryIndexerCandidates,
+  csharpRecordDictionaryIndexerMemberCandidates as recordDictionaryIndexerCandidates,
   isCsharpRecordDictionaryTargetType,
 } from "../../dictionaries.js";
 import {
