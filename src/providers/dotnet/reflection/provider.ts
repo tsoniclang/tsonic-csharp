@@ -5,7 +5,6 @@ import type {
 } from "@tsonic/tsts";
 import type {
   DotnetModuleModel,
-  DotnetProviderIdentity,
 } from "../model.js";
 import {
   parseDotnetModuleSpecifier,
@@ -42,7 +41,6 @@ import type {
 } from "./telemetry.js";
 import {
   createDotnetProviderToolRunner,
-  referenceIdentities,
 } from "./tool.js";
 import {
   countProviderVirtualDeclarations,
@@ -62,6 +60,15 @@ import {
 import {
   createDotnetTargetBindingIndex,
 } from "./target-binding-index.js";
+import {
+  createDotnetReflectionCacheRequest,
+  moduleMemoryCacheKey,
+  pushDotnetReflectionReferenceArgs,
+  validateDotnetReflectionTargetFramework,
+} from "./cache-request.js";
+import {
+  dotnetReflectionProviderIdentity,
+} from "./provider-identity.js";
 
 export interface DotnetReflectionTypeDataProviderOptions {
   readonly toolProjectPath?: string;
@@ -80,15 +87,6 @@ export interface DotnetReflectionTypeDataProvider extends DotnetTypeDataProvider
   findTargetBindingByMetadataName(metadataName: string): TargetBindingFact | undefined;
   getTelemetrySnapshot(): DotnetProviderTelemetrySnapshot;
 }
-
-const providerIdentity: DotnetProviderIdentity = {
-  id: "tsonic.csharp.dotnet-reflection-provider",
-  version: "0.0.1",
-  target: "csharp",
-  displayName: "Tsonic C# .NET reflection provider",
-};
-const providerCacheAbiVersion = "dotnet-reflection-provider-cache-v7";
-const supportedTargetFramework = "net10.0";
 
 export function createDotnetReflectionTypeDataProvider(
   options: DotnetReflectionTypeDataProviderOptions = {},
@@ -156,7 +154,7 @@ export function createDotnetReflectionTypeDataProvider(
     cacheRequest: DotnetProviderCacheRequest,
     context: DotnetProviderModuleContext,
   ): DotnetProviderModuleResult {
-    const targetFrameworkDiagnostic = validateTargetFramework(context);
+    const targetFrameworkDiagnostic = validateDotnetReflectionTargetFramework(context, options);
     if (targetFrameworkDiagnostic !== undefined) {
       return targetFrameworkDiagnostic;
     }
@@ -192,7 +190,7 @@ export function createDotnetReflectionTypeDataProvider(
         args.push("--metadata-name", metadataName);
       }
     }
-    pushReferenceArgs(args, context);
+    pushDotnetReflectionReferenceArgs(args, context, options);
     const result = toolRunner.run(args);
     if (result.status !== 0) {
       const error = diagnostic("DOTNET_REFLECTION_PROVIDER_FAILED", ".NET reflection provider tool failed.", {
@@ -234,45 +232,17 @@ export function createDotnetReflectionTypeDataProvider(
     namespaceName: string,
     context: DotnetProviderModuleContext,
   ): DotnetProviderCacheRequest {
-    return {
-      providerId: providerIdentity.id,
-      providerVersion: providerIdentity.version,
-      providerCacheAbiVersion,
-      targetFramework: context.targetFramework ?? options.targetFramework ?? supportedTargetFramework,
-      moduleSpecifier: specifier,
+    return createDotnetReflectionCacheRequest({
+      specifier,
       namespaceName,
-      requestedExports: sortedNonEmpty(context.requestedExports),
-      requestedTargetIds: sortedNonEmpty(context.requestedTargetIds),
-      requestedMetadataNames: sortedNonEmpty(context.requestedMetadataNames),
-      broadImport: context.broadImport,
-      referenceDirectory: options.referenceDirectory,
-      referenceIdentities: referenceIdentities([...(context.references ?? []), ...(options.references ?? [])]),
+      context,
+      options,
       toolIdentity: toolRunner.identity,
-    };
-  }
-
-  function validateTargetFramework(context: DotnetProviderModuleContext): DotnetProviderDiagnostic | undefined {
-    const targetFramework = context.targetFramework ?? options.targetFramework;
-    if (targetFramework === undefined || targetFramework === supportedTargetFramework) {
-      return undefined;
-    }
-    return diagnostic("DOTNET_REFLECTION_TARGET_FRAMEWORK_UNSUPPORTED", ".NET reflection provider target framework is not supported by the active provider runtime.", {
-      supportedTargetFramework,
-      targetFramework,
     });
   }
 
-  function pushReferenceArgs(args: string[], context: DotnetProviderModuleContext): void {
-    if (options.referenceDirectory !== undefined) {
-      args.push("--reference-dir", options.referenceDirectory);
-    }
-    for (const reference of [...(context.references ?? []), ...(options.references ?? [])]) {
-      args.push("--reference", reference);
-    }
-  }
-
   return {
-    identity: providerIdentity,
+    identity: dotnetReflectionProviderIdentity,
     ownsModule(specifier: string): DotnetProviderOwnership {
       return parseDotnetModuleSpecifier(specifier) === undefined ? { kind: "unowned" } : { kind: "owned" };
     },
@@ -331,12 +301,4 @@ export function createDotnetReflectionTypeDataProvider(
     modules.set(memoryKey, module);
     targetBindingIndex.rememberModule(module);
   }
-}
-
-function moduleMemoryCacheKey(request: DotnetProviderCacheRequest): string {
-  return JSON.stringify(request);
-}
-
-function sortedNonEmpty(values: readonly string[] | undefined): readonly string[] | undefined {
-  return values === undefined || values.length === 0 ? undefined : [...new Set(values)].sort();
 }
