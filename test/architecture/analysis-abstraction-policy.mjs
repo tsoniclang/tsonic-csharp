@@ -157,9 +157,6 @@ export const analysisAbstractionDebtOwners = Object.freeze([
 ]);
 
 export const analysisAbstractionDebtCatalog = Object.freeze([
-  entry("src/backend/planner/expression-source-references.ts", { "source-name-branch": 1 }, "source-identity-policy-candidate", "csharp-backend", "Undefined/global source reference handling must move to source identity facts or explicit global policy records."),
-  entry("src/providers/dotnet/declaration-model/members.ts", { "source-name-branch": 1 }, "provider-metadata-candidate", "target-provider", "Constructor source-name normalization belongs in provider declaration metadata construction, not scattered branch logic."),
-  entry("src/providers/dotnet/native-array.ts", { "source-name-branch": 1 }, "provider-metadata-candidate", "target-provider", "Native Array provider detection must become provider identity metadata rather than a concrete source-name branch."),
   entry("src/source/csharp-source-semantics/dictionaries.ts", { "target-member-table": 2 }, "provider-metadata-candidate", "target-provider", "Move dictionary target members behind provider metadata and selected member facts."),
   entry("src/source/csharp-source-semantics/operations-provider.ts", { "source-library-member-read": 2 }, "source-identity-policy-candidate", "target-provider", "Replace direct library probing with selected source identity and provider policy facts."),
   entry("src/source/csharp-source-semantics/source-library.ts", { "source-member-name": 1, "source-member-id-prefix-branch": 1, "source-library-type-check": 1, "source-library-member-read": 1, "source-library-declaring-name-type": 8, "source-library-member-id-type": 7 }, "source-identity-policy-candidate", "surface-provider", "Keep source-library inspection centralized here until replaced by selected declaration identity records."),

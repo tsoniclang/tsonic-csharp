@@ -73,7 +73,7 @@ export function dotnetMemberToProviderMember(
   if (member.kind === "event" || member.kind === "operator") {
     return undefined;
   }
-  if (member.kind !== "constructor" && member.sourceName === "constructor") {
+  if (member.kind !== "constructor" && reservedProviderConstructorSourceNames.has(member.sourceName)) {
     return undefined;
   }
   if (!isSourceReadableMember(member, declaringType)) {
@@ -102,6 +102,8 @@ export function dotnetMemberToProviderMember(
     ...(signatures !== undefined ? { signatures } : {}),
   };
 }
+
+const reservedProviderConstructorSourceNames = new Set(["constructor"]);
 
 function mergeProviderMemberWithLocalBase(
   member: ProviderMemberDeclaration,

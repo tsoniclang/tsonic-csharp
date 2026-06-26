@@ -25,6 +25,7 @@ const nativeArraySourceType = {
   moduleSpecifier: systemModuleSpecifier,
   typeArguments: [typeParameter],
 } satisfies DotnetTypeRef;
+const dotnetNativeArrayProviderExportNames = new Set(["Array"]);
 
 export interface DotnetNativeArrayAugmentationOptions {
   readonly broadImport?: boolean;
@@ -42,7 +43,7 @@ export function augmentDotnetModuleWithNativeArray(
     ...module,
     exports: [
       ...module.exports.filter((declaration) =>
-        !(declaration.kind === "type" && declaration.sourceName === "Array")
+        !(declaration.kind === "type" && dotnetNativeArrayProviderExportNames.has(declaration.sourceName))
       ),
       dotnetNativeArrayDeclaration(),
     ],

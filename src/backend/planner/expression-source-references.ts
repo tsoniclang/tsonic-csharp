@@ -77,12 +77,14 @@ function isGlobalUndefinedExpression(
   sourceReference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
   targetBinding: ReturnType<TargetCompileInput["targetFacts"]["getTargetBindingForReference"]>,
 ): boolean {
-  if (sourceName !== "undefined" || sourceReference !== undefined || targetBinding !== undefined) {
+  if (!nullLiteralGlobalSourceNames.has(sourceName) || sourceReference !== undefined || targetBinding !== undefined) {
     return false;
   }
   const type = input.analysis.getTypeAtLocation(identifier, { sourceFile });
   return type !== undefined && input.types.isNullish(type);
 }
+
+const nullLiteralGlobalSourceNames = new Set(["undefined"]);
 
 export function isExternalDeclarationReference(
   reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
