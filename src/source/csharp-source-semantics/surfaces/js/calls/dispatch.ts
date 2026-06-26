@@ -4,9 +4,6 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
 } from "@tsonic/tsts";
-import {
-  mapCsharpJsConsoleCheckedCall,
-} from "../console.js";
 import type {
   CsharpJsSurfaceHost,
 } from "../source-library.js";
@@ -19,6 +16,7 @@ import {
 import {
   csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
   csharpJsSourceLibraryCallMayNeedFinalFacts,
+  mapCsharpJsSourceLibrarySpecialCheckedCall,
 } from "../policy.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryCall,
@@ -67,9 +65,9 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  const consoleCall = mapCsharpJsConsoleCheckedCall(request, context, sourceMember, host, options);
-  if (consoleCall !== undefined) {
-    return consoleCall;
+  const specialCall = mapCsharpJsSourceLibrarySpecialCheckedCall(request, context, sourceMember, host, options);
+  if (specialCall !== undefined) {
+    return specialCall;
   }
   const canWaitForFinalizedFacts = csharpJsSourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase);
   const candidates = getSourceLibraryCallMembers(sourceMember, request, context, host);

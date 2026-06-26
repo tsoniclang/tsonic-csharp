@@ -117,10 +117,16 @@ export const analysisAbstractionRules = Object.freeze([
       "Select provider modules through canonical provider metadata indexes, not branch chains on module specifiers.",
   },
   {
-    id: "provider-identity-key-map",
-    pattern: /nodejsProvider(?:Export|Symbol|Declaration)?(?:Symbol|Declaration)?IdentityKey\s*\(/g,
+    id: "nodejs-direct-module-resolver-map",
+    pattern: /\bdirectIdentityTargetMemberResolversByModule\b/g,
     replacement:
-      "Keep provider identity key construction inside metadata indexing utilities and remove generic selector dependence on concrete Node module/member names.",
+      "Derive Node direct member resolution from canonical provider metadata rows, not a module-to-resolver function map.",
+  },
+  {
+    id: "nodejs-target-identity-map",
+    pattern: /\bnodejs(?:TargetMembersByProviderSymbolIdentity|UnsupportedTargetIdentitiesByProviderSymbol)\b/g,
+    replacement:
+      "Derive Node target identities and unsupported identities from the same canonical provider metadata records used for operation mapping.",
   },
   {
     id: "semantic-fallback-word",
@@ -170,11 +176,8 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry("src/source/csharp-source-semantics/surfaces/js/property-policy.ts", { "source-library-declaring-name-type": 2, "source-library-member-id-type": 5 }, "surface-policy-candidate", "surface-provider", "Convert property policy target members to provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/js/source-library.ts", { "source-library-declaring-name-type": 1, "source-library-member-id-type": 1 }, "source-identity-policy-candidate", "surface-provider", "Keep JS surface re-exports limited until source identity records replace concrete library member types."),
   entry("src/source/csharp-source-semantics/surfaces/js/unsupported.ts", {}, "surface-policy-candidate", "surface-provider", "Unsupported source-member checks must become explicit unsupported policy records with diagnostics."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/identity.ts", { "provider-identity-key-map": 1 }, "source-identity-policy-candidate", "surface-provider", "Keep Node provider identity key construction centralized while moving selectors to metadata indexes."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/entry-builders.ts", { "provider-identity-key-map": 10 }, "provider-metadata-candidate", "surface-provider", "Keep Node metadata index builders isolated until the Node provider metadata table replaces module-specific target-member helpers."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/metadata-index.ts", { "provider-identity-key-map": 3 }, "provider-metadata-candidate", "surface-provider", "Keep Node provider identity key construction inside the metadata index; selectors must consume the index rather than branch on module specifiers."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/provider-identity.ts", { "provider-identity-key-map": 3 }, "source-identity-policy-candidate", "surface-provider", "Keep Node provider identity key construction centralized while removing concrete module branches from selectors."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/target-identities.ts", { "provider-identity-key-map": 6 }, "provider-metadata-candidate", "surface-provider", "Replace Node target identity maps with provider metadata records including unsupported exceptions."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/metadata-index.ts", { "nodejs-direct-module-resolver-map": 2 }, "provider-metadata-candidate", "surface-provider", "Replace the Node module-to-resolver map with canonical provider metadata rows keyed by selected declaration/member identity."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/target-identities.ts", { "nodejs-target-identity-map": 4 }, "provider-metadata-candidate", "surface-provider", "Derive Node target and unsupported identities from the canonical provider metadata record set."),
   entry("src/source/csharp-source-semantics/target-types/member-facts.ts", { "target-member-helper": 2 }, "provider-metadata-candidate", "target-provider", "Keep target member constructors cataloged until replaced by provider metadata builders."),
 ]);
 

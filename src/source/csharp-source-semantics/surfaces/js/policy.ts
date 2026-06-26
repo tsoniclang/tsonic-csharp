@@ -1,5 +1,7 @@
 import type {
   CheckedCallMappingRequest,
+  CheckedCallMappingResult,
+  ExtensionObservation,
   ExtensionObservationContext,
   TargetMember,
   TargetTypeRef,
@@ -17,6 +19,9 @@ import {
   booleanTargetMembersForSourceName,
   isCsharpBooleanTargetType,
 } from "./booleans.js";
+import {
+  mapCsharpJsConsoleCheckedCall,
+} from "./console.js";
 import {
   collectionTargetMembersForSourceMember,
   isCsharpJsMapTargetType,
@@ -79,6 +84,13 @@ import {
 
 export interface CsharpJsSurfaceSourceLibraryPolicy {
   readonly sourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[];
+  readonly mapCall?: (
+    request: CheckedCallMappingRequest,
+    context: ExtensionObservationContext<"operation.mapCheckedCall">,
+    sourceMember: SourceLibraryMember,
+    host: CsharpJsSurfaceHost,
+    options: { readonly phase?: "checking" | "finalization" },
+  ) => ExtensionObservation<CheckedCallMappingResult> | undefined;
   readonly getCallMembers?: (
     sourceMember: SourceLibraryMember,
     request: CheckedCallMappingRequest,
@@ -101,6 +113,16 @@ export function csharpJsSourceLibraryMemberHasCallableTarget(
   sourceMember: SourceLibraryMember,
 ): boolean {
   return policyForSourceMember(sourceMember)?.hasCallableProperty?.(sourceMember) ?? false;
+}
+
+export function mapCsharpJsSourceLibrarySpecialCheckedCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+  options: { readonly phase?: "checking" | "finalization" },
+): ExtensionObservation<CheckedCallMappingResult> | undefined {
+  return policyForSourceMember(sourceMember)?.mapCall?.(request, context, sourceMember, host, options);
 }
 
 export function csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember: SourceLibraryMember | undefined): boolean {
@@ -229,6 +251,7 @@ const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy
   },
   {
     sourceMemberIdPrefixes: ["Console."],
+    mapCall: mapCsharpJsConsoleCheckedCall,
     hasCallableProperty: () => true,
   },
   {
