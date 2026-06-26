@@ -1,10 +1,10 @@
 import type {
   SourceLibraryMember,
-  SourceLibraryMemberId,
+  SourceLibraryMemberIdentityPolicy,
 } from "../source-library.js";
 import {
   sourceLibraryMemberIdSet,
-  sourceLibraryMemberMatchesAny,
+  sourceLibraryMemberMatches,
 } from "../source-library.js";
 import type {
   ArrayUse,
@@ -18,6 +18,11 @@ export function classifySourceLibraryArrayPropertyUse(
   return propertyRule === undefined ? [] : propertyRule.uses(sourceMember, isWriteTarget);
 }
 
+export function sourceLibraryMemberHasArrayUsePolicy(sourceMember: SourceLibraryMember): boolean {
+  return arrayPropertyUseRules.some((rule) => arrayUseRuleApplies(rule, sourceMember)) ||
+    staticCallArgumentUseRules.some((rule) => arrayUseRuleApplies(rule, sourceMember));
+}
+
 export function classifySourceLibraryStaticCallArgumentUse(
   sourceMember: SourceLibraryMember,
   argumentIndex: number,
@@ -29,12 +34,12 @@ export function classifySourceLibraryStaticCallArgumentUse(
 }
 
 interface ArrayPropertyUseRule {
-  readonly sourceMemberIds: ReadonlySet<SourceLibraryMemberId>;
+  readonly identity: SourceLibraryMemberIdentityPolicy;
   readonly uses: (sourceMember: SourceLibraryMember, isWriteTarget: boolean) => readonly ArrayUse[];
 }
 
 interface StaticCallArgumentUseRule {
-  readonly sourceMemberIds: ReadonlySet<SourceLibraryMemberId>;
+  readonly identity: SourceLibraryMemberIdentityPolicy;
   readonly argumentIndex: StaticCallArgumentIndexPolicy;
   readonly uses: readonly ArrayUse[];
 }
@@ -103,52 +108,52 @@ const fullJsArrayMemberIds = sourceMemberIdSet([
 
 const arrayPropertyUseRules: readonly ArrayPropertyUseRule[] = [
   {
-    sourceMemberIds: sourceMemberIdSet(["Array.length", "ReadonlyArray.length"]),
+    identity: { ids: sourceMemberIdSet(["Array.length", "ReadonlyArray.length"]) },
     uses: (_sourceMember, isWriteTarget) => isWriteTarget ? ["full-js"] : ["length-read"],
   },
   {
-    sourceMemberIds: denseMutatingArrayMemberIds,
+    identity: { ids: denseMutatingArrayMemberIds },
     uses: () => ["dense-mutation"],
   },
   {
-    sourceMemberIds: fullJsArrayMemberIds,
+    identity: { ids: fullJsArrayMemberIds },
     uses: () => ["full-js"],
   },
   {
-    sourceMemberIds: readIndexableArrayMemberIds,
+    identity: { ids: readIndexableArrayMemberIds },
     uses: () => ["index-read"],
   },
 ];
 
 const staticCallArgumentUseRules: readonly StaticCallArgumentUseRule[] = [
   {
-    sourceMemberIds: sourceMemberIdSet(["Array.from"]),
+    identity: { ids: sourceMemberIdSet(["Array.from"]) },
     argumentIndex: 0,
     uses: ["sequential-read"],
   },
   {
-    sourceMemberIds: sourceMemberIdSet(["Array.isArray"]),
+    identity: { ids: sourceMemberIdSet(["Array.isArray"]) },
     argumentIndex: 0,
     uses: ["index-read"],
   },
   {
-    sourceMemberIds: sourceMemberIdSet(["Object.keys", "Object.values", "Object.entries"]),
+    identity: { ids: sourceMemberIdSet(["Object.keys", "Object.values", "Object.entries"]) },
     argumentIndex: 0,
     uses: ["full-js"],
   },
   {
-    sourceMemberIds: sourceMemberIdSet(["Object.assign"]),
+    identity: { ids: sourceMemberIdSet(["Object.assign"]) },
     argumentIndex: { greaterThan: 0 },
     uses: ["full-js"],
   },
 ];
 
-function sourceMemberIdSet(ids: readonly SourceLibraryMemberId[]): ReadonlySet<SourceLibraryMemberId> {
+function sourceMemberIdSet(ids: Parameters<typeof sourceLibraryMemberIdSet>[0]): ReturnType<typeof sourceLibraryMemberIdSet> {
   return sourceLibraryMemberIdSet(ids);
 }
 
 function arrayPropertyUseRuleApplies(rule: ArrayPropertyUseRule, sourceMember: SourceLibraryMember): boolean {
-  return sourceLibraryMemberMatchesAny(sourceMember, rule.sourceMemberIds);
+  return arrayUseRuleApplies(rule, sourceMember);
 }
 
 function staticCallArgumentUseRuleApplies(
@@ -156,7 +161,14 @@ function staticCallArgumentUseRuleApplies(
   sourceMember: SourceLibraryMember,
   argumentIndex: number,
 ): boolean {
-  return sourceLibraryMemberMatchesAny(sourceMember, rule.sourceMemberIds) && argumentIndexMatchesPolicy(rule.argumentIndex, argumentIndex);
+  return arrayUseRuleApplies(rule, sourceMember) && argumentIndexMatchesPolicy(rule.argumentIndex, argumentIndex);
+}
+
+function arrayUseRuleApplies(
+  rule: Pick<ArrayPropertyUseRule | StaticCallArgumentUseRule, "identity">,
+  sourceMember: SourceLibraryMember,
+): boolean {
+  return sourceLibraryMemberMatches(sourceMember, rule.identity);
 }
 
 function argumentIndexMatchesPolicy(policy: StaticCallArgumentIndexPolicy, argumentIndex: number): boolean {
