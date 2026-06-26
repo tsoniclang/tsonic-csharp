@@ -162,11 +162,11 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (sourceLibrarySelectedDeclarationHasCallTarget(sourceMember)) {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(
-        `tsonic.csharp.js.${sourceMember.declaringName}.${sourceMember.memberName}.callee`,
+        `tsonic.csharp.js.${sourceMember.id}.callee`,
         "method",
-        `${sourceMember.declaringName}.${sourceMember.memberName}`,
+        sourceMember.id,
       ),
-    }, [{ message: `C# JS surface callable property accepted from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'. Call expressions record the concrete target member; standalone callable values require finalized callable carrier facts before emission.` }]);
+    }, [{ message: `C# JS surface callable property accepted from checked TypeScript library declaration '${sourceMember.id}'. Call expressions record the concrete target member; standalone callable values require finalized callable carrier facts before emission.` }]);
   }
   const precheck = csharpJsSourceLibraryPropertyPrecheck(sourceMember);
   if (precheck === "defer") {
@@ -191,7 +191,7 @@ function mapCsharpSourceLibraryPropertyOperation(
     return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }
   if (!sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember) || receiverType?.kind !== "array") {
-    recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+    recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceMember.id}'.` }]);
   }
   return acceptObservation<CheckedOperationMappingResult>({
     operation: sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember)
@@ -199,7 +199,7 @@ function mapCsharpSourceLibraryPropertyOperation(
           ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
         })
       : targetOperationFromMember(member),
-  }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+  }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceMember.id}'.` }]);
 }
 
 function sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {

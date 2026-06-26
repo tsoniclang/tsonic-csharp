@@ -24,7 +24,7 @@ export function rejectUnsupportedCsharpJsSourceLibraryCall(
     host.extensionId,
     "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED",
     9100130,
-    `C# JS surface has no closed operation facts for checked TypeScript standard-library call '${sourceMember.declaringName}.${sourceMember.memberName}'.`,
+    `C# JS surface has no closed operation facts for checked TypeScript standard-library call '${sourceMember.id}'.`,
   ));
 }
 
@@ -36,7 +36,7 @@ export function rejectUnmappedCsharpJsSourceLibraryCall(
     host.extensionId,
     "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED",
     9100131,
-    `C# JS surface has no target mapping for checked TypeScript standard-library call '${sourceMember.declaringName}.${sourceMember.memberName}'.`,
+    `C# JS surface has no target mapping for checked TypeScript standard-library call '${sourceMember.id}'.`,
   ));
 }
 
@@ -51,7 +51,7 @@ export function rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(
     host.extensionId,
     "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED",
     9100130,
-    `C# JS surface has no closed operation facts for checked TypeScript standard-library property '${sourceMember.declaringName}.${sourceMember.memberName}'.`,
+    `C# JS surface has no closed operation facts for checked TypeScript standard-library property '${sourceMember.id}'.`,
   ));
 }
 
@@ -63,6 +63,6 @@ export function rejectUnmappedCsharpJsSourceLibraryPropertyAccess(
     host.extensionId,
     "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED",
     9100131,
-    `C# JS surface has no target mapping for checked TypeScript standard-library property '${sourceMember.declaringName}.${sourceMember.memberName}'.`,
+    `C# JS surface has no target mapping for checked TypeScript standard-library property '${sourceMember.id}'.`,
   ));
 }

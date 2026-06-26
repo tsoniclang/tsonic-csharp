@@ -29,7 +29,7 @@ export function acceptSourceLibraryCheckedCall(
   member: TargetMember,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> {
-  recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# JS surface target call operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+  recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# JS surface target call operation recorded from checked TypeScript library declaration '${sourceMember.id}'.` }]);
   const returnType = member.returnType;
   if (
     csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember) &&
@@ -41,5 +41,5 @@ export function acceptSourceLibraryCheckedCall(
   }
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
-  }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
+  }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceMember.id}'.` }]);
 }

@@ -51,7 +51,7 @@ export function mapCsharpJsConsoleCheckedCall(
       host.extensionId,
       "CSHARP_JS_CONSOLE_ARGUMENT_REQUIRES_TARGET_FACT",
       9100140,
-      `C# JS surface console call '${sourceMember.declaringName}.${sourceMember.memberName}' requires finalized closed target facts for argument ${invalidArgumentIndex + 1}.`,
+      `C# JS surface console call '${sourceMember.id}' requires finalized closed target facts for argument ${invalidArgumentIndex + 1}.`,
     ));
   }
   if (!consoleArgumentsMatchMember(member, argumentTypes)) {
@@ -59,12 +59,12 @@ export function mapCsharpJsConsoleCheckedCall(
       host.extensionId,
       "CSHARP_JS_CONSOLE_ARGUMENT_REQUIRES_TARGET_FACT",
       9100140,
-      `C# JS surface console call '${sourceMember.declaringName}.${sourceMember.memberName}' requires finalized argument facts compatible with the selected runtime member shape.`,
+      `C# JS surface console call '${sourceMember.id}' requires finalized argument facts compatible with the selected runtime member shape.`,
     ));
   }
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
-  }, [{ message: `C# JS surface console call selected from checked TypeScript standard-library declaration 'Console.${sourceMember.memberName}'.` }]);
+  }, [{ message: `C# JS surface console call selected from checked TypeScript standard-library declaration '${sourceMember.id}'.` }]);
 }
 
 function getConsoleTargetMember(sourceName: string): TargetMember | undefined {

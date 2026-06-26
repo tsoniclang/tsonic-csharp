@@ -40,6 +40,7 @@ import type {
   SourceLibraryMember,
 } from "./source-library.js";
 import {
+  createSourceLibraryMember,
   csharpSourcePrimitiveTargetType,
   targetProperty,
 } from "./source-library.js";
@@ -58,7 +59,7 @@ export function getCsharpJsSourceLibraryMemberFromReceiverType(
   const declaringName = getSourceStandardLibraryDeclaringNameForType(receiverType, context);
   return declaringName === undefined || !propertyReceiverSourceTypeNames.has(declaringName)
     ? undefined
-    : { declaringName, memberName };
+    : createSourceLibraryMember(declaringName, memberName);
 }
 
 export function csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {

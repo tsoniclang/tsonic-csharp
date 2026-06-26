@@ -12,6 +12,7 @@ import {
 } from "../fact-subjects.js";
 
 export interface SourceLibraryMember {
+  readonly id: SourceLibraryMemberId;
   readonly declaringName: SourceLibraryDeclaringName;
   readonly memberName: string;
 }
@@ -19,6 +20,19 @@ export interface SourceLibraryMember {
 export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "Number" | "Boolean" | "RegExp" | "Date" | "Math" | "Promise" | "Object" | "JSON" | "Console" | "Map" | "ReadonlyMap" | "Set" | "ReadonlySet";
 
 export type SourceLibraryTypeName = SourceLibraryDeclaringName | "Record";
+
+export type SourceLibraryMemberId = `${SourceLibraryDeclaringName}.${string}`;
+
+export function createSourceLibraryMember(
+  declaringName: SourceLibraryDeclaringName,
+  memberName: string,
+): SourceLibraryMember {
+  return {
+    id: `${declaringName}.${memberName}`,
+    declaringName,
+    memberName,
+  };
+}
 
 export function getSourceLibraryMember(
   declarationSubject: ExtensionFactSubject | undefined,
@@ -39,7 +53,7 @@ export function getSourceLibraryMember(
   const memberName = ast.text(ast.name(declaration)) || sourceLibraryConstructorMemberName(containerName);
   return memberName === undefined || memberName === "" || declaringName === undefined
     ? undefined
-    : { declaringName, memberName };
+    : createSourceLibraryMember(declaringName, memberName);
 }
 
 export function isSourceLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {

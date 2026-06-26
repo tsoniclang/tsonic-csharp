@@ -16,6 +16,7 @@ export type {
   SourceLibraryMember,
 } from "../../source-library.js";
 export {
+  createSourceLibraryMember,
   getSourceLibraryMember,
   isSourceLibraryType,
 } from "../../source-library.js";
