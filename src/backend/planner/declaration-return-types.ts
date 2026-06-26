@@ -1,11 +1,11 @@
-import type { Node, SourceFile, Type } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   getTargetTypeRefForNode,
-  getTargetTypeRefForType,
-  carrierFromResolution,
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
 } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
@@ -22,21 +22,16 @@ export function getExplicitReturnType(
 ): ReturnType<typeof getCsharpTypeForNode> {
   if (typeNode === undefined) {
     const returnCarrierResolution = input.targetFacts.resolveDeclarationReturnCarrier(declarationNode, { sourceFile });
-    const returnCarrier = carrierFromResolution(returnCarrierResolution);
-    const returnType = returnCarrier === undefined
-      ? getInferredSignatureReturnType(declarationNode, sourceFile, input)
-      : undefined;
-    const inferredTargetType = returnCarrier ??
-      getTargetTypeRefForType(input, returnType, sourceFile);
-    const inferred = inferredTargetType === undefined ? undefined : csharpTypeFromTargetTypeRef(inferredTargetType);
+    const returnCarrier = probeCarrierFromResolution(returnCarrierResolution);
+    const inferred = returnCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(returnCarrier);
     if (inferred === undefined) {
+      const detail = missingCarrierDiagnosticDetail(returnCarrierResolution, "Signature return carrier fact is missing.");
       diagnostics.push(unsupportedNodeDiagnostic(
         declarationNode,
-        isMissingInferredArrayElementTypeEvidence(returnType, sourceFile, input)
-          ? `C# ${context} emission requires finalized array element type evidence for inferred array returns. Add a return type annotation or contextual target that records an array runtime carrier.`
-          : returnCarrierResolution.kind === "missing"
-            ? `C# ${context} emission requires a finalized signature return carrier: ${returnCarrierResolution.reason}`
-            : `C# ${context} emission requires a return type, but the TSTS semantic session did not return a finalized signature return carrier.`,
+        returnCarrierResolution.kind === "missing"
+          ? `C# ${context} emission requires a finalized signature return carrier: ${detail.reason}`
+          : `C# ${context} emission requires a renderable signature return carrier fact; backend must not infer C# return types from raw TSTS semantic types.`,
+        detail.evidence,
       ));
       return invalidCsharpType(`${context} return type`);
     }
@@ -83,50 +78,7 @@ function getDeclarationReturnTargetType(
   if (typeNode !== undefined) {
     return getTargetTypeRefForNode(input, typeNode, sourceFile);
   }
-  return carrierFromResolution(input.targetFacts.resolveDeclarationReturnCarrier(declarationNode, { sourceFile })) ??
-    getTargetTypeRefForType(input, getInferredSignatureReturnType(declarationNode, sourceFile, input), sourceFile);
-}
-
-function getInferredSignatureReturnType(
-  declarationNode: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): Type | undefined {
-  const declarationType = input.analysis.getTypeAtLocation(declarationNode, { sourceFile });
-  const declarationName = input.ast.name(declarationNode);
-  const declarationNameType = declarationName === undefined
-    ? undefined
-    : input.analysis.getTypeAtLocation(declarationName, { sourceFile });
-  const declarationSymbol = declarationName === undefined
-    ? undefined
-    : input.analysis.getSymbolAtLocation(declarationName, { sourceFile });
-  const resolvedDeclarationSymbol = declarationName === undefined
-    ? undefined
-    : input.analysis.getResolvedSymbol(declarationName, { sourceFile });
-  const declarationSymbolType = declarationName === undefined
-    ? undefined
-    : input.analysis.getTypeOfSymbol(declarationSymbol, { sourceFile });
-  const resolvedDeclarationSymbolType = declarationName === undefined
-    ? undefined
-    : input.analysis.getTypeOfSymbol(resolvedDeclarationSymbol, { sourceFile });
-  const signature = input.types.getCallSignatures(declarationType, { sourceFile })[0] ??
-    input.types.getCallSignatures(declarationNameType, { sourceFile })[0] ??
-    input.types.getCallSignatures(declarationSymbolType, { sourceFile })[0] ??
-    input.types.getCallSignatures(resolvedDeclarationSymbolType, { sourceFile })[0];
-  if (signature === undefined) {
-    return undefined;
-  }
-  return input.types.getReturnTypeOfSignature(signature, { sourceFile });
-}
-
-function isMissingInferredArrayElementTypeEvidence(
-  returnType: Type | undefined,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): boolean {
-  return returnType !== undefined &&
-    input.types.isArrayLike(returnType, { sourceFile }) &&
-    (!input.types.isTypeReference(returnType) || input.types.getTypeArguments(returnType, { sourceFile })[0] === undefined);
+  return probeCarrierFromResolution(input.targetFacts.resolveDeclarationReturnCarrier(declarationNode, { sourceFile }));
 }
 
 function getAsyncReturnExpressionSubject(typeNode: Node | undefined, input: TargetCompileInput): Node | undefined {

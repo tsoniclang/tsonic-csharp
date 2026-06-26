@@ -1,10 +1,10 @@
 const defaultMissingReason = "test fixture did not provide a finalized carrier fact";
 
-export function missingCarrierResolution(reason = defaultMissingReason) {
+export function missingCarrierResolution(reason = defaultMissingReason, evidence = []) {
   return {
     kind: "missing",
     reason,
-    evidence: [],
+    evidence,
   };
 }
 
@@ -18,11 +18,11 @@ export function resolvedCarrierResolution(carrier, message = "test fixture provi
       };
 }
 
-export function missingParameterCarrierResolution(reason = "test fixture did not provide a selected call signature") {
+export function missingParameterCarrierResolution(reason = "test fixture did not provide a selected call signature", evidence = []) {
   return {
     kind: "missing",
     reason,
-    evidence: [],
+    evidence,
   };
 }
 

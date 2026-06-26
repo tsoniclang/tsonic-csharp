@@ -29,7 +29,9 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  getRuntimeCarrierForExpression,
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -122,23 +124,21 @@ export function planConditionExpression(
     diagnostics.push(unsupportedNodeDiagnostic(sourceFile, `${statementKind} requires a condition expression.`));
     return undefined;
   }
-  if (!hasBooleanConditionCarrier(expression, sourceFile, input)) {
+  if (HasSourceKind(input.ast, expression, KindTrueKeyword) || HasSourceKind(input.ast, expression, KindFalseKeyword)) {
+    return planExpression(expression, sourceFile, input, diagnostics, state);
+  }
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
+  const carrier = probeCarrierFromResolution(carrierResolution);
+  if (carrier === undefined) {
+    const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the condition expression.");
+    diagnostics.push(unsupportedNodeDiagnostic(expression, `${statementKind} condition requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission. ${detail.reason}`, detail.evidence));
+    return undefined;
+  }
+  if (!isCsharpBoolType(csharpTypeFromTargetTypeRef(carrier))) {
     diagnostics.push(unsupportedNodeDiagnostic(expression, `${statementKind} condition requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission.`));
     return undefined;
   }
   return planExpression(expression, sourceFile, input, diagnostics, state);
-}
-
-function hasBooleanConditionCarrier(
-  expression: Node,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
-): boolean {
-  if (HasSourceKind(input.ast, expression, KindTrueKeyword) || HasSourceKind(input.ast, expression, KindFalseKeyword)) {
-    return true;
-  }
-  const carrier = getRuntimeCarrierForExpression(input, expression, sourceFile);
-  return carrier === undefined ? false : isCsharpBoolType(csharpTypeFromTargetTypeRef(carrier));
 }
 
 function isCsharpBoolType(type: CsharpTypeNode | undefined): boolean {

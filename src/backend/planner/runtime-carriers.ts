@@ -1,5 +1,5 @@
 import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
-import type { TargetCarrierResolution, TargetCompileInput } from "@tsonic/target-api";
+import type { TargetCarrierResolution, TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import {
   getTargetTypeRefFromDirectFacts,
 } from "./runtime-carrier-direct-facts.js";
@@ -9,6 +9,9 @@ import {
 import {
   asNodeSubject,
 } from "../../source/fact-subjects.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "./diagnostics.js";
 
 export function getRuntimeCarrierForExpression(
   input: TargetCompileInput,
@@ -16,6 +19,16 @@ export function getRuntimeCarrierForExpression(
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
   return getTargetTypeRefForNode(input, sourceNode, sourceFile);
+}
+
+export function resolveRuntimeCarrierForExpression(
+  input: TargetCompileInput,
+  sourceNode: Node | undefined,
+  sourceFile: SourceFile,
+): TargetCarrierResolution | undefined {
+  return sourceNode === undefined
+    ? undefined
+    : input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile });
 }
 
 export function getTargetTypeRefForNode(
@@ -29,14 +42,14 @@ export function getTargetTypeRefForNode(
   const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile);
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
       return getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-      carrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })) ??
+      probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })) ??
       typeReferenceFact;
   }
   return typeReferenceFact ??
     getTargetTypeRefFromDirectFacts(input, sourceNode) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(sourceNode, { sourceFile })) ??
-    carrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
+    probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
 }
 
 function getTargetTypeRefFromTypeReferenceName(
@@ -83,8 +96,37 @@ function getTargetTypeRefFromSemanticTypeFacts(
     : fact;
 }
 
-export function carrierFromResolution(
+export function probeCarrierFromResolution(
   resolution: TargetCarrierResolution | undefined,
 ): TargetTypeRef | undefined {
   return resolution?.kind === "resolved" ? resolution.carrier : undefined;
+}
+
+export interface MissingCarrierDiagnosticDetail {
+  readonly reason: string;
+  readonly evidence: readonly string[];
+}
+
+export function missingCarrierDiagnosticDetail(
+  resolution: TargetCarrierResolution | undefined,
+  fallbackReason: string,
+): MissingCarrierDiagnosticDetail {
+  if (resolution?.kind !== "missing") {
+    return { reason: fallbackReason, evidence: [] };
+  }
+  return {
+    reason: resolution.reason,
+    evidence: resolution.evidence.map((entry) => entry.message),
+  };
+}
+
+export function pushMissingCarrierDiagnostic(
+  diagnostics: TargetDiagnostic[],
+  node: Node,
+  message: string,
+  resolution: TargetCarrierResolution | undefined,
+  fallbackReason: string,
+): void {
+  const detail = missingCarrierDiagnosticDetail(resolution, fallbackReason);
+  diagnostics.push(unsupportedNodeDiagnostic(node, `${message} ${detail.reason}`, detail.evidence));
 }

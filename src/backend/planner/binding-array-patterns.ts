@@ -16,7 +16,11 @@ import {
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
+import {
+  missingCarrierDiagnosticDetail,
+  probeCarrierFromResolution,
+  resolveRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
   csharpListTargetType,
@@ -45,10 +49,12 @@ export function planArrayBindingPattern(
 ): readonly CsharpStatement[] {
   const sourceCarrier = sourceCarrierOverride ??
     getArrayBoundaryCoreCarrierForExpression(input, sourceNode, sourceFile) ??
-    getRuntimeCarrierForExpression(input, sourceNode, sourceFile);
+    probeCarrierFromResolution(resolveRuntimeCarrierForExpression(input, sourceNode, sourceFile));
   const bindingCarrier = arrayBindingCarrier(sourceCarrier);
   if (bindingCarrier === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression."));
+    const resolution = resolveRuntimeCarrierForExpression(input, sourceNode, sourceFile);
+    const detail = missingCarrierDiagnosticDetail(resolution, "Runtime carrier fact is missing for the array destructuring source expression.");
+    diagnostics.push(unsupportedNodeDiagnostic(patternNode, `Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. ${detail.reason}`, detail.evidence));
     return [];
   }
   const elements = AsBindingPattern(patternNode)?.Elements?.Nodes ?? [];

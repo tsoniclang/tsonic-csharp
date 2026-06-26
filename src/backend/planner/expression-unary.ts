@@ -25,7 +25,9 @@ import {
   csharpPrefixUnaryOperatorTokenFromText,
 } from "./csharp-operator-tokens.js";
 import {
-  getRuntimeCarrierForExpression,
+  missingCarrierDiagnosticDetail,
+  probeCarrierFromResolution,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -59,8 +61,10 @@ export function planPrefixUnaryExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, `C# prefix unary operator emission received unsupported finalized operator token '${csharpOperator.operator}'.`));
     return undefined;
   }
-  if (!isSupportedPrefixUnaryOperand(expression.Operand, operatorToken, sourceFile, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `C# prefix unary operator '${csharpOperator.operator}' requires operand runtime-carrier facts that prove the finalized C# token is valid.`));
+  const operandCarrierResolution = resolveRuntimeCarrierForExpression(input, expression.Operand, sourceFile);
+  if (!isSupportedPrefixUnaryOperand(operandCarrierResolution, operatorToken)) {
+    const detail = missingCarrierDiagnosticDetail(operandCarrierResolution, "Operand runtime carrier fact does not prove the finalized C# token is valid.");
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# prefix unary operator '${csharpOperator.operator}' requires operand runtime-carrier facts that prove the finalized C# token is valid. ${detail.reason}`, detail.evidence));
     return undefined;
   }
   const operand = planExpression(expression.Operand!, sourceFile, input, diagnostics);
@@ -114,15 +118,13 @@ export function planPostfixUnaryExpression(
 }
 
 function isSupportedPrefixUnaryOperand(
-  operand: Node | undefined,
+  operandCarrierResolution: ReturnType<typeof resolveRuntimeCarrierForExpression>,
   operatorToken: CsharpPrefixUnaryOperatorToken,
-  sourceFile: SourceFile,
-  input: TargetCompileInput,
 ): boolean {
   if (operatorToken.kind !== "ExclamationToken") {
     return true;
   }
-  const carrier = getRuntimeCarrierForExpression(input, operand, sourceFile);
+  const carrier = probeCarrierFromResolution(operandCarrierResolution);
   if (carrier === undefined) {
     return false;
   }

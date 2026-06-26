@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
+import { getExplicitReturnType } from "../dist/backend/planner/declaration-return-types.js";
 import { planTypeParameters } from "../dist/backend/planner/type-parameters.js";
 import { KindIdentifier, KindTypeReference } from "../dist/backend/planner/source-ast.js";
 import { isCsharpThrowableCarrier } from "../dist/backend/planner/statement-output.js";
@@ -314,6 +315,24 @@ test("backend type rendering rejects primitive semantic shapes without finalized
   assert.match(diagnostics[0].message, /requires a closed target type from TSTS\/provider facts/);
 });
 
+test("inferred declaration return diagnostics preserve resolver reason and evidence", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const declaration = { Kind: "KindFunctionDeclaration", name: { Kind: KindIdentifier, Text: "make" } };
+  const diagnostics = [];
+
+  const rendered = getExplicitReturnType(undefined, declaration, "function declaration", sourceFile, fakeTypeInput(sourceFile, {
+    declarationReturnCarrierResolution: missingCarrierResolution(
+      "return type alias lacked a finalized target carrier",
+      [{ message: "TSTS selected signature return Alias<T>; Alias<T> leaf carrier was missing" }],
+    ),
+  }), diagnostics);
+
+  assert.equal(rendered.kind, "InvalidType");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /return type alias lacked a finalized target carrier/);
+  assert.deepEqual(diagnostics[0].evidence, ["TSTS selected signature return Alias<T>; Alias<T> leaf carrier was missing"]);
+});
+
 function typeParameterNode(name) {
   return {
     Kind: "KindTypeParameter",
@@ -433,7 +452,7 @@ function fakeTypeInput(sourceFile, options = {}) {
       resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(options.runtimeCarriers?.get(subject)),
       getTargetBindingForReference: (subject) => options.targetBindings?.get(subject),
       resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
-      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => options.declarationReturnCarrierResolution ?? missingCarrierResolution(),
       resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: {

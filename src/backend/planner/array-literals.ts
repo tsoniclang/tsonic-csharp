@@ -10,7 +10,11 @@ import type { TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
-import { getRuntimeCarrierForExpression, getTargetTypeRefForNode } from "./runtime-carriers.js";
+import {
+  missingCarrierDiagnosticDetail,
+  probeCarrierFromResolution,
+  resolveRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { sameCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -45,8 +49,9 @@ export function planArrayLiteralExpressionFromFacts(
   diagnostics: TargetDiagnostic[],
   planner: ArrayLiteralPlanner,
 ): CsharpExpression | undefined {
-  const carrier = getRuntimeCarrierForExpression(input, node, sourceFile);
-  return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, carrier, planner);
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
+  const carrier = probeCarrierFromResolution(carrierResolution);
+  return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, carrier, planner, carrierResolution);
 }
 
 export function planArrayLiteralExpressionWithCarrier(
@@ -54,8 +59,9 @@ export function planArrayLiteralExpressionWithCarrier(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-  carrier: ReturnType<typeof getRuntimeCarrierForExpression>,
+  carrier: TargetTypeRef | undefined,
   planner: ArrayLiteralPlanner,
+  carrierResolution?: ReturnType<typeof resolveRuntimeCarrierForExpression>,
 ): CsharpExpression | undefined {
   if (arrayLiteralHasElision(node, input)) {
     return rejectSparseArrayLiteralElision(node, diagnostics);
@@ -84,7 +90,8 @@ export function planArrayLiteralExpressionWithCarrier(
   if (carrier?.kind === "tuple") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planner);
   }
-  diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires finalized TSTS/provider array runtime-carrier facts with array element type evidence before C# emission."));
+  const detail = missingCarrierDiagnosticDetail(carrierResolution ?? resolveRuntimeCarrierForExpression(input, node, sourceFile), "Runtime carrier fact is missing for the array literal.");
+  diagnostics.push(unsupportedNodeDiagnostic(node, `Array literal emission requires finalized TSTS/provider array runtime-carrier facts with array element type evidence before C# emission. ${detail.reason}`, detail.evidence));
   return undefined;
 }
 
@@ -185,10 +192,12 @@ function createNativeCollectionSpreadChunks(
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       continue;
     }
-    const spreadCarrier = getTargetTypeRefForNode(input, expression, sourceFile);
+    const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
+    const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
     const spreadType = spreadCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(spreadCarrier);
     if (spreadType === undefined || !arraySpreadElementCarrierMatches(elementCarrier, spreadCarrier)) {
-      diagnostics.push(unsupportedNodeDiagnostic(element, "JS surface array spread requires a finalized provider collection carrier with matching element type before C# emission."));
+      const detail = missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.");
+      diagnostics.push(unsupportedNodeDiagnostic(element, `JS surface array spread requires a finalized provider collection carrier with matching element type before C# emission. ${detail.reason}`, detail.evidence));
       continue;
     }
     const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
@@ -295,9 +304,11 @@ function createJsArrayLiteralChunks(
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       continue;
     }
-    const spreadCarrier = getTargetTypeRefForNode(input, expression, sourceFile);
+    const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
+    const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
     if (!isCsharpJsArrayCarrierTargetType(spreadCarrier)) {
-      diagnostics.push(unsupportedNodeDiagnostic(element, "JS surface array spread requires a finalized JSArray carrier fact for the spread expression."));
+      const detail = missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the JS array spread expression.");
+      diagnostics.push(unsupportedNodeDiagnostic(element, `JS surface array spread requires a finalized JSArray carrier fact for the spread expression. ${detail.reason}`, detail.evidence));
       continue;
     }
     const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
@@ -485,7 +496,8 @@ function createArraySpreadChunks(
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
       continue;
     }
-    const spreadCarrier = getTargetTypeRefForNode(input, expression, sourceFile);
+    const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
+    const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
     const spreadType = spreadCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(spreadCarrier);
     if (spreadType !== undefined && sameCsharpType(spreadType, expectedArrayType)) {
       const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
@@ -518,7 +530,8 @@ function createArraySpreadChunks(
       continue;
     }
     if (spreadType === undefined || !sameCsharpType(spreadType, expectedArrayType)) {
-      diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a finalized provider array carrier matching the target array element type before C# emission."));
+      const detail = missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.");
+      diagnostics.push(unsupportedNodeDiagnostic(element, `Array spread requires a finalized provider array carrier matching the target array element type before C# emission. ${detail.reason}`, detail.evidence));
       continue;
     }
   }

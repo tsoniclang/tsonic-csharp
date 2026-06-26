@@ -380,6 +380,23 @@ test("bigint literal emission requires finalized runtime carrier fact", () => {
   assert.match(diagnostics[0].message, /BigInt literal emission requires a finalized runtime carrier fact/);
 });
 
+test("bigint literal carrier diagnostics preserve resolver reason and evidence", () => {
+  const expression = {
+    Kind: KindBigIntLiteral,
+    Text: "1n",
+  };
+  const diagnostics = [];
+
+  planExpression(expression, {}, fakeInput({
+    missingRuntimeCarrierReason: "BigInt literal target primitive fact was not finalized",
+    missingRuntimeCarrierEvidence: [{ message: "source primitive bigint lacked System.Numerics.BigInteger mapping" }],
+  }), diagnostics);
+
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /BigInt literal target primitive fact was not finalized/);
+  assert.deepEqual(diagnostics[0].evidence, ["source primitive bigint lacked System.Numerics.BigInteger mapping"]);
+});
+
 test("bigint literal emission uses finalized BigInteger carrier and Roslyn AST", () => {
   const expression = {
     Kind: KindBigIntLiteral,
@@ -697,8 +714,8 @@ function fakeInput(options = {}) {
     targetFacts: {
       getTargetBinding: () => undefined,
       getTargetBindingForReference: () => undefined,
-      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(options.runtimeCarrierFacts?.get(subject)?.carrier),
-      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(options.runtimeCarrierFacts?.get(subject)?.carrier),
+      resolveRuntimeCarrier: (subject) => runtimeCarrierResolution(options, subject),
+      resolveRuntimeCarrierForNode: (subject) => runtimeCarrierResolution(options, subject),
       resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
       resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
       resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
@@ -725,6 +742,14 @@ function fakeInput(options = {}) {
       getTypeReferenceTarget: (type) => type,
     },
   };
+}
+
+function runtimeCarrierResolution(options, subject) {
+  const fact = options.runtimeCarrierFacts?.get(subject) ??
+    (subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined);
+  return fact === undefined
+    ? missingCarrierResolution(options.missingRuntimeCarrierReason, options.missingRuntimeCarrierEvidence)
+    : resolvedCarrierResolution(fact.carrier);
 }
 
 const fakeAst = {

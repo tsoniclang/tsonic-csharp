@@ -51,7 +51,9 @@ import {
   targetTypeRefsMatch,
 } from "./target-types.js";
 import {
-  getRuntimeCarrierForExpression,
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   getCsharpTaskResultTargetType,
@@ -87,9 +89,11 @@ export function tryPlanSourceSyntaxExpression(
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires parseable source literal text from TSTS."));
         return undefined;
       }
-      const carrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
+      const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
+      const carrier = probeCarrierFromResolution(carrierResolution);
       if (carrier === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a finalized runtime carrier fact before C# emission."));
+        const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the BigInt literal.");
+        diagnostics.push(unsupportedNodeDiagnostic(node, `BigInt literal emission requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
         return undefined;
       }
       if (!targetTypeRefsMatch(carrier, csharpBigIntegerTargetType())) {
@@ -149,19 +153,23 @@ export function tryPlanSourceSyntaxExpression(
         diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression must have an expression."));
         return undefined;
       }
-      const awaitedCarrier = getRuntimeCarrierForExpression(input, expression.Expression, sourceFile);
+      const awaitedCarrierResolution = resolveRuntimeCarrierForExpression(input, expression.Expression, sourceFile);
+      const awaitedCarrier = probeCarrierFromResolution(awaitedCarrierResolution);
       const awaitedResultCarrier = getCsharpTaskResultTargetType(awaitedCarrier);
       if (awaitedResultCarrier === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression emission requires a finalized Promise/Task target carrier fact for the awaited expression."));
+        const detail = missingCarrierDiagnosticDetail(awaitedCarrierResolution, "Runtime carrier fact is missing for the awaited expression.");
+        diagnostics.push(unsupportedNodeDiagnostic(node, `Await expression emission requires a finalized Promise/Task target carrier fact for the awaited expression. ${detail.reason}`, detail.evidence));
         return undefined;
       }
-      const awaitCarrier = getRuntimeCarrierForExpression(input, node, sourceFile);
+      const awaitCarrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
+      const awaitCarrier = probeCarrierFromResolution(awaitCarrierResolution);
       if (
         awaitCarrier === undefined
           ? !targetTypeRefsMatch(awaitedResultCarrier, csharpVoidTargetType())
           : !targetTypeRefsMatch(awaitCarrier, awaitedResultCarrier)
       ) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression emission requires the finalized await-result carrier to match the awaited Promise/Task result carrier."));
+        const detail = missingCarrierDiagnosticDetail(awaitCarrierResolution, "Runtime carrier fact is missing for the await expression result.");
+        diagnostics.push(unsupportedNodeDiagnostic(node, `Await expression emission requires the finalized await-result carrier to match the awaited Promise/Task result carrier. ${detail.reason}`, detail.evidence));
         return undefined;
       }
       const awaited = planExpression(expression.Expression, sourceFile, input, diagnostics);

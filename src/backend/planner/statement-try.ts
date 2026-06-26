@@ -16,7 +16,11 @@ import type {
 import type { DestructuringPlannerState } from "./bindings.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { requireCsharpIdentifier } from "./identifiers.js";
-import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
+import {
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
 import { isCsharpThrowableCarrier } from "./statement-output.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 
@@ -74,11 +78,18 @@ function planCatchClause(
         },
       };
     }
-    const carrier = getRuntimeCarrierForExpression(input, variable.name ?? clause.VariableDeclaration, sourceFile) ??
-      getRuntimeCarrierForExpression(input, clause.VariableDeclaration, sourceFile);
+    const primaryCarrierResolution = resolveRuntimeCarrierForExpression(input, variable.name ?? clause.VariableDeclaration, sourceFile);
+    const primaryCarrier = probeCarrierFromResolution(primaryCarrierResolution);
+    const declarationCarrierResolution = primaryCarrier === undefined
+      ? resolveRuntimeCarrierForExpression(input, clause.VariableDeclaration, sourceFile)
+      : undefined;
+    const carrier = primaryCarrier ?? probeCarrierFromResolution(declarationCarrierResolution);
     const variableType = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
     if (!isCsharpThrowableCarrier(carrier) || variableType === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, "Catch variables require finalized TSTS/provider exception-carrier facts before C# emission."));
+      const detail = carrier === undefined
+        ? missingCarrierDiagnosticDetail(declarationCarrierResolution ?? primaryCarrierResolution, "Runtime carrier fact is missing for the catch variable.")
+        : { reason: "Resolved catch variable carrier is not a renderable target throwable carrier.", evidence: [] };
+      diagnostics.push(unsupportedNodeDiagnostic(variable.name ?? clause.VariableDeclaration, `Catch variables require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
       return {
         kind: "CatchClause",
         body: {

@@ -5,7 +5,9 @@ import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { targetTypeRefsMatch } from "./target-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
-  getRuntimeCarrierForExpression,
+  missingCarrierDiagnosticDetail,
+  probeCarrierFromResolution,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   csharpTargetOperationFactKey,
@@ -23,9 +25,11 @@ export function planRegularExpressionLiteral(
     diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires finalized provider pattern and flags facts."));
     return undefined;
   }
-  const carrier = getRuntimeCarrierForExpression(input, node, sourceFile);
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
+  const carrier = probeCarrierFromResolution(carrierResolution);
   if (carrier === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "RegExp literal emission requires a finalized JS surface RegExp runtime carrier fact before C# emission."));
+    const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the RegExp literal.");
+    diagnostics.push(unsupportedNodeDiagnostic(node, `RegExp literal emission requires a finalized JS surface RegExp runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
     return undefined;
   }
   const operation = input.facts.getFact(node, csharpTargetOperationFactKey);

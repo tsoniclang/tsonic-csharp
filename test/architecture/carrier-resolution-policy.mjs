@@ -5,10 +5,12 @@ import test from "node:test";
 
 const repoRoot = new URL("../..", import.meta.url).pathname;
 const bannedOptionalCarrierQueries = Object.freeze([
+  "carrierFromResolution",
   "getRuntimeCarrierForNode",
   "getResolvedCallReturnRuntimeCarrier",
   "getResolvedCallParameterRuntimeCarriers",
   "getReturnTypeCarrierFromDeclaration",
+  "getInferredSignatureReturnType",
 ]);
 
 test("C# backend and tests consume structured target carrier resolutions", () => {

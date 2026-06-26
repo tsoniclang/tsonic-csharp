@@ -25,7 +25,11 @@ import {
   planObjectBindingPattern,
 } from "./binding-object-patterns.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
-import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
+import {
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import {
@@ -123,8 +127,9 @@ export function getCsharpTypeForExpressionCarrier(
   diagnosticNode: Node,
   description: string,
 ): CsharpTypeNode {
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
   const carrier = getArrayBoundaryCoreCarrierForExpression(input, expression, sourceFile) ??
-    getRuntimeCarrierForExpression(input, expression, sourceFile);
+    probeCarrierFromResolution(carrierResolution);
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
   if (type !== undefined) {
     return type;
@@ -136,6 +141,7 @@ export function getCsharpTypeForExpressionCarrier(
       return objectShapeType;
     }
   }
-  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires a finalized runtime carrier fact before C# emission.`));
+  const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the destructuring source expression.");
+  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
   return invalidCsharpType("missing destructuring source carrier");
 }

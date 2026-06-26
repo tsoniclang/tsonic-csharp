@@ -38,7 +38,9 @@ import {
   planExpressionWithExpectedType,
 } from "./expressions.js";
 import {
-  getRuntimeCarrierForExpression,
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   findControlLabel,
@@ -135,9 +137,13 @@ export function planThrowStatement(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
     return [];
   }
-  const carrier = getRuntimeCarrierForExpression(input, statement.Expression, sourceFile);
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, statement.Expression, sourceFile);
+  const carrier = probeCarrierFromResolution(carrierResolution);
   if (!isCsharpThrowableCarrier(carrier)) {
-    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require finalized TSTS/provider exception-carrier facts before C# emission."));
+    const detail = carrier === undefined
+      ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the thrown expression.")
+      : { reason: "Resolved thrown expression carrier is not a target throwable carrier.", evidence: [] };
+    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, `Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
     return [];
   }
   const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);

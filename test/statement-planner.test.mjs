@@ -192,6 +192,20 @@ test("conditions fail closed without finalized bool carrier facts", () => {
   assert.match(diagnostics[0].message, /condition requires a finalized C# bool runtime carrier/);
 });
 
+test("condition carrier diagnostics preserve resolver reason and evidence", () => {
+  const diagnostics = [];
+  const statement = whileStatement(identifier("flag"), block([]));
+
+  planStatements(statement, sourceFile, fakeInput({
+    missingRuntimeCarrierReason: "test resolver could not prove Flag maps to System.Boolean",
+    missingRuntimeCarrierEvidence: [{ message: "checked alias Flag -> bool lacked source-core carrier fact" }],
+  }), diagnostics);
+
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /test resolver could not prove Flag maps to System\.Boolean/);
+  assert.deepEqual(diagnostics[0].evidence, ["checked alias Flag -> bool lacked source-core carrier fact"]);
+});
+
 test("for, while, and do loops emit Roslyn AST from finalized bool condition facts", () => {
   const diagnostics = [];
   const whileFlag = identifier("whileFlag");
@@ -898,8 +912,8 @@ function fakeInput(options = {}) {
     targetFacts: {
       getTargetBinding: () => undefined,
       getTargetBindingForReference: () => undefined,
-      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(options.runtimeCarrierFacts?.get(subject)?.carrier),
-      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(options.runtimeCarrierFacts?.get(subject)?.carrier),
+      resolveRuntimeCarrier: (subject) => runtimeCarrierResolution(options, subject),
+      resolveRuntimeCarrierForNode: (subject) => runtimeCarrierResolution(options, subject),
       resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
       resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
       resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
@@ -926,6 +940,13 @@ function fakeInput(options = {}) {
       getTypeReferenceTarget: (type) => type,
     },
   };
+}
+
+function runtimeCarrierResolution(options, subject) {
+  const fact = options.runtimeCarrierFacts?.get(subject);
+  return fact === undefined
+    ? missingCarrierResolution(options.missingRuntimeCarrierReason, options.missingRuntimeCarrierEvidence)
+    : resolvedCarrierResolution(fact.carrier);
 }
 
 const sourceFile = {

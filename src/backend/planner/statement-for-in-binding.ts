@@ -29,7 +29,9 @@ import {
   requireCsharpIdentifier,
 } from "./identifiers.js";
 import {
-  getRuntimeCarrierForExpression,
+  missingCarrierDiagnosticDetail,
+  probeCarrierFromResolution,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   expressionStatement,
@@ -131,12 +133,14 @@ export function getCsharpTypeForForInCollection(
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   const carrier = getArrayBoundaryCoreCarrierForExpression(input, expression, sourceFile) ??
-    getRuntimeCarrierForExpression(input, expression, sourceFile);
+    probeCarrierFromResolution(resolveRuntimeCarrierForExpression(input, expression, sourceFile));
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
   if (type !== undefined) {
     return type;
   }
-  diagnostics.push(unsupportedNodeDiagnostic(expression, "For-in collection temp requires a finalized runtime carrier fact before C# emission."));
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
+  const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the for-in collection expression.");
+  diagnostics.push(unsupportedNodeDiagnostic(expression, `For-in collection temp requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
   return undefined;
 }
 

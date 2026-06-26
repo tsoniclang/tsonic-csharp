@@ -60,9 +60,9 @@ import {
   getCsharpObjectShapeFactForNode,
 } from "./csharp-fact-queries.js";
 import {
-  carrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  probeCarrierFromResolution,
   getRuntimeCarrierForExpression,
-  getTargetTypeRefForType,
 } from "./runtime-carriers.js";
 import {
   csharpTypeFromTargetTypeRef,
@@ -461,7 +461,10 @@ function planSourceOwnedCallArguments(
     if (argument === undefined) {
       continue;
     }
-    const expected = getResolvedSourceCallArgumentExpectation(call, index, sourceFile, input);
+    const expected = getResolvedSourceCallArgumentExpectation(call, argument, index, sourceFile, input, diagnostics);
+    if (expected?.kind === "failed") {
+      return undefined;
+    }
     const plannedArgument = planCallArgument(argument, sourceFile, input, diagnostics, expected?.type, expected?.subject);
     if (plannedArgument === undefined) {
       return undefined;
@@ -594,10 +597,12 @@ function substituteTargetTypeParameterReferences(
 
 function getResolvedSourceCallArgumentExpectation(
   call: Node,
+  argument: Node,
   argumentIndex: number,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): { readonly type?: CsharpTypeNode; readonly subject?: Node } | undefined {
+  diagnostics: TargetDiagnostic[],
+): { readonly kind?: "expectation"; readonly type?: CsharpTypeNode; readonly subject?: Node } | { readonly kind: "failed" } | undefined {
   const sourceCall = AsCallExpression(call);
   const declaration = input.analysis.getResolvedCallParameterDeclarations(call, { sourceFile })?.[argumentIndex];
   const declarationType = getNodeType(declaration);
@@ -609,22 +614,30 @@ function getResolvedSourceCallArgumentExpectation(
     };
   }
   const parameterCarrierResolution = input.targetFacts.resolveCallParameterRuntimeCarriers(call, { sourceFile });
-  const carrier = parameterCarrierResolution.kind === "resolved-parameters"
-    ? carrierFromResolution(parameterCarrierResolution.parameters[argumentIndex])
-    : undefined;
-  if (carrier !== undefined) {
+  if (parameterCarrierResolution.kind === "resolved-parameters") {
+    const carrierResolution = parameterCarrierResolution.parameters[argumentIndex];
+    const carrier = probeCarrierFromResolution(carrierResolution);
+    if (carrier === undefined && declaration !== undefined) {
+      const detail = missingCarrierDiagnosticDetail(carrierResolution, "Parameter runtime carrier fact is missing for the TSTS-selected source call parameter.");
+      diagnostics.push(unsupportedNodeDiagnostic(argument, `Source-owned call argument emission requires a finalized parameter carrier fact: ${detail.reason}`, detail.evidence));
+      return { kind: "failed" };
+    }
+    if (carrier === undefined) {
+      return undefined;
+    }
     const targetType = csharpTypeFromTargetTypeRef(carrier);
     if (targetType !== undefined) {
       return { type: targetType, subject: declarationType ?? declaration };
     }
+    diagnostics.push(unsupportedNodeDiagnostic(argument, "Source-owned call argument emission requires a renderable finalized parameter carrier fact."));
+    return { kind: "failed" };
   }
-  const parameterType = input.analysis.getResolvedCallParameterTypes(call, { sourceFile })?.[argumentIndex];
-  const targetType = getTargetTypeRefForType(input, parameterType, sourceFile);
-  const renderedType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
-  const subject = declarationType ?? declaration;
-  return renderedType === undefined && declaration === undefined
-    ? undefined
-    : { ...(renderedType !== undefined ? { type: renderedType } : {}), ...(subject !== undefined ? { subject } : {}) };
+  if (declaration !== undefined) {
+    const detail = missingCarrierDiagnosticDetail(parameterCarrierResolution, "Parameter carrier resolution is missing for the TSTS-selected source call signature.");
+    diagnostics.push(unsupportedNodeDiagnostic(argument, `Source-owned call argument emission requires finalized parameter carrier facts: ${detail.reason}`, detail.evidence));
+    return { kind: "failed" };
+  }
+  return undefined;
 }
 
 function getSubstitutedSourceCallParameterType(
