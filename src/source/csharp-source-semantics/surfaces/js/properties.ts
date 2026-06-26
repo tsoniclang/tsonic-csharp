@@ -33,13 +33,17 @@ import {
   csharpJsSourceLibraryMemberHasCallableTarget,
 } from "./policy.js";
 import {
+  getCsharpJsSourceLibraryMemberFromReceiverType,
+} from "./properties/source-identity.js";
+import {
   csharpJsSourceLibraryPropertyReceiverHasClosedFacts,
   csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection,
   csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts,
+} from "./properties/receiver-facts.js";
+import {
   csharpJsSourceLibraryPropertyPrecheck,
-  getCsharpJsSourceLibraryMemberFromReceiverType,
   getCsharpJsSourceLibraryPropertyMember,
-} from "./property-policy.js";
+} from "./properties/member-providers.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryPropertyAccess,
   rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
