@@ -33,9 +33,6 @@ import {
   csharpJsSourceLibraryMemberHasCallableProvider,
 } from "./calls/member-providers/index.js";
 import {
-  getCsharpJsSourceLibraryMemberFromReceiverType,
-} from "./properties/source-identity.js";
-import {
   csharpJsSourceLibraryPropertyReceiverHasClosedFacts,
   csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection,
   csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts,
@@ -114,8 +111,7 @@ function recordCsharpSourceLibraryPropertyFact(
     compiler.checker.getResolvedSymbol(node, { sourceFile });
   const declaration = firstSymbolDeclaration(propertySymbol);
   const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
-  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context) ??
-    getCsharpJsSourceLibraryMemberFromReceiverType(receiverType, compiler.ast.text(name), context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
   if (sourceMember === undefined) {
     return;
   }
