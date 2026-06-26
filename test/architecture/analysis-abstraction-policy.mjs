@@ -257,16 +257,6 @@ export const analysisAbstractionDebtOwners = Object.freeze([
 
 export const analysisAbstractionDebtCatalog = Object.freeze([
   entry(
-    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
-    {
-      "source-id-analysis-table-definition": 2,
-      "source-id-analysis-table-lookup": 3,
-    },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Array carrier requirements must be consumed as declarative source-use policy over lazy generic analysis records, not source-id dispatch tables.",
-  ),
-  entry(
     "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
     {
       "source-id-analysis-table-definition": 1,

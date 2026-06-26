@@ -1,10 +1,9 @@
 import type {
   SourceLibraryMember,
-  SourceLibraryMemberIdentityPolicy,
+  SourceLibraryMemberKey,
 } from "../source-library.js";
 import {
   sourceLibraryMemberIdSet,
-  sourceLibraryMemberMatches,
 } from "../source-library.js";
 import type {
   CsharpArrayCarrierRequirement,
@@ -14,33 +13,32 @@ export function getSourceLibraryArrayPropertyCarrierRequirements(
   sourceMember: SourceLibraryMember,
   isWriteTarget: boolean,
 ): readonly CsharpArrayCarrierRequirement[] {
-  const propertyRule = arrayPropertyUseRules.find((rule) => arrayPropertyUseRuleApplies(rule, sourceMember));
+  const propertyRule = propertyRequirementRowsBySourceIdentity.get(sourceMember.id);
   return propertyRule === undefined ? [] : isWriteTarget ? propertyRule.write ?? propertyRule.read : propertyRule.read;
 }
 
 export function sourceLibraryMemberHasArrayCarrierRequirementPolicy(sourceMember: SourceLibraryMember): boolean {
-  return arrayPropertyUseRules.some((rule) => arrayUseRuleApplies(rule, sourceMember)) ||
-    staticCallArgumentUseRules.some((rule) => arrayUseRuleApplies(rule, sourceMember));
+  return propertyRequirementRowsBySourceIdentity.has(sourceMember.id) ||
+    staticArgumentRequirementRowsBySourceIdentity.has(sourceMember.id);
 }
 
 export function getSourceLibraryStaticCallArgumentCarrierRequirements(
   sourceMember: SourceLibraryMember,
   argumentIndex: number,
 ): readonly CsharpArrayCarrierRequirement[] {
-  const rule = staticCallArgumentUseRules.find((candidate) =>
-    staticCallArgumentUseRuleApplies(candidate, sourceMember, argumentIndex)
-  );
+  const rule = staticArgumentRequirementRowsBySourceIdentity.get(sourceMember.id)
+    ?.find((candidate) => argumentIndexMatchesPolicy(candidate.argumentIndex, argumentIndex));
   return rule === undefined ? [] : rule.uses;
 }
 
 interface ArrayPropertyUseRule {
-  readonly identity: SourceLibraryMemberIdentityPolicy;
+  readonly sourceId: SourceLibraryMemberKey;
   readonly read: readonly CsharpArrayCarrierRequirement[];
   readonly write?: readonly CsharpArrayCarrierRequirement[];
 }
 
 interface StaticCallArgumentUseRule {
-  readonly identity: SourceLibraryMemberIdentityPolicy;
+  readonly sourceId: SourceLibraryMemberKey;
   readonly argumentIndex: StaticCallArgumentIndexPolicy;
   readonly uses: readonly CsharpArrayCarrierRequirement[];
 }
@@ -107,70 +105,69 @@ const fullJsArrayMemberIds = sourceMemberIdSet([
   "Array.with",
 ]);
 
-const arrayPropertyUseRules: readonly ArrayPropertyUseRule[] = [
-  {
-    identity: { ids: sourceMemberIdSet(["Array.length", "ReadonlyArray.length"]) },
-    read: ["length-read"],
-    write: ["full-js"],
-  },
-  {
-    identity: { ids: denseMutatingArrayMemberIds },
-    read: ["dense-mutation"],
-  },
-  {
-    identity: { ids: fullJsArrayMemberIds },
-    read: ["full-js"],
-  },
-  {
-    identity: { ids: readIndexableArrayMemberIds },
-    read: ["index-read"],
-  },
+const propertyRequirementRows: readonly ArrayPropertyUseRule[] = [
+  ...propertyRequirementRowsForIds(["Array.length", "ReadonlyArray.length"], ["length-read"], ["full-js"]),
+  ...propertyRequirementRowsForIds([...denseMutatingArrayMemberIds], ["dense-mutation"]),
+  ...propertyRequirementRowsForIds([...fullJsArrayMemberIds], ["full-js"]),
+  ...propertyRequirementRowsForIds([...readIndexableArrayMemberIds], ["index-read"]),
 ];
 
-const staticCallArgumentUseRules: readonly StaticCallArgumentUseRule[] = [
-  {
-    identity: { ids: sourceMemberIdSet(["Array.from"]) },
-    argumentIndex: 0,
-    uses: ["sequential-read"],
-  },
-  {
-    identity: { ids: sourceMemberIdSet(["Array.isArray"]) },
-    argumentIndex: 0,
-    uses: ["index-read"],
-  },
-  {
-    identity: { ids: sourceMemberIdSet(["Object.keys", "Object.values", "Object.entries"]) },
-    argumentIndex: 0,
-    uses: ["full-js"],
-  },
-  {
-    identity: { ids: sourceMemberIdSet(["Object.assign"]) },
-    argumentIndex: { greaterThan: 0 },
-    uses: ["full-js"],
-  },
+const staticArgumentRequirementRows: readonly StaticCallArgumentUseRule[] = [
+  staticArgumentRequirementRow("Array.from", 0, ["sequential-read"]),
+  staticArgumentRequirementRow("Array.isArray", 0, ["index-read"]),
+  staticArgumentRequirementRow("Object.keys", 0, ["full-js"]),
+  staticArgumentRequirementRow("Object.values", 0, ["full-js"]),
+  staticArgumentRequirementRow("Object.entries", 0, ["full-js"]),
+  staticArgumentRequirementRow("Object.assign", { greaterThan: 0 }, ["full-js"]),
 ];
+
+const propertyRequirementRowsBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, ArrayPropertyUseRule> =
+  new Map(propertyRequirementRows.map((row) => [row.sourceId, row]));
+
+const staticArgumentRequirementRowsBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly StaticCallArgumentUseRule[]> =
+  staticArgumentRequirementIndex(staticArgumentRequirementRows);
 
 function sourceMemberIdSet(ids: Parameters<typeof sourceLibraryMemberIdSet>[0]): ReturnType<typeof sourceLibraryMemberIdSet> {
   return sourceLibraryMemberIdSet(ids);
 }
 
-function arrayPropertyUseRuleApplies(rule: ArrayPropertyUseRule, sourceMember: SourceLibraryMember): boolean {
-  return arrayUseRuleApplies(rule, sourceMember);
+function propertyRequirementRowsForIds(
+  sourceIds: readonly SourceLibraryMemberKey[],
+  read: readonly CsharpArrayCarrierRequirement[],
+  write?: readonly CsharpArrayCarrierRequirement[],
+): readonly ArrayPropertyUseRule[] {
+  return sourceIds.map((sourceId) => ({
+    sourceId,
+    read,
+    ...(write === undefined ? {} : { write }),
+  }));
 }
 
-function staticCallArgumentUseRuleApplies(
-  rule: StaticCallArgumentUseRule,
-  sourceMember: SourceLibraryMember,
-  argumentIndex: number,
-): boolean {
-  return arrayUseRuleApplies(rule, sourceMember) && argumentIndexMatchesPolicy(rule.argumentIndex, argumentIndex);
+function staticArgumentRequirementRow(
+  sourceId: SourceLibraryMemberKey,
+  argumentIndex: StaticCallArgumentIndexPolicy,
+  uses: readonly CsharpArrayCarrierRequirement[],
+): StaticCallArgumentUseRule {
+  return {
+    sourceId,
+    argumentIndex,
+    uses,
+  };
 }
 
-function arrayUseRuleApplies(
-  rule: Pick<ArrayPropertyUseRule | StaticCallArgumentUseRule, "identity">,
-  sourceMember: SourceLibraryMember,
-): boolean {
-  return sourceLibraryMemberMatches(sourceMember, rule.identity);
+function staticArgumentRequirementIndex(
+  rows: readonly StaticCallArgumentUseRule[],
+): ReadonlyMap<SourceLibraryMemberKey, readonly StaticCallArgumentUseRule[]> {
+  const index = new Map<SourceLibraryMemberKey, StaticCallArgumentUseRule[]>();
+  for (const row of rows) {
+    const existing = index.get(row.sourceId);
+    if (existing === undefined) {
+      index.set(row.sourceId, [row]);
+    } else {
+      existing.push(row);
+    }
+  }
+  return index;
 }
 
 function argumentIndexMatchesPolicy(policy: StaticCallArgumentIndexPolicy, argumentIndex: number): boolean {
