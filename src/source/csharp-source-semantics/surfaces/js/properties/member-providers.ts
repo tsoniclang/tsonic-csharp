@@ -22,7 +22,7 @@ import {
 } from "../objects.js";
 import {
   regExpPropertyTargetMemberForSourceName,
-} from "../regexp.js";
+} from "../regexp/index.js";
 import type {
   SourceLibraryMember,
   SourceLibraryMemberIdentityPolicy,

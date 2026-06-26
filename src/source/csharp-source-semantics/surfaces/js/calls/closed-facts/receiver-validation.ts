@@ -25,7 +25,7 @@ import {
 import {
   getCsharpJsRegExpRuntimeCarrierForSubject,
   isCsharpJsRegExpRuntimeCarrier,
-} from "../../regexp.js";
+} from "../../regexp/index.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,

@@ -38,7 +38,7 @@ import {
 } from "../objects.js";
 import {
   regExpTargetMembersForSourceName,
-} from "../regexp.js";
+} from "../regexp/index.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,

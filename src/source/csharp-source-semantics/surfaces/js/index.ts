@@ -15,7 +15,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   mapCsharpJsRegExpRuntimeCarrier,
-} from "./regexp.js";
+} from "./regexp/index.js";
 import {
   mapCsharpJsDateRuntimeCarrier,
 } from "./date/index.js";

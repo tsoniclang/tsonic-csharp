@@ -19,7 +19,7 @@ import {
 } from "../numbers.js";
 import {
   isCsharpJsRegExpRuntimeCarrier,
-} from "../regexp.js";
+} from "../regexp/index.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,

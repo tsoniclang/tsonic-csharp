@@ -32,7 +32,7 @@ import {
 import {
   csharpJsRegExpTargetType,
   isCsharpJsRegExpRuntimeCarrier,
-} from "../dist/source/csharp-source-semantics/surfaces/js/regexp.js";
+} from "../dist/source/csharp-source-semantics/surfaces/js/regexp/index.js";
 import {
   csharpJsDateTargetType,
   isCsharpJsDateRuntimeCarrier,

@@ -57,7 +57,7 @@ import {
 } from "./surfaces/js/dictionary-lifecycle.js";
 import {
   recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization,
-} from "./surfaces/js/regexp.js";
+} from "./surfaces/js/regexp/index.js";
 import {
   recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/date/index.js";
