@@ -32,7 +32,7 @@ import {
   csharpTargetOperationFromMember,
 } from "./source-library.js";
 import {
-  getCsharpRecordDictionaryKeysTargetMembers,
+  getCsharpRecordDictionaryKeysTargetMembers as recordDictionaryKeyCollectionCandidates,
   isCsharpRecordDictionaryTargetType,
 } from "../../dictionaries.js";
 import {
@@ -181,7 +181,7 @@ export function mapCsharpJsSurfaceCheckedIteration(
       if (host.getCsharpTargetBindingByTargetId === undefined || host.getCsharpTargetBindingByMetadataName === undefined) {
         return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_RECORD_DICTIONARY_FOR_IN_PROVIDER_FACT_MISSING", 9100126, "C# Record dictionary for-in requires provider-owned Dictionary target binding facts before key enumeration emission."));
       }
-      const candidates = getCsharpRecordDictionaryKeysTargetMembers(expressionType, {
+      const candidates = recordDictionaryKeyCollectionCandidates(expressionType, {
         getCsharpTargetBindingByTargetId: host.getCsharpTargetBindingByTargetId,
         getCsharpTargetBindingByMetadataName: host.getCsharpTargetBindingByMetadataName,
       });

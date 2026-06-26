@@ -18,7 +18,7 @@ import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
 import {
-  getCsharpRecordDictionaryIndexerTargetMembers,
+  getCsharpRecordDictionaryIndexerTargetMembers as recordDictionaryIndexerCandidates,
   isCsharpRecordDictionaryTargetType,
 } from "../../dictionaries.js";
 
@@ -34,7 +34,7 @@ export function mapCsharpJsRecordDictionaryElementAccess(
   if (host.getCsharpTargetBindingByTargetId === undefined || host.getCsharpTargetBindingByMetadataName === undefined) {
     return undefined;
   }
-  const candidates = getCsharpRecordDictionaryIndexerTargetMembers(receiverType, {
+  const candidates = recordDictionaryIndexerCandidates(receiverType, {
     getCsharpTargetBindingByTargetId: host.getCsharpTargetBindingByTargetId,
     getCsharpTargetBindingByMetadataName: host.getCsharpTargetBindingByMetadataName,
   });

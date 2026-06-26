@@ -30,7 +30,7 @@ import type {
   TargetTypeRefResolutionOptions,
 } from "../../target-type-ref-resolution.js";
 import {
-  getCsharpRecordDictionaryIndexerTargetMembers,
+  getCsharpRecordDictionaryIndexerTargetMembers as recordDictionaryIndexerCandidates,
   isCsharpRecordDictionaryTargetType,
 } from "../../dictionaries.js";
 import {
@@ -80,7 +80,7 @@ export function recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization
       if (!isCsharpRecordDictionaryTargetType(receiverType)) {
         return;
       }
-      const candidates = getCsharpRecordDictionaryIndexerTargetMembers(receiverType, host);
+      const candidates = recordDictionaryIndexerCandidates(receiverType, host);
       const member = candidates.length === 1
         ? candidates[0]
         : selectTargetMember(candidates, { arguments: [argument] }, context, host.getTargetTypeRefForSubject, {
