@@ -8,7 +8,7 @@ import type {
   CsharpJsSurfaceHost,
 } from "../source-library.js";
 import {
-  getSourceLibraryMember,
+  resolveSourceLibraryMemberIdentity,
 } from "../source-library.js";
 import {
   getSignatureDeclaration,
@@ -48,7 +48,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
   const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature);
-  const sourceMember = getSourceLibraryMember(signatureDeclaration ?? request.sourceSelectedDeclaration, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(signatureDeclaration ?? request.sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
     return undefined;
   }

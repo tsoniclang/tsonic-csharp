@@ -15,7 +15,7 @@ import {
 } from "@tsonic/tsts";
 import {
   asType,
-  getSourceLibraryMember,
+  resolveSourceLibraryMemberIdentity,
 } from "./source-library.js";
 import type {
   CsharpJsSurfaceHost,
@@ -171,7 +171,7 @@ function isCheckedSourceLibraryArrayConstruction(
 ): boolean {
   const signature = context.compiler?.checker.getResolvedSignature(node, { sourceFile });
   const declaration = asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
-  const sourceMember = getSourceLibraryMember(declaration, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
   return csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember);
 }
 

@@ -64,7 +64,7 @@ import {
   validateCsharpTargetConstraint,
 } from "./target-constraint-validation.js";
 import {
-  getSourceLibraryMember,
+  resolveSourceLibraryMemberIdentity,
 } from "./source-library.js";
 import {
   isSourceStandardLibraryArrayLikeType,
@@ -226,14 +226,14 @@ function jsSurfaceOwnsCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): boolean {
-  return getSourceLibraryMember(request.sourceSelectedDeclaration, context) !== undefined;
+  return resolveSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, context) !== undefined;
 }
 
 function jsSurfaceOwnsCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): boolean {
-  return getSourceLibraryMember(request.sourceSelectedDeclaration, context) !== undefined;
+  return resolveSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, context) !== undefined;
 }
 
 function jsSurfaceOwnsCheckedElementAccess(

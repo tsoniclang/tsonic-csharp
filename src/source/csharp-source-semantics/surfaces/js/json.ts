@@ -24,7 +24,7 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-  getSourceLibraryMember,
+  resolveSourceLibraryMemberIdentity,
   targetParameter,
 } from "./source-library.js";
 import type {
@@ -170,7 +170,7 @@ function isCheckedJsonParseCall(
   }
   const signature = compiler.checker.getResolvedSignature(call, { sourceFile });
   const declaration = getSignatureDeclaration(signature);
-  const sourceMember = getSourceLibraryMember(declaration, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
   if (sourceMember?.id !== "JSON.parse") {
     return false;
   }

@@ -19,7 +19,7 @@ import type {
 import {
   csharpTargetOperationFromMember,
   csharpJsCheckedTypeQuery,
-  getSourceLibraryMember,
+  resolveSourceLibraryMemberIdentity,
   recordCsharpTargetOperation,
   sourceLibraryMemberIdentity,
   sourceLibraryMemberName,
@@ -58,7 +58,7 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, context);
   return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host);
 }
 
@@ -110,7 +110,7 @@ function recordCsharpSourceLibraryPropertyFact(
     compiler.checker.getResolvedSymbol(node, { sourceFile });
   const declaration = firstSymbolDeclaration(propertySymbol);
   const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
-  const sourceMember = getSourceLibraryMember(declaration, context) ??
+  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context) ??
     getCsharpJsSourceLibraryMemberFromReceiverType(receiverType, compiler.ast.text(name), context);
   if (sourceMember === undefined) {
     return;

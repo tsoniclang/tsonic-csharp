@@ -74,7 +74,7 @@ export function sourceLibraryMemberMatchesAnyPrefix(
   return sourceLibraryMemberMatches(sourceMember, { prefixes });
 }
 
-export function getSourceLibraryMember(
+export function resolveSourceLibraryMemberIdentity(
   declarationSubject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): SourceLibraryMember | undefined {

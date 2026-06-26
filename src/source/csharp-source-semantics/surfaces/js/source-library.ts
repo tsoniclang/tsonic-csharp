@@ -20,8 +20,8 @@ export type {
 } from "../../source-library.js";
 export {
   createSourceLibraryMember,
-  getSourceLibraryMember,
   isSourceLibraryType,
+  resolveSourceLibraryMemberIdentity,
   sourceLibraryMemberIdSet,
   sourceLibraryMemberIdentity,
   sourceLibraryMemberMatches,

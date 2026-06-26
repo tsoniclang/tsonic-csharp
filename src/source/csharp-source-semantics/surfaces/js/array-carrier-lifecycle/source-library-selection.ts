@@ -9,7 +9,7 @@ import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../../runtime-carriers.js";
 import {
-  getSourceLibraryMember,
+  resolveSourceLibraryMemberIdentity,
 } from "../source-library.js";
 import type {
   SourceLibraryMember,
@@ -49,7 +49,7 @@ function arraySourceLibraryMemberFromDeclaration(
   lifecycleContext: LifecycleContext,
 ): SourceLibraryMember | undefined {
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const member = getSourceLibraryMember(declaration, context);
+  const member = resolveSourceLibraryMemberIdentity(declaration, context);
   return member !== undefined && sourceLibraryMemberHasArrayUsePolicy(member)
     ? member
     : undefined;

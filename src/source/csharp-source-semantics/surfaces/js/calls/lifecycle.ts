@@ -29,7 +29,7 @@ import type {
   CsharpJsSurfaceHost,
 } from "../source-library.js";
 import {
-  getSourceLibraryMember,
+  resolveSourceLibraryMemberIdentity,
   sourceLibraryMemberIdSet,
   sourceLibraryMemberMatchesAny,
 } from "../source-library.js";
@@ -133,7 +133,7 @@ function recordCsharpSourceLibraryCallFact(
   }
   const sourceSelectedSignature = compiler.checker.getResolvedSignature(node, { sourceFile }) as ExtensionFactSubject | undefined;
   const sourceSelectedDeclaration = getSignatureDeclaration(sourceSelectedSignature);
-  const sourceMember = getSourceLibraryMember(sourceSelectedDeclaration, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
     return "pending";
   }
@@ -225,7 +225,7 @@ function recordCollectionRuntimeCarrierFactsForSelectedCall(
   node: Node,
   calleeReceiver: Node | undefined,
   sourceFile: SourceFile,
-  sourceMember: NonNullable<ReturnType<typeof getSourceLibraryMember>>,
+  sourceMember: NonNullable<ReturnType<typeof resolveSourceLibraryMemberIdentity>>,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): void {
@@ -242,7 +242,7 @@ function recordCollectionRuntimeCarrierFactsForSelectedCall(
 }
 
 function sourceMemberIsCollection(
-  sourceMember: NonNullable<ReturnType<typeof getSourceLibraryMember>>,
+  sourceMember: NonNullable<ReturnType<typeof resolveSourceLibraryMemberIdentity>>,
 ): boolean {
   return csharpJsSourceLibraryMemberIsCollection(sourceMember);
 }
@@ -257,7 +257,7 @@ const collectionConstructorSourceMemberIds = sourceLibraryMemberIdSet([
 function recordArrayConstructorRuntimeCarrierFact(
   node: Node,
   sourceFile: SourceFile,
-  sourceMember: NonNullable<ReturnType<typeof getSourceLibraryMember>>,
+  sourceMember: NonNullable<ReturnType<typeof resolveSourceLibraryMemberIdentity>>,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): void {
