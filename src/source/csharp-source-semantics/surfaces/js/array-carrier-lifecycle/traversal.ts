@@ -66,7 +66,7 @@ export function collectArrayParameters(
       semanticType,
       elementType,
       sourceUses,
-      carrierRequirements: carrierRequirementsForArrayStructuralUses(sourceUses, sourceFile, lifecycleContext),
+      carrierRequirements: carrierRequirementsForArrayStructuralUses(sourceUses, elementType, lifecycleContext),
     });
   });
   return parameters;

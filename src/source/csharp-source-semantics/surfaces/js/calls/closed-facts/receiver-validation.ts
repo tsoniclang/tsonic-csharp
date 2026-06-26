@@ -29,12 +29,13 @@ import {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
-  SourceLibraryMemberIdentityPolicy,
 } from "../../source-library.js";
 import {
-  sourceLibraryMemberMatches,
-  sourceLibraryMemberIdSet,
-} from "../../source-library.js";
+  type JsSurfaceSourceIdentitySelector,
+  jsSurfaceSelectMetadataRowForSourceIdentity,
+  jsSurfaceSelectedSourceIdentityForMember,
+  jsSurfaceSourceIdentityMatchesSelector,
+} from "../../target-member-metadata.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
   getSourceLibraryCallReceiverTargetTypes,
@@ -54,16 +55,16 @@ import {
 } from "./target-type-support.js";
 
 interface ClosedFactsRule {
-  readonly identity: SourceLibraryMemberIdentityPolicy;
+  readonly identity: JsSurfaceSourceIdentitySelector;
   readonly requirement: ClosedFactsRequirement;
 }
 
 type ClosedFactsRequirement =
-  | { readonly kind: "receiver"; readonly target: ReceiverTargetCondition; readonly except?: SourceLibraryMemberIdentityPolicy; readonly selectedDeclarationSatisfies?: boolean }
+  | { readonly kind: "receiver"; readonly target: ReceiverTargetCondition; readonly except?: JsSurfaceSourceIdentitySelector; readonly selectedDeclarationSatisfies?: boolean }
   | { readonly kind: "arguments"; readonly conditions: readonly ArgumentCondition[] }
   | { readonly kind: "object-assign" }
-  | { readonly kind: "array-receiver"; readonly concatRequiresKnownArguments?: boolean; readonly except?: SourceLibraryMemberIdentityPolicy }
-  | { readonly kind: "collection-receiver"; readonly target: "map" | "set"; readonly except?: SourceLibraryMemberIdentityPolicy };
+  | { readonly kind: "array-receiver"; readonly concatRequiresKnownArguments?: boolean; readonly except?: JsSurfaceSourceIdentitySelector }
+  | { readonly kind: "collection-receiver"; readonly target: "map" | "set"; readonly except?: JsSurfaceSourceIdentitySelector };
 
 type ReceiverTargetCondition =
   | "array-like"
@@ -86,15 +87,15 @@ type ArgumentTargetCondition =
   | "js-object";
 
 const numberStaticCallWithoutReceiverPolicy = {
-  ids: sourceIds(
+  ids: [
     "Number.parseInt",
     "Number.parseFloat",
     "Number.isNaN",
     "Number.isFinite",
     "Number.isInteger",
     "Number.isSafeInteger",
-  ),
-} satisfies SourceLibraryMemberIdentityPolicy;
+  ],
+} satisfies JsSurfaceSourceIdentitySelector;
 
 const closedFactRequirementRows: readonly ClosedFactsRule[] = [
   { identity: { prefixes: ["Array."] }, requirement: { kind: "array-receiver", except: arrayStaticCallWithoutReceiverPolicy, concatRequiresKnownArguments: true } },
@@ -105,20 +106,20 @@ const closedFactRequirementRows: readonly ClosedFactsRule[] = [
   { identity: { prefixes: ["RegExp."] }, requirement: { kind: "receiver", target: "regexp", except: regexpConstructorPolicy } },
   { identity: { prefixes: ["Date."] }, requirement: { kind: "receiver", target: "date", except: dateStaticCallWithoutReceiverPolicy, selectedDeclarationSatisfies: true } },
   { identity: objectHasOwnPropertyPolicy, requirement: { kind: "receiver", target: "js-object" } },
-  { identity: { ids: sourceIds("JSON.parse") }, requirement: { kind: "arguments", conditions: [
+  { identity: { ids: ["JSON.parse"] }, requirement: { kind: "arguments", conditions: [
     { index: 0, target: "string" },
   ] } },
-  { identity: { ids: sourceIds("JSON.stringify") }, requirement: { kind: "arguments", conditions: [
+  { identity: { ids: ["JSON.stringify"] }, requirement: { kind: "arguments", conditions: [
     { index: 0, target: "json-value" },
   ] } },
-  { identity: { ids: sourceIds("Object.keys", "Object.values", "Object.entries") }, requirement: { kind: "arguments", conditions: [
+  { identity: { ids: ["Object.keys", "Object.values", "Object.entries"] }, requirement: { kind: "arguments", conditions: [
     { index: 0, target: "object-helper" },
   ] } },
-  { identity: { ids: sourceIds("Object.hasOwn") }, requirement: { kind: "arguments", conditions: [
+  { identity: { ids: ["Object.hasOwn"] }, requirement: { kind: "arguments", conditions: [
     { index: 0, target: "js-object" },
     { index: 1, target: "string" },
   ] } },
-  { identity: { ids: sourceIds("Object.assign") }, requirement: { kind: "object-assign" } },
+  { identity: { ids: ["Object.assign"] }, requirement: { kind: "object-assign" } },
   { identity: { prefixes: ["Map.", "ReadonlyMap."] }, requirement: { kind: "collection-receiver", target: "map", except: collectionConstructorIdentityPolicy } },
   { identity: { prefixes: ["Set.", "ReadonlySet."] }, requirement: { kind: "collection-receiver", target: "set", except: collectionConstructorIdentityPolicy } },
 ];
@@ -129,19 +130,20 @@ export function sourceLibraryCallReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  const rule = closedFactRequirementRows.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
-  return rule === undefined || closedFactsRequirementIsSatisfied(rule.requirement, request, context, sourceMember, host);
+  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
+  const rule = jsSurfaceSelectMetadataRowForSourceIdentity(closedFactRequirementRows, selectedIdentity);
+  return rule === undefined || closedFactsRequirementIsSatisfied(rule.requirement, request, context, selectedIdentity, host);
 }
 
 function closedFactsRequirementIsSatisfied(
   requirement: ClosedFactsRequirement,
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  sourceMember: SourceLibraryMember,
+  selectedIdentity: ReturnType<typeof jsSurfaceSelectedSourceIdentityForMember>,
   host: CsharpJsSurfaceHost,
 ): boolean {
   const except = closedFactsRequirementExcept(requirement);
-  if (except !== undefined && sourceLibraryMemberMatches(sourceMember, except)) {
+  if (except !== undefined && jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, except)) {
     return true;
   }
   switch (requirement.kind) {
@@ -155,7 +157,7 @@ function closedFactsRequirementIsSatisfied(
     case "object-assign":
       return objectAssignFactsAreClosed(request, context, host);
     case "array-receiver":
-      return arrayReceiverFactsAreClosed(requirement, request, context, host, sourceMember);
+      return arrayReceiverFactsAreClosed(requirement, request, context, host, selectedIdentity);
     case "collection-receiver":
       return getSourceLibraryCallReceiverTargetTypes(request, context, host)
         .some((receiverType) => requirement.target === "map" ? isCsharpJsMapTargetType(receiverType) : isCsharpJsSetTargetType(receiverType));
@@ -167,10 +169,10 @@ function arrayReceiverFactsAreClosed(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
-  sourceMember: SourceLibraryMember,
+  selectedIdentity: ReturnType<typeof jsSurfaceSelectedSourceIdentityForMember>,
 ): boolean {
   if (requirement.concatRequiresKnownArguments === true &&
-    sourceLibraryMemberMatches(sourceMember, arrayConcatSourceMemberPolicy) &&
+    jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, arrayConcatSourceMemberPolicy) &&
     getSourceLibraryCallArgumentTargetTypes(request, context, host).some((argumentType) => argumentType === undefined)) {
     return false;
   }
@@ -243,7 +245,7 @@ function argumentMatchesTargetCondition(
   }
 }
 
-function closedFactsRequirementExcept(requirement: ClosedFactsRequirement): SourceLibraryMemberIdentityPolicy | undefined {
+function closedFactsRequirementExcept(requirement: ClosedFactsRequirement): JsSurfaceSourceIdentitySelector | undefined {
   switch (requirement.kind) {
     case "receiver":
     case "array-receiver":
@@ -253,8 +255,4 @@ function closedFactsRequirementExcept(requirement: ClosedFactsRequirement): Sour
     case "object-assign":
       return undefined;
   }
-}
-
-function sourceIds(...ids: Parameters<typeof sourceLibraryMemberIdSet>[0]): ReturnType<typeof sourceLibraryMemberIdSet> {
-  return sourceLibraryMemberIdSet(ids);
 }

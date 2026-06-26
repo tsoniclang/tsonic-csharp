@@ -1,18 +1,15 @@
 import type {
   SourceFile,
   Symbol,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   TargetSourceUseRecord,
 } from "@tsonic/target-api";
 import {
-  getSourceLibraryArrayPropertyCarrierRequirements,
-  getSourceLibraryStaticCallArgumentCarrierRequirements,
+  carrierRequirementsForStructuralCallArgumentUse,
+  carrierRequirementsForStructuralPropertyUse,
 } from "./array-use-rules.js";
-import {
-  getSelectedArraySourceLibraryMemberForCall,
-  getSelectedArraySourceLibraryMemberForPropertyAccess,
-} from "./source-library-selection.js";
 import type {
   CsharpArrayCarrierRequirement,
   LifecycleContext,
@@ -29,15 +26,15 @@ export function collectArrayStructuralUsesForSymbol(
 
 export function carrierRequirementsForArrayStructuralUses(
   sourceUses: readonly TargetSourceUseRecord[],
-  sourceFile: SourceFile,
+  elementType: TargetTypeRef,
   lifecycleContext: LifecycleContext,
 ): ReadonlySet<CsharpArrayCarrierRequirement> {
-  return new Set(sourceUses.flatMap((use) => carrierRequirementsForArrayStructuralUse(use, sourceFile, lifecycleContext)));
+  return new Set(sourceUses.flatMap((use) => carrierRequirementsForArrayStructuralUse(use, elementType, lifecycleContext)));
 }
 
 function carrierRequirementsForArrayStructuralUse(
   use: TargetSourceUseRecord,
-  sourceFile: SourceFile,
+  elementType: TargetTypeRef,
   lifecycleContext: LifecycleContext,
 ): readonly CsharpArrayCarrierRequirement[] {
   if (use.operation === "element") {
@@ -50,12 +47,7 @@ function carrierRequirementsForArrayStructuralUse(
     return ["full-js"];
   }
   if (use.operation === "property" || use.operation === "call") {
-    const sourceMember = use.expression === undefined
-      ? undefined
-      : getSelectedArraySourceLibraryMemberForPropertyAccess(use.expression, sourceFile, lifecycleContext);
-    return sourceMember === undefined
-      ? []
-      : getSourceLibraryArrayPropertyCarrierRequirements(sourceMember, use.access === "write");
+    return carrierRequirementsForStructuralPropertyUse(use, elementType, lifecycleContext);
   }
   if (use.operation === "iteration") {
     return use.iterationKind === "for-in" ? ["index-read", "length-read"] : ["sequential-read"];
@@ -63,11 +55,8 @@ function carrierRequirementsForArrayStructuralUse(
   if (use.operation === "spread") {
     return ["sequential-read"];
   }
-  if (use.operation === "argument" && use.call !== undefined && use.argumentIndex !== undefined) {
-    const sourceMember = getSelectedArraySourceLibraryMemberForCall(use.call, sourceFile, lifecycleContext);
-    return sourceMember === undefined
-      ? []
-      : getSourceLibraryStaticCallArgumentCarrierRequirements(sourceMember, use.argumentIndex);
+  if (use.operation === "argument") {
+    return carrierRequirementsForStructuralCallArgumentUse(use, elementType, lifecycleContext);
   }
   return [];
 }

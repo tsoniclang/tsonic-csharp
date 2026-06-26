@@ -11,6 +11,22 @@ import {
   dateTargetMemberTypes,
 } from "./types.js";
 
+export interface DateSemanticExceptionMetadata {
+  readonly reason: string;
+  readonly provenance: string;
+}
+
+export interface DateTargetMemberIdentityMetadata {
+  readonly id: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly semanticException?: DateSemanticExceptionMetadata;
+}
+
+export type DateTargetMemberMetadata = JsSurfaceTargetMemberMetadata & {
+  readonly semanticException?: DateSemanticExceptionMetadata;
+};
+
 export function dateConstructorMetadata(
   id: string,
   parameters: readonly ReturnType<typeof targetParameter>[],
@@ -27,36 +43,37 @@ export function dateConstructorMetadata(
 }
 
 export function dateStaticMethodMetadata(
-  sourceName: string,
+  identity: DateTargetMemberIdentityMetadata,
   parameters: readonly ReturnType<typeof targetParameter>[],
   returnType: TargetTypeRef,
-): JsSurfaceTargetMemberMetadata {
+): DateTargetMemberMetadata {
   return {
-    id: `Tsonic.CSharp.Js.Date.${sourceName}`,
-    sourceName,
-    targetName: sourceName,
+    id: identity.id,
+    sourceName: identity.sourceName,
+    targetName: identity.targetName,
     kind: "method",
     parameters,
     returnType,
     declaringType: dateTargetMemberTypes.dateType,
     static: true,
+    ...(identity.semanticException === undefined ? {} : { semanticException: identity.semanticException }),
   };
 }
 
 export function dateMethodMetadata(
-  sourceName: string,
+  identity: DateTargetMemberIdentityMetadata,
   parameters: readonly ReturnType<typeof targetParameter>[],
   returnType: TargetTypeRef,
-  targetName = sourceName,
-): JsSurfaceTargetMemberMetadata {
+): DateTargetMemberMetadata {
   return {
-    id: `Tsonic.CSharp.Js.Date.${sourceName}`,
-    sourceName,
-    targetName,
+    id: identity.id,
+    sourceName: identity.sourceName,
+    targetName: identity.targetName,
     kind: "method",
     parameters,
     returnType,
     declaringType: dateTargetMemberTypes.dateType,
+    ...(identity.semanticException === undefined ? {} : { semanticException: identity.semanticException }),
   };
 }
 

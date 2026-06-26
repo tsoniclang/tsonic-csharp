@@ -5,12 +5,16 @@ import type {
 } from "@tsonic/tsts";
 import type {
   SourceLibraryMember,
-  SourceLibraryMemberIdentityPolicy,
+  SourceLibraryMemberKey,
+  SourceLibraryMemberKeyPrefix,
 } from "../source-library.js";
 import {
-  sourceLibraryMemberIdSet,
-  sourceLibraryMemberMatches,
-} from "../source-library.js";
+  type JsSurfaceSelectedSourceIdentity,
+  type JsSurfaceSourceIdentitySelector,
+  jsSurfaceSelectMetadataRowForSourceIdentity,
+  jsSurfaceSelectedSourceIdentityForMember,
+  jsSurfaceSourceIdentityMatchesSelector,
+} from "../target-member-metadata.js";
 import {
   getSourceStandardLibraryDeclaringNameForType,
 } from "../../../source-type-classification.js";
@@ -44,17 +48,24 @@ export function collectionPolicyForSourceName(sourceName: string): CsharpJsColle
 }
 
 export function collectionPolicyForSourceMember(sourceMember: SourceLibraryMember): CsharpJsCollectionTypePolicy | undefined {
-  return csharpJsCollectionPolicies.find((policy) =>
-    sourceLibraryMemberMatches(sourceMember, sourceMemberIdentityPolicyForCollection(policy))
-  );
+  return collectionPolicyForSelectedSourceIdentity(jsSurfaceSelectedSourceIdentityForMember(sourceMember));
 }
 
-export function collectionMemberPolicyApplies(
+export function collectionPolicyForSelectedSourceIdentity(
+  identity: JsSurfaceSelectedSourceIdentity,
+): CsharpJsCollectionTypePolicy | undefined {
+  return jsSurfaceSelectMetadataRowForSourceIdentity(collectionPolicyRows, identity)?.policy;
+}
+
+export function collectionMemberPolicyForSelectedSourceIdentity(
   policy: CsharpJsCollectionTypePolicy,
-  memberPolicy: CsharpJsCollectionMemberPolicy,
-  sourceMember: SourceLibraryMember,
-): boolean {
-  return sourceLibraryMemberMatches(sourceMember, sourceMemberIdentityPolicyForCollectionMember(policy, memberPolicy));
+  identity: JsSurfaceSelectedSourceIdentity,
+): CsharpJsCollectionMemberPolicy | undefined {
+  return jsSurfaceSelectMetadataRowForSourceIdentity(
+    policy.members,
+    identity,
+    (memberPolicy) => sourceMemberIdentityPolicyForCollectionMember(policy, memberPolicy),
+  );
 }
 
 export function collectionPolicyForSourceType(type: Type, context: ExtensionObservationContext): CsharpJsCollectionTypePolicy | undefined {
@@ -67,28 +78,40 @@ export const collectionSizeIdentityPolicy = sourceMemberIdentityPolicyForSourceN
   "size",
 );
 
+export function collectionSourceIdentityMatchesSize(identity: JsSurfaceSelectedSourceIdentity): boolean {
+  return jsSurfaceSourceIdentityMatchesSelector(identity, collectionSizeIdentityPolicy);
+}
+
 export function collectionPolicyForTargetType(type: TargetTypeRef | undefined): CsharpJsCollectionTypePolicy | undefined {
   return csharpJsCollectionPolicies.find((policy) => csharpJsCollectionTargetTypeMatches(policy, type));
 }
 
 function sourceMemberIdentityPolicyForCollection(
   policy: CsharpJsCollectionTypePolicy,
-): SourceLibraryMemberIdentityPolicy {
+): JsSurfaceSourceIdentitySelector {
   return sourceMemberIdentityPolicyForSourceNames(policy.sourceNames);
 }
 
 function sourceMemberIdentityPolicyForCollectionMember(
   policy: CsharpJsCollectionTypePolicy,
   memberPolicy: CsharpJsCollectionMemberPolicy,
-): SourceLibraryMemberIdentityPolicy {
+): JsSurfaceSourceIdentitySelector {
   return sourceMemberIdentityPolicyForSourceNames(policy.sourceNames, memberPolicy.sourceName);
 }
 
 function sourceMemberIdentityPolicyForSourceNames(
   sourceNames: readonly string[],
   memberName?: string,
-): SourceLibraryMemberIdentityPolicy {
+): JsSurfaceSourceIdentitySelector {
   return memberName === undefined
-    ? { prefixes: sourceNames.map((sourceName) => `${sourceName}.`) as NonNullable<SourceLibraryMemberIdentityPolicy["prefixes"]> }
-    : { ids: sourceLibraryMemberIdSet(sourceNames.map((sourceName) => `${sourceName}.${memberName}`) as Parameters<typeof sourceLibraryMemberIdSet>[0]) };
+    ? { prefixes: sourceNames.map((sourceName) => `${sourceName}.`) as SourceLibraryMemberKeyPrefix[] }
+    : { ids: sourceNames.map((sourceName) => `${sourceName}.${memberName}`) as SourceLibraryMemberKey[] };
 }
+
+const collectionPolicyRows: readonly {
+  readonly identity: JsSurfaceSourceIdentitySelector;
+  readonly policy: CsharpJsCollectionTypePolicy;
+}[] = csharpJsCollectionPolicies.map((policy) => ({
+  identity: sourceMemberIdentityPolicyForCollection(policy),
+  policy,
+}));

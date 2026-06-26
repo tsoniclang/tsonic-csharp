@@ -60,6 +60,24 @@ const jsonArrayElementType: TargetTypeRef = {
   name: "T",
 };
 
+interface JsonSemanticExceptionMetadata {
+  readonly reason: string;
+  readonly provenance: string;
+}
+
+type JsonTargetMemberMetadata = JsSurfaceTargetMemberMetadata & {
+  readonly semanticException?: JsonSemanticExceptionMetadata;
+};
+
+interface JsonStaticMethodMetadataRow {
+  readonly id: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly parameters: readonly ReturnType<typeof targetParameter>[];
+  readonly returnType: TargetTypeRef;
+  readonly semanticException?: JsonSemanticExceptionMetadata;
+}
+
 export function csharpJsJsonValueTargetType(): TargetTypeRef {
   return jsonValueTargetType;
 }
@@ -118,47 +136,87 @@ export function jsonTargetMembersForSourceMember(sourceMember: SourceLibraryMemb
   return jsSurfaceTargetMembersForSourceMember(jsonTargetMemberIdentityIndex, sourceMember);
 }
 
-function jsonStaticMethodMetadata(
-  idSuffix: string,
-  sourceName: string,
-  parameters: readonly ReturnType<typeof targetParameter>[],
-  returnType: TargetTypeRef,
-): JsSurfaceTargetMemberMetadata {
+function jsonStaticMethodMetadata(row: JsonStaticMethodMetadataRow): JsonTargetMemberMetadata {
   return {
-    id: `Tsonic.CSharp.Js.JSON.${idSuffix}`,
-    sourceName,
-    targetName: sourceName,
+    id: row.id,
+    sourceName: row.sourceName,
+    targetName: row.targetName,
     kind: "method",
-    parameters,
-    returnType,
+    parameters: row.parameters,
+    returnType: row.returnType,
     declaringType: jsonRuntimeType,
     static: true,
+    ...(row.semanticException === undefined ? {} : { semanticException: row.semanticException }),
   };
 }
 
 const jsonTargetMemberMetadata = [
-  jsonStaticMethodMetadata("parse", "parse", [
-    targetParameter("text", stringTargetType),
-  ], jsonValueTargetType),
-  jsonStaticMethodMetadata("stringify:string", "stringify", [
-    targetParameter("value", stringTargetType),
-  ], stringTargetType),
-  jsonStaticMethodMetadata("stringify:number", "stringify", [
-    targetParameter("value", numberTargetType),
-  ], stringTargetType),
-  jsonStaticMethodMetadata("stringify:bool", "stringify", [
-    targetParameter("value", boolTargetType),
-  ], stringTargetType),
-  jsonStaticMethodMetadata("stringify:object", "stringify", [
-    targetParameter("value", csharpJsObjectCarrierTargetType()),
-  ], stringTargetType),
-  jsonStaticMethodMetadata("stringify:array", "stringify", [
-    targetParameter("value", csharpJsArrayCarrierTargetType(jsonArrayElementType)),
-  ], stringTargetType),
-  jsonStaticMethodMetadata("stringify:tsvalue", "stringify", [
-    targetParameter("value", jsonValueTargetType),
-  ], stringTargetType),
-] satisfies readonly JsSurfaceTargetMemberMetadata[];
+  jsonStaticMethodMetadata({
+    id: "Tsonic.CSharp.Js.JSON.parse",
+    sourceName: "parse",
+    targetName: "parse",
+    parameters: [targetParameter("text", stringTargetType)],
+    returnType: jsonValueTargetType,
+    semanticException: {
+      reason: "JSON.parse returns the closed TsValue runtime carrier instead of System.Object.",
+      provenance: "TypeScript standard-library JSON.parse declaration selected with a provider-proven string argument.",
+    },
+  }),
+  jsonStaticMethodMetadata({
+    id: "Tsonic.CSharp.Js.JSON.stringify:string",
+    sourceName: "stringify",
+    targetName: "stringify",
+    parameters: [targetParameter("value", stringTargetType)],
+    returnType: stringTargetType,
+  }),
+  jsonStaticMethodMetadata({
+    id: "Tsonic.CSharp.Js.JSON.stringify:number",
+    sourceName: "stringify",
+    targetName: "stringify",
+    parameters: [targetParameter("value", numberTargetType)],
+    returnType: stringTargetType,
+  }),
+  jsonStaticMethodMetadata({
+    id: "Tsonic.CSharp.Js.JSON.stringify:bool",
+    sourceName: "stringify",
+    targetName: "stringify",
+    parameters: [targetParameter("value", boolTargetType)],
+    returnType: stringTargetType,
+  }),
+  jsonStaticMethodMetadata({
+    id: "Tsonic.CSharp.Js.JSON.stringify:object",
+    sourceName: "stringify",
+    targetName: "stringify",
+    parameters: [targetParameter("value", csharpJsObjectCarrierTargetType())],
+    returnType: stringTargetType,
+    semanticException: {
+      reason: "JSON.stringify accepts the closed JSObject carrier through the JSON runtime shim.",
+      provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized JSObject carrier facts.",
+    },
+  }),
+  jsonStaticMethodMetadata({
+    id: "Tsonic.CSharp.Js.JSON.stringify:array",
+    sourceName: "stringify",
+    targetName: "stringify",
+    parameters: [targetParameter("value", csharpJsArrayCarrierTargetType(jsonArrayElementType))],
+    returnType: stringTargetType,
+    semanticException: {
+      reason: "JSON.stringify accepts the closed JSArray carrier through the JSON runtime shim.",
+      provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized JSArray carrier facts.",
+    },
+  }),
+  jsonStaticMethodMetadata({
+    id: "Tsonic.CSharp.Js.JSON.stringify:tsvalue",
+    sourceName: "stringify",
+    targetName: "stringify",
+    parameters: [targetParameter("value", jsonValueTargetType)],
+    returnType: stringTargetType,
+    semanticException: {
+      reason: "JSON.stringify preserves the closed TsValue carrier produced by JSON.parse.",
+      provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized TsValue carrier facts.",
+    },
+  }),
+] satisfies readonly JsonTargetMemberMetadata[];
 const jsonTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("JSON", jsonTargetMemberMetadata);
 
 function isCheckedJsonParseCall(

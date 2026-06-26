@@ -27,27 +27,46 @@ const numberType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const numberValueParameter = targetParameter("value", numberType);
+
+interface NumberMethodMetadataRow {
+  readonly id: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly parameters: readonly ReturnType<typeof targetParameter>[];
+  readonly returnType: TargetTypeRef;
+  readonly receiverPassing?: "first-argument";
+}
+
+interface NumberPropertyMetadataRow {
+  readonly id: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+}
+
 const numberTargetMemberMetadata = [
-  staticNumberMethodMetadata("parseInt", [targetParameter("str", stringType)], numberType),
-  staticNumberMethodMetadata("parseInt", [targetParameter("str", stringType), targetParameter("radix", intType)], numberType, "radix"),
-  staticNumberMethodMetadata("parseFloat", [targetParameter("str", stringType)], numberType),
-  ...["isNaN", "isFinite", "isInteger", "isSafeInteger"].map((sourceName) =>
-    staticNumberMethodMetadata(sourceName, [numberValueParameter], boolType)
-  ),
-  instanceNumberMethodMetadata("toString", stringType),
-  instanceNumberMethodMetadata("valueOf", numberType),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.parseInt", sourceName: "parseInt", targetName: "parseInt", parameters: [targetParameter("str", stringType)], returnType: numberType }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.parseInt:radix", sourceName: "parseInt", targetName: "parseInt", parameters: [targetParameter("str", stringType), targetParameter("radix", intType)], returnType: numberType }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.parseFloat", sourceName: "parseFloat", targetName: "parseFloat", parameters: [targetParameter("str", stringType)], returnType: numberType }),
+  ...[
+    { id: "Tsonic.CSharp.Js.Number.isNaN", sourceName: "isNaN", targetName: "isNaN" },
+    { id: "Tsonic.CSharp.Js.Number.isFinite", sourceName: "isFinite", targetName: "isFinite" },
+    { id: "Tsonic.CSharp.Js.Number.isInteger", sourceName: "isInteger", targetName: "isInteger" },
+    { id: "Tsonic.CSharp.Js.Number.isSafeInteger", sourceName: "isSafeInteger", targetName: "isSafeInteger" },
+  ].map((row) => numberMethodMetadata({ ...row, parameters: [numberValueParameter], returnType: boolType })),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toString", sourceName: "toString", targetName: "toString", parameters: [numberValueParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.valueOf", sourceName: "valueOf", targetName: "valueOf", parameters: [numberValueParameter], returnType: numberType, receiverPassing: "first-argument" }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 const numberTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberTargetMemberMetadata);
 const numberPropertyTargetMemberMetadata = [
-  "MAX_VALUE",
-  "MIN_VALUE",
-  "MAX_SAFE_INTEGER",
-  "MIN_SAFE_INTEGER",
-  "POSITIVE_INFINITY",
-  "NEGATIVE_INFINITY",
-  "NaN",
-  "EPSILON",
-].map((sourceName) => numberPropertyMetadata(sourceName)) satisfies readonly JsSurfaceTargetMemberMetadata[];
+  { id: "Tsonic.CSharp.Js.Number.MAX_VALUE", sourceName: "MAX_VALUE", targetName: "MAX_VALUE" },
+  { id: "Tsonic.CSharp.Js.Number.MIN_VALUE", sourceName: "MIN_VALUE", targetName: "MIN_VALUE" },
+  { id: "Tsonic.CSharp.Js.Number.MAX_SAFE_INTEGER", sourceName: "MAX_SAFE_INTEGER", targetName: "MAX_SAFE_INTEGER" },
+  { id: "Tsonic.CSharp.Js.Number.MIN_SAFE_INTEGER", sourceName: "MIN_SAFE_INTEGER", targetName: "MIN_SAFE_INTEGER" },
+  { id: "Tsonic.CSharp.Js.Number.POSITIVE_INFINITY", sourceName: "POSITIVE_INFINITY", targetName: "POSITIVE_INFINITY" },
+  { id: "Tsonic.CSharp.Js.Number.NEGATIVE_INFINITY", sourceName: "NEGATIVE_INFINITY", targetName: "NEGATIVE_INFINITY" },
+  { id: "Tsonic.CSharp.Js.Number.NaN", sourceName: "NaN", targetName: "NaN" },
+  { id: "Tsonic.CSharp.Js.Number.EPSILON", sourceName: "EPSILON", targetName: "EPSILON" },
+].map(numberPropertyMetadata) satisfies readonly JsSurfaceTargetMemberMetadata[];
 const numberPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberPropertyTargetMemberMetadata);
 
 export function isCsharpNumberTargetType(type: TargetTypeRef | undefined): boolean {
@@ -72,43 +91,25 @@ export function numberPropertyTargetMemberForSourceMember(sourceMember: SourceLi
   return jsSurfaceSingleTargetMemberForSourceMember(numberPropertyTargetMemberIdentityIndex, sourceMember);
 }
 
-function staticNumberMethodMetadata(
-  sourceName: string,
-  parameters: readonly ReturnType<typeof targetParameter>[],
-  returnType: TargetTypeRef,
-  idSuffix?: string,
-): JsSurfaceTargetMemberMetadata {
+function numberMethodMetadata(row: NumberMethodMetadataRow): JsSurfaceTargetMemberMetadata {
   return {
-    id: `Tsonic.CSharp.Js.Number.${sourceName}${idSuffix === undefined ? "" : `:${idSuffix}`}`,
-    sourceName,
-    targetName: sourceName,
+    id: row.id,
+    sourceName: row.sourceName,
+    targetName: row.targetName,
     kind: "method",
-    parameters,
-    returnType,
+    parameters: row.parameters,
+    returnType: row.returnType,
     declaringType: numberOpsType,
     static: true,
+    ...(row.receiverPassing === undefined ? {} : { receiverPassing: row.receiverPassing }),
   };
 }
 
-function instanceNumberMethodMetadata(sourceName: string, returnType: TargetTypeRef): JsSurfaceTargetMemberMetadata {
+function numberPropertyMetadata(row: NumberPropertyMetadataRow): JsSurfaceTargetMemberMetadata {
   return {
-    id: `Tsonic.CSharp.Js.Number.${sourceName}`,
-    sourceName,
-    targetName: sourceName,
-    kind: "method",
-    parameters: [numberValueParameter],
-    returnType,
-    declaringType: numberOpsType,
-    static: true,
-    receiverPassing: "first-argument",
-  };
-}
-
-function numberPropertyMetadata(sourceName: string): JsSurfaceTargetMemberMetadata {
-  return {
-    id: `Tsonic.CSharp.Js.Number.${sourceName}`,
-    sourceName,
-    targetName: sourceName,
+    id: row.id,
+    sourceName: row.sourceName,
+    targetName: row.targetName,
     kind: "property",
     returnType: numberType,
     declaringType: numberOpsType,

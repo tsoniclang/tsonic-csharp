@@ -39,11 +39,14 @@ import {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
-  SourceLibraryMemberIdentityPolicy,
 } from "../../source-library.js";
 import {
-  sourceLibraryMemberMatches,
-} from "../../source-library.js";
+  type JsSurfaceSelectedSourceIdentity,
+  type JsSurfaceSourceIdentitySelector,
+  jsSurfaceSelectMetadataRowForSourceIdentity,
+  jsSurfaceSelectedSourceIdentityForMember,
+  jsSurfaceSourceIdentityMatchesSelector,
+} from "../../target-member-metadata.js";
 import {
   stringTargetMembersForSourceMember,
 } from "../../strings.js";
@@ -66,7 +69,7 @@ import {
 } from "./object-members.js";
 
 interface SourceCallMetadataRow {
-  readonly identity: SourceLibraryMemberIdentityPolicy;
+  readonly identity: JsSurfaceSourceIdentitySelector;
   readonly members?: SourceCallMemberProvider;
   readonly callable?: SourceCallCallablePolicy;
 }
@@ -133,7 +136,14 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
   const policy = sourceCallMetadataRowForSourceMember(sourceMember);
   return policy?.members === undefined
     ? []
-    : callMembersFromProvider(policy.members, sourceMember, request, context, host);
+    : callMembersFromProvider(
+        policy.members,
+        sourceMember,
+        jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+        request,
+        context,
+        host,
+      );
 }
 
 export function csharpJsSourceLibraryMemberHasCallableProvider(
@@ -142,16 +152,25 @@ export function csharpJsSourceLibraryMemberHasCallableProvider(
   const policy = sourceCallMetadataRowForSourceMember(sourceMember);
   return policy?.callable === undefined
     ? false
-    : callablePolicyIsSatisfied(policy.callable, policy.members, sourceMember);
+    : callablePolicyIsSatisfied(
+        policy.callable,
+        policy.members,
+        sourceMember,
+        jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+      );
 }
 
 function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember): SourceCallMetadataRow | undefined {
-  return sourceCallMetadataRows.find((record) => sourceLibraryMemberMatches(sourceMember, record.identity));
+  return jsSurfaceSelectMetadataRowForSourceIdentity(
+    sourceCallMetadataRows,
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+  );
 }
 
 function callMembersFromProvider(
   provider: SourceCallMemberProvider,
   sourceMember: SourceLibraryMember,
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
@@ -173,7 +192,7 @@ function callMembersFromProvider(
       return collectionTargetMembersForSourceMember(
         sourceMember,
         getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
-        sourceLibraryMemberMatches(sourceMember, collectionConstructorIdentityPolicy)
+        jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, collectionConstructorIdentityPolicy)
           ? getSourceLibraryCallResultTargetType(request, context, host)
           : undefined,
       );
@@ -186,12 +205,14 @@ function callablePolicyIsSatisfied(
   policy: SourceCallCallablePolicy,
   provider: SourceCallMemberProvider | undefined,
   sourceMember: SourceLibraryMember,
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
 ): boolean {
   switch (policy.kind) {
     case "members-exist":
       return provider === undefined ? false : callableMembersFromProvider(provider, sourceMember).length > 0;
     case "array-members-or-call-surface":
-      return arrayTargetMembersForSourceMember(sourceMember).length > 0 || sourceLibraryMemberMatches(sourceMember, arrayCallableIdentityPolicy);
+      return arrayTargetMembersForSourceMember(sourceMember).length > 0 ||
+        jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, arrayCallableIdentityPolicy);
     case "collection-members-exist":
       return collectionTargetMembersForSourceMember(sourceMember, undefined, undefined).length > 0;
     case "always":
@@ -227,7 +248,10 @@ function arrayMembersFromClosedFacts(
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
   const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
-  if (sourceLibraryMemberMatches(sourceMember, arrayConstructorIdentityPolicy) && resultElementType === undefined) {
+  if (
+    jsSurfaceSourceIdentityMatchesSelector(jsSurfaceSelectedSourceIdentityForMember(sourceMember), arrayConstructorIdentityPolicy) &&
+    resultElementType === undefined
+  ) {
     return [];
   }
   return arrayTargetMembersForSourceMember(sourceMember, resultElementType ?? arrayElementTypeFromClosedFacts(request, context, host));
@@ -244,7 +268,7 @@ function arrayElementTypeFromClosedFacts(
 }
 
 function metadataPolicy(
-  identity: SourceLibraryMemberIdentityPolicy,
+  identity: JsSurfaceSourceIdentitySelector,
   membersForSourceMember: (sourceMember: SourceLibraryMember) => readonly TargetMember[],
 ): SourceCallMetadataRow {
   return {

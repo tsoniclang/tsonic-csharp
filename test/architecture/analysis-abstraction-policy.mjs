@@ -307,158 +307,23 @@ export const analysisAbstractionDebtOwners = Object.freeze([
   "tests",
 ]);
 
-const lazyAnalysisReplacement =
-  "Move source-use classification to target-neutral lazy analysis records; surface carrier policy must consume structural facts, not source-member tables.";
-
-const selectedIdentityReplacement =
-  "Route source operation handling through TSTS-selected declaration/signature identity plus declarative policy/provider metadata, not sourceMember id or name dispatch.";
-
 const providerMetadataReplacement =
   "Move target member identities into declarative provider/runtime metadata rows consumed by the generic selector; do not synthesize target members from source names.";
 
-const genericSelectorReplacement =
-  "Replace per-family lookup with the generic selected-source-identity to provider-metadata selector, preserving closed carrier fact diagnostics.";
-
 export const analysisAbstractionDebtCatalog = Object.freeze([
   entry(
-    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
-    {
-      "source-member-id-map-dispatch": 4,
-      "source-member-id-set-table-definition": 5,
-    },
-    "surface-policy-candidate",
-    "surface-provider",
-    lazyAnalysisReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/receiver-validation.ts",
-    {
-      "source-member-id-set-table-definition": 1,
-      "procedural-source-member-table-dispatch": 1,
-    },
-    "surface-policy-candidate",
-    "surface-provider",
-    genericSelectorReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/object-members.ts",
-    {
-      "source-member-id-set-table-definition": 3,
-      "procedural-source-member-table-dispatch": 1,
-    },
-    "provider-metadata-candidate",
-    "surface-provider",
-    providerMetadataReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
-    { "procedural-source-member-table-dispatch": 1 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    selectedIdentityReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/definitions.ts",
-    {
-      "source-member-id-set-table-definition": 1,
-      "procedural-source-member-table-dispatch": 1,
-    },
-    "provider-metadata-candidate",
-    "surface-provider",
-    genericSelectorReplacement,
-  ),
-  entry(
     "src/source/csharp-source-semantics/surfaces/js/console.ts",
-    {
-      "source-member-id-map-dispatch": 1,
-      "target-member-source-name-synthesis": 2,
-    },
-    "provider-metadata-candidate",
-    "surface-provider",
-    providerMetadataReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/date/target-members/builders.ts",
-    { "target-member-source-name-synthesis": 3 },
+    { "source-member-id-map-dispatch": 1 },
     "provider-metadata-candidate",
     "surface-provider",
     providerMetadataReplacement,
   ),
   entry(
     "src/source/csharp-source-semantics/surfaces/js/json.ts",
-    {
-      "source-member-id-set-table-definition": 1,
-      "target-member-source-name-synthesis": 1,
-    },
+    { "source-member-id-set-table-definition": 1 },
     "explicit-exception-candidate",
     "surface-provider",
     "Express JSON.parse/stringify as explicit semantic-exception records with provider/runtime metadata and tests; remove synthesized target member names.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/math.ts",
-    { "target-member-source-name-synthesis": 4 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    providerMetadataReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/numbers.ts",
-    { "target-member-source-name-synthesis": 6 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    providerMetadataReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/objects.ts",
-    { "target-member-source-name-synthesis": 3 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    providerMetadataReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
-    {
-      "source-member-id-map-dispatch": 1,
-      "procedural-source-member-table-dispatch": 1,
-    },
-    "provider-metadata-candidate",
-    "surface-provider",
-    selectedIdentityReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/properties/receiver-facts.ts",
-    { "procedural-source-member-table-dispatch": 1 },
-    "surface-policy-candidate",
-    "surface-provider",
-    genericSelectorReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/regexp/target-members.ts",
-    { "target-member-source-name-synthesis": 2 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    providerMetadataReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/strings.ts",
-    { "target-member-source-name-synthesis": 2 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    providerMetadataReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/target-member-metadata.ts",
-    { "source-member-id-map-dispatch": 1 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Index target member metadata by selected declaration/signature identity through the generic selector, not raw sourceMember.id.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/nodejs/filesystem/stats.ts",
-    { "target-member-source-name-synthesis": 4 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    providerMetadataReplacement,
   ),
 ]);
 

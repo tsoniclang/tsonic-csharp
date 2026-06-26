@@ -19,9 +19,13 @@ import type {
 } from "../../source-library.js";
 import {
   createSourceLibraryMember,
-  sourceLibraryMemberMatches,
-  sourceLibraryMemberIdSet,
 } from "../../source-library.js";
+import {
+  type JsSurfaceSourceIdentitySelector,
+  jsSurfaceSelectMetadataRowForSourceIdentity,
+  jsSurfaceSelectedSourceIdentityForMember,
+  jsSurfaceSourceIdentityMatchesSelector,
+} from "../../target-member-metadata.js";
 import {
   stringTargetMembersForSourceMember,
 } from "../../strings.js";
@@ -34,17 +38,19 @@ import {
   isStringKeyedRecordDictionaryTargetType,
 } from "../helpers.js";
 import {
-  objectRecordDictionaryIdentityPolicy,
   objectToStringIdentityPolicy,
 } from "./identities.js";
 
 const stringToStringSourceMember = createSourceLibraryMember("String", "toString");
 const booleanToStringSourceMember = createSourceLibraryMember("Boolean", "toString");
 const numberToStringSourceMember = createSourceLibraryMember("Number", "toString");
-const objectRecordDictionaryCallPolicies = [
-  { identity: { ids: sourceLibraryMemberIdSet(["Object.keys"]) }, operation: "keys" },
-  { identity: { ids: sourceLibraryMemberIdSet(["Object.values"]) }, operation: "values" },
-  { identity: { ids: sourceLibraryMemberIdSet(["Object.entries"]) }, operation: "entries" },
+const objectRecordDictionaryCallRows: readonly {
+  readonly identity: JsSurfaceSourceIdentitySelector;
+  readonly operation: "keys" | "values" | "entries";
+}[] = [
+  { identity: { ids: ["Object.keys"] }, operation: "keys" },
+  { identity: { ids: ["Object.values"] }, operation: "values" },
+  { identity: { ids: ["Object.entries"] }, operation: "entries" },
 ] as const;
 
 export function getObjectPrimitiveReceiverCallMembers(
@@ -53,7 +59,10 @@ export function getObjectPrimitiveReceiverCallMembers(
   host: CsharpJsSurfaceHost,
   sourceMember: SourceLibraryMember,
 ): readonly TargetMember[] {
-  if (!sourceLibraryMemberMatches(sourceMember, objectToStringIdentityPolicy)) {
+  if (!jsSurfaceSourceIdentityMatchesSelector(
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+    objectToStringIdentityPolicy,
+  )) {
     return [];
   }
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
@@ -70,8 +79,11 @@ export function getObjectRecordDictionaryCallMembers(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  const policy = objectRecordDictionaryCallPolicies.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
-  if (policy === undefined || !sourceLibraryMemberMatches(sourceMember, objectRecordDictionaryIdentityPolicy)) {
+  const policy = jsSurfaceSelectMetadataRowForSourceIdentity(
+    objectRecordDictionaryCallRows,
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+  );
+  if (policy === undefined) {
     return [];
   }
   const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request, context, host)

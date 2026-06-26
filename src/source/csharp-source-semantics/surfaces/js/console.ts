@@ -22,67 +22,82 @@ import {
 const consoleTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.console", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "console"));
 const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const stringTargetType = csharpTargetNamedType("System.String", undefined, { kind: "predefined", name: "string" });
+type ConsoleTargetParameter = ReturnType<typeof targetParameter>;
+
+interface ConsoleMethodMetadataRow {
+  readonly id: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly parameters?: readonly ConsoleTargetParameter[];
+}
 
 export function consoleTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
   const member = consoleTargetMembersBySourceIdentity.get(sourceMember.id);
   return member === undefined ? [] : [member];
 }
 
-function consoleMethodMetadata(
-  sourceName: string,
-  parameters: readonly ReturnType<typeof targetParameter>[] = [consoleDataParameter()],
-): JsSurfaceTargetMemberMetadata {
+function consoleMethodMetadata(row: ConsoleMethodMetadataRow): JsSurfaceTargetMemberMetadata {
   return {
-    id: `Tsonic.CSharp.Js.console.${sourceName}`,
-    sourceName,
-    targetName: sourceName,
+    id: row.id,
+    sourceName: row.sourceName,
+    targetName: row.targetName,
     kind: "method",
-    parameters,
+    parameters: row.parameters ?? [consoleDataParameter()],
     returnType: csharpVoidTargetType(),
     declaringType: consoleTargetType,
     static: true,
   };
 }
 
-function consoleDataParameter(): ReturnType<typeof targetParameter> {
+function consoleDataParameter(): ConsoleTargetParameter {
   return targetParameter("data", objectTargetType, {
     paramsArray: true,
     csharpAcceptsClosedSourceArgument: true,
   });
 }
 
-function optionalStringParameter(name: string): ReturnType<typeof targetParameter> {
+function optionalStringParameter(name: string): ConsoleTargetParameter {
   return targetParameter(name, stringTargetType, { optional: true });
 }
 
 const consoleTargetMemberMetadata = [
   ...[
-    "log",
-    "error",
-    "warn",
-    "info",
-    "debug",
-    "trace",
-    "group",
-    "groupCollapsed",
-  ].map((sourceName) => consoleMethodMetadata(sourceName)),
-  consoleMethodMetadata("clear", []),
-  consoleMethodMetadata("groupEnd", []),
-  consoleMethodMetadata("assert", [
-    targetParameter("condition", csharpSourcePrimitiveTargetType("bool")),
-    optionalStringParameter("message"),
-  ]),
-  consoleMethodMetadata("dir", [targetParameter("obj", objectTargetType, { csharpAcceptsClosedSourceArgument: true })]),
-  consoleMethodMetadata("dirxml", [targetParameter("obj", objectTargetType, { csharpAcceptsClosedSourceArgument: true })]),
-  consoleMethodMetadata("table", [targetParameter("data", objectTargetType, { csharpAcceptsClosedSourceArgument: true })]),
-  consoleMethodMetadata("time", [optionalStringParameter("label")]),
-  consoleMethodMetadata("timeEnd", [optionalStringParameter("label")]),
-  consoleMethodMetadata("timeLog", [
-    optionalStringParameter("label"),
-    consoleDataParameter(),
-  ]),
-  consoleMethodMetadata("count", [optionalStringParameter("label")]),
-  consoleMethodMetadata("countReset", [optionalStringParameter("label")]),
+    { id: "Tsonic.CSharp.Js.console.log", sourceName: "log", targetName: "log" },
+    { id: "Tsonic.CSharp.Js.console.error", sourceName: "error", targetName: "error" },
+    { id: "Tsonic.CSharp.Js.console.warn", sourceName: "warn", targetName: "warn" },
+    { id: "Tsonic.CSharp.Js.console.info", sourceName: "info", targetName: "info" },
+    { id: "Tsonic.CSharp.Js.console.debug", sourceName: "debug", targetName: "debug" },
+    { id: "Tsonic.CSharp.Js.console.trace", sourceName: "trace", targetName: "trace" },
+    { id: "Tsonic.CSharp.Js.console.group", sourceName: "group", targetName: "group" },
+    { id: "Tsonic.CSharp.Js.console.groupCollapsed", sourceName: "groupCollapsed", targetName: "groupCollapsed" },
+  ].map(consoleMethodMetadata),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.clear", sourceName: "clear", targetName: "clear", parameters: [] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.groupEnd", sourceName: "groupEnd", targetName: "groupEnd", parameters: [] }),
+  consoleMethodMetadata({
+    id: "Tsonic.CSharp.Js.console.assert",
+    sourceName: "assert",
+    targetName: "assert",
+    parameters: [
+      targetParameter("condition", csharpSourcePrimitiveTargetType("bool")),
+      optionalStringParameter("message"),
+    ],
+  }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.dir", sourceName: "dir", targetName: "dir", parameters: [targetParameter("obj", objectTargetType, { csharpAcceptsClosedSourceArgument: true })] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.dirxml", sourceName: "dirxml", targetName: "dirxml", parameters: [targetParameter("obj", objectTargetType, { csharpAcceptsClosedSourceArgument: true })] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.table", sourceName: "table", targetName: "table", parameters: [targetParameter("data", objectTargetType, { csharpAcceptsClosedSourceArgument: true })] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.time", sourceName: "time", targetName: "time", parameters: [optionalStringParameter("label")] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.timeEnd", sourceName: "timeEnd", targetName: "timeEnd", parameters: [optionalStringParameter("label")] }),
+  consoleMethodMetadata({
+    id: "Tsonic.CSharp.Js.console.timeLog",
+    sourceName: "timeLog",
+    targetName: "timeLog",
+    parameters: [
+      optionalStringParameter("label"),
+      consoleDataParameter(),
+    ],
+  }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.count", sourceName: "count", targetName: "count", parameters: [optionalStringParameter("label")] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.countReset", sourceName: "countReset", targetName: "countReset", parameters: [optionalStringParameter("label")] }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 
 const consoleTargetMembersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, TargetMember> =

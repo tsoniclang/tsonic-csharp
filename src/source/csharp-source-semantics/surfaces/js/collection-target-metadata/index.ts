@@ -11,9 +11,7 @@ import type {
   SourceLibraryMember,
 } from "../source-library.js";
 import {
-  sourceLibraryMemberMatches,
-} from "../source-library.js";
-import {
+  jsSurfaceSelectedSourceIdentityForMember,
   jsSurfaceTargetMemberFromMetadata,
 } from "../target-member-metadata.js";
 import {
@@ -25,11 +23,11 @@ import {
   getCsharpJsCollectionIterableElementType as getPolicyIterableElementType,
 } from "./target-types.js";
 import {
-  collectionMemberPolicyApplies,
-  collectionPolicyForSourceMember,
+  collectionMemberPolicyForSelectedSourceIdentity,
+  collectionPolicyForSelectedSourceIdentity,
   collectionPolicyForSourceType,
   collectionPolicyForTargetType,
-  collectionSizeIdentityPolicy,
+  collectionSourceIdentityMatchesSize,
 } from "./definitions.js";
 
 export {
@@ -61,12 +59,15 @@ export function collectionTargetMembersForSourceMember(
   receiverType: TargetTypeRef | undefined,
   resultType: TargetTypeRef | undefined,
 ): readonly TargetMember[] {
-  const policy = collectionPolicyForSourceMember(sourceMember);
+  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
+  const policy = collectionPolicyForSelectedSourceIdentity(selectedIdentity);
   const collectionType = policy === undefined
     ? undefined
     : closedCollectionTypeForPolicy(policy, receiverType, resultType);
   const typeArguments = collectionType?.kind === "target-named" ? collectionType.typeArguments ?? [] : [];
-  const memberPolicy = policy?.members.find((member) => collectionMemberPolicyApplies(policy, member, sourceMember));
+  const memberPolicy = policy === undefined
+    ? undefined
+    : collectionMemberPolicyForSelectedSourceIdentity(policy, selectedIdentity);
   return policy === undefined || collectionType === undefined || memberPolicy === undefined
     ? []
     : materializeCollectionMemberMetadata({
@@ -78,10 +79,11 @@ export function collectionTargetMembersForSourceMember(
 }
 
 export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMember, receiverType: TargetTypeRef | undefined): TargetMember | undefined {
-  if (!sourceLibraryMemberMatches(sourceMember, collectionSizeIdentityPolicy)) {
+  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
+  if (!collectionSourceIdentityMatchesSize(selectedIdentity)) {
     return undefined;
   }
-  const policy = collectionPolicyForSourceMember(sourceMember);
+  const policy = collectionPolicyForSelectedSourceIdentity(selectedIdentity);
   if (policy === undefined || collectionPolicyForTargetType(receiverType) !== policy) {
     return undefined;
   }
@@ -96,7 +98,7 @@ export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMem
 }
 
 function closedCollectionTypeForPolicy(
-  policy: NonNullable<ReturnType<typeof collectionPolicyForSourceMember>>,
+  policy: NonNullable<ReturnType<typeof collectionPolicyForSelectedSourceIdentity>>,
   receiverType: TargetTypeRef | undefined,
   resultType: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {

@@ -8,6 +8,10 @@ import type {
   SourceLibraryDeclaringKey,
   SourceLibraryMember,
   SourceLibraryMemberKey,
+  SourceLibraryMemberKeyPrefix,
+} from "./source-library.js";
+import {
+  sourceLibraryMemberIdentity,
 } from "./source-library.js";
 
 export interface JsSurfaceTargetMemberMetadata {
@@ -21,6 +25,52 @@ export interface JsSurfaceTargetMemberMetadata {
   readonly static?: boolean;
   readonly receiverPassing?: TargetMember["receiverPassing"];
   readonly typeParameters?: readonly TargetTypeParameter[];
+}
+
+export interface JsSurfaceSelectedSourceIdentity {
+  readonly key: SourceLibraryMemberKey;
+}
+
+export interface JsSurfaceSourceIdentitySelector {
+  readonly ids?: ReadonlySet<SourceLibraryMemberKey> | readonly SourceLibraryMemberKey[];
+  readonly prefixes?: readonly SourceLibraryMemberKeyPrefix[];
+}
+
+export function jsSurfaceSelectedSourceIdentityForMember(
+  sourceMember: SourceLibraryMember,
+): JsSurfaceSelectedSourceIdentity {
+  return { key: sourceLibraryMemberIdentity(sourceMember) };
+}
+
+export function jsSurfaceSourceIdentityMatchesSelector(
+  identity: JsSurfaceSelectedSourceIdentity,
+  selector: JsSurfaceSourceIdentitySelector,
+): boolean {
+  return (selector.ids === undefined || sourceIdentityIdsContain(selector.ids, identity.key)) &&
+    (selector.prefixes === undefined || selector.prefixes.some((prefix) => identity.key.startsWith(prefix)));
+}
+
+export function jsSurfaceSourceIdentityMatchesAnySelector(
+  identity: JsSurfaceSelectedSourceIdentity,
+  selectors: readonly JsSurfaceSourceIdentitySelector[],
+): boolean {
+  return selectors.some((selector) => jsSurfaceSourceIdentityMatchesSelector(identity, selector));
+}
+
+export function jsSurfaceSelectMetadataRowForSourceIdentity<T>(
+  rows: readonly T[],
+  identity: JsSurfaceSelectedSourceIdentity,
+  selectorsForRow: (row: T) => JsSurfaceSourceIdentitySelector | readonly JsSurfaceSourceIdentitySelector[] = defaultSourceIdentitySelectorForRow,
+): T | undefined {
+  for (const row of rows) {
+    const selectors = selectorsForRow(row);
+    if (sourceIdentitySelectorsAreArray(selectors)
+      ? jsSurfaceSourceIdentityMatchesAnySelector(identity, selectors)
+      : jsSurfaceSourceIdentityMatchesSelector(identity, selectors)) {
+      return row;
+    }
+  }
+  return undefined;
 }
 
 export function jsSurfaceTargetMemberMetadataIndex(
@@ -70,7 +120,17 @@ export function jsSurfaceTargetMembersForSourceMember(
   index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
   sourceMember: SourceLibraryMember,
 ): readonly TargetMember[] {
-  return index.get(sourceMember.id) ?? [];
+  return jsSurfaceTargetMembersForSelectedSourceIdentity(
+    index,
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+  );
+}
+
+export function jsSurfaceTargetMembersForSelectedSourceIdentity(
+  index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+  identity: JsSurfaceSelectedSourceIdentity,
+): readonly TargetMember[] {
+  return index.get(identity.key) ?? [];
 }
 
 export function jsSurfaceSingleTargetMemberForSourceMember(
@@ -97,6 +157,31 @@ export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberM
 }
 
 const targetMemberFromMetadata = jsSurfaceTargetMemberFromMetadata;
+
+function defaultSourceIdentitySelectorForRow<T>(
+  row: T,
+): JsSurfaceSourceIdentitySelector | readonly JsSurfaceSourceIdentitySelector[] {
+  return (row as { readonly identity: JsSurfaceSourceIdentitySelector | readonly JsSurfaceSourceIdentitySelector[] }).identity;
+}
+
+function sourceIdentityIdsContain(
+  ids: ReadonlySet<SourceLibraryMemberKey> | readonly SourceLibraryMemberKey[],
+  key: SourceLibraryMemberKey,
+): boolean {
+  return sourceIdentityIdsAreArray(ids) ? ids.includes(key) : ids.has(key);
+}
+
+function sourceIdentitySelectorsAreArray(
+  selectors: JsSurfaceSourceIdentitySelector | readonly JsSurfaceSourceIdentitySelector[],
+): selectors is readonly JsSurfaceSourceIdentitySelector[] {
+  return Array.isArray(selectors);
+}
+
+function sourceIdentityIdsAreArray(
+  ids: ReadonlySet<SourceLibraryMemberKey> | readonly SourceLibraryMemberKey[],
+): ids is readonly SourceLibraryMemberKey[] {
+  return Array.isArray(ids);
+}
 
 function jsSurfaceSourceMemberKey(
   declaringName: SourceLibraryDeclaringKey,

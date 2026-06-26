@@ -1,10 +1,6 @@
 import type {
-  Node,
-  SourceFile,
-} from "@tsonic/tsts";
-import {
-  asNodeSubject,
-} from "../../../ast-utils.js";
+  TargetSourceUseRecord,
+} from "@tsonic/target-api";
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../../runtime-carriers.js";
@@ -14,52 +10,21 @@ import {
 import type {
   SourceLibraryMember,
 } from "../source-library.js";
-import {
-  sourceLibraryMemberHasArrayCarrierRequirementPolicy,
-} from "./array-use-rules.js";
 import type {
   LifecycleContext,
 } from "./types.js";
 
-export function getSelectedArraySourceLibraryMemberForPropertyAccess(
-  propertyAccess: Node,
-  sourceFile: SourceFile,
+export function getSelectedSourceLibraryMemberForStructuralUse(
+  use: TargetSourceUseRecord,
   lifecycleContext: LifecycleContext,
 ): SourceLibraryMember | undefined {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return undefined;
-  }
-  const symbol = compiler.checker.getSymbolAtLocation(propertyAccess, { sourceFile }) ??
-    compiler.checker.getResolvedSymbol(propertyAccess, { sourceFile });
-  return arraySourceLibraryMemberFromDeclaration(firstSymbolDeclaration(symbol), lifecycleContext);
+  return sourceLibraryMemberFromDeclaration(use.selectedDeclaration, lifecycleContext);
 }
 
-export function getSelectedArraySourceLibraryMemberForCall(
-  call: Node,
-  sourceFile: SourceFile,
-  lifecycleContext: LifecycleContext,
-): SourceLibraryMember | undefined {
-  const signature = lifecycleContext.compiler?.checker.getResolvedSignature(call, { sourceFile });
-  return arraySourceLibraryMemberFromDeclaration(getSignatureDeclaration(signature), lifecycleContext);
-}
-
-function arraySourceLibraryMemberFromDeclaration(
-  declaration: Node | undefined,
+function sourceLibraryMemberFromDeclaration(
+  declaration: TargetSourceUseRecord["selectedDeclaration"],
   lifecycleContext: LifecycleContext,
 ): SourceLibraryMember | undefined {
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const member = resolveSourceLibraryMemberIdentity(declaration, context);
-  return member !== undefined && sourceLibraryMemberHasArrayCarrierRequirementPolicy(member)
-    ? member
-    : undefined;
-}
-
-function firstSymbolDeclaration(symbol: unknown): Node | undefined {
-  return ((symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    (symbol as { readonly declarations?: readonly Node[] } | undefined)?.declarations)?.[0];
-}
-
-function getSignatureDeclaration(signature: unknown): Node | undefined {
-  return asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
+  return resolveSourceLibraryMemberIdentity(declaration, context);
 }

@@ -45,83 +45,198 @@ export function nodeFsStatsExportDeclaration(): ProviderExportDeclaration {
       displayName: "Tsonic.CSharp.Node.Stats",
     },
     members: [
-      {
-        id: nodeFsStatsSizeMemberId,
-        name: "size",
-        kind: "property",
-        readonly: true,
-        type: numberProviderType,
-      },
-      ...nodeFsStatsTimestampProviderMembers(),
-      {
-        id: nodeFsStatsIsFileMemberId,
-        name: "isFile",
-        kind: "method",
-        signatures: [{
-          id: nodeFsStatsIsFileSignatureId,
-          parameters: [],
-          returnType: boolProviderType,
-        }],
-      },
-      {
-        id: nodeFsStatsIsDirectoryMemberId,
-        name: "isDirectory",
-        kind: "method",
-        signatures: [{
-          id: nodeFsStatsIsDirectorySignatureId,
-          parameters: [],
-          returnType: boolProviderType,
-        }],
-      },
+      ...nodeFsStatsPropertyTargetMetadataRows.map(providerMemberForNodeFsStatsProperty),
+      ...nodeFsStatsCallTargetMetadataRows.map(providerMemberForNodeFsStatsCall),
     ],
   };
 }
 
 export function nodeFsClassCallTargetMembers(): readonly NodejsClassCallTargetMember[] {
-  return [
-    nodeFsStatsCallTargetMember("isFile", nodeFsStatsIsFileMemberId, nodeFsStatsIsFileSignatureId, getNodeFsStatsIsFileTargetMember()),
-    nodeFsStatsCallTargetMember("isDirectory", nodeFsStatsIsDirectoryMemberId, nodeFsStatsIsDirectorySignatureId, getNodeFsStatsIsDirectoryTargetMember()),
-  ];
+  return nodeFsStatsCallTargetMetadataRows.map(nodeFsStatsCallTargetMember);
 }
 
 export function nodeFsClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
-  return [
-    nodeFsStatsPropertyTargetMember("size", nodeFsStatsSizeMemberId, getNodeFsStatsSizeTargetMember()),
-    nodeFsStatsPropertyTargetMember("atime", nodeFsStatsAtimeMemberId, getNodeFsStatsDateTargetMember("atime")),
-    nodeFsStatsPropertyTargetMember("atimeMs", nodeFsStatsAtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("atimeMs")),
-    nodeFsStatsPropertyTargetMember("mtime", nodeFsStatsMtimeMemberId, getNodeFsStatsDateTargetMember("mtime")),
-    nodeFsStatsPropertyTargetMember("mtimeMs", nodeFsStatsMtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("mtimeMs")),
-    nodeFsStatsPropertyTargetMember("ctime", nodeFsStatsCtimeMemberId, getNodeFsStatsDateTargetMember("ctime")),
-    nodeFsStatsPropertyTargetMember("ctimeMs", nodeFsStatsCtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("ctimeMs")),
-    nodeFsStatsPropertyTargetMember("birthtime", nodeFsStatsBirthtimeMemberId, getNodeFsStatsDateTargetMember("birthtime")),
-    nodeFsStatsPropertyTargetMember("birthtimeMs", nodeFsStatsBirthtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("birthtimeMs")),
-  ];
+  return nodeFsStatsPropertyTargetMetadataRows.map(nodeFsStatsPropertyTargetMember);
 }
 
-function nodeFsStatsTimestampProviderMembers(): readonly {
-  readonly id: string;
-  readonly name: string;
-  readonly kind: "property";
-  readonly readonly: true;
-  readonly type: ProviderTypeExpression;
-}[] {
-  return [
-    nodeFsStatsTimestampProviderMember("atime", nodeFsStatsAtimeMemberId, dateProviderType),
-    nodeFsStatsTimestampProviderMember("atimeMs", nodeFsStatsAtimeMsMemberId, numberProviderType),
-    nodeFsStatsTimestampProviderMember("mtime", nodeFsStatsMtimeMemberId, dateProviderType),
-    nodeFsStatsTimestampProviderMember("mtimeMs", nodeFsStatsMtimeMsMemberId, numberProviderType),
-    nodeFsStatsTimestampProviderMember("ctime", nodeFsStatsCtimeMemberId, dateProviderType),
-    nodeFsStatsTimestampProviderMember("ctimeMs", nodeFsStatsCtimeMsMemberId, numberProviderType),
-    nodeFsStatsTimestampProviderMember("birthtime", nodeFsStatsBirthtimeMemberId, dateProviderType),
-    nodeFsStatsTimestampProviderMember("birthtimeMs", nodeFsStatsBirthtimeMsMemberId, numberProviderType),
-  ];
+interface NodeFsStatsPropertyTargetMetadataRow {
+  readonly memberName: string;
+  readonly memberId: string;
+  readonly providerType: ProviderTypeExpression;
+  readonly member: TargetMember;
 }
 
-function nodeFsStatsTimestampProviderMember(
-  name: string,
-  id: string,
-  type: ProviderTypeExpression,
-): {
+interface NodeFsStatsCallTargetMetadataRow {
+  readonly memberName: string;
+  readonly memberId: string;
+  readonly signatureId: string;
+  readonly providerReturnType: ProviderTypeExpression;
+  readonly member: TargetMember;
+}
+
+const nodeFsStatsPropertyTargetMetadataRows = [
+  {
+    memberName: "size",
+    memberId: nodeFsStatsSizeMemberId,
+    providerType: numberProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.size",
+      sourceName: "size",
+      targetName: "size",
+      kind: "property",
+      parameters: [],
+      returnType: longTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+  {
+    memberName: "atime",
+    memberId: nodeFsStatsAtimeMemberId,
+    providerType: dateProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.atime",
+      sourceName: "atime",
+      targetName: "atime",
+      kind: "property",
+      parameters: [],
+      returnType: dateTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+  {
+    memberName: "atimeMs",
+    memberId: nodeFsStatsAtimeMsMemberId,
+    providerType: numberProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.atimeMs",
+      sourceName: "atimeMs",
+      targetName: "atimeMs",
+      kind: "property",
+      parameters: [],
+      returnType: doubleTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+  {
+    memberName: "mtime",
+    memberId: nodeFsStatsMtimeMemberId,
+    providerType: dateProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.mtime",
+      sourceName: "mtime",
+      targetName: "mtime",
+      kind: "property",
+      parameters: [],
+      returnType: dateTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+  {
+    memberName: "mtimeMs",
+    memberId: nodeFsStatsMtimeMsMemberId,
+    providerType: numberProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.mtimeMs",
+      sourceName: "mtimeMs",
+      targetName: "mtimeMs",
+      kind: "property",
+      parameters: [],
+      returnType: doubleTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+  {
+    memberName: "ctime",
+    memberId: nodeFsStatsCtimeMemberId,
+    providerType: dateProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.ctime",
+      sourceName: "ctime",
+      targetName: "ctime",
+      kind: "property",
+      parameters: [],
+      returnType: dateTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+  {
+    memberName: "ctimeMs",
+    memberId: nodeFsStatsCtimeMsMemberId,
+    providerType: numberProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.ctimeMs",
+      sourceName: "ctimeMs",
+      targetName: "ctimeMs",
+      kind: "property",
+      parameters: [],
+      returnType: doubleTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+  {
+    memberName: "birthtime",
+    memberId: nodeFsStatsBirthtimeMemberId,
+    providerType: dateProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.birthtime",
+      sourceName: "birthtime",
+      targetName: "birthtime",
+      kind: "property",
+      parameters: [],
+      returnType: dateTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+  {
+    memberName: "birthtimeMs",
+    memberId: nodeFsStatsBirthtimeMsMemberId,
+    providerType: numberProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.birthtimeMs",
+      sourceName: "birthtimeMs",
+      targetName: "birthtimeMs",
+      kind: "property",
+      parameters: [],
+      returnType: doubleTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+] satisfies readonly NodeFsStatsPropertyTargetMetadataRow[];
+
+const nodeFsStatsCallTargetMetadataRows = [
+  {
+    memberName: "isFile",
+    memberId: nodeFsStatsIsFileMemberId,
+    signatureId: nodeFsStatsIsFileSignatureId,
+    providerReturnType: boolProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.IsFile()",
+      sourceName: "isFile",
+      targetName: "IsFile",
+      kind: "method",
+      parameters: [],
+      returnType: boolTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+  {
+    memberName: "isDirectory",
+    memberId: nodeFsStatsIsDirectoryMemberId,
+    signatureId: nodeFsStatsIsDirectorySignatureId,
+    providerReturnType: boolProviderType,
+    member: {
+      id: "Tsonic.CSharp.Node.Stats.IsDirectory()",
+      sourceName: "isDirectory",
+      targetName: "IsDirectory",
+      kind: "method",
+      parameters: [],
+      returnType: boolTargetType,
+      declaringType: statsTargetType,
+    },
+  },
+] satisfies readonly NodeFsStatsCallTargetMetadataRow[];
+
+function providerMemberForNodeFsStatsProperty(row: NodeFsStatsPropertyTargetMetadataRow): {
   readonly id: string;
   readonly name: string;
   readonly kind: "property";
@@ -129,94 +244,55 @@ function nodeFsStatsTimestampProviderMember(
   readonly type: ProviderTypeExpression;
 } {
   return {
-    id,
-    name,
+    id: row.memberId,
+    name: row.memberName,
     kind: "property",
     readonly: true,
-    type,
+    type: row.providerType,
   };
 }
 
-function getNodeFsStatsSizeTargetMember(): TargetMember {
+function providerMemberForNodeFsStatsCall(row: NodeFsStatsCallTargetMetadataRow): {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: "method";
+  readonly signatures: readonly [{
+    readonly id: string;
+    readonly parameters: readonly [];
+    readonly returnType: ProviderTypeExpression;
+  }];
+} {
   return {
-    id: "Tsonic.CSharp.Node.Stats.size",
-    sourceName: "size",
-    targetName: "size",
-    kind: "property",
-    parameters: [],
-    returnType: longTargetType,
-    declaringType: statsTargetType,
-  };
-}
-
-function getNodeFsStatsDateTargetMember(sourceName: string): TargetMember {
-  return {
-    id: `Tsonic.CSharp.Node.Stats.${sourceName}`,
-    sourceName,
-    targetName: sourceName,
-    kind: "property",
-    parameters: [],
-    returnType: dateTargetType,
-    declaringType: statsTargetType,
-  };
-}
-
-function getNodeFsStatsUnixMillisecondsTargetMember(sourceName: string): TargetMember {
-  return {
-    id: `Tsonic.CSharp.Node.Stats.${sourceName}`,
-    sourceName,
-    targetName: sourceName,
-    kind: "property",
-    parameters: [],
-    returnType: doubleTargetType,
-    declaringType: statsTargetType,
-  };
-}
-
-function getNodeFsStatsIsFileTargetMember(): TargetMember {
-  return nodeFsStatsBoolMethodTargetMember("isFile", "IsFile");
-}
-
-function getNodeFsStatsIsDirectoryTargetMember(): TargetMember {
-  return nodeFsStatsBoolMethodTargetMember("isDirectory", "IsDirectory");
-}
-
-function nodeFsStatsBoolMethodTargetMember(sourceName: string, targetName: string): TargetMember {
-  return {
-    id: `Tsonic.CSharp.Node.Stats.${targetName}()`,
-    sourceName,
-    targetName,
+    id: row.memberId,
+    name: row.memberName,
     kind: "method",
-    parameters: [],
-    returnType: boolTargetType,
-    declaringType: statsTargetType,
+    signatures: [{
+      id: row.signatureId,
+      parameters: [],
+      returnType: row.providerReturnType,
+    }],
   };
 }
 
 function nodeFsStatsCallTargetMember(
-  memberName: string,
-  memberId: string,
-  signatureId: string,
-  member: TargetMember,
+  row: NodeFsStatsCallTargetMetadataRow,
 ): NodejsClassCallTargetMember {
   return {
     exportName: nodeFsStatsExportName,
-    memberName,
-    memberId,
-    signatureId,
-    member,
+    memberName: row.memberName,
+    memberId: row.memberId,
+    signatureId: row.signatureId,
+    member: row.member,
   };
 }
 
 function nodeFsStatsPropertyTargetMember(
-  memberName: string,
-  memberId: string,
-  member: TargetMember,
+  row: NodeFsStatsPropertyTargetMetadataRow,
 ): NodejsClassPropertyTargetMember {
   return {
     exportName: nodeFsStatsExportName,
-    memberName,
-    memberId,
-    member,
+    memberName: row.memberName,
+    memberId: row.memberId,
+    member: row.member,
   };
 }

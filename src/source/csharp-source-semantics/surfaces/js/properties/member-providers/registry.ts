@@ -8,14 +8,14 @@ import {
 import {
   getCollectionPropertyTargetMember,
 } from "../../collections.js";
-import {
-  sourceLibraryMemberMatches,
-} from "../../source-library.js";
 import type {
   SourceLibraryMember,
 } from "../../source-library.js";
 import {
+  type JsSurfaceSourceIdentitySelector,
   jsSurfaceTargetMemberFromMetadata,
+  jsSurfaceSelectMetadataRowForSourceIdentity,
+  jsSurfaceSelectedSourceIdentityForMember,
 } from "../../target-member-metadata.js";
 import {
   propertyPrecheckRows,
@@ -35,22 +35,29 @@ export function getCsharpJsSourceLibraryPropertyMember(
   sourceMember: SourceLibraryMember,
   receiverType: TargetTypeRef | undefined,
 ): TargetMember | undefined {
-  const provider = propertyMemberProviderBySourceIdentity.get(sourceMember.id);
+  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
+  const provider = propertyMemberProviderBySourceIdentity.get(selectedIdentity.key);
   return provider === undefined
     ? undefined
     : propertyMemberFromProvider(provider.member, sourceMember, receiverType);
 }
 
 export function csharpJsSourceLibraryPropertyPrecheck(sourceMember: SourceLibraryMember): CsharpJsSourceLibraryPropertyPrecheck {
-  const rule = propertyPrecheckRows.find((candidate) => propertyPrecheckRuleApplies(candidate, sourceMember));
+  const rule = jsSurfaceSelectMetadataRowForSourceIdentity(
+    propertyPrecheckRows,
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+    propertyPrecheckRuleSelectors,
+  );
   return rule === undefined
     ? "continue"
     : propertyPrecheckResult(rule.result);
 }
 
-function propertyPrecheckRuleApplies(rule: CsharpJsPropertyPrecheckRule, sourceMember: SourceLibraryMember): boolean {
-  return rule.sourceId === sourceMember.id ||
-    (rule.identity !== undefined && sourceLibraryMemberMatches(sourceMember, rule.identity));
+function propertyPrecheckRuleSelectors(rule: CsharpJsPropertyPrecheckRule): readonly JsSurfaceSourceIdentitySelector[] {
+  return [
+    ...(rule.sourceId === undefined ? [] : [{ ids: [rule.sourceId] }]),
+    ...(rule.identity === undefined ? [] : [rule.identity]),
+  ];
 }
 
 function propertyPrecheckResult(

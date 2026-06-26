@@ -32,6 +32,31 @@ const objectRuntimeTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.Object",
 const jsObjectCarrierType = csharpTargetNamedType("Tsonic.CSharp.Js.JSObject", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JSObject"));
 const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const objectMemberTypeParameter = { kind: "type-parameter" as const, name: "T" };
+type ObjectTargetParameter = ReturnType<typeof targetParameter>;
+
+interface ObjectRuntimeMethodRow {
+  readonly id: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly parameters: readonly ObjectTargetParameter[];
+  readonly returnType: TargetTypeRef;
+}
+
+interface ObjectHelperMethodRow {
+  readonly id: string;
+  readonly sourceName: "keys" | "values" | "entries";
+  readonly targetName: string;
+  readonly valueType: TargetTypeRef;
+  readonly returnElementType: TargetTypeRef;
+}
+
+interface JsObjectInstanceMethodRow {
+  readonly id: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly parameters: readonly ObjectTargetParameter[];
+  readonly returnType: TargetTypeRef;
+}
 
 export function objectTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
   return jsSurfaceTargetMembersForSourceMember(objectTargetMemberIdentityIndex, sourceMember);
@@ -49,36 +74,27 @@ export function isCsharpJsObjectCarrierTargetType(type: TargetTypeRef | undefine
   return type?.kind === "target-named" && type.id === jsObjectCarrierType.id;
 }
 
-function objectRuntimeMethod(
-  id: string,
-  sourceName: string,
-  parameters: readonly ReturnType<typeof targetParameter>[],
-  returnType: TargetTypeRef,
-): JsSurfaceTargetMemberMetadata {
+function objectRuntimeMethod(row: ObjectRuntimeMethodRow): JsSurfaceTargetMemberMetadata {
   return {
-    id,
-    sourceName,
-    targetName: sourceName,
+    id: row.id,
+    sourceName: row.sourceName,
+    targetName: row.targetName,
     kind: "method",
-    parameters,
-    returnType,
+    parameters: row.parameters,
+    returnType: row.returnType,
     declaringType: objectRuntimeTargetType,
     static: true,
   };
 }
 
-function objectHelperMethod(
-  sourceName: "keys" | "values" | "entries",
-  carrierName: string,
-  valueType: TargetTypeRef,
-  returnElementType: TargetTypeRef,
-): JsSurfaceTargetMemberMetadata {
-  return objectRuntimeMethod(
-    `Tsonic.CSharp.Js.Object.${sourceName}:${carrierName}`,
-    sourceName,
-    [targetParameter("value", valueType)],
-    csharpListTargetType(returnElementType),
-  );
+function objectHelperMethod(row: ObjectHelperMethodRow): JsSurfaceTargetMemberMetadata {
+  return objectRuntimeMethod({
+    id: row.id,
+    sourceName: row.sourceName,
+    targetName: row.targetName,
+    parameters: [targetParameter("value", row.valueType)],
+    returnType: csharpListTargetType(row.returnElementType),
+  });
 }
 
 export function objectRecordDictionaryTargetMembersForOperation(
@@ -90,50 +106,62 @@ export function objectRecordDictionaryTargetMembersForOperation(
     return [];
   }
   return [
-      objectHelperMethod("keys", "dictionary", dictionaryType, csharpStringTargetType()),
-      objectHelperMethod("values", "dictionary", dictionaryType, valueType),
-      objectHelperMethod("entries", "dictionary", dictionaryType, { kind: "tuple", elements: [csharpStringTargetType(), valueType] }),
+      objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.keys:dictionary", sourceName: "keys", targetName: "keys", valueType: dictionaryType, returnElementType: csharpStringTargetType() }),
+      objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.values:dictionary", sourceName: "values", targetName: "values", valueType: dictionaryType, returnElementType: valueType }),
+      objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.entries:dictionary", sourceName: "entries", targetName: "entries", valueType: dictionaryType, returnElementType: { kind: "tuple", elements: [csharpStringTargetType(), valueType] } }),
     ]
     .filter((member) => member.sourceName === operation)
     .map(jsSurfaceTargetMemberFromMetadata);
 }
 
-function jsObjectInstanceMethod(
-  sourceName: string,
-  parameters: readonly ReturnType<typeof targetParameter>[],
-  returnType: TargetTypeRef,
-): JsSurfaceTargetMemberMetadata {
+function jsObjectInstanceMethod(row: JsObjectInstanceMethodRow): JsSurfaceTargetMemberMetadata {
   return {
-    id: `Tsonic.CSharp.Js.JSObject.${sourceName}`,
-    sourceName,
-    targetName: sourceName,
+    id: row.id,
+    sourceName: row.sourceName,
+    targetName: row.targetName,
     kind: "method",
-    parameters,
-    returnType,
+    parameters: row.parameters,
+    returnType: row.returnType,
     declaringType: jsObjectCarrierType,
   };
 }
 
 const objectTargetMemberMetadata = [
-  objectHelperMethod("keys", "jsobject", jsObjectCarrierType, csharpStringTargetType()),
-  objectHelperMethod("keys", "jsarray", csharpJsArrayCarrierTargetType(objectMemberTypeParameter), csharpStringTargetType()),
-  objectHelperMethod("keys", "string", csharpStringTargetType(), csharpStringTargetType()),
-  objectHelperMethod("values", "jsobject", jsObjectCarrierType, objectTargetType),
-  objectHelperMethod("values", "jsarray", csharpJsArrayCarrierTargetType(objectMemberTypeParameter), objectMemberTypeParameter),
-  objectHelperMethod("values", "string", csharpStringTargetType(), csharpStringTargetType()),
-  objectHelperMethod("entries", "jsobject", jsObjectCarrierType, { kind: "tuple", elements: [csharpStringTargetType(), objectTargetType] }),
-  objectHelperMethod("entries", "jsarray", csharpJsArrayCarrierTargetType(objectMemberTypeParameter), { kind: "tuple", elements: [csharpStringTargetType(), objectMemberTypeParameter] }),
-  objectHelperMethod("entries", "string", csharpStringTargetType(), { kind: "tuple", elements: [csharpStringTargetType(), csharpStringTargetType()] }),
-  objectRuntimeMethod("Tsonic.CSharp.Js.Object.assign", "assign", [
-    targetParameter("target", jsObjectCarrierType),
-    targetParameter("sources", jsObjectCarrierType, { paramsArray: true }),
-  ], jsObjectCarrierType),
-  objectRuntimeMethod("Tsonic.CSharp.Js.Object.hasOwn", "hasOwn", [
-    targetParameter("value", jsObjectCarrierType),
-    targetParameter("key", csharpStringTargetType()),
-  ], csharpSourcePrimitiveTargetType("bool")),
-  jsObjectInstanceMethod("hasOwnProperty", [
-    targetParameter("key", csharpStringTargetType()),
-  ], csharpSourcePrimitiveTargetType("bool")),
+  objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.keys:jsobject", sourceName: "keys", targetName: "keys", valueType: jsObjectCarrierType, returnElementType: csharpStringTargetType() }),
+  objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.keys:jsarray", sourceName: "keys", targetName: "keys", valueType: csharpJsArrayCarrierTargetType(objectMemberTypeParameter), returnElementType: csharpStringTargetType() }),
+  objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.keys:string", sourceName: "keys", targetName: "keys", valueType: csharpStringTargetType(), returnElementType: csharpStringTargetType() }),
+  objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.values:jsobject", sourceName: "values", targetName: "values", valueType: jsObjectCarrierType, returnElementType: objectTargetType }),
+  objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.values:jsarray", sourceName: "values", targetName: "values", valueType: csharpJsArrayCarrierTargetType(objectMemberTypeParameter), returnElementType: objectMemberTypeParameter }),
+  objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.values:string", sourceName: "values", targetName: "values", valueType: csharpStringTargetType(), returnElementType: csharpStringTargetType() }),
+  objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.entries:jsobject", sourceName: "entries", targetName: "entries", valueType: jsObjectCarrierType, returnElementType: { kind: "tuple", elements: [csharpStringTargetType(), objectTargetType] } }),
+  objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.entries:jsarray", sourceName: "entries", targetName: "entries", valueType: csharpJsArrayCarrierTargetType(objectMemberTypeParameter), returnElementType: { kind: "tuple", elements: [csharpStringTargetType(), objectMemberTypeParameter] } }),
+  objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.entries:string", sourceName: "entries", targetName: "entries", valueType: csharpStringTargetType(), returnElementType: { kind: "tuple", elements: [csharpStringTargetType(), csharpStringTargetType()] } }),
+  objectRuntimeMethod({
+    id: "Tsonic.CSharp.Js.Object.assign",
+    sourceName: "assign",
+    targetName: "assign",
+    parameters: [
+      targetParameter("target", jsObjectCarrierType),
+      targetParameter("sources", jsObjectCarrierType, { paramsArray: true }),
+    ],
+    returnType: jsObjectCarrierType,
+  }),
+  objectRuntimeMethod({
+    id: "Tsonic.CSharp.Js.Object.hasOwn",
+    sourceName: "hasOwn",
+    targetName: "hasOwn",
+    parameters: [
+      targetParameter("value", jsObjectCarrierType),
+      targetParameter("key", csharpStringTargetType()),
+    ],
+    returnType: csharpSourcePrimitiveTargetType("bool"),
+  }),
+  jsObjectInstanceMethod({
+    id: "Tsonic.CSharp.Js.JSObject.hasOwnProperty",
+    sourceName: "hasOwnProperty",
+    targetName: "hasOwnProperty",
+    parameters: [targetParameter("key", csharpStringTargetType())],
+    returnType: csharpSourcePrimitiveTargetType("bool"),
+  }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 const objectTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Object", objectTargetMemberMetadata);

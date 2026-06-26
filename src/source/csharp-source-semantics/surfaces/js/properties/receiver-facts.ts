@@ -20,11 +20,13 @@ import {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
-  SourceLibraryMemberIdentityPolicy,
 } from "../source-library.js";
 import {
-  sourceLibraryMemberMatches,
-} from "../source-library.js";
+  type JsSurfaceSourceIdentitySelector,
+  jsSurfaceSelectMetadataRowForSourceIdentity,
+  jsSurfaceSelectedSourceIdentityForMember,
+  jsSurfaceSourceIdentityMatchesAnySelector,
+} from "../target-member-metadata.js";
 
 export function csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {
   return propertyIdentityPolicyMatchesAny(sourceMember, seededReceiverFactPolicies);
@@ -39,12 +41,15 @@ export function csharpJsSourceLibraryPropertyReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  const policy = propertyReceiverRequirementRows.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
+  const policy = jsSurfaceSelectMetadataRowForSourceIdentity(
+    propertyReceiverRequirementRows,
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+  );
   return propertyReceiverRequirementIsSatisfied(policy?.requirement, receiverType, host);
 }
 
 interface PropertyReceiverValidatorPolicy {
-  readonly identity: SourceLibraryMemberIdentityPolicy;
+  readonly identity: JsSurfaceSourceIdentitySelector;
   readonly requirement: PropertyReceiverRequirement;
 }
 
@@ -59,11 +64,11 @@ type PropertyReceiverRequirement =
   | "map"
   | "set";
 
-const seededReceiverFactPolicies: readonly SourceLibraryMemberIdentityPolicy[] = [
+const seededReceiverFactPolicies: readonly JsSurfaceSourceIdentitySelector[] = [
   { prefixes: ["Array.", "ReadonlyArray.", "Map.", "ReadonlyMap.", "Set.", "ReadonlySet."] },
 ];
 
-const finalCarrierSelectionPolicies: readonly SourceLibraryMemberIdentityPolicy[] = [
+const finalCarrierSelectionPolicies: readonly JsSurfaceSourceIdentitySelector[] = [
   { prefixes: ["Array.", "ReadonlyArray."] },
 ];
 
@@ -110,7 +115,10 @@ function propertyReceiverRequirementIsSatisfied(
 
 function propertyIdentityPolicyMatchesAny(
   sourceMember: SourceLibraryMember,
-  policies: readonly SourceLibraryMemberIdentityPolicy[],
+  policies: readonly JsSurfaceSourceIdentitySelector[],
 ): boolean {
-  return policies.some((policy) => sourceLibraryMemberMatches(sourceMember, policy));
+  return jsSurfaceSourceIdentityMatchesAnySelector(
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+    policies,
+  );
 }
