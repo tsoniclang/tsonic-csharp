@@ -48,10 +48,6 @@ export function sourceLibraryMemberIdentity(sourceMember: SourceLibraryMember): 
   return sourceMember.id;
 }
 
-export function sourceLibraryMemberName(sourceMember: SourceLibraryMember): string {
-  return sourceMember.name;
-}
-
 export function sourceLibraryMemberMatches(
   sourceMember: SourceLibraryMember,
   policy: SourceLibraryMemberIdentityPolicy,

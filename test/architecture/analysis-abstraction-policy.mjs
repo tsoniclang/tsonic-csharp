@@ -183,6 +183,18 @@ export const analysisAbstractionRules = Object.freeze([
       "Do not convert selected source member names into target member lookups; provider/runtime metadata rows must prove the target operation.",
   },
   {
+    id: "source-name-target-member-helper-api",
+    pattern: /\b(?:jsSurface(?:Single)?TargetMembers?ForSourceName|[A-Za-z0-9]+(?:TargetMember|TargetMembers|PropertyTargetMember)s?ForSourceName)\b/g,
+    replacement:
+      "Replace source-name target-member helper APIs with selected source declaration/signature identity indexes.",
+  },
+  {
+    id: "source-library-member-name-call",
+    pattern: /(?<!function\s)\bsourceLibraryMemberName\s*\(/g,
+    replacement:
+      "Do not derive operation semantics from a selected member's spelling; use source identity records and provider metadata indexes.",
+  },
+  {
     id: "source-id-executable-policy-hook",
     pattern: /\b(?:uses|validate|resolve|result|requiresClosedReceiver)\s*:\s*(?:\([^\n)]*\)|[A-Za-z_$][\w$]*)\s*=>|\bmapCall\s*:\s*[A-Za-z_$][\w$]*/g,
     replacement:

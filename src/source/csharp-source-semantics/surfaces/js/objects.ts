@@ -2,6 +2,9 @@ import type {
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  SourceLibraryMember,
+} from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpListTargetType,
@@ -17,8 +20,9 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
-  jsSurfaceTargetMemberMetadataIndex,
-  jsSurfaceTargetMembersForSourceName,
+  jsSurfaceTargetMemberFromMetadata,
+  jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
@@ -29,12 +33,12 @@ const jsObjectCarrierType = csharpTargetNamedType("Tsonic.CSharp.Js.JSObject", u
 const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const objectMemberTypeParameter = { kind: "type-parameter" as const, name: "T" };
 
-export function objectTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceName(objectTargetMemberIndex, sourceName);
+export function objectTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceMember(objectTargetMemberIdentityIndex, sourceMember);
 }
 
 export function hasObjectTargetMember(sourceName: string): boolean {
-  return objectTargetMembersForSourceName(sourceName).length > 0;
+  return objectTargetMemberMetadata.some((member) => member.sourceName === sourceName);
 }
 
 export function csharpJsObjectCarrierTargetType(): TargetTypeRef {
@@ -85,14 +89,13 @@ export function objectRecordDictionaryTargetMembersForOperation(
   if (valueType === undefined) {
     return [];
   }
-  return jsSurfaceTargetMembersForSourceName(
-    jsSurfaceTargetMemberMetadataIndex([
+  return [
       objectHelperMethod("keys", "dictionary", dictionaryType, csharpStringTargetType()),
       objectHelperMethod("values", "dictionary", dictionaryType, valueType),
       objectHelperMethod("entries", "dictionary", dictionaryType, { kind: "tuple", elements: [csharpStringTargetType(), valueType] }),
-    ]),
-    operation,
-  );
+    ]
+    .filter((member) => member.sourceName === operation)
+    .map(jsSurfaceTargetMemberFromMetadata);
 }
 
 function jsObjectInstanceMethod(
@@ -133,4 +136,4 @@ const objectTargetMemberMetadata = [
     targetParameter("key", csharpStringTargetType()),
   ], csharpSourcePrimitiveTargetType("bool")),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const objectTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(objectTargetMemberMetadata);
+const objectTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Object", objectTargetMemberMetadata);

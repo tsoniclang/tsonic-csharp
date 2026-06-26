@@ -1,6 +1,9 @@
 import type {
   TargetMember,
 } from "@tsonic/tsts";
+import type {
+  SourceLibraryMember,
+} from "./source-library.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpQualifiedTypeRenderShape,
@@ -11,19 +14,19 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
-  jsSurfaceSingleTargetMemberForSourceName,
-  jsSurfaceTargetMemberMetadataIndex,
-  jsSurfaceTargetMembersForSourceName,
+  jsSurfaceSingleTargetMemberForSourceMember,
+  jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 
 const mathTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.Math", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Math"));
 
-export function mathTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceName(mathTargetMemberIndex, sourceName);
+export function mathTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceMember(mathTargetMemberIdentityIndex, sourceMember);
 }
 
-export function mathPropertyTargetMemberForSourceName(sourceName: string): TargetMember | undefined {
-  return jsSurfaceSingleTargetMemberForSourceName(mathPropertyTargetMemberIndex, sourceName);
+export function mathPropertyTargetMemberForSourceMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
+  return jsSurfaceSingleTargetMemberForSourceMember(mathPropertyTargetMemberIdentityIndex, sourceMember);
 }
 
 function mathMethodMetadata(
@@ -101,7 +104,7 @@ const mathTargetMemberMetadata = [
   mathMethodMetadata("imul", [targetParameter("left", intType), targetParameter("right", intType)], intType),
   mathMethodMetadata("clz32", [targetParameter("value", intType)], intType),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const mathTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(mathTargetMemberMetadata);
+const mathTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Math", mathTargetMemberMetadata);
 
 const mathPropertyTargetMemberMetadata = [
   "E",
@@ -113,4 +116,4 @@ const mathPropertyTargetMemberMetadata = [
   "SQRT1_2",
   "SQRT2",
 ].map((sourceName) => mathPropertyMetadata(sourceName)) satisfies readonly JsSurfaceTargetMemberMetadata[];
-const mathPropertyTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(mathPropertyTargetMemberMetadata);
+const mathPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Math", mathPropertyTargetMemberMetadata);

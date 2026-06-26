@@ -1,6 +1,9 @@
 import type {
   TargetMember,
 } from "@tsonic/tsts";
+import type {
+  SourceLibraryMember,
+} from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
@@ -12,8 +15,8 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
-  jsSurfaceTargetMemberMetadataIndex,
-  jsSurfaceTargetMembersForSourceName,
+  jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 
 const boolType = csharpSourcePrimitiveTargetType("bool");
@@ -44,13 +47,13 @@ const booleanTargetMemberMetadata = [
     receiverPassing: "first-argument",
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const booleanTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(booleanTargetMemberMetadata);
+const booleanTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Boolean", booleanTargetMemberMetadata);
 
 export function isCsharpBooleanTargetType(type: unknown): boolean {
   return (type as { readonly kind?: unknown; readonly name?: unknown } | undefined)?.kind === "source-primitive" &&
     (type as { readonly name?: unknown }).name === "bool";
 }
 
-export function booleanTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceName(booleanTargetMemberIndex, sourceName);
+export function booleanTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceMember(booleanTargetMemberIdentityIndex, sourceMember);
 }

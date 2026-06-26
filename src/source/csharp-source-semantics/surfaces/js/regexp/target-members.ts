@@ -5,26 +5,27 @@ import type {
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  type SourceLibraryMember,
   targetParameter,
 } from "../source-library.js";
 import type {
   JsSurfaceTargetMemberMetadata,
 } from "../target-member-metadata.js";
 import {
-  jsSurfaceSingleTargetMemberForSourceName,
-  jsSurfaceTargetMemberMetadataIndex,
-  jsSurfaceTargetMembersForSourceName,
+  jsSurfaceSingleTargetMemberForSourceMember,
+  jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMembersForSourceMember,
 } from "../target-member-metadata.js";
 import {
   csharpJsRegExpTargetType,
 } from "./target-type.js";
 
-export function regExpTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceName(regExpTargetMemberIndex, sourceName);
+export function regExpTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceMember(regExpTargetMemberIdentityIndex, sourceMember);
 }
 
-export function regExpPropertyTargetMemberForSourceName(sourceName: string): TargetMember | undefined {
-  return jsSurfaceSingleTargetMemberForSourceName(regExpPropertyTargetMemberIndex, sourceName);
+export function regExpPropertyTargetMemberForSourceMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
+  return jsSurfaceSingleTargetMemberForSourceMember(regExpPropertyTargetMemberIdentityIndex, sourceMember);
 }
 
 const regExpType = csharpJsRegExpTargetType();
@@ -52,7 +53,7 @@ const regExpTargetMemberMetadata = [
     returnType: regExpBoolType,
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const regExpTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(regExpTargetMemberMetadata);
+const regExpTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpTargetMemberMetadata);
 
 const regExpPropertyTargetMemberMetadata = [
   ...["source", "flags"].map((sourceName) => regExpPropertyMetadata(sourceName, regExpStringType)),
@@ -68,7 +69,7 @@ const regExpPropertyTargetMemberMetadata = [
   ].map((sourceName) => regExpPropertyMetadata(sourceName, regExpBoolType)),
   regExpPropertyMetadata("lastIndex", csharpSourcePrimitiveTargetType("int32")),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const regExpPropertyTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(regExpPropertyTargetMemberMetadata);
+const regExpPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpPropertyTargetMemberMetadata);
 
 function regExpPropertyMetadata(sourceName: string, returnType: TargetTypeRef): JsSurfaceTargetMemberMetadata {
   return {

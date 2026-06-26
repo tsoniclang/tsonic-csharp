@@ -18,6 +18,7 @@ import {
 } from "./array-target-type.js";
 import type {
   CsharpJsSurfaceHost,
+  SourceLibraryMember,
 } from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
@@ -33,8 +34,8 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
-  jsSurfaceTargetMemberMetadataIndex,
-  jsSurfaceTargetMembersForSourceName,
+  jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 import {
   csharpJsObjectCarrierTargetType,
@@ -113,8 +114,8 @@ export function recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(
   }
 }
 
-export function jsonTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceName(jsonTargetMemberIndex, sourceName);
+export function jsonTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceMember(jsonTargetMemberIdentityIndex, sourceMember);
 }
 
 function jsonStaticMethodMetadata(
@@ -158,7 +159,7 @@ const jsonTargetMemberMetadata = [
     targetParameter("value", jsonValueTargetType),
   ], stringTargetType),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const jsonTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(jsonTargetMemberMetadata);
+const jsonTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("JSON", jsonTargetMemberMetadata);
 
 function isCheckedJsonParseCall(
   call: Node,

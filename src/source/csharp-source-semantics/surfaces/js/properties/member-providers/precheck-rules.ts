@@ -1,9 +1,12 @@
 import {
-  jsonTargetMembersForSourceName,
+  jsonTargetMembersForSourceMember,
 } from "../../json.js";
 import {
-  objectTargetMembersForSourceName,
+  objectTargetMembersForSourceMember,
 } from "../../objects.js";
+import {
+  createSourceLibraryMember,
+} from "../../source-library.js";
 import type {
   SourceLibraryMemberKey,
 } from "../../source-library.js";
@@ -30,16 +33,16 @@ export const propertyPrecheckRows: readonly CsharpJsPropertyPrecheckRule[] = [
     result: "defer",
   },
   ...objectPropertySourceNames.map((sourceName) =>
-    targetMemberExistsRow(sourceKey("Object", sourceName), objectTargetMembersForSourceName(sourceName))
+    targetMemberExistsRow(sourceKey("Object", sourceName), objectTargetMembersForSourceMember(createSourceLibraryMember("Object", sourceName)))
   ),
   ...jsonPropertySourceNames.map((sourceName) =>
-    targetMemberExistsRow(sourceKey("JSON", sourceName), jsonTargetMembersForSourceName(sourceName))
+    targetMemberExistsRow(sourceKey("JSON", sourceName), jsonTargetMembersForSourceMember(createSourceLibraryMember("JSON", sourceName)))
   ),
 ];
 
 function targetMemberExistsRow(
   sourceId: SourceLibraryMemberKey,
-  members: ReturnType<typeof objectTargetMembersForSourceName>,
+  members: ReturnType<typeof objectTargetMembersForSourceMember>,
 ): CsharpJsPropertyPrecheckRule {
   return {
     sourceId,

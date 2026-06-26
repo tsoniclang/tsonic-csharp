@@ -1,6 +1,7 @@
 import type {
   SourceLibraryMember,
   SourceLibraryMemberIdentityPolicy,
+  SourceLibraryMemberKey,
 } from "../../source-library.js";
 import {
   sourceLibraryMemberIdSet,
@@ -13,6 +14,55 @@ export const collectionIdentityPolicy = {
 
 export const arrayConstructorIdentityPolicy = {
   ids: sourceLibraryMemberIdSet(["Array.constructor"]),
+} satisfies SourceLibraryMemberIdentityPolicy;
+
+const arrayCallableMemberIds = [
+  "Array.from",
+  "Array.of",
+  "Array.isArray",
+  "Array.push",
+  "Array.pop",
+  "Array.shift",
+  "Array.unshift",
+  "Array.concat",
+  "Array.at",
+  "Array.includes",
+  "Array.indexOf",
+  "Array.lastIndexOf",
+  "Array.join",
+  "Array.slice",
+  "Array.splice",
+  "Array.reverse",
+  "Array.sort",
+  "Array.forEach",
+  "Array.some",
+  "Array.every",
+  "Array.filter",
+  "Array.map",
+  "Array.find",
+  "Array.findIndex",
+  "Array.findLast",
+  "Array.findLastIndex",
+  "ReadonlyArray.concat",
+  "ReadonlyArray.at",
+  "ReadonlyArray.includes",
+  "ReadonlyArray.indexOf",
+  "ReadonlyArray.lastIndexOf",
+  "ReadonlyArray.join",
+  "ReadonlyArray.slice",
+  "ReadonlyArray.forEach",
+  "ReadonlyArray.some",
+  "ReadonlyArray.every",
+  "ReadonlyArray.filter",
+  "ReadonlyArray.map",
+  "ReadonlyArray.find",
+  "ReadonlyArray.findIndex",
+  "ReadonlyArray.findLast",
+  "ReadonlyArray.findLastIndex",
+] as const satisfies readonly SourceLibraryMemberKey[];
+
+export const arrayCallableIdentityPolicy = {
+  ids: sourceLibraryMemberIdSet(arrayCallableMemberIds),
 } satisfies SourceLibraryMemberIdentityPolicy;
 
 export const collectionConstructorIdentityPolicy = {
@@ -35,35 +85,6 @@ export const objectRecordDictionaryIdentityPolicy = {
     "Object.entries",
   ]),
 } satisfies SourceLibraryMemberIdentityPolicy;
-
-export const arrayCallSurfaceMemberNames = new Set([
-  "from",
-  "of",
-  "isArray",
-  "push",
-  "pop",
-  "shift",
-  "unshift",
-  "concat",
-  "at",
-  "includes",
-  "indexOf",
-  "lastIndexOf",
-  "join",
-  "slice",
-  "splice",
-  "reverse",
-  "sort",
-  "forEach",
-  "some",
-  "every",
-  "filter",
-  "map",
-  "find",
-  "findIndex",
-  "findLast",
-  "findLastIndex",
-]);
 
 export function csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember: SourceLibraryMember | undefined): boolean {
   return sourceMember !== undefined &&

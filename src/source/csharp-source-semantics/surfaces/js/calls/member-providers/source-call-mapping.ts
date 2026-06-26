@@ -7,10 +7,10 @@ import type {
 import {
   getCsharpArrayLikeElementType,
   getCsharpJsArrayCarrierElementType,
-  arrayTargetMembersForSourceName,
+  arrayTargetMembersForSourceMember,
 } from "../../arrays.js";
 import {
-  booleanTargetMembersForSourceName,
+  booleanTargetMembersForSourceMember,
 } from "../../booleans.js";
 import {
   consoleTargetMembersForSourceMember,
@@ -19,22 +19,22 @@ import {
   collectionTargetMembersForSourceMember,
 } from "../../collections.js";
 import {
-  dateTargetMembersForSourceName,
+  dateTargetMembersForSourceMember,
 } from "../../date/index.js";
 import {
-  jsonTargetMembersForSourceName,
+  jsonTargetMembersForSourceMember,
 } from "../../json.js";
 import {
-  mathTargetMembersForSourceName,
+  mathTargetMembersForSourceMember,
 } from "../../math.js";
 import {
-  numberTargetMembersForSourceName,
+  numberTargetMembersForSourceMember,
 } from "../../numbers.js";
 import {
-  objectTargetMembersForSourceName,
+  objectTargetMembersForSourceMember,
 } from "../../objects.js";
 import {
-  regExpTargetMembersForSourceName,
+  regExpTargetMembersForSourceMember,
 } from "../../regexp/index.js";
 import type {
   CsharpJsSurfaceHost,
@@ -43,10 +43,9 @@ import type {
 } from "../../source-library.js";
 import {
   sourceLibraryMemberMatches,
-  sourceLibraryMemberName,
 } from "../../source-library.js";
 import {
-  stringTargetMembersForSourceName,
+  stringTargetMembersForSourceMember,
 } from "../../strings.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
@@ -56,7 +55,7 @@ import {
   isNewExpression,
 } from "../helpers.js";
 import {
-  arrayCallSurfaceMemberNames,
+  arrayCallableIdentityPolicy,
   arrayConstructorIdentityPolicy,
   collectionConstructorIdentityPolicy,
   collectionIdentityPolicy,
@@ -73,7 +72,7 @@ interface SourceCallMetadataRow {
 }
 
 type SourceCallMemberProvider =
-  | { readonly kind: "metadata-by-source-name"; readonly membersForSourceName: (sourceName: string) => readonly TargetMember[] }
+  | { readonly kind: "metadata-by-source-identity"; readonly membersForSourceMember: (sourceMember: SourceLibraryMember) => readonly TargetMember[] }
   | { readonly kind: "date-call-kind" }
   | { readonly kind: "object-composite" }
   | { readonly kind: "array-carrier" }
@@ -88,17 +87,17 @@ type SourceCallCallablePolicy =
   | { readonly kind: "never" };
 
 const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
-  metadataPolicy({ prefixes: ["Math."] }, mathTargetMembersForSourceName),
-  metadataPolicy({ prefixes: ["String."] }, stringTargetMembersForSourceName),
-  metadataPolicy({ prefixes: ["Number."] }, numberTargetMembersForSourceName),
-  metadataPolicy({ prefixes: ["Boolean."] }, booleanTargetMembersForSourceName),
-  metadataPolicy({ prefixes: ["RegExp."] }, regExpTargetMembersForSourceName),
+  metadataPolicy({ prefixes: ["Math."] }, mathTargetMembersForSourceMember),
+  metadataPolicy({ prefixes: ["String."] }, stringTargetMembersForSourceMember),
+  metadataPolicy({ prefixes: ["Number."] }, numberTargetMembersForSourceMember),
+  metadataPolicy({ prefixes: ["Boolean."] }, booleanTargetMembersForSourceMember),
+  metadataPolicy({ prefixes: ["RegExp."] }, regExpTargetMembersForSourceMember),
   {
     identity: { prefixes: ["Date."] },
     members: { kind: "date-call-kind" },
     callable: { kind: "members-exist" },
   },
-  metadataPolicy({ prefixes: ["JSON."] }, jsonTargetMembersForSourceName),
+  metadataPolicy({ prefixes: ["JSON."] }, jsonTargetMembersForSourceMember),
   {
     identity: { prefixes: ["Object."] },
     members: { kind: "object-composite" },
@@ -157,20 +156,19 @@ function callMembersFromProvider(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  const sourceName = sourceLibraryMemberName(sourceMember);
   switch (provider.kind) {
-    case "metadata-by-source-name":
-      return provider.membersForSourceName(sourceName);
+    case "metadata-by-source-identity":
+      return provider.membersForSourceMember(sourceMember);
     case "date-call-kind":
-      return dateTargetMembersForSourceName(sourceName, isNewExpression(request.call, context) ? "new" : "call");
+      return dateTargetMembersForSourceMember(sourceMember, isNewExpression(request.call, context) ? "new" : "call");
     case "object-composite":
       return [
-        ...objectTargetMembersForSourceName(sourceName),
+        ...objectTargetMembersForSourceMember(sourceMember),
         ...getObjectPrimitiveReceiverCallMembers(request, context, host, sourceMember),
         ...getObjectRecordDictionaryCallMembers(sourceMember, request, context, host),
       ];
     case "array-carrier":
-      return arrayMembersFromClosedFacts(sourceMember, sourceName, request, context, host);
+      return arrayMembersFromClosedFacts(sourceMember, request, context, host);
     case "collection-carrier":
       return collectionTargetMembersForSourceMember(
         sourceMember,
@@ -189,12 +187,11 @@ function callablePolicyIsSatisfied(
   provider: SourceCallMemberProvider | undefined,
   sourceMember: SourceLibraryMember,
 ): boolean {
-  const sourceName = sourceLibraryMemberName(sourceMember);
   switch (policy.kind) {
     case "members-exist":
-      return provider === undefined ? false : callableMembersFromProvider(provider, sourceMember, sourceName).length > 0;
+      return provider === undefined ? false : callableMembersFromProvider(provider, sourceMember).length > 0;
     case "array-members-or-call-surface":
-      return arrayTargetMembersForSourceName(sourceName).length > 0 || arrayCallSurfaceMemberNames.has(sourceName);
+      return arrayTargetMembersForSourceMember(sourceMember).length > 0 || sourceLibraryMemberMatches(sourceMember, arrayCallableIdentityPolicy);
     case "collection-members-exist":
       return collectionTargetMembersForSourceMember(sourceMember, undefined, undefined).length > 0;
     case "always":
@@ -207,15 +204,14 @@ function callablePolicyIsSatisfied(
 function callableMembersFromProvider(
   provider: SourceCallMemberProvider,
   sourceMember: SourceLibraryMember,
-  sourceName: string,
 ): readonly TargetMember[] {
   switch (provider.kind) {
-    case "metadata-by-source-name":
-      return provider.membersForSourceName(sourceName);
+    case "metadata-by-source-identity":
+      return provider.membersForSourceMember(sourceMember);
     case "date-call-kind":
-      return dateTargetMembersForSourceName(sourceName, "call");
+      return dateTargetMembersForSourceMember(sourceMember, "call");
     case "object-composite":
-      return objectTargetMembersForSourceName(sourceName);
+      return objectTargetMembersForSourceMember(sourceMember);
     case "array-carrier":
     case "collection-carrier":
       return [];
@@ -226,7 +222,6 @@ function callableMembersFromProvider(
 
 function arrayMembersFromClosedFacts(
   sourceMember: SourceLibraryMember,
-  sourceName: string,
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
@@ -235,7 +230,7 @@ function arrayMembersFromClosedFacts(
   if (sourceLibraryMemberMatches(sourceMember, arrayConstructorIdentityPolicy) && resultElementType === undefined) {
     return [];
   }
-  return arrayTargetMembersForSourceName(sourceName, resultElementType ?? arrayElementTypeFromClosedFacts(request, context, host));
+  return arrayTargetMembersForSourceMember(sourceMember, resultElementType ?? arrayElementTypeFromClosedFacts(request, context, host));
 }
 
 function arrayElementTypeFromClosedFacts(
@@ -250,11 +245,11 @@ function arrayElementTypeFromClosedFacts(
 
 function metadataPolicy(
   identity: SourceLibraryMemberIdentityPolicy,
-  membersForSourceName: (sourceName: string) => readonly TargetMember[],
+  membersForSourceMember: (sourceMember: SourceLibraryMember) => readonly TargetMember[],
 ): SourceCallMetadataRow {
   return {
     identity,
-    members: { kind: "metadata-by-source-name", membersForSourceName },
+    members: { kind: "metadata-by-source-identity", membersForSourceMember },
     callable: { kind: "members-exist" },
   };
 }

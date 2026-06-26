@@ -2,17 +2,20 @@ import type {
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  SourceLibraryMember,
+} from "../../source-library.js";
 import {
-  jsSurfaceTargetMemberMetadataIndex,
-  jsSurfaceTargetMembersForSourceName,
+  jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames,
+  jsSurfaceTargetMembersForSourceMember,
 } from "../../target-member-metadata.js";
 import {
   arrayTargetMemberMetadata,
 } from "./metadata.js";
 
-export function arrayTargetMembersForSourceName(sourceName: string, receiverElementType?: TargetTypeRef): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceName(
-    jsSurfaceTargetMemberMetadataIndex(arrayTargetMemberMetadata(receiverElementType)),
-    sourceName,
+export function arrayTargetMembersForSourceMember(sourceMember: SourceLibraryMember, receiverElementType?: TargetTypeRef): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceMember(
+    jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(["Array", "ReadonlyArray"], arrayTargetMemberMetadata(receiverElementType)),
+    sourceMember,
   );
 }

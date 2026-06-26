@@ -9,6 +9,6 @@ export {
   recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization,
 } from "./runtime-carrier.js";
 export {
-  regExpPropertyTargetMemberForSourceName,
-  regExpTargetMembersForSourceName,
+  regExpPropertyTargetMemberForSourceMember,
+  regExpTargetMembersForSourceMember,
 } from "./target-members.js";

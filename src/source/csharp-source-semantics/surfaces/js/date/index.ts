@@ -8,5 +8,5 @@ export {
   recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization,
 } from "./runtime-carrier.js";
 export {
-  dateTargetMembersForSourceName,
+  dateTargetMembersForSourceMember,
 } from "./target-members/index.js";

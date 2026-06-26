@@ -22,7 +22,6 @@ import {
   resolveSourceLibraryMemberIdentity,
   recordCsharpTargetOperation,
   sourceLibraryMemberIdentity,
-  sourceLibraryMemberName,
   targetOperation,
   targetOperationFromMember,
 } from "./source-library.js";
@@ -196,7 +195,7 @@ function mapCsharpSourceLibraryPropertyOperation(
   }
   return acceptObservation<CheckedOperationMappingResult>({
     operation: sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember)
-      ? targetOperation(member.id, "property", sourceMemberName(sourceMember), {
+      ? targetOperation(member.id, "property", member.sourceName, {
           ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
         })
       : targetOperationFromMember(member),
@@ -209,10 +208,6 @@ function sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLi
 
 function sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember: SourceLibraryMember): boolean {
   return csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember);
-}
-
-function sourceMemberName(sourceMember: SourceLibraryMember): string {
-  return sourceLibraryMemberName(sourceMember);
 }
 
 function sourceLibraryPropertyReceiverHasClosedFacts(

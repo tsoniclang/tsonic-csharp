@@ -4,6 +4,11 @@ import type {
   TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  SourceLibraryDeclaringKey,
+  SourceLibraryMember,
+  SourceLibraryMemberKey,
+} from "./source-library.js";
 
 export interface JsSurfaceTargetMemberMetadata {
   readonly id: string;
@@ -34,19 +39,46 @@ export function jsSurfaceTargetMemberMetadataIndex(
   return index;
 }
 
-export function jsSurfaceTargetMembersForSourceName(
-  index: ReadonlyMap<string, readonly TargetMember[]>,
-  sourceName: string,
-): readonly TargetMember[] {
-  return index.get(sourceName) ?? [];
+export function jsSurfaceTargetMemberMetadataIdentityIndex(
+  declaringName: SourceLibraryDeclaringKey,
+  metadata: readonly JsSurfaceTargetMemberMetadata[],
+): ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]> {
+  return jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames([declaringName], metadata);
 }
 
-export function jsSurfaceSingleTargetMemberForSourceName(
-  index: ReadonlyMap<string, readonly TargetMember[]>,
-  sourceName: string,
+export function jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(
+  declaringNames: readonly SourceLibraryDeclaringKey[],
+  metadata: readonly JsSurfaceTargetMemberMetadata[],
+): ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]> {
+  const index = new Map<SourceLibraryMemberKey, TargetMember[]>();
+  for (const record of metadata) {
+    for (const declaringName of declaringNames) {
+      const identity = jsSurfaceSourceMemberKey(declaringName, record.sourceName);
+      const existing = index.get(identity);
+      const member = targetMemberFromMetadata(record);
+      if (existing === undefined) {
+        index.set(identity, [member]);
+      } else {
+        existing.push(member);
+      }
+    }
+  }
+  return index;
+}
+
+export function jsSurfaceTargetMembersForSourceMember(
+  index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+  sourceMember: SourceLibraryMember,
+): readonly TargetMember[] {
+  return index.get(sourceMember.id) ?? [];
+}
+
+export function jsSurfaceSingleTargetMemberForSourceMember(
+  index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+  sourceMember: SourceLibraryMember,
 ): TargetMember | undefined {
-  const members = index.get(sourceName);
-  return members?.length === 1 ? members[0] : undefined;
+  const members = jsSurfaceTargetMembersForSourceMember(index, sourceMember);
+  return members.length === 1 ? members[0] : undefined;
 }
 
 export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberMetadata): TargetMember {
@@ -65,3 +97,10 @@ export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberM
 }
 
 const targetMemberFromMetadata = jsSurfaceTargetMemberFromMetadata;
+
+function jsSurfaceSourceMemberKey(
+  declaringName: SourceLibraryDeclaringKey,
+  sourceName: string,
+): SourceLibraryMemberKey {
+  return `${declaringName}.${sourceName}`;
+}

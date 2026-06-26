@@ -27,7 +27,6 @@ export {
   sourceLibraryMemberMatches,
   sourceLibraryMemberMatchesAny,
   sourceLibraryMemberMatchesAnyPrefix,
-  sourceLibraryMemberName,
 } from "../../source-library.js";
 export {
   csharpTargetOperationFromMember,

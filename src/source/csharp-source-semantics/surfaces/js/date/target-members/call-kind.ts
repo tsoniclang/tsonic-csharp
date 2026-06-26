@@ -1,6 +1,9 @@
 import type {
   TargetMember,
 } from "@tsonic/tsts";
+import type {
+  SourceLibraryMember,
+} from "../../source-library.js";
 import {
   targetParameter,
 } from "../../source-library.js";
@@ -8,8 +11,7 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "../../target-member-metadata.js";
 import {
-  jsSurfaceTargetMemberMetadataIndex,
-  jsSurfaceTargetMembersForSourceName,
+  jsSurfaceTargetMemberFromMetadata,
 } from "../../target-member-metadata.js";
 import {
   dateConstructorMetadata,
@@ -42,10 +44,9 @@ const dateConstructorMemberMetadata = [
   ]),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 
-const dateConstructorMemberIndex = jsSurfaceTargetMemberMetadataIndex(dateConstructorMemberMetadata);
-const dateConstructorMembers = jsSurfaceTargetMembersForSourceName(dateConstructorMemberIndex, "constructor");
+const dateConstructorMembers = dateConstructorMemberMetadata.map(jsSurfaceTargetMemberFromMetadata);
 
-const dateFunctionMember = jsSurfaceTargetMembersForSourceName(jsSurfaceTargetMemberMetadataIndex([{
+const dateFunctionMember = [{
   id: "Tsonic.CSharp.Js.Date.call",
   sourceName: "constructor",
   targetName: "call",
@@ -54,15 +55,15 @@ const dateFunctionMember = jsSurfaceTargetMembersForSourceName(jsSurfaceTargetMe
   returnType: dateTargetMemberTypes.stringType,
   declaringType: dateTargetMemberTypes.dateType,
   static: true,
-}] satisfies readonly JsSurfaceTargetMemberMetadata[]), "constructor");
+} satisfies JsSurfaceTargetMemberMetadata].map(jsSurfaceTargetMemberFromMetadata);
 
 const dateCallKindTargetMemberIndex = new Map<string, readonly TargetMember[]>([
   [dateCallKindKey("constructor", "call"), dateFunctionMember],
   [dateCallKindKey("constructor", "new"), dateConstructorMembers],
 ]);
 
-export function dateCallKindTargetMembers(sourceName: string, callKind: DateCallKind): readonly TargetMember[] | undefined {
-  return dateCallKindTargetMemberIndex.get(dateCallKindKey(sourceName, callKind));
+export function dateCallKindTargetMembersForSourceMember(sourceMember: SourceLibraryMember, callKind: DateCallKind): readonly TargetMember[] | undefined {
+  return dateCallKindTargetMemberIndex.get(dateCallKindKey(sourceMember.name, callKind));
 }
 
 function dateCallKindKey(sourceName: string, callKind: DateCallKind): string {

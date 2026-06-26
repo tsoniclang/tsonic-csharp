@@ -11,7 +11,10 @@ import type {
   TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import type { CsharpJsSurfaceHost } from "./source-library.js";
+import type {
+  CsharpJsSurfaceHost,
+  SourceLibraryMember,
+} from "./source-library.js";
 import {
   csharpJsCheckedTypeQuery,
   csharpListTargetType,
@@ -30,8 +33,8 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
-  jsSurfaceTargetMemberMetadataIndex,
-  jsSurfaceTargetMembersForSourceName,
+  jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 
 export function mapCsharpJsStringElementAccess(
@@ -61,8 +64,8 @@ export function mapCsharpJsStringElementAccess(
   }, [{ message: "C# JS surface string code-unit access selected from checked TypeScript element access." }]);
 }
 
-export function stringTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceName(stringTargetMemberIndex, sourceName);
+export function stringTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceMember(stringTargetMemberIdentityIndex, sourceMember);
 }
 
 const stringType = csharpStringTargetType();
@@ -158,7 +161,7 @@ const stringTargetMemberMetadata = [
     stringReceiverHelperMemberMetadata(sourceName, [stringReceiverParameter], stringType)
   ),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const stringTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(stringTargetMemberMetadata);
+const stringTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("String", stringTargetMemberMetadata);
 
 function stringHelperMemberMetadata(
   sourceName: string,

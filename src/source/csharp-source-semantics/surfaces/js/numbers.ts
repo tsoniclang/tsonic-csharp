@@ -2,6 +2,9 @@ import type {
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  SourceLibraryMember,
+} from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
@@ -13,8 +16,9 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
-  jsSurfaceTargetMemberMetadataIndex,
-  jsSurfaceTargetMembersForSourceName,
+  jsSurfaceSingleTargetMemberForSourceMember,
+  jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 
 const numberOpsType = csharpTargetNamedType("Tsonic.CSharp.Js.Number", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Number"));
@@ -33,8 +37,8 @@ const numberTargetMemberMetadata = [
   instanceNumberMethodMetadata("toString", stringType),
   instanceNumberMethodMetadata("valueOf", numberType),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const numberTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(numberTargetMemberMetadata);
-const numberPropertyTargetMembers = new Map<string, TargetMember>([
+const numberTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberTargetMemberMetadata);
+const numberPropertyTargetMemberMetadata = [
   "MAX_VALUE",
   "MIN_VALUE",
   "MAX_SAFE_INTEGER",
@@ -43,19 +47,8 @@ const numberPropertyTargetMembers = new Map<string, TargetMember>([
   "NEGATIVE_INFINITY",
   "NaN",
   "EPSILON",
-].map((sourceName) => {
-  const member = numberPropertyMetadata(sourceName);
-  return [sourceName, {
-    id: member.id,
-    sourceName: member.sourceName,
-    targetName: member.targetName,
-    kind: member.kind,
-    parameters: member.parameters ?? [],
-    returnType: member.returnType,
-    declaringType: member.declaringType,
-    static: member.static,
-  }] as const;
-}));
+].map((sourceName) => numberPropertyMetadata(sourceName)) satisfies readonly JsSurfaceTargetMemberMetadata[];
+const numberPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberPropertyTargetMemberMetadata);
 
 export function isCsharpNumberTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "source-primitive" &&
@@ -71,16 +64,12 @@ export function isCsharpNumberTargetType(type: TargetTypeRef | undefined): boole
     );
 }
 
-export function numberTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceName(numberTargetMemberIndex, sourceName);
+export function numberTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceMember(numberTargetMemberIdentityIndex, sourceMember);
 }
 
-export function numberPropertyTargetMemberForSourceName(sourceName: string): TargetMember | undefined {
-  return numberPropertyTargetMembers.get(sourceName);
-}
-
-export function numberStaticCallRequiresNoReceiver(sourceName: string): boolean {
-  return numberStaticMethodNames.has(sourceName);
+export function numberPropertyTargetMemberForSourceMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
+  return jsSurfaceSingleTargetMemberForSourceMember(numberPropertyTargetMemberIdentityIndex, sourceMember);
 }
 
 function staticNumberMethodMetadata(
@@ -126,12 +115,3 @@ function numberPropertyMetadata(sourceName: string): JsSurfaceTargetMemberMetada
     static: true,
   };
 }
-
-const numberStaticMethodNames = new Set([
-  "parseInt",
-  "parseFloat",
-  "isNaN",
-  "isFinite",
-  "isInteger",
-  "isSafeInteger",
-]);
