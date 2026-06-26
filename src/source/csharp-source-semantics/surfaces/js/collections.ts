@@ -28,7 +28,7 @@ import {
 } from "../../target-type-keywords.js";
 import {
   createCsharpJsCollectionTargetTypeForSourceType,
-} from "./collection-target-metadata.js";
+} from "./collection-target-metadata/index.js";
 import {
   targetTypeRefIsClosed,
 } from "../../target-ref-utils.js";
@@ -41,7 +41,7 @@ export {
   getCsharpJsIterableElementType,
   isCsharpJsMapTargetType,
   isCsharpJsSetTargetType,
-} from "./collection-target-metadata.js";
+} from "./collection-target-metadata/index.js";
 
 export function mapCsharpJsCollectionRuntimeCarrier(
   request: RuntimeCarrierFactRequest,
