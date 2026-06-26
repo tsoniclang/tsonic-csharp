@@ -9,7 +9,7 @@ import {
   createCsharpSourceSemanticsExtension,
   createCsharpTargetSemanticsExtension,
 } from "../dist/index.js";
-import { planArrayLiteralExpressionWithCarrier } from "../dist/backend/planner/array-literals.js";
+import { planArrayLiteralExpressionWithCarrier } from "../dist/backend/planner/array-literals/index.js";
 import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import {
   createCsharpJsSurfaceOperationsProvider as createProductCsharpJsSurfaceOperationsProvider,

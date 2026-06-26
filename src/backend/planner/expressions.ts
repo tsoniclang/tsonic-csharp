@@ -26,7 +26,7 @@ import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../roslyn
 import type { DestructuringPlannerState } from "./bindings.js";
 import {
   planArrayLiteralExpressionFromFacts,
-} from "./array-literals.js";
+} from "./array-literals/index.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";

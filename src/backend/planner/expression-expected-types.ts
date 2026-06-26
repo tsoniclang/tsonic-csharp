@@ -35,7 +35,7 @@ import {
   planArrayLiteralExpression,
   planArrayLiteralExpressionWithCarrier,
   planTupleLiteralExpression,
-} from "./array-literals.js";
+} from "./array-literals/index.js";
 import {
   getTargetTypeRefForNode,
 } from "./runtime-carriers.js";
