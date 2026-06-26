@@ -148,6 +148,15 @@ export const analysisAbstractionRules = Object.freeze([
   },
 ]);
 
+export const analysisAbstractionFileRules = Object.freeze([
+  {
+    id: "procedural-policy-file",
+    pattern: /(?:^|\/)(?:policy|selection-policy|property-policy|array-use-policy)\.ts$/,
+    replacement:
+      "Use named source-identity, rule, provider-metadata, selector, closed-fact, or exception modules; do not reintroduce procedural policy catch-alls.",
+  },
+]);
+
 export const analysisAbstractionDebtClassifications = Object.freeze([
   "source-identity-policy-candidate",
   "provider-metadata-candidate",
@@ -175,7 +184,10 @@ export function collectAnalysisAbstractionFindings(repoRoot) {
   return sourceFiles(join(repoRoot, "src")).flatMap((filePath) => {
     const file = relative(repoRoot, filePath).split(sep).join("/");
     const text = readFileSync(filePath, "utf8");
-    return analysisAbstractionRules.flatMap((rule) => collectRuleFindings(file, text, rule));
+    return [
+      ...analysisAbstractionFileRules.flatMap((rule) => collectFileRuleFindings(file, rule)),
+      ...analysisAbstractionRules.flatMap((rule) => collectRuleFindings(file, text, rule)),
+    ];
   });
 }
 
@@ -197,6 +209,19 @@ function collectRuleFindings(file, text, rule) {
     snippet: lineAt(text, match.index ?? 0).trim(),
     replacement: rule.replacement,
   }));
+}
+
+function collectFileRuleFindings(file, rule) {
+  rule.pattern.lastIndex = 0;
+  return rule.pattern.test(file)
+    ? [{
+        file,
+        ruleId: rule.id,
+        line: 1,
+        snippet: file,
+        replacement: rule.replacement,
+      }]
+    : [];
 }
 
 function lineNumberAt(text, index) {
