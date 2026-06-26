@@ -44,7 +44,7 @@ export {
 } from "./buffer/identities.js";
 export {
   nodeBufferExports,
-} from "./buffer/declarations.js";
+} from "./buffer/declarations/index.js";
 export {
   getNodeBufferLengthTargetMember,
   nodeBufferClassCallTargetMembers,
