@@ -30,7 +30,7 @@ import {
 } from "./provider-virtual-source-files.js";
 import {
   planSelectedTargetCallArguments,
-} from "./expression-target-members.js";
+} from "./expression-target-members/index.js";
 import {
   getRequiredCsharpTargetMemberOperationForSelectedSignature,
 } from "./csharp-target-operations.js";

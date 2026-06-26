@@ -22,7 +22,7 @@ import { printCsharpCompilationUnit } from "../dist/print/csharp-printer.js";
 import {
   planElementAccessExpression,
   planPropertyAccessExpression,
-} from "../dist/backend/planner/expression-target-members.js";
+} from "../dist/backend/planner/expression-target-members/index.js";
 import {
   KindElementAccessExpression,
   KindFalseKeyword,

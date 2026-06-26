@@ -46,7 +46,7 @@ import {
   planCallExpression,
   planElementAccessExpression,
   planPropertyAccessExpression,
-} from "./expression-target-members.js";
+} from "./expression-target-members/index.js";
 import { planExpressionWithExpectedTypeCore } from "./expression-expected-types.js";
 import {
   planCallArgumentCore,
