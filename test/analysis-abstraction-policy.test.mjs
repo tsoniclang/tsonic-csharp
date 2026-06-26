@@ -4,6 +4,7 @@ import {
   analysisAbstractionDebtCatalog,
   analysisAbstractionDebtClassifications,
   analysisAbstractionDebtOwners,
+  analysisAbstractionFileRules,
   collectAnalysisAbstractionFindings,
   summarizeAnalysisAbstractionFindings,
 } from "./architecture/analysis-abstraction-policy.mjs";
@@ -59,6 +60,29 @@ test("product analysis code has no unclassified source-family or target-member a
   }
 
   assert.deepEqual({ unclassified, drift }, { unclassified: [], drift: [] });
+});
+
+test("architecture validator rejects procedural policy module names", () => {
+  const proceduralPolicyRule = analysisAbstractionFileRules.find((rule) => rule.id === "procedural-policy-file");
+  assert.notEqual(proceduralPolicyRule, undefined);
+  assert.deepEqual(
+    [
+      "src/source/csharp-source-semantics/surfaces/js/policy.ts",
+      "src/source/csharp-source-semantics/surfaces/js/property-policy.ts",
+      "src/source/csharp-source-semantics/surfaces/js/calls/selection-policy.ts",
+      "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-policy.ts",
+    ].map((file) => proceduralPolicyRule.pattern.test(file)),
+    [true, true, true, true],
+  );
+  assert.deepEqual(
+    [
+      "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts.ts",
+      "src/source/csharp-source-semantics/surfaces/js/calls/target-selection.ts",
+      "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
+      "src/source/csharp-source-semantics/surfaces/js/properties/member-providers.ts",
+    ].map((file) => proceduralPolicyRule.pattern.test(file)),
+    [false, false, false, false],
+  );
 });
 
 function catalogedCounts() {
