@@ -358,6 +358,28 @@ test("JS surface maps Number.toString from selected declaration and closed numbe
   assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
 });
 
+test("JS surface maps Number static methods and constants from selected declarations", () => {
+  const call = {};
+  const argument = {};
+  const property = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [argument, float64Type()],
+  ])));
+
+  const isFinite = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("NumberConstructor", "isFinite"), {
+    arguments: [argument],
+  }), fakeContext(facts));
+  const maxSafe = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(property, sourceLibraryMemberDeclaration("NumberConstructor", "MAX_SAFE_INTEGER"), "not-the-selected-name"), fakeContext(facts));
+
+  assert.equal(isFinite.kind, "accept");
+  assert.equal(isFinite.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.isFinite");
+  assert.equal(isFinite.value.selectedSignature.member.returnType.name, "bool");
+  assert.equal(maxSafe.kind, "accept");
+  assert.equal(maxSafe.value.operation.operationId, "Tsonic.CSharp.Js.Number.MAX_SAFE_INTEGER");
+  assert.equal(facts.get(property, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.Number.MAX_SAFE_INTEGER");
+});
+
 test("JS surface maps Map and Set runtime built-ins from selected declarations and closed carrier facts", () => {
   const mapConstruct = { Kind: "KindNewExpression" };
   const setConstruct = { Kind: "KindNewExpression" };

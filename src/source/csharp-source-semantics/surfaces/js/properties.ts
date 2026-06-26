@@ -57,6 +57,7 @@ import {
   getBooleanTargetMembers,
 } from "./booleans.js";
 import {
+  getNumberPropertyTargetMember,
   getNumberTargetMembers,
 } from "./numbers.js";
 import {
@@ -309,6 +310,9 @@ function sourceLibraryPropertyReceiverHasClosedFacts(
   if (sourceMember.declaringName === "Boolean") {
     return isCsharpBooleanTargetType(receiverType);
   }
+  if (sourceMember.declaringName === "Number") {
+    return getNumberPropertyTargetMember(sourceMember.memberName) !== undefined;
+  }
   if (sourceMember.declaringName === "Map" || sourceMember.declaringName === "ReadonlyMap") {
     return isCsharpJsMapTargetType(receiverType);
   }
@@ -351,6 +355,8 @@ function getSourceLibraryPropertyMember(sourceMember: SourceLibraryMember, recei
         return getMathPropertyTargetMember(sourceMember.memberName);
       case "RegExp":
         return getRegExpPropertyTargetMember(sourceMember.memberName);
+      case "Number":
+        return getNumberPropertyTargetMember(sourceMember.memberName);
       case "Map":
       case "ReadonlyMap":
       case "Set":

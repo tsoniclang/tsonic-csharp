@@ -15,6 +15,7 @@ import {
 } from "../booleans.js";
 import {
   isCsharpNumberTargetType,
+  numberStaticCallRequiresNoReceiver,
 } from "../numbers.js";
 import {
   isCsharpJsMapTargetType,
@@ -191,7 +192,7 @@ function sourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMemb
     case "String":
       return sourceMember.memberName !== "fromCharCode" && sourceMember.memberName !== "fromCodePoint";
     case "Number":
-      return true;
+      return !numberStaticCallRequiresNoReceiver(sourceMember.memberName);
     case "Boolean":
       return true;
     case "RegExp":
