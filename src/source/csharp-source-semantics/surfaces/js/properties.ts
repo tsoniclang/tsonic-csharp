@@ -43,7 +43,7 @@ import {
 import {
   csharpJsSourceLibraryPropertyPrecheck,
   getCsharpJsSourceLibraryPropertyMember,
-} from "./properties/member-providers.js";
+} from "./properties/member-providers/index.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryPropertyAccess,
   rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
