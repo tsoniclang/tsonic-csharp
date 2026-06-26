@@ -30,8 +30,8 @@ import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
 import {
-  csharpJsSourceLibraryMemberHasCallableTarget,
-} from "./policy.js";
+  csharpJsSourceLibraryMemberHasCallableProvider,
+} from "./calls/member-providers.js";
 import {
   getCsharpJsSourceLibraryMemberFromReceiverType,
 } from "./properties/source-identity.js";
@@ -266,5 +266,5 @@ function getSourceLibraryPropertyMember(sourceMember: SourceLibraryMember, recei
 }
 
 function sourceLibrarySelectedDeclarationHasCallTarget(sourceMember: SourceLibraryMember): boolean {
-  return csharpJsSourceLibraryMemberHasCallableTarget(sourceMember);
+  return csharpJsSourceLibraryMemberHasCallableProvider(sourceMember);
 }

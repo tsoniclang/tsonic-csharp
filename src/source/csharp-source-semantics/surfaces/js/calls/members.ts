@@ -7,14 +7,14 @@ import type {
   SourceLibraryMember,
 } from "../source-library.js";
 import {
-  getCsharpJsSourceLibraryCallMembers,
-} from "../policy.js";
+  getCsharpJsSourceLibraryCallMembersFromProviders,
+} from "./member-providers.js";
 
 export function getSourceLibraryCallMembers(
   sourceMember: SourceLibraryMember,
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
-): ReturnType<typeof getCsharpJsSourceLibraryCallMembers> {
-  return getCsharpJsSourceLibraryCallMembers(sourceMember, request, context, host);
+): ReturnType<typeof getCsharpJsSourceLibraryCallMembersFromProviders> {
+  return getCsharpJsSourceLibraryCallMembersFromProviders(sourceMember, request, context, host);
 }

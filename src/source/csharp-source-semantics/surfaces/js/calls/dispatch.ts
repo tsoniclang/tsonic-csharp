@@ -16,15 +16,15 @@ import {
 import {
   csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
   csharpJsSourceLibraryCallMayNeedFinalFacts,
-  mapCsharpJsSourceLibrarySpecialCheckedCall,
-} from "../policy.js";
+  sourceLibraryCallReceiverHasClosedFacts,
+} from "./closed-facts.js";
+import {
+  mapCsharpJsSourceLibraryProviderCheckedCall,
+} from "./member-providers.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryCall,
   rejectUnsupportedCsharpJsSourceLibraryCall,
 } from "../unsupported.js";
-import {
-  sourceLibraryCallReceiverHasClosedFacts,
-} from "./closed-facts.js";
 import {
   rejectSourceLibraryCallMissingSelectedSignature,
   rejectSourceLibraryCallSignatureDeclarationMismatch,
@@ -65,7 +65,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  const specialCall = mapCsharpJsSourceLibrarySpecialCheckedCall(request, context, sourceMember, host, options);
+  const specialCall = mapCsharpJsSourceLibraryProviderCheckedCall(request, context, sourceMember, host, options);
   if (specialCall !== undefined) {
     return specialCall;
   }
