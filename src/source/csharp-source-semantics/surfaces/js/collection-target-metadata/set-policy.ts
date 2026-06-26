@@ -1,15 +1,17 @@
 import {
-  csharpEnumerableTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpVoidTargetType,
-  targetParameter,
-} from "../source-library.js";
-import {
-  collectionConstructor,
-  collectionMethod,
+  collectionConstructorShape,
+  collectionMemberShape,
+  collectionMethodShape,
+  declaringType,
+  enumerableType,
   noParameterMapPolicies,
+  parameterShape,
+  primitiveType,
   sameParameterMapPolicies,
-  setForEachMembers,
+  setForEachMemberShapes,
+  tupleType,
+  typeArgument,
+  voidType,
 } from "./member-builders.js";
 import {
   csharpJsSetTargetType,
@@ -33,39 +35,19 @@ export const csharpJsSetCollectionPolicy = {
   isTargetType: isCsharpJsSetTargetType,
   getIterableElementType: (typeArguments) => typeArguments[0],
   members: [
-    {
-      sourceName: "constructor",
-      createMembers: (policy, setType, [elementType]) =>
-        elementType === undefined
-          ? []
-          : [
-              collectionConstructor(policy, "Tsonic.CSharp.Js.Set..ctor()", setType, []),
-              collectionConstructor(policy, "Tsonic.CSharp.Js.Set..ctor(System.Collections.Generic.IEnumerable`1)", setType, [
-                targetParameter("values", csharpEnumerableTargetType(elementType)),
-              ]),
-            ],
-    },
-    {
-      sourceName: "add",
-      createMembers: (policy, setType, [elementType]) =>
-        elementType === undefined
-          ? []
-          : [collectionMethod(policy, "add", setType, [targetParameter("value", elementType)], setType)],
-    },
-    ...sameParameterMapPolicies(["has", "delete"], ([elementType]) =>
-      elementType === undefined ? [] : [targetParameter("value", elementType)], () => csharpSourcePrimitiveTargetType("bool")),
-    ...noParameterMapPolicies(["clear"], () => csharpVoidTargetType()),
-    ...noParameterMapPolicies(["keys", "values"], ([elementType]) => elementType === undefined ? undefined : csharpEnumerableTargetType(elementType)),
-    ...noParameterMapPolicies(["entries"], ([elementType]) =>
-      elementType === undefined
-        ? undefined
-        : csharpEnumerableTargetType({ kind: "tuple", elements: [elementType, elementType] })),
-    {
-      sourceName: "forEach",
-      createMembers: (policy, setType, [elementType]) =>
-        elementType === undefined
-          ? []
-          : setForEachMembers(policy, setType, elementType),
-    },
+    collectionMemberShape("constructor", [
+      collectionConstructorShape("Tsonic.CSharp.Js.Set..ctor()"),
+      collectionConstructorShape("Tsonic.CSharp.Js.Set..ctor(System.Collections.Generic.IEnumerable`1)", [
+        parameterShape("values", enumerableType(typeArgument(0))),
+      ]),
+    ]),
+    collectionMemberShape("add", [
+      collectionMethodShape("add", [parameterShape("value", typeArgument(0))], declaringType()),
+    ]),
+    ...sameParameterMapPolicies(["has", "delete"], [parameterShape("value", typeArgument(0))], primitiveType("bool")),
+    ...noParameterMapPolicies(["clear"], voidType()),
+    ...noParameterMapPolicies(["keys", "values"], enumerableType(typeArgument(0))),
+    ...noParameterMapPolicies(["entries"], enumerableType(tupleType(typeArgument(0), typeArgument(0)))),
+    collectionMemberShape("forEach", setForEachMemberShapes()),
   ],
 } satisfies CsharpJsCollectionTypePolicy;

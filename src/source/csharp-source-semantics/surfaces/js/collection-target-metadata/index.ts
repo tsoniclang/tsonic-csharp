@@ -18,6 +18,9 @@ import {
   jsSurfaceTargetMemberFromMetadata,
 } from "../target-member-metadata.js";
 import {
+  materializeCollectionMemberMetadata,
+} from "./member-builders.js";
+import {
   collectionMemberPolicyApplies,
   collectionPolicyForSourceMember,
   collectionPolicyForSourceType,
@@ -60,7 +63,12 @@ export function collectionTargetMembersForSourceMember(
   const memberPolicy = policy?.members.find((member) => collectionMemberPolicyApplies(policy, member, sourceMember));
   return policy === undefined || collectionType === undefined || memberPolicy === undefined
     ? []
-    : memberPolicy.createMembers(policy, collectionType, typeArguments).map(jsSurfaceTargetMemberFromMetadata);
+    : materializeCollectionMemberMetadata({
+      policy,
+      memberPolicy,
+      declaringType: collectionType,
+      typeArguments,
+    }).map(jsSurfaceTargetMemberFromMetadata);
 }
 
 export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMember, receiverType: TargetTypeRef | undefined): TargetMember | undefined {

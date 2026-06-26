@@ -1,16 +1,18 @@
 import {
-  csharpEnumerableTargetType,
-  csharpNullableTargetType,
-  csharpSourcePrimitiveTargetType,
-  csharpVoidTargetType,
-  targetParameter,
-} from "../source-library.js";
-import {
-  collectionConstructor,
-  collectionMethod,
-  mapForEachMembers,
+  collectionConstructorShape,
+  collectionMemberShape,
+  collectionMethodShape,
+  declaringType,
+  enumerableType,
   noParameterMapPolicies,
+  mapForEachMemberShapes,
+  nullableType,
+  parameterShape,
+  primitiveType,
   sameParameterMapPolicies,
+  tupleType,
+  typeArgument,
+  voidType,
 } from "./member-builders.js";
 import {
   csharpJsMapTargetType,
@@ -39,47 +41,23 @@ export const csharpJsMapCollectionPolicy = {
       : { kind: "tuple", elements: [keyType, valueType] };
   },
   members: [
-    {
-      sourceName: "constructor",
-      createMembers: (policy, mapType, [keyType, valueType]) =>
-        keyType === undefined || valueType === undefined
-          ? []
-          : [
-              collectionConstructor(policy, "Tsonic.CSharp.Js.Map..ctor()", mapType, []),
-              collectionConstructor(policy, "Tsonic.CSharp.Js.Map..ctor(System.Collections.Generic.IEnumerable`1)", mapType, [
-                targetParameter("entries", csharpEnumerableTargetType({ kind: "tuple", elements: [keyType, valueType] })),
-              ]),
-            ],
-    },
-    {
-      sourceName: "get",
-      createMembers: (policy, mapType, [keyType, valueType]) =>
-        keyType === undefined || valueType === undefined
-          ? []
-          : [collectionMethod(policy, "get", mapType, [targetParameter("key", keyType)], csharpNullableTargetType(valueType))],
-    },
-    {
-      sourceName: "set",
-      createMembers: (policy, mapType, [keyType, valueType]) =>
-        keyType === undefined || valueType === undefined
-          ? []
-          : [collectionMethod(policy, "set", mapType, [targetParameter("key", keyType), targetParameter("value", valueType)], mapType)],
-    },
-    ...sameParameterMapPolicies(["has", "delete"], ([keyType]) =>
-      keyType === undefined ? [] : [targetParameter("key", keyType)], () => csharpSourcePrimitiveTargetType("bool")),
-    ...noParameterMapPolicies(["clear"], () => csharpVoidTargetType()),
-    ...noParameterMapPolicies(["keys"], ([keyType]) => keyType === undefined ? undefined : csharpEnumerableTargetType(keyType)),
-    ...noParameterMapPolicies(["values"], ([_keyType, valueType]) => valueType === undefined ? undefined : csharpEnumerableTargetType(valueType)),
-    ...noParameterMapPolicies(["entries"], ([keyType, valueType]) =>
-      keyType === undefined || valueType === undefined
-        ? undefined
-        : csharpEnumerableTargetType({ kind: "tuple", elements: [keyType, valueType] })),
-    {
-      sourceName: "forEach",
-      createMembers: (policy, mapType, [keyType, valueType]) =>
-        keyType === undefined || valueType === undefined
-          ? []
-          : mapForEachMembers(policy, mapType, keyType, valueType),
-    },
+    collectionMemberShape("constructor", [
+      collectionConstructorShape("Tsonic.CSharp.Js.Map..ctor()"),
+      collectionConstructorShape("Tsonic.CSharp.Js.Map..ctor(System.Collections.Generic.IEnumerable`1)", [
+        parameterShape("entries", enumerableType(tupleType(typeArgument(0), typeArgument(1)))),
+      ]),
+    ]),
+    collectionMemberShape("get", [
+      collectionMethodShape("get", [parameterShape("key", typeArgument(0))], nullableType(typeArgument(1))),
+    ]),
+    collectionMemberShape("set", [
+      collectionMethodShape("set", [parameterShape("key", typeArgument(0)), parameterShape("value", typeArgument(1))], declaringType()),
+    ]),
+    ...sameParameterMapPolicies(["has", "delete"], [parameterShape("key", typeArgument(0))], primitiveType("bool")),
+    ...noParameterMapPolicies(["clear"], voidType()),
+    ...noParameterMapPolicies(["keys"], enumerableType(typeArgument(0))),
+    ...noParameterMapPolicies(["values"], enumerableType(typeArgument(1))),
+    ...noParameterMapPolicies(["entries"], enumerableType(tupleType(typeArgument(0), typeArgument(1)))),
+    collectionMemberShape("forEach", mapForEachMemberShapes()),
   ],
 } satisfies CsharpJsCollectionTypePolicy;

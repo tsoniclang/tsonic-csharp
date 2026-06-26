@@ -234,34 +234,6 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
     "surface-provider",
     "Replace procedural source-family call provider registry with declarative source identity policy and generic provider/runtime metadata selectors.",
   ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-policy.ts",
-    { "executable-surface-member-template": 4 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Represent Map members as provider/runtime metadata records or explicit semantic exceptions instead of executable member templates.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/member-builders.ts",
-    { "executable-surface-member-template": 2 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Replace collection member builder templates with generic provider metadata construction over declarative member records.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/set-policy.ts",
-    { "executable-surface-member-template": 3 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Represent Set members as provider/runtime metadata records or explicit semantic exceptions instead of executable member templates.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/types.ts",
-    { "executable-surface-member-template": 1 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Remove executable member templates from metadata contracts; provider metadata rows must be declarative.",
-  ),
 ]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
