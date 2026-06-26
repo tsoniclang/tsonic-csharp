@@ -95,6 +95,16 @@ export function csharpJsSourceLibraryMemberHasCallableTarget(
   return policyForSourceMember(sourceMember)?.hasCallableProperty?.(sourceMember) ?? false;
 }
 
+export function csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember: SourceLibraryMember | undefined): boolean {
+  return sourceMember !== undefined &&
+    sourceMember.declaringName === "Array" &&
+    sourceMember.memberName === "constructor";
+}
+
+export function csharpJsSourceLibraryMemberIsCollection(sourceMember: SourceLibraryMember | undefined): boolean {
+  return sourceMember !== undefined && collectionSourceNames.has(sourceMember.declaringName);
+}
+
 export function csharpJsSourceLibraryCallReceiverHasClosedFacts(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
@@ -211,6 +221,13 @@ const policiesByDeclaringName = new Map<SourceLibraryDeclaringName, CsharpJsSurf
     policy.declaringNames.map((declaringName) => [declaringName, policy] as const)
   ),
 );
+
+const collectionSourceNames = new Set<SourceLibraryDeclaringName>([
+  "Map",
+  "ReadonlyMap",
+  "Set",
+  "ReadonlySet",
+]);
 
 type CallReceiverClosedFactsPolicy = (
   request: CheckedCallMappingRequest,

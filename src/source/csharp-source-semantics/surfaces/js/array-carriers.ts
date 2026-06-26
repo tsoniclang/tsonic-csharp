@@ -42,6 +42,9 @@ import {
 import {
   getCsharpJsIterableElementType,
 } from "./collections.js";
+import {
+  csharpJsSourceLibraryMemberIsArrayConstructor,
+} from "./policy.js";
 
 export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 
@@ -179,7 +182,7 @@ function isCheckedSourceLibraryArrayConstruction(
   const signature = context.compiler?.checker.getResolvedSignature(node, { sourceFile });
   const declaration = asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
   const sourceMember = getSourceLibraryMember(declaration, context);
-  return sourceMember?.declaringName === "Array" && sourceMember.memberName === "constructor";
+  return csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember);
 }
 
 function getTypeArguments(type: Type, context: ExtensionObservationContext): readonly Type[] {

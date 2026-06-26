@@ -28,6 +28,10 @@ import {
   getSourceLibraryMember,
 } from "../source-library.js";
 import {
+  csharpJsSourceLibraryMemberIsArrayConstructor,
+  csharpJsSourceLibraryMemberIsCollection,
+} from "../policy.js";
+import {
   getCsharpJsArrayRuntimeCarrierForType,
 } from "../array-carriers.js";
 import {
@@ -159,10 +163,7 @@ function recordCollectionRuntimeCarrierFactsForSelectedCall(
 function sourceMemberIsCollection(
   sourceMember: NonNullable<ReturnType<typeof getSourceLibraryMember>>,
 ): boolean {
-  return sourceMember.declaringName === "Map" ||
-    sourceMember.declaringName === "ReadonlyMap" ||
-    sourceMember.declaringName === "Set" ||
-    sourceMember.declaringName === "ReadonlySet";
+  return csharpJsSourceLibraryMemberIsCollection(sourceMember);
 }
 
 function recordArrayConstructorRuntimeCarrierFact(
@@ -173,8 +174,7 @@ function recordArrayConstructorRuntimeCarrierFact(
   host: CsharpJsSurfaceHost,
 ): void {
   if (
-    sourceMember.declaringName !== "Array" ||
-    sourceMember.memberName !== "constructor" ||
+    !csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember) ||
     context.host.facts.get(node, runtimeCarrierFactKey) !== undefined
   ) {
     return;

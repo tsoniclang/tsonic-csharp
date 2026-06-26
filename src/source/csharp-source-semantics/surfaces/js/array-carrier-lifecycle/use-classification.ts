@@ -23,6 +23,10 @@ import {
   getSelectedArraySourceLibraryMemberForCall,
   getSelectedArraySourceLibraryMemberForPropertyAccess,
 } from "./source-library-selection.js";
+import {
+  classifySourceLibraryArrayPropertyUse,
+  classifySourceLibraryStaticCallArgumentUse,
+} from "./array-use-policy.js";
 import type {
   ArrayUse,
   CsharpArrayLifecycleAst,
@@ -78,19 +82,7 @@ function classifyIdentifierArrayUse(
     if (sourceMember === undefined) {
       return [];
     }
-    if (sourceMember.memberName === "length") {
-      return parentIsWriteTarget(parent, ast) ? ["full-js"] : ["length-read"];
-    }
-    if (denseMutatingArrayMethods.has(sourceMember.memberName)) {
-      return ["dense-mutation"];
-    }
-    if (fullJsArrayMethods.has(sourceMember.memberName)) {
-      return ["full-js"];
-    }
-    if (readIndexableArrayMethods.has(sourceMember.memberName)) {
-      return ["index-read"];
-    }
-    return [];
+    return classifySourceLibraryArrayPropertyUse(sourceMember, parentIsWriteTarget(parent, ast));
   }
   if (ast.is.IsForOfStatement(parent) && asNodeSubject(getNodeField(parent, "Expression")) === identifier) {
     return ["sequential-read"];
@@ -140,72 +132,5 @@ function classifyArrayStaticCallArgumentUse(
     return [];
   }
   const argumentIndex = getNodeList(getNodeField(call, "Arguments")).indexOf(identifier);
-  if (sourceMember.declaringName === "Array") {
-    if (argumentIndex !== 0) {
-      return [];
-    }
-    switch (sourceMember.memberName) {
-      case "from":
-        return ["sequential-read"];
-      case "isArray":
-        return ["index-read"];
-      default:
-        return [];
-    }
-  }
-  if (sourceMember.declaringName === "Object") {
-    switch (sourceMember.memberName) {
-      case "keys":
-      case "values":
-      case "entries":
-        return argumentIndex === 0 ? ["full-js"] : [];
-      case "assign":
-        return argumentIndex > 0 ? ["full-js"] : [];
-      default:
-        return [];
-    }
-  }
-  return [];
+  return classifySourceLibraryStaticCallArgumentUse(sourceMember, argumentIndex);
 }
-
-const denseMutatingArrayMethods = new Set([
-  "push",
-  "pop",
-  "shift",
-  "unshift",
-  "splice",
-  "reverse",
-  "sort",
-]);
-
-const readIndexableArrayMethods = new Set([
-  "at",
-  "concat",
-  "every",
-  "filter",
-  "find",
-  "findIndex",
-  "findLast",
-  "findLastIndex",
-  "forEach",
-  "includes",
-  "indexOf",
-  "join",
-  "lastIndexOf",
-  "map",
-  "reduce",
-  "reduceRight",
-  "slice",
-  "some",
-]);
-
-const fullJsArrayMethods = new Set([
-  "copyWithin",
-  "fill",
-  "flat",
-  "flatMap",
-  "toReversed",
-  "toSorted",
-  "toSpliced",
-  "with",
-]);
