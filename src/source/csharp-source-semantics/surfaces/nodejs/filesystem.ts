@@ -2,6 +2,7 @@ import type {
   ProviderExportDeclaration,
   ProviderTypeExpression,
   TargetMember,
+  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -10,9 +11,7 @@ import {
   csharpStringTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
-  targetProperty,
 } from "../js/source-library.js";
 import {
   csharpJsDateTargetType,
@@ -316,21 +315,39 @@ function nodeFsStatsTimestampProviderMember(
 }
 
 function getNodeFsStatsSizeTargetMember(): TargetMember {
-  return targetProperty("Tsonic.CSharp.Node.Stats.size", "size", "size", longTargetType, {
+  return {
+    id: "Tsonic.CSharp.Node.Stats.size",
+    sourceName: "size",
+    targetName: "size",
+    kind: "property",
+    parameters: [],
+    returnType: longTargetType,
     declaringType: statsTargetType,
-  });
+  };
 }
 
 function getNodeFsStatsDateTargetMember(sourceName: string): TargetMember {
-  return targetProperty(`Tsonic.CSharp.Node.Stats.${sourceName}`, sourceName, sourceName, dateTargetType, {
+  return {
+    id: `Tsonic.CSharp.Node.Stats.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "property",
+    parameters: [],
+    returnType: dateTargetType,
     declaringType: statsTargetType,
-  });
+  };
 }
 
 function getNodeFsStatsUnixMillisecondsTargetMember(sourceName: string): TargetMember {
-  return targetProperty(`Tsonic.CSharp.Node.Stats.${sourceName}`, sourceName, sourceName, doubleTargetType, {
+  return {
+    id: `Tsonic.CSharp.Node.Stats.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "property",
+    parameters: [],
+    returnType: doubleTargetType,
     declaringType: statsTargetType,
-  });
+  };
 }
 
 function getNodeFsStatsIsFileTargetMember(): TargetMember {
@@ -342,16 +359,15 @@ function getNodeFsStatsIsDirectoryTargetMember(): TargetMember {
 }
 
 function nodeFsStatsBoolMethodTargetMember(sourceName: string, targetName: string): TargetMember {
-  return targetMethod(
-    `Tsonic.CSharp.Node.Stats.${targetName}()`,
+  return {
+    id: `Tsonic.CSharp.Node.Stats.${targetName}()`,
     sourceName,
     targetName,
-    [],
-    boolTargetType,
-    {
-      declaringType: statsTargetType,
-    },
-  );
+    kind: "method",
+    parameters: [],
+    returnType: boolTargetType,
+    declaringType: statsTargetType,
+  };
 }
 
 function fsCall(
@@ -359,7 +375,7 @@ function fsCall(
   signatureId: string,
   providerParameters: readonly NodeFsProviderParameter[],
   providerReturnType: ProviderTypeExpression,
-  targetParameters: readonly ReturnType<typeof targetParameter>[],
+  targetParameters: readonly TargetParameter[],
   targetReturnType: TargetTypeRef,
 ): NodeFsCallTargetMember {
   return {
@@ -367,17 +383,16 @@ function fsCall(
     signatureId,
     providerParameters,
     providerReturnType,
-    member: targetMethod(
-      `Tsonic.CSharp.Node.fs.${exportName}(${signatureId.slice("node:fs.".length + exportName.length + 1, -1)})`,
-      exportName,
-      exportName,
-      targetParameters,
-      targetReturnType,
-      {
-        declaringType: fsTargetType,
-        static: true,
-      },
-    ),
+    member: {
+      id: `Tsonic.CSharp.Node.fs.${exportName}(${signatureId.slice("node:fs.".length + exportName.length + 1, -1)})`,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "method",
+      parameters: targetParameters,
+      returnType: targetReturnType,
+      declaringType: fsTargetType,
+      static: true,
+    },
   };
 }
 

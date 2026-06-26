@@ -2,7 +2,6 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
-  targetMethod,
   targetParameter,
 } from "../../js/source-library.js";
 import {
@@ -43,195 +42,182 @@ import {
 } from "./helpers.js";
 
 export function getNodeBufferFromStringTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferFromStringTargetMemberId,
-    nodeBufferFromExportName,
-    nodeBufferFromExportName,
-    [
+  return {
+    id: nodeBufferFromStringTargetMemberId,
+    sourceName: nodeBufferFromExportName,
+    targetName: nodeBufferFromExportName,
+    kind: "method",
+    parameters: [
       targetParameter("value", nodeBufferStringTargetType),
       targetParameter("encoding", nodeBufferStringTargetType, { optional: true }),
     ],
-    nodeBufferTargetType,
-    {
-      declaringType: nodeBufferTargetType,
-      static: true,
-    },
-  );
+    returnType: nodeBufferTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferAllocTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferAllocTargetMemberId,
-    nodeBufferAllocExportName,
-    nodeBufferAllocExportName,
-    [targetParameter("size", nodeBufferIntTargetType)],
-    nodeBufferTargetType,
-    {
-      declaringType: nodeBufferTargetType,
-      static: true,
-    },
-  );
+  return {
+    id: nodeBufferAllocTargetMemberId,
+    sourceName: nodeBufferAllocExportName,
+    targetName: nodeBufferAllocExportName,
+    kind: "method",
+    parameters: [targetParameter("size", nodeBufferIntTargetType)],
+    returnType: nodeBufferTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferAllocUnsafeTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferAllocUnsafeTargetMemberId,
-    nodeBufferAllocUnsafeExportName,
-    nodeBufferAllocUnsafeExportName,
-    [targetParameter("size", nodeBufferIntTargetType)],
-    nodeBufferTargetType,
-    {
-      declaringType: nodeBufferTargetType,
-      static: true,
-    },
-  );
+  return {
+    id: nodeBufferAllocUnsafeTargetMemberId,
+    sourceName: nodeBufferAllocUnsafeExportName,
+    targetName: nodeBufferAllocUnsafeExportName,
+    kind: "method",
+    parameters: [targetParameter("size", nodeBufferIntTargetType)],
+    returnType: nodeBufferTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferAllocUnsafeSlowTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferAllocUnsafeSlowTargetMemberId,
-    nodeBufferAllocUnsafeSlowExportName,
-    nodeBufferAllocUnsafeSlowExportName,
-    [targetParameter("size", nodeBufferIntTargetType)],
-    nodeBufferTargetType,
-    {
-      declaringType: nodeBufferTargetType,
-      static: true,
-    },
-  );
+  return {
+    id: nodeBufferAllocUnsafeSlowTargetMemberId,
+    sourceName: nodeBufferAllocUnsafeSlowExportName,
+    targetName: nodeBufferAllocUnsafeSlowExportName,
+    kind: "method",
+    parameters: [targetParameter("size", nodeBufferIntTargetType)],
+    returnType: nodeBufferTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferByteLengthTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferByteLengthTargetMemberId,
-    nodeBufferByteLengthExportName,
-    nodeBufferByteLengthExportName,
-    [
+  return {
+    id: nodeBufferByteLengthTargetMemberId,
+    sourceName: nodeBufferByteLengthExportName,
+    targetName: nodeBufferByteLengthExportName,
+    kind: "method",
+    parameters: [
       targetParameter("value", nodeBufferStringTargetType),
       targetParameter("encoding", nodeBufferStringTargetType, { optional: true }),
     ],
-    nodeBufferIntTargetType,
-    {
-      declaringType: nodeBufferTargetType,
-      static: true,
-    },
-  );
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferCompareTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferCompareTargetMemberId,
-    nodeBufferCompareExportName,
-    nodeBufferCompareExportName,
-    [
+  return {
+    id: nodeBufferCompareTargetMemberId,
+    sourceName: nodeBufferCompareExportName,
+    targetName: nodeBufferCompareExportName,
+    kind: "method",
+    parameters: [
       targetParameter("buf1", nodeBufferTargetType),
       targetParameter("buf2", nodeBufferTargetType),
     ],
-    nodeBufferIntTargetType,
-    {
-      declaringType: nodeBufferTargetType,
-      static: true,
-    },
-  );
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferConcatTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferConcatTargetMemberId,
-    nodeBufferConcatExportName,
-    nodeBufferConcatExportName,
-    [
+  return {
+    id: nodeBufferConcatTargetMemberId,
+    sourceName: nodeBufferConcatExportName,
+    targetName: nodeBufferConcatExportName,
+    kind: "method",
+    parameters: [
       targetParameter("list", { kind: "array", element: nodeBufferTargetType }),
       targetParameter("totalLength", nodeBufferNullableIntTargetType(), { optional: true }),
     ],
-    nodeBufferTargetType,
-    {
-      declaringType: nodeBufferTargetType,
-      static: true,
-    },
-  );
+    returnType: nodeBufferTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferIsEncodingTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferIsEncodingTargetMemberId,
-    nodeBufferIsEncodingExportName,
-    nodeBufferIsEncodingExportName,
-    [targetParameter("encoding", nodeBufferStringTargetType)],
-    nodeBufferBoolTargetType,
-    {
-      declaringType: nodeBufferTargetType,
-      static: true,
-    },
-  );
+  return {
+    id: nodeBufferIsEncodingTargetMemberId,
+    sourceName: nodeBufferIsEncodingExportName,
+    targetName: nodeBufferIsEncodingExportName,
+    kind: "method",
+    parameters: [targetParameter("encoding", nodeBufferStringTargetType)],
+    returnType: nodeBufferBoolTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferOfTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferOfTargetMemberId,
-    nodeBufferOfExportName,
-    nodeBufferOfExportName,
-    [targetParameter("items", nodeBufferIntTargetType, { paramsArray: true })],
-    nodeBufferTargetType,
-    {
-      declaringType: nodeBufferTargetType,
-      static: true,
-    },
-  );
+  return {
+    id: nodeBufferOfTargetMemberId,
+    sourceName: nodeBufferOfExportName,
+    targetName: nodeBufferOfExportName,
+    kind: "method",
+    parameters: [targetParameter("items", nodeBufferIntTargetType, { paramsArray: true })],
+    returnType: nodeBufferTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferAtobTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferAtobTargetMemberId,
-    nodeBufferAtobExportName,
-    nodeBufferAtobExportName,
-    [targetParameter("data", nodeBufferStringTargetType)],
-    nodeBufferStringTargetType,
-    {
-      declaringType: nodeBufferModuleTargetType,
-      static: true,
-    },
-  );
+  return {
+    id: nodeBufferAtobTargetMemberId,
+    sourceName: nodeBufferAtobExportName,
+    targetName: nodeBufferAtobExportName,
+    kind: "method",
+    parameters: [targetParameter("data", nodeBufferStringTargetType)],
+    returnType: nodeBufferStringTargetType,
+    declaringType: nodeBufferModuleTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferBtoaTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferBtoaTargetMemberId,
-    nodeBufferBtoaExportName,
-    nodeBufferBtoaExportName,
-    [targetParameter("data", nodeBufferStringTargetType)],
-    nodeBufferStringTargetType,
-    {
-      declaringType: nodeBufferModuleTargetType,
-      static: true,
-    },
-  );
+  return {
+    id: nodeBufferBtoaTargetMemberId,
+    sourceName: nodeBufferBtoaExportName,
+    targetName: nodeBufferBtoaExportName,
+    kind: "method",
+    parameters: [targetParameter("data", nodeBufferStringTargetType)],
+    returnType: nodeBufferStringTargetType,
+    declaringType: nodeBufferModuleTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferIsAsciiTargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferIsAsciiTargetMemberId,
-    nodeBufferIsAsciiExportName,
-    nodeBufferIsAsciiExportName,
-    [targetParameter("value", nodeBufferTargetType)],
-    nodeBufferBoolTargetType,
-    {
-      declaringType: nodeBufferModuleTargetType,
-      static: true,
-    },
-  );
+  return {
+    id: nodeBufferIsAsciiTargetMemberId,
+    sourceName: nodeBufferIsAsciiExportName,
+    targetName: nodeBufferIsAsciiExportName,
+    kind: "method",
+    parameters: [targetParameter("value", nodeBufferTargetType)],
+    returnType: nodeBufferBoolTargetType,
+    declaringType: nodeBufferModuleTargetType,
+    static: true,
+  };
 }
 
 export function getNodeBufferIsUtf8TargetMember(): TargetMember {
-  return targetMethod(
-    nodeBufferIsUtf8TargetMemberId,
-    nodeBufferIsUtf8ExportName,
-    nodeBufferIsUtf8ExportName,
-    [targetParameter("value", nodeBufferTargetType)],
-    nodeBufferBoolTargetType,
-    {
-      declaringType: nodeBufferModuleTargetType,
-      static: true,
-    },
-  );
+  return {
+    id: nodeBufferIsUtf8TargetMemberId,
+    sourceName: nodeBufferIsUtf8ExportName,
+    targetName: nodeBufferIsUtf8ExportName,
+    kind: "method",
+    parameters: [targetParameter("value", nodeBufferTargetType)],
+    returnType: nodeBufferBoolTargetType,
+    declaringType: nodeBufferModuleTargetType,
+    static: true,
+  };
 }
