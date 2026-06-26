@@ -65,6 +65,9 @@ import {
 export function getNodejsCallTargetMemberFromMetadata(
   declaration: NodejsProviderDeclarationIdentity,
 ): TargetMember | undefined {
+  if (declaration.signatureId === undefined) {
+    return undefined;
+  }
   const canonicalDeclaration = canonicalNodejsDeclarationIdentity(declaration);
   return getDirectIdentityTargetMember(canonicalDeclaration) ??
     nodejsCallTargetMembersByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalDeclaration));

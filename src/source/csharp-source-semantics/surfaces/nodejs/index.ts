@@ -18,6 +18,7 @@ import {
   csharpTargetId,
 } from "../../identity.js";
 import {
+  getNodejsCallDeclarationWithoutSelectedSignature,
   getNodejsCheckedCallDeclaration,
   getNodejsCheckedPropertyDeclaration,
 } from "./declarations.js";
@@ -61,6 +62,10 @@ export function createCsharpNodejsSurfaceMappers(extensionId: string): CsharpNod
       }
       const declaration = getNodejsCheckedCallDeclaration(request, context);
       if (declaration === undefined) {
+        const missingSignatureDeclaration = getNodejsCallDeclarationWithoutSelectedSignature(request, context);
+        if (missingSignatureDeclaration !== undefined) {
+          return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_CALL_REQUIRES_SELECTED_SIGNATURE", 9100202, `C# NodeJS surface requires a selected provider signature for checked ${formatNodejsDeclarationIdentity(missingSignatureDeclaration)}.`));
+        }
         return deferObservation;
       }
       const member = getNodejsCallTargetMember(declaration);

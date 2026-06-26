@@ -34,6 +34,7 @@ interface NodeProcessProviderParameter {
 interface NodeProcessCallTargetMember {
   readonly exportName: string;
   readonly signatureId: string;
+  readonly targetMemberId: string;
   readonly providerParameters: readonly NodeProcessProviderParameter[];
   readonly providerReturnType: ProviderTypeExpression;
   readonly member: TargetMember;
@@ -99,8 +100,11 @@ export function getNodeProcessCallTargetMember(
   exportName: string | undefined,
   signatureId: string | undefined,
 ): TargetMember | undefined {
+  if (signatureId === undefined) {
+    return undefined;
+  }
   return nodeProcessCallTargetMembers()
-    .find((entry) => entry.exportName === exportName && (signatureId === undefined || entry.signatureId === signatureId))
+    .find((entry) => entry.exportName === exportName && entry.signatureId === signatureId)
     ?.member;
 }
 
@@ -111,6 +115,7 @@ export function getNodeProcessPropertyTargetMember(exportName: string | undefine
 export function nodeProcessCallTargetMembers(): readonly {
   readonly exportName: string;
   readonly signatureId: string;
+  readonly targetMemberId: string;
   readonly providerParameters: readonly NodeProcessProviderParameter[];
   readonly providerReturnType: ProviderTypeExpression;
   readonly member: TargetMember;
@@ -118,11 +123,11 @@ export function nodeProcessCallTargetMembers(): readonly {
   const stringParameter = (name: string) => ({ name, type: stringProviderType });
   const optionalNumberParameter = (name: string) => ({ name, type: numberProviderType, optional: true });
   return [
-    processCall("chdir", "node:process.chdir(System.String)", [stringParameter("directory")], voidProviderType, [
+    processCall("chdir", "node:process.chdir(System.String)", "Tsonic.CSharp.Node.process.chdir(System.String)", [stringParameter("directory")], voidProviderType, [
       targetParameter("directory", stringTargetType),
     ], voidTargetType),
-    processCall(nodeProcessCwdExportName, nodeProcessCwdSignatureId, [], stringProviderType, [], stringTargetType),
-    processCall("exit", "node:process.exit(System.Nullable`1)", [optionalNumberParameter("code")], voidProviderType, [
+    processCall(nodeProcessCwdExportName, nodeProcessCwdSignatureId, "Tsonic.CSharp.Node.process.cwd()", [], stringProviderType, [], stringTargetType),
+    processCall("exit", "node:process.exit(System.Nullable`1)", "Tsonic.CSharp.Node.process.exit(System.Nullable`1)", [optionalNumberParameter("code")], voidProviderType, [
       targetParameter("code", csharpNullableValueTargetType(intTargetType), { optional: true }),
     ], voidTargetType),
   ];
@@ -166,6 +171,7 @@ function nodeProcessUnsupportedValueDeclarations(): readonly ProviderExportDecla
 function processCall(
   exportName: string,
   signatureId: string,
+  targetMemberId: string,
   providerParameters: readonly NodeProcessProviderParameter[],
   providerReturnType: ProviderTypeExpression,
   targetParameters: readonly ReturnType<typeof targetParameter>[],
@@ -174,10 +180,11 @@ function processCall(
   return {
     exportName,
     signatureId,
+    targetMemberId,
     providerParameters,
     providerReturnType,
     member: targetMethod(
-      `Tsonic.CSharp.Node.process.${exportName}(${signatureId.slice("node:process.".length + exportName.length + 1, -1)})`,
+      targetMemberId,
       exportName,
       exportName,
       targetParameters,

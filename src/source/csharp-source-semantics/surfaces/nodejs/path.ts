@@ -87,8 +87,11 @@ export function getNodePathCallTargetMember(
   exportName: string | undefined,
   signatureId: string | undefined,
 ): TargetMember | undefined {
+  if (signatureId === undefined) {
+    return undefined;
+  }
   return nodePathCallTargetMembers()
-    .find((entry) => entry.exportName === exportName && (signatureId === undefined || entry.signatureId === signatureId))
+    .find((entry) => entry.exportName === exportName && entry.signatureId === signatureId)
     ?.member;
 }
 

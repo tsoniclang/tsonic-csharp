@@ -2201,6 +2201,7 @@ test("NodeJS surface exposes URL as a provider-owned virtual module", () => {
   const pathIdentity = bindingProvider.getTargetIdentity({
     moduleSpecifier: "url",
     exportName: "pathToFileURL",
+    signatureId: "node:url.pathToFileURL(System.String)",
   });
   const formatIdentity = bindingProvider.getTargetIdentity({
     moduleSpecifier: "url",
@@ -2465,19 +2466,18 @@ test("NodeJS surface rejects provider declarations whose selected identity is no
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
 });
 
-test("NodeJS surface maps optional-arity provider declarations from selected declaration identity", () => {
+test("NodeJS surface rejects optional-arity calls without selected signature identity", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
   const provider = createCsharpNodejsSurfaceOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:crypto", "randomInt"));
 
-  const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedDeclaration), fakeContext(facts));
+  const result = provider.mapCheckedCall(nodejsCallRequestWithoutSignature(call, selectedDeclaration), fakeContext(facts));
 
-  assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Node.crypto.randomInt(System.Int32,System.Int32?)");
-  assert.equal(result.value.selectedSignature.member.parameters.length, 2);
-  assert.equal(result.value.selectedSignature.member.parameters[1]?.optional, true);
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_REQUIRES_SELECTED_SIGNATURE");
+  assert.match(result.diagnostic.message, /randomInt/);
 });
 
 test("NodeJS surface rejects selected provider members absent from the explicit surface map", () => {
@@ -2501,17 +2501,18 @@ test("NodeJS surface rejects selected provider members absent from the explicit 
   assert.match(result.diagnostic.message, /node:buffer\.Buffer\.isBuffer/);
 });
 
-test("NodeJS surface maps single-signature calls from provider declaration identity", () => {
+test("NodeJS surface rejects single-signature calls without selected signature identity", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
   const provider = createCsharpNodejsSurfaceOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "join"));
 
-  const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedDeclaration), fakeContext(facts));
+  const result = provider.mapCheckedCall(nodejsCallRequestWithoutSignature(call, selectedDeclaration), fakeContext(facts));
 
-  assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Node.path.join(System.String[])");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_REQUIRES_SELECTED_SIGNATURE");
+  assert.match(result.diagnostic.message, /join/);
 });
 
 test("NodeJS surface does not map foreign provider declarations by module and export name", () => {
@@ -2821,7 +2822,17 @@ function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
   };
 }
 
-function nodejsCallRequest(call, sourceSelectedDeclaration) {
+function nodejsCallRequest(call, sourceSelectedSignature) {
+  return {
+    target: "csharp",
+    call,
+    callee: {},
+    arguments: [],
+    sourceSelectedSignature,
+  };
+}
+
+function nodejsCallRequestWithoutSignature(call, sourceSelectedDeclaration) {
   return {
     target: "csharp",
     call,

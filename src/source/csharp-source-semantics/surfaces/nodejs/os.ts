@@ -81,8 +81,11 @@ export function getNodeOsCallTargetMember(
   exportName: string | undefined,
   signatureId: string | undefined,
 ): TargetMember | undefined {
+  if (signatureId === undefined) {
+    return undefined;
+  }
   return nodeOsCallTargetMembers()
-    .find((entry) => entry.exportName === exportName && (signatureId === undefined || entry.signatureId === signatureId))
+    .find((entry) => entry.exportName === exportName && entry.signatureId === signatureId)
     ?.member;
 }
 
