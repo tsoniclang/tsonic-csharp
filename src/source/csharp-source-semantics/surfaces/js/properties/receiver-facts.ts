@@ -43,19 +43,25 @@ export function csharpJsSourceLibraryPropertyReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  return propertyReceiverValidatorPolicies
-    .find((policy) => sourceLibraryMemberMatches(sourceMember, policy.identity))
-    ?.validate(receiverType, sourceMember, host) ?? false;
+  const policy = propertyReceiverValidatorPolicies.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
+  return propertyReceiverRequirementIsSatisfied(policy?.requirement, receiverType, sourceMember, host);
 }
 
-interface CsharpJsPropertyReceiverValidatorPolicy {
+interface PropertyReceiverValidatorPolicy {
   readonly identity: SourceLibraryMemberIdentityPolicy;
-  readonly validate: (
-    receiverType: TargetTypeRef | undefined,
-    sourceMember: SourceLibraryMember,
-    host: CsharpJsSurfaceHost,
-  ) => boolean;
+  readonly requirement: PropertyReceiverRequirement;
 }
+
+type PropertyReceiverRequirement =
+  | "always"
+  | "array-like"
+  | "string"
+  | "regexp"
+  | "date"
+  | "boolean"
+  | "number-property-exists"
+  | "map"
+  | "set";
 
 const seededReceiverFactPolicies: readonly SourceLibraryMemberIdentityPolicy[] = [
   { prefixes: ["Array.", "ReadonlyArray.", "Map.", "ReadonlyMap.", "Set.", "ReadonlySet."] },
@@ -65,17 +71,47 @@ const finalCarrierSelectionPolicies: readonly SourceLibraryMemberIdentityPolicy[
   { prefixes: ["Array.", "ReadonlyArray."] },
 ];
 
-const propertyReceiverValidatorPolicies: readonly CsharpJsPropertyReceiverValidatorPolicy[] = [
-  { identity: { prefixes: ["Math."] }, validate: () => true },
-  { identity: { prefixes: ["Array.", "ReadonlyArray."] }, validate: (receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined },
-  { identity: { prefixes: ["String."] }, validate: (receiverType, _sourceMember, host) => host.isCsharpStringType(receiverType) },
-  { identity: { prefixes: ["RegExp."] }, validate: (receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType) },
-  { identity: { prefixes: ["Date."] }, validate: (receiverType) => isCsharpJsDateRuntimeCarrier(receiverType) },
-  { identity: { prefixes: ["Boolean."] }, validate: (receiverType) => isCsharpBooleanTargetType(receiverType) },
-  { identity: { prefixes: ["Number."] }, validate: (_receiverType, sourceMember) => numberPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)) !== undefined },
-  { identity: { prefixes: ["Map.", "ReadonlyMap."] }, validate: (receiverType) => isCsharpJsMapTargetType(receiverType) },
-  { identity: { prefixes: ["Set.", "ReadonlySet."] }, validate: (receiverType) => isCsharpJsSetTargetType(receiverType) },
+const propertyReceiverValidatorPolicies: readonly PropertyReceiverValidatorPolicy[] = [
+  { identity: { prefixes: ["Math."] }, requirement: "always" },
+  { identity: { prefixes: ["Array.", "ReadonlyArray."] }, requirement: "array-like" },
+  { identity: { prefixes: ["String."] }, requirement: "string" },
+  { identity: { prefixes: ["RegExp."] }, requirement: "regexp" },
+  { identity: { prefixes: ["Date."] }, requirement: "date" },
+  { identity: { prefixes: ["Boolean."] }, requirement: "boolean" },
+  { identity: { prefixes: ["Number."] }, requirement: "number-property-exists" },
+  { identity: { prefixes: ["Map.", "ReadonlyMap."] }, requirement: "map" },
+  { identity: { prefixes: ["Set.", "ReadonlySet."] }, requirement: "set" },
 ];
+
+function propertyReceiverRequirementIsSatisfied(
+  requirement: PropertyReceiverRequirement | undefined,
+  receiverType: TargetTypeRef | undefined,
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  switch (requirement) {
+    case "always":
+      return true;
+    case "array-like":
+      return getCsharpArrayLikeElementType(receiverType) !== undefined;
+    case "string":
+      return host.isCsharpStringType(receiverType);
+    case "regexp":
+      return isCsharpJsRegExpRuntimeCarrier(receiverType);
+    case "date":
+      return isCsharpJsDateRuntimeCarrier(receiverType);
+    case "boolean":
+      return isCsharpBooleanTargetType(receiverType);
+    case "number-property-exists":
+      return numberPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)) !== undefined;
+    case "map":
+      return isCsharpJsMapTargetType(receiverType);
+    case "set":
+      return isCsharpJsSetTargetType(receiverType);
+    case undefined:
+      return false;
+  }
+}
 
 function propertyIdentityPolicyMatchesAny(
   sourceMember: SourceLibraryMember,
