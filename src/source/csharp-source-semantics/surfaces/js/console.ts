@@ -3,7 +3,6 @@ import type {
 } from "@tsonic/tsts";
 import type {
   SourceLibraryMember,
-  SourceLibraryMemberKey,
 } from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
@@ -16,7 +15,8 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
-  jsSurfaceTargetMemberFromMetadata,
+  jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 
 const consoleTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.console", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "console"));
@@ -32,8 +32,7 @@ interface ConsoleMethodMetadataRow {
 }
 
 export function consoleTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
-  const member = consoleTargetMembersBySourceIdentity.get(sourceMember.id);
-  return member === undefined ? [] : [member];
+  return jsSurfaceTargetMembersForSourceMember(consoleTargetMembersBySourceIdentity, sourceMember);
 }
 
 function consoleMethodMetadata(row: ConsoleMethodMetadataRow): JsSurfaceTargetMemberMetadata {
@@ -100,12 +99,4 @@ const consoleTargetMemberMetadata = [
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.countReset", sourceName: "countReset", targetName: "countReset", parameters: [optionalStringParameter("label")] }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 
-const consoleTargetMembersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, TargetMember> =
-  new Map(consoleTargetMemberMetadata.map((record) => [
-    consoleSourceKey(record.sourceName),
-    jsSurfaceTargetMemberFromMetadata(record),
-  ]));
-
-function consoleSourceKey(sourceName: string): SourceLibraryMemberKey {
-  return `Console.${sourceName}`;
-}
+const consoleTargetMembersBySourceIdentity = jsSurfaceTargetMemberMetadataIdentityIndex("Console", consoleTargetMemberMetadata);

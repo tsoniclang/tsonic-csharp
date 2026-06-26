@@ -26,14 +26,15 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   resolveSourceLibraryMemberIdentity,
-  sourceLibraryMemberIdSet,
-  sourceLibraryMemberMatches,
   targetParameter,
 } from "./source-library.js";
 import type {
+  JsSurfaceSourceIdentitySelector,
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
+  jsSurfaceSelectedSourceIdentityForMember,
+  jsSurfaceSourceIdentityMatchesSelector,
   jsSurfaceTargetMemberMetadataIdentityIndex,
   jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
@@ -232,7 +233,10 @@ function isCheckedJsonParseCall(
   const signature = compiler.checker.getResolvedSignature(call, { sourceFile });
   const declaration = getSignatureDeclaration(signature);
   const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
-  if (sourceMember === undefined || !sourceLibraryMemberMatches(sourceMember, jsonParseIdentityPolicy)) {
+  if (
+    sourceMember === undefined ||
+    !jsSurfaceSourceIdentityMatchesSelector(jsSurfaceSelectedSourceIdentityForMember(sourceMember), jsonParseIdentityPolicy)
+  ) {
     return false;
   }
   const argument = getNodeList(getNodeField(call, "Arguments"))[0];
@@ -244,8 +248,8 @@ function isCheckedJsonParseCall(
 }
 
 const jsonParseIdentityPolicy = {
-  ids: sourceLibraryMemberIdSet(["JSON.parse"]),
-};
+  ids: ["JSON.parse"],
+} satisfies JsSurfaceSourceIdentitySelector;
 
 function getSignatureDeclaration(signature: unknown): Node | undefined {
   return asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);

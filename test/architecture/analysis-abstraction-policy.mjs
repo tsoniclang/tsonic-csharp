@@ -307,25 +307,7 @@ export const analysisAbstractionDebtOwners = Object.freeze([
   "tests",
 ]);
 
-const providerMetadataReplacement =
-  "Move target member identities into declarative provider/runtime metadata rows consumed by the generic selector; do not synthesize target members from source names.";
-
-export const analysisAbstractionDebtCatalog = Object.freeze([
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/console.ts",
-    { "source-member-id-map-dispatch": 1 },
-    "provider-metadata-candidate",
-    "surface-provider",
-    providerMetadataReplacement,
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/json.ts",
-    { "source-member-id-set-table-definition": 1 },
-    "explicit-exception-candidate",
-    "surface-provider",
-    "Express JSON.parse/stringify as explicit semantic-exception records with provider/runtime metadata and tests; remove synthesized target member names.",
-  ),
-]);
+export const analysisAbstractionDebtCatalog = Object.freeze([]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
   return sourceFiles(join(repoRoot, "src")).flatMap((filePath) => {
