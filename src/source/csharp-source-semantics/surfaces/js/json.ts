@@ -25,6 +25,8 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   resolveSourceLibraryMemberIdentity,
+  sourceLibraryMemberIdSet,
+  sourceLibraryMemberMatches,
   targetParameter,
 } from "./source-library.js";
 import type {
@@ -171,7 +173,7 @@ function isCheckedJsonParseCall(
   const signature = compiler.checker.getResolvedSignature(call, { sourceFile });
   const declaration = getSignatureDeclaration(signature);
   const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
-  if (sourceMember?.id !== "JSON.parse") {
+  if (sourceMember === undefined || !sourceLibraryMemberMatches(sourceMember, jsonParseIdentityPolicy)) {
     return false;
   }
   const argument = getNodeList(getNodeField(call, "Arguments"))[0];
@@ -181,6 +183,10 @@ function isCheckedJsonParseCall(
     sourceFile,
   })));
 }
+
+const jsonParseIdentityPolicy = {
+  ids: sourceLibraryMemberIdSet(["JSON.parse"]),
+};
 
 function getSignatureDeclaration(signature: unknown): Node | undefined {
   return asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
