@@ -9,7 +9,7 @@ export {
   csharpJsSourceLibraryMemberHasCallableProvider,
   getCsharpJsSourceLibraryCallMembersFromProviders,
   mapCsharpJsSourceLibraryProviderCheckedCall,
-} from "./registry.js";
+} from "./source-call-mapping.js";
 export type {
   CsharpJsSurfaceSourceLibraryPolicy,
 } from "./types.js";
