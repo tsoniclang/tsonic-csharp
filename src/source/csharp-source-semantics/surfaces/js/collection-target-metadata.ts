@@ -21,6 +21,7 @@ import {
 import type {
   SourceLibraryDeclaringName,
   SourceLibraryMember,
+  SourceLibraryMemberId,
 } from "./source-library.js";
 import {
   getSourceStandardLibraryDeclaringNameForType,
@@ -107,27 +108,27 @@ export function getCollectionTargetMembers(
   receiverType: TargetTypeRef | undefined,
   resultType: TargetTypeRef | undefined,
 ): readonly TargetMember[] {
-  const policy = collectionPolicyForSourceName(sourceMember.declaringName);
+  const policy = collectionPolicyForSourceMember(sourceMember);
   const collectionType = policy === undefined
     ? undefined
     : closedCollectionTypeForPolicy(policy, receiverType, resultType);
   const typeArguments = collectionType?.kind === "target-named" ? collectionType.typeArguments ?? [] : [];
-  const memberPolicy = policy?.members.find((member) => member.sourceName === sourceMember.memberName);
+  const memberPolicy = policy?.members.find((member) => collectionMemberPolicyApplies(policy, member, sourceMember));
   return policy === undefined || collectionType === undefined || memberPolicy === undefined
     ? []
     : memberPolicy.createMembers(policy, collectionType, typeArguments);
 }
 
 export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMember, receiverType: TargetTypeRef | undefined): TargetMember | undefined {
-  if (sourceMember.memberName !== "size") {
+  if (!collectionSizeSourceMemberIds.has(sourceMember.id)) {
     return undefined;
   }
-  const policy = collectionPolicyForSourceName(sourceMember.declaringName);
+  const policy = collectionPolicyForSourceMember(sourceMember);
   if (policy === undefined || !policy.isTargetType(receiverType)) {
     return undefined;
   }
   return targetProperty(
-    `Tsonic.CSharp.Js.${sourceMember.declaringName}.size`,
+    `Tsonic.CSharp.Js.${sourceMember.id}`,
     "size",
     "size",
     csharpSourcePrimitiveTargetType("int32"),
@@ -315,9 +316,34 @@ function collectionPolicyForSourceName(sourceName: SourceLibraryDeclaringName): 
   return collectionPoliciesBySourceName.get(sourceName);
 }
 
+function collectionPolicyForSourceMember(sourceMember: SourceLibraryMember): CsharpJsCollectionTypePolicy | undefined {
+  return csharpJsCollectionPolicies.find((policy) =>
+    policy.sourceNames.some((sourceName) => sourceMember.id.startsWith(`${sourceName}.`))
+  );
+}
+
+function collectionMemberPolicyApplies(
+  policy: CsharpJsCollectionTypePolicy,
+  memberPolicy: CsharpJsCollectionMemberPolicy,
+  sourceMember: SourceLibraryMember,
+): boolean {
+  return policy.sourceNames.some((sourceName) => sourceMember.id === `${sourceName}.${memberPolicy.sourceName}`);
+}
+
 function collectionPolicyForSourceType(type: Type, context: ExtensionObservationContext): CsharpJsCollectionTypePolicy | undefined {
   const declaringName = getSourceStandardLibraryDeclaringNameForType(type, context);
   return declaringName === undefined ? undefined : collectionPolicyForSourceName(declaringName);
+}
+
+const collectionSizeSourceMemberIds = sourceMemberIdSet([
+  "Map.size",
+  "ReadonlyMap.size",
+  "Set.size",
+  "ReadonlySet.size",
+]);
+
+function sourceMemberIdSet(ids: readonly SourceLibraryMemberId[]): ReadonlySet<SourceLibraryMemberId> {
+  return new Set(ids);
 }
 
 function collectionPolicyForTargetType(type: TargetTypeRef): CsharpJsCollectionTypePolicy | undefined {
