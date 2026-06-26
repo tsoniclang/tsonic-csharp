@@ -14,6 +14,9 @@ import {
   getSourceLibraryMember,
 } from "../source-library.js";
 import {
+  getSignatureDeclaration,
+} from "./declaration-identity.js";
+import {
   csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
   csharpJsSourceLibraryCallMayNeedFinalFacts,
 } from "../policy.js";
@@ -26,6 +29,7 @@ import {
 } from "./closed-facts.js";
 import {
   rejectSourceLibraryCallMissingSelectedSignature,
+  rejectSourceLibraryCallSignatureDeclarationMismatch,
   rejectSourceLibraryCallWithoutClosedFacts,
   rejectSourceLibraryCallWithoutUniqueTargetMember,
 } from "./diagnostics.js";
@@ -45,16 +49,23 @@ export function mapCsharpSourceLibraryCheckedCall(
   host: CsharpJsSurfaceHost,
   options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const sourceMember = getSourceLibraryMember(request.sourceSelectedDeclaration, context);
+  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature);
+  const sourceMember = getSourceLibraryMember(signatureDeclaration ?? request.sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
     return undefined;
+  }
+  if (signatureDeclaration === undefined) {
+    return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
+  }
+  if (
+    request.sourceSelectedDeclaration !== undefined &&
+    signatureDeclaration !== request.sourceSelectedDeclaration
+  ) {
+    return rejectSourceLibraryCallSignatureDeclarationMismatch(sourceMember, host);
   }
   const unsupported = rejectUnsupportedCsharpJsSourceLibraryCall(sourceMember, host);
   if (unsupported !== undefined) {
     return unsupported;
-  }
-  if (request.sourceSelectedSignature === undefined) {
-    return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
   }
   const consoleCall = mapCsharpJsConsoleCheckedCall(request, context, sourceMember, host, options);
   if (consoleCall !== undefined) {

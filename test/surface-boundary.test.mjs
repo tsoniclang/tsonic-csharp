@@ -222,6 +222,29 @@ test("JS surface rejects single-target calls without selected signature identity
   assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE");
 });
 
+test("JS surface rejects calls when selected signature and declaration facts disagree", () => {
+  const call = {};
+  const receiver = {};
+  const value = {};
+  const selectedDeclaration = arrayMemberDeclaration("includes");
+  const mismatchedSignature = selectedSourceLibrarySignature(arrayMemberDeclaration("join"));
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, int32ReadOnlyListType()],
+    [value, int32Type()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, selectedDeclaration, {
+    arguments: [value],
+    calleeReceiver: receiver,
+    sourceSelectedSignature: mismatchedSignature,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_SIGNATURE_DECLARATION_MISMATCH");
+});
+
 test("JS surface maps Array.concat from selected declaration and closed array argument facts", () => {
   const call = {};
   const receiver = {};
@@ -252,7 +275,6 @@ test("JS surface rejects Array member selection without proven receiver carrier 
 
   const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("join"), {
     calleeReceiver: receiver,
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
@@ -281,7 +303,6 @@ test("JS surface maps Array.from, Array.of, and Array.isArray from selected decl
 
   const fromResult = provider.mapCheckedCall(jsCallRequest(arrayFromCall, arrayMemberDeclaration("from"), {
     arguments: [arrayFromSource],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
   const ofResult = provider.mapCheckedCall(jsCallRequest(arrayOfCall, arrayMemberDeclaration("of"), {
     arguments: [arrayOfFirst, arrayOfSecond],
@@ -311,7 +332,6 @@ test("JS surface maps Array length construction from selected declaration and cl
 
   const result = provider.mapCheckedCall(jsCallRequest(construct, arrayConstructorDeclaration(), {
     arguments: [length],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
@@ -332,7 +352,6 @@ test("JS surface rejects Array construction without closed result carrier facts"
 
   const result = provider.mapCheckedCall(jsCallRequest(construct, arrayConstructorDeclaration(), {
     arguments: [length],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
@@ -441,10 +460,8 @@ test("JS surface maps Map and Set runtime built-ins from selected declarations a
   ])));
 
   const mapConstructResult = provider.mapCheckedCall(jsCallRequest(mapConstruct, sourceLibraryMemberDeclaration("MapConstructor", ""), {
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
   const setConstructResult = provider.mapCheckedCall(jsCallRequest(setConstruct, sourceLibraryMemberDeclaration("SetConstructor", ""), {
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
   const mapSetResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Map", "set"), {
     arguments: [key, value],
@@ -527,11 +544,9 @@ test("JS surface maps Array.from over Map and Set iterables from finalized colle
 
   const mapFromResult = provider.mapCheckedCall(jsCallRequest(mapFromCall, arrayMemberDeclaration("from"), {
     arguments: [mapSource],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
   const setFromResult = provider.mapCheckedCall(jsCallRequest(setFromCall, arrayMemberDeclaration("from"), {
     arguments: [setSource],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(mapFromResult.kind, "accept");
@@ -591,7 +606,6 @@ test("JS surface maps Array.at and Array.map from selected declarations and clos
   const mapResult = provider.mapCheckedCall(jsCallRequest(mapCall, arrayMemberDeclaration("map"), {
     arguments: [callback],
     calleeReceiver: receiver,
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(atResult.kind, "accept");
@@ -667,7 +681,6 @@ test("JS surface maps Date call and construction from selected declaration ident
 
   const callResult = provider.mapCheckedCall(jsCallRequest(call, selectedDeclaration), fakeContext(facts));
   const constructResult = provider.mapCheckedCall(jsCallRequest(construct, selectedDeclaration, {
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(callResult.kind, "accept");
@@ -686,7 +699,6 @@ test("JS surface maps unresolved one-argument Date construction to closed Date v
 
   const result = provider.mapCheckedCall(jsCallRequest(construct, sourceLibraryMemberDeclaration("DateConstructor", ""), {
     arguments: [value],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
@@ -760,7 +772,8 @@ test("JS surface maps multi-target calls from exact selected signature identity"
   const call = {};
   const receiver = {};
   const callback = {};
-  const selectedSignature = {};
+  const selectedDeclaration = arrayMemberDeclaration("forEach");
+  const selectedSignature = selectedSourceLibrarySignature(selectedDeclaration);
   const facts = new TestFactStore();
   const targetTypes = new Map([
     [receiver, int32ReadOnlyListType()],
@@ -768,7 +781,7 @@ test("JS surface maps multi-target calls from exact selected signature identity"
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
-  const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("forEach"), {
+  const result = provider.mapCheckedCall(jsCallRequest(call, selectedDeclaration, {
     arguments: [callback],
     calleeReceiver: receiver,
     sourceSelectedSignature: selectedSignature,
@@ -826,11 +839,9 @@ test("JS surface maps JSON.stringify only from closed JSON value carrier facts",
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [value],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
   const parsedResult = provider.mapCheckedCall(jsCallRequest(parsedStringifyCall, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [parsedValue],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
@@ -860,7 +871,6 @@ test("JS surface maps nested JSON.stringify(JSON.parse(value)) through finalized
 
   const stringifyResult = provider.mapCheckedCall(jsCallRequest(stringifyCall, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [parseCall],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(facts.get(parseCall, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.TsValue");
@@ -1147,7 +1157,6 @@ test("JS surface maps Object.keys from selected standard-library declaration and
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
     arguments: [value],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
@@ -1168,7 +1177,6 @@ test("JS surface maps Object.values from selected standard-library declaration a
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "values"), {
     arguments: [value],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
@@ -1189,7 +1197,6 @@ test("JS surface maps Object.entries from selected standard-library declaration 
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "entries"), {
     arguments: [value],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
@@ -1215,11 +1222,9 @@ test("JS surface maps Object.keys for closed JSArray and string carriers", () =>
 
   const arrayResult = provider.mapCheckedCall(jsCallRequest(arrayCall, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
     arguments: [arrayValue],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
   const stringResult = provider.mapCheckedCall(jsCallRequest(stringCall, sourceLibraryMemberDeclaration("ObjectConstructor", "keys"), {
     arguments: [stringValue],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(arrayResult.kind, "accept");
@@ -1240,11 +1245,9 @@ test("JS surface maps Object.values and Object.entries for closed Record diction
 
   const valuesResult = provider.mapCheckedCall(jsCallRequest(valuesCall, sourceLibraryMemberDeclaration("ObjectConstructor", "values"), {
     arguments: [value],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
   const entriesResult = provider.mapCheckedCall(jsCallRequest(entriesCall, sourceLibraryMemberDeclaration("ObjectConstructor", "entries"), {
     arguments: [value],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(valuesResult.kind, "accept");
@@ -1350,7 +1353,6 @@ test("JS surface maps Object.assign only from selected declaration and closed JS
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
     arguments: [target, source],
-    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
@@ -2818,7 +2820,7 @@ function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
     arguments: options.arguments ?? [],
     sourceSelectedDeclaration,
     ...(options.calleeReceiver !== undefined ? { calleeReceiver: options.calleeReceiver } : {}),
-    sourceSelectedSignature: options.sourceSelectedSignature ?? sourceSelectedDeclaration,
+    sourceSelectedSignature: options.sourceSelectedSignature ?? selectedSourceLibrarySignature(sourceSelectedDeclaration),
   };
 }
 
@@ -2831,6 +2833,10 @@ function jsCallRequestWithoutSignature(call, sourceSelectedDeclaration, options 
     sourceSelectedDeclaration,
     ...(options.calleeReceiver !== undefined ? { calleeReceiver: options.calleeReceiver } : {}),
   };
+}
+
+function selectedSourceLibrarySignature(sourceSelectedDeclaration) {
+  return { declaration: sourceSelectedDeclaration };
 }
 
 function nodejsCallRequest(call, sourceSelectedSignature) {
