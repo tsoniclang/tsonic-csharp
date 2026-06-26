@@ -15,7 +15,7 @@ export function getSourceLibraryArrayPropertyCarrierRequirements(
   isWriteTarget: boolean,
 ): readonly CsharpArrayCarrierRequirement[] {
   const propertyRule = arrayPropertyUseRules.find((rule) => arrayPropertyUseRuleApplies(rule, sourceMember));
-  return propertyRule === undefined ? [] : propertyRule.uses(sourceMember, isWriteTarget);
+  return propertyRule === undefined ? [] : isWriteTarget ? propertyRule.write ?? propertyRule.read : propertyRule.read;
 }
 
 export function sourceLibraryMemberHasArrayCarrierRequirementPolicy(sourceMember: SourceLibraryMember): boolean {
@@ -35,7 +35,8 @@ export function getSourceLibraryStaticCallArgumentCarrierRequirements(
 
 interface ArrayPropertyUseRule {
   readonly identity: SourceLibraryMemberIdentityPolicy;
-  readonly uses: (sourceMember: SourceLibraryMember, isWriteTarget: boolean) => readonly CsharpArrayCarrierRequirement[];
+  readonly read: readonly CsharpArrayCarrierRequirement[];
+  readonly write?: readonly CsharpArrayCarrierRequirement[];
 }
 
 interface StaticCallArgumentUseRule {
@@ -109,19 +110,20 @@ const fullJsArrayMemberIds = sourceMemberIdSet([
 const arrayPropertyUseRules: readonly ArrayPropertyUseRule[] = [
   {
     identity: { ids: sourceMemberIdSet(["Array.length", "ReadonlyArray.length"]) },
-    uses: (_sourceMember, isWriteTarget) => isWriteTarget ? ["full-js"] : ["length-read"],
+    read: ["length-read"],
+    write: ["full-js"],
   },
   {
     identity: { ids: denseMutatingArrayMemberIds },
-    uses: () => ["dense-mutation"],
+    read: ["dense-mutation"],
   },
   {
     identity: { ids: fullJsArrayMemberIds },
-    uses: () => ["full-js"],
+    read: ["full-js"],
   },
   {
     identity: { ids: readIndexableArrayMemberIds },
-    uses: () => ["index-read"],
+    read: ["index-read"],
   },
 ];
 
