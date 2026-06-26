@@ -10,8 +10,6 @@ import {
 } from "../../collections.js";
 import {
   sourceLibraryMemberMatches,
-  sourceLibraryMemberIdentity,
-  sourceLibraryMemberName,
 } from "../../source-library.js";
 import type {
   SourceLibraryMember,
@@ -20,14 +18,13 @@ import {
   jsSurfaceTargetMemberFromMetadata,
 } from "../../target-member-metadata.js";
 import {
-  propertyPrecheckRules,
+  propertyPrecheckRows,
 } from "./precheck-rules.js";
 import {
   int32PropertyReturnType,
-  propertyMemberProviders,
+  propertyMemberProviderBySourceIdentity,
 } from "./target-member-resolvers.js";
 import type {
-  CsharpJsPropertyMemberProvider,
   CsharpJsPropertyMemberProviderKind,
   CsharpJsPropertyPrecheckRule,
   CsharpJsPropertyPrecheckResult,
@@ -38,35 +35,30 @@ export function getCsharpJsSourceLibraryPropertyMember(
   sourceMember: SourceLibraryMember,
   receiverType: TargetTypeRef | undefined,
 ): TargetMember | undefined {
-  const provider = propertyMemberProviders.find((candidate) => propertyMemberProviderApplies(candidate, sourceMember));
+  const provider = propertyMemberProviderBySourceIdentity.get(sourceMember.id);
   return provider === undefined
     ? undefined
     : propertyMemberFromProvider(provider.member, sourceMember, receiverType);
 }
 
 export function csharpJsSourceLibraryPropertyPrecheck(sourceMember: SourceLibraryMember): CsharpJsSourceLibraryPropertyPrecheck {
-  const rule = propertyPrecheckRules.find((candidate) => propertyPrecheckRuleApplies(candidate, sourceMember));
+  const rule = propertyPrecheckRows.find((candidate) => propertyPrecheckRuleApplies(candidate, sourceMember));
   return rule === undefined
     ? "continue"
-    : propertyPrecheckResult(rule.result, sourceMember);
-}
-
-function propertyMemberProviderApplies(provider: CsharpJsPropertyMemberProvider, sourceMember: SourceLibraryMember): boolean {
-  return sourceLibraryMemberMatches(sourceMember, provider.identity) &&
-    (provider.excludedIdentity === undefined || !sourceLibraryMemberMatches(sourceMember, provider.excludedIdentity));
+    : propertyPrecheckResult(rule.result);
 }
 
 function propertyPrecheckRuleApplies(rule: CsharpJsPropertyPrecheckRule, sourceMember: SourceLibraryMember): boolean {
-  return sourceLibraryMemberMatches(sourceMember, rule.identity);
+  return rule.sourceId === sourceMember.id ||
+    (rule.identity !== undefined && sourceLibraryMemberMatches(sourceMember, rule.identity));
 }
 
 function propertyPrecheckResult(
   result: CsharpJsPropertyPrecheckResult,
-  sourceMember: SourceLibraryMember,
-): CsharpJsSourceLibraryPropertyPrecheck {
+): ReturnType<typeof csharpJsSourceLibraryPropertyPrecheck> {
   return typeof result === "string"
     ? result
-    : result.members.get(sourceLibraryMemberName(sourceMember)).length > 0 ? "defer" : "reject-unmapped";
+    : result.members.length > 0 ? "defer" : "reject-unmapped";
 }
 
 function propertyMemberFromProvider(
@@ -74,16 +66,15 @@ function propertyMemberFromProvider(
   sourceMember: SourceLibraryMember,
   receiverType: TargetTypeRef | undefined,
 ): TargetMember | undefined {
-  const sourceName = sourceLibraryMemberName(sourceMember);
   switch (provider.kind) {
-    case "metadata-by-source-name":
-      return singlePropertyMember(provider.members.get(sourceName));
+    case "metadata-row":
+      return singlePropertyMember(provider.members);
     case "collection-size":
       return getCollectionPropertyTargetMember(sourceMember, receiverType);
     case "string-length":
       return jsSurfaceTargetMemberFromMetadata({
         id: "tsonic.csharp.js.String.length",
-        sourceName,
+        sourceName: "length",
         targetName: "Length",
         kind: "property",
         returnType: int32PropertyReturnType,
@@ -95,8 +86,8 @@ function propertyMemberFromProvider(
       return lengthMember === undefined
         ? undefined
         : jsSurfaceTargetMemberFromMetadata({
-            id: `tsonic.csharp.js.${sourceLibraryMemberIdentity(sourceMember)}`,
-            sourceName,
+            id: "tsonic.csharp.js.Array.length",
+            sourceName: "length",
             targetName: lengthMember,
             kind: "property",
             returnType: int32PropertyReturnType,

@@ -5,28 +5,48 @@ import {
   objectTargetMembersForSourceName,
 } from "../../objects.js";
 import type {
-  CsharpJsPropertyTargetMemberSet,
+  SourceLibraryMemberKey,
+} from "../../source-library.js";
+import type {
   CsharpJsPropertyPrecheckRule,
 } from "./types.js";
 
-const objectTargetMemberSet = targetMemberSet(objectTargetMembersForSourceName);
-const jsonTargetMemberSet = targetMemberSet(jsonTargetMembersForSourceName);
+const objectPropertySourceNames = [
+  "keys",
+  "values",
+  "entries",
+  "assign",
+  "hasOwn",
+] as const;
 
-export const propertyPrecheckRules: readonly CsharpJsPropertyPrecheckRule[] = [
+const jsonPropertySourceNames = [
+  "parse",
+  "stringify",
+] as const;
+
+export const propertyPrecheckRows: readonly CsharpJsPropertyPrecheckRule[] = [
   {
     identity: { prefixes: ["Console."] },
     result: "defer",
   },
-  {
-    identity: { prefixes: ["Object."] },
-    result: { kind: "target-member-exists", members: objectTargetMemberSet },
-  },
-  {
-    identity: { prefixes: ["JSON."] },
-    result: { kind: "target-member-exists", members: jsonTargetMemberSet },
-  },
+  ...objectPropertySourceNames.map((sourceName) =>
+    targetMemberExistsRow(sourceKey("Object", sourceName), objectTargetMembersForSourceName(sourceName))
+  ),
+  ...jsonPropertySourceNames.map((sourceName) =>
+    targetMemberExistsRow(sourceKey("JSON", sourceName), jsonTargetMembersForSourceName(sourceName))
+  ),
 ];
 
-function targetMemberSet(get: CsharpJsPropertyTargetMemberSet["get"]): CsharpJsPropertyTargetMemberSet {
-  return { get };
+function targetMemberExistsRow(
+  sourceId: SourceLibraryMemberKey,
+  members: ReturnType<typeof objectTargetMembersForSourceName>,
+): CsharpJsPropertyPrecheckRule {
+  return {
+    sourceId,
+    result: { kind: "target-member-exists", members },
+  };
+}
+
+function sourceKey(declaringName: "Object" | "JSON", sourceName: string): SourceLibraryMemberKey {
+  return `${declaringName}.${sourceName}`;
 }
