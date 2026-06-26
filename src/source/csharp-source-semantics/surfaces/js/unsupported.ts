@@ -9,15 +9,18 @@ import type {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
+  SourceLibraryMemberId,
 } from "./source-library.js";
 
-const unsupportedSourceLibraryDeclaringNames = new Set<SourceLibraryMember["declaringName"]>();
+type UnsupportedSourceLibraryMemberIdPrefix = `${SourceLibraryMember["declaringName"]}.`;
+
+const unsupportedSourceLibraryMemberIdPrefixes: readonly UnsupportedSourceLibraryMemberIdPrefix[] = [];
 
 export function rejectUnsupportedCsharpJsSourceLibraryCall(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  if (!unsupportedSourceLibraryDeclaringNames.has(sourceMember.declaringName)) {
+  if (!unsupportedSourceLibraryMemberIdPrefixes.some((prefix) => sourceMemberIdMatchesPrefix(sourceMember.id, prefix))) {
     return undefined;
   }
   return rejectObservation(host.csharpProviderDiagnostic(
@@ -44,7 +47,7 @@ export function rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  if (!unsupportedSourceLibraryDeclaringNames.has(sourceMember.declaringName)) {
+  if (!unsupportedSourceLibraryMemberIdPrefixes.some((prefix) => sourceMemberIdMatchesPrefix(sourceMember.id, prefix))) {
     return undefined;
   }
   return rejectObservation(host.csharpProviderDiagnostic(
@@ -53,6 +56,10 @@ export function rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(
     9100130,
     `C# JS surface has no closed operation facts for checked TypeScript standard-library property '${sourceMember.id}'.`,
   ));
+}
+
+function sourceMemberIdMatchesPrefix(sourceMemberId: SourceLibraryMemberId, prefix: UnsupportedSourceLibraryMemberIdPrefix): boolean {
+  return sourceMemberId.startsWith(prefix);
 }
 
 export function rejectUnmappedCsharpJsSourceLibraryPropertyAccess(

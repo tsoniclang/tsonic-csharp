@@ -151,7 +151,7 @@ function recordCollectionRuntimeCarrierFactsForSelectedCall(
   if (!sourceMemberIsCollection(sourceMember)) {
     return;
   }
-  if (sourceMember.memberName === "constructor") {
+  if (collectionConstructorSourceMemberIds.has(sourceMember.id)) {
     recordCsharpJsCollectionRuntimeCarrierFactForNode(node, sourceFile, context, host);
     return;
   }
@@ -165,6 +165,13 @@ function sourceMemberIsCollection(
 ): boolean {
   return csharpJsSourceLibraryMemberIsCollection(sourceMember);
 }
+
+const collectionConstructorSourceMemberIds = new Set([
+  "Map.constructor",
+  "ReadonlyMap.constructor",
+  "Set.constructor",
+  "ReadonlySet.constructor",
+]);
 
 function recordArrayConstructorRuntimeCarrierFact(
   node: Node,

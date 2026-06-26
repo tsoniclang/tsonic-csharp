@@ -195,7 +195,7 @@ function mapCsharpSourceLibraryPropertyOperation(
   }
   return acceptObservation<CheckedOperationMappingResult>({
     operation: sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember)
-      ? targetOperation(member.id, "property", sourceMember.memberName, {
+      ? targetOperation(member.id, "property", sourceMemberName(sourceMember), {
           ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
         })
       : targetOperationFromMember(member),
@@ -208,6 +208,10 @@ function sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLi
 
 function sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember: SourceLibraryMember): boolean {
   return csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember);
+}
+
+function sourceMemberName(sourceMember: SourceLibraryMember): string {
+  return sourceMember.id.slice(sourceMember.id.indexOf(".") + 1);
 }
 
 function sourceLibraryPropertyReceiverHasClosedFacts(

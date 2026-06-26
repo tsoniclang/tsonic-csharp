@@ -13,6 +13,7 @@ import type {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
+  SourceLibraryMemberId,
 } from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
@@ -33,10 +34,10 @@ export function mapCsharpJsConsoleCheckedCall(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  if (sourceMember.declaringName !== "Console") {
+  if (!sourceMemberIdMatchesPrefix(sourceMember.id, "Console.")) {
     return undefined;
   }
-  const member = getConsoleTargetMember(sourceMember.memberName);
+  const member = getConsoleTargetMember(sourceMemberName(sourceMember));
   if (member === undefined) {
     return undefined;
   }
@@ -69,6 +70,16 @@ export function mapCsharpJsConsoleCheckedCall(
 
 function getConsoleTargetMember(sourceName: string): TargetMember | undefined {
   return consoleTargetMembers.get(sourceName);
+}
+
+type SourceLibraryMemberIdPrefix = "Console.";
+
+function sourceMemberIdMatchesPrefix(sourceMemberId: SourceLibraryMemberId, prefix: SourceLibraryMemberIdPrefix): boolean {
+  return sourceMemberId.startsWith(prefix);
+}
+
+function sourceMemberName(sourceMember: SourceLibraryMember): string {
+  return sourceMember.id.slice(sourceMember.id.indexOf(".") + 1);
 }
 
 function consoleMethod(

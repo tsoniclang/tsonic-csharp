@@ -164,7 +164,7 @@ function isCheckedJsonParseCall(
   const signature = compiler.checker.getResolvedSignature(call, { sourceFile });
   const declaration = getSignatureDeclaration(signature);
   const sourceMember = getSourceLibraryMember(declaration, context);
-  if (sourceMember?.declaringName !== "JSON" || sourceMember.memberName !== "parse") {
+  if (sourceMember?.id !== "JSON.parse") {
     return false;
   }
   const argument = getNodeList(getNodeField(call, "Arguments"))[0];
