@@ -16,6 +16,8 @@ export interface CsharpTargetEnrichmentHost {
   readonly getCsharpTargetBindingByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
 }
 
+const targetBindingMembersByIdCache = new WeakMap<TargetBindingFact, ReadonlyMap<string, TargetMember>>();
+
 export function getCsharpTargetTypeFromBinding(
   binding: TargetBindingFact,
   typeArguments: readonly TargetTypeRef[],
@@ -166,7 +168,7 @@ export function enrichCsharpTargetMember(
   const binding = member.declaringType?.kind === "target-named"
     ? host.getCsharpTargetBindingByTargetId(member.declaringType.id)
     : undefined;
-  const bindingMember = binding?.members?.find((candidate) => candidate.id === member.id);
+  const bindingMember = getTargetBindingMemberById(binding, member.id);
   const selectedMember = bindingMember ?? member;
   const typeArgumentMap = createTargetTypeArgumentMap(selectedMember, binding, options);
   const substitutedMember = substituteTargetMemberTypeParameters(selectedMember, typeArgumentMap);
@@ -187,6 +189,22 @@ export function enrichCsharpTargetMember(
     parameters,
     ...(returnType !== undefined ? { returnType } : {}),
   };
+}
+
+function getTargetBindingMemberById(
+  binding: TargetBindingFact | undefined,
+  memberId: string,
+): TargetMember | undefined {
+  if (binding?.members === undefined) {
+    return undefined;
+  }
+  const cached = targetBindingMembersByIdCache.get(binding);
+  if (cached !== undefined) {
+    return cached.get(memberId);
+  }
+  const membersById = new Map(binding.members.map((member) => [member.id, member]));
+  targetBindingMembersByIdCache.set(binding, membersById);
+  return membersById.get(memberId);
 }
 
 function createTargetTypeArgumentMap(

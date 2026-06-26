@@ -175,7 +175,6 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry("src/source/csharp-source-semantics/surfaces/nodejs/members/metadata-index.ts", { "provider-identity-key-map": 3 }, "provider-metadata-candidate", "surface-provider", "Keep Node provider identity key construction inside the metadata index; selectors must consume the index rather than branch on module specifiers."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/members/provider-identity.ts", { "provider-identity-key-map": 3 }, "source-identity-policy-candidate", "surface-provider", "Keep Node provider identity key construction centralized while removing concrete module branches from selectors."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/members/target-identities.ts", { "provider-identity-key-map": 6 }, "provider-metadata-candidate", "surface-provider", "Replace Node target identity maps with provider metadata records including unsupported exceptions."),
-  entry("src/source/csharp-source-semantics/target-enrichment.ts", { "candidate-target-id-branch": 1 }, "provider-metadata-candidate", "target-provider", "Target member enrichment must index provider metadata by canonical selected member identity without ad hoc candidate id branches."),
   entry("src/source/csharp-source-semantics/target-types/member-facts.ts", { "target-member-helper": 2 }, "provider-metadata-candidate", "target-provider", "Keep target member constructors cataloged until replaced by provider metadata builders."),
 ]);
 
