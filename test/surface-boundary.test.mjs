@@ -2954,6 +2954,8 @@ function jsArrayType(elementType) {
     typeArguments: [elementType],
     csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "JSArray" },
     arrayLiteralElementType: elementType,
+    csharpEnumerableElementType: elementType,
+    csharpReadOnlyIndexableElementType: elementType,
   };
 }
 
@@ -2984,11 +2986,18 @@ function int32ArrayType() {
 }
 
 function int32EnumerableType() {
-  return genericSystemCollectionType("IEnumerable", int32Type());
+  return genericSystemCollectionType("IEnumerable", int32Type(), {
+    csharpArrayLiteralElementType: int32Type(),
+    csharpEnumerableElementType: int32Type(),
+  });
 }
 
 function int32ReadOnlyListType() {
-  return genericSystemCollectionType("IReadOnlyList", int32Type(), { arrayLiteralElementType: int32Type() });
+  return genericSystemCollectionType("IReadOnlyList", int32Type(), {
+    csharpArrayLiteralElementType: int32Type(),
+    csharpEnumerableElementType: int32Type(),
+    csharpReadOnlyIndexableElementType: int32Type(),
+  });
 }
 
 function genericSystemCollectionType(name, elementType, extras = {}) {

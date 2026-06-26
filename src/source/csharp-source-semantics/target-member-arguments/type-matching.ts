@@ -208,15 +208,15 @@ function collectionShapeAcceptsActual(expected: TargetTypeRef, actual: TargetTyp
   if (actual.kind === "array") {
     return getCsharpArrayLiteralElementTargetType(expected) !== undefined;
   }
-  if (expected.kind === "target-named" && expected.id === "System.Collections.Generic.IEnumerable`1") {
-    return getCsharpCollectionElementTargetType(actual) !== undefined ||
-      getCsharpArrayLiteralElementTargetType(actual) !== undefined;
-  }
   if (isCsharpReadOnlyIndexableCollectionTargetType(expected)) {
     return isCsharpReadOnlyIndexableCollectionTargetType(actual);
   }
   if (isCsharpDenseMutableCollectionTargetType(expected)) {
     return isCsharpDenseMutableCollectionTargetType(actual);
+  }
+  if (getCsharpCollectionElementTargetType(expected) !== undefined) {
+    return getCsharpCollectionElementTargetType(actual) !== undefined ||
+      getCsharpArrayLiteralElementTargetType(actual) !== undefined;
   }
   return false;
 }
@@ -311,16 +311,8 @@ function selectedCollectionImplicitlyConverts(
   if (actual.kind !== "array" || expected.kind !== "target-named") {
     return false;
   }
-  if (
-    expected.id !== "System.Collections.Generic.IEnumerable`1" &&
-    expected.id !== "System.Collections.Generic.IReadOnlyList`1" &&
-    expected.id !== "System.Collections.Generic.IList`1"
-  ) {
-    return false;
-  }
-  const expectedElement = getCsharpCollectionElementTargetType(expected);
-  const actualElement = getCsharpCollectionElementTargetType(actual);
+  const expectedElement = getCsharpArrayLiteralElementTargetType(expected);
+  const actualElement = actual.element;
   return expectedElement !== undefined &&
-    actualElement !== undefined &&
     selectedTargetTypeAcceptsArgument(expectedElement, actualElement, undefined, context, typeParameterBindings, options);
 }

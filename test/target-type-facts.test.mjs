@@ -23,8 +23,14 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
+  csharpEnumerableTargetType,
   getCsharpArrayLiteralElementTargetType,
+  getCsharpCollectionElementTargetType,
+  getCsharpReadOnlyIndexableCollectionElementTargetType,
+  isCsharpDenseMutableCollectionTargetType,
   isCsharpReadOnlyIndexableCollectionTargetType,
+  csharpListTargetType,
+  csharpReadOnlyListTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 import {
   csharpJsArrayCarrierTargetType,
@@ -90,6 +96,33 @@ test("collection literal acceptance requires explicit C# target metadata", () =>
 
   assert.equal(getCsharpArrayLiteralElementTargetType(rawEnumerable), undefined);
   assert.deepEqual(getCsharpArrayLiteralElementTargetType(enrichedEnumerable), intType);
+});
+
+test("collection shape matching requires explicit C# target metadata", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const rawEnumerable = {
+    kind: "target-named",
+    id: "System.Collections.Generic.IEnumerable`1",
+    typeArguments: [intType],
+  };
+  const rawReadOnlyList = {
+    kind: "target-named",
+    id: "System.Collections.Generic.IReadOnlyList`1",
+    typeArguments: [intType],
+  };
+  const rawList = {
+    kind: "target-named",
+    id: "System.Collections.Generic.List`1",
+    typeArguments: [intType],
+  };
+
+  assert.equal(getCsharpCollectionElementTargetType(rawEnumerable), undefined);
+  assert.equal(getCsharpReadOnlyIndexableCollectionElementTargetType(rawReadOnlyList), undefined);
+  assert.equal(isCsharpReadOnlyIndexableCollectionTargetType(rawReadOnlyList), false);
+  assert.equal(isCsharpDenseMutableCollectionTargetType(rawList), false);
+  assert.deepEqual(getCsharpCollectionElementTargetType(csharpEnumerableTargetType(intType)), intType);
+  assert.deepEqual(getCsharpReadOnlyIndexableCollectionElementTargetType(csharpReadOnlyListTargetType(intType)), intType);
+  assert.equal(isCsharpDenseMutableCollectionTargetType(csharpListTargetType(intType)), true);
 });
 
 test("read-only indexable collection matching requires explicit target metadata", () => {

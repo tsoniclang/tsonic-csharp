@@ -50,32 +50,13 @@ export function getCsharpCollectionElementTargetType(type: TargetTypeRef | undef
   if (type?.kind !== "target-named") {
     return undefined;
   }
-  const genericElement = (type as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
-  if (genericElement !== undefined) {
-    return genericElement;
-  }
-  const id = type.id;
-  if (
-    id !== "System.Collections.Generic.IEnumerable`1" &&
-    id !== "System.Collections.Generic.IReadOnlyList`1" &&
-    id !== "System.Collections.Generic.IList`1" &&
-    id !== "System.Collections.Generic.List`1"
-  ) {
-    return undefined;
-  }
-  const typeArguments = type.typeArguments ?? [];
-  return typeArguments.length === 1 ? typeArguments[0] : undefined;
+  return (type as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
 }
 
 export function isCsharpReadOnlyIndexableCollectionTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "array" ||
     (type?.kind === "target-named" &&
-      (
-        (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType !== undefined ||
-        type.id === "System.Collections.Generic.IReadOnlyList`1" ||
-        type.id === "System.Collections.Generic.IList`1" ||
-        type.id === "System.Collections.Generic.List`1"
-      ));
+      (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType !== undefined);
 }
 
 export function getCsharpReadOnlyIndexableCollectionElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
@@ -86,25 +67,12 @@ export function getCsharpReadOnlyIndexableCollectionElementTargetType(type: Targ
     return undefined;
   }
   const metadataElement = (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
-  if (metadataElement !== undefined) {
-    return metadataElement;
-  }
-  return (
-    type.id === "System.Collections.Generic.IReadOnlyList`1" ||
-    type.id === "System.Collections.Generic.IList`1" ||
-    type.id === "System.Collections.Generic.List`1"
-  ) && (type.typeArguments?.length ?? 0) === 1
-    ? type.typeArguments?.[0]
-    : undefined;
+  return metadataElement;
 }
 
 export function isCsharpDenseMutableCollectionTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" &&
-    (
-      (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType !== undefined ||
-      type.id === "System.Collections.Generic.IList`1" ||
-      type.id === "System.Collections.Generic.List`1"
-    );
+    (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType !== undefined;
 }
 
 export function getCsharpArrayLiteralElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {

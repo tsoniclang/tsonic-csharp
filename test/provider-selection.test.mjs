@@ -3041,6 +3041,8 @@ function csharpIEnumerableType(element) {
     id: "System.Collections.Generic.IEnumerable`1",
     typeArguments: [element],
     csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "IEnumerable" },
+    csharpArrayLiteralElementType: element,
+    csharpEnumerableElementType: element,
   };
 }
 
