@@ -29,6 +29,12 @@ import {
 import {
   getCsharpTypeFromProjectSourceTypeReferenceNode,
 } from "../project-source-types.js";
+import {
+  getCsharpTypeFromFunctionTypeNode,
+} from "./function-types.js";
+import {
+  getCsharpTypeFromTypeAliasReferenceNode,
+} from "./type-aliases.js";
 import type {
   CsharpTypeResolver,
 } from "./types.js";
@@ -42,6 +48,10 @@ export function getCsharpTypeFromExplicitTypeSyntax(
 ): CsharpTypeNode | undefined {
   if (!IsTypeSyntaxNode(input.ast, node)) {
     return undefined;
+  }
+  const functionType = getCsharpTypeFromFunctionTypeNode(node, sourceFile, input, resolveCsharpType, diagnostics);
+  if (functionType !== undefined) {
+    return functionType;
   }
   const arrayBoundaryType = getCsharpTypeFromArrayBoundaryFact(node, input);
   if (arrayBoundaryType !== undefined) {
@@ -62,6 +72,10 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   const projectSourceType = getCsharpTypeFromProjectSourceTypeReferenceNode(node, sourceFile, input, resolveCsharpType, diagnostics);
   if (projectSourceType !== undefined) {
     return projectSourceType;
+  }
+  const typeAlias = getCsharpTypeFromTypeAliasReferenceNode(node, sourceFile, input, resolveCsharpType, diagnostics);
+  if (typeAlias !== undefined) {
+    return typeAlias;
   }
   const directType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (directType !== undefined) {

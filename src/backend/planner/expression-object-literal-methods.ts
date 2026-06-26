@@ -30,7 +30,6 @@ import {
   planBlockStatements,
 } from "./statements.js";
 import {
-  diagnoseMissingLambdaTargetContext,
   isAsyncExpression,
   isCsharpDelegateType,
   planLambdaParameters,
@@ -81,7 +80,7 @@ function planObjectLiteralMethodAsLambda(
   expectedType: CsharpTypeNode,
 ): CsharpExpression | undefined {
   const method = AsMethodDeclaration(methodNode);
-  diagnoseMissingLambdaTargetContext(methodNode, sourceFile, input, diagnostics, expectedType);
+  void expectedType;
   if (method === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method-declaration AST node."));
     return undefined;

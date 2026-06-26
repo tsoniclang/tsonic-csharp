@@ -24,7 +24,9 @@ export function getExplicitReturnType(
     const returnType = returnCarrier === undefined
       ? getInferredSignatureReturnType(declarationNode, sourceFile, input)
       : undefined;
-    const inferred = returnCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(returnCarrier);
+    const inferredTargetType = returnCarrier ??
+      getTargetTypeRefForType(input, returnType, sourceFile);
+    const inferred = inferredTargetType === undefined ? undefined : csharpTypeFromTargetTypeRef(inferredTargetType);
     if (inferred === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(
         declarationNode,
@@ -87,7 +89,26 @@ function getInferredSignatureReturnType(
   input: TargetCompileInput,
 ): Type | undefined {
   const declarationType = input.semantics.getTypeAtLocation(declarationNode, { sourceFile });
-  const signature = input.types.getCallSignatures(declarationType, { sourceFile })[0];
+  const declarationName = input.ast.name(declarationNode);
+  const declarationNameType = declarationName === undefined
+    ? undefined
+    : input.semantics.getTypeAtLocation(declarationName, { sourceFile });
+  const declarationSymbol = declarationName === undefined
+    ? undefined
+    : input.semantics.getSymbolAtLocation(declarationName, { sourceFile });
+  const resolvedDeclarationSymbol = declarationName === undefined
+    ? undefined
+    : input.semantics.getResolvedSymbol(declarationName, { sourceFile });
+  const declarationSymbolType = declarationName === undefined
+    ? undefined
+    : input.semantics.getTypeOfSymbol(declarationSymbol, { sourceFile });
+  const resolvedDeclarationSymbolType = declarationName === undefined
+    ? undefined
+    : input.semantics.getTypeOfSymbol(resolvedDeclarationSymbol, { sourceFile });
+  const signature = input.types.getCallSignatures(declarationType, { sourceFile })[0] ??
+    input.types.getCallSignatures(declarationNameType, { sourceFile })[0] ??
+    input.types.getCallSignatures(declarationSymbolType, { sourceFile })[0] ??
+    input.types.getCallSignatures(resolvedDeclarationSymbolType, { sourceFile })[0];
   if (signature === undefined) {
     return undefined;
   }

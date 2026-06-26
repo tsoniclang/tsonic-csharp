@@ -16,6 +16,12 @@ import {
 import {
   tryCsharpIdentifier,
 } from "./identifiers.js";
+import {
+  csharpBigIntegerTargetType,
+  csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
+  csharpVoidTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
 
 export function getCsharpTypeFromSemanticType(
   type: Type | undefined,
@@ -50,8 +56,30 @@ export function getCsharpTypeFromSemanticType(
   if (directCsharpType !== undefined) {
     return directCsharpType;
   }
+  const intrinsicType = getCsharpIntrinsicTypeFromSemanticType(type, input);
+  if (intrinsicType !== undefined) {
+    return intrinsicType;
+  }
   void nextSeen;
   return undefined;
+}
+
+function getCsharpIntrinsicTypeFromSemanticType(
+  type: Type,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const targetType = input.types.isBooleanLike(type)
+    ? csharpSourcePrimitiveTargetType("bool")
+    : input.types.isNumberLike(type)
+      ? csharpSourcePrimitiveTargetType("float64")
+      : input.types.isStringLike(type)
+        ? csharpStringTargetType()
+        : input.types.isBigIntLike(type)
+          ? csharpBigIntegerTargetType()
+          : input.types.isVoidLike(type)
+            ? csharpVoidTargetType()
+            : undefined;
+  return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
 }
 
 function getCsharpTargetTypeRefFromSemanticType(

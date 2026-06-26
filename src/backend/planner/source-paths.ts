@@ -67,8 +67,9 @@ function buildSourceFileOutputRegistry(
       hasErrors = true;
       continue;
     }
-    const className = sourceFileModuleClassName(relativeName);
-    const artifactPath = sourceFileModuleArtifactPath(relativeName, className);
+    const baseClassName = sourceFileModuleClassName(relativeName);
+    const className = allocateSourceFileModuleClassName(baseClassName, topLevelTypeNames(input, sourceFile));
+    const artifactPath = sourceFileModuleArtifactPath(relativeName, baseClassName);
     let hasCollision = false;
     const existingFileName = byClassName.get(className);
     if (existingFileName !== undefined && existingFileName !== fileName) {
@@ -133,6 +134,43 @@ function sourceFileModuleArtifactPath(relativeName: string, className: string): 
 
 function sourceFileModuleClassName(relativeName: string): string {
   return sanitizePascalIdentifier(stripFinalExtension(relativeName).split("/").join("_"), "Module");
+}
+
+function allocateSourceFileModuleClassName(
+  baseName: string,
+  reservedNames: ReadonlySet<string>,
+): string {
+  if (!reservedNames.has(baseName)) {
+    return baseName;
+  }
+  for (let index = 0; ; index += 1) {
+    const candidate = index === 0 ? `${baseName}Module` : `${baseName}Module${index}`;
+    if (!reservedNames.has(candidate)) {
+      return candidate;
+    }
+  }
+}
+
+function topLevelTypeNames(
+  input: TargetCompileInput,
+  sourceFile: { readonly Statements?: { readonly Nodes?: readonly (unknown | undefined)[] } },
+): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const statement of sourceFile.Statements?.Nodes ?? []) {
+    if (statement === undefined || typeof statement !== "object") {
+      continue;
+    }
+    const node = statement as Parameters<typeof input.ast.kindName>[0];
+    const kind = input.ast.kindName(node);
+    if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
+      continue;
+    }
+    const name = input.ast.text(input.ast.name(node));
+    if (name.length > 0) {
+      names.add(name);
+    }
+  }
+  return names;
 }
 
 function stripFinalExtension(value: string): string {

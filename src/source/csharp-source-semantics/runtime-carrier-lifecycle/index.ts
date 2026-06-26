@@ -33,6 +33,9 @@ import {
   propagateCsharpRuntimeCarrierFactFromReferencedSymbol,
 } from "./referenced-propagation.js";
 import {
+  recordCsharpDeclarationReturnRuntimeCarrierFacts,
+} from "./return-propagation.js";
+import {
   recordCsharpRuntimeCarrierSyntaxFact,
 } from "./syntax-facts.js";
 
@@ -71,6 +74,9 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
     propagateRuntimeCarrierExpectedFacts(lifecycleContext, sourceFile, nodes, host);
+  }
+  for (const { sourceFile, nodes } of nodesBySourceFile) {
+    recordDeclarationReturnRuntimeCarrierFacts(lifecycleContext, sourceFile, nodes, host);
   }
 }
 
@@ -154,4 +160,13 @@ function propagateRuntimeCarrierExpectedFacts(
   for (const node of nodes) {
     propagateCsharpExpectedRuntimeCarrierFactFromContext(lifecycleContext, sourceFile, node, host);
   }
+}
+
+function recordDeclarationReturnRuntimeCarrierFacts(
+  lifecycleContext: CsharpLifecycleObservationContext,
+  sourceFile: SourceFile,
+  nodes: readonly Node[],
+  host: CsharpRuntimeCarrierSemanticsHost,
+): void {
+  recordCsharpDeclarationReturnRuntimeCarrierFacts(lifecycleContext, sourceFile, nodes, host);
 }

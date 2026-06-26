@@ -4,7 +4,9 @@ import {
   AsParameterDeclaration,
   HasSourceKind,
   HasSyntacticModifier,
+  KindArrowFunction,
   KindBlock,
+  KindFunctionExpression,
   KindIdentifier,
   Node_Text,
   ModifierFlagsAsync,
@@ -173,6 +175,9 @@ export function getLambdaTargetContext(
   input: TargetCompileInput,
   expectedType?: CsharpTypeNode,
 ): CsharpTypeNode | undefined {
+  if (!HasSourceKind(input.ast, node, KindArrowFunction) && !HasSourceKind(input.ast, node, KindFunctionExpression)) {
+    return undefined;
+  }
   if (expectedType !== undefined && isCsharpDelegateType(expectedType)) {
     return expectedType;
   }
@@ -180,7 +185,49 @@ export function getLambdaTargetContext(
   if (contextualType !== undefined && isCsharpDelegateType(contextualType)) {
     return contextualType;
   }
+  const explicitSignatureType = getExplicitLambdaSignatureTarget(node, sourceFile, input);
+  if (explicitSignatureType !== undefined && isCsharpDelegateType(explicitSignatureType)) {
+    return explicitSignatureType;
+  }
   return undefined;
+}
+
+function getExplicitLambdaSignatureTarget(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const expression = AsArrowFunction(node) ?? AsFunctionExpression(node);
+  if (expression === undefined) {
+    return undefined;
+  }
+  const parameterTypes = (expression.Parameters?.Nodes ?? []).map((parameterNode) => {
+    const parameter = AsParameterDeclaration(parameterNode);
+    return parameter?.Type === undefined
+      ? undefined
+      : getCsharpTypeForNode(parameter.Type, sourceFile, input);
+  });
+  if (!parameterTypes.every((parameterType): parameterType is CsharpTypeNode => parameterType !== undefined && parameterType.kind !== "InvalidType")) {
+    return undefined;
+  }
+  const returnType = expression.Type === undefined
+    ? undefined
+    : getCsharpTypeForNode(expression.Type, sourceFile, input);
+  if (returnType === undefined || returnType.kind === "InvalidType") {
+    return undefined;
+  }
+  if (returnType.kind === "PredefinedType" && returnType.name === "void") {
+    return {
+      kind: "IdentifierName",
+      name: "Action",
+      ...(parameterTypes.length === 0 ? {} : { typeArguments: parameterTypes }),
+    };
+  }
+  return {
+    kind: "IdentifierName",
+    name: "Func",
+    typeArguments: [...parameterTypes, returnType],
+  };
 }
 
 export function isCsharpDelegateType(type: CsharpTypeNode): boolean {

@@ -17,6 +17,7 @@ import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.j
 import { allocateDestructuringTemp } from "./binding-state.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
+import { getCsharpTypeFromSemanticType } from "./csharp-semantic-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { requireCsharpIdentifier } from "./identifiers.js";
 import {
@@ -90,7 +91,9 @@ function planBindingNameFromProjection(
     return [{
       kind: "LocalDeclarationStatement",
       name: requireCsharpIdentifier(Node_Text(name), diagnostics, "Destructuring binding"),
-      type: projectedType ?? getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
+      type: projectedType ??
+        getCsharpTypeFromSemanticType(input.semantics.getTypeAtLocation(name, { sourceFile }), sourceFile, input) ??
+        getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
       initializer: projected,
     }];
   }

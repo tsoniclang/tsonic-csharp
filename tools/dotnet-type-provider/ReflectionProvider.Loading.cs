@@ -9,30 +9,38 @@ sealed partial class ReflectionProvider
     IEnumerable<Type> LoadTypes()
     {
         RuntimeAssemblyRoots();
+        var runtimePaths = RuntimeAssemblyPaths().ToHashSet(StringComparer.Ordinal);
+        var referencePaths = ReferenceDirectoryAssemblyPaths()
+            .Concat(ExplicitReferenceAssemblyPaths())
+            .ToHashSet(StringComparer.Ordinal);
+        var currentRequestPaths = runtimePaths
+            .Concat(referencePaths)
+            .ToHashSet(StringComparer.Ordinal);
+        var loadedPaths = new HashSet<string>(StringComparer.Ordinal);
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
-            foreach (var type in ExportedTypes(assembly))
+            if (string.IsNullOrEmpty(assembly.Location))
+            {
+                continue;
+            }
+            var path = Path.GetFullPath(assembly.Location);
+            if (!currentRequestPaths.Contains(path))
+            {
+                continue;
+            }
+            loadedPaths.Add(path);
+            foreach (var type in ExportedTypes(assembly, path, referencePaths.Contains(path)))
             {
                 yield return type;
             }
         }
-        foreach (var path in RuntimeAssemblyPaths())
+        foreach (var path in currentRequestPaths)
         {
-            foreach (var type in LoadTypesFromAssemblyPath(path, failOnError: false))
+            if (loadedPaths.Contains(path))
             {
-                yield return type;
+                continue;
             }
-        }
-        foreach (var path in ReferenceDirectoryAssemblyPaths())
-        {
-            foreach (var type in LoadTypesFromAssemblyPath(path, failOnError: true))
-            {
-                yield return type;
-            }
-        }
-        foreach (var path in ExplicitReferenceAssemblyPaths())
-        {
-            foreach (var type in LoadTypesFromAssemblyPath(path, failOnError: true))
+            foreach (var type in LoadTypesFromAssemblyPath(path, failOnError: referencePaths.Contains(path)))
             {
                 yield return type;
             }
