@@ -81,6 +81,18 @@ export const analysisAbstractionRules = Object.freeze([
       "Index provider metadata by selected source declaration/signature identity instead of scanning candidates by target id.",
   },
   {
+    id: "callee-property-source-name-filter",
+    pattern: /candidate\.sourceName\s*===\s*request\.calleePropertyName/g,
+    replacement:
+      "Provider receiver call mapping must use selected declaration/signature identity, not callee property spelling.",
+  },
+  {
+    id: "synthesized-native-array-target-member",
+    pattern: /createDotnetNativeArrayTargetMember|__tsonic_native_array_create/g,
+    replacement:
+      "Native array creation members must come from provider metadata; missing provider metadata is a diagnostic.",
+  },
+  {
     id: "source-library-declaring-name-type",
     pattern: /\bSourceLibraryDeclaringName\b/g,
     replacement:

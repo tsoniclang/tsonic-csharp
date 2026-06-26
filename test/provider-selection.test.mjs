@@ -1771,7 +1771,7 @@ test("C# provider rejects same-spelling call members without selected provider i
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
 });
 
-test("C# provider maps checked source contract members on provider-owned receivers", () => {
+test("C# provider rejects provider-owned receiver calls without selected member identity", () => {
   const receiver = {};
   const receiverType = {
     kind: "target-named",
@@ -1813,8 +1813,12 @@ test("C# provider maps checked source contract members on provider-owned receive
     targetBinding: binding,
   }));
 
-  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
-  assert.equal(result.value.selectedSignature.member.id, "Example.Exception.ToString()");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(
+    result.diagnostic.message,
+    "C# provider could not map checked call 'toString' on target 'Example.Exception'.",
+  );
 });
 
 test("C# provider maps property access from selected provider member identity instead of property text", () => {

@@ -19,7 +19,6 @@ import type {
   FlowStateFact,
   ProviderVirtualDeclarationFact,
   TargetMember,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpTargetOperationFactKey,
@@ -42,7 +41,6 @@ import {
   asNodeSubject,
 } from "./ast-utils.js";
 import {
-  dotnetNativeArrayCreateMemberId,
   dotnetNativeArrayTypeId,
   isDotnetNativeArrayCreateMemberId,
 } from "../../providers/dotnet/native-array.js";
@@ -335,14 +333,7 @@ function findCsharpTargetMemberForCall(
   if (constructorMember !== undefined) {
     return constructorMember;
   }
-  return findSourceContractTargetMemberForProviderReceiver(
-    binding,
-    declaration,
-    request,
-    context,
-    host,
-    options,
-  );
+  return undefined;
 }
 
 function findConstructorTargetMemberForProviderType(
@@ -358,36 +349,6 @@ function findConstructorTargetMemberForProviderType(
   }
   return selectTargetMember(
     (binding.members ?? []).filter((candidate) => candidate.kind === "constructor"),
-    {
-      arguments: request.arguments,
-      receiver: request.calleeReceiver,
-    },
-    context,
-    host.getTargetTypeRefForSubject,
-    options,
-  );
-}
-
-function findSourceContractTargetMemberForProviderReceiver(
-  binding: NonNullable<ReturnType<typeof findTargetBinding>>,
-  declaration: ProviderVirtualDeclarationFact | undefined,
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpOperationsProviderHost,
-  options: TargetMemberSelectionOptions,
-): TargetMember | undefined {
-  if (declaration !== undefined || request.calleePropertyName === undefined || request.calleeReceiver === undefined) {
-    return undefined;
-  }
-  if (isProviderStaticContainerReceiver(request, context, binding)) {
-    return undefined;
-  }
-  const declaringTargetType = options.declaringTargetType;
-  if (declaringTargetType?.kind !== "target-named" || declaringTargetType.id !== binding.id) {
-    return undefined;
-  }
-  return selectTargetMember(
-    (binding.members ?? []).filter((candidate) => candidate.sourceName === request.calleePropertyName),
     {
       arguments: request.arguments,
       receiver: request.calleeReceiver,
@@ -602,9 +563,25 @@ function mapDotnetNativeArrayCreateCall(
     return undefined;
   }
   const targetBinding = host.getCsharpTargetBindingByTargetId(dotnetNativeArrayTypeId);
-  const member = targetBinding?.members?.find((candidate) => isDotnetNativeArrayCreateMemberId(candidate.id)) ?? createDotnetNativeArrayTargetMember();
   if (targetBinding === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_CREATE_TARGET_FACT_NOT_PROVEN", 9100135, "C# native array creation requires finalized provider target binding facts for the explicit .NET Array source contract."));
+  }
+  const member = targetBinding.members?.find((candidate) => isDotnetNativeArrayCreateMemberId(candidate.id));
+  if (member === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_NATIVE_ARRAY_CREATE_MEMBER_FACT_NOT_PROVEN",
+      9100154,
+      "C# native array creation requires a provider-owned target member fact for the explicit .NET Array.create source contract.",
+      [{
+        message: "C# native array create member metadata was missing from the selected provider target binding.",
+        details: {
+          bindingId: targetBinding.id,
+          selectedMemberId,
+          candidateMemberIds: targetBinding.members?.map((candidate) => candidate.id) ?? [],
+        },
+      }],
+    ));
   }
   const nativeArrayElementType = getNativeArrayCreateElementType(request, context, host);
   if (nativeArrayElementType === undefined) {
@@ -622,27 +599,6 @@ function mapDotnetNativeArrayCreateCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: csharpMember, targetTypeArguments: [nativeArrayElementType] },
   }, [{ message: "C# native array creation selected from checked TSTS provider declaration." }]);
-}
-
-function createDotnetNativeArrayTargetMember(): TargetMember {
-  const typeParameter = { kind: "type-parameter", name: "T" } satisfies TargetTypeRef;
-  return {
-    id: dotnetNativeArrayCreateMemberId,
-    sourceName: "create",
-    targetName: "__tsonic_native_array_create",
-    kind: "method",
-    static: true,
-    parameters: [
-      {
-        name: "length",
-        type: { kind: "source-primitive", name: "int32" },
-        passingMode: "by-value",
-      },
-    ],
-    returnType: { kind: "array", element: typeParameter },
-    typeParameters: [{ name: "T" }],
-    overloadGroup: dotnetNativeArrayCreateMemberId,
-  };
 }
 
 function getSelectedCallProviderVirtualDeclaration(
