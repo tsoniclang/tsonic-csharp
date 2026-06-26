@@ -10,6 +10,7 @@ import {
   providerVirtualDeclarationFactKey,
   selectedTargetSignatureFactKey,
   sourcePrimitiveFactKey,
+  structFactKey,
   targetBindingFactKey,
 } from "@tsonic/tsts";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
@@ -582,6 +583,33 @@ test("C# erased source marker rejects missing provider member identity", () => {
   assert.equal("value" in result, false);
 });
 
+test("C# source marker mapping ignores same-spelling non-core virtual declarations", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "out",
+    sourceSelectedDeclaration: selectedDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "./local.js",
+      moduleSpecifier: "./local.js",
+      virtualFileName: "tsts-provider://local",
+      exportName: "out",
+      memberId: "./local.js::out",
+    },
+  }));
+
+  assert.equal(result.kind, "defer");
+});
+
 test("C# erased source marker rejects missing finalized source facts", () => {
   const provider = getNativeSemanticProvider();
   const cases = [
@@ -594,6 +622,7 @@ test("C# erased source marker rejects missing finalized source facts", () => {
     ["field", "CSHARP_FIELD_MARKER_FACT_NOT_PROVEN"],
     ["attribute", "CSHARP_ATTRIBUTE_MARKER_FACT_NOT_PROVEN"],
     ["defaultof", "CSHARP_DEFAULT_MARKER_FACT_NOT_PROVEN"],
+    ["struct", "CSHARP_STRUCT_MARKER_FACT_NOT_PROVEN"],
   ];
 
   for (const [marker, code] of cases) {
@@ -725,6 +754,7 @@ test("C# source markers validate finalized facts before selected signature reuse
 test("C# source markers reject malformed finalized facts", () => {
   const provider = getNativeSemanticProvider();
   const targetExpression = { Kind: 1, Text: "value" };
+  const typeNode = { Kind: "KindTypeReference", Text: "int32" };
   const cases = [
     {
       marker: "out",
@@ -755,10 +785,38 @@ test("C# source markers reject malformed finalized facts", () => {
       },
     },
     {
+      marker: "field",
+      code: "CSHARP_FIELD_MARKER_NAME_NOT_PROVEN",
+      options: {
+        field: {
+          type: typeNode,
+        },
+      },
+    },
+    {
       marker: "defaultof",
       code: "CSHARP_DEFAULT_MARKER_TYPE_NOT_PROVEN",
       options: {
         defaultValue: {},
+      },
+    },
+    {
+      marker: "struct",
+      code: "CSHARP_STRUCT_MARKER_VALUE_TYPE_NOT_PROVEN",
+      options: {
+        structFact: {
+          valueType: false,
+          fields: [],
+        },
+      },
+    },
+    {
+      marker: "struct",
+      code: "CSHARP_STRUCT_MARKER_FIELDS_NOT_PROVEN",
+      options: {
+        structFact: {
+          valueType: true,
+        },
       },
     },
   ];
@@ -779,10 +837,47 @@ test("C# source markers reject malformed finalized facts", () => {
       argumentPassingSubject: call,
       fieldSubject: call,
       defaultValueSubject: call,
+      structFactSubject: call,
       ...scenario.options,
     }));
 
     assert.equal(result.kind, "reject", scenario.marker);
+    assert.equal(result.diagnostic.extensionCode, scenario.code);
+    assert.ok(result.diagnostic.evidence?.length > 0);
+  }
+});
+
+test("C# attribute builder marker rejects malformed finalized attribute facts", () => {
+  const provider = getNativeSemanticProvider();
+  const cases = [
+    {
+      code: "CSHARP_ATTRIBUTE_MARKER_TARGET_NOT_PROVEN",
+      attribute: {
+        attributeName: "RouteAttribute",
+      },
+    },
+    {
+      code: "CSHARP_ATTRIBUTE_MARKER_NAME_NOT_PROVEN",
+      attribute: {
+        target: {},
+      },
+    },
+  ];
+
+  for (const scenario of cases) {
+    const call = {};
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call,
+      callee: {},
+      calleePropertyName: "add",
+      arguments: [],
+    }, fakeObservationContext({
+      attributeSubject: call,
+      attribute: scenario.attribute,
+    }));
+
+    assert.equal(result.kind, "reject", scenario.code);
     assert.equal(result.diagnostic.extensionCode, scenario.code);
     assert.ok(result.diagnostic.evidence?.length > 0);
   }
@@ -794,6 +889,10 @@ test("C# erased source marker accepts supported markers only with finalized sour
   const outDeclaration = {};
   const defaultCall = {};
   const defaultDeclaration = {};
+  const fieldCall = {};
+  const fieldDeclaration = {};
+  const structCall = {};
+  const structDeclaration = {};
   const targetExpression = { Kind: 1, Text: "value" };
   const typeNode = { Kind: "KindTypeReference", Text: "int32" };
 
@@ -814,6 +913,44 @@ test("C# erased source marker accepts supported markers only with finalized sour
     },
   }));
 
+  const refCall = {};
+  const refDeclaration = {};
+  const refResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: refCall,
+    callee: {},
+    calleePropertyName: "ref",
+    sourceSelectedDeclaration: refDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: refDeclaration,
+    virtualDeclaration: coreLangMarker("ref"),
+    argumentPassingSubject: refCall,
+    argumentPassing: {
+      mode: "byref-readwrite",
+      targetExpression,
+    },
+  }));
+
+  const inrefCall = {};
+  const inrefDeclaration = {};
+  const inrefResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: inrefCall,
+    callee: {},
+    calleePropertyName: "inref",
+    sourceSelectedDeclaration: inrefDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: inrefDeclaration,
+    virtualDeclaration: coreLangMarker("inref"),
+    argumentPassingSubject: inrefCall,
+    argumentPassing: {
+      mode: "byref-readonly",
+      targetExpression,
+    },
+  }));
+
   const defaultResult = provider.mapCheckedCall({
     target: "csharp",
     call: defaultCall,
@@ -830,10 +967,55 @@ test("C# erased source marker accepts supported markers only with finalized sour
     },
   }));
 
+  const fieldResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: fieldCall,
+    callee: {},
+    calleePropertyName: "field",
+    sourceSelectedDeclaration: fieldDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: fieldDeclaration,
+    virtualDeclaration: coreLangMarker("field"),
+    fieldSubject: fieldCall,
+    field: {
+      name: "count",
+      type: typeNode,
+    },
+  }));
+
+  const structResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: structCall,
+    callee: {},
+    calleePropertyName: "struct",
+    sourceSelectedDeclaration: structDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: structDeclaration,
+    virtualDeclaration: coreLangMarker("struct"),
+    structFactSubject: structCall,
+    structFact: {
+      valueType: true,
+      fields: [{
+        name: "count",
+        type: typeNode,
+      }],
+    },
+  }));
+
   assert.equal(outResult.kind, "accept", outResult.kind === "reject" ? outResult.diagnostic.message : undefined);
   assert.equal(outResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::out");
+  assert.equal(refResult.kind, "accept", refResult.kind === "reject" ? refResult.diagnostic.message : undefined);
+  assert.equal(refResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::ref");
+  assert.equal(inrefResult.kind, "accept", inrefResult.kind === "reject" ? inrefResult.diagnostic.message : undefined);
+  assert.equal(inrefResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::inref");
   assert.equal(defaultResult.kind, "accept", defaultResult.kind === "reject" ? defaultResult.diagnostic.message : undefined);
   assert.equal(defaultResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::defaultof");
+  assert.equal(fieldResult.kind, "accept", fieldResult.kind === "reject" ? fieldResult.diagnostic.message : undefined);
+  assert.equal(fieldResult.value.selectedSignature.member.id, "source-semantics.field:count");
+  assert.equal(structResult.kind, "accept", structResult.kind === "reject" ? structResult.diagnostic.message : undefined);
+  assert.equal(structResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::struct");
 });
 
 test("C# attribute builder marker identity comes from finalized attribute facts", () => {
@@ -3162,6 +3344,9 @@ function fakeObservationContext(options) {
         if (subject === options.flowStateSubject && key === flowStateFactKey) {
           return options.flowState;
         }
+        if (subject === options.structFactSubject && key === structFactKey) {
+          return options.structFact;
+        }
         return undefined;
       },
       set(subject, key, value, evidence) {
@@ -3193,6 +3378,9 @@ function fakeObservationContext(options) {
         }
         if (subject === options.flowStateSubject && key === flowStateFactKey) {
           return options.flowState;
+        }
+        if (subject === options.structFactSubject && key === structFactKey) {
+          return options.structFact;
         }
         if (subject === options.targetBindingSubject && key === targetBindingFactKey) {
           return options.targetBinding;

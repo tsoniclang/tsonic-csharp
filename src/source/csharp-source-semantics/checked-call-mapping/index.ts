@@ -58,6 +58,7 @@ import type {
 } from "../operations-provider.js";
 import {
   mapCsharpSourceMarkerCall,
+  validateCsharpAttributeMarkerFact,
 } from "./source-marker-calls.js";
 import {
   getSelectedCallProviderVirtualDeclaration,
@@ -91,6 +92,10 @@ export function mapCsharpCheckedCall(
     return sourceMarkerCall;
   }
   if (attributeFact !== undefined) {
+    const attributeFactDiagnostic = validateCsharpAttributeMarkerFact(attributeFact, extensionId);
+    if (attributeFactDiagnostic !== undefined) {
+      return rejectObservation(attributeFactDiagnostic);
+    }
     return acceptObservation<CheckedCallMappingResult>({
       selectedSignature: { member: erasedAttributeFactMember(attributeFact) },
     }, [{ message: "C# attribute builder marker call was checked by finalized TSTS attribute facts and marked for fact-driven erasure." }]);

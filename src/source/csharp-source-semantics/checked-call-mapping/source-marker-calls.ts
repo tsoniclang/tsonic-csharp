@@ -4,6 +4,7 @@ import {
   defaultValueFactKey,
   flowStateFactKey,
   rejectObservation,
+  structFactKey,
 } from "@tsonic/tsts";
 import type {
   ArgumentPassingFact,
@@ -14,6 +15,7 @@ import type {
   ExtensionObservationContext,
   FlowStateFact,
   ProviderVirtualDeclarationFact,
+  StructFact,
 } from "@tsonic/tsts";
 import {
   csharpProviderDiagnostic,
@@ -48,6 +50,15 @@ export function mapCsharpSourceMarkerCall(
         "C# field marker call requires a finalized TSTS FieldFact with field type evidence before erasure.",
       ));
     }
+    if (!isRequiredString((fieldFact as { readonly name?: unknown }).name)) {
+      return rejectObservation(csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_FIELD_MARKER_NAME_NOT_PROVEN",
+        9100161,
+        "C# field marker call requires finalized TSTS field name evidence before erasure.",
+        sourceMarkerFactEvidence("field", "field.name", fieldFact),
+      ));
+    }
     if ((fieldFact as { readonly type?: unknown }).type === undefined) {
       return rejectObservation(csharpProviderDiagnostic(
         extensionId,
@@ -77,7 +88,7 @@ export function mapCsharpSourceMarkerCall(
       context,
       virtualDeclaration,
       extensionId,
-      attributeFact !== undefined,
+      attributeFact,
     );
     if (missingFactDiagnostic !== undefined) {
       return rejectObservation(missingFactDiagnostic);
@@ -94,7 +105,7 @@ function missingRequiredSourceMarkerFactDiagnostic(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   declaration: ProviderVirtualDeclarationFact,
   extensionId: string,
-  hasAttributeFact: boolean,
+  attributeFact: ReturnType<typeof getCheckedAttributeBuilderFact>,
 ): ReturnType<typeof csharpProviderDiagnostic> | undefined {
   switch (declaration.exportName) {
     case "out":
@@ -111,9 +122,7 @@ function missingRequiredSourceMarkerFactDiagnostic(
           : unsupportedCsharpSourceFlowMarkerDiagnostic(extensionId, flowState);
       }
     case "attribute":
-      return !hasAttributeFact
-        ? missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_ATTRIBUTE_MARKER_FACT_NOT_PROVEN", declaration.exportName, "attribute")
-        : undefined;
+      return validateCsharpAttributeMarkerFact(attributeFact, extensionId);
     case "defaultof":
       {
         const defaultValue = getFinalizedDefaultValueFact(request, context);
@@ -130,9 +139,39 @@ function missingRequiredSourceMarkerFactDiagnostic(
             )
           : undefined;
       }
+    case "struct":
+      return validateStructMarkerFact(request, context, declaration.exportName, extensionId);
     default:
       return undefined;
   }
+}
+
+export function validateCsharpAttributeMarkerFact(
+  attributeFact: ReturnType<typeof getCheckedAttributeBuilderFact>,
+  extensionId: string,
+): ReturnType<typeof csharpProviderDiagnostic> | undefined {
+  if (attributeFact === undefined) {
+    return missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_ATTRIBUTE_MARKER_FACT_NOT_PROVEN", "attribute", "attribute");
+  }
+  if ((attributeFact as { readonly target?: unknown }).target === undefined) {
+    return csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_ATTRIBUTE_MARKER_TARGET_NOT_PROVEN",
+      9100162,
+      "C# attribute marker call requires finalized TSTS attribute target evidence before erasure.",
+      sourceMarkerFactEvidence("attribute", "attribute.target", attributeFact),
+    );
+  }
+  if (!isRequiredString((attributeFact as { readonly attributeName?: unknown }).attributeName)) {
+    return csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_ATTRIBUTE_MARKER_NAME_NOT_PROVEN",
+      9100163,
+      "C# attribute marker call requires finalized TSTS attribute name evidence before erasure.",
+      sourceMarkerFactEvidence("attribute", "attribute.attributeName", attributeFact),
+    );
+  }
+  return undefined;
 }
 
 function validateArgumentPassingMarkerFact(
@@ -167,6 +206,58 @@ function validateArgumentPassingMarkerFact(
   return undefined;
 }
 
+function validateStructMarkerFact(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  markerName: "struct",
+  extensionId: string,
+): ReturnType<typeof csharpProviderDiagnostic> | undefined {
+  const structFact = getFinalizedStructFact(request, context);
+  if (structFact === undefined) {
+    return missingSourceMarkerFactDiagnostic(extensionId, "CSHARP_STRUCT_MARKER_FACT_NOT_PROVEN", markerName, "struct");
+  }
+  if ((structFact as { readonly valueType?: unknown }).valueType !== true) {
+    return csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_STRUCT_MARKER_VALUE_TYPE_NOT_PROVEN",
+      9100164,
+      "C# struct marker call requires finalized TSTS value-type struct evidence before erasure.",
+      sourceMarkerFactEvidence(markerName, "struct.valueType", structFact),
+    );
+  }
+  const fields = (structFact as { readonly fields?: unknown }).fields;
+  if (!Array.isArray(fields)) {
+    return csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_STRUCT_MARKER_FIELDS_NOT_PROVEN",
+      9100165,
+      "C# struct marker call requires finalized TSTS struct field evidence before erasure.",
+      sourceMarkerFactEvidence(markerName, "struct.fields", structFact),
+    );
+  }
+  for (const field of fields) {
+    if (!isRequiredString((field as { readonly name?: unknown }).name)) {
+      return csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_STRUCT_MARKER_FIELD_NAME_NOT_PROVEN",
+        9100166,
+        "C# struct marker call requires finalized TSTS field name evidence for every struct field before erasure.",
+        sourceMarkerFactEvidence(markerName, "struct.fields[].name", structFact),
+      );
+    }
+    if ((field as { readonly type?: unknown }).type === undefined) {
+      return csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_STRUCT_MARKER_FIELD_TYPE_NOT_PROVEN",
+        9100167,
+        "C# struct marker call requires finalized TSTS field type evidence for every struct field before erasure.",
+        sourceMarkerFactEvidence(markerName, "struct.fields[].type", structFact),
+      );
+    }
+  }
+  return undefined;
+}
+
 function expectedArgumentPassingMode(markerName: "out" | "ref" | "inref"): ArgumentPassingFact["mode"] {
   switch (markerName) {
     case "out":
@@ -194,12 +285,24 @@ function getFinalizedFlowStateFact(
     context.facts.get(request.call, flowStateFactKey);
 }
 
+function getFinalizedStructFact(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): StructFact | undefined {
+  return context.factResolver.resolve(request.call, structFactKey) ??
+    context.facts.get(request.call, structFactKey);
+}
+
 function getFinalizedDefaultValueFact(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): { readonly type?: unknown } | undefined {
   return context.factResolver.resolve(request.call, defaultValueFactKey) ??
     context.facts.get(request.call, defaultValueFactKey);
+}
+
+function isRequiredString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }
 
 function sourceMarkerFactEvidence(
