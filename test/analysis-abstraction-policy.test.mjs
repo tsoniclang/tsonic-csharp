@@ -6,6 +6,7 @@ import {
   analysisAbstractionDebtOwners,
   analysisAbstractionFileRules,
   analysisAbstractionRules,
+  collectAnalysisAbstractionFindingsForSource,
   collectAnalysisAbstractionFindings,
   summarizeAnalysisAbstractionFindings,
 } from "./architecture/analysis-abstraction-policy.mjs";
@@ -120,9 +121,156 @@ test("architecture validator rejects per-module Node target identity maps", () =
   );
 });
 
+test("architecture validator rejects source-member id dispatch and tables", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
+    `
+      const propertyRule = propertyRequirementRowsBySourceIdentity.get(sourceMember.id);
+      return propertyRequirementRowsBySourceIdentity.has(sourceMember.id);
+      const fullJsArrayMemberIds = sourceMemberIdSet(["Array.flat"]);
+      const rows = sourceLibraryMemberIdSet(["JSON.parse"]);
+    `,
+    [
+      "source-member-id-map-dispatch",
+      "source-member-id-map-dispatch",
+      "source-member-id-set-table-definition",
+      "source-member-id-set-table-definition",
+    ],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/source-identities/array.ts",
+      `
+        export const arrayCallableIdentityPolicy = {
+          ids: sourceLibraryMemberIdSet(["Array.map"]),
+        } satisfies SourceLibraryMemberIdentityPolicy;
+      `,
+    ),
+    [],
+  );
+});
+
+test("architecture validator rejects procedural source-member policy dispatch", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
+    `
+      const rule = propertyPrecheckRows.find((candidate) => propertyPrecheckRuleApplies(candidate, sourceMember));
+      return propertyReceiverRequirementRows.some((policy) => sourceLibraryMemberMatches(sourceMember, policy.identity));
+    `,
+    [
+      "procedural-source-member-table-dispatch",
+      "procedural-source-member-table-dispatch",
+    ],
+  );
+});
+
+test("architecture validator rejects executable hooks in policy-like records", () => {
+  const hookRule = analysisAbstractionRules.find((rule) => rule.id === "source-id-executable-policy-hook");
+  assert.notEqual(hookRule, undefined);
+  const forbidden = [
+    "const row = { validate: (request) => request.ok };",
+    "const row = { resolve: resolveTargetMember };",
+    "const row = { result: (request) => request.result };",
+    "const row = { requiresClosedReceiver: (request) => request.receiver };",
+    "const row = { mapCall: mapArrayCall };",
+  ];
+  const allowed = [
+    "const row = { result: \"defer\" };",
+    "interface Row { readonly result: CsharpJsPropertyPrecheckResult; }",
+    "const row = { sourceIdentity: \"Array.map\", targetIdentity: \"Tsonic.CSharp.Js.Array.map\" };",
+  ];
+  assert.deepEqual(forbidden.map((text) => ruleMatches(hookRule, text)), [true, true, true, true, true]);
+  assert.deepEqual(allowed.map((text) => ruleMatches(hookRule, text)), [false, false, false]);
+});
+
+test("architecture validator rejects target-member synthesis from source names", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/arrays/target-members/builders.ts",
+    `
+      return {
+        id: \`Tsonic.CSharp.Js.Array.\${sourceName}\`,
+        sourceName,
+        targetName: sourceName,
+      };
+    `,
+    [
+      "target-member-source-name-synthesis",
+      "target-member-source-name-synthesis",
+    ],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/surfaces/js/arrays/target-members/metadata.ts",
+      `
+        export const arrayMapTargetMember = {
+          id: "Tsonic.CSharp.Js.Array.map",
+          sourceName: "map",
+          targetName: "map",
+        };
+      `,
+    ),
+    [],
+  );
+});
+
+test("architecture validator rejects executable selectors in metadata-policy files only", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-policy.ts",
+    `
+      export const csharpJsMapCollectionPolicy = {
+        sourceNames: ["Map", "ReadonlyMap"],
+        createClosedType: (typeArguments) => csharpJsMapTargetType(typeArguments[0], typeArguments[1]),
+        isTargetType: isCsharpJsMapTargetType,
+      };
+    `,
+    [
+      "collection-target-metadata-executable-policy-file",
+      "collection-target-metadata-executable-policy-file",
+    ],
+  );
+
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/nodejs/provider-metadata/fs.ts",
+    `
+      export const fsRows = [{
+        sourceIdentity: "fs.readFile",
+        resolve: (sourceMember) => sourceMember.id,
+      }];
+    `,
+    [
+      "provider-metadata-executable-selector-file",
+      "source-id-executable-policy-hook",
+    ],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/surfaces/nodejs/provider-metadata/fs.ts",
+      `
+        export const fsRows = [{
+          sourceIdentity: "fs.readFile",
+          targetIdentity: "System.IO.File.ReadAllText",
+          receiver: "none",
+        }];
+      `,
+    ),
+    [],
+  );
+});
+
 function ruleMatches(rule, text) {
   rule.pattern.lastIndex = 0;
   return rule.pattern.test(text);
+}
+
+function assertFindings(file, text, expectedRuleIds) {
+  assert.deepEqual(findingIds(file, text), expectedRuleIds);
+}
+
+function findingIds(file, text) {
+  return collectAnalysisAbstractionFindingsForSource(file, text).map((finding) => finding.ruleId);
 }
 
 function catalogedCounts() {

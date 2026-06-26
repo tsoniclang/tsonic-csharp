@@ -20,6 +20,11 @@ import {
   materializeCollectionMemberMetadata,
 } from "./member-builders.js";
 import {
+  createCsharpJsCollectionTargetType,
+  createOpenCsharpJsCollectionTargetType,
+  getCsharpJsCollectionIterableElementType as getPolicyIterableElementType,
+} from "./target-types.js";
+import {
   collectionMemberPolicyApplies,
   collectionPolicyForSourceMember,
   collectionPolicyForSourceType,
@@ -38,7 +43,8 @@ export function getCsharpJsIterableElementType(type: TargetTypeRef | undefined):
   if (type?.kind !== "target-named") {
     return undefined;
   }
-  return collectionPolicyForTargetType(type)?.getIterableElementType(type.typeArguments ?? []);
+  const policy = collectionPolicyForTargetType(type);
+  return policy === undefined ? undefined : getPolicyIterableElementType(policy, type.typeArguments ?? []);
 }
 
 export function createCsharpJsCollectionTargetTypeForSourceType(
@@ -46,7 +52,8 @@ export function createCsharpJsCollectionTargetTypeForSourceType(
   context: ExtensionObservationContext,
   typeArguments: readonly TargetTypeRef[],
 ): TargetTypeRef | undefined {
-  return collectionPolicyForSourceType(type, context)?.createClosedType(typeArguments);
+  const policy = collectionPolicyForSourceType(type, context);
+  return policy === undefined ? undefined : createCsharpJsCollectionTargetType(policy, typeArguments);
 }
 
 export function collectionTargetMembersForSourceMember(
@@ -75,11 +82,11 @@ export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMem
     return undefined;
   }
   const policy = collectionPolicyForSourceMember(sourceMember);
-  if (policy === undefined || !policy.isTargetType(receiverType)) {
+  if (policy === undefined || collectionPolicyForTargetType(receiverType) !== policy) {
     return undefined;
   }
   return jsSurfaceTargetMemberFromMetadata({
-    id: `Tsonic.CSharp.Js.${policy.targetName}.size`,
+    id: `Tsonic.CSharp.Js.${policy.target.name}.size`,
     sourceName: "size",
     targetName: "size",
     kind: "property",
@@ -89,18 +96,15 @@ export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMem
 }
 
 function closedCollectionTypeForPolicy(
-  policy: {
-    readonly createOpenType: () => TargetTypeRef;
-    readonly isTargetType: (type: TargetTypeRef | undefined) => boolean;
-  },
+  policy: NonNullable<ReturnType<typeof collectionPolicyForSourceMember>>,
   receiverType: TargetTypeRef | undefined,
   resultType: TargetTypeRef | undefined,
 ): TargetTypeRef | undefined {
-  if (policy.isTargetType(resultType)) {
+  if (collectionPolicyForTargetType(resultType) === policy) {
     return resultType;
   }
-  if (policy.isTargetType(receiverType)) {
+  if (collectionPolicyForTargetType(receiverType) === policy) {
     return receiverType;
   }
-  return policy.createOpenType();
+  return createOpenCsharpJsCollectionTargetType(policy);
 }

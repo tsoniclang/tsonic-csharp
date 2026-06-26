@@ -45,6 +45,20 @@ export const analysisAbstractionRules = Object.freeze([
       "Use declarative source identity policy records instead of source-member prefix control-flow branches.",
   },
   {
+    id: "source-member-id-map-dispatch",
+    pattern: /\b[A-Za-z_$][\w$]*(?:BySource(?:Identity|Member|Id)?|ByIdentity|BySourceMember|RequirementRows|Requirements|Policies|Policy|Providers|Resolvers|Rows|Index|Map|Members|TargetMembers|TargetMember)?\.(?:get|has)\s*\(\s*sourceMember\.id\s*\)/g,
+    allowedFilePattern: sourceIdentityMetadataFilePattern(),
+    replacement:
+      "Do not dispatch operations, carriers, policies, or target members by sourceMember.id Map lookups; consume selected declaration/signature identity through generic metadata selectors.",
+  },
+  {
+    id: "source-member-id-set-table-definition",
+    pattern: /\b(?:sourceMemberIdSet|sourceLibraryMemberIdSet)\s*\(\s*(?:\[|[A-Za-z_$][\w$]*)/g,
+    allowedFilePattern: sourceIdentityMetadataFilePattern(),
+    replacement:
+      "Source member id sets belong only in pure source identity metadata modules; analysis, carrier, and target policy tables must use generic metadata facts.",
+  },
+  {
     id: "candidate-target-id-branch",
     pattern: /candidate\.id\s*(?:={2,3}|!={1,2})/g,
     replacement:
@@ -196,7 +210,7 @@ export const analysisAbstractionRules = Object.freeze([
   },
   {
     id: "source-id-executable-policy-hook",
-    pattern: /\b(?:uses|validate|resolve|result|requiresClosedReceiver)\s*:\s*(?:\([^\n)]*\)|[A-Za-z_$][\w$]*)\s*=>|\bmapCall\s*:\s*[A-Za-z_$][\w$]*/g,
+    pattern: /(?:^|[{,]\s*)\b(?:uses|validate|resolve|result|requiresClosedReceiver|mapCall)\s*:\s*(?:(?:\([^\n)]*\)|[A-Za-z_$][\w$]*)\s*=>|function\b|[A-Za-z_$][\w$]*(?=\s*[,}]))/gm,
     replacement:
       "Source-identity policy tables must be declarative metadata or explicit exception records, not executable semantic hooks.",
   },
@@ -213,10 +227,22 @@ export const analysisAbstractionRules = Object.freeze([
       "Source-id table dispatch must become generic selector lookup over selected declaration/signature identity and metadata rows.",
   },
   {
+    id: "procedural-source-member-table-dispatch",
+    pattern: /\b[A-Za-z_$][\w$]*(?:Policies|PolicyRows|Rules|Rows|Records|Providers|Resolvers|Requirements|RequirementRows|MemberPolicies|CallPolicies)\.(?:find|some)\s*\([\s\S]{0,240}?\b(?:sourceMember|sourceLibraryMemberMatches)\b/g,
+    replacement:
+      "Policy/table dispatch over sourceMember must become a generic selector lookup over selected declaration/signature identity and declarative metadata rows.",
+  },
+  {
     id: "dynamic-target-member-from-source-member",
     pattern: /\bjsSurfaceTargetMemberFromMetadata\s*\(\s*\{[\s\S]{0,500}?\bsourceLibraryMember(?:Name|Identity)\s*\(\s*sourceMember\s*\)/g,
     replacement:
       "Target members must come from provider/runtime metadata rows with declared semantic equivalence, not be synthesized from a source member at selection time.",
+  },
+  {
+    id: "target-member-source-name-synthesis",
+    pattern: /\b(?:targetName\s*:\s*(?:sourceName|sourceMember\.memberName|sourceLibraryMemberName\s*\(\s*sourceMember\s*\))|id\s*:\s*`[^`]*\$\{\s*(?:sourceName|sourceMember\.id|sourceLibraryMemberIdentity\s*\(\s*sourceMember\s*\))\s*\})/g,
+    replacement:
+      "Target member names and ids must be declared by provider/runtime metadata rows, not synthesized from source member names or identities.",
   },
   {
     id: "node-local-export-signature-selection",
@@ -245,6 +271,20 @@ export const analysisAbstractionFileRules = Object.freeze([
     replacement:
       "Move source-use discovery into the generic lazy analysis layer; array lifecycle planning must consume structural analysis records.",
   },
+  {
+    id: "collection-target-metadata-executable-policy-file",
+    pattern: /(?:^|\/)collection-target-metadata\/[^/]+-policy\.ts$/,
+    contentPattern: /\b(?:createOpenType|createClosedType|isTargetType|getIterableElementType)\s*:\s*(?:(?:\([^)\n]*\)|[A-Za-z_$][\w$]*)\s*=>|[A-Za-z_$][\w$]*(?=\s*[,}]))/g,
+    replacement:
+      "Collection target metadata policy files must be pure metadata rows; executable selectors belong in generic provider/runtime selector implementations.",
+  },
+  {
+    id: "provider-metadata-executable-selector-file",
+    pattern: /(?:^|\/)provider-metadata\/[^/]+\.ts$/,
+    contentPattern: /\b(?:uses|validate|resolve|result|requiresClosedReceiver|mapCall)\s*:\s*(?:(?:\([^)\n]*\)|[A-Za-z_$][\w$]*)\s*=>|function\b|[A-Za-z_$][\w$]*(?=\s*[,}]))|\.(?:find|some)\s*\([\s\S]{0,240}\bsourceMember\b/g,
+    replacement:
+      "Provider metadata files must contain declarative rows only; executable source-member selectors belong in generic selector modules.",
+  },
 ]);
 
 export const analysisAbstractionDebtClassifications = Object.freeze([
@@ -267,18 +307,174 @@ export const analysisAbstractionDebtOwners = Object.freeze([
   "tests",
 ]);
 
+const lazyAnalysisReplacement =
+  "Move source-use classification to target-neutral lazy analysis records; surface carrier policy must consume structural facts, not source-member tables.";
+
+const selectedIdentityReplacement =
+  "Route source operation handling through TSTS-selected declaration/signature identity plus declarative policy/provider metadata, not sourceMember id or name dispatch.";
+
+const providerMetadataReplacement =
+  "Move target member identities into declarative provider/runtime metadata rows consumed by the generic selector; do not synthesize target members from source names.";
+
+const genericSelectorReplacement =
+  "Replace per-family lookup with the generic selected-source-identity to provider-metadata selector, preserving closed carrier fact diagnostics.";
+
 export const analysisAbstractionDebtCatalog = Object.freeze([
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
+    {
+      "source-member-id-map-dispatch": 4,
+      "source-member-id-set-table-definition": 5,
+    },
+    "surface-policy-candidate",
+    "surface-provider",
+    lazyAnalysisReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/receiver-validation.ts",
+    {
+      "source-member-id-set-table-definition": 1,
+      "procedural-source-member-table-dispatch": 1,
+    },
+    "surface-policy-candidate",
+    "surface-provider",
+    genericSelectorReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/object-members.ts",
+    {
+      "source-member-id-set-table-definition": 3,
+      "procedural-source-member-table-dispatch": 1,
+    },
+    "provider-metadata-candidate",
+    "surface-provider",
+    providerMetadataReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
+    { "procedural-source-member-table-dispatch": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    selectedIdentityReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/definitions.ts",
+    {
+      "source-member-id-set-table-definition": 1,
+      "procedural-source-member-table-dispatch": 1,
+    },
+    "provider-metadata-candidate",
+    "surface-provider",
+    genericSelectorReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/console.ts",
+    {
+      "source-member-id-map-dispatch": 1,
+      "target-member-source-name-synthesis": 2,
+    },
+    "provider-metadata-candidate",
+    "surface-provider",
+    providerMetadataReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/date/target-members/builders.ts",
+    { "target-member-source-name-synthesis": 3 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    providerMetadataReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/json.ts",
+    {
+      "source-member-id-set-table-definition": 1,
+      "target-member-source-name-synthesis": 1,
+    },
+    "explicit-exception-candidate",
+    "surface-provider",
+    "Express JSON.parse/stringify as explicit semantic-exception records with provider/runtime metadata and tests; remove synthesized target member names.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/math.ts",
+    { "target-member-source-name-synthesis": 4 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    providerMetadataReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/numbers.ts",
+    { "target-member-source-name-synthesis": 6 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    providerMetadataReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/objects.ts",
+    { "target-member-source-name-synthesis": 3 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    providerMetadataReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
+    {
+      "source-member-id-map-dispatch": 1,
+      "procedural-source-member-table-dispatch": 1,
+    },
+    "provider-metadata-candidate",
+    "surface-provider",
+    selectedIdentityReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/properties/receiver-facts.ts",
+    { "procedural-source-member-table-dispatch": 1 },
+    "surface-policy-candidate",
+    "surface-provider",
+    genericSelectorReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/regexp/target-members.ts",
+    { "target-member-source-name-synthesis": 2 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    providerMetadataReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/strings.ts",
+    { "target-member-source-name-synthesis": 2 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    providerMetadataReplacement,
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/target-member-metadata.ts",
+    { "source-member-id-map-dispatch": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Index target member metadata by selected declaration/signature identity through the generic selector, not raw sourceMember.id.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/nodejs/filesystem/stats.ts",
+    { "target-member-source-name-synthesis": 4 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    providerMetadataReplacement,
+  ),
 ]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
   return sourceFiles(join(repoRoot, "src")).flatMap((filePath) => {
     const file = relative(repoRoot, filePath).split(sep).join("/");
     const text = readFileSync(filePath, "utf8");
-    return [
-      ...analysisAbstractionFileRules.flatMap((rule) => collectFileRuleFindings(file, rule)),
-      ...analysisAbstractionRules.flatMap((rule) => collectRuleFindings(file, text, rule)),
-    ];
+    return collectAnalysisAbstractionFindingsForSource(file, text);
   });
+}
+
+export function collectAnalysisAbstractionFindingsForSource(file, text) {
+  return [
+    ...analysisAbstractionFileRules.flatMap((rule) => collectFileRuleFindings(file, text, rule)),
+    ...analysisAbstractionRules.flatMap((rule) => collectRuleFindings(file, text, rule)),
+  ];
 }
 
 export function summarizeAnalysisAbstractionFindings(findings) {
@@ -291,6 +487,9 @@ export function summarizeAnalysisAbstractionFindings(findings) {
 }
 
 function collectRuleFindings(file, text, rule) {
+  if (!ruleAppliesToFile(rule, file)) {
+    return [];
+  }
   rule.pattern.lastIndex = 0;
   return [...text.matchAll(rule.pattern)].map((match) => ({
     file,
@@ -301,17 +500,44 @@ function collectRuleFindings(file, text, rule) {
   }));
 }
 
-function collectFileRuleFindings(file, rule) {
+function collectFileRuleFindings(file, text, rule) {
   rule.pattern.lastIndex = 0;
-  return rule.pattern.test(file)
-    ? [{
+  if (!rule.pattern.test(file)) {
+    return [];
+  }
+  if (rule.contentPattern === undefined) {
+    return [{
         file,
         ruleId: rule.id,
         line: 1,
         snippet: file,
         replacement: rule.replacement,
-      }]
-    : [];
+      }];
+  }
+  rule.contentPattern.lastIndex = 0;
+  return [...text.matchAll(rule.contentPattern)].map((match) => ({
+    file,
+    ruleId: rule.id,
+    line: lineNumberAt(text, match.index ?? 0),
+    snippet: lineAt(text, match.index ?? 0).trim(),
+    replacement: rule.replacement,
+  }));
+}
+
+function ruleAppliesToFile(rule, file) {
+  if (rule.filePattern !== undefined) {
+    rule.filePattern.lastIndex = 0;
+    if (!rule.filePattern.test(file)) {
+      return false;
+    }
+  }
+  if (rule.allowedFilePattern !== undefined) {
+    rule.allowedFilePattern.lastIndex = 0;
+    if (rule.allowedFilePattern.test(file)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function lineNumberAt(text, index) {
@@ -339,6 +565,10 @@ function sourceFiles(directory) {
         ? [path]
         : [];
   });
+}
+
+function sourceIdentityMetadataFilePattern() {
+  return /(?:^|\/)(?:source-identities\/[^/]+|source-library|source-identit(?:y|ies)|identities|identity-policies)\.ts$/;
 }
 
 function entry(file, counts, classification, owner, replacement) {

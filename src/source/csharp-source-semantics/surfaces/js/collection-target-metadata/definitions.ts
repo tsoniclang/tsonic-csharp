@@ -24,6 +24,9 @@ import {
 import {
   csharpJsSetCollectionPolicy,
 } from "./set-policy.js";
+import {
+  csharpJsCollectionTargetTypeMatches,
+} from "./target-types.js";
 
 export const csharpJsCollectionPolicies: readonly CsharpJsCollectionTypePolicy[] = [
   csharpJsMapCollectionPolicy,
@@ -60,12 +63,12 @@ export function collectionPolicyForSourceType(type: Type, context: ExtensionObse
 }
 
 export const collectionSizeIdentityPolicy = sourceMemberIdentityPolicyForSourceNames(
-  ["Map", "ReadonlyMap", "Set", "ReadonlySet"],
+  csharpJsCollectionPolicies.flatMap((policy) => policy.sourceNames),
   "size",
 );
 
-export function collectionPolicyForTargetType(type: TargetTypeRef): CsharpJsCollectionTypePolicy | undefined {
-  return csharpJsCollectionPolicies.find((policy) => policy.isTargetType(type));
+export function collectionPolicyForTargetType(type: TargetTypeRef | undefined): CsharpJsCollectionTypePolicy | undefined {
+  return csharpJsCollectionPolicies.find((policy) => csharpJsCollectionTargetTypeMatches(policy, type));
 }
 
 function sourceMemberIdentityPolicyForCollection(

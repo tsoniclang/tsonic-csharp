@@ -16,44 +16,9 @@ import type {
   CsharpJsCollectionMemberResolutionInput,
   CsharpJsCollectionMemberShape,
   CsharpJsCollectionParameterShape,
+  CsharpJsCollectionTypeResolutionInput,
   CsharpJsCollectionTypeExpression,
-  CsharpJsCollectionMemberPolicy,
 } from "./types.js";
-
-export function collectionMemberShape(
-  sourceName: string,
-  members: readonly CsharpJsCollectionMemberShape[],
-): CsharpJsCollectionMemberPolicy {
-  return {
-    sourceName,
-    members,
-  };
-}
-
-export function collectionConstructorShape(
-  id: string,
-  parameters: readonly CsharpJsCollectionParameterShape[] = [],
-): CsharpJsCollectionMemberShape {
-  return {
-    id,
-    kind: "constructor",
-    parameters,
-    returnType: { kind: "declaring" },
-  };
-}
-
-export function collectionMethodShape(
-  sourceName: string,
-  parameters: readonly CsharpJsCollectionParameterShape[],
-  returnType: CsharpJsCollectionTypeExpression,
-): CsharpJsCollectionMemberShape {
-  return {
-    kind: "method",
-    parameters,
-    returnType,
-    targetName: sourceName,
-  };
-}
 
 export function materializeCollectionMemberMetadata(input: CsharpJsCollectionMemberResolutionInput): readonly JsSurfaceTargetMemberMetadata[] {
   if (input.typeArguments.length !== input.policy.typeParameterNames.length) {
@@ -62,77 +27,6 @@ export function materializeCollectionMemberMetadata(input: CsharpJsCollectionMem
   return input.memberPolicy.members
     .map((shape) => materializeCollectionMemberShape(input, shape))
     .filter((member): member is JsSurfaceTargetMemberMetadata => member !== undefined);
-}
-
-export function mapForEachMemberShapes(): readonly CsharpJsCollectionMemberShape[] {
-  return [
-    collectionMethodShape("forEach", [parameterShape("callback", action(typeArgument(1)))], voidType()),
-    collectionMethodShape("forEach", [parameterShape("callback", action(typeArgument(1), typeArgument(0)))], voidType()),
-    collectionMethodShape("forEach", [parameterShape("callback", action(typeArgument(1), typeArgument(0), declaringType()))], voidType()),
-  ];
-}
-
-export function setForEachMemberShapes(): readonly CsharpJsCollectionMemberShape[] {
-  return [
-    collectionMethodShape("forEach", [parameterShape("callback", action(typeArgument(0)))], voidType()),
-    collectionMethodShape("forEach", [parameterShape("callback", action(typeArgument(0), typeArgument(0)))], voidType()),
-    collectionMethodShape("forEach", [parameterShape("callback", action(typeArgument(0), typeArgument(0), declaringType()))], voidType()),
-  ];
-}
-
-export function sameParameterMapPolicies(
-  sourceNames: readonly string[],
-  parameters: readonly CsharpJsCollectionParameterShape[],
-  returnType: CsharpJsCollectionTypeExpression,
-): readonly CsharpJsCollectionMemberPolicy[] {
-  return sourceNames.map((sourceName) => collectionMemberShape(sourceName, [
-    collectionMethodShape(sourceName, parameters, returnType),
-  ]));
-}
-
-export function noParameterMapPolicies(
-  sourceNames: readonly string[],
-  returnType: CsharpJsCollectionTypeExpression,
-): readonly CsharpJsCollectionMemberPolicy[] {
-  return sourceNames.map((sourceName) => collectionMemberShape(sourceName, [
-    collectionMethodShape(sourceName, [], returnType),
-  ]));
-}
-
-export function parameterShape(name: string, type: CsharpJsCollectionTypeExpression): CsharpJsCollectionParameterShape {
-  return { name, type };
-}
-
-export function declaringType(): CsharpJsCollectionTypeExpression {
-  return { kind: "declaring" };
-}
-
-export function typeArgument(index: number): CsharpJsCollectionTypeExpression {
-  return { kind: "type-argument", index };
-}
-
-export function tupleType(...elements: readonly CsharpJsCollectionTypeExpression[]): CsharpJsCollectionTypeExpression {
-  return { kind: "tuple", elements };
-}
-
-export function enumerableType(element: CsharpJsCollectionTypeExpression): CsharpJsCollectionTypeExpression {
-  return { kind: "enumerable", element };
-}
-
-export function nullableType(value: CsharpJsCollectionTypeExpression): CsharpJsCollectionTypeExpression {
-  return { kind: "nullable", value };
-}
-
-export function primitiveType(name: "bool" | "int32"): CsharpJsCollectionTypeExpression {
-  return { kind: "primitive", name };
-}
-
-export function voidType(): CsharpJsCollectionTypeExpression {
-  return { kind: "void" };
-}
-
-function action(...typeArguments: readonly CsharpJsCollectionTypeExpression[]): CsharpJsCollectionTypeExpression {
-  return { kind: "delegate", id: "System.Action", typeArguments };
 }
 
 function materializeCollectionMemberShape(
@@ -148,9 +42,9 @@ function materializeCollectionMemberShape(
     return undefined;
   }
   return {
-    id: shape.id ?? `Tsonic.CSharp.Js.${input.policy.targetName}.${input.memberPolicy.sourceName}`,
+    id: shape.id,
     sourceName: input.memberPolicy.sourceName,
-    targetName: shape.targetName ?? input.memberPolicy.sourceName,
+    targetName: shape.targetName,
     kind: shape.kind,
     parameters: parameters.filter((parameter): parameter is NonNullable<typeof parameter> => parameter !== undefined),
     returnType,
@@ -166,8 +60,8 @@ function materializeCollectionParameter(
   return type === undefined ? undefined : targetParameter(parameter.name, type);
 }
 
-function resolveCollectionTypeExpression(
-  input: CsharpJsCollectionMemberResolutionInput,
+export function resolveCollectionTypeExpression(
+  input: CsharpJsCollectionTypeResolutionInput,
   expression: CsharpJsCollectionTypeExpression,
 ): TargetTypeRef | undefined {
   switch (expression.kind) {

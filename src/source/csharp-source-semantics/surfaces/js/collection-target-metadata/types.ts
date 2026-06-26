@@ -17,14 +17,24 @@ export type CsharpJsSetTargetTypeRef = CsharpTargetNamedTypeRef & {
   readonly csharpJsSurfaceKind: "set";
 };
 
+export type CsharpJsCollectionSurfaceKind = CsharpJsMapTargetTypeRef["csharpJsSurfaceKind"] | CsharpJsSetTargetTypeRef["csharpJsSurfaceKind"];
+
+export type CsharpJsCollectionTargetTypeRef = CsharpTargetNamedTypeRef & {
+  readonly csharpJsSurfaceKind: CsharpJsCollectionSurfaceKind;
+};
+
+export interface CsharpJsCollectionTargetTypeMetadata {
+  readonly surfaceKind: CsharpJsCollectionSurfaceKind;
+  readonly id: string;
+  readonly name: string;
+  readonly namespaceName: string;
+  readonly enumerableElementType: CsharpJsCollectionTypeExpression;
+}
+
 export interface CsharpJsCollectionTypePolicy {
   readonly sourceNames: readonly string[];
-  readonly targetName: "Map" | "Set";
+  readonly target: CsharpJsCollectionTargetTypeMetadata;
   readonly typeParameterNames: readonly string[];
-  readonly createOpenType: () => TargetTypeRef;
-  readonly createClosedType: (typeArguments: readonly TargetTypeRef[]) => TargetTypeRef | undefined;
-  readonly isTargetType: (type: TargetTypeRef | undefined) => boolean;
-  readonly getIterableElementType: (typeArguments: readonly TargetTypeRef[]) => TargetTypeRef | undefined;
   readonly members: readonly CsharpJsCollectionMemberPolicy[];
 }
 
@@ -35,8 +45,8 @@ export interface CsharpJsCollectionMemberPolicy {
 
 export interface CsharpJsCollectionMemberShape {
   readonly kind: JsSurfaceTargetMemberMetadata["kind"];
-  readonly id?: string;
-  readonly targetName?: string;
+  readonly id: string;
+  readonly targetName: string;
   readonly parameters?: readonly CsharpJsCollectionParameterShape[];
   readonly returnType: CsharpJsCollectionTypeExpression;
 }
@@ -56,11 +66,14 @@ export type CsharpJsCollectionTypeExpression =
   | { readonly kind: "void" }
   | { readonly kind: "delegate"; readonly id: "System.Action"; readonly typeArguments: readonly CsharpJsCollectionTypeExpression[] };
 
-export interface CsharpJsCollectionMemberResolutionInput {
+export interface CsharpJsCollectionTypeResolutionInput {
   readonly policy: CsharpJsCollectionTypePolicy;
-  readonly memberPolicy: CsharpJsCollectionMemberPolicy;
   readonly declaringType: TargetTypeRef;
   readonly typeArguments: readonly TargetTypeRef[];
+}
+
+export interface CsharpJsCollectionMemberResolutionInput extends CsharpJsCollectionTypeResolutionInput {
+  readonly memberPolicy: CsharpJsCollectionMemberPolicy;
 }
 
 export interface CsharpJsResolvedCollectionParameter {

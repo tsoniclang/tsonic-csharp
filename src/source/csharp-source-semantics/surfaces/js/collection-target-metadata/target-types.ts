@@ -5,43 +5,92 @@ import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
 } from "../source-library.js";
+import {
+  resolveCollectionTypeExpression,
+} from "./member-builders.js";
+import {
+  csharpJsMapCollectionPolicy,
+} from "./map-policy.js";
+import {
+  csharpJsSetCollectionPolicy,
+} from "./set-policy.js";
 import type {
+  CsharpJsCollectionTargetTypeRef,
+  CsharpJsCollectionTypePolicy,
   CsharpJsMapTargetTypeRef,
   CsharpJsSetTargetTypeRef,
 } from "./types.js";
 
-const csharpJsMapTypeId = "Tsonic.CSharp.Js.Map`2";
-const csharpJsSetTypeId = "Tsonic.CSharp.Js.Set`1";
+export function createOpenCsharpJsCollectionTargetType(policy: CsharpJsCollectionTypePolicy): CsharpJsCollectionTargetTypeRef | undefined {
+  return createCsharpJsCollectionTargetType(
+    policy,
+    policy.typeParameterNames.map((name): TargetTypeRef => ({ kind: "type-parameter", name })),
+  );
+}
+
+export function createCsharpJsCollectionTargetType(
+  policy: CsharpJsCollectionTypePolicy,
+  typeArguments: readonly TargetTypeRef[],
+): CsharpJsCollectionTargetTypeRef | undefined {
+  if (typeArguments.length !== policy.typeParameterNames.length) {
+    return undefined;
+  }
+  const declaringType = csharpTargetNamedType(
+    policy.target.id,
+    typeArguments,
+    csharpQualifiedTypeRenderShape(policy.target.namespaceName, policy.target.name),
+  );
+  const enumerableElementType = resolveCollectionTypeExpression({
+    policy,
+    declaringType,
+    typeArguments,
+  }, policy.target.enumerableElementType);
+  return enumerableElementType === undefined
+    ? undefined
+    : {
+        ...csharpTargetNamedType(
+          policy.target.id,
+          typeArguments,
+          csharpQualifiedTypeRenderShape(policy.target.namespaceName, policy.target.name),
+          { enumerableElementType },
+        ),
+        csharpJsSurfaceKind: policy.target.surfaceKind,
+      } satisfies CsharpJsCollectionTargetTypeRef;
+}
+
+export function csharpJsCollectionTargetTypeMatches(
+  policy: CsharpJsCollectionTypePolicy,
+  type: TargetTypeRef | undefined,
+): type is CsharpJsCollectionTargetTypeRef {
+  return type?.kind === "target-named" && type.id === policy.target.id;
+}
+
+export function getCsharpJsCollectionIterableElementType(
+  policy: CsharpJsCollectionTypePolicy,
+  typeArguments: readonly TargetTypeRef[],
+): TargetTypeRef | undefined {
+  const declaringType = createCsharpJsCollectionTargetType(policy, typeArguments);
+  return declaringType === undefined
+    ? undefined
+    : resolveCollectionTypeExpression({
+      policy,
+      declaringType,
+      typeArguments,
+    }, policy.target.enumerableElementType);
+}
 
 export function csharpJsMapTargetType(keyType: TargetTypeRef, valueType: TargetTypeRef): CsharpJsMapTargetTypeRef {
-  const iterableElementType: TargetTypeRef = { kind: "tuple", elements: [keyType, valueType] };
-  return {
-    ...csharpTargetNamedType(
-      csharpJsMapTypeId,
-      [keyType, valueType],
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Map"),
-      { enumerableElementType: iterableElementType },
-    ),
-    csharpJsSurfaceKind: "map",
-  } satisfies CsharpJsMapTargetTypeRef;
+  return createCsharpJsCollectionTargetType(csharpJsMapCollectionPolicy, [keyType, valueType]) as CsharpJsMapTargetTypeRef;
 }
 
 export function csharpJsSetTargetType(elementType: TargetTypeRef): CsharpJsSetTargetTypeRef {
-  return {
-    ...csharpTargetNamedType(
-      csharpJsSetTypeId,
-      [elementType],
-      csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Set"),
-      { enumerableElementType: elementType },
-    ),
-    csharpJsSurfaceKind: "set",
-  } satisfies CsharpJsSetTargetTypeRef;
+  return createCsharpJsCollectionTargetType(csharpJsSetCollectionPolicy, [elementType]) as CsharpJsSetTargetTypeRef;
 }
 
 export function isCsharpJsMapTargetType(type: TargetTypeRef | undefined): type is CsharpJsMapTargetTypeRef {
-  return type?.kind === "target-named" && type.id === csharpJsMapTypeId;
+  return csharpJsCollectionTargetTypeMatches(csharpJsMapCollectionPolicy, type);
 }
 
 export function isCsharpJsSetTargetType(type: TargetTypeRef | undefined): type is CsharpJsSetTargetTypeRef {
-  return type?.kind === "target-named" && type.id === csharpJsSetTypeId;
+  return csharpJsCollectionTargetTypeMatches(csharpJsSetCollectionPolicy, type);
 }
