@@ -9,7 +9,7 @@ import {
 } from "../model.js";
 import type {
   DotnetTargetBindingFact,
-} from "../model-target-conversion.js";
+} from "../model-target-conversion/index.js";
 
 export interface DotnetTargetBindingIndex {
   readonly rememberModule: (module: DotnetModuleModel) => void;
