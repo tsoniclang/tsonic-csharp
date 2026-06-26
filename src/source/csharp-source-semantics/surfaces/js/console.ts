@@ -14,7 +14,7 @@ import type {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
-  SourceLibraryMemberIdPrefix,
+  SourceLibraryMemberKeyPrefix,
 } from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
@@ -96,7 +96,7 @@ function getConsoleTargetMember(sourceName: string): TargetMember | undefined {
   return jsSurfaceSingleTargetMemberForSourceName(consoleTargetMemberIndex, sourceName);
 }
 
-const consoleSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = ["Console."];
+const consoleSourceMemberIdPrefixes: readonly SourceLibraryMemberKeyPrefix[] = ["Console."];
 
 function consoleMethodMetadata(
   sourceName: string,

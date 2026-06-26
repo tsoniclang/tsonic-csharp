@@ -12,44 +12,44 @@ import {
 } from "../fact-subjects.js";
 
 export interface SourceLibraryMember {
-  readonly id: SourceLibraryMemberId;
-  readonly declaringName: SourceLibraryDeclaringName;
-  readonly memberName: string;
+  readonly id: SourceLibraryMemberKey;
+  readonly declaringName: SourceLibraryDeclaringKey;
+  readonly name: string;
 }
 
-export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | "Number" | "Boolean" | "RegExp" | "Date" | "Math" | "Promise" | "Object" | "JSON" | "Console" | "Map" | "ReadonlyMap" | "Set" | "ReadonlySet";
+export type SourceLibraryDeclaringKey = "Array" | "ReadonlyArray" | "String" | "Number" | "Boolean" | "RegExp" | "Date" | "Math" | "Promise" | "Object" | "JSON" | "Console" | "Map" | "ReadonlyMap" | "Set" | "ReadonlySet";
 
-export type SourceLibraryTypeName = SourceLibraryDeclaringName | "Record";
+export type SourceLibraryTypeName = SourceLibraryDeclaringKey | "Record";
 
-export type SourceLibraryMemberId = `${SourceLibraryDeclaringName}.${string}`;
-export type SourceLibraryMemberIdPrefix = `${SourceLibraryDeclaringName}.`;
+export type SourceLibraryMemberKey = `${SourceLibraryDeclaringKey}.${string}`;
+export type SourceLibraryMemberKeyPrefix = `${SourceLibraryDeclaringKey}.`;
 
 export interface SourceLibraryMemberIdentityPolicy {
-  readonly ids?: ReadonlySet<SourceLibraryMemberId>;
-  readonly prefixes?: readonly SourceLibraryMemberIdPrefix[];
+  readonly ids?: ReadonlySet<SourceLibraryMemberKey>;
+  readonly prefixes?: readonly SourceLibraryMemberKeyPrefix[];
 }
 
 export function createSourceLibraryMember(
-  declaringName: SourceLibraryDeclaringName,
+  declaringName: SourceLibraryDeclaringKey,
   memberName: string,
 ): SourceLibraryMember {
   return {
     id: `${declaringName}.${memberName}`,
     declaringName,
-    memberName,
+    name: memberName,
   };
 }
 
-export function sourceLibraryMemberIdSet(ids: readonly SourceLibraryMemberId[]): ReadonlySet<SourceLibraryMemberId> {
+export function sourceLibraryMemberIdSet(ids: readonly SourceLibraryMemberKey[]): ReadonlySet<SourceLibraryMemberKey> {
   return new Set(ids);
 }
 
-export function sourceLibraryMemberIdentity(sourceMember: SourceLibraryMember): SourceLibraryMemberId {
+export function sourceLibraryMemberIdentity(sourceMember: SourceLibraryMember): SourceLibraryMemberKey {
   return sourceMember.id;
 }
 
 export function sourceLibraryMemberName(sourceMember: SourceLibraryMember): string {
-  return sourceMember.memberName;
+  return sourceMember.name;
 }
 
 export function sourceLibraryMemberMatches(
@@ -57,19 +57,19 @@ export function sourceLibraryMemberMatches(
   policy: SourceLibraryMemberIdentityPolicy,
 ): boolean {
   return (policy.ids === undefined || policy.ids.has(sourceMember.id)) &&
-    (policy.prefixes === undefined || policy.prefixes.some((prefix) => sourceMember.id.startsWith(prefix)));
+    (policy.prefixes === undefined || policy.prefixes.some((prefix) => sourceLibraryMemberHasPrefix(sourceMember, prefix)));
 }
 
 export function sourceLibraryMemberMatchesAny(
   sourceMember: SourceLibraryMember,
-  ids: ReadonlySet<SourceLibraryMemberId>,
+  ids: ReadonlySet<SourceLibraryMemberKey>,
 ): boolean {
   return sourceLibraryMemberMatches(sourceMember, { ids });
 }
 
 export function sourceLibraryMemberMatchesAnyPrefix(
   sourceMember: SourceLibraryMember,
-  prefixes: readonly SourceLibraryMemberIdPrefix[],
+  prefixes: readonly SourceLibraryMemberKeyPrefix[],
 ): boolean {
   return sourceLibraryMemberMatches(sourceMember, { prefixes });
 }
@@ -96,7 +96,7 @@ export function resolveSourceLibraryMemberIdentity(
     : createSourceLibraryMember(declaringName, memberName);
 }
 
-export function isSourceLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
+export function isBundledStandardLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
   const ast = context.compiler?.ast;
   const types = context.compiler?.types;
   if (ast === undefined || types === undefined) {
@@ -128,38 +128,19 @@ export function getSourceLibraryDeclarationName(
     : undefined;
 }
 
-function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringName | undefined {
+function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringKey | undefined {
   const normalized = name.endsWith("Constructor") ? name.slice(0, -"Constructor".length) : name;
   return isSourceLibraryDeclaringName(normalized) ? normalized : undefined;
 }
 
 function sourceLibraryConstructorMemberName(name: string): "constructor" | undefined {
-  return name === "RegExpConstructor" ||
-    name === "ArrayConstructor" ||
-    name === "DateConstructor" ||
-    name === "MapConstructor" ||
-    name === "SetConstructor"
+  return sourceLibraryConstructorDeclaringNames.has(name)
     ? "constructor"
     : undefined;
 }
 
-function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclaringName {
-  return name === "Array" ||
-    name === "ReadonlyArray" ||
-    name === "String" ||
-    name === "Number" ||
-    name === "Boolean" ||
-    name === "RegExp" ||
-    name === "Date" ||
-    name === "Math" ||
-    name === "Promise" ||
-    name === "Object" ||
-    name === "JSON" ||
-    name === "Console" ||
-    name === "Map" ||
-    name === "ReadonlyMap" ||
-    name === "Set" ||
-    name === "ReadonlySet";
+function isSourceLibraryDeclaringName(name: string): name is SourceLibraryDeclaringKey {
+  return sourceLibraryDeclaringNames.has(name as SourceLibraryDeclaringKey);
 }
 
 function isSourceLibraryTypeName(name: string): name is SourceLibraryTypeName {
@@ -175,3 +156,34 @@ export function isTstsBundledStandardLibraryFile(fileName: string): boolean {
 function normalizePathPrefix(value: string): string {
   return value.split("\\").join("/").replace(/\/+$/, "");
 }
+
+function sourceLibraryMemberHasPrefix(sourceMember: SourceLibraryMember, prefix: SourceLibraryMemberKeyPrefix): boolean {
+  return sourceLibraryMemberIdentity(sourceMember).startsWith(prefix);
+}
+
+const sourceLibraryDeclaringNames: ReadonlySet<SourceLibraryDeclaringKey> = new Set([
+  "Array",
+  "ReadonlyArray",
+  "String",
+  "Number",
+  "Boolean",
+  "RegExp",
+  "Date",
+  "Math",
+  "Promise",
+  "Object",
+  "JSON",
+  "Console",
+  "Map",
+  "ReadonlyMap",
+  "Set",
+  "ReadonlySet",
+]);
+
+const sourceLibraryConstructorDeclaringNames: ReadonlySet<string> = new Set([
+  "RegExpConstructor",
+  "ArrayConstructor",
+  "DateConstructor",
+  "MapConstructor",
+  "SetConstructor",
+]);

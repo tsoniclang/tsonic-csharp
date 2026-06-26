@@ -9,14 +9,14 @@ import type {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
-  SourceLibraryMemberIdPrefix,
+  SourceLibraryMemberKeyPrefix,
 } from "./source-library.js";
 import {
   sourceLibraryMemberIdentity,
   sourceLibraryMemberMatchesAnyPrefix,
 } from "./source-library.js";
 
-const unsupportedSourceLibraryMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = [];
+const unsupportedSourceLibraryMemberIdPrefixes: readonly SourceLibraryMemberKeyPrefix[] = [];
 
 export function rejectUnsupportedCsharpJsSourceLibraryCall(
   sourceMember: SourceLibraryMember,

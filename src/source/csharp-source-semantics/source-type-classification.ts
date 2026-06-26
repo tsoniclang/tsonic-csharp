@@ -3,11 +3,11 @@ import type {
   Type,
 } from "@tsonic/tsts";
 import type {
-  SourceLibraryDeclaringName,
+  SourceLibraryDeclaringKey,
   SourceLibraryTypeName,
 } from "./source-library.js";
 import {
-  isSourceLibraryType,
+  isBundledStandardLibraryType,
 } from "./source-library.js";
 
 export type SourceStandardLibraryTypeCategory =
@@ -35,7 +35,7 @@ export function classifySourceStandardLibraryType(
   type: Type,
   context: ExtensionObservationContext,
 ): SourceStandardLibraryTypeClassification | undefined {
-  return sourceStandardLibraryTypePolicies.find((policy) => isSourceLibraryType(type, context, policy.name));
+  return sourceStandardLibraryTypePolicies.find((policy) => isBundledStandardLibraryType(type, context, policy.name));
 }
 
 export function isSourceStandardLibraryArrayLikeType(
@@ -76,7 +76,7 @@ export function isSourceStandardLibraryRegExpType(
 export function getSourceStandardLibraryDeclaringNameForType(
   type: Type,
   context: ExtensionObservationContext,
-): SourceLibraryDeclaringName | undefined {
+): SourceLibraryDeclaringKey | undefined {
   const name = classifySourceStandardLibraryType(type, context)?.name;
   return name === undefined || name === "Record" ? undefined : name;
 }

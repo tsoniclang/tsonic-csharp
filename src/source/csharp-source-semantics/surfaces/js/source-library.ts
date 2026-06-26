@@ -12,15 +12,15 @@ import type {
   CsharpTargetEnrichmentHost,
 } from "../../target-enrichment.js";
 export type {
-  SourceLibraryDeclaringName,
+  SourceLibraryDeclaringKey,
   SourceLibraryMember,
-  SourceLibraryMemberId,
+  SourceLibraryMemberKey,
   SourceLibraryMemberIdentityPolicy,
-  SourceLibraryMemberIdPrefix,
+  SourceLibraryMemberKeyPrefix,
 } from "../../source-library.js";
 export {
   createSourceLibraryMember,
-  isSourceLibraryType,
+  isBundledStandardLibraryType,
   resolveSourceLibraryMemberIdentity,
   sourceLibraryMemberIdSet,
   sourceLibraryMemberIdentity,
