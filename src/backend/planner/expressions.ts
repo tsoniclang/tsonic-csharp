@@ -20,7 +20,7 @@ import {
   SourceKind,
   isAstNode,
 } from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import type { DestructuringPlannerState } from "./bindings.js";
@@ -152,12 +152,12 @@ function planExpressionCore(
         diagnostics,
         (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
           planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject) =>
-          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, state),
+        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType) =>
+          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state),
       );
     case KindNewExpression:
-      return planNewExpression(node, sourceFile, input, diagnostics, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject) =>
-        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, state));
+      return planNewExpression(node, sourceFile, input, diagnostics, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType) =>
+        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state));
     case KindPrefixUnaryExpression: {
       return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
@@ -183,6 +183,7 @@ export function planCallArgument(
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
+  conversionExpectedTargetType?: TargetTypeRef,
   state?: DestructuringPlannerState,
 ): CsharpArgument | undefined {
   return planCallArgumentCore(
@@ -196,6 +197,7 @@ export function planCallArgument(
       planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state),
     expectedType,
     expectedTypeSubject,
+    conversionExpectedTargetType,
   );
 }
 

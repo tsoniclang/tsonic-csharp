@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpEnumerableTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
 import { getRequiredCsharpTargetMemberOperationForSelectedSignature } from "../dist/backend/planner/csharp-target-operations.js";
 import { planCallArgumentCore } from "../dist/backend/planner/expression-call-arguments.js";
 import {
@@ -196,6 +197,7 @@ test("call argument emission applies explicit target conversion facts before sel
 
 test("call argument emission separates semantic conversion type from render expected type", () => {
   const argument = identifier("value");
+  const int32 = { kind: "source-primitive", name: "int32" };
   const diagnostics = [];
   const planned = planCallArgumentCore(
     argument,
@@ -203,7 +205,7 @@ test("call argument emission separates semantic conversion type from render expe
     fakeArgumentInput({
       conversionSubject: argument,
       conversion: {
-        convertedType: { kind: "source-primitive", name: "int32" },
+        convertedType: int32,
       },
     }),
     diagnostics,
@@ -211,7 +213,7 @@ test("call argument emission separates semantic conversion type from render expe
     expectedIdentifierExpressionPlanner,
     { kind: "PredefinedType", name: "long" },
     undefined,
-    { kind: "PredefinedType", name: "int" },
+    int32,
   );
 
   assert.deepEqual(diagnostics, []);
@@ -223,6 +225,7 @@ test("call argument emission separates semantic conversion type from render expe
 
 test("call argument emission rejects conversion facts that mismatch selected expected types", () => {
   const argument = identifier("value");
+  const int32 = { kind: "source-primitive", name: "int32" };
   const diagnostics = [];
   const planned = planCallArgumentCore(
     argument,
@@ -237,11 +240,42 @@ test("call argument emission rejects conversion facts that mismatch selected exp
     identifierExpressionPlanner,
     expectedIdentifierExpressionPlanner,
     { kind: "PredefinedType", name: "int" },
+    undefined,
+    int32,
   );
 
   assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /conversion fact does not match/);
+});
+
+test("call argument emission permits array render carriers for selected collection parameters", () => {
+  const argument = identifier("items");
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const enumerableInt32 = csharpEnumerableTargetType(int32);
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: enumerableInt32,
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedTypeKindExpressionPlanner,
+    { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+    undefined,
+    enumerableInt32,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "Argument",
+    expression: { kind: "IdentifierName", name: "items_as_ArrayType" },
+  });
 });
 
 test("call argument emission rejects unsupported finalized argument-passing modes", () => {
@@ -418,6 +452,13 @@ function expectedIdentifierExpressionPlanner(node, _sourceFile, _input, _diagnos
   return {
     kind: "IdentifierName",
     name: `${node.Text}_as_${expectedType.name}`,
+  };
+}
+
+function expectedTypeKindExpressionPlanner(node, _sourceFile, _input, _diagnostics, expectedType) {
+  return {
+    kind: "IdentifierName",
+    name: `${node.Text}_as_${expectedType.kind}`,
   };
 }
 
