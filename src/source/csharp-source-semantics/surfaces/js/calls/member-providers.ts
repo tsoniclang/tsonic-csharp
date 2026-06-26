@@ -21,7 +21,7 @@ import {
 } from "../collections.js";
 import {
   dateTargetMembersForSourceName,
-} from "../date.js";
+} from "../date/index.js";
 import {
   jsonTargetMembersForSourceName,
 } from "../json.js";

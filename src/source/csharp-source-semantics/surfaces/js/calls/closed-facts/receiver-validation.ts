@@ -15,7 +15,7 @@ import {
 } from "../../collections.js";
 import {
   isCsharpJsDateRuntimeCarrier,
-} from "../../date.js";
+} from "../../date/index.js";
 import {
   isCsharpNumberTargetType,
 } from "../../numbers.js";

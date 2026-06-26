@@ -18,7 +18,7 @@ import {
 } from "./regexp.js";
 import {
   mapCsharpJsDateRuntimeCarrier,
-} from "./date.js";
+} from "./date/index.js";
 import {
   mapCsharpJsJsonRuntimeCarrier,
 } from "./json.js";

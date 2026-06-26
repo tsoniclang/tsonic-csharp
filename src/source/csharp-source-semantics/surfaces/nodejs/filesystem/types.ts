@@ -12,7 +12,7 @@ import {
 } from "../../js/source-library.js";
 import {
   csharpJsDateTargetType,
-} from "../../js/date.js";
+} from "../../js/date/index.js";
 
 export const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 export const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;

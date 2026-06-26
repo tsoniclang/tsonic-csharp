@@ -60,7 +60,7 @@ import {
 } from "./surfaces/js/regexp.js";
 import {
   recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization,
-} from "./surfaces/js/date.js";
+} from "./surfaces/js/date/index.js";
 import {
   recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/json.js";

@@ -36,7 +36,7 @@ import {
 import {
   csharpJsDateTargetType,
   isCsharpJsDateRuntimeCarrier,
-} from "../dist/source/csharp-source-semantics/surfaces/js/date.js";
+} from "../dist/source/csharp-source-semantics/surfaces/js/date/index.js";
 import {
   missingCarrierResolution,
   missingParameterCarrierResolution,
