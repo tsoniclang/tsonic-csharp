@@ -15,8 +15,8 @@ import type {
   SourceLibraryMember,
 } from "../source-library.js";
 import {
-  sourceLibraryMemberHasArrayUsePolicy,
-} from "./array-use-policy.js";
+  sourceLibraryMemberHasArrayUseRules,
+} from "./array-use-rules.js";
 import type {
   LifecycleContext,
 } from "./types.js";
@@ -50,7 +50,7 @@ function arraySourceLibraryMemberFromDeclaration(
 ): SourceLibraryMember | undefined {
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   const member = resolveSourceLibraryMemberIdentity(declaration, context);
-  return member !== undefined && sourceLibraryMemberHasArrayUsePolicy(member)
+  return member !== undefined && sourceLibraryMemberHasArrayUseRules(member)
     ? member
     : undefined;
 }

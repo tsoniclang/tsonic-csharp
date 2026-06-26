@@ -26,7 +26,7 @@ import {
 import {
   classifySourceLibraryArrayPropertyUse,
   classifySourceLibraryStaticCallArgumentUse,
-} from "./array-use-policy.js";
+} from "./array-use-rules.js";
 import type {
   ArrayUse,
   CsharpArrayLifecycleAst,

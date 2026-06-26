@@ -15,7 +15,7 @@ import {
 } from "./helpers.js";
 
 export function selectSourceLibraryCallMember(
-  _sourceMember: SourceLibraryMember,
+  sourceMember: SourceLibraryMember,
   candidates: readonly TargetMember[],
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
@@ -25,7 +25,7 @@ export function selectSourceLibraryCallMember(
     arguments: request.arguments,
     receiver: request.calleeReceiver,
     sourceSelectedSignature: request.sourceSelectedSignature,
-  }, context, sourceLibraryCallSelectionOptions(request, context, _sourceMember, host));
+  }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
   return selected !== undefined && request.sourceSelectedSignature !== undefined ? selected : undefined;
 }
 

@@ -18,7 +18,7 @@ export function classifySourceLibraryArrayPropertyUse(
   return propertyRule === undefined ? [] : propertyRule.uses(sourceMember, isWriteTarget);
 }
 
-export function sourceLibraryMemberHasArrayUsePolicy(sourceMember: SourceLibraryMember): boolean {
+export function sourceLibraryMemberHasArrayUseRules(sourceMember: SourceLibraryMember): boolean {
   return arrayPropertyUseRules.some((rule) => arrayUseRuleApplies(rule, sourceMember)) ||
     staticCallArgumentUseRules.some((rule) => arrayUseRuleApplies(rule, sourceMember));
 }
