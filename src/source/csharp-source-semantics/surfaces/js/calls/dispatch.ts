@@ -53,6 +53,9 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (unsupported !== undefined) {
     return unsupported;
   }
+  if (request.sourceSelectedSignature === undefined) {
+    return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
+  }
   const consoleCall = mapCsharpJsConsoleCheckedCall(request, context, sourceMember, host, options);
   if (consoleCall !== undefined) {
     return consoleCall;
@@ -73,7 +76,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
   const callMayNeedFinalFacts = csharpJsSourceLibraryCallMayNeedFinalFacts(sourceMember, options.phase);
-  if (candidates.length > 1 && request.sourceSelectedSignature === undefined && selectedMember === undefined) {
+  if (selectedMember === undefined && request.sourceSelectedSignature === undefined) {
     if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
       return undefined;
     }

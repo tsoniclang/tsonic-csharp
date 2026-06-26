@@ -26,10 +26,7 @@ export function selectSourceLibraryCallMember(
     receiver: request.calleeReceiver,
     sourceSelectedSignature: request.sourceSelectedSignature,
   }, context, sourceLibraryCallSelectionOptions(request, context, _sourceMember, host));
-  return selected !== undefined &&
-    (!targetMemberSelectionRequiresSelectedSourceSignature(candidates) || request.sourceSelectedSignature !== undefined)
-    ? selected
-    : undefined;
+  return selected !== undefined && request.sourceSelectedSignature !== undefined ? selected : undefined;
 }
 
 export function sourceLibraryCallSelectionOptions(
@@ -46,8 +43,4 @@ export function sourceLibraryCallSelectionOptions(
         declaringTargetType: receiverType,
         declaringTypeParameters: [{ name: "T" }],
       };
-}
-
-function targetMemberSelectionRequiresSelectedSourceSignature(candidates: readonly TargetMember[]): boolean {
-  return candidates.length > 1;
 }

@@ -202,7 +202,7 @@ test("JS surface defers element access without selected receiver facts", () => {
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("JS surface maps single-target calls from selected declaration identity without selected signature identity", () => {
+test("JS surface rejects single-target calls without selected signature identity", () => {
   const call = {};
   const receiver = {};
   const value = {};
@@ -213,13 +213,13 @@ test("JS surface maps single-target calls from selected declaration identity wit
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
-  const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("includes"), {
+  const result = provider.mapCheckedCall(jsCallRequestWithoutSignature(call, arrayMemberDeclaration("includes"), {
     arguments: [value],
     calleeReceiver: receiver,
   }), fakeContext(facts));
 
-  assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Array.includes");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE");
 });
 
 test("JS surface maps Array.concat from selected declaration and closed array argument facts", () => {
@@ -747,7 +747,7 @@ test("JS surface rejects multi-target calls without exact selected signature ide
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
-  const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("forEach"), {
+  const result = provider.mapCheckedCall(jsCallRequestWithoutSignature(call, arrayMemberDeclaration("forEach"), {
     arguments: [callback],
     calleeReceiver: receiver,
   }), fakeContext(facts));
@@ -2818,7 +2818,18 @@ function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
     arguments: options.arguments ?? [],
     sourceSelectedDeclaration,
     ...(options.calleeReceiver !== undefined ? { calleeReceiver: options.calleeReceiver } : {}),
-    ...(options.sourceSelectedSignature !== undefined ? { sourceSelectedSignature: options.sourceSelectedSignature } : {}),
+    sourceSelectedSignature: options.sourceSelectedSignature ?? sourceSelectedDeclaration,
+  };
+}
+
+function jsCallRequestWithoutSignature(call, sourceSelectedDeclaration, options = {}) {
+  return {
+    target: "csharp",
+    call,
+    callee: {},
+    arguments: options.arguments ?? [],
+    sourceSelectedDeclaration,
+    ...(options.calleeReceiver !== undefined ? { calleeReceiver: options.calleeReceiver } : {}),
   };
 }
 
