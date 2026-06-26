@@ -36,7 +36,6 @@ import {
 } from "./regexp.js";
 import type {
   CsharpJsSurfaceHost,
-  SourceLibraryDeclaringName,
   SourceLibraryMember,
   SourceLibraryMemberIdentityPolicy,
 } from "./source-library.js";
@@ -124,7 +123,7 @@ interface CsharpJsPropertyReceiverValidatorPolicy {
   ) => boolean;
 }
 
-const propertyReceiverSourceTypeNames = new Set<SourceLibraryDeclaringName>([
+const propertyReceiverSourceTypeNames = new Set<string>([
   "Array",
   "ReadonlyArray",
   "String",
