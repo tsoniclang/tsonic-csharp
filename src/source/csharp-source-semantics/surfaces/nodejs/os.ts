@@ -9,8 +9,6 @@ import {
   csharpStringTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  targetMethod,
-  targetProperty,
 } from "../js/source-library.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
@@ -139,17 +137,16 @@ function osCall(
     exportName,
     signatureId,
     providerReturnType,
-    member: targetMethod(
-      `Tsonic.CSharp.Node.os.${exportName}()`,
-      exportName,
-      exportName,
-      [],
-      targetReturnType,
-      {
-        declaringType: osTargetType,
-        static: true,
-      },
-    ),
+    member: {
+      id: `Tsonic.CSharp.Node.os.${exportName}()`,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "method",
+      parameters: [],
+      returnType: targetReturnType,
+      declaringType: osTargetType,
+      static: true,
+    },
   };
 }
 
@@ -161,9 +158,15 @@ function osProperty(
   return {
     exportName,
     providerType,
-    member: targetProperty(`Tsonic.CSharp.Node.os.${exportName}`, exportName, exportName, targetType, {
+    member: {
+      id: `Tsonic.CSharp.Node.os.${exportName}`,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "property",
+      parameters: [],
+      returnType: targetType,
       declaringType: osTargetType,
       static: true,
-    }),
+    },
   };
 }

@@ -10,7 +10,6 @@ import {
   csharpStringTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
 } from "../js/source-library.js";
 
@@ -109,16 +108,15 @@ function cryptoCall(
     targetMemberId,
     providerParameters,
     providerReturnType,
-    member: targetMethod(
-      targetMemberId,
-      exportName,
-      exportName,
-      targetParameters,
-      targetReturnType,
-      {
-        declaringType: cryptoTargetType,
-        static: true,
-      },
-    ),
+    member: {
+      id: targetMemberId,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "method",
+      parameters: targetParameters,
+      returnType: targetReturnType,
+      declaringType: cryptoTargetType,
+      static: true,
+    },
   };
 }

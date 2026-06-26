@@ -11,9 +11,7 @@ import {
   csharpVoidTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
-  targetProperty,
 } from "../js/source-library.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
@@ -183,17 +181,16 @@ function processCall(
     targetMemberId,
     providerParameters,
     providerReturnType,
-    member: targetMethod(
-      targetMemberId,
-      exportName,
-      exportName,
-      targetParameters,
-      targetReturnType,
-      {
-        declaringType: processTargetType,
-        static: true,
-      },
-    ),
+    member: {
+      id: targetMemberId,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "method",
+      parameters: targetParameters,
+      returnType: targetReturnType,
+      declaringType: processTargetType,
+      static: true,
+    },
   };
 }
 
@@ -205,9 +202,15 @@ function processProperty(
   return {
     exportName,
     providerType,
-    member: targetProperty(`Tsonic.CSharp.Node.process.${exportName}`, exportName, exportName, targetType, {
+    member: {
+      id: `Tsonic.CSharp.Node.process.${exportName}`,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "property",
+      parameters: [],
+      returnType: targetType,
       declaringType: processTargetType,
       static: true,
-    }),
+    },
   };
 }
