@@ -45,6 +45,18 @@ export const analysisAbstractionRules = Object.freeze([
       "Use structured diagnostics or test-only logging outside product source.",
   },
   {
+    id: "module-specifier-branch",
+    pattern: /\b(?:canonicalDeclaration|canonicalSpecifier|declaration|symbol)\.moduleSpecifier\s*===/g,
+    replacement:
+      "Select provider modules through canonical provider metadata indexes, not branch chains on module specifiers.",
+  },
+  {
+    id: "provider-identity-key-map",
+    pattern: /nodejsProvider(?:Export|Symbol|Declaration)?(?:Symbol|Declaration)?IdentityKey\s*\(/g,
+    replacement:
+      "Keep provider identity key construction inside metadata indexing utilities and remove generic selector dependence on concrete Node module/member names.",
+  },
+  {
     id: "semantic-fallback-word",
     pattern: /\bfallback\b/gi,
     replacement:
@@ -111,6 +123,12 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry("src/source/csharp-source-semantics/surfaces/nodejs/buffer/static-members.ts", { "target-member-helper": 13 }, "provider-metadata-candidate", "surface-provider", "Represent Buffer static members as provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/crypto.ts", { "target-member-helper": 1 }, "provider-metadata-candidate", "surface-provider", "Represent Node crypto members as provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/filesystem.ts", { "target-member-helper": 5 }, "provider-metadata-candidate", "surface-provider", "Represent Node fs members as provider metadata."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/identity.ts", { "provider-identity-key-map": 1 }, "source-identity-policy-candidate", "surface-provider", "Keep Node provider identity key construction centralized while moving selectors to metadata indexes."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/call-targets.ts", { "module-specifier-branch": 3, "provider-identity-key-map": 1 }, "provider-metadata-candidate", "surface-provider", "Replace Node call target branch chain with a single provider metadata index keyed by selected provider declaration identity."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/entry-builders.ts", { "provider-identity-key-map": 15 }, "provider-metadata-candidate", "surface-provider", "Keep Node metadata index builders isolated until the Node provider metadata table replaces module-specific target-member helpers."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/property-operations.ts", { "module-specifier-branch": 3, "provider-identity-key-map": 2 }, "provider-metadata-candidate", "surface-provider", "Replace Node property target branch chain with a single provider metadata index keyed by selected provider declaration identity."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/provider-identity.ts", { "provider-identity-key-map": 3 }, "source-identity-policy-candidate", "surface-provider", "Keep Node provider identity key construction centralized while removing concrete module branches from selectors."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/target-identities.ts", { "provider-identity-key-map": 6 }, "provider-metadata-candidate", "surface-provider", "Replace Node target identity maps with provider metadata records including unsupported exceptions."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/os.ts", { "target-member-helper": 2 }, "provider-metadata-candidate", "surface-provider", "Represent Node os members as provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/path.ts", { "target-member-helper": 3 }, "provider-metadata-candidate", "surface-provider", "Represent Node path members as provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/process.ts", { "target-member-helper": 2 }, "provider-metadata-candidate", "surface-provider", "Represent Node process members as provider metadata."),
