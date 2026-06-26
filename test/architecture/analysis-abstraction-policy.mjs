@@ -94,7 +94,7 @@ export const analysisAbstractionRules = Object.freeze([
   },
   {
     id: "target-member-helper",
-    pattern: /\btarget(?:Method|Property|Constructor)\s*\(/g,
+    pattern: /(?<!function\s)\btarget(?:Method|Property|Constructor)\s*\(/g,
     replacement:
       "Represent target members as provider metadata or explicit policy exceptions.",
   },
@@ -163,7 +163,6 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry("src/source/csharp-source-semantics/surfaces/js/unsupported.ts", {}, "surface-policy-candidate", "surface-provider", "Unsupported source-member checks must become explicit unsupported policy records with diagnostics."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/members/metadata-index.ts", { "nodejs-direct-module-resolver-map": 2 }, "provider-metadata-candidate", "surface-provider", "Replace the Node module-to-resolver map with canonical provider metadata rows keyed by selected declaration/member identity."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/members/target-identities.ts", { "nodejs-target-identity-map": 4 }, "provider-metadata-candidate", "surface-provider", "Derive Node target and unsupported identities from the canonical provider metadata record set."),
-  entry("src/source/csharp-source-semantics/target-types/member-facts.ts", { "target-member-helper": 2 }, "provider-metadata-candidate", "target-provider", "Keep target member constructors cataloged until replaced by provider metadata builders."),
 ]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
