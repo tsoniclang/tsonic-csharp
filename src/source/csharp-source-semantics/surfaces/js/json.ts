@@ -25,9 +25,15 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   getSourceLibraryMember,
-  targetMethod,
   targetParameter,
 } from "./source-library.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceTargetMemberMetadataIndex,
+  jsSurfaceTargetMembersForSourceName,
+} from "./target-member-metadata.js";
 import {
   csharpJsObjectCarrierTargetType,
 } from "./objects.js";
@@ -105,51 +111,52 @@ export function recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(
   }
 }
 
-export function getJsonTargetMembers(sourceName: string): readonly TargetMember[] {
-  switch (sourceName) {
-    case "parse":
-      return [
-        jsonStaticMethod("parse", "parse", [
-          targetParameter("text", stringTargetType),
-        ], jsonValueTargetType),
-      ];
-    case "stringify":
-      return [
-        jsonStaticMethod("stringify:string", "stringify", [
-          targetParameter("value", stringTargetType),
-        ], stringTargetType),
-        jsonStaticMethod("stringify:number", "stringify", [
-          targetParameter("value", numberTargetType),
-        ], stringTargetType),
-        jsonStaticMethod("stringify:bool", "stringify", [
-          targetParameter("value", boolTargetType),
-        ], stringTargetType),
-        jsonStaticMethod("stringify:object", "stringify", [
-          targetParameter("value", csharpJsObjectCarrierTargetType()),
-        ], stringTargetType),
-        jsonStaticMethod("stringify:array", "stringify", [
-          targetParameter("value", csharpJsArrayCarrierTargetType(jsonArrayElementType)),
-        ], stringTargetType),
-        jsonStaticMethod("stringify:tsvalue", "stringify", [
-          targetParameter("value", jsonValueTargetType),
-        ], stringTargetType),
-      ];
-    default:
-      return [];
-  }
+export function jsonTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceName(jsonTargetMemberIndex, sourceName);
 }
 
-function jsonStaticMethod(
+function jsonStaticMethodMetadata(
   idSuffix: string,
   sourceName: string,
   parameters: readonly ReturnType<typeof targetParameter>[],
   returnType: TargetTypeRef,
-): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.JSON.${idSuffix}`, sourceName, sourceName, parameters, returnType, {
+): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.JSON.${idSuffix}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    parameters,
+    returnType,
     declaringType: jsonRuntimeType,
     static: true,
-  });
+  };
 }
+
+const jsonTargetMemberMetadata = [
+  jsonStaticMethodMetadata("parse", "parse", [
+    targetParameter("text", stringTargetType),
+  ], jsonValueTargetType),
+  jsonStaticMethodMetadata("stringify:string", "stringify", [
+    targetParameter("value", stringTargetType),
+  ], stringTargetType),
+  jsonStaticMethodMetadata("stringify:number", "stringify", [
+    targetParameter("value", numberTargetType),
+  ], stringTargetType),
+  jsonStaticMethodMetadata("stringify:bool", "stringify", [
+    targetParameter("value", boolTargetType),
+  ], stringTargetType),
+  jsonStaticMethodMetadata("stringify:object", "stringify", [
+    targetParameter("value", csharpJsObjectCarrierTargetType()),
+  ], stringTargetType),
+  jsonStaticMethodMetadata("stringify:array", "stringify", [
+    targetParameter("value", csharpJsArrayCarrierTargetType(jsonArrayElementType)),
+  ], stringTargetType),
+  jsonStaticMethodMetadata("stringify:tsvalue", "stringify", [
+    targetParameter("value", jsonValueTargetType),
+  ], stringTargetType),
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const jsonTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(jsonTargetMemberMetadata);
 
 function isCheckedJsonParseCall(
   call: Node,

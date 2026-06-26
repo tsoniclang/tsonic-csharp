@@ -39,6 +39,14 @@ export function jsSurfaceTargetMembersForSourceName(
   return index.get(sourceName) ?? [];
 }
 
+export function jsSurfaceSingleTargetMemberForSourceName(
+  index: ReadonlyMap<string, readonly TargetMember[]>,
+  sourceName: string,
+): TargetMember | undefined {
+  const members = index.get(sourceName);
+  return members?.length === 1 ? members[0] : undefined;
+}
+
 function targetMemberFromMetadata(record: JsSurfaceTargetMemberMetadata): TargetMember {
   return {
     id: record.id,

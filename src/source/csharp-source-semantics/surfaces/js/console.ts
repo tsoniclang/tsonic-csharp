@@ -24,9 +24,15 @@ import {
   sourceLibraryMemberIdentity,
   sourceLibraryMemberMatchesAnyPrefix,
   sourceLibraryMemberName,
-  targetMethod,
   targetParameter,
 } from "./source-library.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceSingleTargetMemberForSourceName,
+  jsSurfaceTargetMemberMetadataIndex,
+} from "./target-member-metadata.js";
 
 const consoleTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.console", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "console"));
 const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
@@ -87,19 +93,25 @@ function consoleCallCanWaitForFinalFacts(
 }
 
 function getConsoleTargetMember(sourceName: string): TargetMember | undefined {
-  return consoleTargetMembers.get(sourceName);
+  return jsSurfaceSingleTargetMemberForSourceName(consoleTargetMemberIndex, sourceName);
 }
 
 const consoleSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = ["Console."];
 
-function consoleMethod(
+function consoleMethodMetadata(
   sourceName: string,
   parameters: readonly ReturnType<typeof targetParameter>[] = [consoleDataParameter()],
-): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.console.${sourceName}`, sourceName, sourceName, parameters, csharpVoidTargetType(), {
+): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.console.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    parameters,
+    returnType: csharpVoidTargetType(),
     declaringType: consoleTargetType,
     static: true,
-  });
+  };
 }
 
 function consoleDataParameter(): ReturnType<typeof targetParameter> {
@@ -207,31 +219,33 @@ function consoleArgumentMatchesExpectedTargetType(
   }
 }
 
-const consoleTargetMembers = new Map<string, TargetMember>([
-  "log",
-  "error",
-  "warn",
-  "info",
-  "debug",
-  "trace",
-  "group",
-  "groupCollapsed",
-].map((name) => [name, consoleMethod(name)] as const));
-
-consoleTargetMembers.set("clear", consoleMethod("clear", []));
-consoleTargetMembers.set("groupEnd", consoleMethod("groupEnd", []));
-consoleTargetMembers.set("assert", consoleMethod("assert", [
-  targetParameter("condition", csharpSourcePrimitiveTargetType("bool")),
-  optionalStringParameter("message"),
-]));
-consoleTargetMembers.set("dir", consoleMethod("dir", [targetParameter("obj", objectTargetType)]));
-consoleTargetMembers.set("dirxml", consoleMethod("dirxml", [targetParameter("obj", objectTargetType)]));
-consoleTargetMembers.set("table", consoleMethod("table", [targetParameter("data", objectTargetType)]));
-consoleTargetMembers.set("time", consoleMethod("time", [optionalStringParameter("label")]));
-consoleTargetMembers.set("timeEnd", consoleMethod("timeEnd", [optionalStringParameter("label")]));
-consoleTargetMembers.set("timeLog", consoleMethod("timeLog", [
-  optionalStringParameter("label"),
-  consoleDataParameter(),
-]));
-consoleTargetMembers.set("count", consoleMethod("count", [optionalStringParameter("label")]));
-consoleTargetMembers.set("countReset", consoleMethod("countReset", [optionalStringParameter("label")]));
+const consoleTargetMemberMetadata = [
+  ...[
+    "log",
+    "error",
+    "warn",
+    "info",
+    "debug",
+    "trace",
+    "group",
+    "groupCollapsed",
+  ].map((sourceName) => consoleMethodMetadata(sourceName)),
+  consoleMethodMetadata("clear", []),
+  consoleMethodMetadata("groupEnd", []),
+  consoleMethodMetadata("assert", [
+    targetParameter("condition", csharpSourcePrimitiveTargetType("bool")),
+    optionalStringParameter("message"),
+  ]),
+  consoleMethodMetadata("dir", [targetParameter("obj", objectTargetType)]),
+  consoleMethodMetadata("dirxml", [targetParameter("obj", objectTargetType)]),
+  consoleMethodMetadata("table", [targetParameter("data", objectTargetType)]),
+  consoleMethodMetadata("time", [optionalStringParameter("label")]),
+  consoleMethodMetadata("timeEnd", [optionalStringParameter("label")]),
+  consoleMethodMetadata("timeLog", [
+    optionalStringParameter("label"),
+    consoleDataParameter(),
+  ]),
+  consoleMethodMetadata("count", [optionalStringParameter("label")]),
+  consoleMethodMetadata("countReset", [optionalStringParameter("label")]),
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const consoleTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(consoleTargetMemberMetadata);

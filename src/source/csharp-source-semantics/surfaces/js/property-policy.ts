@@ -19,10 +19,10 @@ import {
   isCsharpJsDateRuntimeCarrier,
 } from "./date.js";
 import {
-  getMathPropertyTargetMember,
+  mathPropertyTargetMemberForSourceName,
 } from "./math.js";
 import {
-  getJsonTargetMembers,
+  jsonTargetMembersForSourceName,
 } from "./json.js";
 import {
   numberPropertyTargetMemberForSourceName,
@@ -168,7 +168,7 @@ const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
   {
     sourceMemberIdPrefixes: ["Math."],
     excludedSourceMemberIds: sourceMemberIdSet(["Math.length"]),
-    resolve: (sourceMember) => getMathPropertyTargetMember(sourceLibraryMemberName(sourceMember)),
+    resolve: (sourceMember) => mathPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)),
   },
   {
     sourceMemberIdPrefixes: ["RegExp."],
@@ -223,7 +223,7 @@ const propertyPrecheckRules: readonly CsharpJsPropertyPrecheckRule[] = [
   },
   {
     sourceMemberIdPrefixes: ["JSON."],
-    result: (sourceMember) => getJsonTargetMembers(sourceLibraryMemberName(sourceMember)).length > 0 ? "defer" : "reject-unmapped",
+    result: (sourceMember) => jsonTargetMembersForSourceName(sourceLibraryMemberName(sourceMember)).length > 0 ? "defer" : "reject-unmapped",
   },
 ];
 

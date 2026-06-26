@@ -27,11 +27,11 @@ import {
   isCsharpJsDateRuntimeCarrier,
 } from "./date.js";
 import {
-  getJsonTargetMembers,
+  jsonTargetMembersForSourceName,
   isCsharpJsJsonValueTargetType,
 } from "./json.js";
 import {
-  getMathTargetMembers,
+  mathTargetMembersForSourceName,
 } from "./math.js";
 import {
   isCsharpNumberTargetType,
@@ -177,7 +177,7 @@ function policyForSourceMember(sourceMember: SourceLibraryMember): CsharpJsSurfa
 }
 
 const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy[] = [
-  simpleCallPolicy(["Math."], (sourceMember) => getMathTargetMembers(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["Math."], (sourceMember) => mathTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
   simpleCallPolicy(["String."], (sourceMember) => stringTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
   simpleCallPolicy(["Number."], (sourceMember) => numberTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
   simpleCallPolicy(["Boolean."], (sourceMember) => booleanTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
@@ -188,7 +188,7 @@ const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy
       getDateTargetMembers(sourceLibraryMemberName(sourceMember), isNewExpression(request.call, context) ? "new" : "call"),
     hasCallableProperty: (sourceMember) => getDateTargetMembers(sourceLibraryMemberName(sourceMember), "call").length > 0,
   },
-  simpleCallPolicy(["JSON."], (sourceMember) => getJsonTargetMembers(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["JSON."], (sourceMember) => jsonTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
   {
     sourceMemberIdPrefixes: ["Object."],
     getCallMembers: (sourceMember, request, context, host) => [

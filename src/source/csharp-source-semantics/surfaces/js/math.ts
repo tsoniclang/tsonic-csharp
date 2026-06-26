@@ -5,38 +5,54 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
-  targetProperty,
 } from "./source-library.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceSingleTargetMemberForSourceName,
+  jsSurfaceTargetMemberMetadataIndex,
+  jsSurfaceTargetMembersForSourceName,
+} from "./target-member-metadata.js";
 
 const mathTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.Math", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Math"));
 
-export function getMathTargetMembers(sourceName: string): readonly TargetMember[] {
-  const targetMember = mathTargetMembers.get(sourceName);
-  return targetMember === undefined ? [] : [targetMember];
+export function mathTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceName(mathTargetMemberIndex, sourceName);
 }
 
-export function getMathPropertyTargetMember(sourceName: string): TargetMember | undefined {
-  return mathPropertyTargetMembers.get(sourceName);
+export function mathPropertyTargetMemberForSourceName(sourceName: string): TargetMember | undefined {
+  return jsSurfaceSingleTargetMemberForSourceName(mathPropertyTargetMemberIndex, sourceName);
 }
 
-function mathMethod(
+function mathMethodMetadata(
   sourceName: string,
   parameters: readonly ReturnType<typeof targetParameter>[],
   returnType = csharpSourcePrimitiveTargetType("float64"),
-): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.Math.${sourceName}`, sourceName, sourceName, parameters, returnType, {
+): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.Math.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    parameters,
+    returnType,
     declaringType: mathTargetType,
     static: true,
-  });
+  };
 }
 
-function mathProperty(sourceName: string): TargetMember {
-  return targetProperty(`Tsonic.CSharp.Js.Math.${sourceName}`, sourceName, sourceName, csharpSourcePrimitiveTargetType("float64"), {
+function mathPropertyMetadata(sourceName: string): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.Math.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "property",
+    returnType: csharpSourcePrimitiveTargetType("float64"),
     declaringType: mathTargetType,
     static: true,
-  });
+  };
 }
 
 const doubleType = csharpSourcePrimitiveTargetType("float64");
@@ -69,24 +85,25 @@ const unaryDoubleMethodNames = [
   "tanh",
 ] as const;
 
-const mathTargetMembers = new Map<string, TargetMember>([
-  ...unaryDoubleMethodNames.map((name) => [name, mathMethod(name, [targetParameter("value", doubleType)])] as const),
-  ["atan2", mathMethod("atan2", [targetParameter("y", doubleType), targetParameter("x", doubleType)])],
-  ["pow", mathMethod("pow", [targetParameter("value0", doubleType), targetParameter("value1", doubleType)])],
-  ["hypot", mathMethod("hypot", [targetParameter("values", doubleType, { paramsArray: true })])],
-  ["max", mathMethod("max", [targetParameter("values", doubleType, { paramsArray: true })])],
-  ["min", mathMethod("min", [targetParameter("values", doubleType, { paramsArray: true })])],
-  ["random", mathMethod("random", [])],
-  ["ceil", mathMethod("ceil", [targetParameter("value", doubleType)], longType)],
-  ["floor", mathMethod("floor", [targetParameter("value", doubleType)], longType)],
-  ["round", mathMethod("round", [targetParameter("value", doubleType)], longType)],
-  ["trunc", mathMethod("trunc", [targetParameter("value", doubleType)], longType)],
-  ["sign", mathMethod("sign", [targetParameter("value", doubleType)], intType)],
-  ["imul", mathMethod("imul", [targetParameter("left", intType), targetParameter("right", intType)], intType)],
-  ["clz32", mathMethod("clz32", [targetParameter("value", intType)], intType)],
-]);
+const mathTargetMemberMetadata = [
+  ...unaryDoubleMethodNames.map((sourceName) => mathMethodMetadata(sourceName, [targetParameter("value", doubleType)])),
+  mathMethodMetadata("atan2", [targetParameter("y", doubleType), targetParameter("x", doubleType)]),
+  mathMethodMetadata("pow", [targetParameter("value0", doubleType), targetParameter("value1", doubleType)]),
+  mathMethodMetadata("hypot", [targetParameter("values", doubleType, { paramsArray: true })]),
+  mathMethodMetadata("max", [targetParameter("values", doubleType, { paramsArray: true })]),
+  mathMethodMetadata("min", [targetParameter("values", doubleType, { paramsArray: true })]),
+  mathMethodMetadata("random", []),
+  mathMethodMetadata("ceil", [targetParameter("value", doubleType)], longType),
+  mathMethodMetadata("floor", [targetParameter("value", doubleType)], longType),
+  mathMethodMetadata("round", [targetParameter("value", doubleType)], longType),
+  mathMethodMetadata("trunc", [targetParameter("value", doubleType)], longType),
+  mathMethodMetadata("sign", [targetParameter("value", doubleType)], intType),
+  mathMethodMetadata("imul", [targetParameter("left", intType), targetParameter("right", intType)], intType),
+  mathMethodMetadata("clz32", [targetParameter("value", intType)], intType),
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const mathTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(mathTargetMemberMetadata);
 
-const mathPropertyTargetMembers = new Map<string, TargetMember>([
+const mathPropertyTargetMemberMetadata = [
   "E",
   "PI",
   "LN2",
@@ -95,4 +112,5 @@ const mathPropertyTargetMembers = new Map<string, TargetMember>([
   "LOG10E",
   "SQRT1_2",
   "SQRT2",
-].map((name) => [name, mathProperty(name)] as const));
+].map((sourceName) => mathPropertyMetadata(sourceName)) satisfies readonly JsSurfaceTargetMemberMetadata[];
+const mathPropertyTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(mathPropertyTargetMemberMetadata);
