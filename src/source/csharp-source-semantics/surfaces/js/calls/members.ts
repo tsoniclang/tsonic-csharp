@@ -15,6 +15,10 @@ import {
   getBooleanTargetMembers,
 } from "../booleans.js";
 import {
+  getNumberTargetMembers,
+  isCsharpNumberTargetType,
+} from "../numbers.js";
+import {
   getCollectionTargetMembers,
 } from "../collections.js";
 import {
@@ -60,6 +64,8 @@ export function getSourceLibraryCallMembers(
       return getMathTargetMembers(sourceMember.memberName);
     case "String":
       return getStringTargetMembers(sourceMember.memberName);
+    case "Number":
+      return getNumberTargetMembers(sourceMember.memberName);
     case "Boolean":
       return getBooleanTargetMembers(sourceMember.memberName);
     case "RegExp":
@@ -119,9 +125,11 @@ function getObjectPrimitiveReceiverCallMembers(
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
   return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType))
     ? getStringTargetMembers(sourceMember.memberName)
-    : receiverTypes.some((receiverType) => receiverType?.kind === "source-primitive" && receiverType.name === "bool")
-      ? getBooleanTargetMembers(sourceMember.memberName)
-      : [];
+    : receiverTypes.some((receiverType) => isCsharpNumberTargetType(receiverType))
+      ? getNumberTargetMembers(sourceMember.memberName)
+      : receiverTypes.some((receiverType) => receiverType?.kind === "source-primitive" && receiverType.name === "bool")
+        ? getBooleanTargetMembers(sourceMember.memberName)
+        : [];
 }
 
 function getObjectRecordDictionaryCallMembers(

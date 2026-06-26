@@ -340,6 +340,24 @@ test("JS surface maps Boolean.toString from selected declaration and closed bool
   assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
 });
 
+test("JS surface maps Number.toString from selected declaration and closed number receiver facts", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, float64Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "toString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toString");
+  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
+});
+
 test("JS surface maps Map and Set runtime built-ins from selected declarations and closed carrier facts", () => {
   const mapConstruct = { Kind: "KindNewExpression" };
   const setConstruct = { Kind: "KindNewExpression" };

@@ -57,6 +57,9 @@ import {
   getBooleanTargetMembers,
 } from "./booleans.js";
 import {
+  getNumberTargetMembers,
+} from "./numbers.js";
+import {
   getCollectionPropertyTargetMember,
   getCollectionTargetMembers,
   isCsharpJsMapTargetType,
@@ -393,6 +396,8 @@ function sourceLibrarySelectedDeclarationHasCallTarget(sourceMember: SourceLibra
       return getMathTargetMembers(sourceMember.memberName).length > 0;
     case "String":
       return getStringTargetMembers(sourceMember.memberName).length > 0;
+    case "Number":
+      return getNumberTargetMembers(sourceMember.memberName).length > 0;
     case "Boolean":
       return getBooleanTargetMembers(sourceMember.memberName).length > 0;
     case "Array":

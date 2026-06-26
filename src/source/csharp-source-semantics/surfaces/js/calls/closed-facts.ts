@@ -14,6 +14,9 @@ import {
   isCsharpBooleanTargetType,
 } from "../booleans.js";
 import {
+  isCsharpNumberTargetType,
+} from "../numbers.js";
+import {
   isCsharpJsMapTargetType,
   isCsharpJsSetTargetType,
 } from "../collections.js";
@@ -65,6 +68,8 @@ export function sourceLibraryCallReceiverHasClosedFacts(
       return receiverTypes.some((receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined);
     case "String":
       return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType));
+    case "Number":
+      return receiverTypes.some((receiverType) => isCsharpNumberTargetType(receiverType));
     case "Boolean":
       return receiverTypes.some((receiverType) => isCsharpBooleanTargetType(receiverType));
     case "RegExp":
@@ -185,6 +190,8 @@ function sourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMemb
       return true;
     case "String":
       return sourceMember.memberName !== "fromCharCode" && sourceMember.memberName !== "fromCodePoint";
+    case "Number":
+      return true;
     case "Boolean":
       return true;
     case "RegExp":

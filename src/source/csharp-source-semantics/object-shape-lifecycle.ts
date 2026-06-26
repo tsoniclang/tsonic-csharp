@@ -36,6 +36,9 @@ import {
   createRuntimeCarrierLifecycleObservationContext,
   getRuntimeCarrierSubjectType,
 } from "./runtime-carriers.js";
+import {
+  setRuntimeCarrierFactIfAbsent,
+} from "./runtime-carrier-lifecycle/fact-writes.js";
 
 export interface CsharpObjectShapeLifecycleHost {
   readonly getCsharpObjectShapeFactForSubject: (
@@ -138,6 +141,7 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
       lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, csharpTargetMemberOperation(operationId, member.memberKind === "method" ? "method" : "property", member.targetName, {
         resultType: member.type,
       }), [{ message: "C# object-shape member operation recorded from finalized structural shape fact." }]);
+      setRuntimeCarrierFactIfAbsent(lifecycleContext, node, { carrier: member.type }, "C# object-shape property access result carrier recorded from finalized structural shape fact.");
     });
   }
 }

@@ -154,6 +154,7 @@ function sourceLibraryCollectionOrPrimitiveCallCanWaitForFinalizedFacts(
   sourceMember: SourceLibraryMember,
 ): boolean {
   return sourceMember.declaringName === "Boolean" ||
+    sourceMember.declaringName === "Number" ||
     sourceMember.declaringName === "Map" ||
     sourceMember.declaringName === "ReadonlyMap" ||
     sourceMember.declaringName === "Set" ||
