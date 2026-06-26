@@ -49,8 +49,10 @@ import {
   sourceLibraryMemberMatchesAny,
   sourceLibraryMemberMatchesAnyPrefix,
   sourceLibraryMemberName,
-  targetProperty,
 } from "./source-library.js";
+import {
+  jsSurfaceTargetMemberFromMetadata,
+} from "./target-member-metadata.js";
 import {
   getSourceStandardLibraryDeclaringNameForType,
 } from "../../source-type-classification.js";
@@ -187,12 +189,13 @@ const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
   },
   {
     sourceMemberIds: sourceMemberIdSet(["String.length"]),
-    resolve: (sourceMember) => targetProperty(
-      "tsonic.csharp.js.String.length",
-      sourceLibraryMemberName(sourceMember),
-      "Length",
-      csharpSourcePrimitiveTargetType("int32"),
-    ),
+    resolve: (sourceMember) => jsSurfaceTargetMemberFromMetadata({
+      id: "tsonic.csharp.js.String.length",
+      sourceName: sourceLibraryMemberName(sourceMember),
+      targetName: "Length",
+      kind: "property",
+      returnType: csharpSourcePrimitiveTargetType("int32"),
+    }),
   },
   {
     sourceMemberIds: sourceMemberIdSet(["Array.length", "ReadonlyArray.length"]),
@@ -202,12 +205,13 @@ const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
         : getCsharpArrayLengthMember(receiverType);
       return lengthMember === undefined
         ? undefined
-        : targetProperty(
-            `tsonic.csharp.js.${sourceLibraryMemberIdentity(sourceMember)}`,
-            sourceLibraryMemberName(sourceMember),
-            lengthMember,
-            csharpSourcePrimitiveTargetType("int32"),
-          );
+        : jsSurfaceTargetMemberFromMetadata({
+            id: `tsonic.csharp.js.${sourceLibraryMemberIdentity(sourceMember)}`,
+            sourceName: sourceLibraryMemberName(sourceMember),
+            targetName: lengthMember,
+            kind: "property",
+            returnType: csharpSourcePrimitiveTargetType("int32"),
+          });
     },
   },
 ];
