@@ -114,10 +114,6 @@ export function getNodeFsCallTargetMember(
     ?.member;
 }
 
-export function getNodeFsTargetMember(memberId: string | undefined, signatureId: string | undefined): TargetMember | undefined {
-  return nodeFsTargetMembersByIdentity.get(signatureId ?? memberId ?? "");
-}
-
 export function nodeFsClassCallTargetMembers(): readonly NodejsClassCallTargetMember[] {
   return [
     nodeFsStatsCallTargetMember("isFile", nodeFsStatsIsFileMemberId, nodeFsStatsIsFileSignatureId, getNodeFsStatsIsFileTargetMember()),
@@ -448,19 +444,3 @@ function nodeFsStatsPropertyTargetMember(
     member,
   };
 }
-
-const nodeFsTargetMembersByIdentity = new Map<string, TargetMember>([
-  [nodeFsStatsSizeMemberId, getNodeFsStatsSizeTargetMember()],
-  [nodeFsStatsAtimeMemberId, getNodeFsStatsDateTargetMember("atime")],
-  [nodeFsStatsAtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("atimeMs")],
-  [nodeFsStatsMtimeMemberId, getNodeFsStatsDateTargetMember("mtime")],
-  [nodeFsStatsMtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("mtimeMs")],
-  [nodeFsStatsCtimeMemberId, getNodeFsStatsDateTargetMember("ctime")],
-  [nodeFsStatsCtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("ctimeMs")],
-  [nodeFsStatsBirthtimeMemberId, getNodeFsStatsDateTargetMember("birthtime")],
-  [nodeFsStatsBirthtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("birthtimeMs")],
-  [nodeFsStatsIsFileMemberId, getNodeFsStatsIsFileTargetMember()],
-  [nodeFsStatsIsFileSignatureId, getNodeFsStatsIsFileTargetMember()],
-  [nodeFsStatsIsDirectoryMemberId, getNodeFsStatsIsDirectoryTargetMember()],
-  [nodeFsStatsIsDirectorySignatureId, getNodeFsStatsIsDirectoryTargetMember()],
-]);

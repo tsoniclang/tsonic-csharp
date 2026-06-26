@@ -22,7 +22,6 @@ export {
   nodeUrlExports,
 } from "./url/declarations.js";
 export {
-  getNodeUrlTargetMember,
   nodeUrlCallTargetMembers,
   nodeUrlClassCallTargetMembers,
   nodeUrlClassPropertyTargetMembers,

@@ -122,10 +122,6 @@ export function nodeBufferClassPropertyTargetMembers(): readonly NodejsClassProp
   ];
 }
 
-export function getNodeBufferTargetMember(memberId: string | undefined, signatureId: string | undefined): TargetMember | undefined {
-  return nodeBufferTargetMembersByIdentity.get(signatureId ?? memberId ?? "");
-}
-
 function nodeBufferClassCallTargetMember(
   memberName: string,
   memberId: string,
@@ -140,37 +136,3 @@ function nodeBufferClassCallTargetMember(
     member,
   };
 }
-
-const nodeBufferTargetMembersByIdentity = new Map<string, TargetMember>([
-  [nodeBufferFromStringMemberId, getNodeBufferFromStringTargetMember()],
-  [nodeBufferFromStringSignatureId, getNodeBufferFromStringTargetMember()],
-  [nodeBufferAllocMemberId, getNodeBufferAllocTargetMember()],
-  [nodeBufferAllocSignatureId, getNodeBufferAllocTargetMember()],
-  [nodeBufferAllocUnsafeMemberId, getNodeBufferAllocUnsafeTargetMember()],
-  [nodeBufferAllocUnsafeSignatureId, getNodeBufferAllocUnsafeTargetMember()],
-  [nodeBufferAllocUnsafeSlowMemberId, getNodeBufferAllocUnsafeSlowTargetMember()],
-  [nodeBufferAllocUnsafeSlowSignatureId, getNodeBufferAllocUnsafeSlowTargetMember()],
-  [nodeBufferByteLengthMemberId, getNodeBufferByteLengthTargetMember()],
-  [nodeBufferByteLengthSignatureId, getNodeBufferByteLengthTargetMember()],
-  [nodeBufferCompareMemberId, getNodeBufferCompareTargetMember()],
-  [nodeBufferCompareSignatureId, getNodeBufferCompareTargetMember()],
-  [nodeBufferConcatMemberId, getNodeBufferConcatTargetMember()],
-  [nodeBufferConcatSignatureId, getNodeBufferConcatTargetMember()],
-  [nodeBufferEqualsMemberId, getNodeBufferEqualsTargetMember()],
-  [nodeBufferEqualsSignatureId, getNodeBufferEqualsTargetMember()],
-  [nodeBufferIsEncodingMemberId, getNodeBufferIsEncodingTargetMember()],
-  [nodeBufferIsEncodingSignatureId, getNodeBufferIsEncodingTargetMember()],
-  [nodeBufferLengthMemberId, getNodeBufferLengthTargetMember()],
-  [nodeBufferOfMemberId, getNodeBufferOfTargetMember()],
-  [nodeBufferOfSignatureId, getNodeBufferOfTargetMember()],
-  [nodeBufferSliceMemberId, getNodeBufferSliceTargetMember()],
-  [nodeBufferSliceSignatureId, getNodeBufferSliceTargetMember()],
-  [nodeBufferSubarrayMemberId, getNodeBufferSubarrayTargetMember()],
-  [nodeBufferSubarraySignatureId, getNodeBufferSubarrayTargetMember()],
-  [nodeBufferToStringMemberId, getNodeBufferToStringTargetMember()],
-  [nodeBufferToStringSignatureId, getNodeBufferToStringTargetMember()],
-  [nodeBufferAtobSignatureId, getNodeBufferAtobTargetMember()],
-  [nodeBufferBtoaSignatureId, getNodeBufferBtoaTargetMember()],
-  [nodeBufferIsAsciiSignatureId, getNodeBufferIsAsciiTargetMember()],
-  [nodeBufferIsUtf8SignatureId, getNodeBufferIsUtf8TargetMember()],
-]);

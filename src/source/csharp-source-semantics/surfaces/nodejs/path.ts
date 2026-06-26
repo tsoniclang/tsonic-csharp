@@ -100,10 +100,6 @@ export function getNodePathPropertyTargetMember(exportName: string | undefined):
   return nodePathPropertyTargetMembers().find((entry) => entry.exportName === exportName)?.member;
 }
 
-export function getNodePathTargetMember(memberId: string | undefined): TargetMember | undefined {
-  return nodePathTargetMembersByIdentity.get(memberId ?? "");
-}
-
 export function nodePathClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
   return [
     nodePathParsedPathTargetMember("root", nodePathParsedPathRootMemberId, getNodePathParsedPathTargetMember("root", "root")),
@@ -284,11 +280,3 @@ function nodePathParsedPathTargetMember(
     member,
   };
 }
-
-const nodePathTargetMembersByIdentity = new Map<string, TargetMember>([
-  [nodePathParsedPathRootMemberId, getNodePathParsedPathTargetMember("root", "root")],
-  [nodePathParsedPathDirMemberId, getNodePathParsedPathTargetMember("dir", "dir")],
-  [nodePathParsedPathBaseMemberId, getNodePathParsedPathTargetMember("base", "@base")],
-  [nodePathParsedPathExtMemberId, getNodePathParsedPathTargetMember("ext", "ext")],
-  [nodePathParsedPathNameMemberId, getNodePathParsedPathTargetMember("name", "name")],
-]);

@@ -101,6 +101,25 @@ test("architecture validator rejects ad hoc source-member matcher calls", () => 
   assert.deepEqual(allowed.map((text) => ruleMatches(matcherRule, text)), [false, false]);
 });
 
+test("architecture validator rejects per-module Node target identity maps", () => {
+  const identityMapRule = analysisAbstractionRules.find((rule) => rule.id === "nodejs-direct-target-member-identity-map");
+  assert.notEqual(identityMapRule, undefined);
+  assert.deepEqual(
+    [
+      "const nodeFsTargetMembersByIdentity = new Map();",
+      "const nodeBufferTargetMembersByIdentity = new Map();",
+    ].map((text) => ruleMatches(identityMapRule, text)),
+    [true, true],
+  );
+  assert.deepEqual(
+    [
+      "const nodejsTargetMemberByDeclarationIdentity = new Map();",
+      "nodejsTargetMemberMetadataRecords().flatMap((record) => record.declarationIdentities)",
+    ].map((text) => ruleMatches(identityMapRule, text)),
+    [false, false],
+  );
+});
+
 function ruleMatches(rule, text) {
   rule.pattern.lastIndex = 0;
   return rule.pattern.test(text);

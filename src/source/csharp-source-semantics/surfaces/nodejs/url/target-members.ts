@@ -1,7 +1,6 @@
 import type {
   ProviderParameterDeclaration,
   ProviderTypeExpression,
-  TargetMember,
   TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
@@ -43,10 +42,6 @@ import type {
   NodeUrlClassCallTargetMember,
   NodeUrlClassPropertyTargetMember,
 } from "./types.js";
-
-export function getNodeUrlTargetMember(memberId: string | undefined, signatureId: string | undefined): TargetMember | undefined {
-  return nodeUrlTargetMembersByIdentity.get(signatureId ?? memberId ?? "");
-}
 
 export function nodeUrlCallTargetMembers(): readonly NodeUrlCallTargetMember[] {
   return [
@@ -221,12 +216,3 @@ function urlClassProperty(
     },
   };
 }
-
-const nodeUrlTargetMembersByIdentity = new Map<string, TargetMember>([
-  ...nodeUrlCallTargetMembers().map((entry) => [entry.signatureId, entry.member] as const),
-  ...nodeUrlClassCallTargetMembers().flatMap((entry) => [
-    [entry.memberId, entry.member] as const,
-    [entry.signatureId, entry.member] as const,
-  ]),
-  ...nodeUrlClassPropertyTargetMembers().map((entry) => [entry.memberId, entry.member] as const),
-]);

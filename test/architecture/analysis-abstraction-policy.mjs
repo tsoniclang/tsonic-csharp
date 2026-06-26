@@ -147,6 +147,12 @@ export const analysisAbstractionRules = Object.freeze([
       "Derive Node target identities and unsupported identities from the same canonical provider metadata records used for operation mapping.",
   },
   {
+    id: "nodejs-direct-target-member-identity-map",
+    pattern: /\bnode[A-Za-z0-9]+TargetMembersByIdentity\b/g,
+    replacement:
+      "Use the canonical Node provider metadata index instead of per-module target-member identity maps.",
+  },
+  {
     id: "semantic-fallback-word",
     pattern: /\bfallback\b/gi,
     replacement:

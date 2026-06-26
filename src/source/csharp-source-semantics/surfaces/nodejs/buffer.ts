@@ -47,7 +47,6 @@ export {
 } from "./buffer/declarations.js";
 export {
   getNodeBufferLengthTargetMember,
-  getNodeBufferTargetMember,
   nodeBufferClassCallTargetMembers,
   nodeBufferClassPropertyTargetMembers,
   nodeBufferModuleCallTargetMembers,
