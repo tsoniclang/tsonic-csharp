@@ -20,8 +20,10 @@ import {
 } from "./source-declaration-facts.js";
 import {
   getSourceLibraryDeclarationName,
-  isSourceLibraryType,
 } from "./source-library.js";
+import {
+  isSourceStandardLibraryPromiseType,
+} from "./source-type-classification.js";
 import {
   getAliasedSymbolIfAvailable,
   getSymbolDeclarations,
@@ -169,7 +171,7 @@ function getSourcePromiseTargetTypeRefFromSyntax(
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   const ast = context.compiler?.ast;
-  if (ast === undefined || type === undefined || !isSourceLibraryType(type, context, "Promise")) {
+  if (ast === undefined || type === undefined || !isSourceStandardLibraryPromiseType(type, context)) {
     return undefined;
   }
   const resultTypeNode = ast.typeArguments(node)[0];

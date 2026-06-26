@@ -65,8 +65,10 @@ import {
 } from "./target-constraint-validation.js";
 import {
   getSourceLibraryMember,
-  isSourceLibraryType,
 } from "./source-library.js";
+import {
+  isSourceStandardLibraryArrayLikeType,
+} from "./source-type-classification.js";
 import {
   asSemanticType,
 } from "../fact-subjects.js";
@@ -238,10 +240,7 @@ function jsSurfaceOwnsCheckedElementAccess(
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): boolean {
   const receiverType = asSemanticType(request.receiverType);
-  return receiverType !== undefined && (
-    isSourceLibraryType(receiverType, context, "Array") ||
-    isSourceLibraryType(receiverType, context, "ReadonlyArray")
-  );
+  return receiverType !== undefined && isSourceStandardLibraryArrayLikeType(receiverType, context);
 }
 
 export function useObservationOrWhenDeferred<T>(

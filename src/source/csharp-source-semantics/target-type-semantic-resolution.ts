@@ -22,8 +22,10 @@ import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
 import {
-  isSourceLibraryType,
-} from "./source-library.js";
+  classifySourceStandardLibraryType,
+  isSourceStandardLibraryPromiseType,
+  isSourceStandardLibraryRecordType,
+} from "./source-type-classification.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -43,8 +45,7 @@ export function getSourceArrayTargetTypeRef(
   if (types === undefined || types.isTuple(type) || !types.isArrayLike(type, shapeOptions)) {
     return undefined;
   }
-  const sourceArrayType = isSourceLibraryType(type, context, "Array") ||
-    isSourceLibraryType(type, context, "ReadonlyArray");
+  const sourceArrayType = classifySourceStandardLibraryType(type, context)?.kind === "array";
   const typeArguments = getTypeArgumentsForArrayShape(type, context, options);
   if (!sourceArrayType && typeArguments.length === 0) {
     return undefined;
@@ -81,7 +82,7 @@ export function getSourcePromiseTargetTypeRef(
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
-  if (!isSourceLibraryType(type, context, "Promise")) {
+  if (!isSourceStandardLibraryPromiseType(type, context)) {
     return undefined;
   }
   const result = resolver.resolveType(getFirstTypeArgument(type, context, options), context, options, host);
@@ -98,7 +99,7 @@ export function getSourceRecordTargetTypeRef(
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
-  if (!isSourceLibraryType(type, context, "Record")) {
+  if (!isSourceStandardLibraryRecordType(type, context)) {
     return undefined;
   }
   const types = context.compiler?.types;

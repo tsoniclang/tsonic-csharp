@@ -38,8 +38,8 @@ import {
   isVoidTargetType,
 } from "./target-rules.js";
 import {
-  isSourceLibraryType,
-} from "./source-library.js";
+  sourceStandardLibraryTypeIsObjectShapeExcluded,
+} from "./source-type-classification.js";
 import {
   asType,
   generatedObjectShapeMemberName,
@@ -122,8 +122,7 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     compiler.types.isBooleanLike(semanticType) ||
     compiler.types.isBigIntLike(semanticType) ||
     compiler.types.isTuple(semanticType) ||
-    isSourceLibraryType(semanticType, context, "Array") ||
-    isSourceLibraryType(semanticType, context, "ReadonlyArray") ||
+    sourceStandardLibraryTypeIsObjectShapeExcluded(semanticType, context) ||
     compiler.types.isUnion(semanticType)) {
     return undefined;
   }
