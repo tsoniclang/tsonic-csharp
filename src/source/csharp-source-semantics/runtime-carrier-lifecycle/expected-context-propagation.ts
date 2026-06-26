@@ -74,7 +74,7 @@ export function propagateCsharpExpectedRuntimeCarrierFactFromContext(
   }
   const operator = getBinaryOperatorText(ast, node);
   if (operator === "??") {
-    setRuntimeCarrierFactIfAbsent(lifecycleContext, asNodeSubject(getNodeField(node, "Right")), nodeFact, "C# expected runtime carrier propagated into nullish fallback.");
+    setRuntimeCarrierFactIfAbsent(lifecycleContext, asNodeSubject(getNodeField(node, "Right")), nodeFact, "C# expected runtime carrier propagated into nullish alternative expression.");
   }
 }
 

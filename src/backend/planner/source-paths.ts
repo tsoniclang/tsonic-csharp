@@ -178,9 +178,9 @@ function stripFinalExtension(value: string): string {
   return lastDot < 0 ? value : value.slice(0, lastDot);
 }
 
-function sanitizePascalIdentifier(value: string, fallback: string): string {
+function sanitizePascalIdentifier(value: string, replacementName: string): string {
   const parts = value.split(/[^A-Za-z0-9_]+/).filter((part) => part.length > 0);
   const candidate = parts.map((part) => `${part[0]!.toUpperCase()}${part.slice(1)}`).join("");
   const prefixed = /^[A-Za-z_]/.test(candidate) ? candidate : `_${candidate}`;
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(prefixed) ? prefixed : fallback;
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(prefixed) ? prefixed : replacementName;
 }
