@@ -43,7 +43,7 @@ import {
 } from "./surfaces/nodejs/index.js";
 import {
   mapCsharpCheckedCall,
-} from "./checked-call-mapping.js";
+} from "./checked-call-mapping/index.js";
 import {
   mapCsharpCheckedElementAccess,
   mapCsharpCheckedPropertyAccess,
