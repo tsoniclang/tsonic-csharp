@@ -3,10 +3,6 @@ import type {
   CheckedCallMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
-  TargetTypeRef,
-} from "@tsonic/tsts";
-import {
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
   mapCsharpJsConsoleCheckedCall,
@@ -17,9 +13,9 @@ import type {
 import {
   getSourceLibraryMember,
 } from "../source-library.js";
-import type {
-  SourceLibraryMember,
-} from "../source-library.js";
+import {
+  csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
+} from "../policy.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryCall,
   rejectUnsupportedCsharpJsSourceLibraryCall,
@@ -27,9 +23,6 @@ import {
 import {
   sourceLibraryCallReceiverHasClosedFacts,
 } from "./closed-facts.js";
-import {
-  getSourceLibraryCallArgumentTargetTypes,
-} from "./helpers.js";
 import {
   rejectSourceLibraryCallMissingSelectedSignature,
   rejectSourceLibraryCallWithoutClosedFacts,
@@ -64,7 +57,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (consoleCall !== undefined) {
     return consoleCall;
   }
-  const canWaitForFinalizedFacts = sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase);
+  const canWaitForFinalizedFacts = csharpJsSourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase);
   const candidates = getSourceLibraryCallMembers(sourceMember, request, context, host);
   if (candidates.length === 0) {
     if (canWaitForFinalizedFacts) {
@@ -77,7 +70,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     return undefined;
   }
   if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
-    if (sourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase)) {
+    if (csharpJsSourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase)) {
       return undefined;
     }
     return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
@@ -103,64 +96,4 @@ export function mapCsharpSourceLibraryCheckedCall(
     return rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host);
   }
   return acceptSourceLibraryCheckedCall(request, sourceMember, member, context);
-}
-
-function sourceLibraryCallCanWaitForFinalizedFacts(
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  sourceMember: SourceLibraryMember,
-  host: CsharpJsSurfaceHost,
-  phase: "checking" | "finalization" | undefined,
-): boolean {
-  if (sourceMember.declaringName === "Object") {
-    return (phase === "checking" || (phase === undefined && compilerContextCanRunLifecycleFinalization(context))) &&
-      sourceLibraryObjectCallCanWaitForFinalizedFacts(sourceMember);
-  }
-  if (sourceLibraryCollectionOrPrimitiveCallCanWaitForFinalizedFacts(sourceMember)) {
-    return phase !== "finalization" && compilerContextCanRunLifecycleFinalization(context);
-  }
-  if (sourceMember.declaringName === "Array" && sourceMember.memberName === "constructor") {
-    return phase === "checking" || (phase === undefined && compilerContextCanRunLifecycleFinalization(context));
-  }
-  if (phase === "finalization" || sourceMember.declaringName !== "JSON" || sourceMember.memberName !== "stringify") {
-    return false;
-  }
-  const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
-  return request.arguments.some((argument, index) => {
-    const argumentType = argumentTypes[index];
-    return context.facts.get(argument, runtimeCarrierFactKey) === undefined &&
-      (argumentType === undefined || targetTypeIsOpaqueAny(argumentType));
-  });
-}
-
-function compilerContextCanRunLifecycleFinalization(
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-): boolean {
-  return typeof (context.compiler as { readonly getSourceFiles?: unknown } | undefined)?.getSourceFiles === "function";
-}
-
-function sourceLibraryObjectCallCanWaitForFinalizedFacts(
-  sourceMember: SourceLibraryMember,
-): boolean {
-  return sourceMember.memberName === "keys" ||
-    sourceMember.memberName === "values" ||
-    sourceMember.memberName === "entries" ||
-    sourceMember.memberName === "hasOwn" ||
-    sourceMember.memberName === "assign" ||
-    sourceMember.memberName === "toString";
-}
-
-function sourceLibraryCollectionOrPrimitiveCallCanWaitForFinalizedFacts(
-  sourceMember: SourceLibraryMember,
-): boolean {
-  return sourceMember.declaringName === "Boolean" ||
-    sourceMember.declaringName === "Number" ||
-    sourceMember.declaringName === "Map" ||
-    sourceMember.declaringName === "ReadonlyMap" ||
-    sourceMember.declaringName === "Set" ||
-    sourceMember.declaringName === "ReadonlySet";
-}
-
-function targetTypeIsOpaqueAny(type: TargetTypeRef): boolean {
-  return type.kind === "opaque" && type.id === "any";
 }
