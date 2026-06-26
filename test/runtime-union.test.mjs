@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
+import {
   createCompilerSessionFromFiles,
   formatDiagnostics,
   runtimeCarrierFactKey,
@@ -236,16 +241,23 @@ function fakeInput(options = {}) {
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
     },
-    semantics: {
-      getTargetBindingForReference: () => undefined,
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
       getTypeAtLocation: () => undefined,
       getTypeFromTypeNode: () => undefined,
       describeTypeAtLocation: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: {
       isAny: () => false,

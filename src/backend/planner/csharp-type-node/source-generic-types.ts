@@ -29,6 +29,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
 import {
+  carrierFromResolution,
+} from "../runtime-carriers.js";
+import {
   getCsharpTypeFromProjectSourceReference,
 } from "../project-source-types.js";
 import type {
@@ -54,7 +57,8 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
   if (annotatedReturnType !== undefined) {
     return annotatedReturnType;
   }
-  const carrier = input.targetFacts.getResolvedCallReturnRuntimeCarrier(node, { sourceFile });
+  const carrierResolution = input.targetFacts.resolveCallReturnRuntimeCarrier(node, { sourceFile });
+  const carrier = carrierFromResolution(carrierResolution);
   if (carrier !== undefined) {
     const csharpType = csharpTypeFromTargetTypeRef(carrier);
     if (csharpType === undefined) {
@@ -63,7 +67,9 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
     }
     return csharpType;
   }
-  diagnostics?.push(unsupportedNodeDiagnostic(node, "Source-owned call return emission requires a finalized return carrier fact; backend must not infer C# return types from raw TSTS semantic types."));
+  diagnostics?.push(unsupportedNodeDiagnostic(node, carrierResolution.kind === "missing"
+    ? `Source-owned call return emission requires a finalized return carrier fact: ${carrierResolution.reason}`
+    : "Source-owned call return emission requires a finalized return carrier fact; backend must not infer C# return types from raw TSTS semantic types."));
   return invalidCsharpType("source call return carrier");
 }
 

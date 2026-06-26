@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
+import {
   createDestructuringPlannerState,
   planParameterBindingPrelude,
 } from "../dist/backend/planner/bindings.js";
@@ -666,15 +671,22 @@ function fakeInput(options = {}) {
       getPointerFact: () => undefined,
       getFunctionPointerFact: () => undefined,
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getTypeAtLocation: () => undefined,
       getTypeFromTypeNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
-      getTargetBindingForReference: () => undefined,
       isProjectSourceShapeForNode: () => false,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)?.carrier),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)?.carrier),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
   };
 }

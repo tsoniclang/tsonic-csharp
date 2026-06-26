@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
 import { planCallArgumentCore } from "../dist/backend/planner/expression-call-arguments.js";
 import { planExpression } from "../dist/backend/planner/expressions.js";
@@ -244,18 +248,24 @@ function fakeInput(sourceFile, options = {}) {
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getTargetBindingForReference: () => undefined,
       getProjectSourceDeclarationForNode: () => undefined,
       getTypeFromTypeNode: () => undefined,
       getTypeAtLocation: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getProjectSourceReferenceForSymbol: () => undefined,
-      getResolvedCallReturnRuntimeCarrier: () => undefined,
       getResolvedCallReturnType: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: () => missingCarrierResolution(),
+      resolveRuntimeCarrierForNode: () => missingCarrierResolution(),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: {
       isAny: () => false,

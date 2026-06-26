@@ -1,5 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { planCsharpArtifacts } from "../dist/backend/planner/csharp-planner.js";
 import { planCsharpEntrypointSourceFile } from "../dist/backend/planner/csharp-entrypoint-planner.js";
 import { planSourceFile } from "../dist/backend/planner/csharp-source-file-planner.js";
@@ -87,7 +91,8 @@ function fakeInput(options = {}) {
     paths: { projectRoot: "/project" },
     ast: fakeAst,
     facts: fakeFacts,
-    semantics: fakeSemantics,
+    analysis: fakeSemantics,
+    targetFacts: fakeTargetFacts,
     types: fakeTypes,
   };
 }
@@ -163,11 +168,9 @@ const fakeFacts = {
 };
 
 const fakeSemantics = {
-  getTargetBindingForReference: () => undefined,
   getProjectSourceReferenceForNode: () => undefined,
   getProjectSourceDeclarationForNode: () => undefined,
   getProjectSourceModuleDependencies: () => [],
-  getRuntimeCarrierForNode: () => undefined,
   getObjectShapeForNode: () => undefined,
   getResolvedSymbol: () => undefined,
   getSymbolAtLocation: () => undefined,
@@ -175,7 +178,16 @@ const fakeSemantics = {
   getTypeFromTypeNode: () => undefined,
   describeTypeAtLocation: () => undefined,
   getEnumMemberConstant: () => undefined,
-  getReturnTypeCarrierFromDeclaration: () => undefined,
+};
+
+const fakeTargetFacts = {
+  getTargetBinding: () => undefined,
+  getTargetBindingForReference: () => undefined,
+  resolveRuntimeCarrier: () => missingCarrierResolution(),
+  resolveRuntimeCarrierForNode: () => missingCarrierResolution(),
+  resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+  resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+  resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
 };
 
 const fakeTypes = {

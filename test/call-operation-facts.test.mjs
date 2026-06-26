@@ -433,7 +433,7 @@ function fakeSelectedInput() {
     ast: {
       kindName: (node) => String(node?.Kind),
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
       getTargetBindingForReference: () => undefined,
     },

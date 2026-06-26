@@ -1,5 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { planRegularExpressionLiteral } from "../dist/backend/planner/regular-expression-literals.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import {
@@ -98,10 +103,18 @@ function fakeInput(options) {
         return node?.Kind ?? "";
       },
     },
-    semantics: {
-      getRuntimeCarrierForNode: () => undefined,
+    analysis: {
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(subject === options.subject ? options.runtimeCarrier : undefined),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(subject === options.subject ? options.runtimeCarrier : undefined),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     facts: {
       getRuntimeCarrierFact: (subject) => subject === options.subject && options.runtimeCarrier !== undefined

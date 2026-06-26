@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
+import {
   csharpObjectShapeFactKey,
   csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
@@ -254,7 +259,7 @@ test("tuple element access fails closed instead of reading semantic type strings
       elements: [csharpSourcePrimitiveTargetType("int32")],
     }]]),
   });
-  input.semantics.getTypeAtLocation = () => {
+  input.analysis.getTypeAtLocation = () => {
     throw new Error("tuple element planning must not inspect semantic type strings");
   };
 
@@ -848,15 +853,22 @@ function fakeInput(options = {}) {
       getPointerFact: () => undefined,
       getFunctionPointerFact: () => undefined,
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getTypeAtLocation: () => undefined,
       getTypeFromTypeNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
-      getTargetBindingForReference: () => undefined,
       isProjectSourceShapeForNode: () => false,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)?.carrier),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)?.carrier),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
   };
 }

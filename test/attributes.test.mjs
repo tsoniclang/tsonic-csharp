@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+} from "./helpers/target-facts.mjs";
+import {
   KindClassDeclaration,
   KindConstructor,
   KindFalseKeyword,
@@ -388,7 +392,7 @@ function fakeInput(sourceFile, options) {
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: (subject) => {
         const declaration = options.references.get(subject);
         return declaration === undefined
@@ -396,17 +400,23 @@ function fakeInput(sourceFile, options) {
           : { declaration, sourceFile, symbol: { Name: declaration.name?.Text ?? "" } };
       },
       getProjectSourceDeclarationForNode: (subject) => options.references.get(subject),
-      getTargetBindingForReference: (subject) => options.targetBindings.get(subject),
       getProjectSourceMethodDispatch: () => undefined,
       getTypeFromTypeNode: () => undefined,
       getTypeAtLocation: () => undefined,
       describeTypeAtLocation: () => undefined,
-      getResolvedCallReturnRuntimeCarrier: () => undefined,
       getResolvedCallReturnType: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getProjectSourceReferenceForSymbol: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: (subject) => options.targetBindings.get(subject),
+      resolveRuntimeCarrier: () => missingCarrierResolution(),
+      resolveRuntimeCarrierForNode: () => missingCarrierResolution(),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: emptyTypeQueries(),
   };

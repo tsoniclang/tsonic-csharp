@@ -36,6 +36,11 @@ import {
   csharpJsDateTargetType,
   isCsharpJsDateRuntimeCarrier,
 } from "../dist/source/csharp-source-semantics/surfaces/js/date.js";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
 
 test("throwable carriers require explicit C# target capability metadata", () => {
   assert.equal(isCsharpThrowableCarrier({ kind: "target-named", id: "System.Exception" }), false);
@@ -424,12 +429,12 @@ function fakeTypeInput(sourceFile, options = {}) {
       getProjectSourceReferenceForSymbol: () => undefined,
     },
     targetFacts: {
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(options.runtimeCarriers?.get(subject)),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(options.runtimeCarriers?.get(subject)),
       getTargetBindingForReference: (subject) => options.targetBindings?.get(subject),
-      getResolvedCallReturnRuntimeCarrier: () => undefined,
-      getResolvedCallReturnType: () => undefined,
-      getRuntimeCarrierForNode: (subject) => options.runtimeCarriers?.get(subject),
-      getReturnTypeCarrierFromDeclaration: () => undefined,
-      getResolvedCallParameterRuntimeCarriers: () => undefined,
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: {
       isAny: () => false,

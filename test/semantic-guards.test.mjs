@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { providerVirtualDeclarationFactKey } from "@tsonic/tsts";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { getCallableSemanticOwnership, getProviderOperationOwnership, getSemanticOwnership } from "../dist/backend/planner/semantic-guards.js";
 import { KindArrowFunction, KindBindingElement, KindFunctionDeclaration, KindIdentifier, KindPropertyAccessExpression, KindVariableDeclaration } from "../dist/backend/planner/source-ast.js";
 
@@ -379,24 +384,28 @@ function fakeInput(options = {}) {
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
     },
-    semantics: {
+    analysis: {
       getSymbolAtLocation: (node) => options.symbolsByNode?.get(node) ?? options.symbolAtLocation,
       getTypeAtLocation: () => options.typeAtLocation,
       getResolvedSymbol: () => undefined,
-      getRuntimeCarrierForNode: () => {
-        return undefined;
-      },
       getObjectShapeForNode: () => undefined,
-      getTargetBindingForReference: () => options.targetBindingSubject !== undefined && options.targetBindingSubject === options.typeAtLocation
-        ? { target: "csharp", id: "Example.TargetType" }
-        : undefined,
       isProjectSourceShapeForNode: () => options.projectSourceShape === true,
       isProjectSourceConstructibleObjectForNode: () => options.projectSourceConstructibleObject === true,
       getProjectSourceDeclarationForNode: () => undefined,
       getProjectSourceReferenceForNode: (node) => options.sourceReferenceByNode?.get(node),
       getEnumMemberConstant: () => undefined,
-      getReturnTypeCarrierFromDeclaration: () => undefined,
       describeTypeAtLocation: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => options.targetBindingSubject !== undefined && options.targetBindingSubject === options.typeAtLocation
+        ? { target: "csharp", id: "Example.TargetType" }
+        : undefined,
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
   };
 }

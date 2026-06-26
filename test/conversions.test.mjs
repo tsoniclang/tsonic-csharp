@@ -1,5 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
@@ -334,14 +338,21 @@ function fakeInput(options = {}) {
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
     },
-    semantics: {
-      getTargetBindingForReference: () => undefined,
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
       describeTypeAtLocation: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: () => missingCarrierResolution(),
+      resolveRuntimeCarrierForNode: () => missingCarrierResolution(),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
   };
 }

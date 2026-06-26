@@ -60,6 +60,7 @@ import {
   getCsharpObjectShapeFactForNode,
 } from "./csharp-fact-queries.js";
 import {
+  carrierFromResolution,
   getRuntimeCarrierForExpression,
   getTargetTypeRefForType,
 } from "./runtime-carriers.js";
@@ -607,7 +608,10 @@ function getResolvedSourceCallArgumentExpectation(
       subject: declarationType ?? declaration,
     };
   }
-  const carrier = input.targetFacts.getResolvedCallParameterRuntimeCarriers(call, { sourceFile })?.[argumentIndex];
+  const parameterCarrierResolution = input.targetFacts.resolveCallParameterRuntimeCarriers(call, { sourceFile });
+  const carrier = parameterCarrierResolution.kind === "resolved-parameters"
+    ? carrierFromResolution(parameterCarrierResolution.parameters[argumentIndex])
+    : undefined;
   if (carrier !== undefined) {
     const targetType = csharpTypeFromTargetTypeRef(carrier);
     if (targetType !== undefined) {

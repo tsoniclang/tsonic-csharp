@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+} from "./helpers/target-facts.mjs";
+import {
   KindClassDeclaration,
   KindClassStaticBlockDeclaration,
   KindIdentifier,
@@ -248,21 +252,26 @@ function fakeInput(sourceFile, options = {}) {
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
       getProjectSourceDeclarationForNode: () => undefined,
-      getTargetBindingForReference: () => undefined,
       getProjectSourceMethodDispatch: () => undefined,
       getTypeFromTypeNode: () => undefined,
       getTypeAtLocation: () => undefined,
       describeTypeAtLocation: () => undefined,
-      getResolvedCallReturnRuntimeCarrier: () => undefined,
       getResolvedCallReturnType: () => undefined,
-      getReturnTypeCarrierFromDeclaration: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getProjectSourceReferenceForSymbol: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: () => missingCarrierResolution(),
+      resolveRuntimeCarrierForNode: () => missingCarrierResolution(),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: emptyTypeQueries(),
   };

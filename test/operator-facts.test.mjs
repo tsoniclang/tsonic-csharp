@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { targetOperationFactKey } from "@tsonic/tsts";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { planExpression, planExpressionWithExpectedType } from "../dist/backend/planner/expressions.js";
 import {
   KindArrayLiteralExpression,
@@ -678,10 +683,8 @@ function fakeInput(options = {}) {
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
     },
-    semantics: {
-      getTargetBindingForReference: () => undefined,
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
@@ -690,6 +693,15 @@ function fakeInput(options = {}) {
       describeTypeAtLocation: () => undefined,
       isProjectSourceShapeForNode: () => false,
       isProjectSourceConstructibleObjectForNode: () => false,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(options.runtimeCarrierFacts?.get(subject)?.carrier),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(options.runtimeCarrierFacts?.get(subject)?.carrier),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: {
       isAny: () => false,

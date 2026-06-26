@@ -1,5 +1,5 @@
 import type { Node, SourceFile, TargetTypeRef, Type } from "@tsonic/tsts";
-import type { TargetCompileInput } from "@tsonic/target-api";
+import type { TargetCarrierResolution, TargetCompileInput } from "@tsonic/target-api";
 import {
   getTargetTypeRefFromDirectFacts,
 } from "./runtime-carrier-direct-facts.js";
@@ -28,15 +28,15 @@ export function getTargetTypeRefForNode(
   }
   const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile);
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
-    return getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-      input.targetFacts.getRuntimeCarrierForNode(sourceNode, { sourceFile }) ??
+      return getTargetTypeRefFromDirectFacts(input, sourceNode) ??
+      carrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })) ??
       typeReferenceFact;
   }
   return typeReferenceFact ??
     getTargetTypeRefFromDirectFacts(input, sourceNode) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(sourceNode, { sourceFile })) ??
-    input.targetFacts.getRuntimeCarrierForNode(sourceNode, { sourceFile });
+    carrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
 }
 
 function getTargetTypeRefFromTypeReferenceName(
@@ -81,4 +81,10 @@ function getTargetTypeRefFromSemanticTypeFacts(
   return fact === undefined || targetTypeRefContainsSourcePrimitive(fact)
     ? undefined
     : fact;
+}
+
+export function carrierFromResolution(
+  resolution: TargetCarrierResolution | undefined,
+): TargetTypeRef | undefined {
+  return resolution?.kind === "resolved" ? resolution.carrier : undefined;
 }

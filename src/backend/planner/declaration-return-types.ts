@@ -5,6 +5,7 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   getTargetTypeRefForNode,
   getTargetTypeRefForType,
+  carrierFromResolution,
 } from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
@@ -20,7 +21,8 @@ export function getExplicitReturnType(
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> {
   if (typeNode === undefined) {
-    const returnCarrier = input.targetFacts.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile });
+    const returnCarrierResolution = input.targetFacts.resolveDeclarationReturnCarrier(declarationNode, { sourceFile });
+    const returnCarrier = carrierFromResolution(returnCarrierResolution);
     const returnType = returnCarrier === undefined
       ? getInferredSignatureReturnType(declarationNode, sourceFile, input)
       : undefined;
@@ -32,7 +34,9 @@ export function getExplicitReturnType(
         declarationNode,
         isMissingInferredArrayElementTypeEvidence(returnType, sourceFile, input)
           ? `C# ${context} emission requires finalized array element type evidence for inferred array returns. Add a return type annotation or contextual target that records an array runtime carrier.`
-          : `C# ${context} emission requires a return type, but the TSTS semantic session did not return a finalized signature return carrier.`,
+          : returnCarrierResolution.kind === "missing"
+            ? `C# ${context} emission requires a finalized signature return carrier: ${returnCarrierResolution.reason}`
+            : `C# ${context} emission requires a return type, but the TSTS semantic session did not return a finalized signature return carrier.`,
       ));
       return invalidCsharpType(`${context} return type`);
     }
@@ -79,7 +83,7 @@ function getDeclarationReturnTargetType(
   if (typeNode !== undefined) {
     return getTargetTypeRefForNode(input, typeNode, sourceFile);
   }
-  return input.targetFacts.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile }) ??
+  return carrierFromResolution(input.targetFacts.resolveDeclarationReturnCarrier(declarationNode, { sourceFile })) ??
     getTargetTypeRefForType(input, getInferredSignatureReturnType(declarationNode, sourceFile, input), sourceFile);
 }
 
