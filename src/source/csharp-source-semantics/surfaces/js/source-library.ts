@@ -15,6 +15,7 @@ export type {
   SourceLibraryDeclaringName,
   SourceLibraryMember,
   SourceLibraryMemberId,
+  SourceLibraryMemberIdentityPolicy,
   SourceLibraryMemberIdPrefix,
 } from "../../source-library.js";
 export {
