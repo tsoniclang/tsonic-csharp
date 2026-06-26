@@ -7,26 +7,26 @@ import {
   sourceLibraryMemberMatches,
 } from "../source-library.js";
 import type {
-  ArrayUse,
+  CsharpArrayCarrierRequirement,
 } from "./types.js";
 
-export function classifySourceLibraryArrayPropertyUse(
+export function getSourceLibraryArrayPropertyCarrierRequirements(
   sourceMember: SourceLibraryMember,
   isWriteTarget: boolean,
-): readonly ArrayUse[] {
+): readonly CsharpArrayCarrierRequirement[] {
   const propertyRule = arrayPropertyUseRules.find((rule) => arrayPropertyUseRuleApplies(rule, sourceMember));
   return propertyRule === undefined ? [] : propertyRule.uses(sourceMember, isWriteTarget);
 }
 
-export function sourceLibraryMemberHasArrayUseRules(sourceMember: SourceLibraryMember): boolean {
+export function sourceLibraryMemberHasArrayCarrierRequirementPolicy(sourceMember: SourceLibraryMember): boolean {
   return arrayPropertyUseRules.some((rule) => arrayUseRuleApplies(rule, sourceMember)) ||
     staticCallArgumentUseRules.some((rule) => arrayUseRuleApplies(rule, sourceMember));
 }
 
-export function classifySourceLibraryStaticCallArgumentUse(
+export function getSourceLibraryStaticCallArgumentCarrierRequirements(
   sourceMember: SourceLibraryMember,
   argumentIndex: number,
-): readonly ArrayUse[] {
+): readonly CsharpArrayCarrierRequirement[] {
   const rule = staticCallArgumentUseRules.find((candidate) =>
     staticCallArgumentUseRuleApplies(candidate, sourceMember, argumentIndex)
   );
@@ -35,13 +35,13 @@ export function classifySourceLibraryStaticCallArgumentUse(
 
 interface ArrayPropertyUseRule {
   readonly identity: SourceLibraryMemberIdentityPolicy;
-  readonly uses: (sourceMember: SourceLibraryMember, isWriteTarget: boolean) => readonly ArrayUse[];
+  readonly uses: (sourceMember: SourceLibraryMember, isWriteTarget: boolean) => readonly CsharpArrayCarrierRequirement[];
 }
 
 interface StaticCallArgumentUseRule {
   readonly identity: SourceLibraryMemberIdentityPolicy;
   readonly argumentIndex: StaticCallArgumentIndexPolicy;
-  readonly uses: readonly ArrayUse[];
+  readonly uses: readonly CsharpArrayCarrierRequirement[];
 }
 
 type StaticCallArgumentIndexPolicy = number | { readonly greaterThan: number };

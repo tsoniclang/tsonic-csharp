@@ -5,8 +5,12 @@ import type {
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
+import type {
+  TargetLazySourceAnalysis,
+  TargetSourceUseRecord,
+} from "@tsonic/target-api";
 
-export type ArrayUse =
+export type CsharpArrayCarrierRequirement =
   | "sequential-read"
   | "index-read"
   | "length-read"
@@ -16,6 +20,7 @@ export type ArrayUse =
 export type LifecycleContext = {
   readonly host: ExtensionObservationContext["host"];
   readonly compiler?: ExtensionObservationContext["compiler"];
+  readonly analysis?: TargetLazySourceAnalysis;
 };
 
 export type CsharpArrayLifecycleAst = NonNullable<ExtensionObservationContext["compiler"]>["ast"];
@@ -27,7 +32,8 @@ export interface ArrayParameterAnalysis {
   readonly symbol: Symbol | undefined;
   readonly semanticType: Type | undefined;
   readonly elementType: TargetTypeRef;
-  readonly uses: ReadonlySet<ArrayUse>;
+  readonly sourceUses: readonly TargetSourceUseRecord[];
+  readonly carrierRequirements: ReadonlySet<CsharpArrayCarrierRequirement>;
 }
 
 export interface ArrayReturnAnalysis {

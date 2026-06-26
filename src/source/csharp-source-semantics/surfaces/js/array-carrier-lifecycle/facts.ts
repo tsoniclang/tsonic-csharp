@@ -40,7 +40,7 @@ export function recordArrayParameterFacts(
     boundary: "exported-api",
   };
   const evidence = [{
-    message: `C# JS surface array carrier selected for exported TypeScript array parameter '${getParameterName(parameter.name)}' from observed checked array operations: ${Array.from(parameter.uses).sort().join(",") || "none"}.`,
+    message: `C# JS surface array carrier selected for exported TypeScript array parameter '${getParameterName(parameter.name)}' from generic structural source analysis requirements: ${Array.from(parameter.carrierRequirements).sort().join(",") || "none"}.`,
   }];
   for (const subject of arrayFactSubjects(parameter)) {
     lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);

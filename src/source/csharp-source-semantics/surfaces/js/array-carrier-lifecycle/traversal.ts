@@ -16,8 +16,9 @@ import {
   getSymbolForDeclarationLookup,
 } from "../../../symbol-utils.js";
 import {
-  collectArrayUsesForSymbol,
-} from "./use-classification.js";
+  carrierRequirementsForArrayStructuralUses,
+  collectArrayStructuralUsesForSymbol,
+} from "./structural-uses.js";
 import type {
   ArrayParameterAnalysis,
   ArrayReturnAnalysis,
@@ -56,6 +57,7 @@ export function collectArrayParameters(
       getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
     const semanticType = compiler.checker.getTypeFromTypeNode(typeNode, { sourceFile }) ??
       compiler.checker.getTypeAtLocation(name, { sourceFile });
+    const sourceUses = collectArrayStructuralUsesForSymbol(sourceFile, symbol, lifecycleContext);
     parameters.push({
       parameter: node,
       name,
@@ -63,7 +65,8 @@ export function collectArrayParameters(
       symbol,
       semanticType,
       elementType,
-      uses: collectArrayUsesForSymbol(sourceFile, symbol, lifecycleContext),
+      sourceUses,
+      carrierRequirements: carrierRequirementsForArrayStructuralUses(sourceUses, sourceFile, lifecycleContext),
     });
   });
   return parameters;

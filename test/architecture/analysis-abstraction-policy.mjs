@@ -193,7 +193,7 @@ export const analysisAbstractionFileRules = Object.freeze([
   },
   {
     id: "array-specific-use-classifier-file",
-    pattern: /(?:^|\/)surfaces\/js\/array-carrier-lifecycle\/(?:use-classification|types)\.ts$/,
+    pattern: /(?:^|\/)surfaces\/js\/array-carrier-lifecycle\/use-classification\.ts$/,
     replacement:
       "Move source-use discovery into the generic lazy analysis layer; array lifecycle planning must consume structural analysis records.",
   },
@@ -220,41 +220,6 @@ export const analysisAbstractionDebtOwners = Object.freeze([
 ]);
 
 export const analysisAbstractionDebtCatalog = Object.freeze([
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
-    { "array-specific-use-classifier": 7 },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Replace array-specific use labels with generic lazy analysis query results consumed by array carrier policy.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/carrier-classification.ts",
-    { "array-specific-use-classifier": 2 },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Classify carrier lanes from generic structural analysis records and declarative policy, not ArrayUse labels.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/traversal.ts",
-    { "array-specific-use-classifier": 2 },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Route traversal through the generic lazy analysis layer instead of array-specific symbol-use collection.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/types.ts",
-    { "array-specific-use-classifier-file": 1, "array-specific-use-classifier": 2 },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Replace ArrayUse-specific public types with structural analysis result types shared across surfaces.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/use-classification.ts",
-    { "array-specific-use-classifier-file": 1, "array-specific-use-classifier": 14 },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Move source-use discovery into reusable lazy analysis services and consume structural records from array planning.",
-  ),
   entry(
     "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/receiver-validation.ts",
     { "source-family-closed-facts-validator": 6 },

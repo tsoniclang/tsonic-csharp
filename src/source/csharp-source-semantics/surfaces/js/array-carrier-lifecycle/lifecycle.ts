@@ -1,6 +1,9 @@
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../../runtime-carriers.js";
+import {
+  createLazyTargetSourceAnalysis,
+} from "@tsonic/target-api";
 import type {
   CsharpOperationsProviderHost,
 } from "../../../operations-provider.js";
@@ -24,16 +27,24 @@ export function recordCsharpJsArrayCarrierFactsBeforeFinalization(
   if (compiler === undefined) {
     return;
   }
+  const analysisContext = {
+    ...lifecycleContext,
+    analysis: lifecycleContext.analysis ?? createLazyTargetSourceAnalysis(
+      compiler.ast,
+      compiler.checker,
+      compiler.getSourceFiles().filter((sourceFile): sourceFile is NonNullable<typeof sourceFile> => sourceFile !== undefined),
+    ),
+  };
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
   for (const sourceFile of compiler.getSourceFiles()) {
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    for (const parameter of collectArrayParameters(sourceFile, lifecycleContext, host)) {
-      recordArrayParameterFacts(parameter, lifecycleContext, context);
+    for (const parameter of collectArrayParameters(sourceFile, analysisContext, host)) {
+      recordArrayParameterFacts(parameter, analysisContext, context);
     }
-    for (const returnType of collectArrayReturnTypeNodes(sourceFile, lifecycleContext, host)) {
-      recordArrayReturnFacts(returnType, lifecycleContext);
+    for (const returnType of collectArrayReturnTypeNodes(sourceFile, analysisContext, host)) {
+      recordArrayReturnFacts(returnType, analysisContext);
     }
   }
 }

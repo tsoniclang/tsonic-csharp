@@ -12,11 +12,11 @@ import {
 } from "../array-target-type.js";
 import type {
   ArrayParameterAnalysis,
-  ArrayUse,
+  CsharpArrayCarrierRequirement,
 } from "./types.js";
 
 export function boundaryFactForArrayParameter(parameter: ArrayParameterAnalysis): CsharpArrayBoundaryFact {
-  const lane = laneForArrayUses(parameter.uses);
+  const lane = laneForArrayRequirements(parameter.carrierRequirements);
   if (lane === "native-dense-mutable") {
     const list = csharpListTargetType(parameter.elementType);
     return {
@@ -76,17 +76,17 @@ export function boundaryFactForArrayParameter(parameter: ArrayParameterAnalysis)
   };
 }
 
-function laneForArrayUses(uses: ReadonlySet<ArrayUse>): CsharpArrayCarrierLane {
-  if (uses.has("full-js")) {
+function laneForArrayRequirements(requirements: ReadonlySet<CsharpArrayCarrierRequirement>): CsharpArrayCarrierLane {
+  if (requirements.has("full-js")) {
     return "js-full-internal";
   }
-  if (uses.has("dense-mutation")) {
+  if (requirements.has("dense-mutation")) {
     return "native-dense-mutable";
   }
-  if (uses.has("index-read") || uses.has("length-read")) {
+  if (requirements.has("index-read") || requirements.has("length-read")) {
     return "native-read-indexable";
   }
-  if (uses.has("sequential-read")) {
+  if (requirements.has("sequential-read")) {
     return "native-read-sequence";
   }
   return "native-array-required";
