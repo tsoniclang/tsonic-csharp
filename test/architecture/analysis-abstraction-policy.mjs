@@ -177,6 +177,42 @@ export const analysisAbstractionRules = Object.freeze([
       "Use lazy generic analysis services for references, property writes, element writes, calls, captures, escapes, and mutations; array carrier planning consumes those structural records.",
   },
   {
+    id: "source-member-name-to-target-lookup",
+    pattern: /\b[A-Za-z0-9]*(?:TargetMember|TargetMembers|PropertyTargetMember)s?ForSourceName\s*\(\s*sourceLibraryMemberName\s*\(\s*sourceMember\s*\)/g,
+    replacement:
+      "Do not convert selected source member names into target member lookups; provider/runtime metadata rows must prove the target operation.",
+  },
+  {
+    id: "source-id-executable-policy-hook",
+    pattern: /\b(?:uses|validate|resolve|result|requiresClosedReceiver)\s*:\s*(?:\([^\n)]*\)|[A-Za-z_$][\w$]*)\s*=>|\bmapCall\s*:\s*[A-Za-z_$][\w$]*/g,
+    replacement:
+      "Source-identity policy tables must be declarative metadata or explicit exception records, not executable semantic hooks.",
+  },
+  {
+    id: "source-id-analysis-table-definition",
+    pattern: /\b(?:const|export\s+const)\s+(?:sourceCallPolicyRecords|closedReceiverRequirementPolicies|closedFactRules|propertyReceiverValidatorPolicies|arrayPropertyUseRules|staticCallArgumentUseRules|propertyMemberResolvers|propertyMemberProviders|propertyPrecheckRules)\b/g,
+    replacement:
+      "Source-id analysis tables are migration debt until they are pure declarative metadata consumed by generic selectors.",
+  },
+  {
+    id: "source-id-analysis-table-lookup",
+    pattern: /\b(?:sourceCallPolicyRecords|closedFactRules|arrayPropertyUseRules|staticCallArgumentUseRules|propertyMemberResolvers|propertyMemberProviders|propertyPrecheckRules|propertyReceiverValidatorPolicies)\.(?:find|some)\s*\([^\n]*(?:sourceMember|sourceLibraryMemberMatches)/g,
+    replacement:
+      "Source-id table dispatch must become generic selector lookup over selected declaration/signature identity and metadata rows.",
+  },
+  {
+    id: "dynamic-target-member-from-source-member",
+    pattern: /\bjsSurfaceTargetMemberFromMetadata\s*\(\s*\{[\s\S]{0,500}?\bsourceLibraryMember(?:Name|Identity)\s*\(\s*sourceMember\s*\)/g,
+    replacement:
+      "Target members must come from provider/runtime metadata rows with declared semantic equivalence, not be synthesized from a source member at selection time.",
+  },
+  {
+    id: "node-local-export-signature-selection",
+    pattern: /\.find\s*\(\s*\(?\s*entry\s*\)?\s*=>\s*entry\.(?:exportName|signatureId)\s*===/g,
+    replacement:
+      "Node provider member selection must use canonical declaration/signature identity indexes rather than local export/signature search.",
+  },
+  {
     id: "semantic-fallback-word",
     pattern: /\bfallback\b/gi,
     replacement:
@@ -219,7 +255,143 @@ export const analysisAbstractionDebtOwners = Object.freeze([
   "tests",
 ]);
 
-export const analysisAbstractionDebtCatalog = Object.freeze([]);
+export const analysisAbstractionDebtCatalog = Object.freeze([
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
+    {
+      "source-id-analysis-table-definition": 2,
+      "source-id-analysis-table-lookup": 3,
+    },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Array carrier requirements must be consumed as declarative source-use policy over lazy generic analysis records, not source-id dispatch tables.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/receiver-validation.ts",
+    {
+      "source-id-analysis-table-definition": 1,
+      "source-id-analysis-table-lookup": 1,
+    },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Closed-fact requirements must be pure metadata consumed by a generic selected-declaration validator.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
+    {
+      "source-id-executable-policy-hook": 1,
+      "source-id-analysis-table-definition": 1,
+      "source-id-analysis-table-lookup": 1,
+    },
+    "surface-policy-candidate",
+    "surface-provider",
+    "JS call selection must finish moving from source-family policy records to provider/runtime metadata rows and generic selector selection.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/object-members.ts",
+    { "source-member-name-to-target-lookup": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Object helper dictionary member selection must use provider/runtime metadata rows instead of deriving target lookup from source member names.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/index.ts",
+    { "dynamic-target-member-from-source-member": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Collection property metadata must be predeclared provider/runtime metadata instead of synthesized from source member identity.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/precheck-rules.ts",
+    { "source-id-analysis-table-definition": 1 },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Property precheck rules must be declarative metadata consumed by the generic property selector.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
+    {
+      "source-id-analysis-table-lookup": 2,
+      "dynamic-target-member-from-source-member": 1,
+    },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Property member selection must consume provider/runtime metadata rows instead of synthesizing target members from source member identity.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/target-member-resolvers.ts",
+    { "source-id-analysis-table-definition": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Property member provider records must become provider/runtime metadata rows with declared semantic equivalence.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/properties/receiver-facts.ts",
+    {
+      "source-id-analysis-table-definition": 1,
+      "source-id-analysis-table-lookup": 1,
+    },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Property receiver requirements must be generic carrier requirement metadata over selected source identities.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/nodejs/assert.ts",
+    { "node-local-export-signature-selection": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Node assert metadata must be indexed by canonical provider declaration identity instead of local export/signature search.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/nodejs/crypto.ts",
+    { "node-local-export-signature-selection": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Node crypto metadata must be indexed by canonical provider declaration identity instead of local export/signature search.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/nodejs/filesystem/calls.ts",
+    { "node-local-export-signature-selection": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Node filesystem call metadata must be indexed by canonical provider declaration identity instead of local export/signature search.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/nodejs/os.ts",
+    { "node-local-export-signature-selection": 2 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Node os metadata must be indexed by canonical provider declaration identity instead of local export/signature search.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/nodejs/path/calls.ts",
+    { "node-local-export-signature-selection": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Node path call metadata must be indexed by canonical provider declaration identity instead of local export/signature search.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/nodejs/path/properties.ts",
+    { "node-local-export-signature-selection": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Node path property metadata must be indexed by canonical provider declaration identity instead of local export/signature search.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/nodejs/process.ts",
+    { "node-local-export-signature-selection": 2 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Node process metadata must be indexed by canonical provider declaration identity instead of local export/signature search.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/nodejs/util.ts",
+    { "node-local-export-signature-selection": 2 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Node util metadata must be indexed by canonical provider declaration identity instead of local export/signature search.",
+  ),
+]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
   return sourceFiles(join(repoRoot, "src")).flatMap((filePath) => {
