@@ -40,7 +40,7 @@ import {
   getLiteralTargetTypeRefForKnownOperatorOperand,
   getNullishTargetTypeRefForKnownOperatorOperand,
   operatorRequiresSelectedProviderIdentity,
-} from "./checked-operator-mapping.js";
+} from "./checked-operator-mapping/index.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carriers.js";

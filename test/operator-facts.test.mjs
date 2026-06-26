@@ -35,7 +35,7 @@ import {
 } from "../dist/source/csharp-source-semantics/target-types.js";
 import {
   mapCsharpCheckedOperator,
-} from "../dist/source/csharp-source-semantics/checked-operator-mapping.js";
+} from "../dist/source/csharp-source-semantics/checked-operator-mapping/index.js";
 
 test("binary expression emission requires selected target operator fact even for source primitives", () => {
   const left = identifier("left");

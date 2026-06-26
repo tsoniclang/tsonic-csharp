@@ -13,7 +13,7 @@ import {
 } from "./ast-utils.js";
 import {
   getLiteralTargetTypeRefForKnownOperatorOperand,
-} from "./checked-operator-mapping.js";
+} from "./checked-operator-mapping/index.js";
 import {
   getBinaryOperatorText,
   getPrefixUnaryOperatorText,

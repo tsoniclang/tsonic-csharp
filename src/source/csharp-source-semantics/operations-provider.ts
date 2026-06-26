@@ -50,7 +50,7 @@ import {
 } from "./checked-member-access-mapping.js";
 import {
   mapCsharpCheckedOperator,
-} from "./checked-operator-mapping.js";
+} from "./checked-operator-mapping/index.js";
 import {
   mapCsharpCheckedConversion,
   mapCsharpContextualTargetType,
