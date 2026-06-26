@@ -9,7 +9,7 @@ import {
 } from "../../../target-types.js";
 import {
   csharpJsArrayCarrierTargetType,
-} from "../array-carriers.js";
+} from "../array-target-type.js";
 import type {
   ArrayParameterAnalysis,
   ArrayUse,

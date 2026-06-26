@@ -13,7 +13,7 @@ import {
 } from "./source-library.js";
 import {
   csharpJsArrayCarrierTargetType,
-} from "./array-carriers.js";
+} from "./array-target-type.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
 } from "../../dictionaries.js";

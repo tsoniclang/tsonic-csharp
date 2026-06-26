@@ -15,7 +15,7 @@ import {
 } from "@tsonic/tsts";
 import {
   csharpJsArrayCarrierTargetType,
-} from "./array-carriers.js";
+} from "./array-target-type.js";
 import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";

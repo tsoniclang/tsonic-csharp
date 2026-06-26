@@ -22,7 +22,7 @@ import {
 } from "../source-library.js";
 import {
   csharpJsArrayCarrierTargetType,
-} from "../array-carriers.js";
+} from "../array-target-type.js";
 
 export function getArrayTargetMembers(sourceName: string, receiverElementType?: TargetTypeRef): readonly TargetMember[] {
   const itemType: TargetTypeRef = receiverElementType ?? { kind: "type-parameter", name: "T" };
