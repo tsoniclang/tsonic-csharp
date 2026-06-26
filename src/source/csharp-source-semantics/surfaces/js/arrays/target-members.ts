@@ -17,14 +17,27 @@ import {
   csharpTargetNamedType,
   csharpVoidTargetType,
   isCsharpValueTypeTargetType,
-  targetMethod,
   targetParameter,
 } from "../source-library.js";
 import {
   csharpJsArrayCarrierTargetType,
 } from "../array-target-type.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "../target-member-metadata.js";
+import {
+  jsSurfaceTargetMemberMetadataIndex,
+  jsSurfaceTargetMembersForSourceName,
+} from "../target-member-metadata.js";
 
-export function getArrayTargetMembers(sourceName: string, receiverElementType?: TargetTypeRef): readonly TargetMember[] {
+export function arrayTargetMembersForSourceName(sourceName: string, receiverElementType?: TargetTypeRef): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceName(
+    jsSurfaceTargetMemberMetadataIndex(arrayTargetMemberMetadata(receiverElementType)),
+    sourceName,
+  );
+}
+
+function arrayTargetMemberMetadata(receiverElementType?: TargetTypeRef): readonly JsSurfaceTargetMemberMetadata[] {
   const itemType: TargetTypeRef = receiverElementType ?? { kind: "type-parameter", name: "T" };
   const mappedItemType: TargetTypeRef = { kind: "type-parameter", name: "U" };
   const enumerableType: TargetTypeRef = csharpEnumerableTargetType(itemType);
@@ -35,81 +48,46 @@ export function getArrayTargetMembers(sourceName: string, receiverElementType?: 
   const boolType = csharpSourcePrimitiveTargetType("bool");
   const stringType = csharpStringTargetType();
   const arrayHelpersType = csharpTargetNamedType("Tsonic.CSharp.Js.Array", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Array"));
-  switch (sourceName) {
-    case "constructor":
-      {
-        const arrayType = csharpJsArrayCarrierTargetType(itemType);
-        return [
-          arrayConstructor("Tsonic.CSharp.Js.JSArray..ctor()", arrayType, []),
-          arrayConstructor("Tsonic.CSharp.Js.JSArray..ctor(System.Double)", arrayType, [targetParameter("length", doubleType)]),
-        ];
-      }
-    case "from":
-      return [
-        arrayStaticMethod(sourceName, "from", [targetParameter("iterable", enumerableType)], listType, arrayHelpersType, "from:array:native"),
-        arrayStaticMethod(sourceName, "from", [targetParameter("source", stringType)], csharpListTargetType(stringType), arrayHelpersType, "from:string:native"),
-        arrayStaticMethod(sourceName, "from", [
-          targetParameter("iterable", enumerableType),
-          targetParameter("mapFunc", csharpDelegateTargetType("System.Func", [itemType, intType], itemType)),
-        ], listType, arrayHelpersType, "from:array:indexed-map:native"),
-        arrayStaticMethod(sourceName, "from", [
-          targetParameter("iterable", enumerableType),
-          targetParameter("mapFunc", csharpDelegateTargetType("System.Func", [itemType], itemType)),
-        ], listType, arrayHelpersType, "from:array:map:native"),
-      ];
-    case "of":
-      return [arrayStaticMethod(sourceName, "of", [targetParameter("items", itemType, { paramsArray: true })], listType, arrayHelpersType, "of:native")];
-    case "isArray":
-      return [arrayStaticMethod(sourceName, "isArray", [targetParameter("value", readOnlyListType)], boolType, arrayHelpersType, "isArray:native")];
-    case "push":
-      return [arrayHelperMethod(sourceName, "push", [targetParameter("array", listType), targetParameter("item", itemType)], intType, arrayHelpersType)];
-    case "pop":
-      return receiverElementType === undefined ? [] : arrayNullishElementHelpers(sourceName, "popValue", "popReference", [targetParameter("array", listType)], itemType, arrayHelpersType);
-    case "shift":
-      return receiverElementType === undefined ? [] : arrayNullishElementHelpers(sourceName, "shiftValue", "shiftReference", [targetParameter("array", listType)], itemType, arrayHelpersType);
-    case "unshift":
-      return [arrayHelperMethod(sourceName, "unshift", [targetParameter("array", listType), targetParameter("item", itemType)], intType, arrayHelpersType)];
-    case "concat":
-      return [arrayHelperMethod(sourceName, "concat", [targetParameter("array", enumerableType), targetParameter("items", enumerableType, { paramsArray: true })], listType, arrayHelpersType)];
-    case "at":
-      return receiverElementType === undefined ? [] : arrayAtHelpers(sourceName, readOnlyListType, itemType, intType, arrayHelpersType);
-    case "includes":
-      return [arrayHelperMethod(sourceName, "includes", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], boolType, arrayHelpersType)];
-    case "indexOf":
-      return [arrayHelperMethod(sourceName, "indexOf", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], intType, arrayHelpersType)];
-    case "lastIndexOf":
-      return [arrayHelperMethod(sourceName, "lastIndexOf", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], intType, arrayHelpersType)];
-    case "join":
-      return [arrayHelperMethod(sourceName, "join", [targetParameter("array", readOnlyListType), targetParameter("separator", stringType, { optional: true })], stringType, arrayHelpersType)];
-    case "slice":
-      return [arrayHelperMethod(sourceName, "slice", [targetParameter("array", readOnlyListType), targetParameter("start", intType, { optional: true }), targetParameter("end", intType, { optional: true })], listType, arrayHelpersType)];
-    case "splice":
-      return [arrayHelperMethod(sourceName, "splice", [targetParameter("array", listType), targetParameter("start", intType), targetParameter("deleteCount", csharpNullableValueTargetType(intType), { optional: true }), targetParameter("items", itemType, { paramsArray: true })], listType, arrayHelpersType)];
-    case "reverse":
-      return [arrayHelperMethod(sourceName, "reverse", [targetParameter("array", listType)], listType, arrayHelpersType)];
-    case "sort":
-      return arrayCallbackHelpers(sourceName, "sort", "System.Func", itemType, csharpSourcePrimitiveTargetType("float64"), listType, listType, arrayHelpersType, { compareCallback: true, mutable: true });
-    case "forEach":
-      return arrayCallbackHelpers(sourceName, "forEach", "System.Action", itemType, csharpVoidTargetType(), csharpVoidTargetType(), readOnlyListType, arrayHelpersType);
-    case "some":
-      return arrayCallbackHelpers(sourceName, "some", "System.Func", itemType, boolType, boolType, readOnlyListType, arrayHelpersType);
-    case "every":
-      return arrayCallbackHelpers(sourceName, "every", "System.Func", itemType, boolType, boolType, readOnlyListType, arrayHelpersType);
-    case "filter":
-      return arrayCallbackHelpers(sourceName, "filter", "System.Func", itemType, boolType, listType, readOnlyListType, arrayHelpersType);
-    case "map":
-      return arrayCallbackHelpers(sourceName, "map", "System.Func", itemType, mappedItemType, csharpListTargetType(mappedItemType), readOnlyListType, arrayHelpersType, { typeParameters: [{ name: "U" }] });
-    case "find":
-      return receiverElementType === undefined ? [] : arrayNullishElementCallbackHelpers(sourceName, "findValue", "findReference", "System.Func", itemType, boolType, readOnlyListType, arrayHelpersType);
-    case "findIndex":
-      return arrayCallbackHelpers(sourceName, "findIndex", "System.Func", itemType, boolType, intType, readOnlyListType, arrayHelpersType);
-    case "findLast":
-      return receiverElementType === undefined ? [] : arrayNullishElementCallbackHelpers(sourceName, "findLastValue", "findLastReference", "System.Func", itemType, boolType, readOnlyListType, arrayHelpersType);
-    case "findLastIndex":
-      return arrayCallbackHelpers(sourceName, "findLastIndex", "System.Func", itemType, boolType, intType, readOnlyListType, arrayHelpersType);
-    default:
-      return [];
-  }
+  const arrayType = csharpJsArrayCarrierTargetType(itemType);
+  return [
+    arrayConstructor("Tsonic.CSharp.Js.JSArray..ctor()", arrayType, []),
+    arrayConstructor("Tsonic.CSharp.Js.JSArray..ctor(System.Double)", arrayType, [targetParameter("length", doubleType)]),
+    arrayStaticMethod("from", "from", [targetParameter("iterable", enumerableType)], listType, arrayHelpersType, "from:array:native"),
+    arrayStaticMethod("from", "from", [targetParameter("source", stringType)], csharpListTargetType(stringType), arrayHelpersType, "from:string:native"),
+    arrayStaticMethod("from", "from", [
+      targetParameter("iterable", enumerableType),
+      targetParameter("mapFunc", csharpDelegateTargetType("System.Func", [itemType, intType], itemType)),
+    ], listType, arrayHelpersType, "from:array:indexed-map:native"),
+    arrayStaticMethod("from", "from", [
+      targetParameter("iterable", enumerableType),
+      targetParameter("mapFunc", csharpDelegateTargetType("System.Func", [itemType], itemType)),
+    ], listType, arrayHelpersType, "from:array:map:native"),
+    arrayStaticMethod("of", "of", [targetParameter("items", itemType, { paramsArray: true })], listType, arrayHelpersType, "of:native"),
+    arrayStaticMethod("isArray", "isArray", [targetParameter("value", readOnlyListType)], boolType, arrayHelpersType, "isArray:native"),
+    arrayHelperMethod("push", "push", [targetParameter("array", listType), targetParameter("item", itemType)], intType, arrayHelpersType),
+    ...(receiverElementType === undefined ? [] : arrayNullishElementHelpers("pop", "popValue", "popReference", [targetParameter("array", listType)], itemType, arrayHelpersType)),
+    ...(receiverElementType === undefined ? [] : arrayNullishElementHelpers("shift", "shiftValue", "shiftReference", [targetParameter("array", listType)], itemType, arrayHelpersType)),
+    arrayHelperMethod("unshift", "unshift", [targetParameter("array", listType), targetParameter("item", itemType)], intType, arrayHelpersType),
+    arrayHelperMethod("concat", "concat", [targetParameter("array", enumerableType), targetParameter("items", enumerableType, { paramsArray: true })], listType, arrayHelpersType),
+    ...(receiverElementType === undefined ? [] : arrayAtHelpers("at", readOnlyListType, itemType, intType, arrayHelpersType)),
+    arrayHelperMethod("includes", "includes", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], boolType, arrayHelpersType),
+    arrayHelperMethod("indexOf", "indexOf", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], intType, arrayHelpersType),
+    arrayHelperMethod("lastIndexOf", "lastIndexOf", [targetParameter("array", readOnlyListType), targetParameter("searchElement", itemType), targetParameter("fromIndex", intType, { optional: true })], intType, arrayHelpersType),
+    arrayHelperMethod("join", "join", [targetParameter("array", readOnlyListType), targetParameter("separator", stringType, { optional: true })], stringType, arrayHelpersType),
+    arrayHelperMethod("slice", "slice", [targetParameter("array", readOnlyListType), targetParameter("start", intType, { optional: true }), targetParameter("end", intType, { optional: true })], listType, arrayHelpersType),
+    arrayHelperMethod("splice", "splice", [targetParameter("array", listType), targetParameter("start", intType), targetParameter("deleteCount", csharpNullableValueTargetType(intType), { optional: true }), targetParameter("items", itemType, { paramsArray: true })], listType, arrayHelpersType),
+    arrayHelperMethod("reverse", "reverse", [targetParameter("array", listType)], listType, arrayHelpersType),
+    ...arrayCallbackHelpers("sort", "sort", "System.Func", itemType, csharpSourcePrimitiveTargetType("float64"), listType, listType, arrayHelpersType, { compareCallback: true, mutable: true }),
+    ...arrayCallbackHelpers("forEach", "forEach", "System.Action", itemType, csharpVoidTargetType(), csharpVoidTargetType(), readOnlyListType, arrayHelpersType),
+    ...arrayCallbackHelpers("some", "some", "System.Func", itemType, boolType, boolType, readOnlyListType, arrayHelpersType),
+    ...arrayCallbackHelpers("every", "every", "System.Func", itemType, boolType, boolType, readOnlyListType, arrayHelpersType),
+    ...arrayCallbackHelpers("filter", "filter", "System.Func", itemType, boolType, listType, readOnlyListType, arrayHelpersType),
+    ...arrayCallbackHelpers("map", "map", "System.Func", itemType, mappedItemType, csharpListTargetType(mappedItemType), readOnlyListType, arrayHelpersType, { typeParameters: [{ name: "U" }] }),
+    ...(receiverElementType === undefined ? [] : arrayNullishElementCallbackHelpers("find", "findValue", "findReference", "System.Func", itemType, boolType, readOnlyListType, arrayHelpersType)),
+    ...arrayCallbackHelpers("findIndex", "findIndex", "System.Func", itemType, boolType, intType, readOnlyListType, arrayHelpersType),
+    ...(receiverElementType === undefined ? [] : arrayNullishElementCallbackHelpers("findLast", "findLastValue", "findLastReference", "System.Func", itemType, boolType, readOnlyListType, arrayHelpersType)),
+    ...arrayCallbackHelpers("findLastIndex", "findLastIndex", "System.Func", itemType, boolType, intType, readOnlyListType, arrayHelpersType),
+  ];
 }
 
 function arrayCallbackHelpers(
@@ -122,7 +100,7 @@ function arrayCallbackHelpers(
   arrayType: TargetTypeRef,
   declaringType: TargetTypeRef,
   options: { readonly compareCallback?: boolean; readonly mutable?: boolean; readonly typeParameters?: readonly TargetTypeParameter[]; readonly idBase?: string } = {},
-): readonly TargetMember[] {
+): readonly JsSurfaceTargetMemberMetadata[] {
   const intType = csharpSourcePrimitiveTargetType("int32");
   const callbackShapes: readonly TargetTypeRef[] = options.compareCallback === true
     ? [csharpDelegateTargetType("System.Func", [itemType, itemType], callbackReturnType)]
@@ -151,7 +129,7 @@ function arrayNullishElementHelpers(
   parameters: readonly TargetParameter[],
   itemType: TargetTypeRef,
   declaringType: TargetTypeRef,
-): readonly TargetMember[] {
+): readonly JsSurfaceTargetMemberMetadata[] {
   const selection = getNullishElementHelperSelection(itemType, valueTargetName, referenceTargetName);
   return selection === undefined
     ? []
@@ -167,7 +145,7 @@ function arrayNullishElementCallbackHelpers(
   callbackReturnType: TargetTypeRef,
   arrayType: TargetTypeRef,
   declaringType: TargetTypeRef,
-): readonly TargetMember[] {
+): readonly JsSurfaceTargetMemberMetadata[] {
   const selection = getNullishElementHelperSelection(itemType, valueTargetName, referenceTargetName);
   return selection === undefined
     ? []
@@ -191,7 +169,7 @@ function arrayAtHelpers(
   itemType: TargetTypeRef,
   intType: TargetTypeRef,
   declaringType: TargetTypeRef,
-): readonly TargetMember[] {
+): readonly JsSurfaceTargetMemberMetadata[] {
   if (isCsharpValueTypeTargetType(itemType)) {
     return [arrayHelperMethod(sourceName, "atValue", [targetParameter("array", arrayType), targetParameter("index", intType)], csharpNullableTargetType(itemType), declaringType, { idSuffix: `${sourceName}:value` })];
   }
@@ -208,16 +186,25 @@ function arrayStaticMethod(
   returnType: TargetTypeRef,
   declaringType: TargetTypeRef,
   idSuffix = sourceName,
-): TargetMember {
+): JsSurfaceTargetMemberMetadata {
   const owner = declaringType.kind === "target-named" ? declaringType.id.replace(/`.*$/, "") : "Tsonic.CSharp.Js.Array";
-  return targetMethod(`${owner}.${idSuffix}`, sourceName, targetName, parameters, returnType, { declaringType, static: true });
+  return {
+    id: `${owner}.${idSuffix}`,
+    sourceName,
+    targetName,
+    kind: "method",
+    parameters,
+    returnType,
+    declaringType,
+    static: true,
+  };
 }
 
 function arrayConstructor(
   id: string,
   declaringType: TargetTypeRef,
   parameters: readonly TargetParameter[],
-): TargetMember {
+): JsSurfaceTargetMemberMetadata {
   return {
     id,
     sourceName: "constructor",
@@ -236,11 +223,17 @@ function arrayHelperMethod(
   returnType: TargetTypeRef,
   declaringType: TargetTypeRef,
   options: { readonly idSuffix?: string; readonly typeParameters?: readonly TargetTypeParameter[] } = {},
-): TargetMember {
-  const member = targetMethod(`Tsonic.CSharp.Js.Array.${options.idSuffix ?? sourceName}`, sourceName, targetName, parameters, returnType, {
+): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.Array.${options.idSuffix ?? sourceName}`,
+    sourceName,
+    targetName,
+    kind: "method",
+    parameters,
+    returnType,
     declaringType,
     static: true,
     receiverPassing: "first-argument",
-  });
-  return options.typeParameters === undefined ? member : { ...member, typeParameters: options.typeParameters };
+    ...(options.typeParameters === undefined ? {} : { typeParameters: options.typeParameters }),
+  };
 }

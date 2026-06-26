@@ -3,7 +3,7 @@ export {
   recordCsharpJsArrayElementAccessFactsBeforeFinalization,
 } from "./arrays/element-access.js";
 export {
-  getArrayTargetMembers,
+  arrayTargetMembersForSourceName,
 } from "./arrays/target-members.js";
 export {
   getCsharpArrayLengthMember,

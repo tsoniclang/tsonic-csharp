@@ -1,6 +1,7 @@
 import type {
   TargetMember,
   TargetParameter,
+  TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 
@@ -14,6 +15,7 @@ export interface JsSurfaceTargetMemberMetadata {
   readonly declaringType?: TargetTypeRef;
   readonly static?: boolean;
   readonly receiverPassing?: TargetMember["receiverPassing"];
+  readonly typeParameters?: readonly TargetTypeParameter[];
 }
 
 export function jsSurfaceTargetMemberMetadataIndex(
@@ -47,7 +49,7 @@ export function jsSurfaceSingleTargetMemberForSourceName(
   return members?.length === 1 ? members[0] : undefined;
 }
 
-function targetMemberFromMetadata(record: JsSurfaceTargetMemberMetadata): TargetMember {
+export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberMetadata): TargetMember {
   return {
     id: record.id,
     sourceName: record.sourceName,
@@ -58,5 +60,8 @@ function targetMemberFromMetadata(record: JsSurfaceTargetMemberMetadata): Target
     ...(record.declaringType !== undefined ? { declaringType: record.declaringType } : {}),
     ...(record.static !== undefined ? { static: record.static } : {}),
     ...(record.receiverPassing !== undefined ? { receiverPassing: record.receiverPassing } : {}),
+    ...(record.typeParameters !== undefined ? { typeParameters: record.typeParameters } : {}),
   };
 }
+
+const targetMemberFromMetadata = jsSurfaceTargetMemberFromMetadata;

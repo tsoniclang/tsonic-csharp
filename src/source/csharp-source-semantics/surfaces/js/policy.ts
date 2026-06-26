@@ -10,7 +10,7 @@ import {
 import {
   getCsharpArrayLikeElementType,
   getCsharpJsArrayCarrierElementType,
-  getArrayTargetMembers,
+  arrayTargetMembersForSourceName,
   isCsharpJsArrayCarrierTargetType,
 } from "./arrays.js";
 import {
@@ -40,8 +40,8 @@ import {
 } from "./numbers.js";
 import {
   isCsharpJsObjectCarrierTargetType,
-  getObjectRecordDictionaryTargetMembers,
-  getObjectTargetMembers,
+  objectRecordDictionaryTargetMembersForSourceName,
+  objectTargetMembersForSourceName,
 } from "./objects.js";
 import {
   getCsharpJsRegExpRuntimeCarrierForSubject,
@@ -192,11 +192,11 @@ const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy
   {
     sourceMemberIdPrefixes: ["Object."],
     getCallMembers: (sourceMember, request, context, host) => [
-      ...getObjectTargetMembers(sourceLibraryMemberName(sourceMember)),
+      ...objectTargetMembersForSourceName(sourceLibraryMemberName(sourceMember)),
       ...getObjectPrimitiveReceiverCallMembers(request, context, host, sourceMember),
       ...getObjectRecordDictionaryCallMembers(sourceMember, request, context, host),
     ],
-    hasCallableProperty: (sourceMember) => getObjectTargetMembers(sourceLibraryMemberName(sourceMember)).length > 0,
+    hasCallableProperty: (sourceMember) => objectTargetMembersForSourceName(sourceLibraryMemberName(sourceMember)).length > 0,
   },
   {
     sourceMemberIdPrefixes: ["Array.", "ReadonlyArray."],
@@ -205,7 +205,7 @@ const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy
       if (sourceLibraryMemberMatchesAny(sourceMember, arrayConstructorSourceMemberIds) && resultElementType === undefined) {
         return [];
       }
-      return getArrayTargetMembers(
+      return arrayTargetMembersForSourceName(
         sourceLibraryMemberName(sourceMember),
         resultElementType ??
           getSourceLibraryCallReceiverElementType(request, context, host) ??
@@ -213,7 +213,7 @@ const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy
       );
     },
     hasCallableProperty: (sourceMember) =>
-      getArrayTargetMembers(sourceLibraryMemberName(sourceMember)).length > 0 ||
+      arrayTargetMembersForSourceName(sourceLibraryMemberName(sourceMember)).length > 0 ||
       arrayCallSurfaceMemberNames.has(sourceLibraryMemberName(sourceMember)),
   },
   {
@@ -391,7 +391,7 @@ function getObjectRecordDictionaryCallMembers(
       argumentType !== undefined && isStringKeyedRecordDictionaryTargetType(argumentType, host));
   return dictionaryType === undefined
     ? []
-    : getObjectRecordDictionaryTargetMembers(sourceLibraryMemberName(sourceMember), dictionaryType);
+    : objectRecordDictionaryTargetMembersForSourceName(sourceLibraryMemberName(sourceMember), dictionaryType);
 }
 
 function sourceLibraryJsonCallHasClosedFacts(
