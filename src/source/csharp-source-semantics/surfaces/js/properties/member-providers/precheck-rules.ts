@@ -2,26 +2,31 @@ import {
   jsonTargetMembersForSourceName,
 } from "../../json.js";
 import {
-  hasObjectTargetMember,
+  objectTargetMembersForSourceName,
 } from "../../objects.js";
-import {
-  sourceLibraryMemberName,
-} from "../../source-library.js";
 import type {
+  CsharpJsPropertyTargetMemberSet,
   CsharpJsPropertyPrecheckRule,
 } from "./types.js";
+
+const objectTargetMemberSet = targetMemberSet(objectTargetMembersForSourceName);
+const jsonTargetMemberSet = targetMemberSet(jsonTargetMembersForSourceName);
 
 export const propertyPrecheckRules: readonly CsharpJsPropertyPrecheckRule[] = [
   {
     identity: { prefixes: ["Console."] },
-    result: () => "defer",
+    result: "defer",
   },
   {
     identity: { prefixes: ["Object."] },
-    result: (sourceMember) => hasObjectTargetMember(sourceLibraryMemberName(sourceMember)) ? "defer" : "reject-unmapped",
+    result: { kind: "target-member-exists", members: objectTargetMemberSet },
   },
   {
     identity: { prefixes: ["JSON."] },
-    result: (sourceMember) => jsonTargetMembersForSourceName(sourceLibraryMemberName(sourceMember)).length > 0 ? "defer" : "reject-unmapped",
+    result: { kind: "target-member-exists", members: jsonTargetMemberSet },
   },
 ];
+
+function targetMemberSet(get: CsharpJsPropertyTargetMemberSet["get"]): CsharpJsPropertyTargetMemberSet {
+  return { get };
+}

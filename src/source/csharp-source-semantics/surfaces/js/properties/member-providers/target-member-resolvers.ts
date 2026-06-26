@@ -1,10 +1,4 @@
 import {
-  getCsharpArrayLengthMember,
-} from "../../arrays.js";
-import {
-  getCollectionPropertyTargetMember,
-} from "../../collections.js";
-import {
   mathPropertyTargetMemberForSourceName,
 } from "../../math.js";
 import {
@@ -16,62 +10,56 @@ import {
 import {
   csharpSourcePrimitiveTargetType,
   sourceLibraryMemberIdSet,
-  sourceLibraryMemberIdentity,
-  sourceLibraryMemberName,
 } from "../../source-library.js";
-import {
-  jsSurfaceTargetMemberFromMetadata,
-} from "../../target-member-metadata.js";
 import type {
-  CsharpJsPropertyMemberResolver,
+  CsharpJsPropertyMemberProvider,
+  CsharpJsPropertyTargetMemberSet,
 } from "./types.js";
 
-export const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
+const mathPropertyMemberSet = singleTargetMemberSet(mathPropertyTargetMemberForSourceName);
+const regExpPropertyMemberSet = singleTargetMemberSet(regExpPropertyTargetMemberForSourceName);
+const numberPropertyMemberSet = singleTargetMemberSet(numberPropertyTargetMemberForSourceName);
+
+export const propertyMemberProviders: readonly CsharpJsPropertyMemberProvider[] = [
   {
     identity: { prefixes: ["Math."] },
     excludedIdentity: { ids: sourceLibraryMemberIdSet(["Math.length"]) },
-    resolve: (sourceMember) => mathPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)),
+    member: { kind: "metadata-by-source-name", members: mathPropertyMemberSet },
   },
   {
     identity: { prefixes: ["RegExp."] },
     excludedIdentity: { ids: sourceLibraryMemberIdSet(["RegExp.length"]) },
-    resolve: (sourceMember) => regExpPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)),
+    member: { kind: "metadata-by-source-name", members: regExpPropertyMemberSet },
   },
   {
     identity: { prefixes: ["Number."] },
     excludedIdentity: { ids: sourceLibraryMemberIdSet(["Number.length"]) },
-    resolve: (sourceMember) => numberPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)),
+    member: { kind: "metadata-by-source-name", members: numberPropertyMemberSet },
   },
   {
     identity: { prefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."] },
     excludedIdentity: { ids: sourceLibraryMemberIdSet(["Map.length", "ReadonlyMap.length", "Set.length", "ReadonlySet.length"]) },
-    resolve: getCollectionPropertyTargetMember,
+    member: { kind: "collection-size" },
   },
   {
     identity: { ids: sourceLibraryMemberIdSet(["String.length"]) },
-    resolve: (sourceMember) => jsSurfaceTargetMemberFromMetadata({
-      id: "tsonic.csharp.js.String.length",
-      sourceName: sourceLibraryMemberName(sourceMember),
-      targetName: "Length",
-      kind: "property",
-      returnType: csharpSourcePrimitiveTargetType("int32"),
-    }),
+    member: { kind: "string-length" },
   },
   {
     identity: { ids: sourceLibraryMemberIdSet(["Array.length", "ReadonlyArray.length"]) },
-    resolve: (sourceMember, receiverType) => {
-      const lengthMember = receiverType?.kind === "array"
-        ? "length"
-        : getCsharpArrayLengthMember(receiverType);
-      return lengthMember === undefined
-        ? undefined
-        : jsSurfaceTargetMemberFromMetadata({
-            id: `tsonic.csharp.js.${sourceLibraryMemberIdentity(sourceMember)}`,
-            sourceName: sourceLibraryMemberName(sourceMember),
-            targetName: lengthMember,
-            kind: "property",
-            returnType: csharpSourcePrimitiveTargetType("int32"),
-          });
-    },
+    member: { kind: "array-length" },
   },
 ];
+
+export const int32PropertyReturnType = csharpSourcePrimitiveTargetType("int32");
+
+function singleTargetMemberSet(
+  get: (sourceName: string) => ReturnType<CsharpJsPropertyTargetMemberSet["get"]>[number] | undefined,
+): CsharpJsPropertyTargetMemberSet {
+  return {
+    get: (sourceName) => {
+      const member = get(sourceName);
+      return member === undefined ? [] : [member];
+    },
+  };
+}
