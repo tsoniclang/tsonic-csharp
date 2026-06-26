@@ -14,6 +14,7 @@ import type {
 export type {
   SourceLibraryDeclaringName,
   SourceLibraryMember,
+  SourceLibraryMemberId,
 } from "../../source-library.js";
 export {
   createSourceLibraryMember,

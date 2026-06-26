@@ -1,5 +1,6 @@
 import type {
   SourceLibraryMember,
+  SourceLibraryMemberId,
 } from "../source-library.js";
 import type {
   ArrayUse,
@@ -9,7 +10,7 @@ export function classifySourceLibraryArrayPropertyUse(
   sourceMember: SourceLibraryMember,
   isWriteTarget: boolean,
 ): readonly ArrayUse[] {
-  const propertyRule = arrayPropertyUseRules.find((rule) => rule.matches(sourceMember));
+  const propertyRule = arrayPropertyUseRules.find((rule) => arrayPropertyUseRuleApplies(rule, sourceMember));
   return propertyRule === undefined ? [] : propertyRule.uses(sourceMember, isWriteTarget);
 }
 
@@ -17,108 +18,145 @@ export function classifySourceLibraryStaticCallArgumentUse(
   sourceMember: SourceLibraryMember,
   argumentIndex: number,
 ): readonly ArrayUse[] {
-  const rule = staticCallArgumentUseRules.find((candidate) => candidate.matches(sourceMember, argumentIndex));
+  const rule = staticCallArgumentUseRules.find((candidate) =>
+    staticCallArgumentUseRuleApplies(candidate, sourceMember, argumentIndex)
+  );
   return rule === undefined ? [] : rule.uses;
 }
 
 interface ArrayPropertyUseRule {
-  readonly matches: (sourceMember: SourceLibraryMember) => boolean;
+  readonly sourceMemberIds: ReadonlySet<SourceLibraryMemberId>;
   readonly uses: (sourceMember: SourceLibraryMember, isWriteTarget: boolean) => readonly ArrayUse[];
 }
 
 interface StaticCallArgumentUseRule {
-  readonly matches: (sourceMember: SourceLibraryMember, argumentIndex: number) => boolean;
+  readonly sourceMemberIds: ReadonlySet<SourceLibraryMemberId>;
+  readonly argumentIndex: StaticCallArgumentIndexPolicy;
   readonly uses: readonly ArrayUse[];
 }
 
+type StaticCallArgumentIndexPolicy = number | { readonly greaterThan: number };
+
+const denseMutatingArrayMemberIds = sourceMemberIdSet([
+  "Array.push",
+  "Array.pop",
+  "Array.shift",
+  "Array.unshift",
+  "Array.splice",
+  "Array.reverse",
+  "Array.sort",
+]);
+
+const readIndexableArrayMemberIds = sourceMemberIdSet([
+  "Array.at",
+  "Array.concat",
+  "Array.every",
+  "Array.filter",
+  "Array.find",
+  "Array.findIndex",
+  "Array.findLast",
+  "Array.findLastIndex",
+  "Array.forEach",
+  "Array.includes",
+  "Array.indexOf",
+  "Array.join",
+  "Array.lastIndexOf",
+  "Array.map",
+  "Array.reduce",
+  "Array.reduceRight",
+  "Array.slice",
+  "Array.some",
+  "ReadonlyArray.at",
+  "ReadonlyArray.concat",
+  "ReadonlyArray.every",
+  "ReadonlyArray.filter",
+  "ReadonlyArray.find",
+  "ReadonlyArray.findIndex",
+  "ReadonlyArray.findLast",
+  "ReadonlyArray.findLastIndex",
+  "ReadonlyArray.forEach",
+  "ReadonlyArray.includes",
+  "ReadonlyArray.indexOf",
+  "ReadonlyArray.join",
+  "ReadonlyArray.lastIndexOf",
+  "ReadonlyArray.map",
+  "ReadonlyArray.reduce",
+  "ReadonlyArray.reduceRight",
+  "ReadonlyArray.slice",
+  "ReadonlyArray.some",
+]);
+
+const fullJsArrayMemberIds = sourceMemberIdSet([
+  "Array.copyWithin",
+  "Array.fill",
+  "Array.flat",
+  "Array.flatMap",
+  "Array.toReversed",
+  "Array.toSorted",
+  "Array.toSpliced",
+  "Array.with",
+]);
+
 const arrayPropertyUseRules: readonly ArrayPropertyUseRule[] = [
   {
-    matches: (sourceMember) => sourceMember.memberName === "length",
+    sourceMemberIds: sourceMemberIdSet(["Array.length", "ReadonlyArray.length"]),
     uses: (_sourceMember, isWriteTarget) => isWriteTarget ? ["full-js"] : ["length-read"],
   },
   {
-    matches: (sourceMember) => denseMutatingArrayMethods.has(sourceMember.memberName),
+    sourceMemberIds: denseMutatingArrayMemberIds,
     uses: () => ["dense-mutation"],
   },
   {
-    matches: (sourceMember) => fullJsArrayMethods.has(sourceMember.memberName),
+    sourceMemberIds: fullJsArrayMemberIds,
     uses: () => ["full-js"],
   },
   {
-    matches: (sourceMember) => readIndexableArrayMethods.has(sourceMember.memberName),
+    sourceMemberIds: readIndexableArrayMemberIds,
     uses: () => ["index-read"],
   },
 ];
 
 const staticCallArgumentUseRules: readonly StaticCallArgumentUseRule[] = [
   {
-    matches: (sourceMember, argumentIndex) =>
-      sourceMember.declaringName === "Array" &&
-      sourceMember.memberName === "from" &&
-      argumentIndex === 0,
+    sourceMemberIds: sourceMemberIdSet(["Array.from"]),
+    argumentIndex: 0,
     uses: ["sequential-read"],
   },
   {
-    matches: (sourceMember, argumentIndex) =>
-      sourceMember.declaringName === "Array" &&
-      sourceMember.memberName === "isArray" &&
-      argumentIndex === 0,
+    sourceMemberIds: sourceMemberIdSet(["Array.isArray"]),
+    argumentIndex: 0,
     uses: ["index-read"],
   },
   {
-    matches: (sourceMember, argumentIndex) =>
-      sourceMember.declaringName === "Object" &&
-      (sourceMember.memberName === "keys" || sourceMember.memberName === "values" || sourceMember.memberName === "entries") &&
-      argumentIndex === 0,
+    sourceMemberIds: sourceMemberIdSet(["Object.keys", "Object.values", "Object.entries"]),
+    argumentIndex: 0,
     uses: ["full-js"],
   },
   {
-    matches: (sourceMember, argumentIndex) =>
-      sourceMember.declaringName === "Object" &&
-      sourceMember.memberName === "assign" &&
-      argumentIndex > 0,
+    sourceMemberIds: sourceMemberIdSet(["Object.assign"]),
+    argumentIndex: { greaterThan: 0 },
     uses: ["full-js"],
   },
 ];
 
-const denseMutatingArrayMethods = new Set([
-  "push",
-  "pop",
-  "shift",
-  "unshift",
-  "splice",
-  "reverse",
-  "sort",
-]);
+function sourceMemberIdSet(ids: readonly SourceLibraryMemberId[]): ReadonlySet<SourceLibraryMemberId> {
+  return new Set(ids);
+}
 
-const readIndexableArrayMethods = new Set([
-  "at",
-  "concat",
-  "every",
-  "filter",
-  "find",
-  "findIndex",
-  "findLast",
-  "findLastIndex",
-  "forEach",
-  "includes",
-  "indexOf",
-  "join",
-  "lastIndexOf",
-  "map",
-  "reduce",
-  "reduceRight",
-  "slice",
-  "some",
-]);
+function arrayPropertyUseRuleApplies(rule: ArrayPropertyUseRule, sourceMember: SourceLibraryMember): boolean {
+  return rule.sourceMemberIds.has(sourceMember.id);
+}
 
-const fullJsArrayMethods = new Set([
-  "copyWithin",
-  "fill",
-  "flat",
-  "flatMap",
-  "toReversed",
-  "toSorted",
-  "toSpliced",
-  "with",
-]);
+function staticCallArgumentUseRuleApplies(
+  rule: StaticCallArgumentUseRule,
+  sourceMember: SourceLibraryMember,
+  argumentIndex: number,
+): boolean {
+  return rule.sourceMemberIds.has(sourceMember.id) && argumentIndexMatchesPolicy(rule.argumentIndex, argumentIndex);
+}
+
+function argumentIndexMatchesPolicy(policy: StaticCallArgumentIndexPolicy, argumentIndex: number): boolean {
+  return typeof policy === "number"
+    ? argumentIndex === policy
+    : argumentIndex > policy.greaterThan;
+}
