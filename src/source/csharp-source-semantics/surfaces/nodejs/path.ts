@@ -9,9 +9,7 @@ import {
   csharpStringTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
-  targetProperty,
 } from "../js/source-library.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
@@ -184,17 +182,16 @@ function pathCall(
     signatureId,
     providerParameters,
     providerReturnType,
-    member: targetMethod(
-      `Tsonic.CSharp.Node.path.${exportName}(${signatureId.slice("node:path.".length + exportName.length + 1, -1)})`,
-      exportName,
-      exportName,
-      targetParameters,
-      targetReturnType,
-      {
-        declaringType: pathTargetType,
-        static: true,
-      },
-    ),
+    member: {
+      id: `Tsonic.CSharp.Node.path.${exportName}(${signatureId.slice("node:path.".length + exportName.length + 1, -1)})`,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "method",
+      parameters: targetParameters,
+      returnType: targetReturnType,
+      declaringType: pathTargetType,
+      static: true,
+    },
   };
 }
 
@@ -206,10 +203,16 @@ function pathProperty(
   return {
     exportName,
     providerType,
-    member: targetProperty(`Tsonic.CSharp.Node.path.${exportName}`, exportName, exportName, targetType, {
+    member: {
+      id: `Tsonic.CSharp.Node.path.${exportName}`,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "property",
+      parameters: [],
+      returnType: targetType,
       declaringType: pathTargetType,
       static: true,
-    }),
+    },
   };
 }
 
@@ -245,9 +248,15 @@ function parsedPathProperty(id: string, name: string): {
 }
 
 function getNodePathParsedPathTargetMember(sourceName: string, targetName: string): TargetMember {
-  return targetProperty(`Tsonic.CSharp.Node.ParsedPath.${targetName}`, sourceName, targetName, stringTargetType, {
+  return {
+    id: `Tsonic.CSharp.Node.ParsedPath.${targetName}`,
+    sourceName,
+    targetName,
+    kind: "property",
+    parameters: [],
+    returnType: stringTargetType,
     declaringType: parsedPathTargetType,
-  });
+  };
 }
 
 const nodePathTargetMembersByIdentity = new Map<string, TargetMember>([

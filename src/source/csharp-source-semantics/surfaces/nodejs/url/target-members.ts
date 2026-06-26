@@ -6,9 +6,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  targetMethod,
   targetParameter,
-  targetProperty,
 } from "../../js/source-library.js";
 import {
   nodeUrlFileUrlToPathExportName,
@@ -131,17 +129,16 @@ function urlModuleCall(
     signatureId,
     providerParameters,
     providerReturnType,
-    member: targetMethod(
-      `Tsonic.CSharp.Node.url.${exportName}(${nodeUrlSignatureParameters(signatureId, `node:url.${exportName}`)})`,
-      exportName,
-      exportName,
-      targetParameters,
-      targetReturnType,
-      {
-        declaringType: urlModuleTargetType,
-        static: true,
-      },
-    ),
+    member: {
+      id: `Tsonic.CSharp.Node.url.${exportName}(${nodeUrlSignatureParameters(signatureId, `node:url.${exportName}`)})`,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "method",
+      parameters: targetParameters,
+      returnType: targetReturnType,
+      declaringType: urlModuleTargetType,
+      static: true,
+    },
   };
 }
 
@@ -189,17 +186,16 @@ function urlClassMethod(
     providerParameters,
     providerReturnType,
     ...(options.static === true ? { static: true } : {}),
-    member: targetMethod(
-      `Tsonic.CSharp.Node.${exportName}.${targetName}(${nodeUrlSignatureParameters(signatureId, `node:url.${exportName}.${memberName}`)})`,
-      memberName,
+    member: {
+      id: `Tsonic.CSharp.Node.${exportName}.${targetName}(${nodeUrlSignatureParameters(signatureId, `node:url.${exportName}.${memberName}`)})`,
+      sourceName: memberName,
       targetName,
-      targetParameters,
-      targetReturnType,
-      {
-        declaringType: urlTargetType,
-        ...(options.static === true ? { static: true } : {}),
-      },
-    ),
+      kind: "method",
+      parameters: targetParameters,
+      returnType: targetReturnType,
+      declaringType: urlTargetType,
+      ...(options.static === true ? { static: true } : {}),
+    },
   };
 }
 
@@ -214,9 +210,15 @@ function urlClassProperty(
     memberId,
     providerType: stringProviderType,
     ...(options.readonly === true ? { readonly: true } : {}),
-    member: targetProperty(`Tsonic.CSharp.Node.URL.${memberName}`, memberName, memberName, stringTargetType, {
+    member: {
+      id: `Tsonic.CSharp.Node.URL.${memberName}`,
+      sourceName: memberName,
+      targetName: memberName,
+      kind: "property",
+      parameters: [],
+      returnType: stringTargetType,
       declaringType: urlTargetType,
-    }),
+    },
   };
 }
 

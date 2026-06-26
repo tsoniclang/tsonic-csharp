@@ -3,13 +3,13 @@ import type {
   ProviderParameterDeclaration,
   ProviderTypeExpression,
   TargetMember,
+  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpStringTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
 } from "../js/source-library.js";
 
@@ -77,14 +77,9 @@ export function nodeUtilExports(): readonly ProviderExportDeclaration[] {
 }
 
 export function nodeUtilUnsupportedTargetIdentities(): readonly NodeUtilUnsupportedTargetIdentity[] {
-  return [
-    unsupportedUtilTargetIdentity(nodeUtilFormatExportName, nodeUtilFormatSignatureId),
-    unsupportedUtilTargetIdentity(nodeUtilFormatWithOptionsExportName, nodeUtilFormatWithOptionsSignatureId),
-    unsupportedUtilTargetIdentity(nodeUtilInspectExportName, nodeUtilInspectSignatureId),
-    unsupportedUtilTargetIdentity(nodeUtilDebuglogExportName, nodeUtilDebuglogSignatureId),
-    unsupportedUtilTargetIdentity(nodeUtilDeprecateExportName, nodeUtilDeprecateSignatureId),
-    unsupportedUtilTargetIdentity(nodeUtilIsDeepStrictEqualExportName, nodeUtilIsDeepStrictEqualSignatureId),
-  ];
+  return nodeUtilUnsupportedCalls.map(({ exportName, signatureId }) =>
+    unsupportedUtilTargetIdentity(exportName, signatureId)
+  );
 }
 
 export function nodeUtilCallTargetMembers(): readonly {
@@ -139,52 +134,11 @@ function unsupportedUtilTargetIdentity(
 }
 
 function unsupportedUtilParameters(exportName: string): readonly ProviderParameterDeclaration[] {
-  switch (exportName) {
-    case nodeUtilFormatExportName:
-      return [
-        unknownParameter("format", true),
-        unknownRestParameter("args"),
-      ];
-    case nodeUtilFormatWithOptionsExportName:
-      return [
-        unknownParameter("inspectOptions"),
-        unknownParameter("formatValue"),
-        unknownRestParameter("args"),
-      ];
-    case nodeUtilInspectExportName:
-      return [
-        unknownParameter("object"),
-      ];
-    case nodeUtilDebuglogExportName:
-      return [
-        stringParameter("section"),
-      ];
-    case nodeUtilDeprecateExportName:
-      return [
-        callbackParameter("fn"),
-        stringParameter("msg"),
-        stringParameter("code", true),
-      ];
-    case nodeUtilIsDeepStrictEqualExportName:
-      return [
-        unknownParameter("val1"),
-        unknownParameter("val2"),
-      ];
-    default:
-      return [];
-  }
+  return nodeUtilUnsupportedCalls.find((entry) => entry.exportName === exportName)?.parameters ?? [];
 }
 
 function unsupportedUtilReturnType(exportName: string): ProviderTypeExpression {
-  switch (exportName) {
-    case nodeUtilDebuglogExportName:
-    case nodeUtilDeprecateExportName:
-      return callbackProviderType;
-    case nodeUtilIsDeepStrictEqualExportName:
-      return boolProviderType;
-    default:
-      return stringProviderType;
-  }
+  return nodeUtilUnsupportedCalls.find((entry) => entry.exportName === exportName)?.returnType ?? stringProviderType;
 }
 
 function unknownParameter(name: string, optional = false): ProviderParameterDeclaration {
@@ -223,7 +177,7 @@ function utilCall(
   signatureId: string,
   providerParameters: readonly ProviderParameterDeclaration[],
   providerReturnType: ProviderTypeExpression,
-  targetParameters: readonly ReturnType<typeof targetParameter>[],
+  targetParameters: readonly TargetParameter[],
   targetReturnType: TargetTypeRef,
 ): NodeUtilCallTargetMember {
   return {
@@ -231,16 +185,77 @@ function utilCall(
     signatureId,
     providerParameters,
     providerReturnType,
-    member: targetMethod(
-      `Tsonic.CSharp.Node.util.${exportName}(${signatureId.slice("node:util.".length + exportName.length + 1, -1)})`,
-      exportName,
-      exportName,
-      targetParameters,
-      targetReturnType,
-      {
-        declaringType: utilTargetType,
-        static: true,
-      },
-    ),
+    member: {
+      id: `Tsonic.CSharp.Node.util.${exportName}(${signatureId.slice("node:util.".length + exportName.length + 1, -1)})`,
+      sourceName: exportName,
+      targetName: exportName,
+      kind: "method",
+      parameters: targetParameters,
+      returnType: targetReturnType,
+      declaringType: utilTargetType,
+      static: true,
+    },
   };
 }
+
+const nodeUtilUnsupportedCalls = [
+  {
+    exportName: nodeUtilFormatExportName,
+    signatureId: nodeUtilFormatSignatureId,
+    parameters: [
+      unknownParameter("format", true),
+      unknownRestParameter("args"),
+    ],
+    returnType: stringProviderType,
+  },
+  {
+    exportName: nodeUtilFormatWithOptionsExportName,
+    signatureId: nodeUtilFormatWithOptionsSignatureId,
+    parameters: [
+      unknownParameter("inspectOptions"),
+      unknownParameter("formatValue"),
+      unknownRestParameter("args"),
+    ],
+    returnType: stringProviderType,
+  },
+  {
+    exportName: nodeUtilInspectExportName,
+    signatureId: nodeUtilInspectSignatureId,
+    parameters: [
+      unknownParameter("object"),
+    ],
+    returnType: stringProviderType,
+  },
+  {
+    exportName: nodeUtilDebuglogExportName,
+    signatureId: nodeUtilDebuglogSignatureId,
+    parameters: [
+      stringParameter("section"),
+    ],
+    returnType: callbackProviderType,
+  },
+  {
+    exportName: nodeUtilDeprecateExportName,
+    signatureId: nodeUtilDeprecateSignatureId,
+    parameters: [
+      callbackParameter("fn"),
+      stringParameter("msg"),
+      stringParameter("code", true),
+    ],
+    returnType: callbackProviderType,
+  },
+  {
+    exportName: nodeUtilIsDeepStrictEqualExportName,
+    signatureId: nodeUtilIsDeepStrictEqualSignatureId,
+    parameters: [
+      unknownParameter("val1"),
+      unknownParameter("val2"),
+    ],
+    returnType: boolProviderType,
+  },
+] satisfies readonly {
+  readonly exportName: string;
+  readonly signatureId: string;
+  readonly parameters: readonly ProviderParameterDeclaration[];
+  readonly returnType: ProviderTypeExpression;
+}[];
