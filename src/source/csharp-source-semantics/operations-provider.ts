@@ -59,7 +59,7 @@ import {
 } from "./checked-native-mapping.js";
 import {
   observeCsharpPostCheckAssignability,
-} from "./checked-assignability-validation.js";
+} from "./checked-assignability-validation/index.js";
 import {
   validateCsharpTargetConstraint,
 } from "./target-constraint-validation.js";

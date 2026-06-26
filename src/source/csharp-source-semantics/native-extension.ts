@@ -52,7 +52,7 @@ import {
 } from "./csharp-operation-lifecycle.js";
 import {
   validateCsharpObservedAssignabilityFactsBeforeFinalization,
-} from "./checked-assignability-validation.js";
+} from "./checked-assignability-validation/index.js";
 import {
   diagnoseOpaqueAnyOperationsBeforeFinalization,
 } from "./opaque-any-diagnostics.js";
