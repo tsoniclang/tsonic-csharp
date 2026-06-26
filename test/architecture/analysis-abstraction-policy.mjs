@@ -153,6 +153,30 @@ export const analysisAbstractionRules = Object.freeze([
       "Use the canonical Node provider metadata index instead of per-module target-member identity maps.",
   },
   {
+    id: "source-family-call-provider-registry",
+    pattern: /\b(?:csharpJsSourceLibraryProviders|providerForSourceMember|simpleCallProvider)\b/g,
+    replacement:
+      "Replace source-family call-provider registries with source identity policy data plus generic provider/runtime metadata selectors.",
+  },
+  {
+    id: "source-family-closed-facts-validator",
+    pattern: /\b(?:jsonClosedFactsValidators|objectClosedFactsValidators|callClosedReceiverPolicies)\b/g,
+    replacement:
+      "Closed-fact validation must consume generic lazy analysis records and provider facts, not source-family validator tables.",
+  },
+  {
+    id: "executable-surface-member-template",
+    pattern: /\bcreateMembers\s*:\s*\(/g,
+    replacement:
+      "Surface member definitions must be provider/runtime metadata records or explicit exception records, not executable per-member templates.",
+  },
+  {
+    id: "array-specific-use-classifier",
+    pattern: /\b(?:ArrayUse|collectArrayUsesForSymbol|classifyIdentifierArrayUse|classifySourceLibraryArrayPropertyUse|classifySourceLibraryStaticCallArgumentUse)\b/g,
+    replacement:
+      "Use lazy generic analysis services for references, property writes, element writes, calls, captures, escapes, and mutations; array carrier planning consumes those structural records.",
+  },
+  {
     id: "semantic-fallback-word",
     pattern: /\bfallback\b/gi,
     replacement:
@@ -166,6 +190,12 @@ export const analysisAbstractionFileRules = Object.freeze([
     pattern: /(?:^|\/)(?:policy|selection-policy|property-policy|array-use-policy)\.ts$/,
     replacement:
       "Use named source-identity, rule, provider-metadata, selector, closed-fact, or exception modules; do not reintroduce procedural policy catch-alls.",
+  },
+  {
+    id: "array-specific-use-classifier-file",
+    pattern: /(?:^|\/)surfaces\/js\/array-carrier-lifecycle\/(?:use-classification|types)\.ts$/,
+    replacement:
+      "Move source-use discovery into the generic lazy analysis layer; array lifecycle planning must consume structural analysis records.",
   },
 ]);
 
@@ -190,6 +220,83 @@ export const analysisAbstractionDebtOwners = Object.freeze([
 ]);
 
 export const analysisAbstractionDebtCatalog = Object.freeze([
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
+    { "array-specific-use-classifier": 7 },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Replace array-specific use labels with generic lazy analysis query results consumed by array carrier policy.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/carrier-classification.ts",
+    { "array-specific-use-classifier": 2 },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Classify carrier lanes from generic structural analysis records and declarative policy, not ArrayUse labels.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/traversal.ts",
+    { "array-specific-use-classifier": 2 },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Route traversal through the generic lazy analysis layer instead of array-specific symbol-use collection.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/types.ts",
+    { "array-specific-use-classifier-file": 1, "array-specific-use-classifier": 2 },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Replace ArrayUse-specific public types with structural analysis result types shared across surfaces.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/use-classification.ts",
+    { "array-specific-use-classifier-file": 1, "array-specific-use-classifier": 14 },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Move source-use discovery into reusable lazy analysis services and consume structural records from array planning.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/receiver-validation.ts",
+    { "source-family-closed-facts-validator": 6 },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Replace source-family closed-fact validator tables with policy/provider facts over selected declarations and generic analysis.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/registry.ts",
+    { "source-family-call-provider-registry": 13 },
+    "surface-policy-candidate",
+    "surface-provider",
+    "Replace procedural source-family call provider registry with declarative source identity policy and generic provider/runtime metadata selectors.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-policy.ts",
+    { "executable-surface-member-template": 4 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Represent Map members as provider/runtime metadata records or explicit semantic exceptions instead of executable member templates.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/member-builders.ts",
+    { "executable-surface-member-template": 2 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Replace collection member builder templates with generic provider metadata construction over declarative member records.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/set-policy.ts",
+    { "executable-surface-member-template": 3 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Represent Set members as provider/runtime metadata records or explicit semantic exceptions instead of executable member templates.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/types.ts",
+    { "executable-surface-member-template": 1 },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Remove executable member templates from metadata contracts; provider metadata rows must be declarative.",
+  ),
 ]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
