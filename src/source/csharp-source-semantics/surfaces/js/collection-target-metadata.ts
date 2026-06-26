@@ -23,15 +23,13 @@ import {
   jsSurfaceTargetMemberFromMetadata,
 } from "./target-member-metadata.js";
 import type {
-  SourceLibraryDeclaringName,
   SourceLibraryMember,
-  SourceLibraryMemberId,
+  SourceLibraryMemberIdentityPolicy,
 } from "./source-library.js";
 import {
   sourceLibraryMemberIdSet,
   sourceLibraryMemberIdentity,
-  sourceLibraryMemberMatchesAny,
-  sourceLibraryMemberMatchesAnyPrefix,
+  sourceLibraryMemberMatches,
 } from "./source-library.js";
 import {
   getSourceStandardLibraryDeclaringNameForType,
@@ -49,7 +47,7 @@ type CsharpJsSetTargetTypeRef = CsharpTargetNamedTypeRef & {
 };
 
 interface CsharpJsCollectionTypePolicy {
-  readonly sourceNames: readonly SourceLibraryDeclaringName[];
+  readonly sourceNames: readonly string[];
   readonly targetName: "Map" | "Set";
   readonly typeParameterNames: readonly string[];
   readonly createOpenType: () => TargetTypeRef;
@@ -133,7 +131,7 @@ export function collectionTargetMembersForSourceMember(
 }
 
 export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMember, receiverType: TargetTypeRef | undefined): TargetMember | undefined {
-  if (!sourceLibraryMemberMatchesAny(sourceMember, collectionSizeSourceMemberIds)) {
+  if (!sourceLibraryMemberMatches(sourceMember, collectionSizeIdentityPolicy)) {
     return undefined;
   }
   const policy = collectionPolicyForSourceMember(sourceMember);
@@ -326,19 +324,19 @@ const csharpJsCollectionPolicies: readonly CsharpJsCollectionTypePolicy[] = [
   },
 ];
 
-const collectionPoliciesBySourceName = new Map<SourceLibraryDeclaringName, CsharpJsCollectionTypePolicy>(
+const collectionPoliciesBySourceName = new Map<string, CsharpJsCollectionTypePolicy>(
   csharpJsCollectionPolicies.flatMap((policy) =>
     policy.sourceNames.map((sourceName) => [sourceName, policy] as const)
   ),
 );
 
-function collectionPolicyForSourceName(sourceName: SourceLibraryDeclaringName): CsharpJsCollectionTypePolicy | undefined {
+function collectionPolicyForSourceName(sourceName: string): CsharpJsCollectionTypePolicy | undefined {
   return collectionPoliciesBySourceName.get(sourceName);
 }
 
 function collectionPolicyForSourceMember(sourceMember: SourceLibraryMember): CsharpJsCollectionTypePolicy | undefined {
   return csharpJsCollectionPolicies.find((policy) =>
-    sourceLibraryMemberMatchesAnyPrefix(sourceMember, sourceMemberPrefixesForCollectionPolicy(policy))
+    sourceLibraryMemberMatches(sourceMember, sourceMemberIdentityPolicyForCollection(policy))
   );
 }
 
@@ -347,7 +345,7 @@ function collectionMemberPolicyApplies(
   memberPolicy: CsharpJsCollectionMemberPolicy,
   sourceMember: SourceLibraryMember,
 ): boolean {
-  return sourceLibraryMemberMatchesAny(sourceMember, sourceMemberIdsForCollectionMemberPolicy(policy, memberPolicy));
+  return sourceLibraryMemberMatches(sourceMember, sourceMemberIdentityPolicyForCollectionMember(policy, memberPolicy));
 }
 
 function collectionPolicyForSourceType(type: Type, context: ExtensionObservationContext): CsharpJsCollectionTypePolicy | undefined {
@@ -355,24 +353,31 @@ function collectionPolicyForSourceType(type: Type, context: ExtensionObservation
   return declaringName === undefined ? undefined : collectionPolicyForSourceName(declaringName);
 }
 
-const collectionSizeSourceMemberIds = sourceLibraryMemberIdSet([
-  "Map.size",
-  "ReadonlyMap.size",
-  "Set.size",
-  "ReadonlySet.size",
-]);
+const collectionSizeIdentityPolicy = sourceMemberIdentityPolicyForSourceNames(
+  ["Map", "ReadonlyMap", "Set", "ReadonlySet"],
+  "size",
+);
 
-function sourceMemberPrefixesForCollectionPolicy(
+function sourceMemberIdentityPolicyForCollection(
   policy: CsharpJsCollectionTypePolicy,
-): readonly `${SourceLibraryDeclaringName}.`[] {
-  return policy.sourceNames.map((sourceName): `${SourceLibraryDeclaringName}.` => `${sourceName}.`);
+): SourceLibraryMemberIdentityPolicy {
+  return sourceMemberIdentityPolicyForSourceNames(policy.sourceNames);
 }
 
-function sourceMemberIdsForCollectionMemberPolicy(
+function sourceMemberIdentityPolicyForCollectionMember(
   policy: CsharpJsCollectionTypePolicy,
   memberPolicy: CsharpJsCollectionMemberPolicy,
-): ReadonlySet<SourceLibraryMemberId> {
-  return sourceLibraryMemberIdSet(policy.sourceNames.map((sourceName): SourceLibraryMemberId => `${sourceName}.${memberPolicy.sourceName}`));
+): SourceLibraryMemberIdentityPolicy {
+  return sourceMemberIdentityPolicyForSourceNames(policy.sourceNames, memberPolicy.sourceName);
+}
+
+function sourceMemberIdentityPolicyForSourceNames(
+  sourceNames: readonly string[],
+  memberName?: string,
+): SourceLibraryMemberIdentityPolicy {
+  return memberName === undefined
+    ? { prefixes: sourceNames.map((sourceName) => `${sourceName}.`) as NonNullable<SourceLibraryMemberIdentityPolicy["prefixes"]> }
+    : { ids: sourceLibraryMemberIdSet(sourceNames.map((sourceName) => `${sourceName}.${memberName}`) as Parameters<typeof sourceLibraryMemberIdSet>[0]) };
 }
 
 function collectionPolicyForTargetType(type: TargetTypeRef): CsharpJsCollectionTypePolicy | undefined {
