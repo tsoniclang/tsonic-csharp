@@ -33,9 +33,15 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
 } from "./source-library.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceTargetMemberMetadataIndex,
+  jsSurfaceTargetMembersForSourceName,
+} from "./target-member-metadata.js";
 import {
   getSourceLibraryDeclarationName,
 } from "../../source-library.js";
@@ -123,18 +129,15 @@ function isCheckedSourceLibraryDateConstruction(
     getSourceLibraryDeclarationName(declaration, context) === "Date");
 }
 
-export function getDateTargetMembers(sourceName: string, callKind: "call" | "new"): readonly TargetMember[] {
-  if (sourceName === "constructor") {
-    return callKind === "new" ? dateConstructorMembers : [dateFunctionMember];
-  }
-  const targetMember = dateTargetMembers.get(sourceName);
-  return targetMember === undefined ? [] : [targetMember];
+export function dateTargetMembersForSourceName(sourceName: string, callKind: "call" | "new"): readonly TargetMember[] {
+  return dateCallKindTargetMemberIndex.get(dateCallKindKey(sourceName, callKind)) ??
+    jsSurfaceTargetMembersForSourceName(dateTargetMemberIndex, sourceName);
 }
 
-function dateConstructor(
+function dateConstructorMetadata(
   id: string,
   parameters: readonly ReturnType<typeof targetParameter>[],
-): TargetMember {
+): JsSurfaceTargetMemberMetadata {
   return {
     id,
     sourceName: "constructor",
@@ -146,26 +149,38 @@ function dateConstructor(
   };
 }
 
-function dateStaticMethod(
+function dateStaticMethodMetadata(
   sourceName: string,
   parameters: readonly ReturnType<typeof targetParameter>[],
   returnType: TargetTypeRef,
-): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.Date.${sourceName}`, sourceName, sourceName, parameters, returnType, {
+): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.Date.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    parameters,
+    returnType,
     declaringType: dateType,
     static: true,
-  });
+  };
 }
 
-function dateMethod(
+function dateMethodMetadata(
   sourceName: string,
   parameters: readonly ReturnType<typeof targetParameter>[],
   returnType: TargetTypeRef,
   targetName = sourceName,
-): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.Date.${sourceName}`, sourceName, targetName, parameters, returnType, {
+): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.Date.${sourceName}`,
+    sourceName,
+    targetName,
+    kind: "method",
+    parameters,
+    returnType,
     declaringType: dateType,
-  });
+  };
 }
 
 function optionalIntParameter(name: string): ReturnType<typeof targetParameter> {
@@ -180,18 +195,18 @@ const longType = csharpSourcePrimitiveTargetType("int64");
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const nullableIntType = csharpNullableValueTargetType(intType);
 
-const dateConstructorMembers: readonly TargetMember[] = [
-  dateConstructor("Tsonic.CSharp.Js.Date..ctor()", []),
-  dateConstructor("Tsonic.CSharp.Js.Date..ctor(System.Double)", [
+const dateConstructorMemberMetadata = [
+  dateConstructorMetadata("Tsonic.CSharp.Js.Date..ctor()", []),
+  dateConstructorMetadata("Tsonic.CSharp.Js.Date..ctor(System.Double)", [
     targetParameter("milliseconds", doubleType),
   ]),
-  dateConstructor("Tsonic.CSharp.Js.Date..ctor(System.String)", [
+  dateConstructorMetadata("Tsonic.CSharp.Js.Date..ctor(System.String)", [
     targetParameter("dateString", stringType),
   ]),
-  dateConstructor("Tsonic.CSharp.Js.Date..ctor(System.Object)", [
+  dateConstructorMetadata("Tsonic.CSharp.Js.Date..ctor(System.Object)", [
     targetParameter("value", objectType, { csharpAcceptsCheckedSourceArgument: true }),
   ]),
-  dateConstructor("Tsonic.CSharp.Js.Date..ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32)", [
+  dateConstructorMetadata("Tsonic.CSharp.Js.Date..ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32)", [
     targetParameter("year", intType),
     targetParameter("month", intType),
     targetParameter("day", intType, { optional: true }),
@@ -200,12 +215,24 @@ const dateConstructorMembers: readonly TargetMember[] = [
     targetParameter("seconds", intType, { optional: true }),
     targetParameter("milliseconds", intType, { optional: true }),
   ]),
-];
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const dateConstructorMemberIndex = jsSurfaceTargetMemberMetadataIndex(dateConstructorMemberMetadata);
+const dateConstructorMembers = jsSurfaceTargetMembersForSourceName(dateConstructorMemberIndex, "constructor");
 
-const dateFunctionMember = targetMethod("Tsonic.CSharp.Js.Date.call", "constructor", "call", [], stringType, {
+const dateFunctionMember = jsSurfaceTargetMembersForSourceName(jsSurfaceTargetMemberMetadataIndex([{
+  id: "Tsonic.CSharp.Js.Date.call",
+  sourceName: "constructor",
+  targetName: "call",
+  kind: "method",
+  parameters: [],
+  returnType: stringType,
   declaringType: dateType,
   static: true,
-});
+}] satisfies readonly JsSurfaceTargetMemberMetadata[]), "constructor");
+const dateCallKindTargetMemberIndex = new Map<string, readonly TargetMember[]>([
+  [dateCallKindKey("constructor", "call"), dateFunctionMember],
+  [dateCallKindKey("constructor", "new"), dateConstructorMembers],
+]);
 
 const utcParameters = [
   targetParameter("year", intType),
@@ -248,66 +275,71 @@ const dateStringMethodNames = [
   "toLocaleString",
 ] as const;
 
-const dateTargetMembers = new Map<string, TargetMember>([
-  ["now", dateStaticMethod("now", [], longType)],
-  ["parse", dateStaticMethod("parse", [targetParameter("dateString", stringType)], doubleType)],
-  ["UTC", dateStaticMethod("UTC", utcParameters, doubleType)],
-  ["getTime", dateMethod("getTime", [], longType)],
-  ["valueOf", dateMethod("valueOf", [], longType)],
-  ["toString", dateMethod("toString", [], stringType, "ToString")],
-  ...dateGetterNames.map((name) => [name, dateMethod(name, [], intType)] as const),
-  ...dateStringMethodNames.map((name) => [name, dateMethod(name, [], stringType)] as const),
-  ["setTime", dateMethod("setTime", [targetParameter("milliseconds", doubleType)], doubleType)],
-  ["setMilliseconds", dateMethod("setMilliseconds", [targetParameter("ms", intType)], doubleType)],
-  ["setSeconds", dateMethod("setSeconds", [
+const dateTargetMemberMetadata = [
+  dateStaticMethodMetadata("now", [], longType),
+  dateStaticMethodMetadata("parse", [targetParameter("dateString", stringType)], doubleType),
+  dateStaticMethodMetadata("UTC", utcParameters, doubleType),
+  dateMethodMetadata("getTime", [], longType),
+  dateMethodMetadata("valueOf", [], longType),
+  dateMethodMetadata("toString", [], stringType, "ToString"),
+  ...dateGetterNames.map((sourceName) => dateMethodMetadata(sourceName, [], intType)),
+  ...dateStringMethodNames.map((sourceName) => dateMethodMetadata(sourceName, [], stringType)),
+  dateMethodMetadata("setTime", [targetParameter("milliseconds", doubleType)], doubleType),
+  dateMethodMetadata("setMilliseconds", [targetParameter("ms", intType)], doubleType),
+  dateMethodMetadata("setSeconds", [
     targetParameter("sec", intType),
     optionalIntParameter("ms"),
-  ], doubleType)],
-  ["setMinutes", dateMethod("setMinutes", [
+  ], doubleType),
+  dateMethodMetadata("setMinutes", [
     targetParameter("min", intType),
     optionalIntParameter("sec"),
     optionalIntParameter("ms"),
-  ], doubleType)],
-  ["setHours", dateMethod("setHours", [
+  ], doubleType),
+  dateMethodMetadata("setHours", [
     targetParameter("hour", intType),
     optionalIntParameter("min"),
     optionalIntParameter("sec"),
     optionalIntParameter("ms"),
-  ], doubleType)],
-  ["setDate", dateMethod("setDate", [targetParameter("day", intType)], doubleType)],
-  ["setMonth", dateMethod("setMonth", [
+  ], doubleType),
+  dateMethodMetadata("setDate", [targetParameter("day", intType)], doubleType),
+  dateMethodMetadata("setMonth", [
     targetParameter("month", intType),
     optionalIntParameter("day"),
-  ], doubleType)],
-  ["setFullYear", dateMethod("setFullYear", [
+  ], doubleType),
+  dateMethodMetadata("setFullYear", [
     targetParameter("year", intType),
     optionalIntParameter("month"),
     optionalIntParameter("day"),
-  ], doubleType)],
-  ["setUTCMilliseconds", dateMethod("setUTCMilliseconds", [targetParameter("ms", intType)], doubleType)],
-  ["setUTCSeconds", dateMethod("setUTCSeconds", [
+  ], doubleType),
+  dateMethodMetadata("setUTCMilliseconds", [targetParameter("ms", intType)], doubleType),
+  dateMethodMetadata("setUTCSeconds", [
     targetParameter("sec", intType),
     optionalIntParameter("ms"),
-  ], doubleType)],
-  ["setUTCMinutes", dateMethod("setUTCMinutes", [
+  ], doubleType),
+  dateMethodMetadata("setUTCMinutes", [
     targetParameter("min", intType),
     optionalIntParameter("sec"),
     optionalIntParameter("ms"),
-  ], doubleType)],
-  ["setUTCHours", dateMethod("setUTCHours", [
+  ], doubleType),
+  dateMethodMetadata("setUTCHours", [
     targetParameter("hour", intType),
     optionalIntParameter("min"),
     optionalIntParameter("sec"),
     optionalIntParameter("ms"),
-  ], doubleType)],
-  ["setUTCDate", dateMethod("setUTCDate", [targetParameter("day", intType)], doubleType)],
-  ["setUTCMonth", dateMethod("setUTCMonth", [
+  ], doubleType),
+  dateMethodMetadata("setUTCDate", [targetParameter("day", intType)], doubleType),
+  dateMethodMetadata("setUTCMonth", [
     targetParameter("month", intType),
     optionalIntParameter("day"),
-  ], doubleType)],
-  ["setUTCFullYear", dateMethod("setUTCFullYear", [
+  ], doubleType),
+  dateMethodMetadata("setUTCFullYear", [
     targetParameter("year", intType),
     optionalIntParameter("month"),
     optionalIntParameter("day"),
-  ], doubleType)],
-]);
+  ], doubleType),
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const dateTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(dateTargetMemberMetadata);
+
+function dateCallKindKey(sourceName: string, callKind: "call" | "new"): string {
+  return `${sourceName}\u0000${callKind}`;
+}

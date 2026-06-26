@@ -8,7 +8,7 @@ export interface JsSurfaceTargetMemberMetadata {
   readonly id: string;
   readonly sourceName: string;
   readonly targetName: string;
-  readonly kind: "method" | "property";
+  readonly kind: "constructor" | "method" | "property";
   readonly parameters?: readonly TargetParameter[];
   readonly returnType: TargetTypeRef;
   readonly declaringType?: TargetTypeRef;

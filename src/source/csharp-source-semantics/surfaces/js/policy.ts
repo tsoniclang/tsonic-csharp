@@ -23,7 +23,7 @@ import {
   isCsharpJsSetTargetType,
 } from "./collections.js";
 import {
-  getDateTargetMembers,
+  dateTargetMembersForSourceName,
   isCsharpJsDateRuntimeCarrier,
 } from "./date.js";
 import {
@@ -45,8 +45,8 @@ import {
 } from "./objects.js";
 import {
   getCsharpJsRegExpRuntimeCarrierForSubject,
-  getRegExpTargetMembers,
   isCsharpJsRegExpRuntimeCarrier,
+  regExpTargetMembersForSourceName,
 } from "./regexp.js";
 import type {
   CsharpJsSurfaceHost,
@@ -181,12 +181,12 @@ const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy
   simpleCallPolicy(["String."], (sourceMember) => stringTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
   simpleCallPolicy(["Number."], (sourceMember) => numberTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
   simpleCallPolicy(["Boolean."], (sourceMember) => booleanTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
-  simpleCallPolicy(["RegExp."], (sourceMember) => getRegExpTargetMembers(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["RegExp."], (sourceMember) => regExpTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
   {
     sourceMemberIdPrefixes: ["Date."],
     getCallMembers: (sourceMember, request, context) =>
-      getDateTargetMembers(sourceLibraryMemberName(sourceMember), isNewExpression(request.call, context) ? "new" : "call"),
-    hasCallableProperty: (sourceMember) => getDateTargetMembers(sourceLibraryMemberName(sourceMember), "call").length > 0,
+      dateTargetMembersForSourceName(sourceLibraryMemberName(sourceMember), isNewExpression(request.call, context) ? "new" : "call"),
+    hasCallableProperty: (sourceMember) => dateTargetMembersForSourceName(sourceLibraryMemberName(sourceMember), "call").length > 0,
   },
   simpleCallPolicy(["JSON."], (sourceMember) => jsonTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
   {

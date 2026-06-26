@@ -37,10 +37,16 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   recordCsharpTargetOperation,
-  targetMethod,
   targetParameter,
-  targetProperty,
 } from "./source-library.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceSingleTargetMemberForSourceName,
+  jsSurfaceTargetMemberMetadataIndex,
+  jsSurfaceTargetMembersForSourceName,
+} from "./target-member-metadata.js";
 import {
   isSourceStandardLibraryRegExpType,
 } from "../../source-type-classification.js";
@@ -233,56 +239,64 @@ export function isCsharpJsRegExpRuntimeCarrier(type: TargetTypeRef | undefined):
   return type?.kind === "target-named" && (type as CsharpJsRegExpTargetTypeRef).csharpJsSurfaceKind === "regexp";
 }
 
-export function getRegExpTargetMembers(sourceName: string): readonly TargetMember[] {
-  const regExpType = csharpJsRegExpTargetType();
-  const stringType = csharpStringTargetType();
-  const boolType = csharpSourcePrimitiveTargetType("bool");
-  if (sourceName === "constructor") {
-    return [{
-      id: "Tsonic.CSharp.Js.RegExp..ctor(System.String,System.String)",
-      sourceName,
-      targetName: "RegExp",
-      kind: "constructor",
-      parameters: [
-        targetParameter("pattern", stringType),
-        targetParameter("flags", stringType, { optional: true }),
-      ],
-      returnType: regExpType,
-      declaringType: regExpType,
-    }];
-  }
-  if (sourceName === "test") {
-    return [targetMethod("Tsonic.CSharp.Js.RegExp.test", "test", "test", [
-      targetParameter("value", stringType),
-    ], boolType)];
-  }
-  return [];
+export function regExpTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceName(regExpTargetMemberIndex, sourceName);
 }
 
-export function getRegExpPropertyTargetMember(sourceName: string): TargetMember | undefined {
-  const regExpType = csharpJsRegExpTargetType();
-  switch (sourceName) {
-    case "source":
-    case "flags":
-      return targetProperty(`Tsonic.CSharp.Js.RegExp.${sourceName}`, sourceName, sourceName, csharpStringTargetType(), {
-        declaringType: regExpType,
-      });
-    case "global":
-    case "hasIndices":
-    case "ignoreCase":
-    case "multiline":
-    case "dotAll":
-    case "unicode":
-    case "unicodeSets":
-    case "sticky":
-      return targetProperty(`Tsonic.CSharp.Js.RegExp.${sourceName}`, sourceName, sourceName, csharpSourcePrimitiveTargetType("bool"), {
-        declaringType: regExpType,
-      });
-    case "lastIndex":
-      return targetProperty(`Tsonic.CSharp.Js.RegExp.${sourceName}`, sourceName, sourceName, csharpSourcePrimitiveTargetType("int32"), {
-        declaringType: regExpType,
-      });
-    default:
-      return undefined;
-  }
+export function regExpPropertyTargetMemberForSourceName(sourceName: string): TargetMember | undefined {
+  return jsSurfaceSingleTargetMemberForSourceName(regExpPropertyTargetMemberIndex, sourceName);
+}
+
+const regExpType = csharpJsRegExpTargetType();
+const regExpStringType = csharpStringTargetType();
+const regExpBoolType = csharpSourcePrimitiveTargetType("bool");
+const regExpTargetMemberMetadata = [
+  {
+    id: "Tsonic.CSharp.Js.RegExp..ctor(System.String,System.String)",
+    sourceName: "constructor",
+    targetName: "RegExp",
+    kind: "constructor",
+    parameters: [
+      targetParameter("pattern", regExpStringType),
+      targetParameter("flags", regExpStringType, { optional: true }),
+    ],
+    returnType: regExpType,
+    declaringType: regExpType,
+  },
+  {
+    id: "Tsonic.CSharp.Js.RegExp.test",
+    sourceName: "test",
+    targetName: "test",
+    kind: "method",
+    parameters: [targetParameter("value", regExpStringType)],
+    returnType: regExpBoolType,
+  },
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const regExpTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(regExpTargetMemberMetadata);
+
+const regExpPropertyTargetMemberMetadata = [
+  ...["source", "flags"].map((sourceName) => regExpPropertyMetadata(sourceName, regExpStringType)),
+  ...[
+    "global",
+    "hasIndices",
+    "ignoreCase",
+    "multiline",
+    "dotAll",
+    "unicode",
+    "unicodeSets",
+    "sticky",
+  ].map((sourceName) => regExpPropertyMetadata(sourceName, regExpBoolType)),
+  regExpPropertyMetadata("lastIndex", csharpSourcePrimitiveTargetType("int32")),
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const regExpPropertyTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(regExpPropertyTargetMemberMetadata);
+
+function regExpPropertyMetadata(sourceName: string, returnType: TargetTypeRef): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.RegExp.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "property",
+    returnType,
+    declaringType: regExpType,
+  };
 }

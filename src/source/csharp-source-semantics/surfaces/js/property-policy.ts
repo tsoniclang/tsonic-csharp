@@ -31,8 +31,8 @@ import {
   hasObjectTargetMember,
 } from "./objects.js";
 import {
-  getRegExpPropertyTargetMember,
   isCsharpJsRegExpRuntimeCarrier,
+  regExpPropertyTargetMemberForSourceName,
 } from "./regexp.js";
 import type {
   CsharpJsSurfaceHost,
@@ -173,7 +173,7 @@ const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
   {
     sourceMemberIdPrefixes: ["RegExp."],
     excludedSourceMemberIds: sourceMemberIdSet(["RegExp.length"]),
-    resolve: (sourceMember) => getRegExpPropertyTargetMember(sourceLibraryMemberName(sourceMember)),
+    resolve: (sourceMember) => regExpPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)),
   },
   {
     sourceMemberIdPrefixes: ["Number."],
