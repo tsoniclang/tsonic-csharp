@@ -58,6 +58,7 @@ export function targetParameter(
     readonly optional?: boolean;
     readonly paramsArray?: boolean;
     readonly csharpAcceptsCheckedSourceArgument?: boolean;
+    readonly csharpAcceptsClosedSourceArgument?: boolean;
     readonly csharpOmittableOptionalArgument?: boolean;
   } = {},
 ): TargetParameter {
@@ -71,6 +72,7 @@ export function targetParameter(
     ...(options.optional === true ? { optional: true } : {}),
     ...(options.paramsArray === true ? { paramsArray: true } : {}),
     ...(options.csharpAcceptsCheckedSourceArgument === true ? { csharpAcceptsCheckedSourceArgument: true } : {}),
+    ...(options.csharpAcceptsClosedSourceArgument === true ? { csharpAcceptsClosedSourceArgument: true } : {}),
     ...(options.optional === true && options.csharpOmittableOptionalArgument !== false ? { csharpOmittableOptionalArgument: true } : {}),
   };
 }

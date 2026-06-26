@@ -20,6 +20,9 @@ import {
   getDeclaringTypeParameterBindings,
   substituteTargetMemberTypeParameters,
 } from "./type-substitution.js";
+import {
+  targetTypeRefIsClosed,
+} from "../target-ref-utils.js";
 import type {
   TargetMemberSelectionOptions,
   TargetMemberSelectionRequest,
@@ -122,6 +125,15 @@ function targetMemberMatch(
       return undefined;
     }
     const argumentType = resolveTargetTypeRef(effectiveArgument.subject, context);
+    if (
+      argumentType !== undefined &&
+      targetParameterAcceptsClosedSourceArgument(parameter) &&
+      request.sourceSelectedSignature !== undefined &&
+      targetTypeRefIsClosed(argumentType)
+    ) {
+      argumentScore += 20;
+      continue;
+    }
     if (argumentType === undefined && targetParameterAcceptsCheckedSourceArgument(parameter) && request.sourceSelectedSignature !== undefined) {
       argumentScore += 20;
       continue;
@@ -140,6 +152,11 @@ function targetMemberMatch(
 
 function targetParameterAcceptsCheckedSourceArgument(parameter: TargetParameter): boolean {
   return (parameter as TargetParameter & { readonly csharpAcceptsCheckedSourceArgument?: true }).csharpAcceptsCheckedSourceArgument === true;
+}
+
+function targetParameterAcceptsClosedSourceArgument(parameter: TargetParameter): boolean {
+  return (parameter as TargetParameter & { readonly csharpAcceptsClosedSourceArgument?: true }).csharpAcceptsClosedSourceArgument === true ||
+    targetParameterAcceptsCheckedSourceArgument(parameter);
 }
 
 function getTargetArgumentSubjectsForMember(

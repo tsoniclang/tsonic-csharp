@@ -19,15 +19,13 @@ import {
   sourceLibraryCallReceiverHasClosedFacts,
 } from "./closed-facts/index.js";
 import {
-  mapCsharpJsSourceLibraryProviderCheckedCall,
-} from "./member-providers/index.js";
-import {
   rejectUnmappedCsharpJsSourceLibraryCall,
   rejectUnsupportedCsharpJsSourceLibraryCall,
 } from "../unsupported.js";
 import {
   rejectSourceLibraryCallMissingSelectedSignature,
   rejectSourceLibraryCallSignatureDeclarationMismatch,
+  rejectSourceLibraryCallWithoutClosedArgumentFacts,
   rejectSourceLibraryCallWithoutClosedFacts,
   rejectSourceLibraryCallWithoutUniqueTargetMember,
 } from "./diagnostics.js";
@@ -40,6 +38,9 @@ import {
 import {
   selectSourceLibraryCallMember,
 } from "./selection.js";
+import {
+  getSourceLibraryCallArgumentTargetTypes,
+} from "./helpers.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -65,10 +66,6 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  const specialCall = mapCsharpJsSourceLibraryProviderCheckedCall(request, context, sourceMember, host, options);
-  if (specialCall !== undefined) {
-    return specialCall;
-  }
   const canWaitForFinalizedFacts = csharpJsSourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase);
   const candidates = getSourceLibraryCallMembers(sourceMember, request, context, host);
   if (candidates.length === 0) {
@@ -93,10 +90,24 @@ export function mapCsharpSourceLibraryCheckedCall(
   }
   const member = selectedMember;
   if (member === undefined) {
+    const missingArgumentFactIndex = getSourceLibraryCallMissingArgumentFactIndex(request, context, host);
+    if (missingArgumentFactIndex !== undefined) {
+      return rejectSourceLibraryCallWithoutClosedArgumentFacts(sourceMember, host, missingArgumentFactIndex);
+    }
     if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
       return undefined;
     }
     return rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host);
   }
   return acceptSourceLibraryCheckedCall(request, sourceMember, member, context);
+}
+
+function getSourceLibraryCallMissingArgumentFactIndex(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): number | undefined {
+  const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
+  const index = argumentTypes.findIndex((argumentType) => argumentType === undefined);
+  return index < 0 ? undefined : index;
 }

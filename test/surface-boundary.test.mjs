@@ -1128,7 +1128,7 @@ test("JS surface rejects console.dirxml when selected arguments do not match run
   }), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_CONSOLE_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
 });
 
 test("JS surface rejects console.log without closed argument target facts", () => {
@@ -1142,7 +1142,7 @@ test("JS surface rejects console.log without closed argument target facts", () =
   }), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_CONSOLE_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
   assert.match(result.diagnostic.message, /argument 1/);
 });
 

@@ -269,7 +269,6 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry(
     "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
     {
-      "source-id-executable-policy-hook": 1,
       "source-id-analysis-table-definition": 1,
       "source-id-analysis-table-lookup": 1,
     },

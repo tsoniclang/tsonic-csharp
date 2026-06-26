@@ -40,3 +40,11 @@ export function rejectSourceLibraryCallWithoutUniqueTargetMember(
 ): ExtensionObservation<CheckedCallMappingResult> {
   return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceLibraryMemberIdentity(sourceMember)}' to a unique target member from finalized argument facts.`));
 }
+
+export function rejectSourceLibraryCallWithoutClosedArgumentFacts(
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+  argumentIndex: number,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT", 9100116, `C# JS surface call '${sourceLibraryMemberIdentity(sourceMember)}' requires finalized closed target facts for argument ${argumentIndex + 1}.`));
+}

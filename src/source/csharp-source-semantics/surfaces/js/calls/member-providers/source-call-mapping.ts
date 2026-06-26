@@ -1,7 +1,5 @@
 import type {
   CheckedCallMappingRequest,
-  CheckedCallMappingResult,
-  ExtensionObservation,
   ExtensionObservationContext,
   TargetMember,
   TargetTypeRef,
@@ -15,7 +13,7 @@ import {
   booleanTargetMembersForSourceName,
 } from "../../booleans.js";
 import {
-  mapCsharpJsConsoleCheckedCall,
+  consoleTargetMembersForSourceMember,
 } from "../../console.js";
 import {
   collectionTargetMembersForSourceMember,
@@ -67,15 +65,11 @@ import {
   getObjectPrimitiveReceiverCallMembers,
   getObjectRecordDictionaryCallMembers,
 } from "./object-members.js";
-import type {
-  CsharpJsSurfaceSourceLibraryPolicy,
-} from "./types.js";
 
 interface SourceCallPolicyRecord {
   readonly identity: SourceLibraryMemberIdentityPolicy;
   readonly members?: SourceCallMemberProvider;
   readonly callable?: SourceCallCallablePolicy;
-  readonly mapCall?: CsharpJsSurfaceSourceLibraryPolicy["mapCall"];
 }
 
 type SourceCallMemberProvider =
@@ -83,7 +77,8 @@ type SourceCallMemberProvider =
   | { readonly kind: "date-call-kind" }
   | { readonly kind: "object-composite" }
   | { readonly kind: "array-carrier" }
-  | { readonly kind: "collection-carrier" };
+  | { readonly kind: "collection-carrier" }
+  | { readonly kind: "console-metadata" };
 
 type SourceCallCallablePolicy =
   | { readonly kind: "members-exist" }
@@ -121,8 +116,8 @@ const sourceCallPolicyRecords: readonly SourceCallPolicyRecord[] = [
   },
   {
     identity: { prefixes: ["Console."] },
-    mapCall: mapCsharpJsConsoleCheckedCall,
-    callable: { kind: "always" },
+    members: { kind: "console-metadata" },
+    callable: { kind: "members-exist" },
   },
   {
     identity: { prefixes: ["Promise."] },
@@ -149,16 +144,6 @@ export function csharpJsSourceLibraryMemberHasCallableProvider(
   return policy?.callable === undefined
     ? false
     : callablePolicyIsSatisfied(policy.callable, policy.members, sourceMember);
-}
-
-export function mapCsharpJsSourceLibraryProviderCheckedCall(
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  sourceMember: SourceLibraryMember,
-  host: CsharpJsSurfaceHost,
-  options: { readonly phase?: "checking" | "finalization" },
-): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  return resolveSourceCallPolicy(sourceMember)?.mapCall?.(request, context, sourceMember, host, options);
 }
 
 function resolveSourceCallPolicy(sourceMember: SourceLibraryMember): SourceCallPolicyRecord | undefined {
@@ -194,6 +179,8 @@ function callMembersFromProvider(
           ? getSourceLibraryCallResultTargetType(request, context, host)
           : undefined,
       );
+    case "console-metadata":
+      return consoleTargetMembersForSourceMember(sourceMember);
   }
 }
 
@@ -205,7 +192,7 @@ function callablePolicyIsSatisfied(
   const sourceName = sourceLibraryMemberName(sourceMember);
   switch (policy.kind) {
     case "members-exist":
-      return provider === undefined ? false : callableMembersFromProvider(provider, sourceName).length > 0;
+      return provider === undefined ? false : callableMembersFromProvider(provider, sourceMember, sourceName).length > 0;
     case "array-members-or-call-surface":
       return arrayTargetMembersForSourceName(sourceName).length > 0 || arrayCallSurfaceMemberNames.has(sourceName);
     case "collection-members-exist":
@@ -219,6 +206,7 @@ function callablePolicyIsSatisfied(
 
 function callableMembersFromProvider(
   provider: SourceCallMemberProvider,
+  sourceMember: SourceLibraryMember,
   sourceName: string,
 ): readonly TargetMember[] {
   switch (provider.kind) {
@@ -231,6 +219,8 @@ function callableMembersFromProvider(
     case "array-carrier":
     case "collection-carrier":
       return [];
+    case "console-metadata":
+      return consoleTargetMembersForSourceMember(sourceMember);
   }
 }
 

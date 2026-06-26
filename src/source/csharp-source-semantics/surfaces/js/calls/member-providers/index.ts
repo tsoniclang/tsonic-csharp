@@ -8,8 +8,4 @@ export {
 export {
   csharpJsSourceLibraryMemberHasCallableProvider,
   getCsharpJsSourceLibraryCallMembersFromProviders,
-  mapCsharpJsSourceLibraryProviderCheckedCall,
 } from "./source-call-mapping.js";
-export type {
-  CsharpJsSurfaceSourceLibraryPolicy,
-} from "./types.js";
