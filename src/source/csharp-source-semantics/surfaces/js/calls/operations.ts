@@ -19,6 +19,9 @@ import {
 import {
   isCsharpJsArrayCarrierTargetType,
 } from "../arrays.js";
+import {
+  csharpJsSourceLibraryMemberIsArrayConstructor,
+} from "../policy.js";
 
 export function acceptSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -29,8 +32,7 @@ export function acceptSourceLibraryCheckedCall(
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# JS surface target call operation recorded from checked TypeScript library declaration '${sourceMember.declaringName}.${sourceMember.memberName}'.` }]);
   const returnType = member.returnType;
   if (
-    sourceMember.declaringName === "Array" &&
-    sourceMember.memberName === "constructor" &&
+    csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember) &&
     returnType !== undefined &&
     isCsharpJsArrayCarrierTargetType(returnType) &&
     context.facts.get(request.call, runtimeCarrierFactKey) === undefined

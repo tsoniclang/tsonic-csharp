@@ -105,6 +105,17 @@ export function csharpJsSourceLibraryMemberIsCollection(sourceMember: SourceLibr
   return sourceMember !== undefined && collectionSourceNames.has(sourceMember.declaringName);
 }
 
+export function csharpJsSourceLibraryCallRequiresPrevalidatedMember(sourceMember: SourceLibraryMember): boolean {
+  return prevalidatedMemberRequiredSourceNames.has(sourceMember.declaringName);
+}
+
+export function csharpJsSourceLibraryCallMayNeedFinalFacts(
+  sourceMember: SourceLibraryMember,
+  phase: "checking" | "finalization" | undefined,
+): boolean {
+  return phase !== "finalization" && finalFactsSensitiveCallIds.has(sourceLibraryCallId(sourceMember));
+}
+
 export function csharpJsSourceLibraryCallReceiverHasClosedFacts(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
@@ -228,6 +239,18 @@ const collectionSourceNames = new Set<SourceLibraryDeclaringName>([
   "Set",
   "ReadonlySet",
 ]);
+
+const prevalidatedMemberRequiredSourceNames = new Set<SourceLibraryDeclaringName>([
+  "Date",
+]);
+
+const finalFactsSensitiveCallIds = new Set([
+  "JSON.stringify",
+]);
+
+function sourceLibraryCallId(sourceMember: SourceLibraryMember): string {
+  return `${sourceMember.declaringName}.${sourceMember.memberName}`;
+}
 
 type CallReceiverClosedFactsPolicy = (
   request: CheckedCallMappingRequest,

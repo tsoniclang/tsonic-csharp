@@ -15,6 +15,8 @@ import {
 } from "../source-library.js";
 import {
   csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
+  csharpJsSourceLibraryCallMayNeedFinalFacts,
+  csharpJsSourceLibraryCallRequiresPrevalidatedMember,
 } from "../policy.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryCall,
@@ -66,7 +68,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
   const prevalidatedMember = getPrevalidatedSourceLibraryCallMember(sourceMember, candidates, request, context, host);
-  if (sourceMember.declaringName === "Date" && prevalidatedMember === undefined) {
+  if (csharpJsSourceLibraryCallRequiresPrevalidatedMember(sourceMember) && prevalidatedMember === undefined) {
     return undefined;
   }
   if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
@@ -75,11 +77,9 @@ export function mapCsharpSourceLibraryCheckedCall(
     }
     return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
-  const jsonStringifyMayNeedFinalFacts = options.phase !== "finalization" &&
-    sourceMember.declaringName === "JSON" &&
-    sourceMember.memberName === "stringify";
+  const callMayNeedFinalFacts = csharpJsSourceLibraryCallMayNeedFinalFacts(sourceMember, options.phase);
   if (candidates.length > 1 && request.sourceSelectedSignature === undefined && prevalidatedMember === undefined) {
-    if (canWaitForFinalizedFacts || jsonStringifyMayNeedFinalFacts) {
+    if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
       return undefined;
     }
     return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
@@ -90,7 +90,7 @@ export function mapCsharpSourceLibraryCheckedCall(
       receiver: request.calleeReceiver,
   }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
   if (member === undefined) {
-    if (canWaitForFinalizedFacts || jsonStringifyMayNeedFinalFacts) {
+    if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
       return undefined;
     }
     return rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host);
