@@ -17,7 +17,7 @@ import {
   csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
   csharpJsSourceLibraryCallMayNeedFinalFacts,
   sourceLibraryCallReceiverHasClosedFacts,
-} from "./closed-facts.js";
+} from "./closed-facts/index.js";
 import {
   mapCsharpJsSourceLibraryProviderCheckedCall,
 } from "./member-providers.js";

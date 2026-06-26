@@ -77,7 +77,7 @@ test("architecture validator rejects procedural policy module names", () => {
   );
   assert.deepEqual(
     [
-      "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts.ts",
+      "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/index.ts",
       "src/source/csharp-source-semantics/surfaces/js/calls/target-selection.ts",
       "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
       "src/source/csharp-source-semantics/surfaces/js/properties/member-providers.ts",
