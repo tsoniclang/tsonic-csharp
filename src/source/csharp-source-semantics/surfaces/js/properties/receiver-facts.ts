@@ -39,7 +39,7 @@ export function csharpJsSourceLibraryPropertyReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  const policy = propertyReceiverValidatorPolicies.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
+  const policy = propertyReceiverRequirementRows.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
   return propertyReceiverRequirementIsSatisfied(policy?.requirement, receiverType, host);
 }
 
@@ -67,7 +67,7 @@ const finalCarrierSelectionPolicies: readonly SourceLibraryMemberIdentityPolicy[
   { prefixes: ["Array.", "ReadonlyArray."] },
 ];
 
-const propertyReceiverValidatorPolicies: readonly PropertyReceiverValidatorPolicy[] = [
+const propertyReceiverRequirementRows: readonly PropertyReceiverValidatorPolicy[] = [
   { identity: { prefixes: ["Math."] }, requirement: "always" },
   { identity: { prefixes: ["Array.", "ReadonlyArray."] }, requirement: "array-like" },
   { identity: { prefixes: ["String."] }, requirement: "string" },

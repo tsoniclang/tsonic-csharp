@@ -267,16 +267,6 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
     "Array carrier requirements must be consumed as declarative source-use policy over lazy generic analysis records, not source-id dispatch tables.",
   ),
   entry(
-    "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/receiver-validation.ts",
-    {
-      "source-id-analysis-table-definition": 1,
-      "source-id-analysis-table-lookup": 1,
-    },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Closed-fact requirements must be pure metadata consumed by a generic selected-declaration validator.",
-  ),
-  entry(
     "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
     {
       "source-id-executable-policy-hook": 1,
@@ -286,16 +276,6 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
     "surface-policy-candidate",
     "surface-provider",
     "JS call selection must finish moving from source-family policy records to provider/runtime metadata rows and generic selector selection.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/properties/receiver-facts.ts",
-    {
-      "source-id-analysis-table-definition": 1,
-      "source-id-analysis-table-lookup": 1,
-    },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Property receiver requirements must be generic carrier requirement metadata over selected source identities.",
   ),
   entry(
     "src/source/csharp-source-semantics/surfaces/nodejs/assert.ts",

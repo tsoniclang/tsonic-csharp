@@ -96,7 +96,7 @@ const numberStaticCallWithoutReceiverPolicy = {
   ),
 } satisfies SourceLibraryMemberIdentityPolicy;
 
-const closedFactRules: readonly ClosedFactsRule[] = [
+const closedFactRequirementRows: readonly ClosedFactsRule[] = [
   { identity: { prefixes: ["Array."] }, requirement: { kind: "array-receiver", except: arrayStaticCallWithoutReceiverPolicy, concatRequiresKnownArguments: true } },
   { identity: { prefixes: ["ReadonlyArray."] }, requirement: { kind: "receiver", target: "array-like" } },
   { identity: { prefixes: ["String."] }, requirement: { kind: "receiver", target: "string", except: stringStaticCallWithoutReceiverPolicy } },
@@ -129,7 +129,7 @@ export function sourceLibraryCallReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  const rule = closedFactRules.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
+  const rule = closedFactRequirementRows.find((candidate) => sourceLibraryMemberMatches(sourceMember, candidate.identity));
   return rule === undefined || closedFactsRequirementIsSatisfied(rule.requirement, request, context, sourceMember, host);
 }
 
