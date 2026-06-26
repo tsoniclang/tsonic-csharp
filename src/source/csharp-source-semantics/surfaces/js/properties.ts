@@ -19,17 +19,11 @@ import type {
 import {
   csharpTargetOperationFromMember,
   csharpJsCheckedTypeQuery,
-  csharpSourcePrimitiveTargetType,
   getSourceLibraryMember,
-  isSourceLibraryType,
   recordCsharpTargetOperation,
   targetOperation,
   targetOperationFromMember,
-  targetProperty,
 } from "./source-library.js";
-import {
-  getMathPropertyTargetMember,
-} from "./math.js";
 import {
   hasObjectTargetMember,
 } from "./objects.js";
@@ -37,33 +31,18 @@ import {
   getJsonTargetMembers,
 } from "./json.js";
 import {
-  getCsharpArrayLengthMember,
-  getCsharpArrayLikeElementType,
-} from "./arrays.js";
-import {
-  isCsharpJsRegExpRuntimeCarrier,
-  getRegExpPropertyTargetMember,
-} from "./regexp.js";
-import {
-  isCsharpJsDateRuntimeCarrier,
-} from "./date.js";
-import {
-  isCsharpBooleanTargetType,
-} from "./booleans.js";
-import {
-  getNumberPropertyTargetMember,
-} from "./numbers.js";
-import {
-  getCollectionPropertyTargetMember,
-  isCsharpJsMapTargetType,
-  isCsharpJsSetTargetType,
-} from "./collections.js";
-import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
 import {
   csharpJsSourceLibraryMemberHasCallableTarget,
 } from "./policy.js";
+import {
+  csharpJsSourceLibraryPropertyReceiverHasClosedFacts,
+  csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection,
+  csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts,
+  getCsharpJsSourceLibraryMemberFromReceiverType,
+  getCsharpJsSourceLibraryPropertyMember,
+} from "./property-policy.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryPropertyAccess,
   rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
@@ -136,7 +115,7 @@ function recordCsharpSourceLibraryPropertyFact(
   const declaration = firstSymbolDeclaration(propertySymbol);
   const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
   const sourceMember = getSourceLibraryMember(declaration, context) ??
-    getSourceLibraryMemberFromReceiverType(receiverType, compiler.ast.text(name), context);
+    getCsharpJsSourceLibraryMemberFromReceiverType(receiverType, compiler.ast.text(name), context);
   if (sourceMember === undefined) {
     return;
   }
@@ -174,38 +153,6 @@ function isCallCalleePropertyAccess(
 function firstSymbolDeclaration(symbol: unknown): Node | undefined {
   return ((symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
     (symbol as { readonly declarations?: readonly Node[] } | undefined)?.declarations)?.[0];
-}
-
-function getSourceLibraryMemberFromReceiverType(
-  receiverType: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeAtLocation"]>,
-  memberName: string,
-  context: ExtensionObservationContext,
-): SourceLibraryMember | undefined {
-  if (receiverType === undefined || memberName.length === 0) {
-    return undefined;
-  }
-  const declaringName = isSourceLibraryType(receiverType, context, "Array")
-    ? "Array"
-    : isSourceLibraryType(receiverType, context, "ReadonlyArray")
-        ? "ReadonlyArray"
-        : isSourceLibraryType(receiverType, context, "String")
-          ? "String"
-          : isSourceLibraryType(receiverType, context, "Boolean")
-            ? "Boolean"
-            : isSourceLibraryType(receiverType, context, "RegExp")
-              ? "RegExp"
-              : isSourceLibraryType(receiverType, context, "Date")
-                ? "Date"
-                : isSourceLibraryType(receiverType, context, "Map")
-                  ? "Map"
-                  : isSourceLibraryType(receiverType, context, "ReadonlyMap")
-                    ? "ReadonlyMap"
-                    : isSourceLibraryType(receiverType, context, "Set")
-                      ? "Set"
-                      : isSourceLibraryType(receiverType, context, "ReadonlySet")
-                        ? "ReadonlySet"
-                        : undefined;
-  return declaringName === undefined ? undefined : { declaringName, memberName };
 }
 
 function mapCsharpSourceLibraryPropertyOperation(
@@ -267,16 +214,11 @@ function mapCsharpSourceLibraryPropertyOperation(
 }
 
 function sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {
-  return sourceMember.declaringName === "Array" ||
-    sourceMember.declaringName === "ReadonlyArray" ||
-    sourceMember.declaringName === "Map" ||
-    sourceMember.declaringName === "ReadonlyMap" ||
-    sourceMember.declaringName === "Set" ||
-    sourceMember.declaringName === "ReadonlySet";
+  return csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember);
 }
 
 function sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember: SourceLibraryMember): boolean {
-  return sourceMember.declaringName === "Array" || sourceMember.declaringName === "ReadonlyArray";
+  return csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember);
 }
 
 function sourceLibraryPropertyReceiverHasClosedFacts(
@@ -284,34 +226,7 @@ function sourceLibraryPropertyReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  if (sourceMember.declaringName === "Math") {
-    return true;
-  }
-  if (sourceMember.declaringName === "Array" || sourceMember.declaringName === "ReadonlyArray") {
-    return getCsharpArrayLikeElementType(receiverType) !== undefined;
-  }
-  if (sourceMember.declaringName === "String") {
-    return host.isCsharpStringType(receiverType);
-  }
-  if (sourceMember.declaringName === "RegExp") {
-    return isCsharpJsRegExpRuntimeCarrier(receiverType);
-  }
-  if (sourceMember.declaringName === "Date") {
-    return isCsharpJsDateRuntimeCarrier(receiverType);
-  }
-  if (sourceMember.declaringName === "Boolean") {
-    return isCsharpBooleanTargetType(receiverType);
-  }
-  if (sourceMember.declaringName === "Number") {
-    return getNumberPropertyTargetMember(sourceMember.memberName) !== undefined;
-  }
-  if (sourceMember.declaringName === "Map" || sourceMember.declaringName === "ReadonlyMap") {
-    return isCsharpJsMapTargetType(receiverType);
-  }
-  if (sourceMember.declaringName === "Set" || sourceMember.declaringName === "ReadonlySet") {
-    return isCsharpJsSetTargetType(receiverType);
-  }
-  return false;
+  return csharpJsSourceLibraryPropertyReceiverHasClosedFacts(receiverType, sourceMember, host);
 }
 
 function getSourceLibraryPropertyReceiverType(
@@ -341,51 +256,7 @@ function getSourceLibraryPropertyReceiverType(
 }
 
 function getSourceLibraryPropertyMember(sourceMember: SourceLibraryMember, receiverType: ReturnType<typeof getSourceLibraryPropertyReceiverType>): TargetMember | undefined {
-  if (sourceMember.memberName !== "length") {
-    switch (sourceMember.declaringName) {
-      case "Math":
-        return getMathPropertyTargetMember(sourceMember.memberName);
-      case "RegExp":
-        return getRegExpPropertyTargetMember(sourceMember.memberName);
-      case "Number":
-        return getNumberPropertyTargetMember(sourceMember.memberName);
-      case "Map":
-      case "ReadonlyMap":
-      case "Set":
-      case "ReadonlySet":
-        return getCollectionPropertyTargetMember(sourceMember, receiverType);
-      default:
-        return undefined;
-    }
-  }
-  if (
-    sourceMember.declaringName === "String"
-  ) {
-    return targetProperty(
-      `tsonic.csharp.js.${sourceMember.declaringName}.length`,
-      sourceMember.memberName,
-      "Length",
-      csharpSourcePrimitiveTargetType("int32"),
-    );
-  }
-  if (
-    sourceMember.declaringName === "Array" ||
-    sourceMember.declaringName === "ReadonlyArray"
-  ) {
-    const lengthMember = receiverType?.kind === "array"
-      ? "length"
-      : getCsharpArrayLengthMember(receiverType);
-    if (lengthMember === undefined) {
-      return undefined;
-    }
-    return targetProperty(
-      `tsonic.csharp.js.${sourceMember.declaringName}.length`,
-      sourceMember.memberName,
-      lengthMember,
-      csharpSourcePrimitiveTargetType("int32"),
-    );
-  }
-  return undefined;
+  return getCsharpJsSourceLibraryPropertyMember(sourceMember, receiverType);
 }
 
 function sourceLibrarySelectedDeclarationHasCallTarget(sourceMember: SourceLibraryMember): boolean {
