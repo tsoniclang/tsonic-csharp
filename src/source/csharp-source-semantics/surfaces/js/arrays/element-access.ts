@@ -39,8 +39,8 @@ import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../../runtime-carriers.js";
 import {
-  isSourceLibraryType,
-} from "../../../source-library.js";
+  isSourceStandardLibraryArrayLikeType,
+} from "../../../source-type-classification.js";
 
 export function mapCsharpJsArrayElementAccess(
   request: CheckedElementAccessMappingRequest,
@@ -171,9 +171,5 @@ function isSourceLibraryArrayType(
   type: Type | undefined,
   context: ExtensionObservationContext,
 ): boolean {
-  return type !== undefined &&
-    (
-      isSourceLibraryType(type, context, "Array") ||
-      isSourceLibraryType(type, context, "ReadonlyArray")
-    );
+  return type !== undefined && isSourceStandardLibraryArrayLikeType(type, context);
 }

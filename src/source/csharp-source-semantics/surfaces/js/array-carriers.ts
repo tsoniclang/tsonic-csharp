@@ -17,7 +17,6 @@ import {
   asType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  isSourceLibraryType,
   getSourceLibraryMember,
 } from "./source-library.js";
 import type {
@@ -45,6 +44,9 @@ import {
 import {
   csharpJsSourceLibraryMemberIsArrayConstructor,
 } from "./policy.js";
+import {
+  isSourceStandardLibraryArrayLikeType,
+} from "../../source-type-classification.js";
 
 export const csharpJsArrayCarrierId = "Tsonic.CSharp.Js.JSArray`1";
 
@@ -104,7 +106,7 @@ export function getCsharpJsArrayRuntimeCarrierForType(
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
-  if (type === undefined || (!isSourceLibraryType(type, context, "Array") && !isSourceLibraryType(type, context, "ReadonlyArray"))) {
+  if (type === undefined || !isSourceStandardLibraryArrayLikeType(type, context)) {
     return undefined;
   }
   const elementType = getTypeArguments(type, context)

@@ -26,7 +26,6 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
-  isSourceLibraryType,
   targetMethod,
   targetParameter,
   targetProperty,
@@ -42,6 +41,9 @@ import {
 import {
   resolveTargetTypeRefFromKeywordTypeSyntax,
 } from "../../target-type-keywords.js";
+import {
+  getSourceStandardLibraryDeclaringNameForType,
+} from "../../source-type-classification.js";
 
 const csharpJsMapTypeId = "Tsonic.CSharp.Js.Map`2";
 const csharpJsSetTypeId = "Tsonic.CSharp.Js.Set`1";
@@ -449,8 +451,8 @@ function collectionPolicyForSourceName(sourceName: SourceLibraryDeclaringName): 
 }
 
 function collectionPolicyForSourceType(type: Type, context: ExtensionObservationContext): CsharpJsCollectionTypePolicy | undefined {
-  return csharpJsCollectionPolicies.find((policy) =>
-    policy.sourceNames.some((sourceName) => isSourceLibraryType(type, context, sourceName)));
+  const declaringName = getSourceStandardLibraryDeclaringNameForType(type, context);
+  return declaringName === undefined ? undefined : collectionPolicyForSourceName(declaringName);
 }
 
 function collectionPolicyForTargetType(type: TargetTypeRef): CsharpJsCollectionTypePolicy | undefined {

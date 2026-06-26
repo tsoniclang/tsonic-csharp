@@ -45,7 +45,7 @@ export function getSourceArrayTargetTypeRef(
   if (types === undefined || types.isTuple(type) || !types.isArrayLike(type, shapeOptions)) {
     return undefined;
   }
-  const sourceArrayType = classifySourceStandardLibraryType(type, context)?.kind === "array";
+  const sourceArrayType = classifySourceStandardLibraryType(type, context)?.category === "array";
   const typeArguments = getTypeArgumentsForArrayShape(type, context, options);
   if (!sourceArrayType && typeArguments.length === 0) {
     return undefined;

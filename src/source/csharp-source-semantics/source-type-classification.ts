@@ -2,60 +2,83 @@ import type {
   ExtensionObservationContext,
   Type,
 } from "@tsonic/tsts";
+import type {
+  SourceLibraryDeclaringName,
+  SourceLibraryTypeName,
+} from "./source-library.js";
 import {
   isSourceLibraryType,
 } from "./source-library.js";
 
-export type SourceStandardLibraryTypeClassification =
-  | {
-      readonly kind: "array";
-      readonly readonly: false;
-    }
-  | {
-      readonly kind: "array";
-      readonly readonly: true;
-    }
-  | { readonly kind: "promise" }
-  | { readonly kind: "record" };
+export type SourceStandardLibraryTypeCategory =
+  | "array"
+  | "boolean"
+  | "collection"
+  | "date"
+  | "json"
+  | "math"
+  | "number"
+  | "object"
+  | "promise"
+  | "record"
+  | "regexp"
+  | "string";
+
+export interface SourceStandardLibraryTypeClassification {
+  readonly name: SourceLibraryTypeName;
+  readonly category: SourceStandardLibraryTypeCategory;
+  readonly collectionKind?: "map" | "set";
+  readonly mutability?: "mutable" | "readonly";
+}
 
 export function classifySourceStandardLibraryType(
   type: Type,
   context: ExtensionObservationContext,
 ): SourceStandardLibraryTypeClassification | undefined {
-  if (isSourceLibraryType(type, context, "Array")) {
-    return { kind: "array", readonly: false };
-  }
-  if (isSourceLibraryType(type, context, "ReadonlyArray")) {
-    return { kind: "array", readonly: true };
-  }
-  if (isSourceLibraryType(type, context, "Promise")) {
-    return { kind: "promise" };
-  }
-  if (isSourceLibraryType(type, context, "Record")) {
-    return { kind: "record" };
-  }
-  return undefined;
+  return sourceStandardLibraryTypePolicies.find((policy) => isSourceLibraryType(type, context, policy.name));
 }
 
 export function isSourceStandardLibraryArrayLikeType(
   type: Type,
   context: ExtensionObservationContext,
 ): boolean {
-  return classifySourceStandardLibraryType(type, context)?.kind === "array";
+  return classifySourceStandardLibraryType(type, context)?.category === "array";
 }
 
 export function isSourceStandardLibraryPromiseType(
   type: Type,
   context: ExtensionObservationContext,
 ): boolean {
-  return classifySourceStandardLibraryType(type, context)?.kind === "promise";
+  return classifySourceStandardLibraryType(type, context)?.category === "promise";
 }
 
 export function isSourceStandardLibraryRecordType(
   type: Type,
   context: ExtensionObservationContext,
 ): boolean {
-  return classifySourceStandardLibraryType(type, context)?.kind === "record";
+  return classifySourceStandardLibraryType(type, context)?.category === "record";
+}
+
+export function isSourceStandardLibraryDateType(
+  type: Type,
+  context: ExtensionObservationContext,
+): boolean {
+  return classifySourceStandardLibraryType(type, context)?.category === "date";
+}
+
+export function isSourceStandardLibraryRegExpType(
+  type: Type,
+  context: ExtensionObservationContext,
+): boolean {
+  return classifySourceStandardLibraryType(type, context)?.category === "regexp";
+}
+
+export function getSourceStandardLibraryDeclaringNameForType(
+  type: Type,
+  context: ExtensionObservationContext,
+): SourceLibraryDeclaringName | undefined {
+  const name = classifySourceStandardLibraryType(type, context)?.name;
+  return name === undefined || name === "Record" ? undefined : name;
 }
 
 export function sourceStandardLibraryTypeIsObjectShapeExcluded(
@@ -64,3 +87,23 @@ export function sourceStandardLibraryTypeIsObjectShapeExcluded(
 ): boolean {
   return isSourceStandardLibraryArrayLikeType(type, context);
 }
+
+const sourceStandardLibraryTypePolicies: readonly SourceStandardLibraryTypeClassification[] = [
+  { name: "Array", category: "array", mutability: "mutable" },
+  { name: "ReadonlyArray", category: "array", mutability: "readonly" },
+  { name: "String", category: "string" },
+  { name: "Number", category: "number" },
+  { name: "Boolean", category: "boolean" },
+  { name: "RegExp", category: "regexp" },
+  { name: "Date", category: "date" },
+  { name: "Math", category: "math" },
+  { name: "Promise", category: "promise" },
+  { name: "Object", category: "object" },
+  { name: "JSON", category: "json" },
+  { name: "Console", category: "object" },
+  { name: "Map", category: "collection", collectionKind: "map", mutability: "mutable" },
+  { name: "ReadonlyMap", category: "collection", collectionKind: "map", mutability: "readonly" },
+  { name: "Set", category: "collection", collectionKind: "set", mutability: "mutable" },
+  { name: "ReadonlySet", category: "collection", collectionKind: "set", mutability: "readonly" },
+  { name: "Record", category: "record" },
+];

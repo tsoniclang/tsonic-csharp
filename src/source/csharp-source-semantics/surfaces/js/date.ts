@@ -33,13 +33,15 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-  isSourceLibraryType,
   targetMethod,
   targetParameter,
 } from "./source-library.js";
 import {
   getSourceLibraryDeclarationName,
 } from "../../source-library.js";
+import {
+  isSourceStandardLibraryDateType,
+} from "../../source-type-classification.js";
 
 const csharpJsDateTypeId = "Tsonic.CSharp.Js.Date";
 
@@ -70,7 +72,7 @@ export function getCsharpJsDateRuntimeCarrierForType(
   type: Type | undefined,
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
-  return type !== undefined && isSourceLibraryType(type, context, "Date")
+  return type !== undefined && isSourceStandardLibraryDateType(type, context)
     ? csharpJsDateTargetType()
     : undefined;
 }

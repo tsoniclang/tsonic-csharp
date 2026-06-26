@@ -36,12 +36,14 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-  isSourceLibraryType,
   recordCsharpTargetOperation,
   targetMethod,
   targetParameter,
   targetProperty,
 } from "./source-library.js";
+import {
+  isSourceStandardLibraryRegExpType,
+} from "../../source-type-classification.js";
 
 const csharpJsRegExpTypeId = "Tsonic.CSharp.Js.RegExp";
 
@@ -222,7 +224,7 @@ export function getCsharpJsRegExpRuntimeCarrierForType(
   type: Type | undefined,
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
-  return type !== undefined && isSourceLibraryType(type, context, "RegExp")
+  return type !== undefined && isSourceStandardLibraryRegExpType(type, context)
     ? csharpJsRegExpTargetType()
     : undefined;
 }

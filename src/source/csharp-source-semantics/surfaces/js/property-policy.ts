@@ -41,9 +41,11 @@ import type {
 } from "./source-library.js";
 import {
   csharpSourcePrimitiveTargetType,
-  isSourceLibraryType,
   targetProperty,
 } from "./source-library.js";
+import {
+  getSourceStandardLibraryDeclaringNameForType,
+} from "../../source-type-classification.js";
 
 export function getCsharpJsSourceLibraryMemberFromReceiverType(
   receiverType: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeAtLocation"]>,
@@ -53,8 +55,10 @@ export function getCsharpJsSourceLibraryMemberFromReceiverType(
   if (receiverType === undefined || memberName.length === 0) {
     return undefined;
   }
-  const declaringName = propertyReceiverSourceTypeNames.find((sourceName) => isSourceLibraryType(receiverType, context, sourceName));
-  return declaringName === undefined ? undefined : { declaringName, memberName };
+  const declaringName = getSourceStandardLibraryDeclaringNameForType(receiverType, context);
+  return declaringName === undefined || !propertyReceiverSourceTypeNames.has(declaringName)
+    ? undefined
+    : { declaringName, memberName };
 }
 
 export function csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {
@@ -100,7 +104,7 @@ interface CsharpJsPropertyPrecheckRule {
   readonly result: (sourceMember: SourceLibraryMember) => CsharpJsSourceLibraryPropertyPrecheck;
 }
 
-const propertyReceiverSourceTypeNames = [
+const propertyReceiverSourceTypeNames = new Set<SourceLibraryDeclaringName>([
   "Array",
   "ReadonlyArray",
   "String",
@@ -111,7 +115,7 @@ const propertyReceiverSourceTypeNames = [
   "ReadonlyMap",
   "Set",
   "ReadonlySet",
-] satisfies readonly SourceLibraryDeclaringName[];
+]);
 
 const seededReceiverFactSourceNames = new Set<SourceLibraryDeclaringName>([
   "Array",
