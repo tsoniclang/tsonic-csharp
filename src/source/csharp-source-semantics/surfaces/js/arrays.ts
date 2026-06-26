@@ -4,7 +4,7 @@ export {
 } from "./arrays/element-access.js";
 export {
   arrayTargetMembersForSourceName,
-} from "./arrays/target-members.js";
+} from "./arrays/target-members/index.js";
 export {
   getCsharpArrayLengthMember,
   getCsharpArrayLikeElementType,
