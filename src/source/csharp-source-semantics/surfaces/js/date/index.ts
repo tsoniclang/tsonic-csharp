@@ -9,4 +9,4 @@ export {
 } from "./runtime-carrier.js";
 export {
   dateTargetMembersForSourceName,
-} from "./target-members.js";
+} from "./target-members/index.js";
