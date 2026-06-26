@@ -52,6 +52,7 @@ export function findTargetMemberForCall(
           {
             arguments: request.arguments,
             receiver: request.calleeReceiver,
+            sourceSelectedSignature: request.sourceSelectedSignature,
           },
           context,
           resolveTargetTypeRef,
@@ -67,6 +68,7 @@ export function findTargetMemberForCall(
           {
             arguments: request.arguments,
             receiver: request.calleeReceiver,
+            sourceSelectedSignature: request.sourceSelectedSignature,
           },
           context,
           resolveTargetTypeRef,
@@ -80,6 +82,7 @@ export function findTargetMemberForCall(
       {
         arguments: request.arguments,
         receiver: request.calleeReceiver,
+        sourceSelectedSignature: request.sourceSelectedSignature,
       },
       options,
     );
@@ -91,6 +94,7 @@ export function findTargetMemberForCall(
         {
           arguments: request.arguments,
           receiver: request.calleeReceiver,
+          sourceSelectedSignature: request.sourceSelectedSignature,
         },
         context,
         resolveTargetTypeRef,

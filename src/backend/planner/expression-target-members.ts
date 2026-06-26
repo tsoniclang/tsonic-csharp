@@ -329,7 +329,7 @@ function getFinalizedTupleElementIndex(
   if (input.types === undefined) {
     return undefined;
   }
-  const literalValue = input.types.getLiteralValue(input.semantics.getTypeAtLocation(argumentNode, { sourceFile }));
+  const literalValue = input.types.getLiteralValue(input.analysis.getTypeAtLocation(argumentNode, { sourceFile }));
   return typeof literalValue === "number"
     ? getNonNegativeSafeIntegerIndex(literalValue)
     : undefined;
@@ -598,7 +598,7 @@ function getResolvedSourceCallArgumentExpectation(
   input: TargetCompileInput,
 ): { readonly type?: CsharpTypeNode; readonly subject?: Node } | undefined {
   const sourceCall = AsCallExpression(call);
-  const declaration = input.semantics.getResolvedCallParameterDeclarations(call, { sourceFile })?.[argumentIndex];
+  const declaration = input.analysis.getResolvedCallParameterDeclarations(call, { sourceFile })?.[argumentIndex];
   const declarationType = getNodeType(declaration);
   const substitutedDeclarationType = getSubstitutedSourceCallParameterType(call, sourceCall, declarationType, sourceFile, input);
   if (substitutedDeclarationType !== undefined) {
@@ -607,14 +607,14 @@ function getResolvedSourceCallArgumentExpectation(
       subject: declarationType ?? declaration,
     };
   }
-  const carrier = input.semantics.getResolvedCallParameterRuntimeCarriers(call, { sourceFile })?.[argumentIndex];
+  const carrier = input.targetFacts.getResolvedCallParameterRuntimeCarriers(call, { sourceFile })?.[argumentIndex];
   if (carrier !== undefined) {
     const targetType = csharpTypeFromTargetTypeRef(carrier);
     if (targetType !== undefined) {
       return { type: targetType, subject: declarationType ?? declaration };
     }
   }
-  const parameterType = input.semantics.getResolvedCallParameterTypes(call, { sourceFile })?.[argumentIndex];
+  const parameterType = input.analysis.getResolvedCallParameterTypes(call, { sourceFile })?.[argumentIndex];
   const targetType = getTargetTypeRefForType(input, parameterType, sourceFile);
   const renderedType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
   const subject = declarationType ?? declaration;
@@ -633,7 +633,7 @@ function getSubstitutedSourceCallParameterType(
   if (call === undefined || declarationType === undefined) {
     return undefined;
   }
-  const sourceReference = input.semantics.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
+  const sourceReference = input.analysis.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
   if (sourceReference === undefined) {
     return undefined;
   }

@@ -1,4 +1,4 @@
 export {
-  getPrevalidatedSourceLibraryCallMember,
+  selectSourceLibraryCallMember,
   sourceLibraryCallSelectionOptions,
 } from "./selection-policy.js";

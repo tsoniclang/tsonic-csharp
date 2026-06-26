@@ -35,8 +35,8 @@ export function getCsharpTypeFromTypeAliasReferenceNode(
   }
   const typeName = getNodeField(node, "TypeName");
   const declarations = [
-    input.semantics.getSymbolAtLocation(typeName, { sourceFile }),
-    input.semantics.getResolvedSymbol(typeName, { sourceFile }),
+    input.analysis.getSymbolAtLocation(typeName, { sourceFile }),
+    input.analysis.getResolvedSymbol(typeName, { sourceFile }),
   ].flatMap((symbol) => symbol?.Declarations ?? [])
     .filter((declaration): declaration is Node => declaration !== undefined);
   for (const declaration of declarations) {

@@ -16,7 +16,6 @@ import {
 import {
   csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
   csharpJsSourceLibraryCallMayNeedFinalFacts,
-  csharpJsSourceLibraryCallRequiresPrevalidatedMember,
 } from "../policy.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryCall,
@@ -37,7 +36,7 @@ import {
   acceptSourceLibraryCheckedCall,
 } from "./operations.js";
 import {
-  getPrevalidatedSourceLibraryCallMember,
+  selectSourceLibraryCallMember,
   sourceLibraryCallSelectionOptions,
 } from "./selection.js";
 
@@ -55,7 +54,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  const consoleCall = mapCsharpJsConsoleCheckedCall(request, context, sourceMember, host);
+  const consoleCall = mapCsharpJsConsoleCheckedCall(request, context, sourceMember, host, options);
   if (consoleCall !== undefined) {
     return consoleCall;
   }
@@ -67,10 +66,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     }
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
-  const prevalidatedMember = getPrevalidatedSourceLibraryCallMember(sourceMember, candidates, request, context, host);
-  if (csharpJsSourceLibraryCallRequiresPrevalidatedMember(sourceMember) && prevalidatedMember === undefined) {
-    return undefined;
-  }
+  const selectedMember = selectSourceLibraryCallMember(sourceMember, candidates, request, context, host);
   if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
     if (csharpJsSourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase)) {
       return undefined;
@@ -78,17 +74,18 @@ export function mapCsharpSourceLibraryCheckedCall(
     return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
   const callMayNeedFinalFacts = csharpJsSourceLibraryCallMayNeedFinalFacts(sourceMember, options.phase);
-  if (candidates.length > 1 && request.sourceSelectedSignature === undefined && prevalidatedMember === undefined) {
+  if (candidates.length > 1 && request.sourceSelectedSignature === undefined && selectedMember === undefined) {
     if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
       return undefined;
     }
     return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
   }
-  const member = prevalidatedMember ??
+  const member = selectedMember ??
     host.selectTargetMember(candidates, {
       arguments: request.arguments,
       receiver: request.calleeReceiver,
-  }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
+      sourceSelectedSignature: request.sourceSelectedSignature,
+    }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
   if (member === undefined) {
     if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
       return undefined;

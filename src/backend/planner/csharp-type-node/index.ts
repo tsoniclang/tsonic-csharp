@@ -118,8 +118,8 @@ export function getCsharpTypeForNode(
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
   }
   const nodeType = IsTypeSyntaxNode(input.ast, node)
-    ? input.semantics.getTypeFromTypeNode(node, { sourceFile })
-    : input.semantics.getTypeAtLocation(node, { sourceFile });
+    ? input.analysis.getTypeFromTypeNode(node, { sourceFile })
+    : input.analysis.getTypeAtLocation(node, { sourceFile });
   const nodeTypeParameterName = nodeType === undefined
     ? undefined
     : getCsharpTypeParameterName(nodeType, input);

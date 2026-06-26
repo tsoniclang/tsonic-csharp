@@ -22,7 +22,7 @@ export function planClassMemberModifiers(node: Node, name: Node | undefined, inp
 
 export function planMethodModifiers(node: Node, name: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): CsharpMethodDeclaration["modifiers"] {
   const modifiers: CsharpMethodDeclaration["modifiers"][number][] = [...planClassMemberModifiers(node, name, input)];
-  const dispatch = input.semantics.getProjectSourceMethodDispatch(node, { sourceFile });
+  const dispatch = input.analysis.getProjectSourceMethodDispatch(node, { sourceFile });
   if (dispatch?.overridesBase === true) {
     modifiers.push("override");
   } else if (dispatch?.hasDerivedOverride === true) {

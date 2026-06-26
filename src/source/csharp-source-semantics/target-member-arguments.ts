@@ -50,6 +50,7 @@ const noImplicitSourcePrimitiveConversions: ReadonlySet<string> = new Set();
 export interface TargetMemberSelectionRequest {
   readonly arguments: readonly ExtensionFactSubject[];
   readonly receiver?: ExtensionFactSubject;
+  readonly sourceSelectedSignature?: unknown;
 }
 
 export interface TargetMemberSelectionOptions {
@@ -143,6 +144,7 @@ function targetMemberMatch(
     return undefined;
   }
   const typeParameterBindings = getDeclaringTypeParameterBindings(options);
+  let argumentScore = 0;
   for (let index = 0; index < arguments_.length; index += 1) {
     const parameter = getParameterForArgument(parameters, index);
     const argument = arguments_[index];
@@ -154,14 +156,24 @@ function targetMemberMatch(
       return undefined;
     }
     const argumentType = resolveTargetTypeRef(effectiveArgument.subject, context);
-    if (!targetTypeAcceptsArgument(getExpectedTargetTypeForArgument(parameter), argumentType, effectiveArgument.subject, context, typeParameterBindings, options)) {
+    if (argumentType === undefined && targetParameterAcceptsCheckedSourceArgument(parameter) && request.sourceSelectedSignature !== undefined) {
+      argumentScore += 20;
+      continue;
+    }
+    const matchScore = targetTypeArgumentMatchScore(getExpectedTargetTypeForArgument(parameter), argumentType, effectiveArgument.subject, context, typeParameterBindings, options);
+    if (matchScore === undefined) {
       return undefined;
     }
+    argumentScore += matchScore;
   }
   return {
     member: substituteTargetMemberTypeParameters(member, typeParameterBindings),
-    score: targetMemberArityPenalty(parameters, arguments_.length),
+    score: argumentScore + targetMemberArityPenalty(parameters, arguments_.length),
   };
+}
+
+function targetParameterAcceptsCheckedSourceArgument(parameter: TargetParameter): boolean {
+  return (parameter as TargetParameter & { readonly csharpAcceptsCheckedSourceArgument?: true }).csharpAcceptsCheckedSourceArgument === true;
 }
 
 function getTargetArgumentSubjectsForMember(
@@ -316,7 +328,12 @@ function omittedTargetArgumentsAreRenderable(parameters: readonly TargetParamete
 }
 
 function hasSupportedTargetDefaultValue(parameter: TargetParameter): boolean {
-  return parameter.defaultValue !== undefined && parameter.unsupportedDefaultValue === undefined;
+  return parameter.unsupportedDefaultValue === undefined &&
+    (parameter.defaultValue !== undefined || targetParameterIsOmittableWithoutDefault(parameter));
+}
+
+function targetParameterIsOmittableWithoutDefault(parameter: TargetParameter): boolean {
+  return (parameter as TargetParameter & { readonly csharpOmittableOptionalArgument?: true }).csharpOmittableOptionalArgument === true;
 }
 
 function getParameterForArgument(parameters: readonly TargetParameter[], index: number): TargetParameter | undefined {
@@ -328,25 +345,25 @@ function getParameterForArgument(parameters: readonly TargetParameter[], index: 
   return last?.paramsArray === true ? last : undefined;
 }
 
-function targetTypeAcceptsArgument(
+function targetTypeArgumentMatchScore(
   expected: TargetTypeRef,
   actual: TargetTypeRef | undefined,
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
   typeParameterBindings: Map<string, TargetTypeRef>,
   options: TargetMemberSelectionOptions,
-): boolean {
+): number | undefined {
   const effectiveExpected = substituteTargetTypeRef(expected, typeParameterBindings);
-  if (actual !== undefined && targetTypeMatchesExpected(effectiveExpected, actual, typeParameterBindings, options)) {
-    return true;
+  if (actual !== undefined) {
+    const actualScore = targetTypeMatchScore(effectiveExpected, actual, typeParameterBindings, options);
+    if (actualScore !== undefined) {
+      return actualScore;
+    }
   }
   if (isLiteralRepresentableAsTargetType(effectiveExpected, subject, context)) {
-    return true;
+    return 1;
   }
-  if (actual === undefined) {
-    return false;
-  }
-  return false;
+  return undefined;
 }
 
 function targetTypeMatchesExpected(
@@ -356,22 +373,41 @@ function targetTypeMatchesExpected(
   options: TargetMemberSelectionOptions,
   seenActualTypes: ReadonlySet<string> = new Set(),
 ): boolean {
+  return targetTypeMatchScore(expected, actual, typeParameterBindings, options, seenActualTypes) !== undefined;
+}
+
+function targetTypeMatchScore(
+  expected: TargetTypeRef,
+  actual: TargetTypeRef,
+  typeParameterBindings: Map<string, TargetTypeRef>,
+  options: TargetMemberSelectionOptions,
+  seenActualTypes: ReadonlySet<string> = new Set(),
+): number | undefined {
   if (expected.kind === "type-parameter") {
-    return bindTargetTypeParameter(expected.name, actual, typeParameterBindings);
+    return bindTargetTypeParameter(expected.name, actual, typeParameterBindings) ? 0 : undefined;
   }
   if (targetTypeRefEquals(expected, actual)) {
-    return true;
+    return 0;
+  }
+  if (sourcePrimitiveImplicitlyConverts(expected, actual)) {
+    return 3;
+  }
+  if (targetTypeIsObjectCatchAll(expected) && targetTypeIsClosedObjectAssignable(actual)) {
+    return 10;
   }
   const expectedNullableElement = getCsharpNullableElementTargetType(expected);
-  if (expectedNullableElement !== undefined && targetTypeMatchesExpected(expectedNullableElement, actual, typeParameterBindings, options, seenActualTypes)) {
-    return true;
+  if (expectedNullableElement !== undefined) {
+    const nullableScore = targetTypeMatchScore(expectedNullableElement, actual, typeParameterBindings, options, seenActualTypes);
+    if (nullableScore !== undefined) {
+      return nullableScore + 1;
+    }
   }
   const expectedDelegate = getCsharpDelegateSignature(expected);
   if (expectedDelegate !== undefined) {
-    return targetDelegateSignatureMatchesExpected(expectedDelegate, actual, typeParameterBindings, options, seenActualTypes);
+    return targetDelegateSignatureMatchesExpected(expectedDelegate, actual, typeParameterBindings, options, seenActualTypes) ? 0 : undefined;
   }
   if (expected.kind === "array" && actual.kind === "array" && (expected.rank ?? 1) === (actual.rank ?? 1)) {
-    return targetTypeMatchesExpected(expected.element, actual.element, typeParameterBindings, options, seenActualTypes);
+    return targetTypeMatchScore(expected.element, actual.element, typeParameterBindings, options, seenActualTypes);
   }
   const expectedCollectionElement = getCsharpCollectionElementTargetType(expected);
   const actualCollectionElement = getCsharpCollectionElementTargetType(actual) ??
@@ -379,52 +415,86 @@ function targetTypeMatchesExpected(
   if (
     expectedCollectionElement !== undefined &&
     actualCollectionElement !== undefined &&
-    collectionShapeAcceptsActual(expected, actual) &&
-    targetTypeMatchesExpected(expectedCollectionElement, actualCollectionElement, typeParameterBindings, options, seenActualTypes)
+    collectionShapeAcceptsActual(expected, actual)
   ) {
-    return true;
+    const elementScore = targetTypeMatchScore(expectedCollectionElement, actualCollectionElement, typeParameterBindings, options, seenActualTypes);
+    if (elementScore !== undefined) {
+      return elementScore + 2;
+    }
   }
   const expectedArrayLiteralElement = getCsharpArrayLiteralElementTargetType(expected);
   if (expectedArrayLiteralElement !== undefined && actual.kind === "array") {
-    return targetTypeMatchesExpected(expectedArrayLiteralElement, actual.element, typeParameterBindings, options, seenActualTypes);
+    const elementScore = targetTypeMatchScore(expectedArrayLiteralElement, actual.element, typeParameterBindings, options, seenActualTypes);
+    return elementScore === undefined ? undefined : elementScore + 2;
   }
   if (expected.kind === "tuple" && actual.kind === "tuple" && expected.elements.length === actual.elements.length) {
-    return expected.elements.every((element, index) => {
+    let tupleScore = 0;
+    for (let index = 0; index < expected.elements.length; index += 1) {
+      const element = expected.elements[index];
       const actualElement = actual.elements[index];
-      return actualElement !== undefined && targetTypeMatchesExpected(element, actualElement, typeParameterBindings, options, seenActualTypes);
-    });
+      const elementScore = element === undefined || actualElement === undefined
+        ? undefined
+        : targetTypeMatchScore(element, actualElement, typeParameterBindings, options, seenActualTypes);
+      if (elementScore === undefined) {
+        return undefined;
+      }
+      tupleScore += elementScore;
+    }
+    return tupleScore;
   }
   if (expected.kind === "target-named" && actual.kind === "target-named" && expected.id === actual.id) {
     const expectedArgs = expected.typeArguments ?? [];
     const actualArgs = actual.typeArguments ?? [];
     if (expectedArgs.length !== actualArgs.length) {
-      return false;
+      return undefined;
     }
-    return expectedArgs.every((argument, index) => {
+    let argumentScore = 0;
+    for (let index = 0; index < expectedArgs.length; index += 1) {
+      const argument = expectedArgs[index];
       const actualArgument = actualArgs[index];
-      return actualArgument !== undefined && targetTypeMatchesExpected(argument, actualArgument, typeParameterBindings, options, seenActualTypes);
-    });
+      const matchScore = argument === undefined || actualArgument === undefined
+        ? undefined
+        : targetTypeMatchScore(argument, actualArgument, typeParameterBindings, options, seenActualTypes);
+      if (matchScore === undefined) {
+        return undefined;
+      }
+      argumentScore += matchScore;
+    }
+    return argumentScore;
   }
   if (expected.kind === "target-named" && actual.kind === "target-named") {
     const actualKey = targetTypeRefKey(actual);
     if (!seenActualTypes.has(actualKey)) {
       const baseType = options.getBaseTargetTypeRef?.(actual);
       if (baseType !== undefined) {
-        return targetTypeMatchesExpected(expected, baseType, typeParameterBindings, options, new Set([...seenActualTypes, actualKey]));
+        const baseScore = targetTypeMatchScore(expected, baseType, typeParameterBindings, options, new Set([...seenActualTypes, actualKey]));
+        return baseScore === undefined ? undefined : baseScore + 2;
       }
     }
   }
   if (expected.kind === "pointer" && actual.kind === "pointer") {
-    return targetTypeMatchesExpected(expected.pointee, actual.pointee, typeParameterBindings, options, seenActualTypes);
+    return targetTypeMatchScore(expected.pointee, actual.pointee, typeParameterBindings, options, seenActualTypes);
   }
   if (expected.kind === "function-pointer" && actual.kind === "function-pointer" && expected.args.length === actual.args.length) {
-    return targetTypeMatchesExpected(expected.result, actual.result, typeParameterBindings, options, seenActualTypes) &&
-      expected.args.every((argument, index) => {
-        const actualArgument = actual.args[index];
-        return actualArgument !== undefined && targetTypeMatchesExpected(argument, actualArgument, typeParameterBindings, options, seenActualTypes);
-      });
+    const resultScore = targetTypeMatchScore(expected.result, actual.result, typeParameterBindings, options, seenActualTypes);
+    if (resultScore === undefined) {
+      return undefined;
+    }
+    let argumentScore = 0;
+    for (let index = 0; index < expected.args.length; index += 1) {
+      const argument = expected.args[index];
+      const actualArgument = actual.args[index];
+      const matchScore = argument === undefined || actualArgument === undefined
+        ? undefined
+        : targetTypeMatchScore(argument, actualArgument, typeParameterBindings, options, seenActualTypes);
+      if (matchScore === undefined) {
+        return undefined;
+      }
+      argumentScore += matchScore;
+    }
+    return resultScore + argumentScore;
   }
-  return false;
+  return undefined;
 }
 
 function collectionShapeAcceptsActual(expected: TargetTypeRef, actual: TargetTypeRef): boolean {
@@ -442,6 +512,28 @@ function collectionShapeAcceptsActual(expected: TargetTypeRef, actual: TargetTyp
     return isCsharpDenseMutableCollectionTargetType(actual);
   }
   return false;
+}
+
+function targetTypeIsObjectCatchAll(type: TargetTypeRef): boolean {
+  return type.kind === "target-named" && type.id === "System.Object";
+}
+
+function targetTypeIsClosedObjectAssignable(type: TargetTypeRef): boolean {
+  switch (type.kind) {
+    case "source-primitive":
+    case "target-named":
+    case "target-specific":
+    case "array":
+    case "tuple":
+    case "pointer":
+    case "function-pointer":
+    case "associated-type":
+      return true;
+    case "type-parameter":
+    case "opaque":
+    case "lifetime":
+      return false;
+  }
 }
 
 function getCsharpDelegateSignature(type: TargetTypeRef): CsharpDelegateSignatureShape | undefined {
@@ -646,6 +738,9 @@ function substituteTargetTypeRef(type: TargetTypeRef, typeParameterBindings: Rea
         ...((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType === undefined
           ? {}
           : { csharpArrayLiteralElementType: substituteTargetTypeRef((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType!, typeParameterBindings) }),
+        ...((type as CsharpTargetNamedTypeRef).csharpEnumerableElementType === undefined
+          ? {}
+          : { csharpEnumerableElementType: substituteTargetTypeRef((type as CsharpTargetNamedTypeRef).csharpEnumerableElementType!, typeParameterBindings) }),
       };
     case "array":
       return { ...type, element: substituteTargetTypeRef(type.element, typeParameterBindings) };

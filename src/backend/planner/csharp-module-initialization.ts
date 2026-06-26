@@ -22,7 +22,7 @@ export function planCsharpModuleInitialization(input: TargetCompileInput): Cshar
   const entries = new Map<string, ModuleInitializationEntry>();
   const runtimeImportTargets = new Set<string>();
   for (const sourceFile of input.sourceFiles) {
-    const dependencies = input.semantics.getProjectSourceModuleDependencies(sourceFile)
+    const dependencies = input.analysis.getProjectSourceModuleDependencies(sourceFile)
       .map((dependency) => dependency.sourceFile);
     for (const dependency of dependencies) {
       runtimeImportTargets.add(normalizedFileName(dependency));

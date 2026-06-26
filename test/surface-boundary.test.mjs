@@ -244,6 +244,25 @@ test("JS surface maps Array.concat from selected declaration and closed array ar
   assert.equal(result.value.selectedSignature.member.returnType.typeArguments[0].name, "int32");
 });
 
+test("JS surface rejects Array member selection without proven receiver carrier facts", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, arrayMemberDeclaration("join"), {
+    calleeReceiver: receiver,
+    sourceSelectedSignature: {},
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /Array\.join/);
+  assert.match(result.diagnostic.message, /receiver lacks finalized target runtime facts/);
+  assert.equal(facts.get(call, selectedTargetSignatureFactKey), undefined);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps Array.from, Array.of, and Array.isArray from selected declarations", () => {
   const arrayFromSource = {};
   const arrayOfFirst = {};
@@ -2912,6 +2931,7 @@ function jsMapType(keyType, valueType) {
     id: "Tsonic.CSharp.Js.Map`2",
     typeArguments: [keyType, valueType],
     csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "Map" },
+    csharpEnumerableElementType: { kind: "tuple", elements: [keyType, valueType] },
     csharpJsSurfaceKind: "map",
   };
 }
@@ -2922,6 +2942,7 @@ function jsSetType(elementType) {
     id: "Tsonic.CSharp.Js.Set`1",
     typeArguments: [elementType],
     csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "Set" },
+    csharpEnumerableElementType: elementType,
     csharpJsSurfaceKind: "set",
   };
 }

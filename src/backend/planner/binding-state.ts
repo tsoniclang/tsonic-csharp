@@ -208,8 +208,8 @@ function localBindingKey(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): object | undefined {
-  const symbol = input.semantics.getSymbolAtLocation(node, { sourceFile }) ??
-    input.semantics.getResolvedSymbol(node, { sourceFile });
+  const symbol = input.analysis.getSymbolAtLocation(node, { sourceFile }) ??
+    input.analysis.getResolvedSymbol(node, { sourceFile });
   return asObjectKey(symbol) ?? asObjectKey(node);
 }
 

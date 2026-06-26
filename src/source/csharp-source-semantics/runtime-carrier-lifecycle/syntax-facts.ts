@@ -27,6 +27,9 @@ import {
   getCatchVariableTargetTypeRef,
 } from "../target-type-resolution-facts.js";
 import {
+  targetTypeRefIsClosed,
+} from "../target-ref-utils.js";
+import {
   getCallableExpressionRuntimeCarrierTargetTypeRef,
 } from "./callable-expressions.js";
 import type {
@@ -88,7 +91,7 @@ function getClosedSyntaxRuntimeCarrier(
   node: Node,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): TargetTypeRef | undefined {
-  return host.getTargetTypeRefForSubject(
+  const carrier = host.getTargetTypeRefForSubject(
     node,
     createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
     {
@@ -96,6 +99,9 @@ function getClosedSyntaxRuntimeCarrier(
       allowSemanticTypeQuery: false,
     },
   );
+  return carrier === undefined || !targetTypeRefIsClosed(carrier)
+    ? undefined
+    : carrier;
 }
 
 function isObjectShapeRuntimeCarrierSyntaxNode(

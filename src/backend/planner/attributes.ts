@@ -280,8 +280,8 @@ function resolveAttributeApplication(
     return {};
   }
   const applicationSourceFile = input.ast.getSourceFile(applicationTarget) ?? contextSourceFile;
-  const selectedDeclaration = input.semantics.getProjectSourceReferenceForNode(applicationTarget, { sourceFile: applicationSourceFile })?.declaration ??
-    input.semantics.getProjectSourceDeclarationForNode(applicationTarget, { sourceFile: applicationSourceFile });
+  const selectedDeclaration = input.analysis.getProjectSourceReferenceForNode(applicationTarget, { sourceFile: applicationSourceFile })?.declaration ??
+    input.analysis.getProjectSourceDeclarationForNode(applicationTarget, { sourceFile: applicationSourceFile });
   if (attribute.applicationPlacement === "constructor") {
     const constructor = SourceKind(input.ast, selectedDeclaration) === KindConstructor
       ? selectedDeclaration

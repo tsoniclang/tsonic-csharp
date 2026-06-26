@@ -117,7 +117,7 @@ function getConstAssertionInitializerType(
   if (assertion?.Type === undefined || assertion.Expression === undefined || !isConstAssertionType(assertion.Type, input)) {
     return undefined;
   }
-  return getCsharpTypeFromSemanticType(input.semantics.getTypeAtLocation(assertion.Expression, { sourceFile }), sourceFile, input);
+  return getCsharpTypeFromSemanticType(input.analysis.getTypeAtLocation(assertion.Expression, { sourceFile }), sourceFile, input);
 }
 
 function getTypeReferenceName(node: Node): Node | undefined {

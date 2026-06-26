@@ -140,7 +140,7 @@ function isProjectSourceClassReference(node: Node | undefined, sourceFile: Sourc
   if (node === undefined) {
     return false;
   }
-  const reference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile });
+  const reference = input.analysis.getProjectSourceReferenceForNode(node, { sourceFile });
   if (reference === undefined || input.facts.getTargetBindingFact(reference.symbol) !== undefined) {
     return false;
   }

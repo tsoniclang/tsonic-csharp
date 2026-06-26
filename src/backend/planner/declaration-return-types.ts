@@ -20,7 +20,7 @@ export function getExplicitReturnType(
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> {
   if (typeNode === undefined) {
-    const returnCarrier = input.semantics.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile });
+    const returnCarrier = input.targetFacts.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile });
     const returnType = returnCarrier === undefined
       ? getInferredSignatureReturnType(declarationNode, sourceFile, input)
       : undefined;
@@ -79,7 +79,7 @@ function getDeclarationReturnTargetType(
   if (typeNode !== undefined) {
     return getTargetTypeRefForNode(input, typeNode, sourceFile);
   }
-  return input.semantics.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile }) ??
+  return input.targetFacts.getReturnTypeCarrierFromDeclaration(declarationNode, { sourceFile }) ??
     getTargetTypeRefForType(input, getInferredSignatureReturnType(declarationNode, sourceFile, input), sourceFile);
 }
 
@@ -88,23 +88,23 @@ function getInferredSignatureReturnType(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): Type | undefined {
-  const declarationType = input.semantics.getTypeAtLocation(declarationNode, { sourceFile });
+  const declarationType = input.analysis.getTypeAtLocation(declarationNode, { sourceFile });
   const declarationName = input.ast.name(declarationNode);
   const declarationNameType = declarationName === undefined
     ? undefined
-    : input.semantics.getTypeAtLocation(declarationName, { sourceFile });
+    : input.analysis.getTypeAtLocation(declarationName, { sourceFile });
   const declarationSymbol = declarationName === undefined
     ? undefined
-    : input.semantics.getSymbolAtLocation(declarationName, { sourceFile });
+    : input.analysis.getSymbolAtLocation(declarationName, { sourceFile });
   const resolvedDeclarationSymbol = declarationName === undefined
     ? undefined
-    : input.semantics.getResolvedSymbol(declarationName, { sourceFile });
+    : input.analysis.getResolvedSymbol(declarationName, { sourceFile });
   const declarationSymbolType = declarationName === undefined
     ? undefined
-    : input.semantics.getTypeOfSymbol(declarationSymbol, { sourceFile });
+    : input.analysis.getTypeOfSymbol(declarationSymbol, { sourceFile });
   const resolvedDeclarationSymbolType = declarationName === undefined
     ? undefined
-    : input.semantics.getTypeOfSymbol(resolvedDeclarationSymbol, { sourceFile });
+    : input.analysis.getTypeOfSymbol(resolvedDeclarationSymbol, { sourceFile });
   const signature = input.types.getCallSignatures(declarationType, { sourceFile })[0] ??
     input.types.getCallSignatures(declarationNameType, { sourceFile })[0] ??
     input.types.getCallSignatures(declarationSymbolType, { sourceFile })[0] ??

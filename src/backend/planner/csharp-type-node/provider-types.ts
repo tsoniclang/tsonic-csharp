@@ -35,7 +35,7 @@ export function getCsharpTypeFromTargetBindingForReference(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[] | undefined,
 ): CsharpTypeNode | undefined {
-  const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
+  const targetBinding = input.targetFacts.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding === undefined) {
     return undefined;
   }

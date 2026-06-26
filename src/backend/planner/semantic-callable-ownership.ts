@@ -39,7 +39,7 @@ export function getCallableSemanticOwnership(
   const requiresSelectedTargetFact = hasSelectedTargetFactEvidence(input, callee) ||
     hasSelectedTargetFactEvidence(input, symbol) ||
     propertyAccessReceiverRequiresSelectedTargetFact(input, callee, sourceFile);
-  const sourceReference = input.semantics.getProjectSourceReferenceForNode(callee, { sourceFile });
+  const sourceReference = input.analysis.getProjectSourceReferenceForNode(callee, { sourceFile });
   const sourceOwned = !requiresSelectedTargetFact &&
     (isSourceDeclaredCallableReference(sourceReference, input) ||
       isSourceOwnedCallableRuntimeCarrierSubject(callee, sourceFile, input) ||
@@ -48,7 +48,7 @@ export function getCallableSemanticOwnership(
   if (!sourceOwned) {
     appendSourceReferenceFactReasons(reasons, input, sourceReference);
     appendSemanticNodeFactReasons(reasons, input, callee, sourceFile, "callee semantic node");
-    appendTargetFactReasons(reasons, input, input.semantics.getResolvedSymbol(callee, { sourceFile }), "callee resolved symbol");
+    appendTargetFactReasons(reasons, input, input.analysis.getResolvedSymbol(callee, { sourceFile }), "callee resolved symbol");
   }
   return {
     requiresTargetFact: !sourceOwned && reasons.length > 0,
@@ -60,7 +60,7 @@ export function getCallableSemanticOwnership(
 function appendSourceReferenceFactReasons(
   reasons: string[],
   input: TargetCompileInput,
-  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
 ): void {
   if (reference === undefined) {
     return;
@@ -106,7 +106,7 @@ function propertyAccessReceiverRequiresSelectedTargetFact(
   return receiver !== undefined &&
     (hasSelectedTargetFactEvidence(input, receiver) ||
       hasSelectedTargetFactEvidence(input, getQueryableSymbol(receiver, sourceFile, input)) ||
-      input.semantics.getTargetBindingForReference(receiver, { sourceFile }) !== undefined);
+      input.targetFacts.getTargetBindingForReference(receiver, { sourceFile }) !== undefined);
 }
 
 function hasSelectedTargetFactEvidence(

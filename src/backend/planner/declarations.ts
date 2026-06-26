@@ -72,8 +72,8 @@ function getImplementedInterfacePropertyNames(
     const types = heritageClause.Types?.Nodes ?? [];
     for (const heritageType of types) {
       const referenceNode = AsExpressionWithTypeArguments(heritageType)?.Expression ?? heritageType;
-      const declaration = input.semantics.getProjectSourceReferenceForNode(referenceNode, { sourceFile })?.declaration ??
-        input.semantics.getProjectSourceDeclarationForNode(referenceNode, { sourceFile });
+      const declaration = input.analysis.getProjectSourceReferenceForNode(referenceNode, { sourceFile })?.declaration ??
+        input.analysis.getProjectSourceDeclarationForNode(referenceNode, { sourceFile });
       if (SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
         continue;
       }

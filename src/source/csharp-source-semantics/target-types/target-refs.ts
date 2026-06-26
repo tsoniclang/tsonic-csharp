@@ -15,6 +15,9 @@ export function csharpTargetNamedType(
   renderShape?: CsharpTargetTypeRenderShape,
   metadata: {
     readonly arrayLiteralElementType?: TargetTypeRef;
+    readonly enumerableElementType?: TargetTypeRef;
+    readonly readOnlyIndexableElementType?: TargetTypeRef;
+    readonly denseMutableElementType?: TargetTypeRef;
     readonly specialType?: CsharpTargetNamedTypeRef["csharpSpecialType"];
     readonly sourceDeclarationKind?: CsharpTargetNamedTypeRef["csharpSourceDeclarationKind"];
     readonly throwable?: true;
@@ -28,6 +31,9 @@ export function csharpTargetNamedType(
     ...(typeArguments !== undefined && typeArguments.length > 0 ? { typeArguments } : {}),
     ...(renderShape !== undefined ? { csharpRender: renderShape } : {}),
     ...(metadata.arrayLiteralElementType !== undefined ? { csharpArrayLiteralElementType: metadata.arrayLiteralElementType } : {}),
+    ...(metadata.enumerableElementType !== undefined ? { csharpEnumerableElementType: metadata.enumerableElementType } : {}),
+    ...(metadata.readOnlyIndexableElementType !== undefined ? { csharpReadOnlyIndexableElementType: metadata.readOnlyIndexableElementType } : {}),
+    ...(metadata.denseMutableElementType !== undefined ? { csharpDenseMutableElementType: metadata.denseMutableElementType } : {}),
     ...(metadata.specialType !== undefined ? { csharpSpecialType: metadata.specialType } : {}),
     ...(metadata.sourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: metadata.sourceDeclarationKind } : {}),
     ...(metadata.throwable === true ? { csharpThrowable: true } : {}),

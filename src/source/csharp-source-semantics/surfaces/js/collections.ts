@@ -29,6 +29,9 @@ import {
 import {
   createCsharpJsCollectionTargetTypeForSourceType,
 } from "./collection-target-metadata.js";
+import {
+  targetTypeRefIsClosed,
+} from "../../target-ref-utils.js";
 
 export {
   csharpJsMapTargetType,
@@ -57,14 +60,16 @@ export function getCsharpJsCollectionRuntimeCarrierForType(
   type: Type | undefined,
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
+  sourceFile?: SourceFile,
 ): TargetTypeRef | undefined {
   if (type === undefined) {
     return undefined;
   }
-  const typeArguments = getTypeArguments(type, context)
+  const typeArguments = getTypeArguments(type, context, sourceFile)
     .map((argument) => host.getTargetTypeRefForSubject(argument, context, {
       allowRuntimeCarrier: true,
       allowSemanticTypeQuery: true,
+      ...(sourceFile !== undefined ? { sourceFile } : {}),
     }));
   const completeTypeArguments = completeTargetTypeArguments(typeArguments);
   return completeTypeArguments === undefined
@@ -92,7 +97,7 @@ function getCsharpJsCollectionRuntimeCarrierForNode(
 ): TargetTypeRef | undefined {
   const type = checkedTypeAtLocation(node, sourceFile, context);
   return getCsharpJsCollectionRuntimeCarrierForSyntaxNode(node, type, context, host) ??
-    getCsharpJsCollectionRuntimeCarrierForType(type, context, host);
+    getCsharpJsCollectionRuntimeCarrierForType(type, context, host, sourceFile);
 }
 
 function getCsharpJsCollectionRuntimeCarrierForSyntaxNode(
@@ -113,8 +118,9 @@ function getCsharpJsCollectionRuntimeCarrierForSyntaxNode(
       ? undefined
       : resolveTargetTypeRefFromKeywordTypeSyntax(ast, argument) ??
         host.getTargetTypeRefForSubject(argument, context, {
-          allowRuntimeCarrier: false,
-          allowSemanticTypeQuery: false,
+          allowRuntimeCarrier: true,
+          allowSemanticTypeQuery: true,
+          sourceFile: ast.getSourceFile(node),
         })
     );
   if (typeArguments.some((argument) => argument === undefined)) {
@@ -167,15 +173,16 @@ function setCollectionRuntimeCarrierFactIfAbsent(
 function completeTargetTypeArguments(
   typeArguments: readonly (TargetTypeRef | undefined)[],
 ): readonly TargetTypeRef[] | undefined {
-  return typeArguments.some((argument) => argument === undefined)
+  return typeArguments.some((argument) => argument === undefined || !targetTypeRefIsClosed(argument))
     ? undefined
     : typeArguments as readonly TargetTypeRef[];
 }
 
-function getTypeArguments(type: Type, context: ExtensionObservationContext): readonly Type[] {
+function getTypeArguments(type: Type, context: ExtensionObservationContext, sourceFile?: SourceFile): readonly Type[] {
   const types = context.compiler?.types;
   if (types === undefined || !types.isTypeReference(type)) {
     return [];
   }
-  return types.getTypeArguments(type).filter((argument): argument is Type => argument !== undefined);
+  return types.getTypeArguments(type, sourceFile === undefined ? undefined : { sourceFile })
+    .filter((argument): argument is Type => argument !== undefined);
 }

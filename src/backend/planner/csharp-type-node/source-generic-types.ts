@@ -54,7 +54,7 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
   if (annotatedReturnType !== undefined) {
     return annotatedReturnType;
   }
-  const carrier = input.semantics.getResolvedCallReturnRuntimeCarrier(node, { sourceFile });
+  const carrier = input.targetFacts.getResolvedCallReturnRuntimeCarrier(node, { sourceFile });
   if (carrier !== undefined) {
     const csharpType = csharpTypeFromTargetTypeRef(carrier);
     if (csharpType === undefined) {
@@ -80,7 +80,7 @@ export function getCsharpTypeFromSourceNewExpression(
   const expression = AsNewExpression(node);
   const reference = expression === undefined
     ? undefined
-    : input.semantics.getProjectSourceReferenceForNode(expression.Expression, { sourceFile });
+    : input.analysis.getProjectSourceReferenceForNode(expression.Expression, { sourceFile });
   if (expression === undefined || reference === undefined || !input.ast.is.IsClassDeclaration(reference.declaration)) {
     return undefined;
   }
@@ -105,7 +105,7 @@ function getCsharpTypeFromSourceCallReturnAnnotation(
   if (call === undefined) {
     return undefined;
   }
-  const reference = input.semantics.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
+  const reference = input.analysis.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
   const returnTypeNode = (reference?.declaration as { readonly Type?: Node } | undefined)?.Type;
   if (reference === undefined || returnTypeNode === undefined) {
     return undefined;

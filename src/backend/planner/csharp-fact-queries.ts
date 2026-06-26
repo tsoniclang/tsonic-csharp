@@ -28,8 +28,8 @@ export function getCsharpObjectShapeFactForNode(
     return declarationAnnotation;
   }
   const semanticType = IsTypeSyntaxNode(input.ast, node)
-    ? input.semantics.getTypeFromTypeNode(node, { sourceFile })
-    : input.semantics.getTypeAtLocation(node, { sourceFile });
+    ? input.analysis.getTypeFromTypeNode(node, { sourceFile })
+    : input.analysis.getTypeAtLocation(node, { sourceFile });
   return input.facts.getFact(semanticType, csharpObjectShapeFactKey) ??
     input.facts.getFact(semanticType?.symbol, csharpObjectShapeFactKey);
 }
@@ -39,7 +39,7 @@ function getCsharpObjectShapeFactForDeclarationAnnotation(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): CsharpObjectShapeFact | undefined {
-  const symbol = input.semantics.getSymbolAtLocation(node, { sourceFile });
+  const symbol = input.analysis.getSymbolAtLocation(node, { sourceFile });
   const declarations = (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
     ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
   for (const declaration of declarations) {
@@ -65,8 +65,8 @@ function getCsharpObjectShapeFactForTypeReferenceName(
     return undefined;
   }
   return input.facts.getFact(typeName, csharpObjectShapeFactKey) ??
-    input.facts.getFact(input.semantics.getSymbolAtLocation(typeName, { sourceFile }), csharpObjectShapeFactKey) ??
-    input.facts.getFact(input.semantics.getResolvedSymbol(typeName, { sourceFile }), csharpObjectShapeFactKey);
+    input.facts.getFact(input.analysis.getSymbolAtLocation(typeName, { sourceFile }), csharpObjectShapeFactKey) ??
+    input.facts.getFact(input.analysis.getResolvedSymbol(typeName, { sourceFile }), csharpObjectShapeFactKey);
 }
 
 function getNodeField(node: Node | undefined, field: string): unknown {

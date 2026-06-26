@@ -51,8 +51,8 @@ function arrayBoundaryFactSubjects(
     return [];
   }
   const subjects: ExtensionFactSubject[] = [node];
-  const directSymbol = input.semantics.getSymbolAtLocation(node, { sourceFile });
-  const resolvedSymbol = input.semantics.getResolvedSymbol(node, { sourceFile });
+  const directSymbol = input.analysis.getSymbolAtLocation(node, { sourceFile });
+  const resolvedSymbol = input.analysis.getResolvedSymbol(node, { sourceFile });
   appendSubject(subjects, directSymbol);
   appendSubject(subjects, resolvedSymbol);
   for (const symbol of [directSymbol, resolvedSymbol]) {

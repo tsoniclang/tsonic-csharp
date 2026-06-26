@@ -13,7 +13,11 @@ export function csharpJsArrayCarrierTargetType(element: TargetTypeRef): TargetTy
     csharpJsArrayCarrierId,
     [element],
     csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JSArray"),
-    { arrayLiteralElementType: element },
+    {
+      arrayLiteralElementType: element,
+      enumerableElementType: element,
+      readOnlyIndexableElementType: element,
+    },
   );
 }
 

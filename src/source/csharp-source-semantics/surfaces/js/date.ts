@@ -189,7 +189,7 @@ const dateConstructorMembers: readonly TargetMember[] = [
     targetParameter("dateString", stringType),
   ]),
   dateConstructor("Tsonic.CSharp.Js.Date..ctor(System.Object)", [
-    targetParameter("value", objectType),
+    targetParameter("value", objectType, { csharpAcceptsCheckedSourceArgument: true }),
   ]),
   dateConstructor("Tsonic.CSharp.Js.Date..ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32)", [
     targetParameter("year", intType),

@@ -116,6 +116,7 @@ export function getSourceLibraryCallArgumentTargetTypes(
       : host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, {
           ...csharpJsCheckedTypeQuery,
           allowRuntimeCarrier: true,
+          allowSemanticTypeQuery: false,
         }));
   });
 }
@@ -133,6 +134,7 @@ export function getSourceLibraryCallResultTargetType(
       host.getTargetTypeRefForSubject(request.call, context, {
         ...csharpJsCheckedTypeQuery,
         allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: false,
       }),
   );
 }

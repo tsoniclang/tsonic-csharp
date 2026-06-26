@@ -15,11 +15,18 @@ export type {
   SourceLibraryDeclaringName,
   SourceLibraryMember,
   SourceLibraryMemberId,
+  SourceLibraryMemberIdPrefix,
 } from "../../source-library.js";
 export {
   createSourceLibraryMember,
   getSourceLibraryMember,
   isSourceLibraryType,
+  sourceLibraryMemberIdSet,
+  sourceLibraryMemberIdentity,
+  sourceLibraryMemberMatches,
+  sourceLibraryMemberMatchesAny,
+  sourceLibraryMemberMatchesAnyPrefix,
+  sourceLibraryMemberName,
 } from "../../source-library.js";
 export {
   csharpTargetOperationFromMember,
@@ -83,6 +90,7 @@ export interface CsharpJsSurfaceHost {
     request: {
       readonly arguments: readonly ExtensionFactSubject[];
       readonly receiver?: ExtensionFactSubject;
+      readonly sourceSelectedSignature?: unknown;
     },
     context: ExtensionObservationContext,
     options?: {

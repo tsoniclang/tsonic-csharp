@@ -27,6 +27,42 @@ export const analysisAbstractionRules = Object.freeze([
       "Read source-library members only inside source identity or policy adapters.",
   },
   {
+    id: "source-member-id-branch",
+    pattern: /sourceMember\.id\s*(?:={2,3}|!={1,2})/g,
+    replacement:
+      "Use declarative source identity policy records instead of source-member id control-flow branches.",
+  },
+  {
+    id: "source-member-id-prefix-branch",
+    pattern: /sourceMember\.id\.startsWith\s*\(/g,
+    replacement:
+      "Use declarative source identity policy records instead of source-member prefix control-flow branches.",
+  },
+  {
+    id: "candidate-target-id-branch",
+    pattern: /candidate\.id\s*(?:={2,3}|!={1,2})/g,
+    replacement:
+      "Select target members with provider metadata and the generic selector, not target id control-flow branches.",
+  },
+  {
+    id: "candidate-target-id-find",
+    pattern: /candidates\.find\s*\(\s*\(?\s*candidate\s*\)?\s*=>\s*candidate\.id/g,
+    replacement:
+      "Index provider metadata by selected source declaration/signature identity instead of scanning candidates by target id.",
+  },
+  {
+    id: "source-library-declaring-name-type",
+    pattern: /\bSourceLibraryDeclaringName\b/g,
+    replacement:
+      "Keep concrete TypeScript library names inside source identity extraction or declarative policy data only.",
+  },
+  {
+    id: "source-library-member-id-type",
+    pattern: /\bSourceLibraryMemberId\b/g,
+    replacement:
+      "Keep concrete TypeScript library member ids inside source identity extraction or declarative policy data only.",
+  },
+  {
     id: "target-member-helper",
     pattern: /\btarget(?:Method|Property|Constructor)\s*\(/g,
     replacement:
@@ -90,8 +126,9 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry("src/source/csharp-source-semantics/dictionaries.ts", { "target-member-table": 2 }, "provider-metadata-candidate", "target-provider", "Move dictionary target members behind provider metadata and selected member facts."),
   entry("src/source/csharp-source-semantics/operations-provider.ts", { "source-library-member-read": 2 }, "source-identity-policy-candidate", "target-provider", "Replace direct library probing with selected source identity and provider policy facts."),
   entry("src/source/csharp-source-semantics/runtime-carrier-lifecycle/expected-context-propagation.ts", { "semantic-fallback-word": 1 }, "backend-fact-boundary-candidate", "target-provider", "Verify fallback wording is non-semantic; lifecycle propagation must fail closed when facts are absent."),
-  entry("src/source/csharp-source-semantics/source-library.ts", { "source-library-type-check": 1, "source-library-member-read": 1 }, "source-identity-policy-candidate", "surface-provider", "Keep source-library inspection centralized here until replaced by selected declaration identity records."),
-  entry("src/source/csharp-source-semantics/source-type-classification.ts", { "source-library-type-check": 1 }, "type-classification-candidate", "target-provider", "Centralize source standard-library type names in one classification policy before generic analysis consumes category facts."),
+  entry("src/source/csharp-source-semantics/source-library.ts", { "source-member-name": 1, "source-member-id-prefix-branch": 1, "source-library-type-check": 1, "source-library-member-read": 1, "source-library-declaring-name-type": 8, "source-library-member-id-type": 7 }, "source-identity-policy-candidate", "surface-provider", "Keep source-library inspection centralized here until replaced by selected declaration identity records."),
+  entry("src/source/csharp-source-semantics/source-type-classification.ts", { "source-library-type-check": 1, "source-library-declaring-name-type": 2 }, "type-classification-candidate", "target-provider", "Centralize source standard-library type names in one classification policy before generic analysis consumes category facts."),
+  entry("src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-policy.ts", { "source-library-member-id-type": 5 }, "surface-policy-candidate", "surface-provider", "Array carrier use policy must become declarative source identity policy with carrier facts and explicit exception records."),
   entry("src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/source-library-selection.ts", { "source-library-member-read": 1 }, "source-identity-policy-candidate", "surface-provider", "Limit source-library reads to identity extraction, then expose selected source identity facts."),
   entry("src/source/csharp-source-semantics/surfaces/js/array-carriers.ts", { "source-library-member-read": 1 }, "surface-policy-candidate", "surface-provider", "Move array carrier decisions to selected source identities and carrier policies."),
   entry("src/source/csharp-source-semantics/surfaces/js/arrays/target-members.ts", { "target-member-helper": 2, "target-member-table": 1 }, "provider-metadata-candidate", "surface-provider", "Represent JS array target members as provider metadata or explicit exceptions."),
@@ -99,7 +136,7 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry("src/source/csharp-source-semantics/surfaces/js/calls/dispatch.ts", { "source-library-member-read": 1 }, "surface-policy-candidate", "surface-provider", "Use selected source identity facts before dispatching call policies."),
   entry("src/source/csharp-source-semantics/surfaces/js/calls/lifecycle.ts", { "source-library-member-read": 1 }, "surface-policy-candidate", "surface-provider", "Lifecycle call recording should use selected source identity and policy facts."),
   entry("src/source/csharp-source-semantics/surfaces/js/console.ts", { "target-member-helper": 1 }, "provider-metadata-candidate", "surface-provider", "Map console target members through provider metadata."),
-  entry("src/source/csharp-source-semantics/surfaces/js/collection-target-metadata.ts", { "target-member-helper": 2, "target-member-table": 1 }, "provider-metadata-candidate", "surface-provider", "Collection target metadata is isolated; next step is replacing inline target member construction with provider metadata records."),
+  entry("src/source/csharp-source-semantics/surfaces/js/collection-target-metadata.ts", { "target-member-helper": 2, "target-member-table": 1, "source-library-declaring-name-type": 6, "source-library-member-id-type": 3 }, "provider-metadata-candidate", "surface-provider", "Collection target metadata is isolated; next step is replacing inline target member construction with provider metadata records."),
   entry("src/source/csharp-source-semantics/surfaces/js/date.ts", { "target-member-helper": 3, "target-member-table": 1 }, "explicit-exception-candidate", "surface-provider", "Date call/new differences must be explicit exceptions with provider target metadata."),
   entry("src/source/csharp-source-semantics/surfaces/js/dictionaries.ts", { "target-member-table": 1 }, "provider-metadata-candidate", "surface-provider", "Move dictionary surface members behind provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/js/dictionary-lifecycle.ts", { "target-member-table": 1 }, "provider-metadata-candidate", "surface-provider", "Use carrier policy/provider metadata for dictionary lifecycle target members."),
@@ -108,11 +145,13 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry("src/source/csharp-source-semantics/surfaces/js/math.ts", { "target-member-helper": 2, "target-member-table": 1 }, "provider-metadata-candidate", "surface-provider", "Represent Math static members as provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/js/numbers.ts", { "target-member-helper": 3, "target-member-table": 1 }, "provider-metadata-candidate", "surface-provider", "Represent Number members as provider metadata or explicit exceptions."),
   entry("src/source/csharp-source-semantics/surfaces/js/objects.ts", { "target-member-helper": 2, "target-member-table": 3 }, "provider-metadata-candidate", "surface-provider", "Object operations must use object-shape/provider facts and explicit exceptions."),
-  entry("src/source/csharp-source-semantics/surfaces/js/policy.ts", { "target-member-table": 18 }, "surface-policy-candidate", "surface-provider", "Keep current concrete target member policy data cataloged while moving target mappings to provider metadata registries."),
+  entry("src/source/csharp-source-semantics/surfaces/js/policy.ts", { "target-member-table": 18, "source-library-member-id-type": 3 }, "surface-policy-candidate", "surface-provider", "Keep current concrete target member policy data cataloged while moving target mappings to provider metadata registries."),
   entry("src/source/csharp-source-semantics/surfaces/js/properties.ts", { "source-library-member-read": 2 }, "surface-policy-candidate", "surface-provider", "Property handling must consume property policy facts, not inspect source names directly."),
-  entry("src/source/csharp-source-semantics/surfaces/js/property-policy.ts", { "target-member-helper": 2, "target-member-table": 1 }, "surface-policy-candidate", "surface-provider", "Convert property policy target members to provider metadata."),
+  entry("src/source/csharp-source-semantics/surfaces/js/property-policy.ts", { "target-member-helper": 2, "target-member-table": 1, "source-library-declaring-name-type": 2, "source-library-member-id-type": 5 }, "surface-policy-candidate", "surface-provider", "Convert property policy target members to provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/js/regexp.ts", { "target-member-helper": 4, "target-member-table": 1 }, "provider-metadata-candidate", "surface-provider", "Represent RegExp operations as provider metadata or explicit exceptions."),
+  entry("src/source/csharp-source-semantics/surfaces/js/source-library.ts", { "source-library-declaring-name-type": 1, "source-library-member-id-type": 1 }, "source-identity-policy-candidate", "surface-provider", "Keep JS surface re-exports limited until source identity records replace concrete library member types."),
   entry("src/source/csharp-source-semantics/surfaces/js/strings.ts", { "target-member-helper": 3, "target-member-table": 1 }, "provider-metadata-candidate", "surface-provider", "Represent String members as provider metadata or explicit exceptions."),
+  entry("src/source/csharp-source-semantics/surfaces/js/unsupported.ts", {}, "surface-policy-candidate", "surface-provider", "Unsupported source-member checks must become explicit unsupported policy records with diagnostics."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/assert.ts", { "target-member-helper": 1 }, "provider-metadata-candidate", "surface-provider", "Represent Node assert members as provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/buffer/instance-members.ts", { "target-member-helper": 4 }, "provider-metadata-candidate", "surface-provider", "Represent Buffer instance members as provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/buffer/static-members.ts", { "target-member-helper": 13 }, "provider-metadata-candidate", "surface-provider", "Represent Buffer static members as provider metadata."),
@@ -128,6 +167,7 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry("src/source/csharp-source-semantics/surfaces/nodejs/process.ts", { "target-member-helper": 2 }, "provider-metadata-candidate", "surface-provider", "Represent Node process members as provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/url/target-members.ts", { "target-member-helper": 3 }, "provider-metadata-candidate", "surface-provider", "Represent Node URL members as provider metadata."),
   entry("src/source/csharp-source-semantics/surfaces/nodejs/util.ts", { "target-member-helper": 1 }, "provider-metadata-candidate", "surface-provider", "Represent Node util members as provider metadata."),
+  entry("src/source/csharp-source-semantics/target-enrichment.ts", { "candidate-target-id-branch": 1 }, "provider-metadata-candidate", "target-provider", "Target member enrichment must index provider metadata by canonical selected member identity without ad hoc candidate id branches."),
   entry("src/source/csharp-source-semantics/target-types/member-facts.ts", { "target-member-helper": 2 }, "provider-metadata-candidate", "target-provider", "Keep target member constructors cataloged until replaced by provider metadata builders."),
 ]);
 

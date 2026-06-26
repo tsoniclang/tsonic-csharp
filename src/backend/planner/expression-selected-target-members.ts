@@ -82,7 +82,7 @@ export function planSelectedTargetReceiverExpression(
 ): CsharpExpression | undefined {
   if (HasSourceKind(input.ast, receiver, KindIdentifier)) {
     const sourceName = Node_Text(AsIdentifier(receiver));
-    if (isExternalDeclarationReference(input.semantics.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile, input)) {
+    if (isExternalDeclarationReference(input.analysis.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile, input)) {
       diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
       return undefined;
     }
@@ -219,7 +219,7 @@ function isProviderStaticContainerReceiver(
   if (declaringType?.kind !== "target-named") {
     return false;
   }
-  const binding = input.semantics.getTargetBindingForReference(receiver, { sourceFile });
+  const binding = input.targetFacts.getTargetBindingForReference(receiver, { sourceFile });
   return binding?.target === "csharp" && binding.id === declaringType.id;
 }
 

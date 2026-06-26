@@ -16,7 +16,7 @@ export function csharpEnumerableTargetType(elementType: TargetTypeRef): CsharpTa
     "System.Collections.Generic.IEnumerable`1",
     [elementType],
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "IEnumerable"),
-    { arrayLiteralElementType: elementType },
+    { arrayLiteralElementType: elementType, enumerableElementType: elementType },
   );
 }
 
@@ -25,7 +25,7 @@ export function csharpReadOnlyListTargetType(elementType: TargetTypeRef): Csharp
     "System.Collections.Generic.IReadOnlyList`1",
     [elementType],
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "IReadOnlyList"),
-    { arrayLiteralElementType: elementType },
+    { arrayLiteralElementType: elementType, enumerableElementType: elementType, readOnlyIndexableElementType: elementType },
   );
 }
 
@@ -34,7 +34,12 @@ export function csharpListTargetType(elementType: TargetTypeRef): CsharpTargetNa
     "System.Collections.Generic.List`1",
     [elementType],
     csharpQualifiedTypeRenderShape("System.Collections.Generic", "List"),
-    { arrayLiteralElementType: elementType },
+    {
+      arrayLiteralElementType: elementType,
+      enumerableElementType: elementType,
+      readOnlyIndexableElementType: elementType,
+      denseMutableElementType: elementType,
+    },
   );
 }
 
@@ -44,6 +49,10 @@ export function getCsharpCollectionElementTargetType(type: TargetTypeRef | undef
   }
   if (type?.kind !== "target-named") {
     return undefined;
+  }
+  const genericElement = (type as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
+  if (genericElement !== undefined) {
+    return genericElement;
   }
   const id = type.id;
   if (
@@ -62,15 +71,40 @@ export function isCsharpReadOnlyIndexableCollectionTargetType(type: TargetTypeRe
   return type?.kind === "array" ||
     (type?.kind === "target-named" &&
       (
+        (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType !== undefined ||
         type.id === "System.Collections.Generic.IReadOnlyList`1" ||
         type.id === "System.Collections.Generic.IList`1" ||
         type.id === "System.Collections.Generic.List`1"
       ));
 }
 
+export function getCsharpReadOnlyIndexableCollectionElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {
+  if (type?.kind === "array") {
+    return type.element;
+  }
+  if (type?.kind !== "target-named") {
+    return undefined;
+  }
+  const metadataElement = (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
+  if (metadataElement !== undefined) {
+    return metadataElement;
+  }
+  return (
+    type.id === "System.Collections.Generic.IReadOnlyList`1" ||
+    type.id === "System.Collections.Generic.IList`1" ||
+    type.id === "System.Collections.Generic.List`1"
+  ) && (type.typeArguments?.length ?? 0) === 1
+    ? type.typeArguments?.[0]
+    : undefined;
+}
+
 export function isCsharpDenseMutableCollectionTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "target-named" &&
-    (type.id === "System.Collections.Generic.List`1" || type.id === "System.Collections.Generic.IList`1");
+    (
+      (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType !== undefined ||
+      type.id === "System.Collections.Generic.IList`1" ||
+      type.id === "System.Collections.Generic.List`1"
+    );
 }
 
 export function getCsharpArrayLiteralElementTargetType(type: TargetTypeRef | undefined): TargetTypeRef | undefined {

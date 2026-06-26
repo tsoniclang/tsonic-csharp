@@ -30,7 +30,7 @@ export function isCsharpDelegateTargetRef(type: TargetTypeRef | undefined): bool
 
 export function isSourceOwnedCallableRuntimeCarrierSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
   const carrier = getTargetTypeRefForNode(input, node, sourceFile);
-  const sourceReference = input.semantics.getProjectSourceReferenceForNode(node, { sourceFile });
+  const sourceReference = input.analysis.getProjectSourceReferenceForNode(node, { sourceFile });
   return isCsharpDelegateTargetRef(carrier) &&
     (isDirectSourceCallableSyntax(node, input) ||
       isSourceDeclaredCallableReference(sourceReference, input) ||
@@ -48,7 +48,7 @@ export function isSourceOwnedProjectShapeSubject(node: Node | undefined, sourceF
   if (isTypeParameterTargetRef(carrier)) {
     return true;
   }
-  return input.semantics.isProjectSourceShapeForNode(node, { sourceFile });
+  return input.analysis.isProjectSourceShapeForNode(node, { sourceFile });
 }
 
 export function isSourceOwnedProjectConstructibleObjectSubject(node: Node | undefined, sourceFile: SourceFile, input: TargetCompileInput): boolean {
@@ -59,11 +59,11 @@ export function isSourceOwnedProjectConstructibleObjectSubject(node: Node | unde
   if (isCsharpAnyRuntimeCarrier(carrier) || isTypeParameterTargetRef(carrier)) {
     return false;
   }
-  return input.semantics.isProjectSourceConstructibleObjectForNode(node, { sourceFile });
+  return input.analysis.isProjectSourceConstructibleObjectForNode(node, { sourceFile });
 }
 
 export function isSourceDeclaredCallableReference(
-  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
   input: TargetCompileInput,
 ): boolean {
   return reference !== undefined &&
@@ -73,7 +73,7 @@ export function isSourceDeclaredCallableReference(
 }
 
 export function isSourceOwnedProjectReference(
-  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
   input: TargetCompileInput,
 ): boolean {
   return reference !== undefined &&
@@ -103,14 +103,14 @@ function isSourceCallableDeclaration(declaration: Node | undefined, input: Targe
 }
 
 function isSourceOwnedCallableBindingReference(
-  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
   input: TargetCompileInput,
 ): boolean {
   return isSourceOwnedProjectReference(reference, input) &&
     SourceKind(input.ast, reference?.declaration) === KindBindingElement;
 }
 
-function hasProviderOnlySymbolName(symbol: ReturnType<TargetCompileInput["semantics"]["getResolvedSymbol"]> | undefined): boolean {
+function hasProviderOnlySymbolName(symbol: ReturnType<TargetCompileInput["analysis"]["getResolvedSymbol"]> | undefined): boolean {
   return symbol?.Name === undefined || symbol.Name.length === 0;
 }
 

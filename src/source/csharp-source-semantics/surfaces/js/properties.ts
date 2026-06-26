@@ -21,6 +21,8 @@ import {
   csharpJsCheckedTypeQuery,
   getSourceLibraryMember,
   recordCsharpTargetOperation,
+  sourceLibraryMemberIdentity,
+  sourceLibraryMemberName,
   targetOperation,
   targetOperationFromMember,
 } from "./source-library.js";
@@ -90,8 +92,7 @@ function recordCsharpSourceLibraryPropertyFact(
     return;
   }
   if (
-    context.host.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
-    context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined
+    context.host.facts.get(node, csharpTargetOperationFactKey) !== undefined
   ) {
     return;
   }
@@ -162,11 +163,11 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (sourceLibrarySelectedDeclarationHasCallTarget(sourceMember)) {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(
-        `tsonic.csharp.js.${sourceMember.id}.callee`,
+        `tsonic.csharp.js.${sourceLibraryMemberIdentity(sourceMember)}.callee`,
         "method",
-        sourceMember.id,
+        sourceLibraryMemberIdentity(sourceMember),
       ),
-    }, [{ message: `C# JS surface callable property accepted from checked TypeScript library declaration '${sourceMember.id}'. Call expressions record the concrete target member; standalone callable values require finalized callable carrier facts before emission.` }]);
+    }, [{ message: `C# JS surface callable property accepted from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'. Call expressions record the concrete target member; standalone callable values require finalized callable carrier facts before emission.` }]);
   }
   const precheck = csharpJsSourceLibraryPropertyPrecheck(sourceMember);
   if (precheck === "defer") {
@@ -191,7 +192,7 @@ function mapCsharpSourceLibraryPropertyOperation(
     return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }
   if (!sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember) || receiverType?.kind !== "array") {
-    recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceMember.id}'.` }]);
+    recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
   }
   return acceptObservation<CheckedOperationMappingResult>({
     operation: sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember)
@@ -199,7 +200,7 @@ function mapCsharpSourceLibraryPropertyOperation(
           ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
         })
       : targetOperationFromMember(member),
-  }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceMember.id}'.` }]);
+  }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
 }
 
 function sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {
@@ -211,7 +212,7 @@ function sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember: Source
 }
 
 function sourceMemberName(sourceMember: SourceLibraryMember): string {
-  return sourceMember.id.slice(sourceMember.id.indexOf(".") + 1);
+  return sourceLibraryMemberName(sourceMember);
 }
 
 function sourceLibraryPropertyReceiverHasClosedFacts(
@@ -230,7 +231,15 @@ function getSourceLibraryPropertyReceiverType(
 ): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
   if (sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember)) {
     return host.unwrapNullableTargetType(
-      context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
+      host.getTargetTypeRefForSubject(request.receiver, context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: false,
+      }) ??
+        host.getTargetTypeRefForSubject(request.receiverType, context, {
+          allowRuntimeCarrier: true,
+          allowSemanticTypeQuery: false,
+        }) ??
+        context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
         (request.receiverType === undefined ? undefined : context.factResolver.resolve(request.receiverType, runtimeCarrierFactKey)?.carrier) ??
         host.getTargetTypeRefForSubject(request.receiver, context, {
           allowRuntimeCarrier: true,

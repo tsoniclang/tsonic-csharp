@@ -16,6 +16,9 @@ export function substituteTargetTypeParameters(
       return substitutions.get(type.name) ?? type;
     case "target-named":
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
+      const enumerableElementType = (type as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
+      const readOnlyIndexableElementType = (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
+      const denseMutableElementType = (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
       const taskResultType = (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType;
       const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
       return {
@@ -24,6 +27,15 @@ export function substituteTargetTypeParameters(
         ...(arrayLiteralElementType === undefined
           ? {}
           : { csharpArrayLiteralElementType: substituteTargetTypeParameters(arrayLiteralElementType, substitutions) }),
+        ...(enumerableElementType === undefined
+          ? {}
+          : { csharpEnumerableElementType: substituteTargetTypeParameters(enumerableElementType, substitutions) }),
+        ...(readOnlyIndexableElementType === undefined
+          ? {}
+          : { csharpReadOnlyIndexableElementType: substituteTargetTypeParameters(readOnlyIndexableElementType, substitutions) }),
+        ...(denseMutableElementType === undefined
+          ? {}
+          : { csharpDenseMutableElementType: substituteTargetTypeParameters(denseMutableElementType, substitutions) }),
         ...(taskResultType === undefined
           ? {}
           : { csharpTaskResultType: substituteTargetTypeParameters(taskResultType, substitutions) }),

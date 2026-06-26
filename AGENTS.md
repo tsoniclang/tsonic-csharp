@@ -11,6 +11,7 @@ This repo follows the Tsonic “airplane-grade” architecture rules.
 - When one case exposes a pattern, design the reusable policy engine or provider contract first, then express the case as data/policy over that mechanism.
 - Hardcoded special cases are allowed only as narrow policy exceptions with source identity, target identity, reason, required facts, diagnostics, positive and negative tests, and ledger evidence.
 - If existing code is hardcoded where a generic policy belongs, delete/rebuild it against the generic mechanism rather than extending the hardcoded path.
+- Treat hardcoding as an architecture smell by default. Before keeping any concrete source/target name, prove it belongs in declarative policy, provider metadata, tests, or a documented exception; otherwise rethink the abstraction.
 
 ## Runtime Semantics
 

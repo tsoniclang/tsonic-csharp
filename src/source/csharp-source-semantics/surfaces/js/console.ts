@@ -1,5 +1,6 @@
 import {
   acceptObservation,
+  deferObservation,
   rejectObservation,
 } from "@tsonic/tsts";
 import type {
@@ -13,13 +14,16 @@ import type {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
-  SourceLibraryMemberId,
+  SourceLibraryMemberIdPrefix,
 } from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
+  sourceLibraryMemberIdentity,
+  sourceLibraryMemberMatchesAnyPrefix,
+  sourceLibraryMemberName,
   targetMethod,
   targetParameter,
 } from "./source-library.js";
@@ -33,54 +37,60 @@ export function mapCsharpJsConsoleCheckedCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
+  options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  if (!sourceMemberIdMatchesPrefix(sourceMember.id, "Console.")) {
+  if (!sourceLibraryMemberMatchesAnyPrefix(sourceMember, consoleSourceMemberIdPrefixes)) {
     return undefined;
   }
-  const member = getConsoleTargetMember(sourceMemberName(sourceMember));
+  const member = getConsoleTargetMember(sourceLibraryMemberName(sourceMember));
   if (member === undefined) {
     return undefined;
   }
   const argumentTypes = request.arguments.map((argument) =>
     host.getTargetTypeRefForSubject(argument, context, {
       allowRuntimeCarrier: true,
-      allowSemanticTypeQuery: true,
+      allowSemanticTypeQuery: false,
     }));
   const invalidArgumentIndex = argumentTypes.findIndex((type) => !isClosedConsoleArgumentTargetType(type));
   if (invalidArgumentIndex >= 0) {
+    if (consoleCallCanWaitForFinalFacts(context, options.phase)) {
+      return deferObservation;
+    }
     return rejectObservation(host.csharpProviderDiagnostic(
       host.extensionId,
       "CSHARP_JS_CONSOLE_ARGUMENT_REQUIRES_TARGET_FACT",
       9100140,
-      `C# JS surface console call '${sourceMember.id}' requires finalized closed target facts for argument ${invalidArgumentIndex + 1}.`,
+      `C# JS surface console call '${sourceLibraryMemberIdentity(sourceMember)}' requires finalized closed target facts for argument ${invalidArgumentIndex + 1}.`,
     ));
   }
   if (!consoleArgumentsMatchMember(member, argumentTypes)) {
+    if (consoleCallCanWaitForFinalFacts(context, options.phase)) {
+      return deferObservation;
+    }
     return rejectObservation(host.csharpProviderDiagnostic(
       host.extensionId,
       "CSHARP_JS_CONSOLE_ARGUMENT_REQUIRES_TARGET_FACT",
       9100140,
-      `C# JS surface console call '${sourceMember.id}' requires finalized argument facts compatible with the selected runtime member shape.`,
+      `C# JS surface console call '${sourceLibraryMemberIdentity(sourceMember)}' requires finalized argument facts compatible with the selected runtime member shape.`,
     ));
   }
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member },
-  }, [{ message: `C# JS surface console call selected from checked TypeScript standard-library declaration '${sourceMember.id}'.` }]);
+  }, [{ message: `C# JS surface console call selected from checked TypeScript standard-library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
+}
+
+function consoleCallCanWaitForFinalFacts(
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  phase: "checking" | "finalization" | undefined,
+): boolean {
+  return phase !== "finalization" && context.host !== undefined;
 }
 
 function getConsoleTargetMember(sourceName: string): TargetMember | undefined {
   return consoleTargetMembers.get(sourceName);
 }
 
-type SourceLibraryMemberIdPrefix = "Console.";
-
-function sourceMemberIdMatchesPrefix(sourceMemberId: SourceLibraryMemberId, prefix: SourceLibraryMemberIdPrefix): boolean {
-  return sourceMemberId.startsWith(prefix);
-}
-
-function sourceMemberName(sourceMember: SourceLibraryMember): string {
-  return sourceMember.id.slice(sourceMember.id.indexOf(".") + 1);
-}
+const consoleSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = ["Console."];
 
 function consoleMethod(
   sourceName: string,

@@ -33,7 +33,7 @@ export function getCsharpTypeFromProjectSourceReferenceNode(
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
   return getCsharpTypeFromProjectSourceReference(
-    input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }),
+    input.analysis.getProjectSourceReferenceForNode(node, { sourceFile }),
     input,
     diagnostics,
   );
@@ -64,7 +64,7 @@ export function getCsharpTypeFromProjectSourceTypeReferenceNode(
 }
 
 export function getCsharpTypeFromProjectSourceReference(
-  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {

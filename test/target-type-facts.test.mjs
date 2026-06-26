@@ -23,7 +23,11 @@ import {
   csharpTargetNamedType,
   csharpVoidTargetType,
   getCsharpArrayLiteralElementTargetType,
+  isCsharpReadOnlyIndexableCollectionTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpJsArrayCarrierTargetType,
+} from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
 import {
   csharpJsRegExpTargetType,
   isCsharpJsRegExpRuntimeCarrier,
@@ -80,6 +84,18 @@ test("collection literal acceptance requires explicit C# target metadata", () =>
 
   assert.equal(getCsharpArrayLiteralElementTargetType(rawEnumerable), undefined);
   assert.deepEqual(getCsharpArrayLiteralElementTargetType(enrichedEnumerable), intType);
+});
+
+test("read-only indexable collection matching requires explicit target metadata", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const rawJsArray = {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.JSArray`1",
+    typeArguments: [intType],
+  };
+
+  assert.equal(isCsharpReadOnlyIndexableCollectionTargetType(rawJsArray), false);
+  assert.equal(isCsharpReadOnlyIndexableCollectionTargetType(csharpJsArrayCarrierTargetType(intType)), true);
 });
 
 test("JS RegExp runtime carrier requires explicit JS surface metadata", () => {
@@ -397,19 +413,23 @@ function fakeTypeInput(sourceFile, options = {}) {
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getTargetBindingForReference: (subject) => options.targetBindings?.get(subject),
       getProjectSourceDeclarationForNode: () => undefined,
       getTypeFromTypeNode: (subject) => options.semanticTypes?.get(subject),
       getTypeAtLocation: (subject) => options.semanticTypes?.get(subject),
       describeTypeAtLocation: () => "<unresolved>",
-      getResolvedCallReturnRuntimeCarrier: () => undefined,
-      getResolvedCallReturnType: () => undefined,
-      getRuntimeCarrierForNode: (subject) => options.runtimeCarriers?.get(subject),
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getProjectSourceReferenceForSymbol: () => undefined,
+    },
+    targetFacts: {
+      getTargetBindingForReference: (subject) => options.targetBindings?.get(subject),
+      getResolvedCallReturnRuntimeCarrier: () => undefined,
+      getResolvedCallReturnType: () => undefined,
+      getRuntimeCarrierForNode: (subject) => options.runtimeCarriers?.get(subject),
+      getReturnTypeCarrierFromDeclaration: () => undefined,
+      getResolvedCallParameterRuntimeCarriers: () => undefined,
     },
     types: {
       isAny: () => false,

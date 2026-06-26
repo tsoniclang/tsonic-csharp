@@ -2,6 +2,10 @@ import type {
   SourceLibraryMember,
   SourceLibraryMemberId,
 } from "../source-library.js";
+import {
+  sourceLibraryMemberIdSet,
+  sourceLibraryMemberMatchesAny,
+} from "../source-library.js";
 import type {
   ArrayUse,
 } from "./types.js";
@@ -140,11 +144,11 @@ const staticCallArgumentUseRules: readonly StaticCallArgumentUseRule[] = [
 ];
 
 function sourceMemberIdSet(ids: readonly SourceLibraryMemberId[]): ReadonlySet<SourceLibraryMemberId> {
-  return new Set(ids);
+  return sourceLibraryMemberIdSet(ids);
 }
 
 function arrayPropertyUseRuleApplies(rule: ArrayPropertyUseRule, sourceMember: SourceLibraryMember): boolean {
-  return rule.sourceMemberIds.has(sourceMember.id);
+  return sourceLibraryMemberMatchesAny(sourceMember, rule.sourceMemberIds);
 }
 
 function staticCallArgumentUseRuleApplies(
@@ -152,7 +156,7 @@ function staticCallArgumentUseRuleApplies(
   sourceMember: SourceLibraryMember,
   argumentIndex: number,
 ): boolean {
-  return rule.sourceMemberIds.has(sourceMember.id) && argumentIndexMatchesPolicy(rule.argumentIndex, argumentIndex);
+  return sourceLibraryMemberMatchesAny(sourceMember, rule.sourceMemberIds) && argumentIndexMatchesPolicy(rule.argumentIndex, argumentIndex);
 }
 
 function argumentIndexMatchesPolicy(policy: StaticCallArgumentIndexPolicy, argumentIndex: number): boolean {

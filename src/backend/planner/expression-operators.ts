@@ -331,7 +331,7 @@ function isNullishEqualityOperand(
   if (kind !== KindIdentifier || Node_Text(AsIdentifier(operand)) !== "undefined") {
     return false;
   }
-  const type = input.semantics.getTypeAtLocation(operand, { sourceFile });
+  const type = input.analysis.getTypeAtLocation(operand, { sourceFile });
   return type === undefined ? false : input.types.isNullish(type);
 }
 

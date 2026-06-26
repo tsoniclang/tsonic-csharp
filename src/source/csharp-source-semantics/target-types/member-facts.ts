@@ -54,13 +54,23 @@ export function targetProperty(
 export function targetParameter(
   name: string,
   type: TargetTypeRef,
-  options: { readonly optional?: boolean; readonly paramsArray?: boolean } = {},
+  options: {
+    readonly optional?: boolean;
+    readonly paramsArray?: boolean;
+    readonly csharpAcceptsCheckedSourceArgument?: boolean;
+    readonly csharpOmittableOptionalArgument?: boolean;
+  } = {},
 ): TargetParameter {
+  const parameterType = options.paramsArray === true && type.kind !== "array"
+    ? { kind: "array" as const, element: type }
+    : type;
   return {
     name,
-    type,
+    type: parameterType,
     passingMode: "by-value",
     ...(options.optional === true ? { optional: true } : {}),
     ...(options.paramsArray === true ? { paramsArray: true } : {}),
+    ...(options.csharpAcceptsCheckedSourceArgument === true ? { csharpAcceptsCheckedSourceArgument: true } : {}),
+    ...(options.optional === true && options.csharpOmittableOptionalArgument !== false ? { csharpOmittableOptionalArgument: true } : {}),
   };
 }

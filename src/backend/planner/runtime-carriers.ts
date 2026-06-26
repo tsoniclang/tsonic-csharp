@@ -29,14 +29,14 @@ export function getTargetTypeRefForNode(
   const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile);
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
     return getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-      input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile }) ??
+      input.targetFacts.getRuntimeCarrierForNode(sourceNode, { sourceFile }) ??
       typeReferenceFact;
   }
   return typeReferenceFact ??
     getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-    getTargetTypeRefFromDirectFacts(input, input.semantics.getSymbolAtLocation(sourceNode, { sourceFile })) ??
-    getTargetTypeRefFromDirectFacts(input, input.semantics.getResolvedSymbol(sourceNode, { sourceFile })) ??
-    input.semantics.getRuntimeCarrierForNode(sourceNode, { sourceFile });
+    getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(sourceNode, { sourceFile })) ??
+    getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(sourceNode, { sourceFile })) ??
+    input.targetFacts.getRuntimeCarrierForNode(sourceNode, { sourceFile });
 }
 
 function getTargetTypeRefFromTypeReferenceName(
@@ -51,8 +51,8 @@ function getTargetTypeRefFromTypeReferenceName(
   return typeName === undefined
     ? undefined
     : getTargetTypeRefFromDirectFacts(input, typeName, { includeRuntimeCarrier: false }) ??
-      getTargetTypeRefFromDirectFacts(input, input.semantics.getSymbolAtLocation(typeName, { sourceFile }), { includeRuntimeCarrier: false }) ??
-      getTargetTypeRefFromDirectFacts(input, input.semantics.getResolvedSymbol(typeName, { sourceFile }), { includeRuntimeCarrier: false });
+      getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(typeName, { sourceFile }), { includeRuntimeCarrier: false }) ??
+      getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(typeName, { sourceFile }), { includeRuntimeCarrier: false });
 }
 
 function getNodeField(node: Node, field: string): unknown {

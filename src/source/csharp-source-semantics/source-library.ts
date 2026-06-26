@@ -22,6 +22,12 @@ export type SourceLibraryDeclaringName = "Array" | "ReadonlyArray" | "String" | 
 export type SourceLibraryTypeName = SourceLibraryDeclaringName | "Record";
 
 export type SourceLibraryMemberId = `${SourceLibraryDeclaringName}.${string}`;
+export type SourceLibraryMemberIdPrefix = `${SourceLibraryDeclaringName}.`;
+
+export interface SourceLibraryMemberIdentityPolicy {
+  readonly ids?: ReadonlySet<SourceLibraryMemberId>;
+  readonly prefixes?: readonly SourceLibraryMemberIdPrefix[];
+}
 
 export function createSourceLibraryMember(
   declaringName: SourceLibraryDeclaringName,
@@ -32,6 +38,40 @@ export function createSourceLibraryMember(
     declaringName,
     memberName,
   };
+}
+
+export function sourceLibraryMemberIdSet(ids: readonly SourceLibraryMemberId[]): ReadonlySet<SourceLibraryMemberId> {
+  return new Set(ids);
+}
+
+export function sourceLibraryMemberIdentity(sourceMember: SourceLibraryMember): SourceLibraryMemberId {
+  return sourceMember.id;
+}
+
+export function sourceLibraryMemberName(sourceMember: SourceLibraryMember): string {
+  return sourceMember.memberName;
+}
+
+export function sourceLibraryMemberMatches(
+  sourceMember: SourceLibraryMember,
+  policy: SourceLibraryMemberIdentityPolicy,
+): boolean {
+  return (policy.ids === undefined || policy.ids.has(sourceMember.id)) &&
+    (policy.prefixes === undefined || policy.prefixes.some((prefix) => sourceMember.id.startsWith(prefix)));
+}
+
+export function sourceLibraryMemberMatchesAny(
+  sourceMember: SourceLibraryMember,
+  ids: ReadonlySet<SourceLibraryMemberId>,
+): boolean {
+  return sourceLibraryMemberMatches(sourceMember, { ids });
+}
+
+export function sourceLibraryMemberMatchesAnyPrefix(
+  sourceMember: SourceLibraryMember,
+  prefixes: readonly SourceLibraryMemberIdPrefix[],
+): boolean {
+  return sourceLibraryMemberMatches(sourceMember, { prefixes });
 }
 
 export function getSourceLibraryMember(

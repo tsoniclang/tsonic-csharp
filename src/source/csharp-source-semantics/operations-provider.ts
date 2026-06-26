@@ -208,6 +208,7 @@ export function createCsharpJsSurfaceHost(
       request: {
         readonly arguments: readonly ExtensionFactSubject[];
         readonly receiver?: ExtensionFactSubject;
+        readonly sourceSelectedSignature?: unknown;
       },
       context: ExtensionObservationContext,
       options: Pick<TargetMemberSelectionOptions, "declaringTargetType" | "declaringTypeParameters"> = {},

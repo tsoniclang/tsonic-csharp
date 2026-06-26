@@ -50,9 +50,16 @@ import {
 } from "./regexp.js";
 import type {
   CsharpJsSurfaceHost,
-  SourceLibraryDeclaringName,
   SourceLibraryMember,
   SourceLibraryMemberId,
+  SourceLibraryMemberIdPrefix,
+} from "./source-library.js";
+import {
+  sourceLibraryMemberIdSet,
+  sourceLibraryMemberIdentity,
+  sourceLibraryMemberMatchesAny,
+  sourceLibraryMemberMatchesAnyPrefix,
+  sourceLibraryMemberName,
 } from "./source-library.js";
 import {
   getStringTargetMembers,
@@ -71,7 +78,7 @@ import {
 } from "./calls/helpers.js";
 
 export interface CsharpJsSurfaceSourceLibraryPolicy {
-  readonly declaringNames: readonly SourceLibraryDeclaringName[];
+  readonly sourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[];
   readonly getCallMembers?: (
     sourceMember: SourceLibraryMember,
     request: CheckedCallMappingRequest,
@@ -98,22 +105,18 @@ export function csharpJsSourceLibraryMemberHasCallableTarget(
 
 export function csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember: SourceLibraryMember | undefined): boolean {
   return sourceMember !== undefined &&
-    sourceMember.id === "Array.constructor";
+    sourceLibraryMemberMatchesAny(sourceMember, arrayConstructorSourceMemberIds);
 }
 
 export function csharpJsSourceLibraryMemberIsCollection(sourceMember: SourceLibraryMember | undefined): boolean {
-  return sourceMember !== undefined && sourceMemberIdMatchesAnyPrefix(sourceMember.id, collectionSourceMemberIdPrefixes);
-}
-
-export function csharpJsSourceLibraryCallRequiresPrevalidatedMember(sourceMember: SourceLibraryMember): boolean {
-  return sourceMemberIdMatchesAnyPrefix(sourceMember.id, prevalidatedMemberRequiredSourceMemberIdPrefixes);
+  return sourceMember !== undefined && sourceLibraryMemberMatchesAnyPrefix(sourceMember, collectionSourceMemberIdPrefixes);
 }
 
 export function csharpJsSourceLibraryCallMayNeedFinalFacts(
   sourceMember: SourceLibraryMember,
   phase: "checking" | "finalization" | undefined,
 ): boolean {
-  return phase !== "finalization" && finalFactsSensitiveCallIds.has(sourceMember.id);
+  return phase !== "finalization" && sourceLibraryMemberMatchesAny(sourceMember, finalFactsSensitiveCallIds);
 }
 
 export function csharpJsSourceLibraryCallReceiverHasClosedFacts(
@@ -122,17 +125,17 @@ export function csharpJsSourceLibraryCallReceiverHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  if (sourceMemberIdMatchesAnyPrefix(sourceMember.id, ["Object."])) {
+  if (sourceLibraryMemberMatchesAnyPrefix(sourceMember, objectSourceMemberIdPrefixes)) {
     return sourceLibraryObjectCallHasClosedFacts(request, context, sourceMember, host);
   }
-  if (sourceMemberIdMatchesAnyPrefix(sourceMember.id, ["JSON."])) {
+  if (sourceLibraryMemberMatchesAnyPrefix(sourceMember, jsonSourceMemberIdPrefixes)) {
     return sourceLibraryJsonCallHasClosedFacts(request, context, sourceMember, host);
   }
   if (!csharpJsSourceLibraryCallRequiresClosedReceiver(sourceMember)) {
     return true;
   }
   return callClosedReceiverPolicies
-    .find((policy) => sourceMemberIdMatchesAnyPrefix(sourceMember.id, policy.sourceMemberIdPrefixes))
+    .find((policy) => sourceLibraryMemberMatchesAnyPrefix(sourceMember, policy.sourceMemberIdPrefixes))
     ?.validate(request, context, sourceMember, host) ?? true;
 }
 
@@ -143,17 +146,20 @@ export function csharpJsSourceLibraryCallCanWaitForFinalizedFacts(
   host: CsharpJsSurfaceHost,
   phase: "checking" | "finalization" | undefined,
 ): boolean {
-  if (sourceMemberIdMatchesAnyPrefix(sourceMember.id, ["Object."])) {
+  if ((phase === "checking" || phase === undefined) && compilerContextCanRunLifecycleFinalization(context)) {
+    return true;
+  }
+  if (sourceLibraryMemberMatchesAnyPrefix(sourceMember, objectSourceMemberIdPrefixes)) {
     return (phase === "checking" || (phase === undefined && compilerContextCanRunLifecycleFinalization(context))) &&
       sourceLibraryObjectCallCanWaitForFinalizedFacts(sourceMember);
   }
   if (sourceLibraryCollectionOrPrimitiveCallCanWaitForFinalizedFacts(sourceMember)) {
     return phase !== "finalization" && compilerContextCanRunLifecycleFinalization(context);
   }
-  if (sourceMember.id === "Array.constructor") {
+  if (sourceLibraryMemberMatchesAny(sourceMember, arrayConstructorSourceMemberIds)) {
     return phase === "checking" || (phase === undefined && compilerContextCanRunLifecycleFinalization(context));
   }
-  if (phase === "finalization" || sourceMember.id !== "JSON.stringify") {
+  if (phase === "finalization" || !sourceLibraryMemberMatchesAny(sourceMember, jsonStringifySourceMemberIds)) {
     return false;
   }
   const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
@@ -166,72 +172,70 @@ export function csharpJsSourceLibraryCallCanWaitForFinalizedFacts(
 
 function policyForSourceMember(sourceMember: SourceLibraryMember): CsharpJsSurfaceSourceLibraryPolicy | undefined {
   return csharpJsSourceLibraryPolicies.find((policy) =>
-    policy.declaringNames.some((declaringName) => sourceMember.id.startsWith(`${declaringName}.`))
+    sourceLibraryMemberMatchesAnyPrefix(sourceMember, policy.sourceMemberIdPrefixes)
   );
 }
 
 const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy[] = [
-  simpleCallPolicy(["Math"], (sourceMember) => getMathTargetMembers(sourceMemberName(sourceMember))),
-  simpleCallPolicy(["String"], (sourceMember) => getStringTargetMembers(sourceMemberName(sourceMember))),
-  simpleCallPolicy(["Number"], (sourceMember) => getNumberTargetMembers(sourceMemberName(sourceMember))),
-  simpleCallPolicy(["Boolean"], (sourceMember) => getBooleanTargetMembers(sourceMemberName(sourceMember))),
-  simpleCallPolicy(["RegExp"], (sourceMember) => getRegExpTargetMembers(sourceMemberName(sourceMember))),
+  simpleCallPolicy(["Math."], (sourceMember) => getMathTargetMembers(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["String."], (sourceMember) => getStringTargetMembers(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["Number."], (sourceMember) => getNumberTargetMembers(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["Boolean."], (sourceMember) => getBooleanTargetMembers(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["RegExp."], (sourceMember) => getRegExpTargetMembers(sourceLibraryMemberName(sourceMember))),
   {
-    declaringNames: ["Date"],
+    sourceMemberIdPrefixes: ["Date."],
     getCallMembers: (sourceMember, request, context) =>
-      getDateTargetMembers(sourceMemberName(sourceMember), isNewExpression(request.call, context) ? "new" : "call"),
-    hasCallableProperty: (sourceMember) => getDateTargetMembers(sourceMemberName(sourceMember), "call").length > 0,
+      getDateTargetMembers(sourceLibraryMemberName(sourceMember), isNewExpression(request.call, context) ? "new" : "call"),
+    hasCallableProperty: (sourceMember) => getDateTargetMembers(sourceLibraryMemberName(sourceMember), "call").length > 0,
   },
-  simpleCallPolicy(["JSON"], (sourceMember) => getJsonTargetMembers(sourceMemberName(sourceMember))),
+  simpleCallPolicy(["JSON."], (sourceMember) => getJsonTargetMembers(sourceLibraryMemberName(sourceMember))),
   {
-    declaringNames: ["Object"],
+    sourceMemberIdPrefixes: ["Object."],
     getCallMembers: (sourceMember, request, context, host) => [
-      ...getObjectTargetMembers(sourceMemberName(sourceMember)),
+      ...getObjectTargetMembers(sourceLibraryMemberName(sourceMember)),
       ...getObjectPrimitiveReceiverCallMembers(request, context, host, sourceMember),
       ...getObjectRecordDictionaryCallMembers(sourceMember, request, context, host),
     ],
-    hasCallableProperty: (sourceMember) => getObjectTargetMembers(sourceMemberName(sourceMember)).length > 0,
+    hasCallableProperty: (sourceMember) => getObjectTargetMembers(sourceLibraryMemberName(sourceMember)).length > 0,
   },
   {
-    declaringNames: ["Array", "ReadonlyArray"],
+    sourceMemberIdPrefixes: ["Array.", "ReadonlyArray."],
     getCallMembers: (sourceMember, request, context, host) => {
       const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
-      if (sourceMember.id === "Array.constructor" && resultElementType === undefined) {
+      if (sourceLibraryMemberMatchesAny(sourceMember, arrayConstructorSourceMemberIds) && resultElementType === undefined) {
         return [];
       }
       return getArrayTargetMembers(
-        sourceMemberName(sourceMember),
+        sourceLibraryMemberName(sourceMember),
         resultElementType ??
           getSourceLibraryCallReceiverElementType(request, context, host) ??
           getSourceLibraryCallArgumentTargetTypes(request, context, host).map(getCsharpArrayLikeElementType).find((element) => element !== undefined),
       );
     },
     hasCallableProperty: (sourceMember) =>
-      getArrayTargetMembers(sourceMemberName(sourceMember)).length > 0 ||
-      arrayCallSurfaceMemberNames.has(sourceMemberName(sourceMember)),
+      getArrayTargetMembers(sourceLibraryMemberName(sourceMember)).length > 0 ||
+      arrayCallSurfaceMemberNames.has(sourceLibraryMemberName(sourceMember)),
   },
   {
-    declaringNames: ["Map", "ReadonlyMap", "Set", "ReadonlySet"],
+    sourceMemberIdPrefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."],
     getCallMembers: (sourceMember, request, context, host) => getCollectionTargetMembers(
       sourceMember,
       getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
-      sourceMemberIdMatchesAny(sourceMember.id, collectionConstructorSourceMemberIds)
+      sourceLibraryMemberMatchesAny(sourceMember, collectionConstructorSourceMemberIds)
         ? getSourceLibraryCallResultTargetType(request, context, host)
         : undefined,
     ),
     hasCallableProperty: (sourceMember) => getCollectionTargetMembers(sourceMember, undefined, undefined).length > 0,
   },
   {
-    declaringNames: ["Console"],
+    sourceMemberIdPrefixes: ["Console."],
     hasCallableProperty: () => true,
   },
   {
-    declaringNames: ["Promise"],
+    sourceMemberIdPrefixes: ["Promise."],
     hasCallableProperty: () => false,
   },
 ];
-
-type SourceLibraryMemberIdPrefix = `${SourceLibraryDeclaringName}.`;
 
 const collectionSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = [
   "Map.",
@@ -240,19 +244,52 @@ const collectionSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] =
   "ReadonlySet.",
 ];
 
-const prevalidatedMemberRequiredSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = [
-  "Date.",
-];
+const objectSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = ["Object."];
+const jsonSourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[] = ["JSON."];
 
-const collectionConstructorSourceMemberIds = sourceMemberIdSet([
+const arrayConstructorSourceMemberIds = sourceLibraryMemberIdSet(["Array.constructor"]);
+const arrayConcatSourceMemberIds = sourceLibraryMemberIdSet(["Array.concat"]);
+
+const jsonStringifySourceMemberIds = sourceLibraryMemberIdSet([
+  "JSON.stringify",
+]);
+
+const collectionConstructorSourceMemberIds = sourceLibraryMemberIdSet([
   "Map.constructor",
   "ReadonlyMap.constructor",
   "Set.constructor",
   "ReadonlySet.constructor",
 ]);
 
-const finalFactsSensitiveCallIds = sourceMemberIdSet([
+const finalFactsSensitiveCallIds = sourceLibraryMemberIdSet([
   "JSON.stringify",
+]);
+
+type JsonClosedFactsValidator = (
+  argumentTypes: readonly (TargetTypeRef | undefined)[],
+  host: CsharpJsSurfaceHost,
+) => boolean;
+
+const jsonClosedFactsValidators: ReadonlyMap<SourceLibraryMemberId, JsonClosedFactsValidator> = new Map([
+  ["JSON.parse", (argumentTypes, host) => host.isCsharpStringType(argumentTypes[0])],
+  ["JSON.stringify", (argumentTypes, host) => isSupportedJsonValueTargetType(argumentTypes[0], host)],
+]);
+
+type ObjectClosedFactsValidator = (
+  argumentTypes: readonly (TargetTypeRef | undefined)[],
+  host: CsharpJsSurfaceHost,
+) => boolean;
+
+const objectClosedFactsValidators: ReadonlyMap<SourceLibraryMemberId, ObjectClosedFactsValidator> = new Map([
+  ["Object.keys", (argumentTypes, host) => isSupportedObjectHelperSourceTargetType(argumentTypes[0], host)],
+  ["Object.values", (argumentTypes, host) => isSupportedObjectHelperSourceTargetType(argumentTypes[0], host)],
+  ["Object.entries", (argumentTypes, host) => isSupportedObjectHelperSourceTargetType(argumentTypes[0], host)],
+  ["Object.hasOwn", (argumentTypes, host) =>
+    isCsharpJsObjectCarrierTargetType(argumentTypes[0]) &&
+      host.isCsharpStringType(argumentTypes[1])],
+  ["Object.assign", (argumentTypes, host) =>
+    isCsharpJsObjectCarrierTargetType(argumentTypes[0]) &&
+      argumentTypes.slice(1).every((argumentType) => isSupportedObjectHelperSourceTargetType(argumentType, host))],
 ]);
 
 type CallReceiverClosedFactsPolicy = (
@@ -269,7 +306,7 @@ interface CallReceiverClosedFactsPolicyEntry {
 
 const callClosedReceiverPolicies: readonly CallReceiverClosedFactsPolicyEntry[] = [
   { sourceMemberIdPrefixes: ["Array."], validate: (request, context, sourceMember, host) => {
-    if (sourceMember.id === "Array.concat" && getSourceLibraryCallArgumentTargetTypes(request, context, host).some((argumentType) => argumentType === undefined)) {
+    if (sourceLibraryMemberMatchesAny(sourceMember, arrayConcatSourceMemberIds) && getSourceLibraryCallArgumentTargetTypes(request, context, host).some((argumentType) => argumentType === undefined)) {
       return false;
     }
     return sourceLibraryArrayStaticCallRequiresNoReceiver(sourceMember) ||
@@ -301,21 +338,21 @@ const callClosedReceiverPolicies: readonly CallReceiverClosedFactsPolicyEntry[] 
     getSourceLibraryCallReceiverTargetTypes(request, context, host)
       .some((receiverType) => isCsharpJsDateRuntimeCarrier(receiverType)) },
   { sourceMemberIdPrefixes: ["Map.", "ReadonlyMap."], validate: (request, context, sourceMember, host) =>
-    sourceMemberIdMatchesAny(sourceMember.id, collectionConstructorSourceMemberIds) ||
+    sourceLibraryMemberMatchesAny(sourceMember, collectionConstructorSourceMemberIds) ||
     getSourceLibraryCallReceiverTargetTypes(request, context, host)
       .some((receiverType) => isCsharpJsMapTargetType(receiverType)) },
   { sourceMemberIdPrefixes: ["Set.", "ReadonlySet."], validate: (request, context, sourceMember, host) =>
-    sourceMemberIdMatchesAny(sourceMember.id, collectionConstructorSourceMemberIds) ||
+    sourceLibraryMemberMatchesAny(sourceMember, collectionConstructorSourceMemberIds) ||
     getSourceLibraryCallReceiverTargetTypes(request, context, host)
       .some((receiverType) => isCsharpJsSetTargetType(receiverType)) },
 ];
 
 function simpleCallPolicy(
-  declaringNames: readonly SourceLibraryDeclaringName[],
+  sourceMemberIdPrefixes: readonly SourceLibraryMemberIdPrefix[],
   getMembers: (sourceMember: SourceLibraryMember) => readonly TargetMember[],
 ): CsharpJsSurfaceSourceLibraryPolicy {
   return {
-    declaringNames,
+    sourceMemberIdPrefixes,
     getCallMembers: getMembers,
     hasCallableProperty: (sourceMember) => getMembers(sourceMember).length > 0,
   };
@@ -327,16 +364,16 @@ function getObjectPrimitiveReceiverCallMembers(
   host: CsharpJsSurfaceHost,
   sourceMember: SourceLibraryMember,
 ): readonly TargetMember[] {
-  if (sourceMember.id !== "Object.toString") {
+  if (!sourceLibraryMemberMatchesAny(sourceMember, objectToStringSourceMemberIds)) {
     return [];
   }
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
   return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType))
-    ? getStringTargetMembers(sourceMemberName(sourceMember))
+    ? getStringTargetMembers(sourceLibraryMemberName(sourceMember))
     : receiverTypes.some((receiverType) => isCsharpNumberTargetType(receiverType))
-      ? getNumberTargetMembers(sourceMemberName(sourceMember))
+      ? getNumberTargetMembers(sourceLibraryMemberName(sourceMember))
       : receiverTypes.some((receiverType) => receiverType?.kind === "source-primitive" && receiverType.name === "bool")
-        ? getBooleanTargetMembers(sourceMemberName(sourceMember))
+        ? getBooleanTargetMembers(sourceLibraryMemberName(sourceMember))
         : [];
 }
 
@@ -346,7 +383,7 @@ function getObjectRecordDictionaryCallMembers(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  if (!objectRecordDictionarySourceMemberIds.has(sourceMember.id)) {
+  if (!sourceLibraryMemberMatchesAny(sourceMember, objectRecordDictionarySourceMemberIds)) {
     return [];
   }
   const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request, context, host)
@@ -354,7 +391,7 @@ function getObjectRecordDictionaryCallMembers(
       argumentType !== undefined && isStringKeyedRecordDictionaryTargetType(argumentType, host));
   return dictionaryType === undefined
     ? []
-    : getObjectRecordDictionaryTargetMembers(sourceMemberName(sourceMember), dictionaryType);
+    : getObjectRecordDictionaryTargetMembers(sourceLibraryMemberName(sourceMember), dictionaryType);
 }
 
 function sourceLibraryJsonCallHasClosedFacts(
@@ -364,14 +401,7 @@ function sourceLibraryJsonCallHasClosedFacts(
   host: CsharpJsSurfaceHost,
 ): boolean {
   const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
-  switch (sourceMember.id) {
-    case "JSON.parse":
-      return host.isCsharpStringType(argumentTypes[0]);
-    case "JSON.stringify":
-      return isSupportedJsonValueTargetType(argumentTypes[0], host);
-    default:
-      return false;
-  }
+  return jsonClosedFactsValidators.get(sourceLibraryMemberIdentity(sourceMember))?.(argumentTypes, host) ?? false;
 }
 
 function isSupportedJsonValueTargetType(
@@ -395,25 +425,12 @@ function sourceLibraryObjectCallHasClosedFacts(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  if (sourceMember.id === "Object.hasOwnProperty") {
+  if (sourceLibraryMemberMatchesAny(sourceMember, objectHasOwnPropertySourceMemberIds)) {
     return getSourceLibraryCallReceiverTargetTypes(request, context, host)
       .some((receiverType) => isCsharpJsObjectCarrierTargetType(receiverType));
   }
   const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
-  switch (sourceMember.id) {
-    case "Object.keys":
-    case "Object.values":
-    case "Object.entries":
-      return isSupportedObjectHelperSourceTargetType(argumentTypes[0], host);
-    case "Object.hasOwn":
-      return isCsharpJsObjectCarrierTargetType(argumentTypes[0]) &&
-        host.isCsharpStringType(argumentTypes[1]);
-    case "Object.assign":
-      return isCsharpJsObjectCarrierTargetType(argumentTypes[0]) &&
-        argumentTypes.slice(1).every((argumentType) => isSupportedObjectHelperSourceTargetType(argumentType, host));
-    default:
-      return true;
-  }
+  return objectClosedFactsValidators.get(sourceLibraryMemberIdentity(sourceMember))?.(argumentTypes, host) ?? true;
 }
 
 function isSupportedObjectHelperSourceTargetType(
@@ -431,16 +448,16 @@ function isSupportedObjectHelperSourceTargetType(
 }
 
 function sourceLibraryArrayStaticCallRequiresNoReceiver(sourceMember: SourceLibraryMember): boolean {
-  return sourceMemberIdMatchesAny(sourceMember.id, arrayStaticCallWithoutReceiverSourceMemberIds);
+  return sourceLibraryMemberMatchesAny(sourceMember, arrayStaticCallWithoutReceiverSourceMemberIds);
 }
 
 function sourceLibraryDateStaticCallRequiresNoReceiver(sourceMember: SourceLibraryMember): boolean {
-  return sourceMemberIdMatchesAny(sourceMember.id, dateStaticCallWithoutReceiverSourceMemberIds);
+  return sourceLibraryMemberMatchesAny(sourceMember, dateStaticCallWithoutReceiverSourceMemberIds);
 }
 
 function csharpJsSourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLibraryMember): boolean {
   const policy = closedReceiverRequirementPolicies.find((candidate) =>
-    sourceMemberIdMatchesAnyPrefix(sourceMember.id, candidate.sourceMemberIdPrefixes)
+    sourceLibraryMemberMatchesAnyPrefix(sourceMember, candidate.sourceMemberIdPrefixes)
   );
   if (policy === undefined) {
     return false;
@@ -451,19 +468,19 @@ function csharpJsSourceLibraryCallRequiresClosedReceiver(sourceMember: SourceLib
 function compilerContextCanRunLifecycleFinalization(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): boolean {
-  return typeof (context.compiler as { readonly getSourceFiles?: unknown } | undefined)?.getSourceFiles === "function";
+  return context.host !== undefined;
 }
 
 function sourceLibraryObjectCallCanWaitForFinalizedFacts(
   sourceMember: SourceLibraryMember,
 ): boolean {
-  return sourceMemberIdMatchesAny(sourceMember.id, objectCallCanWaitForFinalizedFactsSourceMemberIds);
+  return sourceLibraryMemberMatchesAny(sourceMember, objectCallCanWaitForFinalizedFactsSourceMemberIds);
 }
 
 function sourceLibraryCollectionOrPrimitiveCallCanWaitForFinalizedFacts(
   sourceMember: SourceLibraryMember,
 ): boolean {
-  return sourceMemberIdMatchesAnyPrefix(sourceMember.id, collectionOrPrimitiveCallCanWaitForFinalizedFactsSourceMemberIdPrefixes);
+  return sourceLibraryMemberMatchesAnyPrefix(sourceMember, collectionOrPrimitiveCallCanWaitForFinalizedFactsSourceMemberIdPrefixes);
 }
 
 function targetTypeIsOpaqueAny(type: TargetTypeRef): boolean {
@@ -499,27 +516,31 @@ const arrayCallSurfaceMemberNames = new Set([
   "findLastIndex",
 ]);
 
-const objectRecordDictionarySourceMemberIds = sourceMemberIdSet([
+const objectToStringSourceMemberIds = sourceLibraryMemberIdSet(["Object.toString"]);
+
+const objectHasOwnPropertySourceMemberIds = sourceLibraryMemberIdSet(["Object.hasOwnProperty"]);
+
+const objectRecordDictionarySourceMemberIds = sourceLibraryMemberIdSet([
   "Object.keys",
   "Object.values",
   "Object.entries",
 ]);
 
-const arrayStaticCallWithoutReceiverSourceMemberIds = sourceMemberIdSet([
+const arrayStaticCallWithoutReceiverSourceMemberIds = sourceLibraryMemberIdSet([
   "Array.constructor",
   "Array.from",
   "Array.of",
   "Array.isArray",
 ]);
 
-const dateStaticCallWithoutReceiverSourceMemberIds = sourceMemberIdSet([
+const dateStaticCallWithoutReceiverSourceMemberIds = sourceLibraryMemberIdSet([
   "Date.constructor",
   "Date.now",
   "Date.parse",
   "Date.UTC",
 ]);
 
-const objectCallCanWaitForFinalizedFactsSourceMemberIds = sourceMemberIdSet([
+const objectCallCanWaitForFinalizedFactsSourceMemberIds = sourceLibraryMemberIdSet([
   "Object.keys",
   "Object.values",
   "Object.entries",
@@ -550,16 +571,16 @@ const closedReceiverRequirementPolicies: readonly ClosedReceiverRequirementPolic
   { sourceMemberIdPrefixes: ["ReadonlyArray."], requiresClosedReceiver: () => true },
   {
     sourceMemberIdPrefixes: ["String."],
-    requiresClosedReceiver: (sourceMember) => !sourceMemberIdMatchesAny(sourceMember.id, stringStaticCallWithoutReceiverSourceMemberIds),
+    requiresClosedReceiver: (sourceMember) => !sourceLibraryMemberMatchesAny(sourceMember, stringStaticCallWithoutReceiverSourceMemberIds),
   },
   {
     sourceMemberIdPrefixes: ["Number."],
-    requiresClosedReceiver: (sourceMember) => !numberStaticCallRequiresNoReceiver(sourceMemberName(sourceMember)),
+    requiresClosedReceiver: (sourceMember) => !numberStaticCallRequiresNoReceiver(sourceLibraryMemberName(sourceMember)),
   },
   { sourceMemberIdPrefixes: ["Boolean."], requiresClosedReceiver: () => true },
   {
     sourceMemberIdPrefixes: ["RegExp."],
-    requiresClosedReceiver: (sourceMember) => sourceMember.id !== "RegExp.constructor",
+    requiresClosedReceiver: (sourceMember) => !sourceLibraryMemberMatchesAny(sourceMember, regexpConstructorSourceMemberIds),
   },
   {
     sourceMemberIdPrefixes: ["Date."],
@@ -567,34 +588,17 @@ const closedReceiverRequirementPolicies: readonly ClosedReceiverRequirementPolic
   },
   {
     sourceMemberIdPrefixes: ["Object."],
-    requiresClosedReceiver: (sourceMember) => sourceMember.id === "Object.hasOwnProperty",
+    requiresClosedReceiver: (sourceMember) => sourceLibraryMemberMatchesAny(sourceMember, objectHasOwnPropertySourceMemberIds),
   },
   {
     sourceMemberIdPrefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."],
-    requiresClosedReceiver: (sourceMember) => !sourceMemberIdMatchesAny(sourceMember.id, collectionConstructorSourceMemberIds),
+    requiresClosedReceiver: (sourceMember) => !sourceLibraryMemberMatchesAny(sourceMember, collectionConstructorSourceMemberIds),
   },
 ];
 
-const stringStaticCallWithoutReceiverSourceMemberIds = sourceMemberIdSet([
+const stringStaticCallWithoutReceiverSourceMemberIds = sourceLibraryMemberIdSet([
   "String.fromCharCode",
   "String.fromCodePoint",
 ]);
 
-function sourceMemberIdSet(ids: readonly SourceLibraryMemberId[]): ReadonlySet<SourceLibraryMemberId> {
-  return new Set(ids);
-}
-
-function sourceMemberIdMatchesAny(sourceMemberId: SourceLibraryMemberId, ids: ReadonlySet<SourceLibraryMemberId>): boolean {
-  return ids.has(sourceMemberId);
-}
-
-function sourceMemberIdMatchesAnyPrefix(
-  sourceMemberId: SourceLibraryMemberId,
-  prefixes: readonly SourceLibraryMemberIdPrefix[],
-): boolean {
-  return prefixes.some((prefix) => sourceMemberId.startsWith(prefix));
-}
-
-function sourceMemberName(sourceMember: SourceLibraryMember): string {
-  return sourceMember.id.slice(sourceMember.id.indexOf(".") + 1);
-}
+const regexpConstructorSourceMemberIds = sourceLibraryMemberIdSet(["RegExp.constructor"]);

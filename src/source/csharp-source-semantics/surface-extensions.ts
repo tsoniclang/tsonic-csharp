@@ -1,10 +1,8 @@
 import {
-  ExtensionLifecycleEvent,
   TstsProviderContractVersion,
   deferObservation,
 } from "@tsonic/tsts";
 import type {
-  BeforeSemanticsFinalizedLifecycleRequest,
   CompilerExtension,
   ExtensionObservationContext,
   ProviderIdentity,
@@ -91,11 +89,8 @@ export function createCsharpJsSurfaceExtension(context: TargetSurfaceExtensionCo
     dependencies: {
       dependsOn: [tsonicCoreSourceExtensionId],
     },
-    initialize(extensionContext): void {
-      extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts);
-        recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts);
-      });
+    initialize(): void {
+      void hosts;
     },
   };
 }
@@ -173,7 +168,7 @@ function surfaceSemanticProviderIdentity(id: string, displayName: string): Provi
   };
 }
 
-function recordCsharpJsSurfaceSeedFactsBeforeFinalization(
+export function recordCsharpJsSurfaceSeedFactsBeforeFinalization(
   lifecycleContext: CsharpSurfaceLifecycleContext,
   hosts: CsharpExtensionSemanticHosts,
 ): void {
@@ -185,15 +180,16 @@ function recordCsharpJsSurfaceSeedFactsBeforeFinalization(
   recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
 }
 
-function recordCsharpJsSurfaceOperationFactsBeforeFinalization(
+export function recordCsharpJsSurfaceOperationFactsBeforeFinalization(
   lifecycleContext: CsharpSurfaceLifecycleContext,
   hosts: CsharpExtensionSemanticHosts,
+  options: { readonly diagnostics?: "append" | "suppress" } = {},
 ): void {
   const jsSurfaceHost = createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, hosts.operationsProviderHost);
   recordCsharpSourceLibraryPropertyFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayMutationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-  recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
+  recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost, options);
   recordCsharpJsSurfaceIterationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
 }

@@ -160,11 +160,11 @@ export function getCsharpTypeFromSourcePrimitiveTypeReference(
   const sourcePrimitive = [
     getSourcePrimitiveTypeRef(typeName, input),
     getSourcePrimitiveTypeRef(
-      typeName === undefined ? undefined : input.semantics.getSymbolAtLocation(typeName, { sourceFile }),
+      typeName === undefined ? undefined : input.analysis.getSymbolAtLocation(typeName, { sourceFile }),
       input,
     ),
     getSourcePrimitiveTypeRef(
-      typeName === undefined ? undefined : input.semantics.getResolvedSymbol(typeName, { sourceFile }),
+      typeName === undefined ? undefined : input.analysis.getResolvedSymbol(typeName, { sourceFile }),
       input,
     ),
     getSourcePrimitiveTypeRef(subject, input),

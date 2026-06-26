@@ -131,18 +131,28 @@ function preserveCsharpTargetNamedMetadata(
     ...(originalCsharp.csharpSourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: originalCsharp.csharpSourceDeclarationKind } : {}),
   };
   const arrayLiteralElementType = (original as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
-  if (arrayLiteralElementType === undefined) {
-    return preserved;
-  }
-  const enrichedArrayLiteralElementType = enrichCsharpTargetTypeRef(arrayLiteralElementType, host);
-  if (enrichedArrayLiteralElementType === undefined) {
-    return preserved;
-  }
+  const enumerableElementType = (original as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
+  const readOnlyIndexableElementType = (original as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
+  const denseMutableElementType = (original as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
+  const enrichedArrayLiteralElementType = enrichOptionalCsharpTargetTypeRef(arrayLiteralElementType, host);
+  const enrichedEnumerableElementType = enrichOptionalCsharpTargetTypeRef(enumerableElementType, host);
+  const enrichedReadOnlyIndexableElementType = enrichOptionalCsharpTargetTypeRef(readOnlyIndexableElementType, host);
+  const enrichedDenseMutableElementType = enrichOptionalCsharpTargetTypeRef(denseMutableElementType, host);
   preserved = {
     ...preserved,
-    csharpArrayLiteralElementType: enrichedArrayLiteralElementType,
+    ...(enrichedArrayLiteralElementType !== undefined ? { csharpArrayLiteralElementType: enrichedArrayLiteralElementType } : {}),
+    ...(enrichedEnumerableElementType !== undefined ? { csharpEnumerableElementType: enrichedEnumerableElementType } : {}),
+    ...(enrichedReadOnlyIndexableElementType !== undefined ? { csharpReadOnlyIndexableElementType: enrichedReadOnlyIndexableElementType } : {}),
+    ...(enrichedDenseMutableElementType !== undefined ? { csharpDenseMutableElementType: enrichedDenseMutableElementType } : {}),
   };
   return preserved;
+}
+
+function enrichOptionalCsharpTargetTypeRef(
+  type: TargetTypeRef | undefined,
+  host: CsharpTargetEnrichmentHost,
+): TargetTypeRef | undefined {
+  return type === undefined ? undefined : enrichCsharpTargetTypeRef(type, host);
 }
 
 export function enrichCsharpTargetMember(

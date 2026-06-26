@@ -34,8 +34,8 @@ export function planIdentifierExpression(
   state?: DestructuringPlannerState,
 ): CsharpExpression | undefined {
   const sourceName = Node_Text(AsIdentifier(identifier));
-  const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
-  const referenceTargetBinding = input.semantics.getTargetBindingForReference(identifier, { sourceFile });
+  const sourceReference = input.analysis.getProjectSourceReferenceForNode(identifier, { sourceFile });
+  const referenceTargetBinding = input.targetFacts.getTargetBindingForReference(identifier, { sourceFile });
   if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference, referenceTargetBinding)) {
     return { kind: "LiteralExpression", value: null };
   }
@@ -47,8 +47,8 @@ export function planIdentifierExpression(
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
     return undefined;
   }
-  const directSymbol = input.semantics.getSymbolAtLocation(identifier, { sourceFile });
-  const resolvedSymbol = input.semantics.getResolvedSymbol(identifier, { sourceFile });
+  const directSymbol = input.analysis.getSymbolAtLocation(identifier, { sourceFile });
+  const resolvedSymbol = input.analysis.getResolvedSymbol(identifier, { sourceFile });
   const directTargetBinding = input.facts.getTargetBindingFact(directSymbol) ??
     input.facts.getTargetBindingFact(resolvedSymbol);
   if (
@@ -74,18 +74,18 @@ function isGlobalUndefinedExpression(
   sourceName: string,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-  sourceReference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
-  targetBinding: ReturnType<TargetCompileInput["semantics"]["getTargetBindingForReference"]>,
+  sourceReference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
+  targetBinding: ReturnType<TargetCompileInput["targetFacts"]["getTargetBindingForReference"]>,
 ): boolean {
   if (sourceName !== "undefined" || sourceReference !== undefined || targetBinding !== undefined) {
     return false;
   }
-  const type = input.semantics.getTypeAtLocation(identifier, { sourceFile });
+  const type = input.analysis.getTypeAtLocation(identifier, { sourceFile });
   return type !== undefined && input.types.isNullish(type);
 }
 
 export function isExternalDeclarationReference(
-  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {
@@ -148,8 +148,8 @@ function getProjectSourceReferenceForModuleMemberNode(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]> {
-  return input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }) ??
+): ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]> {
+  return input.analysis.getProjectSourceReferenceForNode(node, { sourceFile }) ??
     getProjectSourceReferenceForPropertyAccessName(node, sourceFile, input);
 }
 
@@ -159,8 +159,8 @@ function isProviderVirtualDeclarationIdentifier(
   input: TargetCompileInput,
 ): boolean {
   const symbols = [
-    input.semantics.getSymbolAtLocation(identifier, { sourceFile }),
-    input.semantics.getResolvedSymbol(identifier, { sourceFile }),
+    input.analysis.getSymbolAtLocation(identifier, { sourceFile }),
+    input.analysis.getResolvedSymbol(identifier, { sourceFile }),
   ];
   return symbols.some((symbol) => {
     if (symbol === undefined) {
@@ -210,12 +210,12 @@ function getProjectSourceReferenceForPropertyAccessName(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]> {
+): ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]> {
   if (!HasSourceKind(input.ast, node, KindPropertyAccessExpression)) {
     return undefined;
   }
   const name = AsPropertyAccessExpression(node)?.name;
   return name === undefined
     ? undefined
-    : input.semantics.getProjectSourceReferenceForNode(name, { sourceFile });
+    : input.analysis.getProjectSourceReferenceForNode(name, { sourceFile });
 }
