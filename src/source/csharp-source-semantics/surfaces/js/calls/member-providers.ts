@@ -47,7 +47,6 @@ import type {
 import {
   sourceLibraryMemberIdSet,
   sourceLibraryMemberMatches,
-  sourceLibraryMemberMatchesAny,
   sourceLibraryMemberName,
 } from "../source-library.js";
 import {
@@ -87,14 +86,18 @@ export const collectionIdentityPolicy = {
   prefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."],
 } satisfies SourceLibraryMemberIdentityPolicy;
 
-export const arrayConstructorSourceMemberIds = sourceLibraryMemberIdSet(["Array.constructor"]);
+export const arrayConstructorIdentityPolicy = {
+  ids: sourceLibraryMemberIdSet(["Array.constructor"]),
+} satisfies SourceLibraryMemberIdentityPolicy;
 
-export const collectionConstructorSourceMemberIds = sourceLibraryMemberIdSet([
-  "Map.constructor",
-  "ReadonlyMap.constructor",
-  "Set.constructor",
-  "ReadonlySet.constructor",
-]);
+export const collectionConstructorIdentityPolicy = {
+  ids: sourceLibraryMemberIdSet([
+    "Map.constructor",
+    "ReadonlyMap.constructor",
+    "Set.constructor",
+    "ReadonlySet.constructor",
+  ]),
+} satisfies SourceLibraryMemberIdentityPolicy;
 
 export function getCsharpJsSourceLibraryCallMembersFromProviders(
   sourceMember: SourceLibraryMember,
@@ -123,7 +126,7 @@ export function mapCsharpJsSourceLibraryProviderCheckedCall(
 
 export function csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember: SourceLibraryMember | undefined): boolean {
   return sourceMember !== undefined &&
-    sourceLibraryMemberMatchesAny(sourceMember, arrayConstructorSourceMemberIds);
+    sourceLibraryMemberMatches(sourceMember, arrayConstructorIdentityPolicy);
 }
 
 export function csharpJsSourceLibraryMemberIsCollection(sourceMember: SourceLibraryMember | undefined): boolean {
@@ -162,7 +165,7 @@ const csharpJsSourceLibraryProviders: readonly CsharpJsSurfaceSourceLibraryPolic
     identity: { prefixes: ["Array.", "ReadonlyArray."] },
     getCallMembers: (sourceMember, request, context, host) => {
       const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
-      if (sourceLibraryMemberMatchesAny(sourceMember, arrayConstructorSourceMemberIds) && resultElementType === undefined) {
+      if (sourceLibraryMemberMatches(sourceMember, arrayConstructorIdentityPolicy) && resultElementType === undefined) {
         return [];
       }
       return arrayTargetMembersForSourceName(
@@ -181,7 +184,7 @@ const csharpJsSourceLibraryProviders: readonly CsharpJsSurfaceSourceLibraryPolic
     getCallMembers: (sourceMember, request, context, host) => collectionTargetMembersForSourceMember(
       sourceMember,
       getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
-      sourceLibraryMemberMatchesAny(sourceMember, collectionConstructorSourceMemberIds)
+      sourceLibraryMemberMatches(sourceMember, collectionConstructorIdentityPolicy)
         ? getSourceLibraryCallResultTargetType(request, context, host)
         : undefined,
     ),
@@ -215,7 +218,7 @@ function getObjectPrimitiveReceiverCallMembers(
   host: CsharpJsSurfaceHost,
   sourceMember: SourceLibraryMember,
 ): readonly TargetMember[] {
-  if (!sourceLibraryMemberMatchesAny(sourceMember, objectToStringSourceMemberIds)) {
+  if (!sourceLibraryMemberMatches(sourceMember, objectToStringIdentityPolicy)) {
     return [];
   }
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
@@ -241,7 +244,7 @@ function getObjectRecordDictionaryCallMembers(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  if (!sourceLibraryMemberMatchesAny(sourceMember, objectRecordDictionarySourceMemberIds)) {
+  if (!sourceLibraryMemberMatches(sourceMember, objectRecordDictionaryIdentityPolicy)) {
     return [];
   }
   const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request, context, host)
@@ -281,10 +284,14 @@ const arrayCallSurfaceMemberNames = new Set([
   "findLastIndex",
 ]);
 
-const objectToStringSourceMemberIds = sourceLibraryMemberIdSet(["Object.toString"]);
+const objectToStringIdentityPolicy = {
+  ids: sourceLibraryMemberIdSet(["Object.toString"]),
+} satisfies SourceLibraryMemberIdentityPolicy;
 
-const objectRecordDictionarySourceMemberIds = sourceLibraryMemberIdSet([
-  "Object.keys",
-  "Object.values",
-  "Object.entries",
-]);
+const objectRecordDictionaryIdentityPolicy = {
+  ids: sourceLibraryMemberIdSet([
+    "Object.keys",
+    "Object.values",
+    "Object.entries",
+  ]),
+} satisfies SourceLibraryMemberIdentityPolicy;

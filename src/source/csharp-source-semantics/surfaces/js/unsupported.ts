@@ -9,20 +9,22 @@ import type {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
-  SourceLibraryMemberKeyPrefix,
+  SourceLibraryMemberIdentityPolicy,
 } from "./source-library.js";
 import {
   sourceLibraryMemberIdentity,
-  sourceLibraryMemberMatchesAnyPrefix,
+  sourceLibraryMemberMatches,
 } from "./source-library.js";
 
-const unsupportedSourceLibraryMemberIdPrefixes: readonly SourceLibraryMemberKeyPrefix[] = [];
+const unsupportedSourceLibraryMemberIdentityPolicy = {
+  prefixes: [],
+} satisfies SourceLibraryMemberIdentityPolicy;
 
 export function rejectUnsupportedCsharpJsSourceLibraryCall(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  if (!sourceLibraryMemberMatchesAnyPrefix(sourceMember, unsupportedSourceLibraryMemberIdPrefixes)) {
+  if (!sourceLibraryMemberMatches(sourceMember, unsupportedSourceLibraryMemberIdentityPolicy)) {
     return undefined;
   }
   return rejectObservation(host.csharpProviderDiagnostic(
@@ -49,7 +51,7 @@ export function rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  if (!sourceLibraryMemberMatchesAnyPrefix(sourceMember, unsupportedSourceLibraryMemberIdPrefixes)) {
+  if (!sourceLibraryMemberMatches(sourceMember, unsupportedSourceLibraryMemberIdentityPolicy)) {
     return undefined;
   }
   return rejectObservation(host.csharpProviderDiagnostic(

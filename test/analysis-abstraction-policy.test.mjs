@@ -5,6 +5,7 @@ import {
   analysisAbstractionDebtClassifications,
   analysisAbstractionDebtOwners,
   analysisAbstractionFileRules,
+  analysisAbstractionRules,
   collectAnalysisAbstractionFindings,
   summarizeAnalysisAbstractionFindings,
 } from "./architecture/analysis-abstraction-policy.mjs";
@@ -84,6 +85,26 @@ test("architecture validator rejects procedural policy module names", () => {
     [false, false, false, false],
   );
 });
+
+test("architecture validator rejects ad hoc source-member matcher calls", () => {
+  const matcherRule = analysisAbstractionRules.find((rule) => rule.id === "source-library-member-ad-hoc-match");
+  assert.notEqual(matcherRule, undefined);
+  const forbidden = [
+    "sourceLibraryMemberMatchesAny(sourceMember, arrayConstructorIds)",
+    "sourceLibraryMemberMatchesAnyPrefix(sourceMember, consolePrefixes)",
+  ];
+  const allowed = [
+    "function sourceLibraryMemberMatchesAny(sourceMember, ids) { return sourceLibraryMemberMatches(sourceMember, { ids }); }",
+    "sourceLibraryMemberMatches(sourceMember, arrayConstructorIdentityPolicy)",
+  ];
+  assert.deepEqual(forbidden.map((text) => ruleMatches(matcherRule, text)), [true, true]);
+  assert.deepEqual(allowed.map((text) => ruleMatches(matcherRule, text)), [false, false]);
+});
+
+function ruleMatches(rule, text) {
+  rule.pattern.lastIndex = 0;
+  return rule.pattern.test(text);
+}
 
 function catalogedCounts() {
   const counts = new Map();

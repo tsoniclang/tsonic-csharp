@@ -105,6 +105,12 @@ export const analysisAbstractionRules = Object.freeze([
       "Keep concrete TypeScript library member ids inside source identity extraction or declarative policy data only.",
   },
   {
+    id: "source-library-member-ad-hoc-match",
+    pattern: /(?<!function\s)\bsourceLibraryMemberMatchesAny(?:Prefix)?\s*\(/g,
+    replacement:
+      "Route concrete source member ids through named SourceLibraryMemberIdentityPolicy records before generic matching.",
+  },
+  {
     id: "target-member-helper",
     pattern: /(?<!function\s)\btarget(?:Method|Property|Constructor)\s*\(/g,
     replacement:

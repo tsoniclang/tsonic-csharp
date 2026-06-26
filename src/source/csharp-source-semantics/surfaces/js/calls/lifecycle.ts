@@ -30,10 +30,10 @@ import type {
 } from "../source-library.js";
 import {
   resolveSourceLibraryMemberIdentity,
-  sourceLibraryMemberIdSet,
-  sourceLibraryMemberMatchesAny,
+  sourceLibraryMemberMatches,
 } from "../source-library.js";
 import {
+  collectionConstructorIdentityPolicy,
   csharpJsSourceLibraryMemberIsArrayConstructor,
   csharpJsSourceLibraryMemberIsCollection,
 } from "./member-providers.js";
@@ -232,7 +232,7 @@ function recordCollectionRuntimeCarrierFactsForSelectedCall(
   if (!sourceMemberIsCollection(sourceMember)) {
     return;
   }
-  if (sourceLibraryMemberMatchesAny(sourceMember, collectionConstructorSourceMemberIds)) {
+  if (sourceLibraryMemberMatches(sourceMember, collectionConstructorIdentityPolicy)) {
     recordCsharpJsCollectionRuntimeCarrierFactForNode(node, sourceFile, context, host);
     return;
   }
@@ -246,13 +246,6 @@ function sourceMemberIsCollection(
 ): boolean {
   return csharpJsSourceLibraryMemberIsCollection(sourceMember);
 }
-
-const collectionConstructorSourceMemberIds = sourceLibraryMemberIdSet([
-  "Map.constructor",
-  "ReadonlyMap.constructor",
-  "Set.constructor",
-  "ReadonlySet.constructor",
-]);
 
 function recordArrayConstructorRuntimeCarrierFact(
   node: Node,

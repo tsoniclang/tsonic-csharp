@@ -14,7 +14,7 @@ import type {
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
-  SourceLibraryMemberKeyPrefix,
+  SourceLibraryMemberIdentityPolicy,
 } from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
@@ -22,7 +22,7 @@ import {
   csharpTargetNamedType,
   csharpVoidTargetType,
   sourceLibraryMemberIdentity,
-  sourceLibraryMemberMatchesAnyPrefix,
+  sourceLibraryMemberMatches,
   sourceLibraryMemberName,
   targetParameter,
 } from "./source-library.js";
@@ -45,7 +45,7 @@ export function mapCsharpJsConsoleCheckedCall(
   host: CsharpJsSurfaceHost,
   options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  if (!sourceLibraryMemberMatchesAnyPrefix(sourceMember, consoleSourceMemberIdPrefixes)) {
+  if (!sourceLibraryMemberMatches(sourceMember, consoleSourceMemberIdentityPolicy)) {
     return undefined;
   }
   const member = getConsoleTargetMember(sourceLibraryMemberName(sourceMember));
@@ -96,7 +96,9 @@ function getConsoleTargetMember(sourceName: string): TargetMember | undefined {
   return jsSurfaceSingleTargetMemberForSourceName(consoleTargetMemberIndex, sourceName);
 }
 
-const consoleSourceMemberIdPrefixes: readonly SourceLibraryMemberKeyPrefix[] = ["Console."];
+const consoleSourceMemberIdentityPolicy = {
+  prefixes: ["Console."],
+} satisfies SourceLibraryMemberIdentityPolicy;
 
 function consoleMethodMetadata(
   sourceName: string,
