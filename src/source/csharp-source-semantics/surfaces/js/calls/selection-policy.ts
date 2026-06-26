@@ -36,32 +36,16 @@ export function getPrevalidatedSourceLibraryCallMember(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
-  const dateMember = getPrevalidatedDateCallMember(sourceMember, candidates, request, context, host);
-  if (dateMember !== undefined) {
-    return dateMember;
+  for (const policy of prevalidatedCallSelectionPolicies) {
+    if (!policy.sourceMemberIds.has(sourceMember.id)) {
+      continue;
+    }
+    const member = selectPrevalidatedCallMember(policy, sourceMember, candidates, request, context, host);
+    if (member !== undefined) {
+      return member;
+    }
   }
-  const jsonMember = getPrevalidatedJsonCallMember(sourceMember, candidates, request, context, host);
-  if (jsonMember !== undefined) {
-    return jsonMember;
-  }
-  const arrayConstructorMember = getPrevalidatedArrayConstructorCallMember(sourceMember, candidates, request, context, host);
-  if (arrayConstructorMember !== undefined) {
-    return arrayConstructorMember;
-  }
-  const arrayFromMember = getPrevalidatedArrayFromCallMember(sourceMember, candidates, request, context, host);
-  if (arrayFromMember !== undefined) {
-    return arrayFromMember;
-  }
-  const arrayCallbackMember = getPrevalidatedArrayCallbackCallMember(sourceMember, candidates, request, context);
-  if (arrayCallbackMember !== undefined) {
-    return arrayCallbackMember;
-  }
-  return sourceMember.id === "Object.assign" &&
-    candidates.length === 1
-    ? candidates[0]
-    : candidates.length === 1
-      ? candidates[0]
-      : undefined;
+  return candidates.length === 1 ? candidates[0] : undefined;
 }
 
 export function sourceLibraryCallSelectionOptions(
@@ -83,158 +67,251 @@ export function sourceLibraryCallSelectionOptions(
       };
 }
 
-function getPrevalidatedArrayConstructorCallMember(
+interface PrevalidatedCallSelectionPolicy {
+  readonly sourceMemberIds: ReadonlySet<SourceLibraryMemberId>;
+  readonly reason: PrevalidatedCallSelectionReason;
+  readonly strategy: PrevalidatedCallSelectionStrategy;
+}
+
+type PrevalidatedCallSelectionReason =
+  | "provider-overload-selection"
+  | "constructor-call-vs-new"
+  | "native-array-input-carrier"
+  | "callback-arity-overload";
+
+type PrevalidatedCallSelectionStrategy =
+  | { readonly kind: "host-select" }
+  | { readonly kind: "array-constructor"; readonly emptyTargetId: string; readonly lengthTargetId: string }
+  | { readonly kind: "date-constructor"; readonly targetIds: DateConstructorTargetIds }
+  | { readonly kind: "array-from-native"; readonly stringTargetId: string; readonly arrayTargetId: string }
+  | { readonly kind: "callback-arity"; readonly callbackArgumentIndexes: ReadonlyMap<SourceLibraryMemberId, number>; readonly targetCallbackParameterIndex: number };
+
+interface DateConstructorTargetIds {
+  readonly call: string;
+  readonly empty: string;
+  readonly string: string;
+  readonly number: string;
+  readonly object: string;
+  readonly components: string;
+}
+
+function selectPrevalidatedCallMember(
+  policy: PrevalidatedCallSelectionPolicy,
   sourceMember: SourceLibraryMember,
   candidates: readonly TargetMember[],
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
-  if (sourceMember.id !== "Array.constructor" || !isNewExpression(request.call, context)) {
+  switch (policy.strategy.kind) {
+    case "host-select":
+      return host.selectTargetMember(candidates, {
+        arguments: request.arguments,
+        receiver: request.calleeReceiver,
+      }, context);
+    case "array-constructor":
+      return selectArrayConstructorPolicyMember(policy.strategy, candidates, request, context, host);
+    case "date-constructor":
+      return selectDateConstructorPolicyMember(policy.strategy, candidates, request, context, host);
+    case "array-from-native":
+      return selectArrayFromNativePolicyMember(policy.strategy, candidates, request, context, host);
+    case "callback-arity":
+      return selectCallbackArityPolicyMember(policy.strategy, sourceMember, candidates, request, context);
+  }
+}
+
+function selectArrayConstructorPolicyMember(
+  strategy: Extract<PrevalidatedCallSelectionStrategy, { readonly kind: "array-constructor" }>,
+  candidates: readonly TargetMember[],
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): TargetMember | undefined {
+  if (!isNewExpression(request.call, context)) {
     return undefined;
   }
   if (request.arguments.length === 0) {
-    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.JSArray..ctor()");
+    return findCandidateById(candidates, strategy.emptyTargetId);
   }
   if (request.arguments.length !== 1) {
     return undefined;
   }
   return host.selectTargetMember(
-    candidates.filter((candidate) => candidate.id === "Tsonic.CSharp.Js.JSArray..ctor(System.Double)"),
+    candidates.filter((candidate) => candidate.id === strategy.lengthTargetId),
     { arguments: request.arguments },
     context,
   );
 }
 
-function getPrevalidatedJsonCallMember(
-  sourceMember: SourceLibraryMember,
+function selectDateConstructorPolicyMember(
+  strategy: Extract<PrevalidatedCallSelectionStrategy, { readonly kind: "date-constructor" }>,
   candidates: readonly TargetMember[],
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
-  if (!jsonCallSourceMemberIds.has(sourceMember.id)) {
-    return undefined;
-  }
-  return host.selectTargetMember(candidates, {
-    arguments: request.arguments,
-    receiver: request.calleeReceiver,
-  }, context);
-}
-
-function getPrevalidatedDateCallMember(
-  sourceMember: SourceLibraryMember,
-  candidates: readonly TargetMember[],
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpJsSurfaceHost,
-): TargetMember | undefined {
-  if (!dateCallSourceMemberIds.has(sourceMember.id)) {
-    return undefined;
-  }
-  if (sourceMember.id !== "Date.constructor") {
-    return candidates.length === 1 ? candidates[0] : undefined;
-  }
   if (!isNewExpression(request.call, context)) {
-    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date.call");
+    return findCandidateById(candidates, strategy.targetIds.call);
   }
   const argumentCount = request.arguments.length;
   if (argumentCount === 0) {
-    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor()");
+    return findCandidateById(candidates, strategy.targetIds.empty);
   }
   if (argumentCount === 1) {
     const argument = request.arguments[0];
     if (dateSingleArgumentIsString(argument, context, host)) {
-      return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor(System.String)");
+      return findCandidateById(candidates, strategy.targetIds.string);
     }
     if (dateSingleArgumentIsNumber(argument, context, host)) {
-      return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor(System.Double)");
+      return findCandidateById(candidates, strategy.targetIds.number);
     }
-    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor(System.Object)");
+    return findCandidateById(candidates, strategy.targetIds.object);
   }
   return argumentCount <= 7
-    ? candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Date..ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32)")
+    ? findCandidateById(candidates, strategy.targetIds.components)
     : undefined;
 }
 
-function getPrevalidatedArrayFromCallMember(
-  sourceMember: SourceLibraryMember,
+function selectArrayFromNativePolicyMember(
+  strategy: Extract<PrevalidatedCallSelectionStrategy, { readonly kind: "array-from-native" }>,
   candidates: readonly TargetMember[],
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
-  if (sourceMember.id !== "Array.from" || request.arguments.length !== 1) {
+  if (request.arguments.length !== 1) {
     return undefined;
   }
   const sourceType = getSourceLibraryCallArgumentTargetTypes(request, context, host)[0];
   if (host.isCsharpStringType(sourceType)) {
-    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Array.from:string:native");
+    return findCandidateById(candidates, strategy.stringTargetId);
   }
-  if (sourceType !== undefined && getCsharpArrayLikeElementType(sourceType) !== undefined) {
-    return candidates.find((candidate) => candidate.id === "Tsonic.CSharp.Js.Array.from:array:native");
-  }
-  return undefined;
+  return sourceType !== undefined && getCsharpArrayLikeElementType(sourceType) !== undefined
+    ? findCandidateById(candidates, strategy.arrayTargetId)
+    : undefined;
 }
 
-function getPrevalidatedArrayCallbackCallMember(
+function selectCallbackArityPolicyMember(
+  strategy: Extract<PrevalidatedCallSelectionStrategy, { readonly kind: "callback-arity" }>,
   sourceMember: SourceLibraryMember,
   candidates: readonly TargetMember[],
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): TargetMember | undefined {
-  if (
-    request.sourceSelectedSignature === undefined ||
-    !arrayCallbackSourceMemberIds.has(sourceMember.id)
-  ) {
+  const callbackArgumentIndex = strategy.callbackArgumentIndexes.get(sourceMember.id);
+  if (request.sourceSelectedSignature === undefined || callbackArgumentIndex === undefined) {
     return undefined;
   }
-  const callbackArgumentIndex = sourceMember.id === "Array.from" ? 1 : 0;
   const callbackParameterCount = getSourceFunctionParameterCount(request.arguments[callbackArgumentIndex], context);
   if (callbackParameterCount === undefined) {
     return undefined;
   }
-  const targetCallbackParameterIndex = sourceMember.id === "Array.from" ? 1 : 1;
   const matching = candidates.filter((candidate) =>
-    getTargetDelegateParameterCount(candidate.parameters[targetCallbackParameterIndex]?.type) === callbackParameterCount
+    getTargetDelegateParameterCount(candidate.parameters[strategy.targetCallbackParameterIndex]?.type) === callbackParameterCount
   );
   return matching.length === 1 ? matching[0] : undefined;
 }
 
-const jsonCallSourceMemberIds = sourceMemberIdSet([
-  "JSON.parse",
-  "JSON.stringify",
-]);
+function findCandidateById(candidates: readonly TargetMember[], targetId: string): TargetMember | undefined {
+  return candidates.find((candidate) => candidate.id === targetId);
+}
 
-const dateCallSourceMemberIds = sourceMemberIdSet([
-  "Date.constructor",
-  "Date.now",
-  "Date.parse",
-  "Date.UTC",
-]);
-
-const arrayCallbackSourceMemberIds = sourceMemberIdSet([
-  "Array.every",
-  "Array.filter",
-  "Array.find",
-  "Array.findIndex",
-  "Array.findLast",
-  "Array.findLastIndex",
-  "Array.forEach",
-  "Array.from",
-  "Array.map",
-  "Array.some",
-  "Array.sort",
-  "ReadonlyArray.every",
-  "ReadonlyArray.filter",
-  "ReadonlyArray.find",
-  "ReadonlyArray.findIndex",
-  "ReadonlyArray.findLast",
-  "ReadonlyArray.findLastIndex",
-  "ReadonlyArray.forEach",
-  "ReadonlyArray.map",
-  "ReadonlyArray.some",
-]);
+const prevalidatedCallSelectionPolicies: readonly PrevalidatedCallSelectionPolicy[] = [
+  {
+    sourceMemberIds: sourceMemberIdSet(["JSON.parse", "JSON.stringify"]),
+    reason: "provider-overload-selection",
+    strategy: { kind: "host-select" },
+  },
+  {
+    sourceMemberIds: sourceMemberIdSet(["Date.now", "Date.parse", "Date.UTC"]),
+    reason: "provider-overload-selection",
+    strategy: { kind: "host-select" },
+  },
+  {
+    sourceMemberIds: sourceMemberIdSet(["Date.constructor"]),
+    reason: "constructor-call-vs-new",
+    strategy: {
+      kind: "date-constructor",
+      targetIds: {
+        call: "Tsonic.CSharp.Js.Date.call",
+        empty: "Tsonic.CSharp.Js.Date..ctor()",
+        string: "Tsonic.CSharp.Js.Date..ctor(System.String)",
+        number: "Tsonic.CSharp.Js.Date..ctor(System.Double)",
+        object: "Tsonic.CSharp.Js.Date..ctor(System.Object)",
+        components: "Tsonic.CSharp.Js.Date..ctor(System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32,System.Int32)",
+      },
+    },
+  },
+  {
+    sourceMemberIds: sourceMemberIdSet(["Array.constructor"]),
+    reason: "constructor-call-vs-new",
+    strategy: {
+      kind: "array-constructor",
+      emptyTargetId: "Tsonic.CSharp.Js.JSArray..ctor()",
+      lengthTargetId: "Tsonic.CSharp.Js.JSArray..ctor(System.Double)",
+    },
+  },
+  {
+    sourceMemberIds: sourceMemberIdSet(["Array.from"]),
+    reason: "native-array-input-carrier",
+    strategy: {
+      kind: "array-from-native",
+      stringTargetId: "Tsonic.CSharp.Js.Array.from:string:native",
+      arrayTargetId: "Tsonic.CSharp.Js.Array.from:array:native",
+    },
+  },
+  {
+    sourceMemberIds: sourceMemberIdSet([
+      "Array.every",
+      "Array.filter",
+      "Array.find",
+      "Array.findIndex",
+      "Array.findLast",
+      "Array.findLastIndex",
+      "Array.forEach",
+      "Array.from",
+      "Array.map",
+      "Array.some",
+      "Array.sort",
+      "ReadonlyArray.every",
+      "ReadonlyArray.filter",
+      "ReadonlyArray.find",
+      "ReadonlyArray.findIndex",
+      "ReadonlyArray.findLast",
+      "ReadonlyArray.findLastIndex",
+      "ReadonlyArray.forEach",
+      "ReadonlyArray.map",
+      "ReadonlyArray.some",
+    ]),
+    reason: "callback-arity-overload",
+    strategy: {
+      kind: "callback-arity",
+      callbackArgumentIndexes: new Map<SourceLibraryMemberId, number>([
+        ["Array.from", 1],
+        ["Array.every", 0],
+        ["Array.filter", 0],
+        ["Array.find", 0],
+        ["Array.findIndex", 0],
+        ["Array.findLast", 0],
+        ["Array.findLastIndex", 0],
+        ["Array.forEach", 0],
+        ["Array.map", 0],
+        ["Array.some", 0],
+        ["Array.sort", 0],
+        ["ReadonlyArray.every", 0],
+        ["ReadonlyArray.filter", 0],
+        ["ReadonlyArray.find", 0],
+        ["ReadonlyArray.findIndex", 0],
+        ["ReadonlyArray.findLast", 0],
+        ["ReadonlyArray.findLastIndex", 0],
+        ["ReadonlyArray.forEach", 0],
+        ["ReadonlyArray.map", 0],
+        ["ReadonlyArray.some", 0],
+      ]),
+      targetCallbackParameterIndex: 1,
+    },
+  },
+];
 
 const arraySelectionOptionSourceMemberIds = sourceMemberIdSet([
   "Array.constructor",
