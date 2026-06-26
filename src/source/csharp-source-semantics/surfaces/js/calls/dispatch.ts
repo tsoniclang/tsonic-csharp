@@ -37,7 +37,6 @@ import {
 } from "./operations.js";
 import {
   selectSourceLibraryCallMember,
-  sourceLibraryCallSelectionOptions,
 } from "./selection.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
@@ -80,12 +79,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     }
     return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
   }
-  const member = selectedMember ??
-    host.selectTargetMember(candidates, {
-      arguments: request.arguments,
-      receiver: request.calleeReceiver,
-      sourceSelectedSignature: request.sourceSelectedSignature,
-    }, context, sourceLibraryCallSelectionOptions(request, context, sourceMember, host));
+  const member = selectedMember;
   if (member === undefined) {
     if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
       return undefined;

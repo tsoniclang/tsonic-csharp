@@ -392,9 +392,6 @@ function targetTypeMatchScore(
   if (sourcePrimitiveImplicitlyConverts(expected, actual)) {
     return 3;
   }
-  if (targetTypeIsObjectCatchAll(expected) && targetTypeIsClosedObjectAssignable(actual)) {
-    return 10;
-  }
   const expectedNullableElement = getCsharpNullableElementTargetType(expected);
   if (expectedNullableElement !== undefined) {
     const nullableScore = targetTypeMatchScore(expectedNullableElement, actual, typeParameterBindings, options, seenActualTypes);
@@ -512,28 +509,6 @@ function collectionShapeAcceptsActual(expected: TargetTypeRef, actual: TargetTyp
     return isCsharpDenseMutableCollectionTargetType(actual);
   }
   return false;
-}
-
-function targetTypeIsObjectCatchAll(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" && type.id === "System.Object";
-}
-
-function targetTypeIsClosedObjectAssignable(type: TargetTypeRef): boolean {
-  switch (type.kind) {
-    case "source-primitive":
-    case "target-named":
-    case "target-specific":
-    case "array":
-    case "tuple":
-    case "pointer":
-    case "function-pointer":
-    case "associated-type":
-      return true;
-    case "type-parameter":
-    case "opaque":
-    case "lifetime":
-      return false;
-  }
 }
 
 function getCsharpDelegateSignature(type: TargetTypeRef): CsharpDelegateSignatureShape | undefined {

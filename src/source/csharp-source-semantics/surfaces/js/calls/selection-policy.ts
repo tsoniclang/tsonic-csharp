@@ -2,8 +2,6 @@ import type {
   CheckedCallMappingRequest,
   ExtensionObservationContext,
   TargetMember,
-  TargetParameter,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   getCsharpArrayLikeElementType,
@@ -29,7 +27,7 @@ export function selectSourceLibraryCallMember(
     sourceSelectedSignature: request.sourceSelectedSignature,
   }, context, sourceLibraryCallSelectionOptions(request, context, _sourceMember, host));
   return selected !== undefined &&
-    (!targetMemberCandidatesRequireSelectedSourceSignature(candidates) || request.sourceSelectedSignature !== undefined)
+    (!targetMemberSelectionRequiresSelectedSourceSignature(candidates) || request.sourceSelectedSignature !== undefined)
     ? selected
     : undefined;
 }
@@ -50,17 +48,6 @@ export function sourceLibraryCallSelectionOptions(
       };
 }
 
-function targetMemberCandidatesRequireSelectedSourceSignature(candidates: readonly TargetMember[]): boolean {
-  return candidates.length > 1 && candidates.some((candidate) =>
-    candidate.parameters.some((parameter) => targetParameterIsDelegate(parameter))
-  );
-}
-
-function targetParameterIsDelegate(parameter: TargetParameter): boolean {
-  return targetTypeIsDelegate(parameter.type);
-}
-
-function targetTypeIsDelegate(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" &&
-    (type as { readonly csharpDelegateSignature?: unknown }).csharpDelegateSignature !== undefined;
+function targetMemberSelectionRequiresSelectedSourceSignature(candidates: readonly TargetMember[]): boolean {
+  return candidates.length > 1;
 }

@@ -826,9 +826,11 @@ test("JS surface maps JSON.stringify only from closed JSON value carrier facts",
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [value],
+    sourceSelectedSignature: {},
   }), fakeContext(facts));
   const parsedResult = provider.mapCheckedCall(jsCallRequest(parsedStringifyCall, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [parsedValue],
+    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
@@ -858,6 +860,7 @@ test("JS surface maps nested JSON.stringify(JSON.parse(value)) through finalized
 
   const stringifyResult = provider.mapCheckedCall(jsCallRequest(stringifyCall, sourceLibraryMemberDeclaration("JSON", "stringify"), {
     arguments: [parseCall],
+    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(facts.get(parseCall, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.TsValue");
@@ -1347,6 +1350,7 @@ test("JS surface maps Object.assign only from selected declaration and closed JS
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
     arguments: [target, source],
+    sourceSelectedSignature: {},
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");

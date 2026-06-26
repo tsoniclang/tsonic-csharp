@@ -113,7 +113,7 @@ const objectTargetMembers = new Map<string, readonly TargetMember[]>([
   ]],
   ["assign", [objectRuntimeMethod("Tsonic.CSharp.Js.Object.assign", "assign", [
     targetParameter("target", jsObjectCarrierType),
-    targetParameter("sources", objectTargetType, { paramsArray: true }),
+    targetParameter("sources", jsObjectCarrierType, { paramsArray: true }),
   ], jsObjectCarrierType)]],
   ["hasOwn", [objectRuntimeMethod("Tsonic.CSharp.Js.Object.hasOwn", "hasOwn", [
     targetParameter("value", jsObjectCarrierType),
