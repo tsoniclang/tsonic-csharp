@@ -25,7 +25,7 @@ import {
   getJsonTargetMembers,
 } from "./json.js";
 import {
-  getNumberPropertyTargetMember,
+  numberPropertyTargetMemberForSourceName,
 } from "./numbers.js";
 import {
   hasObjectTargetMember,
@@ -159,7 +159,7 @@ const propertyReceiverValidatorPolicies: readonly CsharpJsPropertyReceiverValida
   { sourceMemberIdPrefixes: ["RegExp."], validate: (receiverType) => isCsharpJsRegExpRuntimeCarrier(receiverType) },
   { sourceMemberIdPrefixes: ["Date."], validate: (receiverType) => isCsharpJsDateRuntimeCarrier(receiverType) },
   { sourceMemberIdPrefixes: ["Boolean."], validate: (receiverType) => isCsharpBooleanTargetType(receiverType) },
-  { sourceMemberIdPrefixes: ["Number."], validate: (_receiverType, sourceMember) => getNumberPropertyTargetMember(sourceLibraryMemberName(sourceMember)) !== undefined },
+  { sourceMemberIdPrefixes: ["Number."], validate: (_receiverType, sourceMember) => numberPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)) !== undefined },
   { sourceMemberIdPrefixes: ["Map.", "ReadonlyMap."], validate: (receiverType) => isCsharpJsMapTargetType(receiverType) },
   { sourceMemberIdPrefixes: ["Set.", "ReadonlySet."], validate: (receiverType) => isCsharpJsSetTargetType(receiverType) },
 ];
@@ -178,7 +178,7 @@ const propertyMemberResolvers: readonly CsharpJsPropertyMemberResolver[] = [
   {
     sourceMemberIdPrefixes: ["Number."],
     excludedSourceMemberIds: sourceMemberIdSet(["Number.length"]),
-    resolve: (sourceMember) => getNumberPropertyTargetMember(sourceLibraryMemberName(sourceMember)),
+    resolve: (sourceMember) => numberPropertyTargetMemberForSourceName(sourceLibraryMemberName(sourceMember)),
   },
   {
     sourceMemberIdPrefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."],

@@ -1,42 +1,56 @@
 import type {
   TargetMember,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
 } from "./source-library.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceTargetMemberMetadataIndex,
+  jsSurfaceTargetMembersForSourceName,
+} from "./target-member-metadata.js";
 
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringType = csharpStringTargetType();
 const booleanOpsType = csharpTargetNamedType("Tsonic.CSharp.Js.BooleanOps", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "BooleanOps"));
+const booleanReceiverParameter = targetParameter("value", boolType);
+const booleanTargetMemberMetadata = [
+  {
+    id: "Tsonic.CSharp.Js.BooleanOps.toString",
+    sourceName: "toString",
+    targetName: "toString",
+    kind: "method",
+    parameters: [booleanReceiverParameter],
+    returnType: stringType,
+    declaringType: booleanOpsType,
+    static: true,
+    receiverPassing: "first-argument",
+  },
+  {
+    id: "Tsonic.CSharp.Js.BooleanOps.valueOf",
+    sourceName: "valueOf",
+    targetName: "valueOf",
+    kind: "method",
+    parameters: [booleanReceiverParameter],
+    returnType: boolType,
+    declaringType: booleanOpsType,
+    static: true,
+    receiverPassing: "first-argument",
+  },
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const booleanTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(booleanTargetMemberMetadata);
 
 export function isCsharpBooleanTargetType(type: unknown): boolean {
   return (type as { readonly kind?: unknown; readonly name?: unknown } | undefined)?.kind === "source-primitive" &&
     (type as { readonly name?: unknown }).name === "bool";
 }
 
-export function getBooleanTargetMembers(sourceName: string): readonly TargetMember[] {
-  switch (sourceName) {
-    case "toString":
-      return [booleanHelperMethod("toString", stringType)];
-    case "valueOf":
-      return [booleanHelperMethod("valueOf", boolType)];
-    default:
-      return [];
-  }
-}
-
-function booleanHelperMethod(sourceName: string, returnType: TargetTypeRef): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.BooleanOps.${sourceName}`, sourceName, sourceName, [
-    targetParameter("value", boolType),
-  ], returnType, {
-    declaringType: booleanOpsType,
-    static: true,
-    receiverPassing: "first-argument",
-  });
+export function booleanTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceName(booleanTargetMemberIndex, sourceName);
 }

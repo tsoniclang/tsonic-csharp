@@ -23,10 +23,16 @@ import {
   csharpTargetNamedType,
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
-  targetMethod,
   targetOperation,
   targetParameter,
 } from "./source-library.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceTargetMemberMetadataIndex,
+  jsSurfaceTargetMembersForSourceName,
+} from "./target-member-metadata.js";
 
 export function mapCsharpJsStringElementAccess(
   request: CheckedElementAccessMappingRequest,
@@ -55,148 +61,129 @@ export function mapCsharpJsStringElementAccess(
   }, [{ message: "C# JS surface string code-unit access selected from checked TypeScript element access." }]);
 }
 
-export function getStringTargetMembers(sourceName: string): readonly TargetMember[] {
-  const stringType = csharpStringTargetType();
-  const intType = csharpSourcePrimitiveTargetType("int32");
-  const doubleType = csharpSourcePrimitiveTargetType("float64");
-  const boolType = csharpSourcePrimitiveTargetType("bool");
-  const instanceName = stringInstanceTargetNames.get(sourceName);
-  if (instanceName !== undefined) {
-    return [targetMethod(`System.String.${instanceName}`, sourceName, instanceName, [], stringType)];
-  }
-  if (sourceName === "concat") {
-    return [targetMethod("tsonic.csharp.js.String.concat", sourceName, "Concat", [
-      targetParameter("value", stringType),
+export function stringTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceName(stringTargetMemberIndex, sourceName);
+}
+
+const stringType = csharpStringTargetType();
+const intType = csharpSourcePrimitiveTargetType("int32");
+const doubleType = csharpSourcePrimitiveTargetType("float64");
+const boolType = csharpSourcePrimitiveTargetType("bool");
+const stringHelperType = csharpTargetNamedType("Tsonic.CSharp.Js.String", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "String"));
+const stringReceiverParameter = targetParameter("value", stringType);
+const stringSearchParameter = targetParameter("search", stringType);
+const stringPositionParameter = targetParameter("position", intType, { optional: true });
+const stringIndexParameter = targetParameter("index", intType);
+const stringTargetMemberMetadata = [
+  {
+    id: "System.String.ToString",
+    sourceName: "toString",
+    targetName: "ToString",
+    kind: "method",
+    returnType: stringType,
+  },
+  {
+    id: "tsonic.csharp.js.String.concat",
+    sourceName: "concat",
+    targetName: "Concat",
+    kind: "method",
+    parameters: [
+      stringReceiverParameter,
       targetParameter("values", stringType, { paramsArray: true }),
-    ], stringType, {
-      declaringType: stringType,
-      static: true,
-      receiverPassing: "first-argument",
-    })];
-  }
-  if (!stringHelperNames.has(sourceName)) {
-    return [];
-  }
-  const helperType = csharpTargetNamedType("Tsonic.CSharp.Js.String", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "String"));
-  const returnType = getStringHelperReturnType(sourceName, stringType, intType, doubleType, boolType);
-  const parameters = getStringHelperParameters(sourceName, stringType, intType);
-  const isStaticConstructor = sourceName === "fromCharCode" || sourceName === "fromCodePoint";
-  return [targetMethod(`Tsonic.CSharp.Js.String.${sourceName}`, sourceName, sourceName, parameters, returnType, {
-    declaringType: helperType,
+    ],
+    returnType: stringType,
+    declaringType: stringType,
     static: true,
-    ...(isStaticConstructor ? {} : { receiverPassing: "first-argument" }),
-  })];
+    receiverPassing: "first-argument",
+  },
+  ...["fromCharCode", "fromCodePoint"].map((sourceName) =>
+    stringHelperMemberMetadata(sourceName, [targetParameter("code", intType, { paramsArray: true })], stringType)
+  ),
+  ...["includes", "startsWith", "endsWith"].map((sourceName) =>
+    stringReceiverHelperMemberMetadata(sourceName, [stringReceiverParameter, stringSearchParameter, stringPositionParameter], boolType)
+  ),
+  stringReceiverHelperMemberMetadata("isWellFormed", [stringReceiverParameter], boolType),
+  ...["indexOf", "lastIndexOf"].map((sourceName) =>
+    stringReceiverHelperMemberMetadata(sourceName, [stringReceiverParameter, stringSearchParameter, stringPositionParameter], intType)
+  ),
+  ...["localeCompare", "search"].map((sourceName) =>
+    stringReceiverHelperMemberMetadata(sourceName, [stringReceiverParameter, targetParameter("value", stringType)], intType)
+  ),
+  stringReceiverHelperMemberMetadata("charCodeAt", [stringReceiverParameter, stringIndexParameter], doubleType),
+  stringReceiverHelperMemberMetadata("at", [stringReceiverParameter, stringIndexParameter], csharpNullableTargetType(stringType)),
+  stringReceiverHelperMemberMetadata("codePointAt", [stringReceiverParameter, stringIndexParameter], csharpNullableValueTargetType(intType)),
+  stringReceiverHelperMemberMetadata("split", [
+    stringReceiverParameter,
+    targetParameter("separator", stringType),
+    targetParameter("limit", intType, { optional: true }),
+  ], csharpListTargetType(stringType)),
+  ...["replace", "replaceAll"].map((sourceName) =>
+    stringReceiverHelperMemberMetadata(sourceName, [
+      stringReceiverParameter,
+      stringSearchParameter,
+      targetParameter("replacement", stringType),
+    ], stringType)
+  ),
+  ...["substring", "slice", "substr"].map((sourceName) =>
+    stringReceiverHelperMemberMetadata(sourceName, [
+      stringReceiverParameter,
+      targetParameter("start", intType),
+      targetParameter("end", intType, { optional: true }),
+    ], stringType)
+  ),
+  ...["padStart", "padEnd"].map((sourceName) =>
+    stringReceiverHelperMemberMetadata(sourceName, [
+      stringReceiverParameter,
+      targetParameter("targetLength", intType),
+      targetParameter("padString", stringType, { optional: true }),
+    ], stringType)
+  ),
+  ...["repeat", "charAt"].map((sourceName) =>
+    stringReceiverHelperMemberMetadata(sourceName, [stringReceiverParameter, stringIndexParameter], stringType)
+  ),
+  stringReceiverHelperMemberMetadata("normalize", [stringReceiverParameter, targetParameter("form", stringType, { optional: true })], stringType),
+  ...[
+    "trim",
+    "trimStart",
+    "trimLeft",
+    "trimEnd",
+    "trimRight",
+    "toLowerCase",
+    "toLocaleLowerCase",
+    "toUpperCase",
+    "toLocaleUpperCase",
+    "toWellFormed",
+    "valueOf",
+  ].map((sourceName) =>
+    stringReceiverHelperMemberMetadata(sourceName, [stringReceiverParameter], stringType)
+  ),
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const stringTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(stringTargetMemberMetadata);
+
+function stringHelperMemberMetadata(
+  sourceName: string,
+  parameters: readonly TargetParameter[],
+  returnType: TargetTypeRef,
+): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.String.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    parameters,
+    returnType,
+    declaringType: stringHelperType,
+    static: true,
+  };
 }
 
-const stringInstanceTargetNames = new Map<string, string>([
-  ["toString", "ToString"],
-]);
-
-const stringHelperNames = new Set([
-  "at",
-  "charAt",
-  "charCodeAt",
-  "codePointAt",
-  "endsWith",
-  "fromCharCode",
-  "fromCodePoint",
-  "includes",
-  "indexOf",
-  "isWellFormed",
-  "lastIndexOf",
-  "localeCompare",
-  "normalize",
-  "padEnd",
-  "padStart",
-  "repeat",
-  "replace",
-  "replaceAll",
-  "slice",
-  "split",
-  "startsWith",
-  "substr",
-  "substring",
-  "search",
-  "trim",
-  "trimStart",
-  "trimLeft",
-  "trimEnd",
-  "trimRight",
-  "toLowerCase",
-  "toLocaleLowerCase",
-  "toUpperCase",
-  "toLocaleUpperCase",
-  "toWellFormed",
-  "valueOf",
-]);
-
-function getStringHelperReturnType(sourceName: string, stringType: TargetTypeRef, intType: TargetTypeRef, doubleType: TargetTypeRef, boolType: TargetTypeRef): TargetTypeRef {
-  switch (sourceName) {
-    case "includes":
-    case "startsWith":
-    case "endsWith":
-    case "isWellFormed":
-      return boolType;
-    case "indexOf":
-    case "lastIndexOf":
-    case "localeCompare":
-    case "search":
-      return intType;
-    case "charCodeAt":
-      return doubleType;
-    case "at":
-      return csharpNullableTargetType(stringType);
-    case "codePointAt":
-      return csharpNullableValueTargetType(intType);
-    case "split":
-      return csharpListTargetType(stringType);
-    default:
-      return stringType;
-  }
-}
-
-function getStringHelperParameters(sourceName: string, stringType: TargetTypeRef, intType: TargetTypeRef): readonly TargetParameter[] {
-  const receiver = targetParameter("value", stringType);
-  switch (sourceName) {
-    case "fromCharCode":
-    case "fromCodePoint":
-      return [targetParameter("code", intType, { paramsArray: true })];
-    case "includes":
-    case "startsWith":
-    case "endsWith":
-    case "indexOf":
-    case "lastIndexOf":
-      return [receiver, targetParameter("search", stringType), targetParameter("position", intType, { optional: true })];
-    case "replace":
-    case "replaceAll":
-      return [receiver, targetParameter("search", stringType), targetParameter("replacement", stringType)];
-    case "substring":
-    case "slice":
-    case "substr":
-      return [receiver, targetParameter("start", intType), targetParameter("end", intType, { optional: true })];
-    case "padStart":
-    case "padEnd":
-      return [receiver, targetParameter("targetLength", intType), targetParameter("padString", stringType, { optional: true })];
-    case "repeat":
-    case "charAt":
-    case "at":
-    case "charCodeAt":
-    case "codePointAt":
-      return [receiver, targetParameter("index", intType)];
-    case "split":
-      return [receiver, targetParameter("separator", stringType), targetParameter("limit", intType, { optional: true })];
-    case "localeCompare":
-    case "search":
-      return [receiver, targetParameter("value", stringType)];
-    case "normalize":
-      return [receiver, targetParameter("form", stringType, { optional: true })];
-    case "toLocaleLowerCase":
-    case "toLocaleUpperCase":
-    case "isWellFormed":
-    case "toWellFormed":
-    case "valueOf":
-      return [receiver];
-    default:
-      return [receiver];
-  }
+function stringReceiverHelperMemberMetadata(
+  sourceName: string,
+  parameters: readonly TargetParameter[],
+  returnType: TargetTypeRef,
+): JsSurfaceTargetMemberMetadata {
+  return {
+    ...stringHelperMemberMetadata(sourceName, parameters, returnType),
+    receiverPassing: "first-argument",
+  };
 }

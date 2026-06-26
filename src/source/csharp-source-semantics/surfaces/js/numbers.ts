@@ -7,16 +7,55 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
-  targetProperty,
 } from "./source-library.js";
+import type {
+  JsSurfaceTargetMemberMetadata,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceTargetMemberMetadataIndex,
+  jsSurfaceTargetMembersForSourceName,
+} from "./target-member-metadata.js";
 
 const numberOpsType = csharpTargetNamedType("Tsonic.CSharp.Js.Number", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Number"));
 const stringType = csharpStringTargetType();
 const numberType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
+const numberValueParameter = targetParameter("value", numberType);
+const numberTargetMemberMetadata = [
+  staticNumberMethodMetadata("parseInt", [targetParameter("str", stringType)], numberType),
+  staticNumberMethodMetadata("parseInt", [targetParameter("str", stringType), targetParameter("radix", intType)], numberType, "radix"),
+  staticNumberMethodMetadata("parseFloat", [targetParameter("str", stringType)], numberType),
+  ...["isNaN", "isFinite", "isInteger", "isSafeInteger"].map((sourceName) =>
+    staticNumberMethodMetadata(sourceName, [numberValueParameter], boolType)
+  ),
+  instanceNumberMethodMetadata("toString", stringType),
+  instanceNumberMethodMetadata("valueOf", numberType),
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+const numberTargetMemberIndex = jsSurfaceTargetMemberMetadataIndex(numberTargetMemberMetadata);
+const numberPropertyTargetMembers = new Map<string, TargetMember>([
+  "MAX_VALUE",
+  "MIN_VALUE",
+  "MAX_SAFE_INTEGER",
+  "MIN_SAFE_INTEGER",
+  "POSITIVE_INFINITY",
+  "NEGATIVE_INFINITY",
+  "NaN",
+  "EPSILON",
+].map((sourceName) => {
+  const member = numberPropertyMetadata(sourceName);
+  return [sourceName, {
+    id: member.id,
+    sourceName: member.sourceName,
+    targetName: member.targetName,
+    kind: member.kind,
+    parameters: member.parameters ?? [],
+    returnType: member.returnType,
+    declaringType: member.declaringType,
+    static: member.static,
+  }] as const;
+}));
 
 export function isCsharpNumberTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "source-primitive" &&
@@ -32,30 +71,11 @@ export function isCsharpNumberTargetType(type: TargetTypeRef | undefined): boole
     );
 }
 
-export function getNumberTargetMembers(sourceName: string): readonly TargetMember[] {
-  switch (sourceName) {
-    case "parseInt":
-      return [
-        numberStaticMethod("parseInt", [targetParameter("str", stringType)], numberType),
-        numberStaticMethod("parseInt", [targetParameter("str", stringType), targetParameter("radix", intType)], numberType, "radix"),
-      ];
-    case "parseFloat":
-      return [numberStaticMethod(sourceName, [targetParameter("str", stringType)], numberType)];
-    case "isNaN":
-    case "isFinite":
-    case "isInteger":
-    case "isSafeInteger":
-      return [numberStaticMethod(sourceName, [targetParameter("value", numberType)], boolType)];
-    case "toString":
-      return [numberInstanceMethod(sourceName, stringType)];
-    case "valueOf":
-      return [numberInstanceMethod(sourceName, numberType)];
-    default:
-      return [];
-  }
+export function numberTargetMembersForSourceName(sourceName: string): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSourceName(numberTargetMemberIndex, sourceName);
 }
 
-export function getNumberPropertyTargetMember(sourceName: string): TargetMember | undefined {
+export function numberPropertyTargetMemberForSourceName(sourceName: string): TargetMember | undefined {
   return numberPropertyTargetMembers.get(sourceName);
 }
 
@@ -63,33 +83,48 @@ export function numberStaticCallRequiresNoReceiver(sourceName: string): boolean 
   return numberStaticMethodNames.has(sourceName);
 }
 
-function numberStaticMethod(
+function staticNumberMethodMetadata(
   sourceName: string,
   parameters: readonly ReturnType<typeof targetParameter>[],
   returnType: TargetTypeRef,
   idSuffix?: string,
-): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.Number.${sourceName}${idSuffix === undefined ? "" : `:${idSuffix}`}`, sourceName, sourceName, parameters, returnType, {
+): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.Number.${sourceName}${idSuffix === undefined ? "" : `:${idSuffix}`}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    parameters,
+    returnType,
     declaringType: numberOpsType,
     static: true,
-  });
+  };
 }
 
-function numberInstanceMethod(sourceName: string, returnType: TargetTypeRef): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.Number.${sourceName}`, sourceName, sourceName, [
-    targetParameter("value", numberType),
-  ], returnType, {
+function instanceNumberMethodMetadata(sourceName: string, returnType: TargetTypeRef): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.Number.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "method",
+    parameters: [numberValueParameter],
+    returnType,
     declaringType: numberOpsType,
     static: true,
     receiverPassing: "first-argument",
-  });
+  };
 }
 
-function numberProperty(sourceName: string): TargetMember {
-  return targetProperty(`Tsonic.CSharp.Js.Number.${sourceName}`, sourceName, sourceName, numberType, {
+function numberPropertyMetadata(sourceName: string): JsSurfaceTargetMemberMetadata {
+  return {
+    id: `Tsonic.CSharp.Js.Number.${sourceName}`,
+    sourceName,
+    targetName: sourceName,
+    kind: "property",
+    returnType: numberType,
     declaringType: numberOpsType,
     static: true,
-  });
+  };
 }
 
 const numberStaticMethodNames = new Set([
@@ -100,14 +135,3 @@ const numberStaticMethodNames = new Set([
   "isInteger",
   "isSafeInteger",
 ]);
-
-const numberPropertyTargetMembers = new Map<string, TargetMember>([
-  "MAX_VALUE",
-  "MIN_VALUE",
-  "MAX_SAFE_INTEGER",
-  "MIN_SAFE_INTEGER",
-  "POSITIVE_INFINITY",
-  "NEGATIVE_INFINITY",
-  "NaN",
-  "EPSILON",
-].map((name) => [name, numberProperty(name)] as const));

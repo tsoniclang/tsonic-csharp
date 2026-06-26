@@ -14,7 +14,7 @@ import {
   isCsharpJsArrayCarrierTargetType,
 } from "./arrays.js";
 import {
-  getBooleanTargetMembers,
+  booleanTargetMembersForSourceName,
   isCsharpBooleanTargetType,
 } from "./booleans.js";
 import {
@@ -34,8 +34,8 @@ import {
   getMathTargetMembers,
 } from "./math.js";
 import {
-  getNumberTargetMembers,
   isCsharpNumberTargetType,
+  numberTargetMembersForSourceName,
   numberStaticCallRequiresNoReceiver,
 } from "./numbers.js";
 import {
@@ -62,7 +62,7 @@ import {
   sourceLibraryMemberName,
 } from "./source-library.js";
 import {
-  getStringTargetMembers,
+  stringTargetMembersForSourceName,
 } from "./strings.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
@@ -178,9 +178,9 @@ function policyForSourceMember(sourceMember: SourceLibraryMember): CsharpJsSurfa
 
 const csharpJsSourceLibraryPolicies: readonly CsharpJsSurfaceSourceLibraryPolicy[] = [
   simpleCallPolicy(["Math."], (sourceMember) => getMathTargetMembers(sourceLibraryMemberName(sourceMember))),
-  simpleCallPolicy(["String."], (sourceMember) => getStringTargetMembers(sourceLibraryMemberName(sourceMember))),
-  simpleCallPolicy(["Number."], (sourceMember) => getNumberTargetMembers(sourceLibraryMemberName(sourceMember))),
-  simpleCallPolicy(["Boolean."], (sourceMember) => getBooleanTargetMembers(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["String."], (sourceMember) => stringTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["Number."], (sourceMember) => numberTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
+  simpleCallPolicy(["Boolean."], (sourceMember) => booleanTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))),
   simpleCallPolicy(["RegExp."], (sourceMember) => getRegExpTargetMembers(sourceLibraryMemberName(sourceMember))),
   {
     sourceMemberIdPrefixes: ["Date."],
@@ -369,11 +369,11 @@ function getObjectPrimitiveReceiverCallMembers(
   }
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
   return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType))
-    ? getStringTargetMembers(sourceLibraryMemberName(sourceMember))
+    ? stringTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))
     : receiverTypes.some((receiverType) => isCsharpNumberTargetType(receiverType))
-      ? getNumberTargetMembers(sourceLibraryMemberName(sourceMember))
+      ? numberTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))
       : receiverTypes.some((receiverType) => receiverType?.kind === "source-primitive" && receiverType.name === "bool")
-        ? getBooleanTargetMembers(sourceLibraryMemberName(sourceMember))
+        ? booleanTargetMembersForSourceName(sourceLibraryMemberName(sourceMember))
         : [];
 }
 
