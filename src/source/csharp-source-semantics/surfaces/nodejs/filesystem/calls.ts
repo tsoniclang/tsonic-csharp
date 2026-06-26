@@ -8,8 +8,13 @@ import {
   targetParameter,
 } from "../../js/source-library.js";
 import {
+  getNodejsProviderExportSignatureDeclarationTargetMember,
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex,
+} from "../metadata-indexes.js";
+import {
   nodeFsExistsSyncExportName,
   nodeFsExistsSyncSignatureId,
+  nodeFsModuleSpecifier,
   nodeFsStatSyncExportName,
   nodeFsStatSyncSignatureId,
 } from "./identities.js";
@@ -45,12 +50,12 @@ export function getNodeFsCallTargetMember(
   exportName: string | undefined,
   signatureId: string | undefined,
 ): TargetMember | undefined {
-  if (signatureId === undefined) {
-    return undefined;
-  }
-  return nodeFsCallTargetMembers()
-    .find((entry) => entry.exportName === exportName && entry.signatureId === signatureId)
-    ?.member;
+  return getNodejsProviderExportSignatureDeclarationTargetMember(
+    nodeFsCallTargetMemberByProviderDeclarationIdentity,
+    nodeFsModuleSpecifier,
+    exportName,
+    signatureId,
+  );
 }
 
 export function nodeFsCallExportDeclarations(): readonly ProviderExportDeclaration[] {
@@ -206,3 +211,6 @@ function fsCall(
     },
   };
 }
+
+const nodeFsCallTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex(nodeFsModuleSpecifier, nodeFsCallTargetMembers());

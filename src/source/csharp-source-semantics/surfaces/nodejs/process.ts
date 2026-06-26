@@ -13,6 +13,12 @@ import {
   csharpTargetNamedType,
   targetParameter,
 } from "../js/source-library.js";
+import {
+  getNodejsProviderExportDeclarationTargetMember,
+  getNodejsProviderExportSignatureDeclarationTargetMember,
+  nodejsProviderExportDeclarationTargetMemberIndex,
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex,
+} from "./metadata-indexes.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
@@ -98,16 +104,20 @@ export function getNodeProcessCallTargetMember(
   exportName: string | undefined,
   signatureId: string | undefined,
 ): TargetMember | undefined {
-  if (signatureId === undefined) {
-    return undefined;
-  }
-  return nodeProcessCallTargetMembers()
-    .find((entry) => entry.exportName === exportName && entry.signatureId === signatureId)
-    ?.member;
+  return getNodejsProviderExportSignatureDeclarationTargetMember(
+    nodeProcessCallTargetMemberByProviderDeclarationIdentity,
+    nodeProcessModuleSpecifier,
+    exportName,
+    signatureId,
+  );
 }
 
 export function getNodeProcessPropertyTargetMember(exportName: string | undefined): TargetMember | undefined {
-  return nodeProcessPropertyTargetMembers().find((entry) => entry.exportName === exportName)?.member;
+  return getNodejsProviderExportDeclarationTargetMember(
+    nodeProcessPropertyTargetMemberByProviderDeclarationIdentity,
+    nodeProcessModuleSpecifier,
+    exportName,
+  );
 }
 
 export function nodeProcessCallTargetMembers(): readonly {
@@ -214,3 +224,9 @@ function processProperty(
     },
   };
 }
+
+const nodeProcessCallTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex(nodeProcessModuleSpecifier, nodeProcessCallTargetMembers());
+
+const nodeProcessPropertyTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportDeclarationTargetMemberIndex(nodeProcessModuleSpecifier, nodeProcessPropertyTargetMembers());

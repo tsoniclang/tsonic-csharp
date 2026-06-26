@@ -7,8 +7,13 @@ import {
   targetParameter,
 } from "../../js/source-library.js";
 import {
+  getNodejsProviderExportSignatureDeclarationTargetMember,
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex,
+} from "../metadata-indexes.js";
+import {
   nodePathJoinExportName,
   nodePathJoinSignatureId,
+  nodePathModuleSpecifier,
 } from "./identity.js";
 import {
   boolProviderType,
@@ -36,12 +41,12 @@ export function getNodePathCallTargetMember(
   exportName: string | undefined,
   signatureId: string | undefined,
 ): TargetMember | undefined {
-  if (signatureId === undefined) {
-    return undefined;
-  }
-  return nodePathCallTargetMembers()
-    .find((entry) => entry.exportName === exportName && entry.signatureId === signatureId)
-    ?.member;
+  return getNodejsProviderExportSignatureDeclarationTargetMember(
+    nodePathCallTargetMemberByProviderDeclarationIdentity,
+    nodePathModuleSpecifier,
+    exportName,
+    signatureId,
+  );
 }
 
 export function nodePathCallTargetMembers(): readonly NodePathCallTargetMember[] {
@@ -120,3 +125,6 @@ function pathCall(
     },
   };
 }
+
+const nodePathCallTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex(nodePathModuleSpecifier, nodePathCallTargetMembers());

@@ -12,6 +12,10 @@ import {
   csharpTargetNamedType,
   targetParameter,
 } from "../js/source-library.js";
+import {
+  getNodejsProviderExportSignatureDeclarationMetadata,
+  nodejsProviderExportSignatureDeclarationMetadataIndex,
+} from "./metadata-indexes.js";
 
 const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
@@ -61,7 +65,7 @@ export const nodeUtilToUsvStringSignatureId = "node:util.toUSVString(System.Stri
 export function nodeUtilExports(): readonly ProviderExportDeclaration[] {
   return [
     ...nodeUtilUnsupportedTargetIdentities().map((identity) =>
-      unsupportedUtilFunction(identity.exportName, identity.signatureId, unsupportedUtilParameters(identity.exportName))
+      unsupportedUtilFunction(identity.exportName, identity.signatureId, unsupportedUtilParameters(identity.exportName, identity.signatureId))
     ),
     ...nodeUtilCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
       id: `node:util.${exportName}`,
@@ -116,7 +120,7 @@ function unsupportedUtilFunction(
     signatures: [{
       id: signatureId,
       parameters,
-      returnType: unsupportedUtilReturnType(exportName),
+      returnType: unsupportedUtilReturnType(exportName, signatureId),
     }],
   };
 }
@@ -133,12 +137,34 @@ function unsupportedUtilTargetIdentity(
   };
 }
 
-function unsupportedUtilParameters(exportName: string): readonly ProviderParameterDeclaration[] {
-  return nodeUtilUnsupportedCalls.find((entry) => entry.exportName === exportName)?.parameters ?? [];
+function unsupportedUtilParameters(
+  exportName: string,
+  signatureId: string,
+): readonly ProviderParameterDeclaration[] {
+  return unsupportedUtilMetadata(exportName, signatureId).parameters;
 }
 
-function unsupportedUtilReturnType(exportName: string): ProviderTypeExpression {
-  return nodeUtilUnsupportedCalls.find((entry) => entry.exportName === exportName)?.returnType ?? stringProviderType;
+function unsupportedUtilReturnType(
+  exportName: string,
+  signatureId: string,
+): ProviderTypeExpression {
+  return unsupportedUtilMetadata(exportName, signatureId).returnType;
+}
+
+function unsupportedUtilMetadata(
+  exportName: string,
+  signatureId: string,
+): typeof nodeUtilUnsupportedCalls[number] {
+  const metadata = getNodejsProviderExportSignatureDeclarationMetadata(
+    nodeUtilUnsupportedCallByProviderDeclarationIdentity,
+    nodeUtilModuleSpecifier,
+    exportName,
+    signatureId,
+  );
+  if (metadata === undefined) {
+    throw new Error(`Missing C# NodeJS util unsupported metadata for signature '${signatureId}'.`);
+  }
+  return metadata;
 }
 
 function unknownParameter(name: string, optional = false): ProviderParameterDeclaration {
@@ -259,3 +285,6 @@ const nodeUtilUnsupportedCalls = [
   readonly parameters: readonly ProviderParameterDeclaration[];
   readonly returnType: ProviderTypeExpression;
 }[];
+
+const nodeUtilUnsupportedCallByProviderDeclarationIdentity =
+  nodejsProviderExportSignatureDeclarationMetadataIndex(nodeUtilModuleSpecifier, nodeUtilUnsupportedCalls);

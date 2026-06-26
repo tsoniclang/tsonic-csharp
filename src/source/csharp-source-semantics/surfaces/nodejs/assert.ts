@@ -14,6 +14,10 @@ import {
   csharpVoidTargetType,
   targetParameter,
 } from "../js/source-library.js";
+import {
+  getNodejsProviderExportSignatureDeclarationMetadata,
+  nodejsProviderExportSignatureDeclarationMetadataIndex,
+} from "./metadata-indexes.js";
 
 const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
@@ -70,7 +74,7 @@ export const nodeAssertIfErrorSignatureId = "node:assert.ifError(System.Object)"
 export function nodeAssertExports(): readonly ProviderExportDeclaration[] {
   return [
     ...nodeAssertUnsupportedTargetIdentities().map((identity) =>
-      unsupportedAssertFunction(identity.exportName, identity.signatureId, unsupportedAssertParameters(identity.exportName))
+      unsupportedAssertFunction(identity.exportName, identity.signatureId, unsupportedAssertParameters(identity.exportName, identity.signatureId))
     ),
     ...nodeAssertCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
       id: `node:assert.${exportName}`,
@@ -155,8 +159,20 @@ function unsupportedAssertTargetIdentity(
   };
 }
 
-function unsupportedAssertParameters(exportName: string): readonly ProviderParameterDeclaration[] {
-  return nodeAssertUnsupportedCalls.find((entry) => entry.exportName === exportName)?.parameters ?? [];
+function unsupportedAssertParameters(
+  exportName: string,
+  signatureId: string,
+): readonly ProviderParameterDeclaration[] {
+  const metadata = getNodejsProviderExportSignatureDeclarationMetadata(
+    nodeAssertUnsupportedCallByProviderDeclarationIdentity,
+    nodeAssertModuleSpecifier,
+    exportName,
+    signatureId,
+  );
+  if (metadata === undefined) {
+    throw new Error(`Missing C# NodeJS assert unsupported metadata for signature '${signatureId}'.`);
+  }
+  return metadata.parameters;
 }
 
 function boolParameter(name: string, optional = false): ProviderParameterDeclaration {
@@ -271,3 +287,6 @@ const nodeAssertUnsupportedCalls = [
   readonly signatureId: string;
   readonly parameters: readonly ProviderParameterDeclaration[];
 }[];
+
+const nodeAssertUnsupportedCallByProviderDeclarationIdentity =
+  nodejsProviderExportSignatureDeclarationMetadataIndex(nodeAssertModuleSpecifier, nodeAssertUnsupportedCalls);

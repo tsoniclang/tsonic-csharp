@@ -10,6 +10,12 @@ import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
 } from "../js/source-library.js";
+import {
+  getNodejsProviderExportDeclarationTargetMember,
+  getNodejsProviderExportSignatureDeclarationTargetMember,
+  nodejsProviderExportDeclarationTargetMemberIndex,
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex,
+} from "./metadata-indexes.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
@@ -79,16 +85,20 @@ export function getNodeOsCallTargetMember(
   exportName: string | undefined,
   signatureId: string | undefined,
 ): TargetMember | undefined {
-  if (signatureId === undefined) {
-    return undefined;
-  }
-  return nodeOsCallTargetMembers()
-    .find((entry) => entry.exportName === exportName && entry.signatureId === signatureId)
-    ?.member;
+  return getNodejsProviderExportSignatureDeclarationTargetMember(
+    nodeOsCallTargetMemberByProviderDeclarationIdentity,
+    nodeOsModuleSpecifier,
+    exportName,
+    signatureId,
+  );
 }
 
 export function getNodeOsPropertyTargetMember(exportName: string | undefined): TargetMember | undefined {
-  return nodeOsPropertyTargetMembers().find((entry) => entry.exportName === exportName)?.member;
+  return getNodejsProviderExportDeclarationTargetMember(
+    nodeOsPropertyTargetMemberByProviderDeclarationIdentity,
+    nodeOsModuleSpecifier,
+    exportName,
+  );
 }
 
 export function nodeOsCallTargetMembers(): readonly {
@@ -170,3 +180,9 @@ function osProperty(
     },
   };
 }
+
+const nodeOsCallTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex(nodeOsModuleSpecifier, nodeOsCallTargetMembers());
+
+const nodeOsPropertyTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportDeclarationTargetMemberIndex(nodeOsModuleSpecifier, nodeOsPropertyTargetMembers());

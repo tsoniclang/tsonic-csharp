@@ -66,7 +66,7 @@ import {
   getObjectRecordDictionaryCallMembers,
 } from "./object-members.js";
 
-interface SourceCallPolicyRecord {
+interface SourceCallMetadataRow {
   readonly identity: SourceLibraryMemberIdentityPolicy;
   readonly members?: SourceCallMemberProvider;
   readonly callable?: SourceCallCallablePolicy;
@@ -87,7 +87,7 @@ type SourceCallCallablePolicy =
   | { readonly kind: "always" }
   | { readonly kind: "never" };
 
-const sourceCallPolicyRecords: readonly SourceCallPolicyRecord[] = [
+const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
   metadataPolicy({ prefixes: ["Math."] }, mathTargetMembersForSourceName),
   metadataPolicy({ prefixes: ["String."] }, stringTargetMembersForSourceName),
   metadataPolicy({ prefixes: ["Number."] }, numberTargetMembersForSourceName),
@@ -131,7 +131,7 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  const policy = resolveSourceCallPolicy(sourceMember);
+  const policy = sourceCallMetadataRowForSourceMember(sourceMember);
   return policy?.members === undefined
     ? []
     : callMembersFromProvider(policy.members, sourceMember, request, context, host);
@@ -140,14 +140,14 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
 export function csharpJsSourceLibraryMemberHasCallableProvider(
   sourceMember: SourceLibraryMember,
 ): boolean {
-  const policy = resolveSourceCallPolicy(sourceMember);
+  const policy = sourceCallMetadataRowForSourceMember(sourceMember);
   return policy?.callable === undefined
     ? false
     : callablePolicyIsSatisfied(policy.callable, policy.members, sourceMember);
 }
 
-function resolveSourceCallPolicy(sourceMember: SourceLibraryMember): SourceCallPolicyRecord | undefined {
-  return sourceCallPolicyRecords.find((record) => sourceLibraryMemberMatches(sourceMember, record.identity));
+function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember): SourceCallMetadataRow | undefined {
+  return sourceCallMetadataRows.find((record) => sourceLibraryMemberMatches(sourceMember, record.identity));
 }
 
 function callMembersFromProvider(
@@ -251,7 +251,7 @@ function arrayElementTypeFromClosedFacts(
 function metadataPolicy(
   identity: SourceLibraryMemberIdentityPolicy,
   membersForSourceName: (sourceName: string) => readonly TargetMember[],
-): SourceCallPolicyRecord {
+): SourceCallMetadataRow {
   return {
     identity,
     members: { kind: "metadata-by-source-name", membersForSourceName },

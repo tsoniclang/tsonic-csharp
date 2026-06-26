@@ -4,6 +4,13 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  getNodejsProviderExportDeclarationTargetMember,
+  nodejsProviderExportDeclarationTargetMemberIndex,
+} from "../metadata-indexes.js";
+import {
+  nodePathModuleSpecifier,
+} from "./identity.js";
+import {
   nodePathTargetType,
   stringProviderType,
   stringTargetType,
@@ -13,7 +20,11 @@ import type {
 } from "./types.js";
 
 export function getNodePathPropertyTargetMember(exportName: string | undefined): TargetMember | undefined {
-  return nodePathPropertyTargetMembers().find((entry) => entry.exportName === exportName)?.member;
+  return getNodejsProviderExportDeclarationTargetMember(
+    nodePathPropertyTargetMemberByProviderDeclarationIdentity,
+    nodePathModuleSpecifier,
+    exportName,
+  );
 }
 
 export function nodePathPropertyTargetMembers(): readonly NodePathPropertyTargetMember[] {
@@ -43,3 +54,6 @@ function pathProperty(
     },
   };
 }
+
+const nodePathPropertyTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportDeclarationTargetMemberIndex(nodePathModuleSpecifier, nodePathPropertyTargetMembers());

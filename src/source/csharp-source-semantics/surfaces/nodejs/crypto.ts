@@ -12,6 +12,10 @@ import {
   csharpTargetNamedType,
   targetParameter,
 } from "../js/source-library.js";
+import {
+  getNodejsProviderExportSignatureDeclarationTargetMember,
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex,
+} from "./metadata-indexes.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
@@ -61,12 +65,12 @@ export function getNodeCryptoCallTargetMember(
   exportName: string | undefined,
   signatureId: string | undefined,
 ): TargetMember | undefined {
-  if (signatureId === undefined) {
-    return undefined;
-  }
-  return nodeCryptoCallTargetMembers()
-    .find((entry) => entry.exportName === exportName && entry.signatureId === signatureId)
-    ?.member;
+  return getNodejsProviderExportSignatureDeclarationTargetMember(
+    nodeCryptoCallTargetMemberByProviderDeclarationIdentity,
+    nodeCryptoModuleSpecifier,
+    exportName,
+    signatureId,
+  );
 }
 
 export function nodeCryptoCallTargetMembers(): readonly {
@@ -120,3 +124,6 @@ function cryptoCall(
     },
   };
 }
+
+const nodeCryptoCallTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex(nodeCryptoModuleSpecifier, nodeCryptoCallTargetMembers());
