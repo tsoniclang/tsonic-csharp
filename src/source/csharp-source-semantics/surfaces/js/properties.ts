@@ -29,10 +29,8 @@ import {
 } from "./source-library.js";
 import {
   getMathPropertyTargetMember,
-  getMathTargetMembers,
 } from "./math.js";
 import {
-  getObjectTargetMembers,
   hasObjectTargetMember,
 } from "./objects.js";
 import {
@@ -41,28 +39,22 @@ import {
 import {
   getCsharpArrayLengthMember,
   getCsharpArrayLikeElementType,
-  getArrayTargetMembers,
 } from "./arrays.js";
 import {
   isCsharpJsRegExpRuntimeCarrier,
-  getRegExpTargetMembers,
   getRegExpPropertyTargetMember,
 } from "./regexp.js";
 import {
-  getDateTargetMembers,
   isCsharpJsDateRuntimeCarrier,
 } from "./date.js";
 import {
   isCsharpBooleanTargetType,
-  getBooleanTargetMembers,
 } from "./booleans.js";
 import {
   getNumberPropertyTargetMember,
-  getNumberTargetMembers,
 } from "./numbers.js";
 import {
   getCollectionPropertyTargetMember,
-  getCollectionTargetMembers,
   isCsharpJsMapTargetType,
   isCsharpJsSetTargetType,
 } from "./collections.js";
@@ -70,8 +62,8 @@ import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
 import {
-  getStringTargetMembers,
-} from "./strings.js";
+  csharpJsSourceLibraryMemberHasCallableTarget,
+} from "./policy.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryPropertyAccess,
   rejectUnsupportedCsharpJsSourceLibraryPropertyAccess,
@@ -397,64 +389,5 @@ function getSourceLibraryPropertyMember(sourceMember: SourceLibraryMember, recei
 }
 
 function sourceLibrarySelectedDeclarationHasCallTarget(sourceMember: SourceLibraryMember): boolean {
-  switch (sourceMember.declaringName) {
-    case "Math":
-      return getMathTargetMembers(sourceMember.memberName).length > 0;
-    case "String":
-      return getStringTargetMembers(sourceMember.memberName).length > 0;
-    case "Number":
-      return getNumberTargetMembers(sourceMember.memberName).length > 0;
-    case "Boolean":
-      return getBooleanTargetMembers(sourceMember.memberName).length > 0;
-    case "Array":
-    case "ReadonlyArray":
-      return getArrayTargetMembers(sourceMember.memberName).length > 0 ||
-        arrayCallSurfaceMemberNames.has(sourceMember.memberName);
-    case "RegExp":
-      return getRegExpTargetMembers(sourceMember.memberName).length > 0;
-    case "Date":
-      return getDateTargetMembers(sourceMember.memberName, "call").length > 0;
-    case "JSON":
-      return getJsonTargetMembers(sourceMember.memberName).length > 0;
-    case "Map":
-    case "ReadonlyMap":
-    case "Set":
-    case "ReadonlySet":
-      return getCollectionTargetMembers(sourceMember, undefined, undefined).length > 0;
-    case "Object":
-      return getObjectTargetMembers(sourceMember.memberName).length > 0;
-    case "Console":
-      return true;
-    case "Promise":
-      return false;
-  }
+  return csharpJsSourceLibraryMemberHasCallableTarget(sourceMember);
 }
-
-const arrayCallSurfaceMemberNames = new Set([
-  "from",
-  "of",
-  "isArray",
-  "push",
-  "pop",
-  "shift",
-  "unshift",
-  "concat",
-  "at",
-  "includes",
-  "indexOf",
-  "lastIndexOf",
-  "join",
-  "slice",
-  "splice",
-  "reverse",
-  "sort",
-  "forEach",
-  "some",
-  "every",
-  "filter",
-  "map",
-  "find",
-  "findIndex",
-  "findLast",
-  "findLastIndex",
-]);

@@ -33,6 +33,7 @@ import {
 } from "./source-library.js";
 import type {
   CsharpJsSurfaceHost,
+  SourceLibraryDeclaringName,
   SourceLibraryMember,
 } from "./source-library.js";
 import {
@@ -52,6 +53,26 @@ type CsharpJsMapTargetTypeRef = CsharpTargetNamedTypeRef & {
 type CsharpJsSetTargetTypeRef = CsharpTargetNamedTypeRef & {
   readonly csharpJsSurfaceKind: "set";
 };
+
+interface CsharpJsCollectionTypePolicy {
+  readonly sourceNames: readonly SourceLibraryDeclaringName[];
+  readonly targetName: "Map" | "Set";
+  readonly typeParameterNames: readonly string[];
+  readonly createOpenType: () => TargetTypeRef;
+  readonly createClosedType: (typeArguments: readonly TargetTypeRef[]) => TargetTypeRef | undefined;
+  readonly isTargetType: (type: TargetTypeRef | undefined) => boolean;
+  readonly getIterableElementType: (typeArguments: readonly TargetTypeRef[]) => TargetTypeRef | undefined;
+  readonly members: readonly CsharpJsCollectionMemberPolicy[];
+}
+
+interface CsharpJsCollectionMemberPolicy {
+  readonly sourceName: string;
+  readonly createMembers: (
+    policy: CsharpJsCollectionTypePolicy,
+    declaringType: TargetTypeRef,
+    typeArguments: readonly TargetTypeRef[],
+  ) => readonly TargetMember[];
+}
 
 export function csharpJsMapTargetType(keyType: TargetTypeRef, valueType: TargetTypeRef): CsharpJsMapTargetTypeRef {
   return {
@@ -87,16 +108,7 @@ export function getCsharpJsIterableElementType(type: TargetTypeRef | undefined):
   if (type?.kind !== "target-named") {
     return undefined;
   }
-  if (isCsharpJsMapTargetType(type)) {
-    const [keyType, valueType] = type.typeArguments ?? [];
-    return keyType === undefined || valueType === undefined
-      ? undefined
-      : { kind: "tuple", elements: [keyType, valueType] };
-  }
-  if (isCsharpJsSetTargetType(type)) {
-    return type.typeArguments?.[0];
-  }
-  return undefined;
+  return collectionPolicyForTargetType(type)?.getIterableElementType(type.typeArguments ?? []);
 }
 
 export function mapCsharpJsCollectionRuntimeCarrier(
@@ -125,19 +137,10 @@ export function getCsharpJsCollectionRuntimeCarrierForType(
       allowRuntimeCarrier: true,
       allowSemanticTypeQuery: true,
     }));
-  if ((isSourceLibraryType(type, context, "Map") || isSourceLibraryType(type, context, "ReadonlyMap")) && typeArguments.length === 2) {
-    const [keyType, valueType] = typeArguments;
-    return keyType === undefined || valueType === undefined
-      ? undefined
-      : csharpJsMapTargetType(keyType, valueType);
-  }
-  if ((isSourceLibraryType(type, context, "Set") || isSourceLibraryType(type, context, "ReadonlySet")) && typeArguments.length === 1) {
-    const [elementType] = typeArguments;
-    return elementType === undefined
-      ? undefined
-      : csharpJsSetTargetType(elementType);
-  }
-  return undefined;
+  const completeTypeArguments = completeTargetTypeArguments(typeArguments);
+  return completeTypeArguments === undefined
+    ? undefined
+    : collectionPolicyForSourceType(type, context)?.createClosedType(completeTypeArguments);
 }
 
 export function recordCsharpJsCollectionRuntimeCarrierFactForNode(
@@ -188,19 +191,10 @@ function getCsharpJsCollectionRuntimeCarrierForSyntaxNode(
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
-  if ((isSourceLibraryType(type, context, "Map") || isSourceLibraryType(type, context, "ReadonlyMap")) && typeArguments.length === 2) {
-    const [keyType, valueType] = typeArguments;
-    return keyType === undefined || valueType === undefined
-      ? undefined
-      : csharpJsMapTargetType(keyType, valueType);
-  }
-  if ((isSourceLibraryType(type, context, "Set") || isSourceLibraryType(type, context, "ReadonlySet")) && typeArguments.length === 1) {
-    const [elementType] = typeArguments;
-    return elementType === undefined
-      ? undefined
-      : csharpJsSetTargetType(elementType);
-  }
-  return undefined;
+  const completeTypeArguments = completeTargetTypeArguments(typeArguments);
+  return completeTypeArguments === undefined
+    ? undefined
+    : collectionPolicyForSourceType(type, context)?.createClosedType(completeTypeArguments);
 }
 
 function checkedTypeAtLocation(
@@ -246,20 +240,23 @@ export function getCollectionTargetMembers(
   receiverType: TargetTypeRef | undefined,
   resultType: TargetTypeRef | undefined,
 ): readonly TargetMember[] {
-  if (sourceMember.declaringName === "Map" || sourceMember.declaringName === "ReadonlyMap") {
-    return getMapTargetMembers(sourceMember.memberName, receiverType, resultType);
-  }
-  if (sourceMember.declaringName === "Set" || sourceMember.declaringName === "ReadonlySet") {
-    return getSetTargetMembers(sourceMember.memberName, receiverType, resultType);
-  }
-  return [];
+  const policy = collectionPolicyForSourceName(sourceMember.declaringName);
+  const collectionType = policy === undefined
+    ? undefined
+    : closedCollectionTypeForPolicy(policy, receiverType, resultType);
+  const typeArguments = collectionType?.kind === "target-named" ? collectionType.typeArguments ?? [] : [];
+  const memberPolicy = policy?.members.find((member) => member.sourceName === sourceMember.memberName);
+  return policy === undefined || collectionType === undefined || memberPolicy === undefined
+    ? []
+    : memberPolicy.createMembers(policy, collectionType, typeArguments);
 }
 
 export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMember, receiverType: TargetTypeRef | undefined): TargetMember | undefined {
   if (sourceMember.memberName !== "size") {
     return undefined;
   }
-  if (!isCsharpJsMapTargetType(receiverType) && !isCsharpJsSetTargetType(receiverType)) {
+  const policy = collectionPolicyForSourceName(sourceMember.declaringName);
+  if (policy === undefined || !policy.isTargetType(receiverType)) {
     return undefined;
   }
   return targetProperty(
@@ -271,88 +268,25 @@ export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMem
   );
 }
 
-function getMapTargetMembers(sourceName: string, receiverType: TargetTypeRef | undefined, resultType: TargetTypeRef | undefined): readonly TargetMember[] {
-  const mapType = isCsharpJsMapTargetType(resultType)
-    ? resultType
-    : isCsharpJsMapTargetType(receiverType)
-      ? receiverType
-      : csharpJsMapTargetType({ kind: "type-parameter", name: "K" }, { kind: "type-parameter", name: "V" });
-  const [keyType, valueType] = mapType.kind === "target-named" ? mapType.typeArguments ?? [] : [];
-  if (keyType === undefined || valueType === undefined) {
-    return [];
+function closedCollectionTypeForPolicy(
+  policy: CsharpJsCollectionTypePolicy,
+  receiverType: TargetTypeRef | undefined,
+  resultType: TargetTypeRef | undefined,
+): TargetTypeRef | undefined {
+  if (policy.isTargetType(resultType)) {
+    return resultType;
   }
-  switch (sourceName) {
-    case "constructor":
-      return [
-        collectionConstructor("Tsonic.CSharp.Js.Map..ctor()", mapType, []),
-        collectionConstructor("Tsonic.CSharp.Js.Map..ctor(System.Collections.Generic.IEnumerable`1)", mapType, [
-          targetParameter("entries", csharpEnumerableTargetType({ kind: "tuple", elements: [keyType, valueType] })),
-        ]),
-      ];
-    case "get":
-      return [collectionMethod("Map", sourceName, mapType, [targetParameter("key", keyType)], csharpNullableTargetType(valueType))];
-    case "set":
-      return [collectionMethod("Map", sourceName, mapType, [targetParameter("key", keyType), targetParameter("value", valueType)], mapType)];
-    case "has":
-    case "delete":
-      return [collectionMethod("Map", sourceName, mapType, [targetParameter("key", keyType)], csharpSourcePrimitiveTargetType("bool"))];
-    case "clear":
-      return [collectionMethod("Map", sourceName, mapType, [], csharpVoidTargetType())];
-    case "keys":
-      return [collectionMethod("Map", sourceName, mapType, [], csharpEnumerableTargetType(keyType))];
-    case "values":
-      return [collectionMethod("Map", sourceName, mapType, [], csharpEnumerableTargetType(valueType))];
-    case "entries":
-      return [collectionMethod("Map", sourceName, mapType, [], csharpEnumerableTargetType({ kind: "tuple", elements: [keyType, valueType] }))];
-    case "forEach":
-      return mapForEachMembers(mapType, keyType, valueType);
-    default:
-      return [];
+  if (policy.isTargetType(receiverType)) {
+    return receiverType;
   }
+  return policy.createOpenType();
 }
 
-function getSetTargetMembers(sourceName: string, receiverType: TargetTypeRef | undefined, resultType: TargetTypeRef | undefined): readonly TargetMember[] {
-  const setType = isCsharpJsSetTargetType(resultType)
-    ? resultType
-    : isCsharpJsSetTargetType(receiverType)
-      ? receiverType
-      : csharpJsSetTargetType({ kind: "type-parameter", name: "T" });
-  const elementType = setType.kind === "target-named" ? setType.typeArguments?.[0] : undefined;
-  if (elementType === undefined) {
-    return [];
-  }
-  switch (sourceName) {
-    case "constructor":
-      return [
-        collectionConstructor("Tsonic.CSharp.Js.Set..ctor()", setType, []),
-        collectionConstructor("Tsonic.CSharp.Js.Set..ctor(System.Collections.Generic.IEnumerable`1)", setType, [
-          targetParameter("values", csharpEnumerableTargetType(elementType)),
-        ]),
-      ];
-    case "add":
-      return [collectionMethod("Set", sourceName, setType, [targetParameter("value", elementType)], setType)];
-    case "has":
-    case "delete":
-      return [collectionMethod("Set", sourceName, setType, [targetParameter("value", elementType)], csharpSourcePrimitiveTargetType("bool"))];
-    case "clear":
-      return [collectionMethod("Set", sourceName, setType, [], csharpVoidTargetType())];
-    case "keys":
-    case "values":
-      return [collectionMethod("Set", sourceName, setType, [], csharpEnumerableTargetType(elementType))];
-    case "entries":
-      return [collectionMethod("Set", sourceName, setType, [], csharpEnumerableTargetType({ kind: "tuple", elements: [elementType, elementType] }))];
-    case "forEach":
-      return setForEachMembers(setType, elementType);
-    default:
-      return [];
-  }
-}
-
-function collectionConstructor(id: string, declaringType: TargetTypeRef, parameters: readonly TargetParameter[]): TargetMember {
+function collectionConstructor(policy: CsharpJsCollectionTypePolicy, id: string, declaringType: TargetTypeRef, parameters: readonly TargetParameter[]): TargetMember {
   return {
     id,
     sourceName: "constructor",
-    targetName: declaringType.kind === "target-named" && declaringType.id === csharpJsSetTypeId ? "Set" : "Map",
+    targetName: policy.targetName,
     kind: "constructor",
     parameters,
     returnType: declaringType,
@@ -361,31 +295,209 @@ function collectionConstructor(id: string, declaringType: TargetTypeRef, paramet
 }
 
 function collectionMethod(
-  declaringName: "Map" | "Set",
+  policy: CsharpJsCollectionTypePolicy,
   sourceName: string,
   declaringType: TargetTypeRef,
   parameters: readonly TargetParameter[],
   returnType: TargetTypeRef,
 ): TargetMember {
-  return targetMethod(`Tsonic.CSharp.Js.${declaringName}.${sourceName}`, sourceName, sourceName, parameters, returnType, {
+  return targetMethod(`Tsonic.CSharp.Js.${policy.targetName}.${sourceName}`, sourceName, sourceName, parameters, returnType, {
     declaringType,
   });
 }
 
-function mapForEachMembers(mapType: TargetTypeRef, keyType: TargetTypeRef, valueType: TargetTypeRef): readonly TargetMember[] {
+function mapForEachMembers(policy: CsharpJsCollectionTypePolicy, mapType: TargetTypeRef, keyType: TargetTypeRef, valueType: TargetTypeRef): readonly TargetMember[] {
   return [
-    collectionMethod("Map", "forEach", mapType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [valueType]))], csharpVoidTargetType()),
-    collectionMethod("Map", "forEach", mapType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [valueType, keyType]))], csharpVoidTargetType()),
-    collectionMethod("Map", "forEach", mapType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [valueType, keyType, mapType]))], csharpVoidTargetType()),
+    collectionMethod(policy, "forEach", mapType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [valueType]))], csharpVoidTargetType()),
+    collectionMethod(policy, "forEach", mapType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [valueType, keyType]))], csharpVoidTargetType()),
+    collectionMethod(policy, "forEach", mapType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [valueType, keyType, mapType]))], csharpVoidTargetType()),
   ];
 }
 
-function setForEachMembers(setType: TargetTypeRef, elementType: TargetTypeRef): readonly TargetMember[] {
+function setForEachMembers(policy: CsharpJsCollectionTypePolicy, setType: TargetTypeRef, elementType: TargetTypeRef): readonly TargetMember[] {
   return [
-    collectionMethod("Set", "forEach", setType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [elementType]))], csharpVoidTargetType()),
-    collectionMethod("Set", "forEach", setType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [elementType, elementType]))], csharpVoidTargetType()),
-    collectionMethod("Set", "forEach", setType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [elementType, elementType, setType]))], csharpVoidTargetType()),
+    collectionMethod(policy, "forEach", setType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [elementType]))], csharpVoidTargetType()),
+    collectionMethod(policy, "forEach", setType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [elementType, elementType]))], csharpVoidTargetType()),
+    collectionMethod(policy, "forEach", setType, [targetParameter("callback", csharpDelegateTargetType("System.Action", [elementType, elementType, setType]))], csharpVoidTargetType()),
   ];
+}
+
+const csharpJsCollectionPolicies: readonly CsharpJsCollectionTypePolicy[] = [
+  {
+    sourceNames: ["Map", "ReadonlyMap"],
+    targetName: "Map",
+    typeParameterNames: ["K", "V"],
+    createOpenType: () => csharpJsMapTargetType({ kind: "type-parameter", name: "K" }, { kind: "type-parameter", name: "V" }),
+    createClosedType: (typeArguments) => {
+      const [keyType, valueType] = typeArguments;
+      return keyType === undefined || valueType === undefined || typeArguments.length !== 2
+        ? undefined
+        : csharpJsMapTargetType(keyType, valueType);
+    },
+    isTargetType: isCsharpJsMapTargetType,
+    getIterableElementType: (typeArguments) => {
+      const [keyType, valueType] = typeArguments;
+      return keyType === undefined || valueType === undefined
+        ? undefined
+        : { kind: "tuple", elements: [keyType, valueType] };
+    },
+    members: [
+      {
+        sourceName: "constructor",
+        createMembers: (policy, mapType, [keyType, valueType]) =>
+          keyType === undefined || valueType === undefined
+            ? []
+            : [
+                collectionConstructor(policy, "Tsonic.CSharp.Js.Map..ctor()", mapType, []),
+                collectionConstructor(policy, "Tsonic.CSharp.Js.Map..ctor(System.Collections.Generic.IEnumerable`1)", mapType, [
+                  targetParameter("entries", csharpEnumerableTargetType({ kind: "tuple", elements: [keyType, valueType] })),
+                ]),
+              ],
+      },
+      {
+        sourceName: "get",
+        createMembers: (policy, mapType, [keyType, valueType]) =>
+          keyType === undefined || valueType === undefined
+            ? []
+            : [collectionMethod(policy, "get", mapType, [targetParameter("key", keyType)], csharpNullableTargetType(valueType))],
+      },
+      {
+        sourceName: "set",
+        createMembers: (policy, mapType, [keyType, valueType]) =>
+          keyType === undefined || valueType === undefined
+            ? []
+            : [collectionMethod(policy, "set", mapType, [targetParameter("key", keyType), targetParameter("value", valueType)], mapType)],
+      },
+      ...sameParameterMapPolicies(["has", "delete"], ([keyType]) =>
+        keyType === undefined ? [] : [targetParameter("key", keyType)], () => csharpSourcePrimitiveTargetType("bool")),
+      ...noParameterMapPolicies(["clear"], () => csharpVoidTargetType()),
+      ...noParameterMapPolicies(["keys"], ([keyType]) => keyType === undefined ? undefined : csharpEnumerableTargetType(keyType)),
+      ...noParameterMapPolicies(["values"], ([_keyType, valueType]) => valueType === undefined ? undefined : csharpEnumerableTargetType(valueType)),
+      ...noParameterMapPolicies(["entries"], ([keyType, valueType]) =>
+        keyType === undefined || valueType === undefined
+          ? undefined
+          : csharpEnumerableTargetType({ kind: "tuple", elements: [keyType, valueType] })),
+      {
+        sourceName: "forEach",
+        createMembers: (policy, mapType, [keyType, valueType]) =>
+          keyType === undefined || valueType === undefined
+            ? []
+            : mapForEachMembers(policy, mapType, keyType, valueType),
+      },
+    ],
+  },
+  {
+    sourceNames: ["Set", "ReadonlySet"],
+    targetName: "Set",
+    typeParameterNames: ["T"],
+    createOpenType: () => csharpJsSetTargetType({ kind: "type-parameter", name: "T" }),
+    createClosedType: (typeArguments) => {
+      const [elementType] = typeArguments;
+      return elementType === undefined || typeArguments.length !== 1
+        ? undefined
+        : csharpJsSetTargetType(elementType);
+    },
+    isTargetType: isCsharpJsSetTargetType,
+    getIterableElementType: (typeArguments) => typeArguments[0],
+    members: [
+      {
+        sourceName: "constructor",
+        createMembers: (policy, setType, [elementType]) =>
+          elementType === undefined
+            ? []
+            : [
+                collectionConstructor(policy, "Tsonic.CSharp.Js.Set..ctor()", setType, []),
+                collectionConstructor(policy, "Tsonic.CSharp.Js.Set..ctor(System.Collections.Generic.IEnumerable`1)", setType, [
+                  targetParameter("values", csharpEnumerableTargetType(elementType)),
+                ]),
+              ],
+      },
+      {
+        sourceName: "add",
+        createMembers: (policy, setType, [elementType]) =>
+          elementType === undefined
+            ? []
+            : [collectionMethod(policy, "add", setType, [targetParameter("value", elementType)], setType)],
+      },
+      ...sameParameterMapPolicies(["has", "delete"], ([elementType]) =>
+        elementType === undefined ? [] : [targetParameter("value", elementType)], () => csharpSourcePrimitiveTargetType("bool")),
+      ...noParameterMapPolicies(["clear"], () => csharpVoidTargetType()),
+      ...noParameterMapPolicies(["keys", "values"], ([elementType]) => elementType === undefined ? undefined : csharpEnumerableTargetType(elementType)),
+      ...noParameterMapPolicies(["entries"], ([elementType]) =>
+        elementType === undefined
+          ? undefined
+          : csharpEnumerableTargetType({ kind: "tuple", elements: [elementType, elementType] })),
+      {
+        sourceName: "forEach",
+        createMembers: (policy, setType, [elementType]) =>
+          elementType === undefined
+            ? []
+            : setForEachMembers(policy, setType, elementType),
+      },
+    ],
+  },
+];
+
+const collectionPoliciesBySourceName = new Map<SourceLibraryDeclaringName, CsharpJsCollectionTypePolicy>(
+  csharpJsCollectionPolicies.flatMap((policy) =>
+    policy.sourceNames.map((sourceName) => [sourceName, policy] as const)
+  ),
+);
+
+function collectionPolicyForSourceName(sourceName: SourceLibraryDeclaringName): CsharpJsCollectionTypePolicy | undefined {
+  return collectionPoliciesBySourceName.get(sourceName);
+}
+
+function collectionPolicyForSourceType(type: Type, context: ExtensionObservationContext): CsharpJsCollectionTypePolicy | undefined {
+  return csharpJsCollectionPolicies.find((policy) =>
+    policy.sourceNames.some((sourceName) => isSourceLibraryType(type, context, sourceName)));
+}
+
+function collectionPolicyForTargetType(type: TargetTypeRef): CsharpJsCollectionTypePolicy | undefined {
+  return csharpJsCollectionPolicies.find((policy) => policy.isTargetType(type));
+}
+
+function sameParameterMapPolicies(
+  sourceNames: readonly string[],
+  createParameters: (typeArguments: readonly TargetTypeRef[]) => readonly TargetParameter[],
+  createReturnType: (typeArguments: readonly TargetTypeRef[]) => TargetTypeRef | undefined,
+): readonly CsharpJsCollectionMemberPolicy[] {
+  return sourceNames.map((sourceName) => ({
+    sourceName,
+    createMembers: (policy, declaringType, typeArguments) => {
+      const returnType = typeArguments.length === policy.typeParameterNames.length
+        ? createReturnType(typeArguments)
+        : undefined;
+      return returnType === undefined
+        ? []
+        : [collectionMethod(policy, sourceName, declaringType, createParameters(typeArguments), returnType)];
+    },
+  }));
+}
+
+function noParameterMapPolicies(
+  sourceNames: readonly string[],
+  createReturnType: (typeArguments: readonly TargetTypeRef[]) => TargetTypeRef | undefined,
+): readonly CsharpJsCollectionMemberPolicy[] {
+  return sourceNames.map((sourceName) => ({
+    sourceName,
+    createMembers: (policy, declaringType, typeArguments) => {
+      const returnType = typeArguments.length === policy.typeParameterNames.length
+        ? createReturnType(typeArguments)
+        : undefined;
+      return returnType === undefined
+        ? []
+        : [collectionMethod(policy, sourceName, declaringType, [], returnType)];
+    },
+  }));
+}
+
+function completeTargetTypeArguments(
+  typeArguments: readonly (TargetTypeRef | undefined)[],
+): readonly TargetTypeRef[] | undefined {
+  return typeArguments.some((argument) => argument === undefined)
+    ? undefined
+    : typeArguments as readonly TargetTypeRef[];
 }
 
 function getTypeArguments(type: Type, context: ExtensionObservationContext): readonly Type[] {
