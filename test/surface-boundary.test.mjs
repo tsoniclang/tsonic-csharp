@@ -523,6 +523,34 @@ test("JS surface maps Array.from over Map and Set iterables from finalized colle
   assert.equal(setFromResult.value.selectedSignature.member.returnType.typeArguments[0].id, "System.String");
 });
 
+test("selected JS surface preserves explicit source primitive Map and Set type arguments", () => {
+  const session = createCsharpSession(`
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function makeCollections(): void {
+      const counts = new Map<string, int32>();
+      const selected = counts.get("alpha");
+      const ids = new Set<int32>();
+      ids.add(selected ?? 0);
+    }
+  `, { selectedSurfaces: [{ id: "js" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const carriers = collectNodesByKind(sourceFile, session.ast, "KindNewExpression")
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier)
+    .filter((carrier) => carrier !== undefined);
+
+  assert.deepEqual(carriers.map((carrier) => carrier.id), [
+    "Tsonic.CSharp.Js.Map`2",
+    "Tsonic.CSharp.Js.Set`1",
+  ]);
+  assert.equal(carriers[0].typeArguments[0].id, "System.String");
+  assert.equal(carriers[0].typeArguments[1].name, "int32");
+  assert.equal(carriers[1].typeArguments[0].name, "int32");
+});
+
 test("JS surface maps Array.at and Array.map from selected declarations and closed callback facts", () => {
   const atCall = {};
   const mapCall = {};

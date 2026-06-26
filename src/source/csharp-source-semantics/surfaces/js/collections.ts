@@ -38,6 +38,9 @@ import type {
 import {
   getSymbolForDeclarationLookup,
 } from "../../symbol-utils.js";
+import {
+  resolveTargetTypeRefFromKeywordTypeSyntax,
+} from "../../target-type-keywords.js";
 
 const csharpJsMapTypeId = "Tsonic.CSharp.Js.Map`2";
 const csharpJsSetTypeId = "Tsonic.CSharp.Js.Set`1";
@@ -156,7 +159,48 @@ function getCsharpJsCollectionRuntimeCarrierForNode(
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
   const type = checkedTypeAtLocation(node, sourceFile, context);
-  return getCsharpJsCollectionRuntimeCarrierForType(type, context, host);
+  return getCsharpJsCollectionRuntimeCarrierForSyntaxNode(node, type, context, host) ??
+    getCsharpJsCollectionRuntimeCarrierForType(type, context, host);
+}
+
+function getCsharpJsCollectionRuntimeCarrierForSyntaxNode(
+  node: Node,
+  type: Type | undefined,
+  context: ExtensionObservationContext,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined || type === undefined) {
+    return undefined;
+  }
+  if (!ast.is.IsNewExpression(node) && !ast.is.IsTypeReferenceNode(node)) {
+    return undefined;
+  }
+  const typeArguments = ast.typeArguments(node)
+    .map((argument) => argument === undefined
+      ? undefined
+      : resolveTargetTypeRefFromKeywordTypeSyntax(ast, argument) ??
+        host.getTargetTypeRefForSubject(argument, context, {
+          allowRuntimeCarrier: false,
+          allowSemanticTypeQuery: false,
+        })
+    );
+  if (typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  if ((isSourceLibraryType(type, context, "Map") || isSourceLibraryType(type, context, "ReadonlyMap")) && typeArguments.length === 2) {
+    const [keyType, valueType] = typeArguments;
+    return keyType === undefined || valueType === undefined
+      ? undefined
+      : csharpJsMapTargetType(keyType, valueType);
+  }
+  if ((isSourceLibraryType(type, context, "Set") || isSourceLibraryType(type, context, "ReadonlySet")) && typeArguments.length === 1) {
+    const [elementType] = typeArguments;
+    return elementType === undefined
+      ? undefined
+      : csharpJsSetTargetType(elementType);
+  }
+  return undefined;
 }
 
 function checkedTypeAtLocation(
