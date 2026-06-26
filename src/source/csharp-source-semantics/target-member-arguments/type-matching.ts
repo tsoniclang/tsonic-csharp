@@ -7,30 +7,23 @@ import {
   isLiteralRepresentableAsTargetType,
 } from "../target-member-literals.js";
 import {
-  type CsharpTargetNamedTypeRef,
-  getCsharpCollectionElementTargetType,
-  getCsharpArrayLiteralElementTargetType,
-  getCsharpNullableElementTargetType,
-  isCsharpDenseMutableCollectionTargetType,
-  isCsharpReadOnlyIndexableCollectionTargetType,
-} from "../target-types.js";
-import type {
-  CsharpDelegateSignatureShape,
-} from "../target-types.js";
-import {
-  targetTypeRefEquals,
-  targetTypeRefKey,
-} from "../target-ref-utils.js";
-import {
   sourcePrimitiveImplicitlyConverts,
 } from "./source-primitive-conversions.js";
 import {
-  bindTargetTypeParameter,
   substituteTargetTypeRef,
 } from "./type-substitution.js";
 import type {
   TargetMemberSelectionOptions,
 } from "./types.js";
+import {
+  selectedCollectionImplicitlyConverts,
+} from "./type-matching/collection-conversions.js";
+import {
+  inferSelectedTargetTypeParameters,
+} from "./type-matching/type-parameter-inference.js";
+import {
+  targetTypeMatchScore,
+} from "./type-matching/target-type-score.js";
 
 export function targetTypeArgumentMatchScore(
   expected: TargetTypeRef,
@@ -82,237 +75,8 @@ export function selectedTargetTypeAcceptsArgument(
     return false;
   }
   return targetTypeMatchesExpected(effectiveExpected, actual, typeParameterBindings, options) ||
-    selectedCollectionImplicitlyConverts(effectiveExpected, actual, context, typeParameterBindings, options) ||
+    selectedCollectionImplicitlyConverts(effectiveExpected, actual, (expectedElement, actualElement) =>
+      selectedTargetTypeAcceptsArgument(expectedElement, actualElement, undefined, context, typeParameterBindings, options)
+    ) ||
     sourcePrimitiveImplicitlyConverts(effectiveExpected, actual);
-}
-
-function targetTypeMatchScore(
-  expected: TargetTypeRef,
-  actual: TargetTypeRef,
-  typeParameterBindings: Map<string, TargetTypeRef>,
-  options: TargetMemberSelectionOptions,
-  seenActualTypes: ReadonlySet<string> = new Set(),
-): number | undefined {
-  if (expected.kind === "type-parameter") {
-    return bindTargetTypeParameter(expected.name, actual, typeParameterBindings) ? 0 : undefined;
-  }
-  if (targetTypeRefEquals(expected, actual)) {
-    return 0;
-  }
-  if (sourcePrimitiveImplicitlyConverts(expected, actual)) {
-    return 3;
-  }
-  const expectedNullableElement = getCsharpNullableElementTargetType(expected);
-  if (expectedNullableElement !== undefined) {
-    const nullableScore = targetTypeMatchScore(expectedNullableElement, actual, typeParameterBindings, options, seenActualTypes);
-    if (nullableScore !== undefined) {
-      return nullableScore + 1;
-    }
-  }
-  const expectedDelegate = getCsharpDelegateSignature(expected);
-  if (expectedDelegate !== undefined) {
-    return targetDelegateSignatureMatchesExpected(expectedDelegate, actual, typeParameterBindings, options, seenActualTypes) ? 0 : undefined;
-  }
-  if (expected.kind === "array" && actual.kind === "array" && (expected.rank ?? 1) === (actual.rank ?? 1)) {
-    return targetTypeMatchScore(expected.element, actual.element, typeParameterBindings, options, seenActualTypes);
-  }
-  const expectedCollectionElement = getCsharpCollectionElementTargetType(expected);
-  const actualCollectionElement = getCsharpCollectionElementTargetType(actual) ??
-    getCsharpArrayLiteralElementTargetType(actual);
-  if (
-    expectedCollectionElement !== undefined &&
-    actualCollectionElement !== undefined &&
-    collectionShapeAcceptsActual(expected, actual)
-  ) {
-    const elementScore = targetTypeMatchScore(expectedCollectionElement, actualCollectionElement, typeParameterBindings, options, seenActualTypes);
-    if (elementScore !== undefined) {
-      return elementScore + 2;
-    }
-  }
-  const expectedArrayLiteralElement = getCsharpArrayLiteralElementTargetType(expected);
-  if (expectedArrayLiteralElement !== undefined && actual.kind === "array") {
-    const elementScore = targetTypeMatchScore(expectedArrayLiteralElement, actual.element, typeParameterBindings, options, seenActualTypes);
-    return elementScore === undefined ? undefined : elementScore + 2;
-  }
-  if (expected.kind === "tuple" && actual.kind === "tuple" && expected.elements.length === actual.elements.length) {
-    let tupleScore = 0;
-    for (let index = 0; index < expected.elements.length; index += 1) {
-      const element = expected.elements[index];
-      const actualElement = actual.elements[index];
-      const elementScore = element === undefined || actualElement === undefined
-        ? undefined
-        : targetTypeMatchScore(element, actualElement, typeParameterBindings, options, seenActualTypes);
-      if (elementScore === undefined) {
-        return undefined;
-      }
-      tupleScore += elementScore;
-    }
-    return tupleScore;
-  }
-  if (expected.kind === "target-named" && actual.kind === "target-named" && expected.id === actual.id) {
-    const expectedArgs = expected.typeArguments ?? [];
-    const actualArgs = actual.typeArguments ?? [];
-    if (expectedArgs.length !== actualArgs.length) {
-      return undefined;
-    }
-    let argumentScore = 0;
-    for (let index = 0; index < expectedArgs.length; index += 1) {
-      const argument = expectedArgs[index];
-      const actualArgument = actualArgs[index];
-      const matchScore = argument === undefined || actualArgument === undefined
-        ? undefined
-        : targetTypeMatchScore(argument, actualArgument, typeParameterBindings, options, seenActualTypes);
-      if (matchScore === undefined) {
-        return undefined;
-      }
-      argumentScore += matchScore;
-    }
-    return argumentScore;
-  }
-  if (expected.kind === "target-named" && actual.kind === "target-named") {
-    const actualKey = targetTypeRefKey(actual);
-    if (!seenActualTypes.has(actualKey)) {
-      const baseType = options.getBaseTargetTypeRef?.(actual);
-      if (baseType !== undefined) {
-        const baseScore = targetTypeMatchScore(expected, baseType, typeParameterBindings, options, new Set([...seenActualTypes, actualKey]));
-        return baseScore === undefined ? undefined : baseScore + 2;
-      }
-    }
-  }
-  if (expected.kind === "pointer" && actual.kind === "pointer") {
-    return targetTypeMatchScore(expected.pointee, actual.pointee, typeParameterBindings, options, seenActualTypes);
-  }
-  if (expected.kind === "function-pointer" && actual.kind === "function-pointer" && expected.args.length === actual.args.length) {
-    const resultScore = targetTypeMatchScore(expected.result, actual.result, typeParameterBindings, options, seenActualTypes);
-    if (resultScore === undefined) {
-      return undefined;
-    }
-    let argumentScore = 0;
-    for (let index = 0; index < expected.args.length; index += 1) {
-      const argument = expected.args[index];
-      const actualArgument = actual.args[index];
-      const matchScore = argument === undefined || actualArgument === undefined
-        ? undefined
-        : targetTypeMatchScore(argument, actualArgument, typeParameterBindings, options, seenActualTypes);
-      if (matchScore === undefined) {
-        return undefined;
-      }
-      argumentScore += matchScore;
-    }
-    return resultScore + argumentScore;
-  }
-  return undefined;
-}
-
-function collectionShapeAcceptsActual(expected: TargetTypeRef, actual: TargetTypeRef): boolean {
-  if (actual.kind === "array") {
-    return getCsharpArrayLiteralElementTargetType(expected) !== undefined;
-  }
-  if (isCsharpReadOnlyIndexableCollectionTargetType(expected)) {
-    return isCsharpReadOnlyIndexableCollectionTargetType(actual);
-  }
-  if (isCsharpDenseMutableCollectionTargetType(expected)) {
-    return isCsharpDenseMutableCollectionTargetType(actual);
-  }
-  if (getCsharpCollectionElementTargetType(expected) !== undefined) {
-    return getCsharpCollectionElementTargetType(actual) !== undefined ||
-      getCsharpArrayLiteralElementTargetType(actual) !== undefined;
-  }
-  return false;
-}
-
-function getCsharpDelegateSignature(type: TargetTypeRef): CsharpDelegateSignatureShape | undefined {
-  return type.kind === "target-named"
-    ? (type as CsharpTargetNamedTypeRef & { readonly csharpDelegateSignature?: CsharpDelegateSignatureShape }).csharpDelegateSignature
-    : undefined;
-}
-
-function targetDelegateSignatureMatchesExpected(
-  expected: CsharpDelegateSignatureShape,
-  actual: TargetTypeRef,
-  typeParameterBindings: Map<string, TargetTypeRef>,
-  options: TargetMemberSelectionOptions,
-  seenActualTypes: ReadonlySet<string>,
-): boolean {
-  const actualSignature = actual.kind === "function-pointer"
-    ? {
-        parameters: actual.args,
-        returnType: actual.result,
-      }
-    : getCsharpDelegateSignature(actual);
-  if (actualSignature === undefined || expected.parameters.length !== actualSignature.parameters.length) {
-    return false;
-  }
-  if (!expected.parameters.every((parameter, index) => {
-    const actualParameter = actualSignature.parameters[index];
-    return actualParameter !== undefined && targetTypeMatchesExpected(parameter, actualParameter, typeParameterBindings, options, seenActualTypes);
-  })) {
-    return false;
-  }
-  if (expected.returnType === undefined) {
-    return true;
-  }
-  return actualSignature.returnType !== undefined &&
-    targetTypeMatchesExpected(expected.returnType, actualSignature.returnType, typeParameterBindings, options, seenActualTypes);
-}
-
-function inferSelectedTargetTypeParameters(
-  expected: TargetTypeRef,
-  actual: TargetTypeRef,
-  typeParameterBindings: Map<string, TargetTypeRef>,
-): boolean {
-  if (expected.kind === "type-parameter") {
-    return bindTargetTypeParameter(expected.name, actual, typeParameterBindings);
-  }
-  const effectiveExpected = substituteTargetTypeRef(expected, typeParameterBindings);
-  if (effectiveExpected.kind === "type-parameter") {
-    return bindTargetTypeParameter(effectiveExpected.name, actual, typeParameterBindings);
-  }
-  if (effectiveExpected.kind === "array" && actual.kind === "array" && (effectiveExpected.rank ?? 1) === (actual.rank ?? 1)) {
-    return inferSelectedTargetTypeParameters(effectiveExpected.element, actual.element, typeParameterBindings);
-  }
-  if (effectiveExpected.kind === "tuple" && actual.kind === "tuple" && effectiveExpected.elements.length === actual.elements.length) {
-    return effectiveExpected.elements.every((element, index) => {
-      const actualElement = actual.elements[index];
-      return actualElement !== undefined && inferSelectedTargetTypeParameters(element, actualElement, typeParameterBindings);
-    });
-  }
-  if (effectiveExpected.kind === "pointer" && actual.kind === "pointer") {
-    return inferSelectedTargetTypeParameters(effectiveExpected.pointee, actual.pointee, typeParameterBindings);
-  }
-  if (effectiveExpected.kind === "function-pointer" && actual.kind === "function-pointer" && effectiveExpected.args.length === actual.args.length) {
-    return inferSelectedTargetTypeParameters(effectiveExpected.result, actual.result, typeParameterBindings) &&
-      effectiveExpected.args.every((argument, index) => {
-        const actualArgument = actual.args[index];
-        return actualArgument !== undefined && inferSelectedTargetTypeParameters(argument, actualArgument, typeParameterBindings);
-      });
-  }
-  if (effectiveExpected.kind === "target-named" && actual.kind === "target-named" && effectiveExpected.id === actual.id) {
-    const expectedArgs = effectiveExpected.typeArguments ?? [];
-    const actualArgs = actual.typeArguments ?? [];
-    if (expectedArgs.length !== actualArgs.length) {
-      return true;
-    }
-    return expectedArgs.every((argument, index) => {
-      const actualArgument = actualArgs[index];
-      return actualArgument !== undefined && inferSelectedTargetTypeParameters(argument, actualArgument, typeParameterBindings);
-    });
-  }
-  return true;
-}
-
-function selectedCollectionImplicitlyConverts(
-  expected: TargetTypeRef,
-  actual: TargetTypeRef,
-  context: ExtensionObservationContext,
-  typeParameterBindings: Map<string, TargetTypeRef>,
-  options: TargetMemberSelectionOptions,
-): boolean {
-  if (actual.kind !== "array" || expected.kind !== "target-named") {
-    return false;
-  }
-  const expectedElement = getCsharpArrayLiteralElementTargetType(expected);
-  const actualElement = actual.element;
-  return expectedElement !== undefined &&
-    selectedTargetTypeAcceptsArgument(expectedElement, actualElement, undefined, context, typeParameterBindings, options);
 }
