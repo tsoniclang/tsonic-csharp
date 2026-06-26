@@ -219,15 +219,7 @@ export const analysisAbstractionDebtOwners = Object.freeze([
   "tests",
 ]);
 
-export const analysisAbstractionDebtCatalog = Object.freeze([
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/registry.ts",
-    { "source-family-call-provider-registry": 13 },
-    "surface-policy-candidate",
-    "surface-provider",
-    "Replace procedural source-family call provider registry with declarative source identity policy and generic provider/runtime metadata selectors.",
-  ),
-]);
+export const analysisAbstractionDebtCatalog = Object.freeze([]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
   return sourceFiles(join(repoRoot, "src")).flatMap((filePath) => {
