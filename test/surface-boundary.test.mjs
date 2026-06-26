@@ -467,6 +467,34 @@ test("JS surface maps Map and Set runtime built-ins from selected declarations a
   assert.equal(setSizeResult.value.operation.operationId, "Tsonic.CSharp.Js.Set.size");
 });
 
+test("JS surface rejects Map and Set instance calls without closed carrier facts", () => {
+  const mapReceiver = {};
+  const setReceiver = {};
+  const key = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [key, stringType()],
+    [value, int32Type()],
+  ])));
+
+  const mapSetResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Map", "set"), {
+    arguments: [key, value],
+    calleeReceiver: mapReceiver,
+  }), fakeContext(facts));
+  const setAddResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Set", "add"), {
+    arguments: [value],
+    calleeReceiver: setReceiver,
+  }), fakeContext(facts));
+
+  assert.equal(mapSetResult.kind, "reject");
+  assert.equal(mapSetResult.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(mapSetResult.diagnostic.message, /Map\.set/);
+  assert.equal(setAddResult.kind, "reject");
+  assert.equal(setAddResult.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(setAddResult.diagnostic.message, /Set\.add/);
+});
+
 test("JS surface maps Array.from over Map and Set iterables from finalized collection carrier facts", () => {
   const mapSource = {};
   const setSource = {};
