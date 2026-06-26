@@ -22,7 +22,7 @@ import {
   nodeFsClassCallTargetMembers,
   nodeFsClassPropertyTargetMembers,
   nodeFsModuleSpecifier,
-} from "../filesystem.js";
+} from "../filesystem/index.js";
 import {
   nodeOsCallTargetMembers,
   nodeOsModuleSpecifier,

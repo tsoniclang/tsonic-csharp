@@ -9,7 +9,7 @@ import {
 } from "./crypto.js";
 import {
   nodeFsModuleSpecifier,
-} from "./filesystem.js";
+} from "./filesystem/index.js";
 import {
   nodeOsModuleSpecifier,
 } from "./os.js";

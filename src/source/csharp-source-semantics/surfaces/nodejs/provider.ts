@@ -31,7 +31,7 @@ import {
 import {
   nodeFsExports,
   nodeFsModuleSpecifier,
-} from "./filesystem.js";
+} from "./filesystem/index.js";
 import {
   nodeOsExports,
   nodeOsModuleSpecifier,
