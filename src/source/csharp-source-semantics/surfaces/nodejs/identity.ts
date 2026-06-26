@@ -73,6 +73,19 @@ export function nodejsExportMemberDeclarationIdentity(
   };
 }
 
+export function nodejsExportMemberSignatureDeclarationIdentity(
+  moduleSpecifier: string,
+  exportName: string,
+  memberName: string,
+  memberId: string,
+  signatureId: string,
+): NodejsProviderDeclarationIdentity {
+  return {
+    ...nodejsExportMemberDeclarationIdentity(moduleSpecifier, exportName, memberName, memberId),
+    signatureId,
+  };
+}
+
 export function nodejsProviderDeclarationIdentityKey(declaration: NodejsProviderDeclarationIdentity): string {
   return [
     declaration.providerId,

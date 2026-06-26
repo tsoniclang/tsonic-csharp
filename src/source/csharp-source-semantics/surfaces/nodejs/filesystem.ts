@@ -5,6 +5,10 @@ import type {
   TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  NodejsClassCallTargetMember,
+  NodejsClassPropertyTargetMember,
+} from "./members/types.js";
 import {
   csharpVoidTargetType,
   csharpSourcePrimitiveTargetType,
@@ -112,6 +116,27 @@ export function getNodeFsCallTargetMember(
 
 export function getNodeFsTargetMember(memberId: string | undefined, signatureId: string | undefined): TargetMember | undefined {
   return nodeFsTargetMembersByIdentity.get(signatureId ?? memberId ?? "");
+}
+
+export function nodeFsClassCallTargetMembers(): readonly NodejsClassCallTargetMember[] {
+  return [
+    nodeFsStatsCallTargetMember("isFile", nodeFsStatsIsFileMemberId, nodeFsStatsIsFileSignatureId, getNodeFsStatsIsFileTargetMember()),
+    nodeFsStatsCallTargetMember("isDirectory", nodeFsStatsIsDirectoryMemberId, nodeFsStatsIsDirectorySignatureId, getNodeFsStatsIsDirectoryTargetMember()),
+  ];
+}
+
+export function nodeFsClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
+  return [
+    nodeFsStatsPropertyTargetMember("size", nodeFsStatsSizeMemberId, getNodeFsStatsSizeTargetMember()),
+    nodeFsStatsPropertyTargetMember("atime", nodeFsStatsAtimeMemberId, getNodeFsStatsDateTargetMember("atime")),
+    nodeFsStatsPropertyTargetMember("atimeMs", nodeFsStatsAtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("atimeMs")),
+    nodeFsStatsPropertyTargetMember("mtime", nodeFsStatsMtimeMemberId, getNodeFsStatsDateTargetMember("mtime")),
+    nodeFsStatsPropertyTargetMember("mtimeMs", nodeFsStatsMtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("mtimeMs")),
+    nodeFsStatsPropertyTargetMember("ctime", nodeFsStatsCtimeMemberId, getNodeFsStatsDateTargetMember("ctime")),
+    nodeFsStatsPropertyTargetMember("ctimeMs", nodeFsStatsCtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("ctimeMs")),
+    nodeFsStatsPropertyTargetMember("birthtime", nodeFsStatsBirthtimeMemberId, getNodeFsStatsDateTargetMember("birthtime")),
+    nodeFsStatsPropertyTargetMember("birthtimeMs", nodeFsStatsBirthtimeMsMemberId, getNodeFsStatsUnixMillisecondsTargetMember("birthtimeMs")),
+  ];
 }
 
 export function nodeFsCallTargetMembers(): readonly {
@@ -393,6 +418,34 @@ function fsCall(
       declaringType: fsTargetType,
       static: true,
     },
+  };
+}
+
+function nodeFsStatsCallTargetMember(
+  memberName: string,
+  memberId: string,
+  signatureId: string,
+  member: TargetMember,
+): NodejsClassCallTargetMember {
+  return {
+    exportName: nodeFsStatsExportName,
+    memberName,
+    memberId,
+    signatureId,
+    member,
+  };
+}
+
+function nodeFsStatsPropertyTargetMember(
+  memberName: string,
+  memberId: string,
+  member: TargetMember,
+): NodejsClassPropertyTargetMember {
+  return {
+    exportName: nodeFsStatsExportName,
+    memberName,
+    memberId,
+    member,
   };
 }
 

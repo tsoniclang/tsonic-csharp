@@ -161,8 +161,6 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry("src/source/csharp-source-semantics/source-type-classification.ts", { "source-library-type-check": 1, "source-library-declaring-name-type": 2 }, "type-classification-candidate", "target-provider", "Centralize source standard-library type names in one classification policy before generic analysis consumes category facts."),
   entry("src/source/csharp-source-semantics/surfaces/js/source-library.ts", { "source-library-declaring-name-type": 1, "source-library-member-id-type": 1 }, "source-identity-policy-candidate", "surface-provider", "Keep JS surface re-exports limited until source identity records replace concrete library member types."),
   entry("src/source/csharp-source-semantics/surfaces/js/unsupported.ts", {}, "surface-policy-candidate", "surface-provider", "Unsupported source-member checks must become explicit unsupported policy records with diagnostics."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/metadata-index.ts", { "nodejs-direct-module-resolver-map": 2 }, "provider-metadata-candidate", "surface-provider", "Replace the Node module-to-resolver map with canonical provider metadata rows keyed by selected declaration/member identity."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/members/target-identities.ts", { "nodejs-target-identity-map": 4 }, "provider-metadata-candidate", "surface-provider", "Derive Node target and unsupported identities from the canonical provider metadata record set."),
 ]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {

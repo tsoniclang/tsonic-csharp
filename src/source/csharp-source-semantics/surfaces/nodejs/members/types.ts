@@ -16,6 +16,7 @@ export interface NodejsModulePropertyTargetMember {
 export interface NodejsClassCallTargetMember {
   readonly exportName: string;
   readonly memberName: string;
+  readonly memberId: string;
   readonly signatureId: string;
   readonly member: TargetMember;
 }
@@ -23,6 +24,7 @@ export interface NodejsClassCallTargetMember {
 export interface NodejsClassPropertyTargetMember {
   readonly exportName: string;
   readonly memberName: string;
+  readonly memberId: string;
   readonly member: TargetMember;
 }
 

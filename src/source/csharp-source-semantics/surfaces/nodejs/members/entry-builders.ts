@@ -3,6 +3,8 @@ import type {
 } from "@tsonic/tsts";
 import {
   nodejsExportDeclarationIdentity,
+  nodejsExportMemberDeclarationIdentity,
+  nodejsExportMemberSignatureDeclarationIdentity,
   nodejsExportSignatureDeclarationIdentity,
   nodejsProviderDeclarationIdentityKey,
 } from "../identity.js";
@@ -45,6 +47,32 @@ export function nodejsPropertyTargetMemberEntriesForModule(
 ): readonly (readonly [string, TargetMember])[] {
   return entries.map((entry) => [
     nodejsProviderDeclarationIdentityKey(nodejsExportDeclarationIdentity(moduleSpecifier, entry.exportName)),
+    entry.member,
+  ] as const);
+}
+
+export function nodejsClassCallTargetMemberEntriesForModule(
+  moduleSpecifier: string,
+  entries: readonly NodejsClassCallTargetMember[],
+): readonly (readonly [string, TargetMember])[] {
+  return entries.flatMap((entry) => [
+    [
+      nodejsProviderDeclarationIdentityKey(nodejsExportMemberDeclarationIdentity(moduleSpecifier, entry.exportName, entry.memberName, entry.memberId)),
+      entry.member,
+    ] as const,
+    [
+      nodejsProviderDeclarationIdentityKey(nodejsExportMemberSignatureDeclarationIdentity(moduleSpecifier, entry.exportName, entry.memberName, entry.memberId, entry.signatureId)),
+      entry.member,
+    ] as const,
+  ]);
+}
+
+export function nodejsClassPropertyTargetMemberEntriesForModule(
+  moduleSpecifier: string,
+  entries: readonly NodejsClassPropertyTargetMember[],
+): readonly (readonly [string, TargetMember])[] {
+  return entries.map((entry) => [
+    nodejsProviderDeclarationIdentityKey(nodejsExportMemberDeclarationIdentity(moduleSpecifier, entry.exportName, entry.memberName, entry.memberId)),
     entry.member,
   ] as const);
 }

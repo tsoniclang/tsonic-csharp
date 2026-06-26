@@ -48,4 +48,7 @@ export {
 export {
   getNodeBufferLengthTargetMember,
   getNodeBufferTargetMember,
+  nodeBufferClassCallTargetMembers,
+  nodeBufferClassPropertyTargetMembers,
+  nodeBufferModuleCallTargetMembers,
 } from "./buffer/target-members.js";

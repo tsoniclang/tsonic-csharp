@@ -4,6 +4,9 @@ import type {
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  NodejsClassPropertyTargetMember,
+} from "./members/types.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -99,6 +102,16 @@ export function getNodePathPropertyTargetMember(exportName: string | undefined):
 
 export function getNodePathTargetMember(memberId: string | undefined): TargetMember | undefined {
   return nodePathTargetMembersByIdentity.get(memberId ?? "");
+}
+
+export function nodePathClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
+  return [
+    nodePathParsedPathTargetMember("root", nodePathParsedPathRootMemberId, getNodePathParsedPathTargetMember("root", "root")),
+    nodePathParsedPathTargetMember("dir", nodePathParsedPathDirMemberId, getNodePathParsedPathTargetMember("dir", "dir")),
+    nodePathParsedPathTargetMember("base", nodePathParsedPathBaseMemberId, getNodePathParsedPathTargetMember("base", "@base")),
+    nodePathParsedPathTargetMember("ext", nodePathParsedPathExtMemberId, getNodePathParsedPathTargetMember("ext", "ext")),
+    nodePathParsedPathTargetMember("name", nodePathParsedPathNameMemberId, getNodePathParsedPathTargetMember("name", "name")),
+  ];
 }
 
 export function nodePathCallTargetMembers(): readonly {
@@ -256,6 +269,19 @@ function getNodePathParsedPathTargetMember(sourceName: string, targetName: strin
     parameters: [],
     returnType: stringTargetType,
     declaringType: parsedPathTargetType,
+  };
+}
+
+function nodePathParsedPathTargetMember(
+  memberName: string,
+  memberId: string,
+  member: TargetMember,
+): NodejsClassPropertyTargetMember {
+  return {
+    exportName: nodePathParsedPathExportName,
+    memberName,
+    memberId,
+    member,
   };
 }
 
