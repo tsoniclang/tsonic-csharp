@@ -37,6 +37,12 @@ import {
   isCsharpReadOnlyIndexableCollectionTargetType,
 } from "../../target-types.js";
 import {
+  resolveTargetTypeRefFromKeywordTypeSyntax,
+} from "../../target-type-keywords.js";
+import {
+  targetTypeRefIsClosed,
+} from "../../target-ref-utils.js";
+import {
   getCsharpJsIterableElementType,
 } from "./collections.js";
 import {
@@ -107,6 +113,17 @@ export function getCsharpJsArrayRuntimeCarrierForType(
     : csharpJsArrayCarrierTargetType(elementType);
 }
 
+export function getCsharpJsArrayRuntimeCarrierForNode(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  const semanticType = context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
+  return getCsharpJsArrayRuntimeCarrierForSyntaxNode(node, context, host) ??
+    getCsharpJsArrayRuntimeCarrierForType(semanticType, context, host);
+}
+
 export function recordCsharpJsArrayConstructorRuntimeCarrierFactsBeforeFinalization(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   host: CsharpJsSurfaceHost,
@@ -127,8 +144,7 @@ export function recordCsharpJsArrayConstructorRuntimeCarrierFactsBeforeFinalizat
       if (!isCheckedSourceLibraryArrayConstruction(node, sourceFile, context)) {
         return;
       }
-      const semanticType = compiler.checker.getTypeAtLocation(node, { sourceFile });
-      const carrier = getCsharpJsArrayRuntimeCarrierForType(semanticType, context, host);
+      const carrier = getCsharpJsArrayRuntimeCarrierForNode(node, sourceFile, context, host);
       if (carrier === undefined) {
         return;
       }
@@ -181,4 +197,29 @@ function getTypeArguments(type: Type, context: ExtensionObservationContext): rea
     return [];
   }
   return types.getTypeArguments(type).filter((argument): argument is Type => argument !== undefined);
+}
+
+function getCsharpJsArrayRuntimeCarrierForSyntaxNode(
+  node: Node,
+  context: ExtensionObservationContext,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined || !ast.is.IsNewExpression(node)) {
+    return undefined;
+  }
+  const typeArguments = ast.typeArguments(node).map((argument) =>
+    argument === undefined
+      ? undefined
+      : resolveTargetTypeRefFromKeywordTypeSyntax(ast, argument) ??
+        host.getTargetTypeRefForSubject(argument, context, {
+          allowRuntimeCarrier: true,
+          allowSemanticTypeQuery: true,
+          sourceFile: ast.getSourceFile(node),
+        })
+  );
+  if (typeArguments.length === 0 || typeArguments.some((argument) => argument === undefined || !targetTypeRefIsClosed(argument))) {
+    return undefined;
+  }
+  return csharpJsArrayCarrierTargetType(typeArguments[0]!);
 }

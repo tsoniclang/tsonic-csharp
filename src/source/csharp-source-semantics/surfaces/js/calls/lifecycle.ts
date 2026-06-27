@@ -38,7 +38,7 @@ import {
   csharpJsSourceLibraryMemberIsCollection,
 } from "./member-providers/index.js";
 import {
-  getCsharpJsArrayRuntimeCarrierForType,
+  getCsharpJsArrayRuntimeCarrierForNode,
 } from "../array-carriers.js";
 import {
   recordCsharpJsCollectionRuntimeCarrierFactForNode,
@@ -260,8 +260,7 @@ function recordArrayConstructorRuntimeCarrierFact(
   ) {
     return;
   }
-  const semanticType = context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
-  const carrier = getCsharpJsArrayRuntimeCarrierForType(semanticType, context, host);
+  const carrier = getCsharpJsArrayRuntimeCarrierForNode(node, sourceFile, context, host);
   if (carrier === undefined) {
     return;
   }

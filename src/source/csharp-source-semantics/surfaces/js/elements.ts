@@ -43,12 +43,7 @@ function getFinalizedReceiverCarrier(
 ): TargetTypeRef | undefined {
   return host.unwrapNullableTargetType(
     context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
-      (request.receiverType === undefined ? undefined : context.factResolver.resolve(request.receiverType, runtimeCarrierFactKey)?.carrier) ??
       host.getTargetTypeRefForSubject(request.receiver, context, {
-        allowRuntimeCarrier: true,
-        allowSemanticTypeQuery: false,
-      }) ??
-      host.getTargetTypeRefForSubject(request.receiverType, context, {
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,
       }),

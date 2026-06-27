@@ -1268,8 +1268,10 @@ test("selected JS surface finalizes array element and length operations from car
 
 test("selected JS surface finalizes Array length construction to JSArray carrier", () => {
   const session = createCsharpSession(`
-    export function make(size: number): number {
-      const values = new Array<number>(size);
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function make(size: int32): int32 {
+      const values = new Array<int32>(size);
       return values.length;
     }
   `, { selectedSurfaces: [{ id: "js" }] });
@@ -1281,7 +1283,9 @@ test("selected JS surface finalizes Array length construction to JSArray carrier
 
   assert.ok(construct);
   assert.equal(extensionHost.facts.get(construct, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.JSArray`1");
+  assert.equal(extensionHost.facts.get(construct, runtimeCarrierFactKey)?.carrier.typeArguments[0].name, "int32");
   assert.equal(extensionHost.facts.get(construct, selectedTargetSignatureFactKey)?.member.id, "Tsonic.CSharp.Js.JSArray..ctor(System.Double)");
+  assert.equal(extensionHost.facts.get(construct, selectedTargetSignatureFactKey)?.member.returnType.typeArguments[0].name, "int32");
   assert.equal(extensionHost.facts.get(construct, csharpTargetOperationFactKey)?.operationKind, "constructor");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
