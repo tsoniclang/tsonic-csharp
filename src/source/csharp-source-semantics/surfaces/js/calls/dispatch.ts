@@ -9,6 +9,7 @@ import type {
 } from "../source-library.js";
 import {
   resolveSourceLibraryMemberIdentity,
+  sourceLibraryMemberIdentity,
 } from "../source-library.js";
 import {
   getSignatureDeclaration,
@@ -16,7 +17,6 @@ import {
 import {
   csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
   csharpJsSourceLibraryCallMayNeedFinalFacts,
-  sourceLibraryCallReceiverHasClosedFacts,
 } from "./closed-facts/index.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryCall,
@@ -33,7 +33,9 @@ import {
   getSourceLibraryCallMembers,
 } from "./members.js";
 import {
+  getCsharpJsSourceLibraryOperationRow,
   getCsharpJsSourceLibraryUnsupportedOperation,
+  operationRowClosedFactsStatus,
 } from "./member-providers/index.js";
 import {
   acceptSourceLibraryCheckedCall,
@@ -43,6 +45,7 @@ import {
 } from "./selection.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
+  getSourceLibraryCallReceiverTargetTypes,
 } from "./helpers.js";
 
 export function mapCsharpSourceLibraryCheckedCall(
@@ -74,6 +77,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     return unsupported;
   }
   const canWaitForFinalizedFacts = csharpJsSourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase);
+  const operationRow = getCsharpJsSourceLibraryOperationRow(sourceMember);
   const candidates = getSourceLibraryCallMembers(sourceMember, request, context, host);
   if (candidates.length === 0) {
     if (canWaitForFinalizedFacts) {
@@ -82,13 +86,16 @@ export function mapCsharpSourceLibraryCheckedCall(
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
   const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host);
-  if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
-    if (csharpJsSourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase)) {
+  const callMayNeedFinalFacts = csharpJsSourceLibraryCallMayNeedFinalFacts(sourceMember, options.phase);
+  const closedFactsStatus = operationRow === undefined
+    ? { kind: "satisfied" } as const
+    : operationRowClosedFactsStatus(operationRow, { key: sourceLibraryMemberIdentity(sourceMember) }, request, context, host);
+  if (closedFactsStatus.kind !== "satisfied") {
+    if (closedFactsStatus.kind === "missing" && (canWaitForFinalizedFacts || callMayNeedFinalFacts)) {
       return undefined;
     }
     return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
-  const callMayNeedFinalFacts = csharpJsSourceLibraryCallMayNeedFinalFacts(sourceMember, options.phase);
   if (selectedMember === undefined && request.sourceSelectedSignature === undefined) {
     if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
       return undefined;
@@ -97,6 +104,12 @@ export function mapCsharpSourceLibraryCheckedCall(
   }
   const member = selectedMember;
   if (member === undefined) {
+    if (targetMemberSelectionRequiresReceiverFacts(candidates, request, context, host)) {
+      if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
+        return undefined;
+      }
+      return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
+    }
     const missingArgumentFactIndex = getSourceLibraryCallMissingArgumentFactIndex(request, context, host);
     if (missingArgumentFactIndex !== undefined) {
       return rejectSourceLibraryCallWithoutClosedArgumentFacts(sourceMember, host, missingArgumentFactIndex);
@@ -115,6 +128,17 @@ export function mapCsharpSourceLibraryCheckedCall(
     });
   }
   return acceptSourceLibraryCheckedCall(request, sourceMember, member, context);
+}
+
+function targetMemberSelectionRequiresReceiverFacts(
+  candidates: readonly ReturnType<typeof getSourceLibraryCallMembers>[number][],
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): boolean {
+  return request.calleeReceiver !== undefined &&
+    candidates.some((candidate) => candidate.receiverPassing === "first-argument") &&
+    getSourceLibraryCallReceiverTargetTypes(request, context, host).length === 0;
 }
 
 function getSourceLibraryCallMissingArgumentFactIndex(

@@ -65,6 +65,12 @@ export function getCsharpJsSourceLibraryUnsupportedOperation(
     : undefined;
 }
 
+export function getCsharpJsSourceLibraryOperationRow(
+  sourceMember: SourceLibraryMember,
+): JsSurfaceOperationRow | undefined {
+  return sourceCallMetadataRowForSourceMember(sourceMember);
+}
+
 function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember): JsSurfaceOperationRow | undefined {
   return jsSurfaceSelectMetadataRowForSourceIdentity(
     jsSurfaceOperationRows,

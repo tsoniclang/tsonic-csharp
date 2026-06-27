@@ -18,6 +18,7 @@ import type {
 export interface JsSurfaceOperationRow {
   readonly identity: JsSurfaceSourceIdentitySelector;
   readonly policyKind: JsSurfaceOperationPolicyKind;
+  readonly closedFacts?: JsSurfaceClosedFactsRequirement;
   readonly targetProviders?: readonly JsSurfaceOperationTargetProvider[];
   readonly semanticException?: JsSurfaceOperationSemanticException;
   readonly unsupported?: JsSurfaceUnsupportedOperation;
@@ -32,6 +33,32 @@ export type JsSurfaceOperationPolicyKind =
   | "runtime-helper"
   | "semantic-exception"
   | "unsupported";
+
+export type JsSurfaceClosedFactsRequirement =
+  | { readonly kind: "all"; readonly requirements: readonly JsSurfaceClosedFactsRequirement[] }
+  | { readonly kind: "receiver"; readonly target: JsSurfaceReceiverTargetCondition }
+  | { readonly kind: "arguments"; readonly conditions: readonly JsSurfaceArgumentCondition[] }
+  | { readonly kind: "known-argument-targets" };
+
+export type JsSurfaceReceiverTargetCondition =
+  | "array-like"
+  | "string"
+  | "number"
+  | "boolean"
+  | "regexp"
+  | "date"
+  | "js-object"
+  | "selected-collection-carrier";
+
+export type JsSurfaceArgumentCondition =
+  | { readonly index: number; readonly target: JsSurfaceArgumentTargetCondition }
+  | { readonly fromIndex: number; readonly target: JsSurfaceArgumentTargetCondition };
+
+export type JsSurfaceArgumentTargetCondition =
+  | "string"
+  | "json-value"
+  | "object-helper"
+  | "js-object";
 
 export type JsSurfaceOperationTargetProvider =
   | {

@@ -878,7 +878,7 @@ test("JS surface maps Date instance methods only with closed Date receiver facts
   assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
 });
 
-test("JS surface maps selected Date instance methods from selected declaration identity", () => {
+test("JS surface rejects selected Date instance methods without closed Date receiver facts", () => {
   const call = {};
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
@@ -887,8 +887,9 @@ test("JS surface maps selected Date instance methods from selected declaration i
     calleeReceiver: {},
   }), fakeContext(facts));
 
-  assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Date.toISOString");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /receiver lacks finalized target runtime facts/);
 });
 
 test("JS surface maps zero-argument Math.max to JS runtime semantics", () => {
