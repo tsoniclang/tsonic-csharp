@@ -27,6 +27,7 @@ interface NodeCryptoCallTargetMember {
   readonly exportName: string;
   readonly signatureId: string;
   readonly targetMemberId: string;
+  readonly targetName: string;
   readonly providerParameters: readonly ProviderParameterDeclaration[];
   readonly providerReturnType: ProviderTypeExpression;
   readonly member: TargetMember;
@@ -73,49 +74,44 @@ export function getNodeCryptoCallTargetMember(
   );
 }
 
-export function nodeCryptoCallTargetMembers(): readonly {
-  readonly exportName: string;
-  readonly signatureId: string;
-  readonly targetMemberId: string;
-  readonly providerParameters: readonly ProviderParameterDeclaration[];
-  readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}[] {
+export function nodeCryptoCallTargetMembers(): readonly NodeCryptoCallTargetMember[] {
   const numberParameter = (name: string) => ({ name, type: numberProviderType });
   const optionalNumberParameter = (name: string) => ({ name, type: numberProviderType, optional: true });
   const stringArrayProviderType = { kind: "array", elementType: stringProviderType } satisfies ProviderTypeExpression;
   const stringArrayTargetType = { kind: "array", element: stringTargetType } satisfies TargetTypeRef;
   return [
-    cryptoCall("getCiphers", "node:crypto.getCiphers()", "Tsonic.CSharp.Node.crypto.getCiphers()", [], stringArrayProviderType, [], stringArrayTargetType),
-    cryptoCall("getCurves", "node:crypto.getCurves()", "Tsonic.CSharp.Node.crypto.getCurves()", [], stringArrayProviderType, [], stringArrayTargetType),
-    cryptoCall("getHashes", "node:crypto.getHashes()", "Tsonic.CSharp.Node.crypto.getHashes()", [], stringArrayProviderType, [], stringArrayTargetType),
-    cryptoCall("randomInt", "node:crypto.randomInt(System.Int32,System.Int32?)", "Tsonic.CSharp.Node.crypto.randomInt(System.Int32,System.Int32?)", [numberParameter("minOrMax"), optionalNumberParameter("max")], numberProviderType, [
+    cryptoCall("getCiphers", "node:crypto.getCiphers()", "Tsonic.CSharp.Node.crypto.getCiphers()", "getCiphers", [], stringArrayProviderType, [], stringArrayTargetType),
+    cryptoCall("getCurves", "node:crypto.getCurves()", "Tsonic.CSharp.Node.crypto.getCurves()", "getCurves", [], stringArrayProviderType, [], stringArrayTargetType),
+    cryptoCall("getHashes", "node:crypto.getHashes()", "Tsonic.CSharp.Node.crypto.getHashes()", "getHashes", [], stringArrayProviderType, [], stringArrayTargetType),
+    cryptoCall("randomInt", "node:crypto.randomInt(System.Int32,System.Int32?)", "Tsonic.CSharp.Node.crypto.randomInt(System.Int32,System.Int32?)", "randomInt", [numberParameter("minOrMax"), optionalNumberParameter("max")], numberProviderType, [
       targetParameter("minOrMax", intTargetType),
       targetParameter("max", intTargetType, { optional: true }),
     ], intTargetType),
-    cryptoCall(nodeCryptoRandomUuidExportName, nodeCryptoRandomUuidSignatureId, "Tsonic.CSharp.Node.crypto.randomUUID()", [], stringProviderType, [], stringTargetType),
+    cryptoCall(nodeCryptoRandomUuidExportName, nodeCryptoRandomUuidSignatureId, "Tsonic.CSharp.Node.crypto.randomUUID()", "randomUUID", [], stringProviderType, [], stringTargetType),
   ];
 }
 
 function cryptoCall(
-  exportName: string,
+  sourceName: string,
   signatureId: string,
   targetMemberId: string,
+  targetName: string,
   providerParameters: readonly ProviderParameterDeclaration[],
   providerReturnType: ProviderTypeExpression,
   targetParameters: readonly ReturnType<typeof targetParameter>[],
   targetReturnType: TargetTypeRef,
 ): NodeCryptoCallTargetMember {
   return {
-    exportName,
+    exportName: sourceName,
     signatureId,
     targetMemberId,
+    targetName,
     providerParameters,
     providerReturnType,
     member: {
       id: targetMemberId,
-      sourceName: exportName,
-      targetName: exportName,
+      sourceName,
+      targetName,
       kind: "method",
       parameters: targetParameters,
       returnType: targetReturnType,

@@ -374,57 +374,7 @@ export const analysisAbstractionDebtOwners = Object.freeze([
   "tests",
 ]);
 
-export const analysisAbstractionDebtCatalog = Object.freeze([
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/assert.ts", {
-    "nodejs-target-id-source-name-synthesis": 2,
-    "nodejs-target-member-name-source-copy": 2,
-    "nodejs-target-id-signature-slice": 1,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node assert target and unsupported identities as canonical metadata rows instead of deriving them from export names and signature strings."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/crypto.ts", {
-    "nodejs-target-member-name-source-copy": 2,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node crypto source and target member names explicitly in metadata rows."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/filesystem/calls.ts", {
-    "nodejs-target-id-source-name-synthesis": 1,
-    "nodejs-target-member-name-source-copy": 2,
-    "nodejs-target-id-signature-slice": 1,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node fs target member identities and names explicitly instead of deriving them from export names and signature strings."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/os.ts", {
-    "nodejs-target-id-source-name-synthesis": 2,
-    "nodejs-target-member-name-source-copy": 4,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node os target member identities and names explicitly in provider metadata rows."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/path/calls.ts", {
-    "nodejs-target-id-source-name-synthesis": 1,
-    "nodejs-target-member-name-source-copy": 2,
-    "nodejs-target-id-signature-slice": 1,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node path call target member identities and names explicitly instead of deriving them from export names and signature strings."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/path/properties.ts", {
-    "nodejs-target-id-source-name-synthesis": 1,
-    "nodejs-target-member-name-source-copy": 2,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node path property target member identities and names explicitly in provider metadata rows."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/process.ts", {
-    "nodejs-target-id-source-name-synthesis": 1,
-    "nodejs-target-member-name-source-copy": 5,
-    "nodejs-local-export-member-filter": 2,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node process target member names and class-member grouping as canonical metadata rows."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/url/declarations.ts", {
-    "nodejs-local-export-member-filter": 2,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node URL unsupported class-member grouping through canonical provider metadata rows instead of export-name filters."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/url/helpers.ts", {
-    "nodejs-target-id-signature-slice": 1,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node URL target identity parameters explicitly instead of slicing provider signature ids."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/url/target-members.ts", {
-    "nodejs-target-id-source-name-synthesis": 3,
-    "nodejs-target-member-name-source-copy": 5,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node URL target member identities and names explicitly in provider metadata rows."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/url/unsupported.ts", {
-    "nodejs-target-id-source-name-synthesis": 2,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node URL unsupported target identities explicitly instead of deriving them from export/member names."),
-  entry("src/source/csharp-source-semantics/surfaces/nodejs/util.ts", {
-    "nodejs-target-id-source-name-synthesis": 2,
-    "nodejs-target-member-name-source-copy": 2,
-    "nodejs-target-id-signature-slice": 2,
-  }, "provider-metadata-candidate", "surface-provider", "Declare Node util target and unsupported identities as canonical metadata rows instead of deriving them from export names and signature strings."),
-]);
+export const analysisAbstractionDebtCatalog = Object.freeze([]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
   return sourceFiles(join(repoRoot, "src")).flatMap((filePath) => {

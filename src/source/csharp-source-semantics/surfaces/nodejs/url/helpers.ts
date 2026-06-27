@@ -58,7 +58,3 @@ export function nodeUrlUnknownParameter(name: string): ProviderParameterDeclarat
     type: unknownProviderType,
   };
 }
-
-export function nodeUrlSignatureParameters(signatureId: string, prefix: string): string {
-  return signatureId.slice(prefix.length + 1, -1);
-}

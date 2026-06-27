@@ -58,65 +58,67 @@ export function nodePathCallTargetMembers(): readonly NodePathCallTargetMember[]
   const stringParameter = (name: string) => ({ name, type: stringProviderType });
   const optionalStringParameter = (name: string) => ({ name, type: stringProviderType, optional: true });
   return [
-    pathCall("basename", "node:path.basename(System.String,System.String)", [stringParameter("path"), optionalStringParameter("suffix")], stringProviderType, [
+    pathCall("basename", "node:path.basename(System.String,System.String)", "Tsonic.CSharp.Node.path.basename(System.String,System.String)", "basename", [stringParameter("path"), optionalStringParameter("suffix")], stringProviderType, [
       targetParameter("path", stringTargetType),
       targetParameter("suffix", stringTargetType, { optional: true }),
     ], stringTargetType),
-    pathCall("dirname", "node:path.dirname(System.String)", [stringParameter("path")], stringProviderType, [
+    pathCall("dirname", "node:path.dirname(System.String)", "Tsonic.CSharp.Node.path.dirname(System.String)", "dirname", [stringParameter("path")], stringProviderType, [
       targetParameter("path", stringTargetType),
     ], stringTargetType),
-    pathCall("extname", "node:path.extname(System.String)", [stringParameter("path")], stringProviderType, [
+    pathCall("extname", "node:path.extname(System.String)", "Tsonic.CSharp.Node.path.extname(System.String)", "extname", [stringParameter("path")], stringProviderType, [
       targetParameter("path", stringTargetType),
     ], stringTargetType),
-    pathCall("isAbsolute", "node:path.isAbsolute(System.String)", [stringParameter("path")], boolProviderType, [
+    pathCall("isAbsolute", "node:path.isAbsolute(System.String)", "Tsonic.CSharp.Node.path.isAbsolute(System.String)", "isAbsolute", [stringParameter("path")], boolProviderType, [
       targetParameter("path", stringTargetType),
     ], boolTargetType),
-    pathCall(nodePathJoinExportName, nodePathJoinSignatureId, [stringRestParameter], stringProviderType, [
+    pathCall(nodePathJoinExportName, nodePathJoinSignatureId, "Tsonic.CSharp.Node.path.join(System.String[])", "join", [stringRestParameter], stringProviderType, [
       targetParameter("paths", stringTargetType, { paramsArray: true }),
     ], stringTargetType),
-    pathCall("matchesGlob", "node:path.matchesGlob(System.String,System.String)", [stringParameter("path"), stringParameter("pattern")], boolProviderType, [
+    pathCall("matchesGlob", "node:path.matchesGlob(System.String,System.String)", "Tsonic.CSharp.Node.path.matchesGlob(System.String,System.String)", "matchesGlob", [stringParameter("path"), stringParameter("pattern")], boolProviderType, [
       targetParameter("path", stringTargetType),
       targetParameter("pattern", stringTargetType),
     ], boolTargetType),
-    pathCall("normalize", "node:path.normalize(System.String)", [stringParameter("path")], stringProviderType, [
+    pathCall("normalize", "node:path.normalize(System.String)", "Tsonic.CSharp.Node.path.normalize(System.String)", "normalize", [stringParameter("path")], stringProviderType, [
       targetParameter("path", stringTargetType),
     ], stringTargetType),
-    pathCall("parse", "node:path.parse(System.String)", [stringParameter("path")], parsedPathProviderType, [
+    pathCall("parse", "node:path.parse(System.String)", "Tsonic.CSharp.Node.path.parse(System.String)", "parse", [stringParameter("path")], parsedPathProviderType, [
       targetParameter("path", stringTargetType),
     ], parsedPathTargetType),
-    pathCall("relative", "node:path.relative(System.String,System.String)", [stringParameter("from"), stringParameter("to")], stringProviderType, [
+    pathCall("relative", "node:path.relative(System.String,System.String)", "Tsonic.CSharp.Node.path.relative(System.String,System.String)", "relative", [stringParameter("from"), stringParameter("to")], stringProviderType, [
       targetParameter("from", stringTargetType),
       targetParameter("to", stringTargetType),
     ], stringTargetType),
-    pathCall("resolve", "node:path.resolve(System.String[])", [stringRestParameter], stringProviderType, [
+    pathCall("resolve", "node:path.resolve(System.String[])", "Tsonic.CSharp.Node.path.resolve(System.String[])", "resolve", [stringRestParameter], stringProviderType, [
       targetParameter("paths", stringTargetType, { paramsArray: true }),
     ], stringTargetType),
-    pathCall("toNamespacedPath", "node:path.toNamespacedPath(System.String)", [stringParameter("path")], stringProviderType, [
+    pathCall("toNamespacedPath", "node:path.toNamespacedPath(System.String)", "Tsonic.CSharp.Node.path.toNamespacedPath(System.String)", "toNamespacedPath", [stringParameter("path")], stringProviderType, [
       targetParameter("path", stringTargetType),
     ], stringTargetType),
-    pathCall("format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)", [{ name: "pathObject", type: parsedPathProviderType }], stringProviderType, [
+    pathCall("format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)", "Tsonic.CSharp.Node.path.format(Tsonic.CSharp.Node.ParsedPath)", "format", [{ name: "pathObject", type: parsedPathProviderType }], stringProviderType, [
       targetParameter("pathObject", parsedPathTargetType),
     ], stringTargetType),
   ];
 }
 
 function pathCall(
-  exportName: string,
+  sourceName: string,
   signatureId: string,
+  targetMemberId: string,
+  targetName: string,
   providerParameters: readonly NodePathProviderParameter[],
   providerReturnType: ProviderTypeExpression,
   targetParameters: readonly ReturnType<typeof targetParameter>[],
   targetReturnType: TargetTypeRef,
 ): NodePathCallTargetMember {
   return {
-    exportName,
+    exportName: sourceName,
     signatureId,
     providerParameters,
     providerReturnType,
     member: {
-      id: `Tsonic.CSharp.Node.path.${exportName}(${signatureId.slice("node:path.".length + exportName.length + 1, -1)})`,
-      sourceName: exportName,
-      targetName: exportName,
+      id: targetMemberId,
+      sourceName,
+      targetName,
       kind: "method",
       parameters: targetParameters,
       returnType: targetReturnType,

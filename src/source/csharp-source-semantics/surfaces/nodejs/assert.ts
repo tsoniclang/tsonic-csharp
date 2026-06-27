@@ -37,6 +37,8 @@ const assertTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.assert", unde
 export interface NodeAssertCallTargetMember {
   readonly exportName: string;
   readonly signatureId: string;
+  readonly targetMemberId: string;
+  readonly targetName: string;
   readonly providerParameters: readonly ProviderParameterDeclaration[];
   readonly providerReturnType: ProviderTypeExpression;
   readonly member: TargetMember;
@@ -90,26 +92,29 @@ export function nodeAssertExports(): readonly ProviderExportDeclaration[] {
 }
 
 export function nodeAssertUnsupportedTargetIdentities(): readonly NodeAssertUnsupportedTargetIdentity[] {
-  return nodeAssertUnsupportedCalls.map(({ exportName, signatureId }) =>
-    unsupportedAssertTargetIdentity(exportName, signatureId)
-  );
+  return nodeAssertUnsupportedCalls.map(({ exportName, signatureId, targetIdentityId, displayName }) => ({
+    exportName,
+    signatureId,
+    targetIdentityId,
+    displayName,
+  }));
 }
 
 export function nodeAssertCallTargetMembers(): readonly NodeAssertCallTargetMember[] {
   return [
-    assertCall(nodeAssertOkExportName, nodeAssertOkSignatureId, [
+    assertCall(nodeAssertOkExportName, nodeAssertOkSignatureId, "Tsonic.CSharp.Node.assert.ok(System.Boolean,System.String)", "ok", [
       boolParameter("value"),
       stringParameter("message", true),
     ], voidProviderType, [
       targetParameter("value", boolTargetType),
       targetParameter("message", stringTargetType, { optional: true }),
     ], voidTargetType),
-    assertCall(nodeAssertFailExportName, nodeAssertFailSignatureId, [
+    assertCall(nodeAssertFailExportName, nodeAssertFailSignatureId, "Tsonic.CSharp.Node.assert.fail(System.String)", "fail", [
       stringParameter("message", true),
     ], voidProviderType, [
       targetParameter("message", stringTargetType, { optional: true }),
     ], voidTargetType),
-    assertCall(nodeAssertStrictEqualExportName, nodeAssertStrictEqualSignatureId, [
+    assertCall(nodeAssertStrictEqualExportName, nodeAssertStrictEqualSignatureId, "Tsonic.CSharp.Node.assert.strictEqual(System.Object,System.Object,System.String)", "strictEqual", [
       unknownParameter("actual"),
       unknownParameter("expected"),
       stringParameter("message", true),
@@ -118,7 +123,7 @@ export function nodeAssertCallTargetMembers(): readonly NodeAssertCallTargetMemb
       targetParameter("expected", objectTargetType),
       targetParameter("message", stringTargetType, { optional: true }),
     ], voidTargetType),
-    assertCall(nodeAssertNotStrictEqualExportName, nodeAssertNotStrictEqualSignatureId, [
+    assertCall(nodeAssertNotStrictEqualExportName, nodeAssertNotStrictEqualSignatureId, "Tsonic.CSharp.Node.assert.notStrictEqual(System.Object,System.Object,System.String)", "notStrictEqual", [
       unknownParameter("actual"),
       unknownParameter("expected"),
       stringParameter("message", true),
@@ -144,18 +149,6 @@ function unsupportedAssertFunction(
       parameters,
       returnType: voidProviderType,
     }],
-  };
-}
-
-function unsupportedAssertTargetIdentity(
-  exportName: string,
-  signatureId: string,
-): NodeAssertUnsupportedTargetIdentity {
-  return {
-    exportName,
-    signatureId,
-    targetIdentityId: `unsupported:Tsonic.CSharp.Node.assert.${exportName}(${signatureParameters(signatureId, exportName)})`,
-    displayName: `unsupported NodeJS assert.${exportName}`,
   };
 }
 
@@ -207,22 +200,26 @@ function callbackParameter(name: string): ProviderParameterDeclaration {
 }
 
 function assertCall(
-  exportName: string,
+  sourceName: string,
   signatureId: string,
+  targetMemberId: string,
+  targetName: string,
   providerParameters: readonly ProviderParameterDeclaration[],
   providerReturnType: ProviderTypeExpression,
   targetParameters: readonly TargetParameter[],
   targetReturnType: TargetTypeRef,
 ): NodeAssertCallTargetMember {
   return {
-    exportName,
+    exportName: sourceName,
     signatureId,
+    targetMemberId,
+    targetName,
     providerParameters,
     providerReturnType,
     member: {
-      id: `Tsonic.CSharp.Node.assert.${exportName}(${signatureParameters(signatureId, exportName)})`,
-      sourceName: exportName,
-      targetName: exportName,
+      id: targetMemberId,
+      sourceName,
+      targetName,
       kind: "method",
       parameters: targetParameters,
       returnType: targetReturnType,
@@ -230,10 +227,6 @@ function assertCall(
       static: true,
     },
   };
-}
-
-function signatureParameters(signatureId: string, exportName: string): string {
-  return signatureId.slice(`node:assert.${exportName}(`.length, -1);
 }
 
 const equalityAssertParameters = [
@@ -246,21 +239,29 @@ const nodeAssertUnsupportedCalls = [
   {
     exportName: nodeAssertEqualExportName,
     signatureId: nodeAssertEqualSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.assert.equal(System.Object,System.Object,System.String)",
+    displayName: "unsupported NodeJS assert.equal",
     parameters: equalityAssertParameters,
   },
   {
     exportName: nodeAssertNotEqualExportName,
     signatureId: nodeAssertNotEqualSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.assert.notEqual(System.Object,System.Object,System.String)",
+    displayName: "unsupported NodeJS assert.notEqual",
     parameters: equalityAssertParameters,
   },
   {
     exportName: nodeAssertDeepStrictEqualExportName,
     signatureId: nodeAssertDeepStrictEqualSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.assert.deepStrictEqual(System.Object,System.Object,System.String)",
+    displayName: "unsupported NodeJS assert.deepStrictEqual",
     parameters: equalityAssertParameters,
   },
   {
     exportName: nodeAssertThrowsExportName,
     signatureId: nodeAssertThrowsSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.assert.throws(Function,System.String)",
+    displayName: "unsupported NodeJS assert.throws",
     parameters: [
       callbackParameter("fn"),
       stringParameter("message", true),
@@ -269,6 +270,8 @@ const nodeAssertUnsupportedCalls = [
   {
     exportName: nodeAssertMatchExportName,
     signatureId: nodeAssertMatchSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.assert.match(System.String,System.Object,System.String)",
+    displayName: "unsupported NodeJS assert.match",
     parameters: [
       stringParameter("string"),
       unknownParameter("regexp"),
@@ -278,6 +281,8 @@ const nodeAssertUnsupportedCalls = [
   {
     exportName: nodeAssertIfErrorExportName,
     signatureId: nodeAssertIfErrorSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.assert.ifError(System.Object)",
+    displayName: "unsupported NodeJS assert.ifError",
     parameters: [
       unknownParameter("value"),
     ],
@@ -285,6 +290,8 @@ const nodeAssertUnsupportedCalls = [
 ] satisfies readonly {
   readonly exportName: string;
   readonly signatureId: string;
+  readonly targetIdentityId: string;
+  readonly displayName: string;
   readonly parameters: readonly ProviderParameterDeclaration[];
 }[];
 

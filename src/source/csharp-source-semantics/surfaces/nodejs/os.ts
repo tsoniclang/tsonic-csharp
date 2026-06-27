@@ -28,12 +28,16 @@ const osTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.os", undefined, c
 interface NodeOsCallTargetMember {
   readonly exportName: string;
   readonly signatureId: string;
+  readonly targetMemberId: string;
+  readonly targetName: string;
   readonly providerReturnType: ProviderTypeExpression;
   readonly member: TargetMember;
 }
 
 interface NodeOsPropertyTargetMember {
   readonly exportName: string;
+  readonly targetMemberId: string;
+  readonly targetName: string;
   readonly providerType: ProviderTypeExpression;
   readonly member: TargetMember;
 }
@@ -108,21 +112,21 @@ export function nodeOsCallTargetMembers(): readonly {
   readonly member: TargetMember;
 }[] {
   return [
-    osCall("arch", "node:os.arch()", stringProviderType, stringTargetType),
-    osCall("availableParallelism", "node:os.availableParallelism()", numberProviderType, intTargetType),
-    osCall("endianness", "node:os.endianness()", stringProviderType, stringTargetType),
-    osCall("freemem", "node:os.freemem()", numberProviderType, longTargetType),
-    osCall(nodeOsHomedirExportName, nodeOsHomedirSignatureId, stringProviderType, stringTargetType),
-    osCall("hostname", "node:os.hostname()", stringProviderType, stringTargetType),
-    osCall("loadavg", "node:os.loadavg()", { kind: "array", elementType: numberProviderType }, { kind: "array", element: doubleTargetType }),
-    osCall("machine", "node:os.machine()", stringProviderType, stringTargetType),
-    osCall(nodeOsPlatformExportName, nodeOsPlatformSignatureId, stringProviderType, stringTargetType),
-    osCall("release", "node:os.release()", stringProviderType, stringTargetType),
-    osCall("tmpdir", "node:os.tmpdir()", stringProviderType, stringTargetType),
-    osCall("totalmem", "node:os.totalmem()", numberProviderType, longTargetType),
-    osCall("type", "node:os.type()", stringProviderType, stringTargetType),
-    osCall("uptime", "node:os.uptime()", numberProviderType, longTargetType),
-    osCall("version", "node:os.version()", stringProviderType, stringTargetType),
+    osCall("arch", "node:os.arch()", "Tsonic.CSharp.Node.os.arch()", "arch", stringProviderType, stringTargetType),
+    osCall("availableParallelism", "node:os.availableParallelism()", "Tsonic.CSharp.Node.os.availableParallelism()", "availableParallelism", numberProviderType, intTargetType),
+    osCall("endianness", "node:os.endianness()", "Tsonic.CSharp.Node.os.endianness()", "endianness", stringProviderType, stringTargetType),
+    osCall("freemem", "node:os.freemem()", "Tsonic.CSharp.Node.os.freemem()", "freemem", numberProviderType, longTargetType),
+    osCall(nodeOsHomedirExportName, nodeOsHomedirSignatureId, "Tsonic.CSharp.Node.os.homedir()", "homedir", stringProviderType, stringTargetType),
+    osCall("hostname", "node:os.hostname()", "Tsonic.CSharp.Node.os.hostname()", "hostname", stringProviderType, stringTargetType),
+    osCall("loadavg", "node:os.loadavg()", "Tsonic.CSharp.Node.os.loadavg()", "loadavg", { kind: "array", elementType: numberProviderType }, { kind: "array", element: doubleTargetType }),
+    osCall("machine", "node:os.machine()", "Tsonic.CSharp.Node.os.machine()", "machine", stringProviderType, stringTargetType),
+    osCall(nodeOsPlatformExportName, nodeOsPlatformSignatureId, "Tsonic.CSharp.Node.os.platform()", "platform", stringProviderType, stringTargetType),
+    osCall("release", "node:os.release()", "Tsonic.CSharp.Node.os.release()", "release", stringProviderType, stringTargetType),
+    osCall("tmpdir", "node:os.tmpdir()", "Tsonic.CSharp.Node.os.tmpdir()", "tmpdir", stringProviderType, stringTargetType),
+    osCall("totalmem", "node:os.totalmem()", "Tsonic.CSharp.Node.os.totalmem()", "totalmem", numberProviderType, longTargetType),
+    osCall("type", "node:os.type()", "Tsonic.CSharp.Node.os.type()", "type", stringProviderType, stringTargetType),
+    osCall("uptime", "node:os.uptime()", "Tsonic.CSharp.Node.os.uptime()", "uptime", numberProviderType, longTargetType),
+    osCall("version", "node:os.version()", "Tsonic.CSharp.Node.os.version()", "version", stringProviderType, stringTargetType),
   ];
 }
 
@@ -132,25 +136,29 @@ export function nodeOsPropertyTargetMembers(): readonly {
   readonly member: TargetMember;
 }[] {
   return [
-    osProperty("EOL", stringProviderType, stringTargetType),
-    osProperty("devNull", stringProviderType, stringTargetType),
+    osProperty("EOL", "Tsonic.CSharp.Node.os.EOL", "EOL", stringProviderType, stringTargetType),
+    osProperty("devNull", "Tsonic.CSharp.Node.os.devNull", "devNull", stringProviderType, stringTargetType),
   ];
 }
 
 function osCall(
-  exportName: string,
+  sourceName: string,
   signatureId: string,
+  targetMemberId: string,
+  targetName: string,
   providerReturnType: ProviderTypeExpression,
   targetReturnType: TargetTypeRef,
 ): NodeOsCallTargetMember {
   return {
-    exportName,
+    exportName: sourceName,
     signatureId,
+    targetMemberId,
+    targetName,
     providerReturnType,
     member: {
-      id: `Tsonic.CSharp.Node.os.${exportName}()`,
-      sourceName: exportName,
-      targetName: exportName,
+      id: targetMemberId,
+      sourceName,
+      targetName,
       kind: "method",
       parameters: [],
       returnType: targetReturnType,
@@ -161,17 +169,21 @@ function osCall(
 }
 
 function osProperty(
-  exportName: string,
+  sourceName: string,
+  targetMemberId: string,
+  targetName: string,
   providerType: ProviderTypeExpression,
   targetType: TargetTypeRef,
 ): NodeOsPropertyTargetMember {
   return {
-    exportName,
+    exportName: sourceName,
+    targetMemberId,
+    targetName,
     providerType,
     member: {
-      id: `Tsonic.CSharp.Node.os.${exportName}`,
-      sourceName: exportName,
-      targetName: exportName,
+      id: targetMemberId,
+      sourceName,
+      targetName,
       kind: "property",
       parameters: [],
       returnType: targetType,

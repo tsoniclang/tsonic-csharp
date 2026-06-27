@@ -32,6 +32,8 @@ const utilTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.util", undefine
 interface NodeUtilCallTargetMember {
   readonly exportName: string;
   readonly signatureId: string;
+  readonly targetMemberId: string;
+  readonly targetName: string;
   readonly providerParameters: readonly ProviderParameterDeclaration[];
   readonly providerReturnType: ProviderTypeExpression;
   readonly member: TargetMember;
@@ -81,26 +83,23 @@ export function nodeUtilExports(): readonly ProviderExportDeclaration[] {
 }
 
 export function nodeUtilUnsupportedTargetIdentities(): readonly NodeUtilUnsupportedTargetIdentity[] {
-  return nodeUtilUnsupportedCalls.map(({ exportName, signatureId }) =>
-    unsupportedUtilTargetIdentity(exportName, signatureId)
-  );
+  return nodeUtilUnsupportedCalls.map(({ exportName, signatureId, targetIdentityId, displayName }) => ({
+    exportName,
+    signatureId,
+    targetIdentityId,
+    displayName,
+  }));
 }
 
-export function nodeUtilCallTargetMembers(): readonly {
-  readonly exportName: string;
-  readonly signatureId: string;
-  readonly providerParameters: readonly ProviderParameterDeclaration[];
-  readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}[] {
+export function nodeUtilCallTargetMembers(): readonly NodeUtilCallTargetMember[] {
   const stringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType });
   return [
-    utilCall(nodeUtilStripVtControlCharactersExportName, nodeUtilStripVtControlCharactersSignatureId, [
+    utilCall(nodeUtilStripVtControlCharactersExportName, nodeUtilStripVtControlCharactersSignatureId, "Tsonic.CSharp.Node.util.stripVTControlCharacters(System.String)", "stripVTControlCharacters", [
       stringParameter("str"),
     ], stringProviderType, [
       targetParameter("input", stringTargetType),
     ], stringTargetType),
-    utilCall(nodeUtilToUsvStringExportName, nodeUtilToUsvStringSignatureId, [
+    utilCall(nodeUtilToUsvStringExportName, nodeUtilToUsvStringSignatureId, "Tsonic.CSharp.Node.util.toUSVString(System.String)", "toUSVString", [
       stringParameter("string"),
     ], stringProviderType, [
       targetParameter("input", stringTargetType),
@@ -122,18 +121,6 @@ function unsupportedUtilFunction(
       parameters,
       returnType: unsupportedUtilReturnType(exportName, signatureId),
     }],
-  };
-}
-
-function unsupportedUtilTargetIdentity(
-  exportName: string,
-  signatureId: string,
-): NodeUtilUnsupportedTargetIdentity {
-  return {
-    exportName,
-    signatureId,
-    targetIdentityId: `unsupported:Tsonic.CSharp.Node.util.${exportName}(${signatureId.slice("node:util.".length + exportName.length + 1, -1)})`,
-    displayName: `unsupported NodeJS util.${exportName}`,
   };
 }
 
@@ -199,22 +186,26 @@ function unknownRestParameter(name: string): ProviderParameterDeclaration {
 }
 
 function utilCall(
-  exportName: string,
+  sourceName: string,
   signatureId: string,
+  targetMemberId: string,
+  targetName: string,
   providerParameters: readonly ProviderParameterDeclaration[],
   providerReturnType: ProviderTypeExpression,
   targetParameters: readonly TargetParameter[],
   targetReturnType: TargetTypeRef,
 ): NodeUtilCallTargetMember {
   return {
-    exportName,
+    exportName: sourceName,
     signatureId,
+    targetMemberId,
+    targetName,
     providerParameters,
     providerReturnType,
     member: {
-      id: `Tsonic.CSharp.Node.util.${exportName}(${signatureId.slice("node:util.".length + exportName.length + 1, -1)})`,
-      sourceName: exportName,
-      targetName: exportName,
+      id: targetMemberId,
+      sourceName,
+      targetName,
       kind: "method",
       parameters: targetParameters,
       returnType: targetReturnType,
@@ -228,6 +219,8 @@ const nodeUtilUnsupportedCalls = [
   {
     exportName: nodeUtilFormatExportName,
     signatureId: nodeUtilFormatSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])",
+    displayName: "unsupported NodeJS util.format",
     parameters: [
       unknownParameter("format", true),
       unknownRestParameter("args"),
@@ -237,6 +230,8 @@ const nodeUtilUnsupportedCalls = [
   {
     exportName: nodeUtilFormatWithOptionsExportName,
     signatureId: nodeUtilFormatWithOptionsSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.formatWithOptions(System.Object,System.Object,System.Object[])",
+    displayName: "unsupported NodeJS util.formatWithOptions",
     parameters: [
       unknownParameter("inspectOptions"),
       unknownParameter("formatValue"),
@@ -247,6 +242,8 @@ const nodeUtilUnsupportedCalls = [
   {
     exportName: nodeUtilInspectExportName,
     signatureId: nodeUtilInspectSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.inspect(System.Object)",
+    displayName: "unsupported NodeJS util.inspect",
     parameters: [
       unknownParameter("object"),
     ],
@@ -255,6 +252,8 @@ const nodeUtilUnsupportedCalls = [
   {
     exportName: nodeUtilDebuglogExportName,
     signatureId: nodeUtilDebuglogSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.debuglog(System.String)",
+    displayName: "unsupported NodeJS util.debuglog",
     parameters: [
       stringParameter("section"),
     ],
@@ -263,6 +262,8 @@ const nodeUtilUnsupportedCalls = [
   {
     exportName: nodeUtilDeprecateExportName,
     signatureId: nodeUtilDeprecateSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.deprecate(Function,System.String,System.String)",
+    displayName: "unsupported NodeJS util.deprecate",
     parameters: [
       callbackParameter("fn"),
       stringParameter("msg"),
@@ -273,6 +274,8 @@ const nodeUtilUnsupportedCalls = [
   {
     exportName: nodeUtilIsDeepStrictEqualExportName,
     signatureId: nodeUtilIsDeepStrictEqualSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.isDeepStrictEqual(System.Object,System.Object)",
+    displayName: "unsupported NodeJS util.isDeepStrictEqual",
     parameters: [
       unknownParameter("val1"),
       unknownParameter("val2"),
@@ -282,6 +285,8 @@ const nodeUtilUnsupportedCalls = [
 ] satisfies readonly {
   readonly exportName: string;
   readonly signatureId: string;
+  readonly targetIdentityId: string;
+  readonly displayName: string;
   readonly parameters: readonly ProviderParameterDeclaration[];
   readonly returnType: ProviderTypeExpression;
 }[];

@@ -19,8 +19,10 @@ import type {
   NodeUrlClassPropertyTargetMember,
 } from "./types.js";
 import {
-  nodeUrlUnsupportedClassMemberDeclarations,
   nodeUrlUnsupportedFunctionDeclarations,
+  nodeUrlUrlPatternUnsupportedClassMemberDeclarations,
+  nodeUrlUrlSearchParamsUnsupportedClassMemberDeclarations,
+  nodeUrlUrlUnsupportedClassMemberDeclarations,
 } from "./unsupported.js";
 import type {
   NodeUrlUnsupportedClassMemberDeclaration,
@@ -75,29 +77,29 @@ function nodeUrlUrlExportDeclaration(): ProviderExportDeclaration {
     members: [
       ...nodeUrlClassCallTargetMembers().map(providerMemberForUrlClassCall),
       ...nodeUrlClassPropertyTargetMembers().map(providerMemberForUrlClassProperty),
-      ...nodeUrlUnsupportedClassMemberDeclarations()
-        .filter((member) => member.exportName === nodeUrlUrlExportName)
+      ...nodeUrlUrlUnsupportedClassMemberDeclarations()
         .map(providerMemberForUnsupportedUrlClassMember),
     ],
   };
 }
 
 function nodeUrlUrlSearchParamsExportDeclaration(): ProviderExportDeclaration {
-  return unsupportedClassExportDeclaration("URLSearchParams");
+  return unsupportedClassExportDeclaration("URLSearchParams", nodeUrlUrlSearchParamsUnsupportedClassMemberDeclarations());
 }
 
 function nodeUrlUrlPatternExportDeclaration(): ProviderExportDeclaration {
-  return unsupportedClassExportDeclaration("URLPattern");
+  return unsupportedClassExportDeclaration("URLPattern", nodeUrlUrlPatternUnsupportedClassMemberDeclarations());
 }
 
-function unsupportedClassExportDeclaration(exportName: string): ProviderExportDeclaration {
+function unsupportedClassExportDeclaration(
+  exportName: string,
+  members: readonly NodeUrlUnsupportedClassMemberDeclaration[],
+): ProviderExportDeclaration {
   return {
     id: `node:url.${exportName}`,
     name: exportName,
     kind: "class",
-    members: nodeUrlUnsupportedClassMemberDeclarations()
-      .filter((member) => member.exportName === exportName)
-      .map(providerMemberForUnsupportedUrlClassMember),
+    members: members.map(providerMemberForUnsupportedUrlClassMember),
   };
 }
 

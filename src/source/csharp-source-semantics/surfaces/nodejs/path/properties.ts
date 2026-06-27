@@ -29,23 +29,25 @@ export function getNodePathPropertyTargetMember(exportName: string | undefined):
 
 export function nodePathPropertyTargetMembers(): readonly NodePathPropertyTargetMember[] {
   return [
-    pathProperty("sep", stringProviderType, stringTargetType),
-    pathProperty("delimiter", stringProviderType, stringTargetType),
+    pathProperty("sep", "Tsonic.CSharp.Node.path.sep", "sep", stringProviderType, stringTargetType),
+    pathProperty("delimiter", "Tsonic.CSharp.Node.path.delimiter", "delimiter", stringProviderType, stringTargetType),
   ];
 }
 
 function pathProperty(
-  exportName: string,
+  sourceName: string,
+  targetMemberId: string,
+  targetName: string,
   providerType: ProviderTypeExpression,
   targetType: TargetTypeRef,
 ): NodePathPropertyTargetMember {
   return {
-    exportName,
+    exportName: sourceName,
     providerType,
     member: {
-      id: `Tsonic.CSharp.Node.path.${exportName}`,
-      sourceName: exportName,
-      targetName: exportName,
+      id: targetMemberId,
+      sourceName,
+      targetName,
       kind: "property",
       parameters: [],
       returnType: targetType,
