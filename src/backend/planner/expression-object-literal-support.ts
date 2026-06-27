@@ -20,6 +20,9 @@ import type {
   CsharpObjectShapeFact,
 } from "../../source/csharp-facts.js";
 import {
+  resolveCsharpObjectShapeMemberByFinalizedSourceName,
+} from "../../source/csharp-facts.js";
+import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
@@ -41,7 +44,8 @@ export function findObjectShapeMember(
   objectShape: CsharpObjectShapeFact,
   sourceName: string,
 ): CsharpObjectShapeFact["members"][number] | undefined {
-  return objectShape.members.find((member) => member.sourceName === sourceName);
+  const lookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, sourceName, "checked-object-literal-property");
+  return lookup.kind === "resolved" ? lookup.member : undefined;
 }
 
 export function mergeObjectInitializerAssignments(

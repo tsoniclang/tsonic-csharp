@@ -9,6 +9,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpTargetOperationFactKey,
+  resolveCsharpObjectShapeMemberByFinalizedSourceName,
 } from "../../csharp-facts.js";
 import {
   asNodeSubject,
@@ -71,10 +72,14 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
       }
       const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(receiver, context) ??
         host.getRecordedCsharpObjectShapeFactForSubject(getSymbolForDeclarationLookup(compiler.ast, compiler.checker, receiver, sourceFile), context);
-      const member = objectShape?.members.find((candidate) => candidate.sourceName === propertyName);
-      if (objectShape === undefined || member === undefined) {
+      if (objectShape === undefined) {
         return;
       }
+      const memberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, propertyName, "checked-property-access");
+      if (memberLookup.kind !== "resolved") {
+        return;
+      }
+      const member = memberLookup.member;
       const operationId = `tsonic.csharp.objectShape.${propertyName}`;
       lifecycleContext.host.facts.set(node, targetOperationFactKey, targetOperation(
         operationId,

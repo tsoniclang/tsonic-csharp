@@ -12,6 +12,9 @@ import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
 import {
+  resolveCsharpObjectShapeMemberByFinalizedSourceName,
+} from "../../csharp-facts.js";
+import {
   asNodeSubject,
   visitAstReaderNodes,
 } from "../ast-utils.js";
@@ -46,10 +49,11 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
   if (objectShape === undefined) {
     return undefined;
   }
-  const member = objectShape.members.find((candidate) => candidate.sourceName === request.propertyName);
-  if (member === undefined) {
+  const memberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, request.propertyName, "checked-property-access");
+  if (memberLookup.kind !== "resolved") {
     return undefined;
   }
+  const member = memberLookup.member;
   const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
   if (existingOperation !== undefined) {
     return acceptObservation<CheckedOperationMappingResult>({

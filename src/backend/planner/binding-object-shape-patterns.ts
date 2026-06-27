@@ -20,6 +20,10 @@ import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
 import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
 import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
+import {
+  csharpObjectShapeMemberLookupFailureMessage,
+  resolveCsharpObjectShapeMemberByFinalizedSourceName,
+} from "../../source/csharp-facts.js";
 
 export function planObjectShapeBindingPattern(
   patternNode: Node,
@@ -70,13 +74,16 @@ function planObjectShapeBindingElement(
     return [];
   }
   const sourceName = getObjectShapeBindingPropertySourceName(elementNode, input, diagnostics);
-  const member = sourceName === undefined
-    ? undefined
-    : objectShape.members.find((candidate) => candidate.sourceName === sourceName);
-  if (member === undefined) {
+  if (sourceName === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Object destructuring property must match a finalized provider object-shape member."));
     return [];
   }
+  const memberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, sourceName, "checked-object-binding-property");
+  if (memberLookup.kind !== "resolved") {
+    diagnostics.push(unsupportedNodeDiagnostic(elementNode, csharpObjectShapeMemberLookupFailureMessage(memberLookup, "Object destructuring property")));
+    return [];
+  }
+  const member = memberLookup.member;
   const projectedType = csharpTypeFromTargetTypeRef(member.type);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
@@ -116,17 +123,20 @@ function planObjectShapeRestBindingElement(
   if (restType === undefined) {
     return [];
   }
-  const staleRestMember = restShape.members.find((member) => explicitlyExtractedSourceNames.has(member.sourceName));
-  if (staleRestMember !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring rest shape must exclude explicitly extracted member '${staleRestMember.sourceName}'.`));
-    return [];
+  for (const sourceName of explicitlyExtractedSourceNames) {
+    const staleRestMember = resolveCsharpObjectShapeMemberByFinalizedSourceName(restShape, sourceName, "finalized-object-rest-member");
+    if (staleRestMember.kind === "resolved") {
+      diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring rest shape must exclude explicitly extracted member '${staleRestMember.member.sourceName}'.`));
+      return [];
+    }
   }
   const assignments = restShape.members.map((restMember): CsharpObjectInitializerAssignment | undefined => {
-    const sourceMember = sourceShape.members.find((member) => member.sourceName === restMember.sourceName);
-    if (sourceMember === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring source shape does not provide rest member '${restMember.sourceName}'.`));
+    const sourceMemberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(sourceShape, restMember.sourceName, "finalized-object-rest-member");
+    if (sourceMemberLookup.kind !== "resolved") {
+      diagnostics.push(unsupportedNodeDiagnostic(elementNode, csharpObjectShapeMemberLookupFailureMessage(sourceMemberLookup, "Object rest destructuring source shape")));
       return undefined;
     }
+    const sourceMember = sourceMemberLookup.member;
     if (!targetTypeRefsMatch(sourceMember.type, restMember.type)) {
       diagnostics.push(unsupportedNodeDiagnostic(elementNode, `Object rest destructuring member '${restMember.sourceName}' requires matching finalized source and rest member carriers.`));
       return undefined;

@@ -23,6 +23,9 @@ import type {
 import type {
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
+import {
+  resolveCsharpObjectShapeMemberByFinalizedSourceName,
+} from "../../csharp-facts.js";
 
 export function propagateCsharpRuntimeCarrierFactFromObjectBindingDeclaration(
   lifecycleContext: RuntimeCarrierLifecycleFactsContext,
@@ -70,12 +73,14 @@ function propagateCsharpRuntimeCarrierFactFromObjectBindingElement(
     return;
   }
   const sourceName = getObjectBindingElementSourceName(compiler.ast, node);
-  const member = sourceName === undefined
-    ? undefined
-    : objectShape.members.find((candidate) => candidate.sourceName === sourceName);
-  if (member === undefined) {
+  if (sourceName === undefined) {
     return;
   }
+  const memberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, sourceName, "checked-object-binding-property");
+  if (memberLookup.kind !== "resolved") {
+    return;
+  }
+  const member = memberLookup.member;
   const fact = { carrier: member.type };
   const evidence = [{ message: "C# runtime carrier propagated from finalized object-shape destructuring member facts." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);

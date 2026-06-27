@@ -11,6 +11,9 @@ import type {
   CsharpObjectShapeFact,
 } from "../../csharp-facts.js";
 import {
+  resolveCsharpObjectShapeMemberByFinalizedSourceName,
+} from "../../csharp-facts.js";
+import {
   asNodeSubject,
   getNodeField,
   getNodeList,
@@ -57,12 +60,14 @@ export function recordObjectBindingMemberRuntimeCarriers(
       continue;
     }
     const sourceName = getObjectBindingElementSourceName(compiler.ast, bindingElement);
-    const member = sourceName === undefined
-      ? undefined
-      : objectShape.members.find((candidate) => candidate.sourceName === sourceName);
-    if (member === undefined) {
+    if (sourceName === undefined) {
       continue;
     }
+    const memberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, sourceName, "checked-object-binding-property");
+    if (memberLookup.kind !== "resolved") {
+      continue;
+    }
+    const member = memberLookup.member;
     const fact = { carrier: member.type };
     lifecycleContext.host.facts.set(bindingElement, runtimeCarrierFactKey, fact, evidence);
     lifecycleContext.host.facts.set(bindingName, runtimeCarrierFactKey, fact, evidence);

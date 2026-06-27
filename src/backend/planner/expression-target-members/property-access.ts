@@ -36,6 +36,8 @@ import {
 } from "../expression-selected-target-members.js";
 import {
   isCsharpSourceOwnedPropertyOperation,
+  csharpObjectShapeMemberLookupFailureMessage,
+  resolveCsharpObjectShapeMemberByFinalizedSourceName,
 } from "../../../source/csharp-facts.js";
 import {
   getRequiredCsharpTargetOperation,
@@ -143,11 +145,12 @@ function planObjectShapePropertyAccess(
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
   const expression = AsPropertyAccessExpression(propertyAccess)!;
-  const member = objectShape.members.find((candidate) => candidate.sourceName === sourceName);
-  if (member === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Object-shape property access '${sourceName}' must match a finalized object-shape member before C# emission.`));
+  const memberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(objectShape, sourceName, "checked-property-access");
+  if (memberLookup.kind !== "resolved") {
+    diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, csharpObjectShapeMemberLookupFailureMessage(memberLookup, "Object-shape property access")));
     return undefined;
   }
+  const member = memberLookup.member;
   if (csharpTypeFromTargetTypeRef(member.type) === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
     return undefined;

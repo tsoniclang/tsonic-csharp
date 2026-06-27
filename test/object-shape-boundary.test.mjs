@@ -105,6 +105,42 @@ test("object-shape property access diagnoses missing finalized member evidence",
   assert.match(diagnostics[0].message, /must match a finalized object-shape member/);
 });
 
+test("object-shape property access diagnoses ambiguous finalized member evidence", () => {
+  const receiver = identifier("shape");
+  const access = propertyAccess(receiver, "count");
+  const diagnostics = [];
+
+  const planned = planPropertyAccessExpression(
+    access,
+    {},
+    fakeInput({
+      objectShapeSubject: receiver,
+      objectShape: {
+        targetType: { kind: "target-named", id: "__Shape" },
+        members: [
+          {
+            sourceName: "count",
+            targetName: "Count",
+            memberKind: "property",
+            type: { kind: "source-primitive", name: "int32" },
+          },
+          {
+            sourceName: "count",
+            targetName: "DuplicateCount",
+            memberKind: "property",
+            type: { kind: "source-primitive", name: "int32" },
+          },
+        ],
+      },
+    }),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.equal(planned, undefined);
+  assert.match(diagnostics[0].message, /matched multiple finalized object-shape members/);
+});
+
 test("provider-owned property access without selected operation facts fails closed", () => {
   const receiver = identifier("values");
   const access = propertyAccess(receiver, "add");
