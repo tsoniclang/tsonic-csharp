@@ -22,6 +22,8 @@ import {
   nodeBufferConcatExportName,
   nodeBufferConcatTargetMemberId,
   nodeBufferFromExportName,
+  nodeBufferFromBufferTargetMemberId,
+  nodeBufferFromNumberArrayTargetMemberId,
   nodeBufferFromStringTargetMemberId,
   nodeBufferIsAsciiExportName,
   nodeBufferIsAsciiTargetMemberId,
@@ -51,6 +53,32 @@ export function getNodeBufferFromStringTargetMember(): TargetMember {
       targetParameter("value", nodeBufferStringTargetType),
       targetParameter("encoding", nodeBufferStringTargetType, { optional: true }),
     ],
+    returnType: nodeBufferTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
+}
+
+export function getNodeBufferFromNumberArrayTargetMember(): TargetMember {
+  return {
+    id: nodeBufferFromNumberArrayTargetMemberId,
+    sourceName: nodeBufferFromExportName,
+    targetName: "from",
+    kind: "method",
+    parameters: [targetParameter("array", { kind: "array", element: nodeBufferIntTargetType })],
+    returnType: nodeBufferTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
+}
+
+export function getNodeBufferFromBufferTargetMember(): TargetMember {
+  return {
+    id: nodeBufferFromBufferTargetMemberId,
+    sourceName: nodeBufferFromExportName,
+    targetName: "from",
+    kind: "method",
+    parameters: [targetParameter("buffer", nodeBufferTargetType)],
     returnType: nodeBufferTargetType,
     declaringType: nodeBufferTargetType,
     static: true,

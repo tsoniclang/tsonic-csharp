@@ -33,24 +33,21 @@ export function nodeUrlExports(): readonly ProviderExportDeclaration[] {
     nodeUrlUrlExportDeclaration(),
     nodeUrlUrlSearchParamsExportDeclaration(),
     nodeUrlUrlPatternExportDeclaration(),
-    ...nodeUrlCallExportDeclarations(),
-    ...nodeUrlUnsupportedFunctionDeclarations().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
-      id: `node:url.${exportName}`,
-      name: exportName,
-      kind: "function" as const,
-      signatures: [{
-        id: signatureId,
-        parameters: providerParameters,
-        returnType: providerReturnType,
-      }],
-    })),
+    ...nodeUrlFunctionExportDeclarations(),
   ];
 }
 
-function nodeUrlCallExportDeclarations(): readonly ProviderExportDeclaration[] {
-  const membersByExportName = new Map<string, readonly NodeUrlCallTargetMember[]>();
+function nodeUrlFunctionExportDeclarations(): readonly ProviderExportDeclaration[] {
+  const membersByExportName = new Map<string, readonly {
+    readonly signatureId: string;
+    readonly providerParameters: NodeUrlCallTargetMember["providerParameters"];
+    readonly providerReturnType: NodeUrlCallTargetMember["providerReturnType"];
+  }[]>();
   for (const member of nodeUrlCallTargetMembers()) {
     membersByExportName.set(member.exportName, [...membersByExportName.get(member.exportName) ?? [], member]);
+  }
+  for (const declaration of nodeUrlUnsupportedFunctionDeclarations()) {
+    membersByExportName.set(declaration.exportName, [...membersByExportName.get(declaration.exportName) ?? [], declaration]);
   }
   return [...membersByExportName.entries()].map(([exportName, members]) => ({
     id: `node:url.${exportName}`,
@@ -75,7 +72,7 @@ function nodeUrlUrlExportDeclaration(): ProviderExportDeclaration {
       displayName: "Tsonic.CSharp.Node.URL",
     },
     members: [
-      ...nodeUrlClassCallTargetMembers().map(providerMemberForUrlClassCall),
+      ...providerMembersForUrlClassCalls(nodeUrlClassCallTargetMembers()),
       ...nodeUrlClassPropertyTargetMembers().map(providerMemberForUrlClassProperty),
       ...nodeUrlUrlUnsupportedClassMemberDeclarations()
         .map(providerMemberForUnsupportedUrlClassMember),
@@ -103,18 +100,30 @@ function unsupportedClassExportDeclaration(
   };
 }
 
-function providerMemberForUrlClassCall(member: NodeUrlClassCallTargetMember): ProviderMemberDeclaration {
-  return {
-    id: member.memberId,
-    name: member.memberName,
-    kind: member.memberKind,
-    ...(member.static === true ? { static: true } : {}),
-    signatures: [{
-      id: member.signatureId,
-      parameters: member.providerParameters,
-      ...(member.providerReturnType !== undefined ? { returnType: member.providerReturnType } : {}),
-    }],
-  };
+function providerMembersForUrlClassCalls(
+  members: readonly NodeUrlClassCallTargetMember[],
+): readonly ProviderMemberDeclaration[] {
+  const membersById = new Map<string, readonly NodeUrlClassCallTargetMember[]>();
+  for (const member of members) {
+    membersById.set(member.memberId, [...membersById.get(member.memberId) ?? [], member]);
+  }
+  return [...membersById.values()].map((memberGroup) => {
+    const first = memberGroup[0];
+    if (first === undefined) {
+      throw new Error("Missing C# NodeJS url provider member group.");
+    }
+    return {
+      id: first.memberId,
+      name: first.memberName,
+      kind: first.memberKind,
+      ...(first.static === true ? { static: true } : {}),
+      signatures: memberGroup.map((member) => ({
+        id: member.signatureId,
+        parameters: member.providerParameters,
+        ...(member.providerReturnType !== undefined ? { returnType: member.providerReturnType } : {}),
+      })),
+    };
+  });
 }
 
 function providerMemberForUrlClassProperty(member: NodeUrlClassPropertyTargetMember): ProviderMemberDeclaration {

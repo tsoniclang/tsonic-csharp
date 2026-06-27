@@ -19,6 +19,8 @@ export const boolTargetType = csharpSourcePrimitiveTargetType("bool");
 export const nodePathTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.path", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "path"));
 export const parsedPathProviderType = { kind: "provider-ref", name: "ParsedPath" } satisfies ProviderTypeExpression;
 export const parsedPathTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.ParsedPath", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "ParsedPath"));
+export const pathModuleProviderType = { kind: "provider-ref", name: "PathModule" } satisfies ProviderTypeExpression;
+export const pathModuleTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.PathModule", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "PathModule"));
 
 export interface NodePathProviderParameter {
   readonly name: string;
