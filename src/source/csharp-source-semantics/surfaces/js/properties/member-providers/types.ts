@@ -3,7 +3,6 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
-  SourceLibraryMember,
   SourceLibraryMemberKey,
 } from "../../source-library.js";
 import type {
@@ -46,7 +45,6 @@ export interface JsSurfacePropertyTargetProviderResolver {
 }
 
 export interface JsSurfacePropertyTargetProviderRequest {
-  readonly sourceMember: SourceLibraryMember;
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
   readonly receiverType?: TargetTypeRef;
 }

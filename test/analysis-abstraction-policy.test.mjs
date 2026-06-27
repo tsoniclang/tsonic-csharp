@@ -404,6 +404,33 @@ test("architecture validator rejects raw source members in executable JS target 
     ),
     [],
   );
+
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/types.ts",
+    `
+      export interface Request {
+        readonly sourceMember: SourceLibraryMember;
+      }
+      provider.selectTargetMembers(request.sourceMember);
+    `,
+    [
+      "js-surface-property-provider-raw-source-member",
+      "js-surface-property-provider-raw-source-member",
+    ],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/types.ts",
+      `
+        export interface Request {
+          readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
+        }
+        provider.selectTargetMembers(request.selectedIdentity);
+      `,
+    ),
+    [],
+  );
 });
 
 test("architecture validator rejects policy-shaped filenames", () => {

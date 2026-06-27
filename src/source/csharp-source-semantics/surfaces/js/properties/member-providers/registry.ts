@@ -29,7 +29,7 @@ export function getCsharpJsSourceLibraryPropertyMember(
   const row = propertyRowForSourceMember(sourceMember);
   return row === undefined
     ? undefined
-    : singlePropertyMember(propertyMembersFromRow(row, { sourceMember, selectedIdentity, receiverType }));
+    : singlePropertyMember(propertyMembersFromRow(row, { selectedIdentity, receiverType }));
 }
 
 export function csharpJsSourceLibraryPropertyPrecheck(sourceMember: SourceLibraryMember): CsharpJsSourceLibraryPropertyPrecheck {
@@ -37,7 +37,7 @@ export function csharpJsSourceLibraryPropertyPrecheck(sourceMember: SourceLibrar
   const row = propertyRowForSourceMember(sourceMember);
   return row?.precheck === undefined
     ? "continue"
-    : propertyPrecheckResult(row.precheck, { sourceMember, selectedIdentity });
+    : propertyPrecheckResult(row.precheck, { selectedIdentity });
 }
 
 function propertyRowForSourceMember(sourceMember: SourceLibraryMember): JsSurfacePropertyRow | undefined {

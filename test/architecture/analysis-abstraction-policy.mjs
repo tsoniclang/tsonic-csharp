@@ -288,6 +288,13 @@ export const analysisAbstractionRules = Object.freeze([
       "JS surface properties must use one JsSurfacePropertyRow schema and generic property target providers; legacy property-provider shapes and adapter-only provider kinds are not allowed.",
   },
   {
+    id: "js-surface-property-provider-raw-source-member",
+    filePattern: /(?:^|\/)surfaces\/js\/properties\/member-providers\/[^/]+\.ts$/,
+    pattern: /\b(?:readonly\s+sourceMember\s*:\s*SourceLibraryMember|request\.sourceMember)\b/g,
+    replacement:
+      "JS surface executable property providers must consume selected source identity and finalized facts; raw source members belong only at the identity-extraction boundary.",
+  },
+  {
     id: "js-array-lifecycle-source-member-factory-list",
     filePattern: /(?:^|\/)surfaces\/js\/array-carrier-lifecycle\/[^/]+\.ts$/,
     pattern: /\b(?:SelectedSourceMemberTargetMemberFactory|selectedSourceMemberTargetMemberFactories|arrayTargetMembersForSourceMember|objectTargetMembersForSourceMember|jsonTargetMembersForSourceMember)\b/g,
