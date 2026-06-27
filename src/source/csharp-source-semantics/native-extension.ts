@@ -18,6 +18,7 @@ import {
 } from "@tsonic/source-core";
 import {
   csharpTargetSemanticsExtensionId,
+  csharpSourceSemanticsExtensionId,
   csharpProviderVersion,
   csharpTargetId,
 } from "./identity.js";
@@ -88,8 +89,8 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       target: csharpTargetId,
     },
     dependencies: {
-      dependsOn: [tsonicCoreSourceExtensionId],
-      runsAfter: [tsonicCoreSourceExtensionId],
+      dependsOn: [tsonicCoreSourceExtensionId, csharpSourceSemanticsExtensionId],
+      runsAfter: [tsonicCoreSourceExtensionId, csharpSourceSemanticsExtensionId],
     },
     initialize(extensionContext): void {
       extensionContext.registerTargetBindingProvider(createDotnetTargetBindingProvider({
