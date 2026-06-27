@@ -16,14 +16,14 @@ import {
   dateTargetMembersForSelectedIdentity,
 } from "../../date/index.js";
 import type {
-  ObjectRecordDictionaryOperation,
-} from "../../objects.js";
-import type {
   CsharpJsSurfaceHost,
   SourceLibraryMemberKey,
 } from "../../source-library.js";
 import type {
   JsSurfaceSourceIdentitySelector,
+} from "../../target-member-metadata.js";
+import {
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
@@ -38,9 +38,12 @@ import {
 } from "./object-members.js";
 import type {
   JsSurfaceCallTargetProviderRequest,
+  JsSurfaceCarrierMemberSelection,
+  JsSurfaceCallCallableProviderRequest,
   JsSurfaceOperationRow,
   JsSurfaceOperationTargetProvider,
-  JsSurfaceOperationTargetProviderResolver,
+  JsSurfaceRuntimeHelperSelection,
+  JsSurfaceSemanticExceptionSelection,
 } from "./operation-types.js";
 import {
   jsSurfaceTargetMemberIsCallable,
@@ -66,78 +69,130 @@ export function metadataIndexProvider(
   };
 }
 
-export function contextualMetadataProvider(
-  resolver: JsSurfaceOperationTargetProviderResolver,
+export function carrierMemberProvider(
+  carrier: JsSurfaceCarrierMemberSelection,
 ): JsSurfaceOperationTargetProvider {
   return {
-    kind: "contextual-metadata",
-    resolver,
+    kind: "carrier-member",
+    carrier,
+  };
+}
+
+export function runtimeHelperProvider(
+  helper: JsSurfaceRuntimeHelperSelection,
+): JsSurfaceOperationTargetProvider {
+  return {
+    kind: "runtime-helper",
+    helper,
   };
 }
 
 export function semanticExceptionProvider(
-  resolver: JsSurfaceOperationTargetProviderResolver,
+  exception: JsSurfaceSemanticExceptionSelection,
 ): JsSurfaceOperationTargetProvider {
   return {
     kind: "semantic-exception",
-    resolver,
+    exception,
   };
 }
 
-export function callConstructDiscriminatorProvider(): JsSurfaceOperationTargetProviderResolver {
-  return {
-    id: "call-construct-discriminator",
-    selectTargetMembers: (request) =>
-      dateTargetMembersForSelectedIdentity(request.selectedIdentity, isNewExpression(request.request.call, request.context) ? "new" : "call"),
-    hasCallableProvider: (request) => dateTargetMembersForSelectedIdentity(request.selectedIdentity, "call").some(jsSurfaceTargetMemberIsCallable),
-  };
+export function targetMembersFromOperationTargetProvider(
+  provider: JsSurfaceOperationTargetProvider,
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly TargetMember[] {
+  switch (provider.kind) {
+    case "metadata-index":
+      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
+    case "carrier-member":
+      return targetMembersFromCarrierSelection(provider.carrier, request);
+    case "runtime-helper":
+      return targetMembersFromRuntimeHelperSelection(provider.helper, request);
+    case "semantic-exception":
+      return targetMembersFromSemanticException(provider.exception, request);
+  }
 }
 
-export function primitiveReceiverStaticHelperProvider(): JsSurfaceOperationTargetProviderResolver {
-  return {
-    id: "primitive-receiver-static-helper",
-    selectTargetMembers: (request) => getObjectPrimitiveReceiverCallMembers(request.request, request.context, request.host),
-    hasCallableProvider: () => false,
-  };
+export function operationTargetProviderHasCallableMember(
+  provider: JsSurfaceOperationTargetProvider,
+  request: JsSurfaceCallCallableProviderRequest,
+): boolean {
+  switch (provider.kind) {
+    case "metadata-index":
+      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable);
+    case "carrier-member":
+      return carrierSelectionHasCallableMember(provider.carrier, request);
+    case "runtime-helper":
+      return false;
+    case "semantic-exception":
+      return semanticExceptionHasCallableMember(provider.exception, request);
+  }
 }
 
-export function recordDictionaryStaticHelperProvider(
-  operation: ObjectRecordDictionaryOperation,
-): JsSurfaceOperationTargetProviderResolver {
-  return {
-    id: "record-dictionary-static-helper",
-    selectTargetMembers: (request) => getObjectRecordDictionaryCallMembers(operation, request.request, request.context, request.host),
-    hasCallableProvider: () => false,
-  };
-}
-
-export function closedSequenceCarrierProvider(
-  options: { readonly requireResultElementType: boolean },
-): JsSurfaceOperationTargetProviderResolver {
-  return {
-    id: "closed-sequence-target-metadata",
-    selectTargetMembers: (request) => arrayMembersFromClosedFacts(request, options),
-    hasCallableProvider: (request) =>
-      arrayTargetMembersForSelectedIdentity(request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable),
-  };
-}
-
-export function closedKeyedCollectionCarrierProvider(
-  options: { readonly useResultCarrier: boolean },
-): JsSurfaceOperationTargetProviderResolver {
-  return {
-    id: "closed-keyed-collection-target-metadata",
-    selectTargetMembers: (request) =>
-      collectionTargetMembersForSelectedIdentity(
+function targetMembersFromCarrierSelection(
+  selection: JsSurfaceCarrierMemberSelection,
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly TargetMember[] {
+  switch (selection.kind) {
+    case "sequence":
+      return arrayMembersFromClosedFacts(request, selection);
+    case "keyed-collection":
+      return collectionTargetMembersForSelectedIdentity(
         request.selectedIdentity,
         getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
-        options.useResultCarrier
+        selection.useResultCarrier
           ? getSourceLibraryCallResultTargetType(request.request, request.context, request.host)
           : undefined,
-      ),
-    hasCallableProvider: (request) =>
-      collectionTargetMembersForSelectedIdentity(request.selectedIdentity, undefined, undefined).some(jsSurfaceTargetMemberIsCallable),
-  };
+      );
+  }
+}
+
+function targetMembersFromRuntimeHelperSelection(
+  selection: JsSurfaceRuntimeHelperSelection,
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly TargetMember[] {
+  switch (selection.kind) {
+    case "record-dictionary":
+      return getObjectRecordDictionaryCallMembers(selection.operation, request.request, request.context, request.host);
+  }
+}
+
+function targetMembersFromSemanticException(
+  selection: JsSurfaceSemanticExceptionSelection,
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly TargetMember[] {
+  switch (selection.kind) {
+    case "date-call-construct":
+      return dateTargetMembersForSelectedIdentity(
+        request.selectedIdentity,
+        isNewExpression(request.request.call, request.context) ? "new" : "call",
+      );
+    case "object-primitive-receiver-to-string":
+      return getObjectPrimitiveReceiverCallMembers(request.request, request.context, request.host);
+  }
+}
+
+function carrierSelectionHasCallableMember(
+  selection: JsSurfaceCarrierMemberSelection,
+  request: JsSurfaceCallCallableProviderRequest,
+): boolean {
+  switch (selection.kind) {
+    case "sequence":
+      return arrayTargetMembersForSelectedIdentity(request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable);
+    case "keyed-collection":
+      return collectionTargetMembersForSelectedIdentity(request.selectedIdentity, undefined, undefined).some(jsSurfaceTargetMemberIsCallable);
+  }
+}
+
+function semanticExceptionHasCallableMember(
+  selection: JsSurfaceSemanticExceptionSelection,
+  request: JsSurfaceCallCallableProviderRequest,
+): boolean {
+  switch (selection.kind) {
+    case "date-call-construct":
+      return dateTargetMembersForSelectedIdentity(request.selectedIdentity, "call").some(jsSurfaceTargetMemberIsCallable);
+    case "object-primitive-receiver-to-string":
+      return false;
+  }
 }
 
 function arrayMembersFromClosedFacts(

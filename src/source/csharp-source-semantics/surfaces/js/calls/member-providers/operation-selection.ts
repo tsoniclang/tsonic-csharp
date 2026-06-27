@@ -11,19 +11,19 @@ import {
   type JsSurfaceSelectedSourceIdentity,
   jsSurfaceSelectMetadataRowForSourceIdentity,
   jsSurfaceSelectedSourceIdentityForMember,
-  jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
   jsSurfaceOperationRows,
 } from "./operation-rows.js";
+import {
+  operationTargetProviderHasCallableMember,
+  targetMembersFromOperationTargetProvider,
+} from "./operation-providers.js";
 import type {
   JsSurfaceCallCallableProviderRequest,
   JsSurfaceCallTargetProviderRequest,
   JsSurfaceOperationRow,
   JsSurfaceOperationTargetProvider,
-} from "./operation-types.js";
-import {
-  jsSurfaceTargetMemberIsCallable,
 } from "./operation-types.js";
 
 export function getCsharpJsSourceLibraryCallMembersFromProviders(
@@ -85,6 +85,7 @@ function operationRowHasCallableProvider(
       return false;
     case "provider-member":
     case "carrier-member":
+    case "runtime-helper":
     case "semantic-exception":
       return (row.targetProviders ?? []).some((provider) => providerHasCallableMember(provider, request));
   }
@@ -94,24 +95,12 @@ function targetMembersFromProvider(
   provider: JsSurfaceOperationTargetProvider,
   request: JsSurfaceCallTargetProviderRequest,
 ): readonly TargetMember[] {
-  switch (provider.kind) {
-    case "metadata-index":
-      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
-    case "contextual-metadata":
-    case "semantic-exception":
-      return provider.resolver.selectTargetMembers(request);
-  }
+  return targetMembersFromOperationTargetProvider(provider, request);
 }
 
 function providerHasCallableMember(
   provider: JsSurfaceOperationTargetProvider,
   request: JsSurfaceCallCallableProviderRequest,
 ): boolean {
-  switch (provider.kind) {
-    case "metadata-index":
-      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable);
-    case "contextual-metadata":
-    case "semantic-exception":
-      return provider.resolver.hasCallableProvider(request);
-  }
+  return operationTargetProviderHasCallableMember(provider, request);
 }

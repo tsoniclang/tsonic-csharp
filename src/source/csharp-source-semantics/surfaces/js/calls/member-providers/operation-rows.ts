@@ -32,14 +32,10 @@ import {
   objectRecordDictionaryCallRows,
 } from "./object-members.js";
 import {
-  callConstructDiscriminatorProvider,
-  closedKeyedCollectionCarrierProvider,
-  closedSequenceCarrierProvider,
-  contextualMetadataProvider,
+  carrierMemberProvider,
   metadataIndexProvider,
   operationRowFromMetadataIndex,
-  primitiveReceiverStaticHelperProvider,
-  recordDictionaryStaticHelperProvider,
+  runtimeHelperProvider,
   semanticExceptionProvider,
 } from "./operation-providers.js";
 import type {
@@ -59,7 +55,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
       reason: "Date call and construct source operations have different JavaScript runtime semantics but share the Date source family.",
       requiredFacts: ["selected source declaration/signature identity", "call expression construct-vs-call shape"],
     },
-    targetProviders: [semanticExceptionProvider(callConstructDiscriminatorProvider())],
+    targetProviders: [semanticExceptionProvider({ kind: "date-call-construct" })],
   },
   operationRowFromMetadataIndex({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
   {
@@ -69,14 +65,14 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
       reason: "Object.prototype.toString delegates primitive receivers to selected JS wrapper surface members.",
       requiredFacts: ["selected source declaration/signature identity", "resolved primitive receiver carrier"],
     },
-    targetProviders: [semanticExceptionProvider(primitiveReceiverStaticHelperProvider())],
+    targetProviders: [semanticExceptionProvider({ kind: "object-primitive-receiver-to-string" })],
   },
   ...objectRecordDictionaryCallRows.map((row): JsSurfaceOperationRow => ({
     identity: row.identity,
-    policyKind: "carrier-member",
+    policyKind: "runtime-helper",
     targetProviders: [
       metadataIndexProvider(objectTargetMemberIdentityIndex),
-      contextualMetadataProvider(recordDictionaryStaticHelperProvider(row.operation)),
+      runtimeHelperProvider({ kind: "record-dictionary", operation: row.operation }),
     ],
   })),
   operationRowFromMetadataIndex({ prefixes: ["Object."] }, objectTargetMemberIdentityIndex),
@@ -84,22 +80,22 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     identity: arrayConstructorIdentityPolicy,
     policyKind: "carrier-member",
     callableWithoutContext: true,
-    targetProviders: [contextualMetadataProvider(closedSequenceCarrierProvider({ requireResultElementType: true }))],
+    targetProviders: [carrierMemberProvider({ kind: "sequence", requireResultElementType: true })],
   },
   {
     identity: { prefixes: ["Array.", "ReadonlyArray."] },
     policyKind: "carrier-member",
-    targetProviders: [contextualMetadataProvider(closedSequenceCarrierProvider({ requireResultElementType: false }))],
+    targetProviders: [carrierMemberProvider({ kind: "sequence", requireResultElementType: false })],
   },
   {
     identity: collectionConstructorIdentityPolicy,
     policyKind: "carrier-member",
-    targetProviders: [contextualMetadataProvider(closedKeyedCollectionCarrierProvider({ useResultCarrier: true }))],
+    targetProviders: [carrierMemberProvider({ kind: "keyed-collection", useResultCarrier: true })],
   },
   {
     identity: collectionIdentityPolicy,
     policyKind: "carrier-member",
-    targetProviders: [contextualMetadataProvider(closedKeyedCollectionCarrierProvider({ useResultCarrier: false }))],
+    targetProviders: [carrierMemberProvider({ kind: "keyed-collection", useResultCarrier: false })],
   },
   {
     identity: { prefixes: ["Console."] },

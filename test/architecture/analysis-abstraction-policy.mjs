@@ -287,6 +287,13 @@ export const analysisAbstractionRules = Object.freeze([
       "JS surface calls must use one JsSurfaceOperationRow schema and generic operation target providers; legacy call-provider shapes and adapter-only provider kinds are not allowed.",
   },
   {
+    id: "js-surface-call-executable-target-provider-callback",
+    filePattern: /(?:^|\/)surfaces\/js\/calls\/member-providers\/[^/]+\.ts$/,
+    pattern: /\b(?:JsSurfaceOperationTargetProviderResolver|readonly\s+resolver\s*:|selectTargetMembers\s*:|hasCallableProvider\s*:)/g,
+    replacement:
+      "JS surface operation rows must reference declarative provider/runtime metadata, carrier selectors, or explicit exception ids; executable target-provider callbacks are not allowed in row/provider shape.",
+  },
+  {
     id: "js-surface-property-provider-kind-literal",
     filePattern: /(?:^|\/)surfaces\/js\/properties\/member-providers\/[^/]+\.ts$/,
     pattern: /"(?:collection-size|string-length|array-length)"/g,

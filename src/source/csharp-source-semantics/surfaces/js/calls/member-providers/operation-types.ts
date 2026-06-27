@@ -8,6 +8,9 @@ import type {
   SourceLibraryMemberKey,
 } from "../../source-library.js";
 import type {
+  ObjectRecordDictionaryOperation,
+} from "../../objects.js";
+import type {
   JsSurfaceSelectedSourceIdentity,
   JsSurfaceSourceIdentitySelector,
 } from "../../target-member-metadata.js";
@@ -23,6 +26,7 @@ export interface JsSurfaceOperationRow {
 export type JsSurfaceOperationPolicyKind =
   | "provider-member"
   | "carrier-member"
+  | "runtime-helper"
   | "semantic-exception"
   | "unsupported";
 
@@ -32,19 +36,41 @@ export type JsSurfaceOperationTargetProvider =
     readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
   }
   | {
-    readonly kind: "contextual-metadata";
-    readonly resolver: JsSurfaceOperationTargetProviderResolver;
+    readonly kind: "carrier-member";
+    readonly carrier: JsSurfaceCarrierMemberSelection;
+  }
+  | {
+    readonly kind: "runtime-helper";
+    readonly helper: JsSurfaceRuntimeHelperSelection;
   }
   | {
     readonly kind: "semantic-exception";
-    readonly resolver: JsSurfaceOperationTargetProviderResolver;
+    readonly exception: JsSurfaceSemanticExceptionSelection;
   };
 
-export interface JsSurfaceOperationTargetProviderResolver {
-  readonly id: string;
-  readonly selectTargetMembers: (request: JsSurfaceCallTargetProviderRequest) => readonly TargetMember[];
-  readonly hasCallableProvider: (request: JsSurfaceCallCallableProviderRequest) => boolean;
-}
+export type JsSurfaceCarrierMemberSelection =
+  | {
+    readonly kind: "sequence";
+    readonly requireResultElementType: boolean;
+  }
+  | {
+    readonly kind: "keyed-collection";
+    readonly useResultCarrier: boolean;
+  };
+
+export type JsSurfaceRuntimeHelperSelection =
+  | {
+    readonly kind: "record-dictionary";
+    readonly operation: ObjectRecordDictionaryOperation;
+  };
+
+export type JsSurfaceSemanticExceptionSelection =
+  | {
+    readonly kind: "date-call-construct";
+  }
+  | {
+    readonly kind: "object-primitive-receiver-to-string";
+  };
 
 export interface JsSurfaceOperationSemanticException {
   readonly reason: string;

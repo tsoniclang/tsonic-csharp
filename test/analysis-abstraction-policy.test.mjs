@@ -368,6 +368,24 @@ test("architecture validator rejects JS surface provider kind literals", () => {
   );
 
   assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/operation-types.ts",
+    `
+      interface JsSurfaceOperationTargetProviderResolver {
+        readonly selectTargetMembers: (request: Request) => readonly TargetMember[];
+        readonly hasCallableProvider: (request: Request) => boolean;
+      }
+      type Provider = { readonly resolver: JsSurfaceOperationTargetProviderResolver };
+    `,
+    [
+      "js-surface-call-executable-target-provider-callback",
+      "js-surface-call-executable-target-provider-callback",
+      "js-surface-call-executable-target-provider-callback",
+      "js-surface-call-executable-target-provider-callback",
+      "js-surface-call-executable-target-provider-callback",
+    ],
+  );
+
+  assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
     `
       case "collection-size":
