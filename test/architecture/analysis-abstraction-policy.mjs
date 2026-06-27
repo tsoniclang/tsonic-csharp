@@ -260,6 +260,13 @@ export const analysisAbstractionRules = Object.freeze([
       "JS surface call mapping must use declarative operation rows and generic target providers, not source-family boolean flags or family-specific callable policy flags.",
   },
   {
+    id: "js-surface-target-provider-raw-source-member",
+    filePattern: /(?:^|\/)surfaces\/js\/calls\/member-providers\/[^/]+\.ts$/,
+    pattern: /\b(?:readonly\s+sourceMember\s*:\s*SourceLibraryMember|request\.sourceMember)\b/g,
+    replacement:
+      "JS surface executable target providers must consume selected source identity and finalized facts; raw source members belong only at the identity-extraction boundary.",
+  },
+  {
     id: "js-surface-call-legacy-provider-shape",
     filePattern: /(?:^|\/)surfaces\/js\/calls\/member-providers\/[^/]+\.ts$/,
     pattern: /\b(?:SourceCallMetadataRow|JsSurfaceCallPolicyKind|JsSurfaceCallTargetProvider|JsSurfaceCallTargetProviderAdapter|sourceCallMetadataRows|metadataIndexPolicy|operationAdapterProvider)\b|\bkind\s*:\s*"(?:adapter|operation-adapter)"/g,

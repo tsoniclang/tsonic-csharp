@@ -7,7 +7,11 @@ import type {
 } from "../../source-library.js";
 import {
   jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames,
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMembersForSourceMember,
+} from "../../target-member-metadata.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
   arrayTargetMemberMetadata,
@@ -17,5 +21,15 @@ export function arrayTargetMembersForSourceMember(sourceMember: SourceLibraryMem
   return jsSurfaceTargetMembersForSourceMember(
     jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(["Array", "ReadonlyArray"], arrayTargetMemberMetadata(receiverElementType)),
     sourceMember,
+  );
+}
+
+export function arrayTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  receiverElementType?: TargetTypeRef,
+): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSelectedSourceIdentity(
+    jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(["Array", "ReadonlyArray"], arrayTargetMemberMetadata(receiverElementType)),
+    selectedIdentity,
   );
 }

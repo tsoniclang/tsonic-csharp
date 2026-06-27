@@ -5,19 +5,18 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  arrayTargetMembersForSourceMember,
+  arrayTargetMembersForSelectedIdentity,
   getCsharpArrayLikeElementType,
   getCsharpJsArrayCarrierElementType,
 } from "../../arrays.js";
 import {
-  collectionTargetMembersForSourceMember,
+  collectionTargetMembersForSelectedIdentity,
 } from "../../collections.js";
 import {
-  dateTargetMembersForSourceMember,
+  dateTargetMembersForSelectedIdentity,
 } from "../../date/index.js";
 import type {
   CsharpJsSurfaceHost,
-  SourceLibraryMember,
   SourceLibraryMemberKey,
 } from "../../source-library.js";
 import type {
@@ -38,6 +37,7 @@ import {
   getObjectRecordDictionaryCallMembers,
 } from "./object-members.js";
 import type {
+  JsSurfaceCallTargetProviderRequest,
   JsSurfaceOperationRow,
   JsSurfaceOperationTargetProvider,
   JsSurfaceOperationTargetProviderResolver,
@@ -88,8 +88,8 @@ export function callConstructDiscriminatorProvider(): JsSurfaceOperationTargetPr
   return {
     id: "call-construct-discriminator",
     selectTargetMembers: (request) =>
-      dateTargetMembersForSourceMember(request.sourceMember, isNewExpression(request.request.call, request.context) ? "new" : "call"),
-    hasCallableProvider: (request) => dateTargetMembersForSourceMember(request.sourceMember, "call").some(jsSurfaceTargetMemberIsCallable),
+      dateTargetMembersForSelectedIdentity(request.selectedIdentity, isNewExpression(request.request.call, request.context) ? "new" : "call"),
+    hasCallableProvider: (request) => dateTargetMembersForSelectedIdentity(request.selectedIdentity, "call").some(jsSurfaceTargetMemberIsCallable),
   };
 }
 
@@ -116,9 +116,9 @@ export function closedSequenceCarrierProvider(
 ): JsSurfaceOperationTargetProviderResolver {
   return {
     id: "closed-sequence-target-metadata",
-    selectTargetMembers: (request) => arrayMembersFromClosedFacts(request.sourceMember, request.request, request.context, request.host, options),
+    selectTargetMembers: (request) => arrayMembersFromClosedFacts(request, options),
     hasCallableProvider: (request) =>
-      arrayTargetMembersForSourceMember(request.sourceMember).some(jsSurfaceTargetMemberIsCallable),
+      arrayTargetMembersForSelectedIdentity(request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable),
   };
 }
 
@@ -128,32 +128,30 @@ export function closedKeyedCollectionCarrierProvider(
   return {
     id: "closed-keyed-collection-target-metadata",
     selectTargetMembers: (request) =>
-      collectionTargetMembersForSourceMember(
-        request.sourceMember,
+      collectionTargetMembersForSelectedIdentity(
+        request.selectedIdentity,
         getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
         options.useResultCarrier
           ? getSourceLibraryCallResultTargetType(request.request, request.context, request.host)
           : undefined,
       ),
     hasCallableProvider: (request) =>
-      collectionTargetMembersForSourceMember(request.sourceMember, undefined, undefined).some(jsSurfaceTargetMemberIsCallable),
+      collectionTargetMembersForSelectedIdentity(request.selectedIdentity, undefined, undefined).some(jsSurfaceTargetMemberIsCallable),
   };
 }
 
 function arrayMembersFromClosedFacts(
-  sourceMember: SourceLibraryMember,
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpJsSurfaceHost,
+  providerRequest: JsSurfaceCallTargetProviderRequest,
   options: {
     readonly requireResultElementType: boolean;
   },
 ): readonly TargetMember[] {
+  const { request, context, host } = providerRequest;
   const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
   if (options.requireResultElementType && resultElementType === undefined) {
     return [];
   }
-  return arrayTargetMembersForSourceMember(sourceMember, resultElementType ?? arrayElementTypeFromClosedFacts(request, context, host));
+  return arrayTargetMembersForSelectedIdentity(providerRequest.selectedIdentity, resultElementType ?? arrayElementTypeFromClosedFacts(request, context, host));
 }
 
 function arrayElementTypeFromClosedFacts(

@@ -5,7 +5,6 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpJsSurfaceHost,
-  SourceLibraryMember,
   SourceLibraryMemberKey,
 } from "../../source-library.js";
 import type {
@@ -53,7 +52,6 @@ export interface JsSurfaceOperationSemanticException {
 }
 
 export interface JsSurfaceCallTargetProviderRequest {
-  readonly sourceMember: SourceLibraryMember;
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
   readonly request: CheckedCallMappingRequest;
   readonly context: ExtensionObservationContext<"operation.mapCheckedCall">;
@@ -61,7 +59,6 @@ export interface JsSurfaceCallTargetProviderRequest {
 }
 
 export interface JsSurfaceCallCallableProviderRequest {
-  readonly sourceMember: SourceLibraryMember;
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
 }
 

@@ -55,7 +55,18 @@ export function collectionTargetMembersForSourceMember(
   receiverType: TargetTypeRef | undefined,
   resultType: TargetTypeRef | undefined,
 ): readonly TargetMember[] {
-  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
+  return collectionTargetMembersForSelectedIdentity(
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+    receiverType,
+    resultType,
+  );
+}
+
+export function collectionTargetMembersForSelectedIdentity(
+  selectedIdentity: ReturnType<typeof jsSurfaceSelectedSourceIdentityForMember>,
+  receiverType: TargetTypeRef | undefined,
+  resultType: TargetTypeRef | undefined,
+): readonly TargetMember[] {
   const policy = collectionPolicyForSelectedSourceIdentity(selectedIdentity);
   const collectionType = policy === undefined
     ? undefined

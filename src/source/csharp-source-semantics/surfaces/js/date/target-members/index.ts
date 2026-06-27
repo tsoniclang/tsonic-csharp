@@ -6,13 +6,16 @@ import type {
 } from "../../source-library.js";
 import {
   jsSurfaceTargetMemberMetadataIdentityIndex,
-  jsSurfaceTargetMembersForSourceMember,
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
+} from "../../target-member-metadata.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import type {
   DateCallKind,
 } from "./call-kind.js";
 import {
-  dateCallKindTargetMembersForSourceMember,
+  dateCallKindTargetMembersForSelectedIdentity,
 } from "./call-kind.js";
 import {
   dateTargetMemberMetadata,
@@ -21,6 +24,13 @@ import {
 const dateTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Date", dateTargetMemberMetadata);
 
 export function dateTargetMembersForSourceMember(sourceMember: SourceLibraryMember, callKind: DateCallKind): readonly TargetMember[] {
-  return dateCallKindTargetMembersForSourceMember(sourceMember, callKind) ??
-    jsSurfaceTargetMembersForSourceMember(dateTargetMemberIdentityIndex, sourceMember);
+  return dateTargetMembersForSelectedIdentity({ key: sourceMember.id }, callKind);
+}
+
+export function dateTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  callKind: DateCallKind,
+): readonly TargetMember[] {
+  return dateCallKindTargetMembersForSelectedIdentity(selectedIdentity, callKind) ??
+    jsSurfaceTargetMembersForSelectedSourceIdentity(dateTargetMemberIdentityIndex, selectedIdentity);
 }

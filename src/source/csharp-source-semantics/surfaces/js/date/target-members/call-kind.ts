@@ -2,8 +2,11 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import type {
-  SourceLibraryMember,
+  SourceLibraryMemberKey,
 } from "../../source-library.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
+} from "../../target-member-metadata.js";
 import {
   targetParameter,
 } from "../../source-library.js";
@@ -58,14 +61,17 @@ const dateFunctionMember = [{
 } satisfies JsSurfaceTargetMemberMetadata].map(jsSurfaceTargetMemberFromMetadata);
 
 const dateCallKindTargetMemberIndex = new Map<string, readonly TargetMember[]>([
-  [dateCallKindKey("constructor", "call"), dateFunctionMember],
-  [dateCallKindKey("constructor", "new"), dateConstructorMembers],
+  [dateCallKindKey("Date.constructor", "call"), dateFunctionMember],
+  [dateCallKindKey("Date.constructor", "new"), dateConstructorMembers],
 ]);
 
-export function dateCallKindTargetMembersForSourceMember(sourceMember: SourceLibraryMember, callKind: DateCallKind): readonly TargetMember[] | undefined {
-  return dateCallKindTargetMemberIndex.get(dateCallKindKey(sourceMember.name, callKind));
+export function dateCallKindTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  callKind: DateCallKind,
+): readonly TargetMember[] | undefined {
+  return dateCallKindTargetMemberIndex.get(dateCallKindKey(selectedIdentity.key, callKind));
 }
 
-function dateCallKindKey(sourceName: string, callKind: DateCallKind): string {
-  return `${sourceName}\u0000${callKind}`;
+function dateCallKindKey(sourceKey: SourceLibraryMemberKey, callKind: DateCallKind): string {
+  return `${sourceKey}\u0000${callKind}`;
 }

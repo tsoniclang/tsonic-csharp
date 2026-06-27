@@ -3,7 +3,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  arrayTargetMembersForSourceMember,
+  arrayTargetMembersForSelectedIdentity,
 } from "./arrays/target-members/index.js";
 import {
   jsonTargetMemberIdentityIndex,
@@ -26,7 +26,6 @@ import type {
 } from "./target-member-metadata.js";
 
 export interface JsSurfaceSelectedTargetMemberLookupRequest {
-  readonly sourceMember: SourceLibraryMember;
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
   readonly contextualElementType?: TargetTypeRef;
 }
@@ -55,7 +54,7 @@ const jsSurfaceSelectedTargetMemberRows: readonly JsSurfaceSelectedTargetMemberR
   selectedTargetMemberRowFromContextualMetadata({ prefixes: ["Array.", "ReadonlyArray."] }, {
     id: "closed-sequence-selected-target-metadata",
     selectTargetMembers: (request) =>
-      arrayTargetMembersForSourceMember(request.sourceMember, request.contextualElementType),
+      arrayTargetMembersForSelectedIdentity(request.selectedIdentity, request.contextualElementType),
   }),
   selectedTargetMemberRowFromMetadataIndex({ prefixes: ["Object."] }, objectTargetMemberIdentityIndex),
   selectedTargetMemberRowFromMetadataIndex({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
@@ -72,7 +71,7 @@ export function jsSurfaceSelectedTargetMembersForSourceMember(
   );
   return row === undefined
     ? []
-    : selectedTargetMembersFromRow(row, { sourceMember, selectedIdentity, contextualElementType });
+    : selectedTargetMembersFromRow(row, { selectedIdentity, contextualElementType });
 }
 
 function selectedTargetMemberRowFromMetadataIndex(

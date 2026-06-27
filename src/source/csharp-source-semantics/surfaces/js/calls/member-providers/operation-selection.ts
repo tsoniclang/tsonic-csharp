@@ -37,7 +37,6 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
     ? []
     : callMembersFromOperationRow(
         row,
-        sourceMember,
         jsSurfaceSelectedSourceIdentityForMember(sourceMember),
         request,
         context,
@@ -52,7 +51,6 @@ export function csharpJsSourceLibraryMemberHasCallableProvider(
   return row === undefined
     ? false
     : operationRowHasCallableProvider(row, {
-      sourceMember,
       selectedIdentity: jsSurfaceSelectedSourceIdentityForMember(sourceMember),
     });
 }
@@ -66,13 +64,12 @@ function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember)
 
 function callMembersFromOperationRow(
   row: JsSurfaceOperationRow,
-  sourceMember: SourceLibraryMember,
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  const providerRequest = { sourceMember, selectedIdentity, request, context, host } satisfies JsSurfaceCallTargetProviderRequest;
+  const providerRequest = { selectedIdentity, request, context, host } satisfies JsSurfaceCallTargetProviderRequest;
   return (row.targetProviders ?? []).flatMap((provider) => targetMembersFromProvider(provider, providerRequest));
 }
 
