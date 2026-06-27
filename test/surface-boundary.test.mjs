@@ -2424,20 +2424,21 @@ test("NodeJS surface maps expanded static properties from selected provider decl
   assert.equal(facts.get(processExpression, csharpTargetOperationFactKey)?.resultType.element.id, "System.String");
 });
 
-test("NodeJS surface exposes process.env as unsupported open-object state", () => {
+test("NodeJS surface exposes process.env as provider-owned closed environment carrier", () => {
   const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
   const resolution = bindingProvider.resolveModule("process", {});
   assert.equal(resolution.kind, "virtual");
   const model = bindingProvider.getDeclarationModel(resolution);
   const env = model.exports.find((entry) => entry.name === "env");
   assert.equal(env?.kind, "value");
-  assert.equal(env?.type.kind, "object");
+  assert.equal(env?.type.kind, "provider-ref");
+  assert.equal(env?.type.name, "ProcessEnv");
 
   const envIdentity = bindingProvider.getTargetIdentity({
     moduleSpecifier: "process",
     exportName: "env",
   });
-  assert.equal(envIdentity?.id, "unsupported:Tsonic.CSharp.Node.process.env");
+  assert.equal(envIdentity?.id, "Tsonic.CSharp.Node.process.env");
 
   const facts = new TestFactStore();
   const provider = createCsharpNodejsSurfaceOperationsProvider();
@@ -2447,10 +2448,62 @@ test("NodeJS surface exposes process.env as unsupported open-object state", () =
 
   const result = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(expression, envDeclaration), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_PROPERTY_NOT_MAPPED");
-  assert.match(result.diagnostic.message, /env/);
-  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "Tsonic.CSharp.Node.process.env");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.env");
+});
+
+test("selected NodeJS process surface finalizes process metadata and environment operations", () => {
+  const session = createCsharpSession(`
+    import * as process from "node:process";
+
+    export function processInfo(): string {
+      const envPath = process.env["PATH"] ?? "";
+      return process.arch + process.argv0 + process.execPath + process.platform + process.version + process.versions.node + process.versions.dotnet + envPath + process.pid + process.ppid;
+    }
+
+    export function currentExitCode(): number | null {
+      return process.exitCode;
+    }
+
+    export function changeDirectory(directory: string): void {
+      process.chdir(directory);
+    }
+
+    export function terminate(code?: number): void {
+      process.exit(code);
+    }
+
+    export function signalSelf(): boolean {
+      return process.kill(process.pid, 0);
+    }
+  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const selectedMemberIds = collectFactValues(sourceFile, session, extensionHost, selectedTargetSignatureFactKey)
+    .map((fact) => fact.member.id);
+  const operationIds = collectFactValues(sourceFile, session, extensionHost, targetOperationFactKey)
+    .map((fact) => fact.operationId);
+
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.chdir(System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.exit(System.Nullable`1)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.kill(System.Int32,System.Object)"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.arch"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.argv0"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.env"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.ProcessEnv.Item(System.String)"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.execPath"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.exitCode"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.pid"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.platform"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.ppid"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.version"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.versions"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.ProcessVersions.node"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.ProcessVersions.dotnet"));
 });
 
 test("NodeJS surface rejects provider declarations whose selected identity is not mapped", () => {

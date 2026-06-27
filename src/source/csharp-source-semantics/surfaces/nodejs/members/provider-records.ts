@@ -35,6 +35,7 @@ import {
   nodePathPropertyTargetMembers,
 } from "../path.js";
 import {
+  nodeProcessClassPropertyTargetMembers,
   nodeProcessCallTargetMembers,
   nodeProcessModuleSpecifier,
   nodeProcessPropertyTargetMembers,
@@ -97,6 +98,7 @@ export function nodejsTargetMemberMetadataRecords(): readonly NodejsTargetMember
     ...modulePropertyRecords(nodeOsModuleSpecifier, nodeOsPropertyTargetMembers()),
     ...moduleCallRecords(nodeProcessModuleSpecifier, nodeProcessCallTargetMembers()),
     ...modulePropertyRecords(nodeProcessModuleSpecifier, nodeProcessPropertyTargetMembers()),
+    ...classPropertyRecords(nodeProcessModuleSpecifier, nodeProcessClassPropertyTargetMembers()),
     ...moduleCallRecords(nodeUtilModuleSpecifier, nodeUtilCallTargetMembers()),
     ...moduleCallRecords(nodeUrlModuleSpecifier, nodeUrlCallTargetMembers()),
     ...classCallRecords(nodeUrlModuleSpecifier, nodeUrlClassCallTargetMembers()),

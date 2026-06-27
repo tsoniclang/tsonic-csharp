@@ -127,7 +127,7 @@ export function findTargetMemberForElementAccess(
       return exactMember;
     }
     return selectedMember === undefined
-      ? undefined
+      ? selectSingleProviderIndexer(binding, request, options)
       : selectTargetMember(
           getTargetMemberCandidatesForSelectedMember(binding.members ?? [], selectedMember),
           {
@@ -137,6 +137,9 @@ export function findTargetMemberForElementAccess(
           resolveTargetTypeRef,
           options,
         );
+  }
+  if (declaration === undefined) {
+    return selectSingleProviderIndexer(binding, request, options);
   }
   const candidates = getTargetMemberCandidates(binding, declaration);
   if (candidates.length === 1) {
@@ -148,17 +151,39 @@ export function findTargetMemberForElementAccess(
       options,
     );
   }
-  return declaration?.memberId === undefined
-    ? undefined
-    : selectTargetMember(
-        candidates,
+  if (declaration?.memberId === undefined) {
+    return selectSingleProviderIndexer(binding, request, options);
+  }
+  const selected = selectTargetMember(
+    candidates,
+    {
+      arguments: [request.argument],
+    },
+    context,
+    resolveTargetTypeRef,
+    options,
+  );
+  return selected
+    ?? (candidates.length === 0
+      ? selectSingleProviderIndexer(binding, request, options)
+      : undefined);
+}
+
+function selectSingleProviderIndexer(
+  binding: TargetBindingFact,
+  request: CheckedElementAccessMappingRequest,
+  options: TargetMemberSelectionOptions,
+): TargetMember | undefined {
+  const indexerCandidates = (binding.members ?? []).filter((member) => member.kind === "indexer");
+  return indexerCandidates.length === 1
+    ? selectExactTargetMember(
+        indexerCandidates[0]!,
         {
           arguments: [request.argument],
         },
-        context,
-        resolveTargetTypeRef,
         options,
-      );
+      )
+    : undefined;
 }
 
 export function findTargetMember(
