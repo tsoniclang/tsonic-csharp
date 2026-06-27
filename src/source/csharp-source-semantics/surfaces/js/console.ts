@@ -1,9 +1,3 @@
-import type {
-  TargetMember,
-} from "@tsonic/tsts";
-import type {
-  SourceLibraryMember,
-} from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
@@ -16,7 +10,6 @@ import type {
 } from "./target-member-metadata.js";
 import {
   jsSurfaceTargetMemberMetadataIdentityIndex,
-  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 
 const consoleTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.console", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "console"));
@@ -29,10 +22,6 @@ interface ConsoleMethodMetadataRow {
   readonly sourceName: string;
   readonly targetName: string;
   readonly parameters?: readonly ConsoleTargetParameter[];
-}
-
-export function consoleTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceMember(consoleTargetMembersBySourceIdentity, sourceMember);
 }
 
 function consoleMethodMetadata(row: ConsoleMethodMetadataRow): JsSurfaceTargetMemberMetadata {

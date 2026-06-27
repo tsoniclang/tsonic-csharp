@@ -12,12 +12,10 @@ import {
   objectTargetMemberIdentityIndex,
 } from "./objects.js";
 import type {
-  SourceLibraryMember,
   SourceLibraryMemberKey,
 } from "./source-library.js";
 import {
   jsSurfaceSelectMetadataRowForSourceIdentity,
-  jsSurfaceSelectedSourceIdentityForMember,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "./target-member-metadata.js";
 import type {
@@ -60,11 +58,10 @@ const jsSurfaceSelectedTargetMemberRows: readonly JsSurfaceSelectedTargetMemberR
   selectedTargetMemberRowFromMetadataIndex({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
 ];
 
-export function jsSurfaceSelectedTargetMembersForSourceMember(
-  sourceMember: SourceLibraryMember,
+export function jsSurfaceSelectedTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
   contextualElementType?: TargetTypeRef,
 ): readonly TargetMember[] {
-  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
   const row = jsSurfaceSelectMetadataRowForSourceIdentity(
     jsSurfaceSelectedTargetMemberRows,
     selectedIdentity,

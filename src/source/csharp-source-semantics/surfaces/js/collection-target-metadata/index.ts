@@ -4,12 +4,11 @@ import type {
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
-import type {
-  SourceLibraryMember,
-} from "../source-library.js";
 import {
-  jsSurfaceSelectedSourceIdentityForMember,
   jsSurfaceTargetMemberFromMetadata,
+} from "../target-member-metadata.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
 } from "../target-member-metadata.js";
 import {
   materializeCollectionMemberMetadata,
@@ -50,20 +49,8 @@ export function createCsharpJsCollectionTargetTypeForSourceType(
   return policy === undefined ? undefined : createCsharpJsCollectionTargetType(policy, typeArguments);
 }
 
-export function collectionTargetMembersForSourceMember(
-  sourceMember: SourceLibraryMember,
-  receiverType: TargetTypeRef | undefined,
-  resultType: TargetTypeRef | undefined,
-): readonly TargetMember[] {
-  return collectionTargetMembersForSelectedIdentity(
-    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
-    receiverType,
-    resultType,
-  );
-}
-
 export function collectionTargetMembersForSelectedIdentity(
-  selectedIdentity: ReturnType<typeof jsSurfaceSelectedSourceIdentityForMember>,
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
   receiverType: TargetTypeRef | undefined,
   resultType: TargetTypeRef | undefined,
 ): readonly TargetMember[] {

@@ -1,9 +1,3 @@
-import type {
-  TargetMember,
-} from "@tsonic/tsts";
-import type {
-  SourceLibraryMember,
-} from "./source-library.js";
 import {
   csharpSourcePrimitiveTargetType,
   csharpQualifiedTypeRenderShape,
@@ -14,9 +8,7 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
-  jsSurfaceSingleTargetMemberForSourceMember,
   jsSurfaceTargetMemberMetadataIdentityIndex,
-  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 
 const mathTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.Math", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Math"));
@@ -36,14 +28,6 @@ interface MathPropertyMetadataRow {
   readonly id: string;
   readonly sourceName: string;
   readonly targetName: string;
-}
-
-export function mathTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceMember(mathTargetMemberIdentityIndex, sourceMember);
-}
-
-export function mathPropertyTargetMemberForSourceMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
-  return jsSurfaceSingleTargetMemberForSourceMember(mathPropertyTargetMemberIdentityIndex, sourceMember);
 }
 
 function mathMethodMetadata(row: MathMethodMetadataRow): JsSurfaceTargetMemberMetadata {

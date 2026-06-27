@@ -210,6 +210,13 @@ export const analysisAbstractionRules = Object.freeze([
       "Replace source-name target-member helper APIs with selected source declaration/signature identity indexes.",
   },
   {
+    id: "js-surface-source-member-target-lookup-api",
+    filePattern: /(?:^|\/)surfaces\/js\/.+\.ts$/,
+    pattern: /\b(?:jsSurface(?:Selected)?TargetMembersForSourceMember|[A-Za-z0-9]+(?:TargetMembers?|PropertyTargetMember)ForSourceMember)\b/g,
+    replacement:
+      "JS surface target lookup APIs must consume selected source identity rows, not raw SourceLibraryMember values.",
+  },
+  {
     id: "source-name-runtime-member-filter",
     pattern: /\.filter\s*\(\s*\(?\s*(?:member|row|candidate|record)\s*\)?\s*=>\s*(?:member|row|candidate|record)\.sourceName\s*(?:={2,3}|!={1,2})/g,
     replacement:

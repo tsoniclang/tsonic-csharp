@@ -5,7 +5,6 @@ import type {
   RuntimeCarrierFactRequest,
   RuntimeCarrierFactResult,
   SourceFile,
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -18,7 +17,6 @@ import {
 } from "./array-target-type.js";
 import type {
   CsharpJsSurfaceHost,
-  SourceLibraryMember,
 } from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
@@ -36,7 +34,6 @@ import {
   jsSurfaceSelectedSourceIdentityForMember,
   jsSurfaceSourceIdentityMatchesSelector,
   jsSurfaceTargetMemberMetadataIdentityIndex,
-  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 import {
   csharpJsObjectCarrierTargetType,
@@ -131,10 +128,6 @@ export function recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(
       }, [{ message: "C# JS surface JSON.parse runtime carrier recorded before generic any carrier finalization." }]);
     });
   }
-}
-
-export function jsonTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceMember(jsonTargetMemberIdentityIndex, sourceMember);
 }
 
 function jsonStaticMethodMetadata(row: JsonStaticMethodMetadataRow): JsonTargetMemberMetadata {

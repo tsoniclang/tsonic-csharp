@@ -1,9 +1,6 @@
 import type {
   TargetMember,
 } from "@tsonic/tsts";
-import type {
-  SourceLibraryMember,
-} from "../../source-library.js";
 import {
   jsSurfaceTargetMemberMetadataIdentityIndex,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
@@ -22,10 +19,6 @@ import {
 } from "./methods.js";
 
 const dateTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Date", dateTargetMemberMetadata);
-
-export function dateTargetMembersForSourceMember(sourceMember: SourceLibraryMember, callKind: DateCallKind): readonly TargetMember[] {
-  return dateTargetMembersForSelectedIdentity({ key: sourceMember.id }, callKind);
-}
 
 export function dateTargetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,

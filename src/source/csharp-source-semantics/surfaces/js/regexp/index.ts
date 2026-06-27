@@ -11,6 +11,4 @@ export {
 export {
   regExpPropertyTargetMemberIdentityIndex,
   regExpTargetMemberIdentityIndex,
-  regExpPropertyTargetMemberForSourceMember,
-  regExpTargetMembersForSourceMember,
 } from "./target-members.js";

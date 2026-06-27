@@ -272,6 +272,32 @@ test("architecture validator rejects runtime member filtering by source names", 
   );
 });
 
+test("architecture validator rejects JS target lookups from raw source members", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/selected-target-member-metadata.ts",
+    `
+      export function jsSurfaceSelectedTargetMembersForSourceMember(sourceMember) { return []; }
+      export function arrayTargetMembersForSourceMember(sourceMember) { return []; }
+      export function mathPropertyTargetMemberForSourceMember(sourceMember) { return undefined; }
+    `,
+    [
+      "js-surface-source-member-target-lookup-api",
+      "js-surface-source-member-target-lookup-api",
+      "js-surface-source-member-target-lookup-api",
+    ],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/surfaces/js/selected-target-member-metadata.ts",
+      `
+        export function jsSurfaceSelectedTargetMembersForSelectedIdentity(selectedIdentity) { return []; }
+      `,
+    ),
+    [],
+  );
+});
+
 test("architecture validator rejects array target ids defaulted from source names", () => {
   assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/arrays/target-members/builders.ts",
@@ -390,6 +416,9 @@ test("architecture validator rejects array lifecycle source-member target factor
       ];
     `,
     [
+      "js-surface-source-member-target-lookup-api",
+      "js-surface-source-member-target-lookup-api",
+      "js-surface-source-member-target-lookup-api",
       "js-array-lifecycle-source-member-factory-list",
       "js-array-lifecycle-source-member-factory-list",
       "js-array-lifecycle-source-member-factory-list",
@@ -522,7 +551,10 @@ test("architecture validator rejects provider-row target members built from sour
         objectTargetMembersForSourceMember(createSourceLibraryMember("Object", sourceName)),
       );
     `,
-    ["provider-row-target-member-from-created-source-member"],
+    [
+      "js-surface-source-member-target-lookup-api",
+      "provider-row-target-member-from-created-source-member",
+    ],
   );
 });
 

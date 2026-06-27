@@ -73,22 +73,6 @@ export function jsSurfaceSelectMetadataRowForSourceIdentity<T>(
   return undefined;
 }
 
-export function jsSurfaceTargetMemberMetadataIndex(
-  metadata: readonly JsSurfaceTargetMemberMetadata[],
-): ReadonlyMap<string, readonly TargetMember[]> {
-  const index = new Map<string, TargetMember[]>();
-  for (const record of metadata) {
-    const existing = index.get(record.sourceName);
-    const member = targetMemberFromMetadata(record);
-    if (existing === undefined) {
-      index.set(record.sourceName, [member]);
-    } else {
-      existing.push(member);
-    }
-  }
-  return index;
-}
-
 export function jsSurfaceTargetMemberMetadataIdentityIndex(
   declaringName: SourceLibraryDeclaringKey,
   metadata: readonly JsSurfaceTargetMemberMetadata[],
@@ -116,29 +100,11 @@ export function jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(
   return index;
 }
 
-export function jsSurfaceTargetMembersForSourceMember(
-  index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
-  sourceMember: SourceLibraryMember,
-): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSelectedSourceIdentity(
-    index,
-    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
-  );
-}
-
 export function jsSurfaceTargetMembersForSelectedSourceIdentity(
   index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
   identity: JsSurfaceSelectedSourceIdentity,
 ): readonly TargetMember[] {
   return index.get(identity.key) ?? [];
-}
-
-export function jsSurfaceSingleTargetMemberForSourceMember(
-  index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
-  sourceMember: SourceLibraryMember,
-): TargetMember | undefined {
-  const members = jsSurfaceTargetMembersForSourceMember(index, sourceMember);
-  return members.length === 1 ? members[0] : undefined;
 }
 
 export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberMetadata): TargetMember {

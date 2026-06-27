@@ -2,9 +2,6 @@ import type {
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import type {
-  SourceLibraryMember,
-} from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
@@ -16,10 +13,8 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
-  jsSurfaceSingleTargetMemberForSourceMember,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMemberMetadataIdentityIndex,
-  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 import type {
   JsSurfaceSelectedSourceIdentity,
@@ -87,18 +82,10 @@ export function isCsharpNumberTargetType(type: TargetTypeRef | undefined): boole
     );
 }
 
-export function numberTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceMember(numberTargetMemberIdentityIndex, sourceMember);
-}
-
 export function numberTargetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
 ): readonly TargetMember[] {
   return jsSurfaceTargetMembersForSelectedSourceIdentity(numberTargetMemberIdentityIndex, selectedIdentity);
-}
-
-export function numberPropertyTargetMemberForSourceMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
-  return jsSurfaceSingleTargetMemberForSourceMember(numberPropertyTargetMemberIdentityIndex, sourceMember);
 }
 
 function numberMethodMetadata(row: NumberMethodMetadataRow): JsSurfaceTargetMemberMetadata {

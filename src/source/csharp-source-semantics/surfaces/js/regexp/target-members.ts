@@ -1,32 +1,20 @@
 import type {
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
-  type SourceLibraryMember,
   targetParameter,
 } from "../source-library.js";
 import type {
   JsSurfaceTargetMemberMetadata,
 } from "../target-member-metadata.js";
 import {
-  jsSurfaceSingleTargetMemberForSourceMember,
   jsSurfaceTargetMemberMetadataIdentityIndex,
-  jsSurfaceTargetMembersForSourceMember,
 } from "../target-member-metadata.js";
 import {
   csharpJsRegExpTargetType,
 } from "./target-type.js";
-
-export function regExpTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceMember(regExpTargetMemberIdentityIndex, sourceMember);
-}
-
-export function regExpPropertyTargetMemberForSourceMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
-  return jsSurfaceSingleTargetMemberForSourceMember(regExpPropertyTargetMemberIdentityIndex, sourceMember);
-}
 
 const regExpType = csharpJsRegExpTargetType();
 const regExpStringType = csharpStringTargetType();

@@ -25,11 +25,14 @@ import {
   getCsharpJsSourceLibraryPropertyMember,
 } from "../properties/member-providers/index.js";
 import {
-  jsSurfaceSelectedTargetMembersForSourceMember,
+  jsSurfaceSelectedTargetMembersForSelectedIdentity,
 } from "../selected-target-member-metadata.js";
 import type {
   SourceLibraryMember,
 } from "../source-library.js";
+import {
+  jsSurfaceSelectedSourceIdentityForMember,
+} from "../target-member-metadata.js";
 import {
   getSelectedSourceLibraryMemberForStructuralUse,
 } from "./source-library-selection.js";
@@ -120,7 +123,10 @@ function targetMembersForSelectedSourceMember(
   sourceMember: SourceLibraryMember,
   elementType: TargetTypeRef,
 ): readonly TargetMember[] {
-  return jsSurfaceSelectedTargetMembersForSourceMember(sourceMember, elementType);
+  return jsSurfaceSelectedTargetMembersForSelectedIdentity(
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+    elementType,
+  );
 }
 
 function targetMemberReceiverType(member: TargetMember): TargetTypeRef | undefined {

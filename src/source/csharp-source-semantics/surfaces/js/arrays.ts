@@ -4,7 +4,6 @@ export {
 } from "./arrays/element-access.js";
 export {
   arrayTargetMembersForSelectedIdentity,
-  arrayTargetMembersForSourceMember,
 } from "./arrays/target-members/index.js";
 export {
   getCsharpArrayLengthMember,
