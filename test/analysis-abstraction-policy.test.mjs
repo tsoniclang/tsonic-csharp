@@ -303,6 +303,37 @@ test("architecture validator rejects provider-row target members built from sour
   );
 });
 
+test("architecture validator rejects Node target member synthesis from source names", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/nodejs/path/calls.ts",
+    `
+      return {
+        member: {
+          id: \`Tsonic.CSharp.Node.path.\${exportName}(\${signatureId.slice("node:path.".length + exportName.length + 1, -1)})\`,
+          sourceName: exportName,
+          targetName: exportName,
+        },
+      };
+    `,
+    [
+      "nodejs-target-id-source-name-synthesis",
+      "nodejs-target-member-name-source-copy",
+      "nodejs-target-member-name-source-copy",
+      "nodejs-target-id-signature-slice",
+    ],
+  );
+
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/nodejs/url/declarations.ts",
+    `
+      members: nodeUrlUnsupportedClassMemberDeclarations()
+        .filter((member) => member.exportName === exportName)
+        .map(providerMemberForUnsupportedUrlClassMember),
+    `,
+    ["nodejs-local-export-member-filter"],
+  );
+});
+
 test("architecture validator rejects executable selectors in metadata-policy files only", () => {
   assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-policy.ts",

@@ -284,6 +284,34 @@ export const analysisAbstractionRules = Object.freeze([
       "Node provider member selection must use canonical declaration/signature identity indexes rather than local export/signature search.",
   },
   {
+    id: "nodejs-target-id-source-name-synthesis",
+    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    pattern: /\b(?:id|targetIdentityId)\s*:\s*`(?:unsupported:)?Tsonic\.CSharp\.Node\.[^`]*\$\{\s*(?:exportName|memberName)\s*\}/g,
+    replacement:
+      "Node target member and unsupported target identities must be declared by provider metadata rows, not synthesized from source export/member names.",
+  },
+  {
+    id: "nodejs-target-member-name-source-copy",
+    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    pattern: /\b(?:sourceName|targetName)\s*:\s*(?:exportName|memberName)\b/g,
+    replacement:
+      "Node target member source/target names must be explicit metadata fields; do not copy source export/member names into target member shape.",
+  },
+  {
+    id: "nodejs-target-id-signature-slice",
+    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    pattern: /\bsignatureId\.slice\s*\(/g,
+    replacement:
+      "Node target identity parameters must be declared as provider metadata, not extracted from source signature ids.",
+  },
+  {
+    id: "nodejs-local-export-member-filter",
+    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    pattern: /\.filter\s*\(\s*\(?\s*member\s*\)?\s*=>\s*member\.exportName\s*===/g,
+    replacement:
+      "Node provider declarations should be built from canonical provider metadata records instead of local export-name member filters.",
+  },
+  {
     id: "semantic-fallback-word",
     pattern: /\bfallback\b/gi,
     replacement:
@@ -347,6 +375,55 @@ export const analysisAbstractionDebtOwners = Object.freeze([
 ]);
 
 export const analysisAbstractionDebtCatalog = Object.freeze([
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/assert.ts", {
+    "nodejs-target-id-source-name-synthesis": 2,
+    "nodejs-target-member-name-source-copy": 2,
+    "nodejs-target-id-signature-slice": 1,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node assert target and unsupported identities as canonical metadata rows instead of deriving them from export names and signature strings."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/crypto.ts", {
+    "nodejs-target-member-name-source-copy": 2,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node crypto source and target member names explicitly in metadata rows."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/filesystem/calls.ts", {
+    "nodejs-target-id-source-name-synthesis": 1,
+    "nodejs-target-member-name-source-copy": 2,
+    "nodejs-target-id-signature-slice": 1,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node fs target member identities and names explicitly instead of deriving them from export names and signature strings."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/os.ts", {
+    "nodejs-target-id-source-name-synthesis": 2,
+    "nodejs-target-member-name-source-copy": 4,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node os target member identities and names explicitly in provider metadata rows."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/path/calls.ts", {
+    "nodejs-target-id-source-name-synthesis": 1,
+    "nodejs-target-member-name-source-copy": 2,
+    "nodejs-target-id-signature-slice": 1,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node path call target member identities and names explicitly instead of deriving them from export names and signature strings."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/path/properties.ts", {
+    "nodejs-target-id-source-name-synthesis": 1,
+    "nodejs-target-member-name-source-copy": 2,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node path property target member identities and names explicitly in provider metadata rows."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/process.ts", {
+    "nodejs-target-id-source-name-synthesis": 1,
+    "nodejs-target-member-name-source-copy": 5,
+    "nodejs-local-export-member-filter": 2,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node process target member names and class-member grouping as canonical metadata rows."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/url/declarations.ts", {
+    "nodejs-local-export-member-filter": 2,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node URL unsupported class-member grouping through canonical provider metadata rows instead of export-name filters."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/url/helpers.ts", {
+    "nodejs-target-id-signature-slice": 1,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node URL target identity parameters explicitly instead of slicing provider signature ids."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/url/target-members.ts", {
+    "nodejs-target-id-source-name-synthesis": 3,
+    "nodejs-target-member-name-source-copy": 5,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node URL target member identities and names explicitly in provider metadata rows."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/url/unsupported.ts", {
+    "nodejs-target-id-source-name-synthesis": 2,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node URL unsupported target identities explicitly instead of deriving them from export/member names."),
+  entry("src/source/csharp-source-semantics/surfaces/nodejs/util.ts", {
+    "nodejs-target-id-source-name-synthesis": 2,
+    "nodejs-target-member-name-source-copy": 2,
+    "nodejs-target-id-signature-slice": 2,
+  }, "provider-metadata-candidate", "surface-provider", "Declare Node util target and unsupported identities as canonical metadata rows instead of deriving them from export names and signature strings."),
 ]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
