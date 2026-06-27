@@ -46,7 +46,6 @@ import {
   type JsSurfaceSourceIdentitySelector,
   jsSurfaceSelectMetadataRowForSourceIdentity,
   jsSurfaceSelectedSourceIdentityForMember,
-  jsSurfaceSourceIdentityMatchesSelector,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
@@ -60,46 +59,49 @@ import {
   isNewExpression,
 } from "../helpers.js";
 import {
-  arrayCallableIdentityPolicy,
   arrayConstructorIdentityPolicy,
   collectionConstructorIdentityPolicy,
   collectionIdentityPolicy,
+  objectToStringIdentityPolicy,
 } from "./identities.js";
 import {
+  type ObjectRecordDictionaryOperation,
   getObjectPrimitiveReceiverCallMembers,
   getObjectRecordDictionaryCallMembers,
+  objectRecordDictionaryCallRows,
 } from "./object-members.js";
 
-interface SourceCallMetadataRow {
+interface JsSurfaceOperationRow {
   readonly identity: JsSurfaceSourceIdentitySelector;
-  readonly policyKind: JsSurfaceCallPolicyKind;
-  readonly targetProviders?: readonly JsSurfaceCallTargetProvider[];
-  readonly semanticException?: JsSurfaceCallSemanticException;
+  readonly policyKind: JsSurfaceOperationPolicyKind;
+  readonly targetProviders?: readonly JsSurfaceOperationTargetProvider[];
+  readonly semanticException?: JsSurfaceOperationSemanticException;
+  readonly callableWithoutContext?: boolean;
 }
 
-type JsSurfaceCallPolicyKind =
+type JsSurfaceOperationPolicyKind =
   | "provider-member"
   | "carrier-member"
   | "semantic-exception"
   | "unsupported";
 
-type JsSurfaceCallTargetProvider =
+type JsSurfaceOperationTargetProvider =
   | {
     readonly kind: "metadata-index";
     readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
   }
   | {
-    readonly kind: "adapter";
-    readonly adapter: JsSurfaceCallTargetProviderAdapter;
+    readonly kind: "operation-adapter";
+    readonly adapter: JsSurfaceOperationTargetProviderAdapter;
   };
 
-interface JsSurfaceCallTargetProviderAdapter {
+interface JsSurfaceOperationTargetProviderAdapter {
   readonly id: string;
   readonly selectTargetMembers: (request: JsSurfaceCallTargetProviderRequest) => readonly TargetMember[];
   readonly hasCallableProvider: (request: JsSurfaceCallCallableProviderRequest) => boolean;
 }
 
-interface JsSurfaceCallSemanticException {
+interface JsSurfaceOperationSemanticException {
   readonly reason: string;
   readonly requiredFacts: readonly string[];
 }
@@ -117,12 +119,12 @@ interface JsSurfaceCallCallableProviderRequest {
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
 }
 
-const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
-  metadataIndexPolicy({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex),
-  metadataIndexPolicy({ prefixes: ["String."] }, stringTargetMemberIdentityIndex),
-  metadataIndexPolicy({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex),
-  metadataIndexPolicy({ prefixes: ["Boolean."] }, booleanTargetMemberIdentityIndex),
-  metadataIndexPolicy({ prefixes: ["RegExp."] }, regExpTargetMemberIdentityIndex),
+const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
+  operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex),
+  operationRowFromMetadataIndex({ prefixes: ["String."] }, stringTargetMemberIdentityIndex),
+  operationRowFromMetadataIndex({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex),
+  operationRowFromMetadataIndex({ prefixes: ["Boolean."] }, booleanTargetMemberIdentityIndex),
+  operationRowFromMetadataIndex({ prefixes: ["RegExp."] }, regExpTargetMemberIdentityIndex),
   {
     identity: { prefixes: ["Date."] },
     policyKind: "semantic-exception",
@@ -130,27 +132,47 @@ const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
       reason: "Date call and construct source operations have different JavaScript runtime semantics but share the Date source family.",
       requiredFacts: ["selected source declaration/signature identity", "call expression construct-vs-call shape"],
     },
-    targetProviders: [adapterProvider(callConstructDiscriminatorProvider())],
+    targetProviders: [operationAdapterProvider(callConstructDiscriminatorProvider())],
   },
-  metadataIndexPolicy({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
+  operationRowFromMetadataIndex({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
   {
-    identity: { prefixes: ["Object."] },
+    identity: objectToStringIdentityPolicy,
+    policyKind: "semantic-exception",
+    semanticException: {
+      reason: "Object.prototype.toString delegates primitive receivers to selected JS wrapper surface members.",
+      requiredFacts: ["selected source declaration/signature identity", "resolved primitive receiver carrier"],
+    },
+    targetProviders: [operationAdapterProvider(primitiveReceiverStaticHelperProvider())],
+  },
+  ...objectRecordDictionaryCallRows.map((row): JsSurfaceOperationRow => ({
+    identity: row.identity,
     policyKind: "carrier-member",
     targetProviders: [
       metadataIndexProvider(objectTargetMemberIdentityIndex),
-      adapterProvider(primitiveReceiverStaticHelperProvider()),
-      adapterProvider(recordDictionaryStaticHelperProvider()),
+      operationAdapterProvider(recordDictionaryStaticHelperProvider(row.operation)),
     ],
+  })),
+  operationRowFromMetadataIndex({ prefixes: ["Object."] }, objectTargetMemberIdentityIndex),
+  {
+    identity: arrayConstructorIdentityPolicy,
+    policyKind: "carrier-member",
+    callableWithoutContext: true,
+    targetProviders: [operationAdapterProvider(closedSequenceCarrierProvider({ requireResultElementType: true }))],
   },
   {
     identity: { prefixes: ["Array.", "ReadonlyArray."] },
     policyKind: "carrier-member",
-    targetProviders: [adapterProvider(closedSequenceCarrierProvider())],
+    targetProviders: [operationAdapterProvider(closedSequenceCarrierProvider({ requireResultElementType: false }))],
+  },
+  {
+    identity: collectionConstructorIdentityPolicy,
+    policyKind: "carrier-member",
+    targetProviders: [operationAdapterProvider(closedKeyedCollectionCarrierProvider({ useResultCarrier: true }))],
   },
   {
     identity: collectionIdentityPolicy,
     policyKind: "carrier-member",
-    targetProviders: [adapterProvider(closedKeyedCollectionCarrierProvider())],
+    targetProviders: [operationAdapterProvider(closedKeyedCollectionCarrierProvider({ useResultCarrier: false }))],
   },
   {
     identity: { prefixes: ["Console."] },
@@ -194,15 +216,15 @@ export function csharpJsSourceLibraryMemberHasCallableProvider(
     });
 }
 
-function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember): SourceCallMetadataRow | undefined {
+function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember): JsSurfaceOperationRow | undefined {
   return jsSurfaceSelectMetadataRowForSourceIdentity(
-    sourceCallMetadataRows,
+    jsSurfaceOperationRows,
     jsSurfaceSelectedSourceIdentityForMember(sourceMember),
   );
 }
 
 function callMembersFromOperationRow(
-  row: SourceCallMetadataRow,
+  row: JsSurfaceOperationRow,
   sourceMember: SourceLibraryMember,
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   request: CheckedCallMappingRequest,
@@ -214,9 +236,12 @@ function callMembersFromOperationRow(
 }
 
 function operationRowHasCallableProvider(
-  row: SourceCallMetadataRow,
+  row: JsSurfaceOperationRow,
   request: JsSurfaceCallCallableProviderRequest,
 ): boolean {
+  if (row.callableWithoutContext === true) {
+    return true;
+  }
   switch (row.policyKind) {
     case "unsupported":
       return false;
@@ -228,25 +253,25 @@ function operationRowHasCallableProvider(
 }
 
 function targetMembersFromProvider(
-  provider: JsSurfaceCallTargetProvider,
+  provider: JsSurfaceOperationTargetProvider,
   request: JsSurfaceCallTargetProviderRequest,
 ): readonly TargetMember[] {
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
-    case "adapter":
+    case "operation-adapter":
       return provider.adapter.selectTargetMembers(request);
   }
 }
 
 function providerHasCallableMember(
-  provider: JsSurfaceCallTargetProvider,
+  provider: JsSurfaceOperationTargetProvider,
   request: JsSurfaceCallCallableProviderRequest,
 ): boolean {
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity).some(targetMemberIsCallable);
-    case "adapter":
+    case "operation-adapter":
       return provider.adapter.hasCallableProvider(request);
   }
 }
@@ -256,12 +281,12 @@ function arrayMembersFromClosedFacts(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
+  options: {
+    readonly requireResultElementType: boolean;
+  },
 ): readonly TargetMember[] {
   const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
-  if (
-    jsSurfaceSourceIdentityMatchesSelector(jsSurfaceSelectedSourceIdentityForMember(sourceMember), arrayConstructorIdentityPolicy) &&
-    resultElementType === undefined
-  ) {
+  if (options.requireResultElementType && resultElementType === undefined) {
     return [];
   }
   return arrayTargetMembersForSourceMember(sourceMember, resultElementType ?? arrayElementTypeFromClosedFacts(request, context, host));
@@ -277,10 +302,10 @@ function arrayElementTypeFromClosedFacts(
     getSourceLibraryCallArgumentTargetTypes(request, context, host).map(getCsharpArrayLikeElementType).find((element) => element !== undefined);
 }
 
-function metadataIndexPolicy(
+function operationRowFromMetadataIndex(
   identity: JsSurfaceSourceIdentitySelector,
   membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
-): SourceCallMetadataRow {
+): JsSurfaceOperationRow {
   return {
     identity,
     policyKind: "provider-member",
@@ -290,21 +315,21 @@ function metadataIndexPolicy(
 
 function metadataIndexProvider(
   membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
-): JsSurfaceCallTargetProvider {
+): JsSurfaceOperationTargetProvider {
   return {
     kind: "metadata-index",
     membersBySourceIdentity,
   };
 }
 
-function adapterProvider(adapter: JsSurfaceCallTargetProviderAdapter): JsSurfaceCallTargetProvider {
+function operationAdapterProvider(adapter: JsSurfaceOperationTargetProviderAdapter): JsSurfaceOperationTargetProvider {
   return {
-    kind: "adapter",
+    kind: "operation-adapter",
     adapter,
   };
 }
 
-function callConstructDiscriminatorProvider(): JsSurfaceCallTargetProviderAdapter {
+function callConstructDiscriminatorProvider(): JsSurfaceOperationTargetProviderAdapter {
   return {
     id: "call-construct-discriminator",
     selectTargetMembers: (request) =>
@@ -313,40 +338,39 @@ function callConstructDiscriminatorProvider(): JsSurfaceCallTargetProviderAdapte
   };
 }
 
-function primitiveReceiverStaticHelperProvider(): JsSurfaceCallTargetProviderAdapter {
+function primitiveReceiverStaticHelperProvider(): JsSurfaceOperationTargetProviderAdapter {
   return {
     id: "primitive-receiver-static-helper",
-    selectTargetMembers: (request) => getObjectPrimitiveReceiverCallMembers(request.request, request.context, request.host, request.sourceMember),
+    selectTargetMembers: (request) => getObjectPrimitiveReceiverCallMembers(request.request, request.context, request.host),
     hasCallableProvider: () => false,
   };
 }
 
-function recordDictionaryStaticHelperProvider(): JsSurfaceCallTargetProviderAdapter {
+function recordDictionaryStaticHelperProvider(operation: ObjectRecordDictionaryOperation): JsSurfaceOperationTargetProviderAdapter {
   return {
     id: "record-dictionary-static-helper",
-    selectTargetMembers: (request) => getObjectRecordDictionaryCallMembers(request.sourceMember, request.request, request.context, request.host),
+    selectTargetMembers: (request) => getObjectRecordDictionaryCallMembers(operation, request.request, request.context, request.host),
     hasCallableProvider: () => false,
   };
 }
 
-function closedSequenceCarrierProvider(): JsSurfaceCallTargetProviderAdapter {
+function closedSequenceCarrierProvider(options: { readonly requireResultElementType: boolean }): JsSurfaceOperationTargetProviderAdapter {
   return {
     id: "closed-sequence-carrier",
-    selectTargetMembers: (request) => arrayMembersFromClosedFacts(request.sourceMember, request.request, request.context, request.host),
+    selectTargetMembers: (request) => arrayMembersFromClosedFacts(request.sourceMember, request.request, request.context, request.host, options),
     hasCallableProvider: (request) =>
-      arrayTargetMembersForSourceMember(request.sourceMember).some(targetMemberIsCallable) ||
-      jsSurfaceSourceIdentityMatchesSelector(request.selectedIdentity, arrayCallableIdentityPolicy),
+      arrayTargetMembersForSourceMember(request.sourceMember).some(targetMemberIsCallable),
   };
 }
 
-function closedKeyedCollectionCarrierProvider(): JsSurfaceCallTargetProviderAdapter {
+function closedKeyedCollectionCarrierProvider(options: { readonly useResultCarrier: boolean }): JsSurfaceOperationTargetProviderAdapter {
   return {
     id: "closed-keyed-collection-carrier",
     selectTargetMembers: (request) =>
       collectionTargetMembersForSourceMember(
         request.sourceMember,
         getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
-        jsSurfaceSourceIdentityMatchesSelector(request.selectedIdentity, collectionConstructorIdentityPolicy)
+        options.useResultCarrier
           ? getSourceLibraryCallResultTargetType(request.request, request.context, request.host)
           : undefined,
       ),

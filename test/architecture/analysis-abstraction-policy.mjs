@@ -253,6 +253,13 @@ export const analysisAbstractionRules = Object.freeze([
       "JS surface call mapping must use declarative operation rows and generic target providers, not source-family boolean flags or family-specific callable policy flags.",
   },
   {
+    id: "js-surface-call-legacy-provider-shape",
+    filePattern: /(?:^|\/)surfaces\/js\/calls\/member-providers\/[^/]+\.ts$/,
+    pattern: /\b(?:SourceCallMetadataRow|JsSurfaceCallPolicyKind|JsSurfaceCallTargetProvider|JsSurfaceCallTargetProviderAdapter|sourceCallMetadataRows|metadataIndexPolicy)\b|readonly kind: "adapter"/g,
+    replacement:
+      "JS surface calls must use one JsSurfaceOperationRow schema and generic operation target providers; legacy call-provider shapes and adapter-only provider kinds are not allowed.",
+  },
+  {
     id: "js-surface-property-provider-kind-literal",
     filePattern: /(?:^|\/)surfaces\/js\/properties\/member-providers\/[^/]+\.ts$/,
     pattern: /"(?:collection-size|string-length|array-length)"/g,
