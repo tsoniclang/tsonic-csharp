@@ -3,17 +3,13 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  getCsharpArrayLengthMember,
-} from "../../arrays.js";
-import {
-  collectionTargetMembersForSourceMember,
-} from "../../collections.js";
+  isCsharpReadOnlyIndexableCollectionTargetType,
+} from "../../../../target-types.js";
 import type {
   SourceLibraryMember,
 } from "../../source-library.js";
 import {
   type JsSurfaceSourceIdentitySelector,
-  jsSurfaceTargetMemberFromMetadata,
   jsSurfaceSelectMetadataRowForSourceIdentity,
   jsSurfaceSelectedSourceIdentityForMember,
 } from "../../target-member-metadata.js";
@@ -21,13 +17,14 @@ import {
   propertyPrecheckRows,
 } from "./precheck-rules.js";
 import {
-  int32PropertyReturnType,
   propertyMemberProviderBySourceIdentity,
 } from "./target-member-resolvers.js";
 import type {
-  CsharpJsPropertyMemberProviderKind,
+  CsharpJsPropertyMemberProviderValue,
   CsharpJsPropertyPrecheckRule,
   CsharpJsPropertyPrecheckResult,
+  CsharpJsReceiverPropertyMember,
+  CsharpJsReceiverPropertySelector,
   CsharpJsSourceLibraryPropertyPrecheck,
 } from "./types.js";
 
@@ -39,7 +36,7 @@ export function getCsharpJsSourceLibraryPropertyMember(
   const provider = propertyMemberProviderBySourceIdentity.get(selectedIdentity.key);
   return provider === undefined
     ? undefined
-    : propertyMemberFromProvider(provider.member, sourceMember, receiverType);
+    : propertyMemberFromProvider(provider.member, receiverType);
 }
 
 export function csharpJsSourceLibraryPropertyPrecheck(sourceMember: SourceLibraryMember): CsharpJsSourceLibraryPropertyPrecheck {
@@ -69,32 +66,46 @@ function propertyPrecheckResult(
 }
 
 function propertyMemberFromProvider(
-  provider: CsharpJsPropertyMemberProviderKind,
-  sourceMember: SourceLibraryMember,
+  provider: CsharpJsPropertyMemberProviderValue,
   receiverType: TargetTypeRef | undefined,
 ): TargetMember | undefined {
-  switch (provider.kind) {
-    case "metadata-row":
-      return singlePropertyMember(provider.members);
-    case "collection-member":
-      return singlePropertyMember(collectionTargetMembersForSourceMember(sourceMember, receiverType, undefined));
-    case "array-length": {
-      const lengthMember = receiverType?.kind === "array"
-        ? "length"
-        : getCsharpArrayLengthMember(receiverType);
-      return lengthMember === undefined
-        ? undefined
-        : jsSurfaceTargetMemberFromMetadata({
-            id: "tsonic.csharp.js.Array.length",
-            sourceName: "length",
-            targetName: lengthMember,
-            kind: "property",
-            returnType: int32PropertyReturnType,
-          });
-    }
+  if (provider.members !== undefined) {
+    return singlePropertyMember(provider.members);
   }
+  if (provider.receiverMembers !== undefined) {
+    return selectReceiverPropertyMember(provider.receiverMembers, receiverType);
+  }
+  return undefined;
 }
 
 function singlePropertyMember(members: readonly TargetMember[]): TargetMember | undefined {
   return members.length === 1 ? members[0] : undefined;
+}
+
+function selectReceiverPropertyMember(
+  members: readonly CsharpJsReceiverPropertyMember[],
+  receiverType: TargetTypeRef | undefined,
+): TargetMember | undefined {
+  const match = members.find((member) => receiverPropertySelectorMatches(member.receiver, receiverType));
+  if (match === undefined) {
+    return undefined;
+  }
+  return {
+    ...match.member,
+    ...(match.useReceiverAsDeclaringType === true && receiverType !== undefined ? { declaringType: receiverType } : {}),
+  };
+}
+
+function receiverPropertySelectorMatches(
+  selector: CsharpJsReceiverPropertySelector,
+  receiverType: TargetTypeRef | undefined,
+): boolean {
+  switch (selector.kind) {
+    case "target-array":
+      return receiverType?.kind === "array";
+    case "target-id":
+      return receiverType?.kind === "target-named" && receiverType.id === selector.id;
+    case "target-feature":
+      return selector.feature === "read-only-indexable" && isCsharpReadOnlyIndexableCollectionTargetType(receiverType);
+  }
 }

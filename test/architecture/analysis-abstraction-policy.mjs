@@ -356,33 +356,6 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
     "surface-provider",
     "Replace call-provider source-family kind rows with canonical declarative provider metadata rows and explicit semantic exception records selected by source declaration/signature identity.",
   ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
-    {
-      "js-surface-property-provider-kind-literal": 1,
-    },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Replace property-provider kind switch selection with canonical declarative provider metadata rows and generic property selectors.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/target-member-resolvers.ts",
-    {
-      "js-surface-property-provider-kind-literal": 3,
-    },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Move property target member kind rows into provider/runtime metadata records instead of source-family property provider kinds.",
-  ),
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/types.ts",
-    {
-      "js-surface-property-provider-kind-literal": 1,
-    },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Replace source-family property provider kind union with declarative provider metadata facts.",
-  ),
 ]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
