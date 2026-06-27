@@ -1,12 +1,16 @@
 import type {
   ProviderExportDeclaration,
   TargetMember,
-  TargetParameter,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   targetParameter,
 } from "../../js/source-library.js";
+import {
+  nodejsModuleCallTargetMetadata,
+} from "../members/target-member-metadata.js";
+import type {
+  NodejsModuleCallTargetMetadataRow,
+} from "../members/target-member-metadata.js";
 import {
   getNodejsProviderExportSignatureDeclarationTargetMember,
   nodejsProviderExportSignatureDeclarationTargetMemberIndex,
@@ -34,9 +38,9 @@ import {
 } from "./types.js";
 import type {
   NodeFsCallTargetMember,
-  NodeFsProviderParameter,
-  ProviderTypeExpression,
 } from "./types.js";
+
+type NodeFsCallTargetMetadataRow = Omit<NodejsModuleCallTargetMetadataRow, "declaringType">;
 
 export function getNodeFsExistsSyncTargetMember(): TargetMember {
   const member = getNodeFsCallTargetMember(nodeFsExistsSyncExportName, nodeFsExistsSyncSignatureId);
@@ -81,90 +85,90 @@ export function nodeFsCallTargetMembers(): readonly NodeFsCallTargetMember[] {
   const optionalNumberParameter = (name: string) => ({ name, type: numberProviderType, optional: true });
   const optionalBoolParameter = (name: string) => ({ name, type: boolProviderType, optional: true });
   return [
-    fsCall("accessSync", "node:fs.accessSync(System.String,System.Int32)", "Tsonic.CSharp.Node.fs.accessSync(System.String,System.Int32)", "accessSync", [stringParameter("path"), optionalNumberParameter("mode")], voidProviderType, [
+    fsCall({ exportName: "accessSync", signatureId: "node:fs.accessSync(System.String,System.Int32)", targetMemberId: "Tsonic.CSharp.Node.fs.accessSync(System.String,System.Int32)", sourceName: "accessSync", targetName: "accessSync", providerParameters: [stringParameter("path"), optionalNumberParameter("mode")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("mode", intTargetType, { optional: true }),
-    ], voidTargetType),
-    fsCall("appendFileSync", "node:fs.appendFileSync(System.String,System.String,System.String)", "Tsonic.CSharp.Node.fs.appendFileSync(System.String,System.String,System.String)", "appendFileSync", [stringParameter("path"), stringParameter("data"), optionalStringParameter("encoding")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "appendFileSync", signatureId: "node:fs.appendFileSync(System.String,System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.appendFileSync(System.String,System.String,System.String)", sourceName: "appendFileSync", targetName: "appendFileSync", providerParameters: [stringParameter("path"), stringParameter("data"), optionalStringParameter("encoding")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("data", stringTargetType),
       targetParameter("encoding", stringTargetType, { optional: true }),
-    ], voidTargetType),
-    fsCall("chmodSync", "node:fs.chmodSync(System.String,System.Int32)", "Tsonic.CSharp.Node.fs.chmodSync(System.String,System.Int32)", "chmodSync", [stringParameter("path"), numberParameter("mode")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "chmodSync", signatureId: "node:fs.chmodSync(System.String,System.Int32)", targetMemberId: "Tsonic.CSharp.Node.fs.chmodSync(System.String,System.Int32)", sourceName: "chmodSync", targetName: "chmodSync", providerParameters: [stringParameter("path"), numberParameter("mode")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("mode", intTargetType),
-    ], voidTargetType),
-    fsCall("closeSync", "node:fs.closeSync(System.Int32)", "Tsonic.CSharp.Node.fs.closeSync(System.Int32)", "closeSync", [numberParameter("fd")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "closeSync", signatureId: "node:fs.closeSync(System.Int32)", targetMemberId: "Tsonic.CSharp.Node.fs.closeSync(System.Int32)", sourceName: "closeSync", targetName: "closeSync", providerParameters: [numberParameter("fd")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("fd", intTargetType),
-    ], voidTargetType),
-    fsCall("copyFileSync", "node:fs.copyFileSync(System.String,System.String,System.Int32)", "Tsonic.CSharp.Node.fs.copyFileSync(System.String,System.String,System.Int32)", "copyFileSync", [stringParameter("src"), stringParameter("dest"), optionalNumberParameter("mode")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "copyFileSync", signatureId: "node:fs.copyFileSync(System.String,System.String,System.Int32)", targetMemberId: "Tsonic.CSharp.Node.fs.copyFileSync(System.String,System.String,System.Int32)", sourceName: "copyFileSync", targetName: "copyFileSync", providerParameters: [stringParameter("src"), stringParameter("dest"), optionalNumberParameter("mode")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("src", stringTargetType),
       targetParameter("dest", stringTargetType),
       targetParameter("mode", intTargetType, { optional: true }),
-    ], voidTargetType),
-    fsCall("cpSync", "node:fs.cpSync(System.String,System.String,System.Boolean)", "Tsonic.CSharp.Node.fs.cpSync(System.String,System.String,System.Boolean)", "cpSync", [stringParameter("src"), stringParameter("dest"), optionalBoolParameter("recursive")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "cpSync", signatureId: "node:fs.cpSync(System.String,System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs.cpSync(System.String,System.String,System.Boolean)", sourceName: "cpSync", targetName: "cpSync", providerParameters: [stringParameter("src"), stringParameter("dest"), optionalBoolParameter("recursive")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("src", stringTargetType),
       targetParameter("dest", stringTargetType),
       targetParameter("recursive", boolTargetType, { optional: true }),
-    ], voidTargetType),
-    fsCall(nodeFsExistsSyncExportName, nodeFsExistsSyncSignatureId, "Tsonic.CSharp.Node.fs.existsSync(System.String)", "existsSync", [stringParameter("path")], boolProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: nodeFsExistsSyncExportName, signatureId: nodeFsExistsSyncSignatureId, targetMemberId: "Tsonic.CSharp.Node.fs.existsSync(System.String)", sourceName: "existsSync", targetName: "existsSync", providerParameters: [stringParameter("path")], providerReturnType: boolProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], boolTargetType),
-    fsCall(nodeFsStatSyncExportName, nodeFsStatSyncSignatureId, "Tsonic.CSharp.Node.fs.statSync(System.String)", "statSync", [stringParameter("path")], statsProviderType, [
+    ], targetReturnType: boolTargetType }),
+    fsCall({ exportName: nodeFsStatSyncExportName, signatureId: nodeFsStatSyncSignatureId, targetMemberId: "Tsonic.CSharp.Node.fs.statSync(System.String)", sourceName: "statSync", targetName: "statSync", providerParameters: [stringParameter("path")], providerReturnType: statsProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], statsTargetType),
-    fsCall("mkdirSync", "node:fs.mkdirSync(System.String,System.Boolean)", "Tsonic.CSharp.Node.fs.mkdirSync(System.String,System.Boolean)", "mkdirSync", [stringParameter("path"), optionalBoolParameter("recursive")], voidProviderType, [
+    ], targetReturnType: statsTargetType }),
+    fsCall({ exportName: "mkdirSync", signatureId: "node:fs.mkdirSync(System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs.mkdirSync(System.String,System.Boolean)", sourceName: "mkdirSync", targetName: "mkdirSync", providerParameters: [stringParameter("path"), optionalBoolParameter("recursive")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("recursive", boolTargetType, { optional: true }),
-    ], voidTargetType),
-    fsCall("openSync", "node:fs.openSync(System.String,System.String,System.Int32)", "Tsonic.CSharp.Node.fs.openSync(System.String,System.String,System.Int32)", "openSync", [stringParameter("path"), stringParameter("flags"), optionalNumberParameter("mode")], numberProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "openSync", signatureId: "node:fs.openSync(System.String,System.String,System.Int32)", targetMemberId: "Tsonic.CSharp.Node.fs.openSync(System.String,System.String,System.Int32)", sourceName: "openSync", targetName: "openSync", providerParameters: [stringParameter("path"), stringParameter("flags"), optionalNumberParameter("mode")], providerReturnType: numberProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("flags", stringTargetType),
       targetParameter("mode", intTargetType, { optional: true }),
-    ], intTargetType),
-    fsCall("readFileSync", "node:fs.readFileSync(System.String,System.String)", "Tsonic.CSharp.Node.fs.readFileSync(System.String,System.String)", "readFileSync", [stringParameter("path"), stringParameter("encoding")], stringProviderType, [
+    ], targetReturnType: intTargetType }),
+    fsCall({ exportName: "readFileSync", signatureId: "node:fs.readFileSync(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.readFileSync(System.String,System.String)", sourceName: "readFileSync", targetName: "readFileSync", providerParameters: [stringParameter("path"), stringParameter("encoding")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("encoding", stringTargetType),
-    ], stringTargetType),
-    fsCall("readdirSync", "node:fs.readdirSync(System.String,System.Boolean)", "Tsonic.CSharp.Node.fs.readdirSync(System.String,System.Boolean)", "readdirSync", [stringParameter("path"), optionalBoolParameter("withFileTypes")], { kind: "array", elementType: stringProviderType }, [
+    ], targetReturnType: stringTargetType }),
+    fsCall({ exportName: "readdirSync", signatureId: "node:fs.readdirSync(System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs.readdirSync(System.String,System.Boolean)", sourceName: "readdirSync", targetName: "readdirSync", providerParameters: [stringParameter("path"), optionalBoolParameter("withFileTypes")], providerReturnType: { kind: "array", elementType: stringProviderType }, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("withFileTypes", boolTargetType, { optional: true }),
-    ], { kind: "array", element: stringTargetType }),
-    fsCall("readlinkSync", "node:fs.readlinkSync(System.String)", "Tsonic.CSharp.Node.fs.readlinkSync(System.String)", "readlinkSync", [stringParameter("path")], stringProviderType, [
+    ], targetReturnType: { kind: "array", element: stringTargetType } }),
+    fsCall({ exportName: "readlinkSync", signatureId: "node:fs.readlinkSync(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.readlinkSync(System.String)", sourceName: "readlinkSync", targetName: "readlinkSync", providerParameters: [stringParameter("path")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], stringTargetType),
-    fsCall("realpathSync", "node:fs.realpathSync(System.String)", "Tsonic.CSharp.Node.fs.realpathSync(System.String)", "realpathSync", [stringParameter("path")], stringProviderType, [
+    ], targetReturnType: stringTargetType }),
+    fsCall({ exportName: "realpathSync", signatureId: "node:fs.realpathSync(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.realpathSync(System.String)", sourceName: "realpathSync", targetName: "realpathSync", providerParameters: [stringParameter("path")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], stringTargetType),
-    fsCall("renameSync", "node:fs.renameSync(System.String,System.String)", "Tsonic.CSharp.Node.fs.renameSync(System.String,System.String)", "renameSync", [stringParameter("oldPath"), stringParameter("newPath")], voidProviderType, [
+    ], targetReturnType: stringTargetType }),
+    fsCall({ exportName: "renameSync", signatureId: "node:fs.renameSync(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.renameSync(System.String,System.String)", sourceName: "renameSync", targetName: "renameSync", providerParameters: [stringParameter("oldPath"), stringParameter("newPath")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("oldPath", stringTargetType),
       targetParameter("newPath", stringTargetType),
-    ], voidTargetType),
-    fsCall("rmSync", "node:fs.rmSync(System.String,System.Boolean)", "Tsonic.CSharp.Node.fs.rmSync(System.String,System.Boolean)", "rmSync", [stringParameter("path"), optionalBoolParameter("recursive")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "rmSync", signatureId: "node:fs.rmSync(System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs.rmSync(System.String,System.Boolean)", sourceName: "rmSync", targetName: "rmSync", providerParameters: [stringParameter("path"), optionalBoolParameter("recursive")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("recursive", boolTargetType, { optional: true }),
-    ], voidTargetType),
-    fsCall("rmdirSync", "node:fs.rmdirSync(System.String,System.Boolean)", "Tsonic.CSharp.Node.fs.rmdirSync(System.String,System.Boolean)", "rmdirSync", [stringParameter("path"), optionalBoolParameter("recursive")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "rmdirSync", signatureId: "node:fs.rmdirSync(System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs.rmdirSync(System.String,System.Boolean)", sourceName: "rmdirSync", targetName: "rmdirSync", providerParameters: [stringParameter("path"), optionalBoolParameter("recursive")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("recursive", boolTargetType, { optional: true }),
-    ], voidTargetType),
-    fsCall("symlinkSync", "node:fs.symlinkSync(System.String,System.String,System.String)", "Tsonic.CSharp.Node.fs.symlinkSync(System.String,System.String,System.String)", "symlinkSync", [stringParameter("target"), stringParameter("path"), optionalStringParameter("type")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "symlinkSync", signatureId: "node:fs.symlinkSync(System.String,System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.symlinkSync(System.String,System.String,System.String)", sourceName: "symlinkSync", targetName: "symlinkSync", providerParameters: [stringParameter("target"), stringParameter("path"), optionalStringParameter("type")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("target", stringTargetType),
       targetParameter("path", stringTargetType),
       targetParameter("type", stringTargetType, { optional: true }),
-    ], voidTargetType),
-    fsCall("truncateSync", "node:fs.truncateSync(System.String,System.Int64)", "Tsonic.CSharp.Node.fs.truncateSync(System.String,System.Int64)", "truncateSync", [stringParameter("path"), optionalNumberParameter("len")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "truncateSync", signatureId: "node:fs.truncateSync(System.String,System.Int64)", targetMemberId: "Tsonic.CSharp.Node.fs.truncateSync(System.String,System.Int64)", sourceName: "truncateSync", targetName: "truncateSync", providerParameters: [stringParameter("path"), optionalNumberParameter("len")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("len", longTargetType, { optional: true }),
-    ], voidTargetType),
-    fsCall("unlinkSync", "node:fs.unlinkSync(System.String)", "Tsonic.CSharp.Node.fs.unlinkSync(System.String)", "unlinkSync", [stringParameter("path")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "unlinkSync", signatureId: "node:fs.unlinkSync(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.unlinkSync(System.String)", sourceName: "unlinkSync", targetName: "unlinkSync", providerParameters: [stringParameter("path")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], voidTargetType),
-    fsCall("writeFileSync", "node:fs.writeFileSync(System.String,System.String,System.String)", "Tsonic.CSharp.Node.fs.writeFileSync(System.String,System.String,System.String)", "writeFileSync", [stringParameter("path"), stringParameter("data"), optionalStringParameter("encoding")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    fsCall({ exportName: "writeFileSync", signatureId: "node:fs.writeFileSync(System.String,System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.writeFileSync(System.String,System.String,System.String)", sourceName: "writeFileSync", targetName: "writeFileSync", providerParameters: [stringParameter("path"), stringParameter("data"), optionalStringParameter("encoding")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("data", stringTargetType),
       targetParameter("encoding", stringTargetType, { optional: true }),
-    ], voidTargetType),
+    ], targetReturnType: voidTargetType }),
   ];
 }
 
@@ -186,32 +190,11 @@ function nodeFsUnsupportedCallDeclarations(): readonly ProviderExportDeclaration
   ];
 }
 
-function fsCall(
-  sourceName: string,
-  signatureId: string,
-  targetMemberId: string,
-  targetName: string,
-  providerParameters: readonly NodeFsProviderParameter[],
-  providerReturnType: ProviderTypeExpression,
-  targetParameters: readonly TargetParameter[],
-  targetReturnType: TargetTypeRef,
-): NodeFsCallTargetMember {
-  return {
-    exportName: sourceName,
-    signatureId,
-    providerParameters,
-    providerReturnType,
-    member: {
-      id: targetMemberId,
-      sourceName,
-      targetName,
-      kind: "method",
-      parameters: targetParameters,
-      returnType: targetReturnType,
-      declaringType: fsTargetType,
-      static: true,
-    },
-  };
+function fsCall(row: NodeFsCallTargetMetadataRow): NodeFsCallTargetMember {
+  return nodejsModuleCallTargetMetadata({
+    ...row,
+    declaringType: fsTargetType,
+  });
 }
 
 const nodeFsCallTargetMemberByProviderDeclarationIdentity =

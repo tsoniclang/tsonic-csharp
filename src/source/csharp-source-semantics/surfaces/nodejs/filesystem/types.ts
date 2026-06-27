@@ -1,8 +1,10 @@
 import type {
   ProviderTypeExpression,
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  NodejsModuleCallTargetMetadata,
+} from "../members/target-member-metadata.js";
 import {
   csharpVoidTargetType,
   csharpSourcePrimitiveTargetType,
@@ -42,13 +44,7 @@ export interface NodeFsProviderParameter {
   readonly optional?: boolean;
 }
 
-export interface NodeFsCallTargetMember {
-  readonly exportName: string;
-  readonly signatureId: string;
-  readonly providerParameters: readonly NodeFsProviderParameter[];
-  readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}
+export type NodeFsCallTargetMember = NodejsModuleCallTargetMetadata;
 
 export type {
   ProviderTypeExpression,

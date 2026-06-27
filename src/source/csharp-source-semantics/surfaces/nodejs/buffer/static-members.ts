@@ -45,7 +45,7 @@ export function getNodeBufferFromStringTargetMember(): TargetMember {
   return {
     id: nodeBufferFromStringTargetMemberId,
     sourceName: nodeBufferFromExportName,
-    targetName: nodeBufferFromExportName,
+    targetName: "from",
     kind: "method",
     parameters: [
       targetParameter("value", nodeBufferStringTargetType),
@@ -61,7 +61,7 @@ export function getNodeBufferAllocTargetMember(): TargetMember {
   return {
     id: nodeBufferAllocTargetMemberId,
     sourceName: nodeBufferAllocExportName,
-    targetName: nodeBufferAllocExportName,
+    targetName: "alloc",
     kind: "method",
     parameters: [targetParameter("size", nodeBufferIntTargetType)],
     returnType: nodeBufferTargetType,
@@ -74,7 +74,7 @@ export function getNodeBufferAllocUnsafeTargetMember(): TargetMember {
   return {
     id: nodeBufferAllocUnsafeTargetMemberId,
     sourceName: nodeBufferAllocUnsafeExportName,
-    targetName: nodeBufferAllocUnsafeExportName,
+    targetName: "allocUnsafe",
     kind: "method",
     parameters: [targetParameter("size", nodeBufferIntTargetType)],
     returnType: nodeBufferTargetType,
@@ -87,7 +87,7 @@ export function getNodeBufferAllocUnsafeSlowTargetMember(): TargetMember {
   return {
     id: nodeBufferAllocUnsafeSlowTargetMemberId,
     sourceName: nodeBufferAllocUnsafeSlowExportName,
-    targetName: nodeBufferAllocUnsafeSlowExportName,
+    targetName: "allocUnsafeSlow",
     kind: "method",
     parameters: [targetParameter("size", nodeBufferIntTargetType)],
     returnType: nodeBufferTargetType,
@@ -100,7 +100,7 @@ export function getNodeBufferByteLengthTargetMember(): TargetMember {
   return {
     id: nodeBufferByteLengthTargetMemberId,
     sourceName: nodeBufferByteLengthExportName,
-    targetName: nodeBufferByteLengthExportName,
+    targetName: "byteLength",
     kind: "method",
     parameters: [
       targetParameter("value", nodeBufferStringTargetType),
@@ -116,7 +116,7 @@ export function getNodeBufferCompareTargetMember(): TargetMember {
   return {
     id: nodeBufferCompareTargetMemberId,
     sourceName: nodeBufferCompareExportName,
-    targetName: nodeBufferCompareExportName,
+    targetName: "compare",
     kind: "method",
     parameters: [
       targetParameter("buf1", nodeBufferTargetType),
@@ -132,7 +132,7 @@ export function getNodeBufferConcatTargetMember(): TargetMember {
   return {
     id: nodeBufferConcatTargetMemberId,
     sourceName: nodeBufferConcatExportName,
-    targetName: nodeBufferConcatExportName,
+    targetName: "concat",
     kind: "method",
     parameters: [
       targetParameter("list", { kind: "array", element: nodeBufferTargetType }),
@@ -148,7 +148,7 @@ export function getNodeBufferIsEncodingTargetMember(): TargetMember {
   return {
     id: nodeBufferIsEncodingTargetMemberId,
     sourceName: nodeBufferIsEncodingExportName,
-    targetName: nodeBufferIsEncodingExportName,
+    targetName: "isEncoding",
     kind: "method",
     parameters: [targetParameter("encoding", nodeBufferStringTargetType)],
     returnType: nodeBufferBoolTargetType,
@@ -161,7 +161,7 @@ export function getNodeBufferOfTargetMember(): TargetMember {
   return {
     id: nodeBufferOfTargetMemberId,
     sourceName: nodeBufferOfExportName,
-    targetName: nodeBufferOfExportName,
+    targetName: "of",
     kind: "method",
     parameters: [targetParameter("items", nodeBufferIntTargetType, { paramsArray: true })],
     returnType: nodeBufferTargetType,
@@ -174,7 +174,7 @@ export function getNodeBufferAtobTargetMember(): TargetMember {
   return {
     id: nodeBufferAtobTargetMemberId,
     sourceName: nodeBufferAtobExportName,
-    targetName: nodeBufferAtobExportName,
+    targetName: "atob",
     kind: "method",
     parameters: [targetParameter("data", nodeBufferStringTargetType)],
     returnType: nodeBufferStringTargetType,
@@ -187,7 +187,7 @@ export function getNodeBufferBtoaTargetMember(): TargetMember {
   return {
     id: nodeBufferBtoaTargetMemberId,
     sourceName: nodeBufferBtoaExportName,
-    targetName: nodeBufferBtoaExportName,
+    targetName: "btoa",
     kind: "method",
     parameters: [targetParameter("data", nodeBufferStringTargetType)],
     returnType: nodeBufferStringTargetType,
@@ -200,7 +200,7 @@ export function getNodeBufferIsAsciiTargetMember(): TargetMember {
   return {
     id: nodeBufferIsAsciiTargetMemberId,
     sourceName: nodeBufferIsAsciiExportName,
-    targetName: nodeBufferIsAsciiExportName,
+    targetName: "isAscii",
     kind: "method",
     parameters: [targetParameter("value", nodeBufferTargetType)],
     returnType: nodeBufferBoolTargetType,
@@ -213,7 +213,7 @@ export function getNodeBufferIsUtf8TargetMember(): TargetMember {
   return {
     id: nodeBufferIsUtf8TargetMemberId,
     sourceName: nodeBufferIsUtf8ExportName,
-    targetName: nodeBufferIsUtf8ExportName,
+    targetName: "isUtf8",
     kind: "method",
     parameters: [targetParameter("value", nodeBufferTargetType)],
     returnType: nodeBufferBoolTargetType,

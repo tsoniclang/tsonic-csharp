@@ -1,11 +1,16 @@
 import type {
   ProviderTypeExpression,
   TargetMember,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   targetParameter,
 } from "../../js/source-library.js";
+import {
+  nodejsModuleCallTargetMetadata,
+} from "../members/target-member-metadata.js";
+import type {
+  NodejsModuleCallTargetMetadataRow,
+} from "../members/target-member-metadata.js";
 import {
   getNodejsProviderExportSignatureDeclarationTargetMember,
   nodejsProviderExportSignatureDeclarationTargetMemberIndex,
@@ -26,8 +31,9 @@ import {
 } from "./types.js";
 import type {
   NodePathCallTargetMember,
-  NodePathProviderParameter,
 } from "./types.js";
+
+type NodePathCallTargetMetadataRow = Omit<NodejsModuleCallTargetMetadataRow, "declaringType">;
 
 export function getNodePathJoinTargetMember(): TargetMember {
   const member = getNodePathCallTargetMember(nodePathJoinExportName, nodePathJoinSignatureId);
@@ -58,74 +64,53 @@ export function nodePathCallTargetMembers(): readonly NodePathCallTargetMember[]
   const stringParameter = (name: string) => ({ name, type: stringProviderType });
   const optionalStringParameter = (name: string) => ({ name, type: stringProviderType, optional: true });
   return [
-    pathCall("basename", "node:path.basename(System.String,System.String)", "Tsonic.CSharp.Node.path.basename(System.String,System.String)", "basename", [stringParameter("path"), optionalStringParameter("suffix")], stringProviderType, [
+    pathCall({ exportName: "basename", signatureId: "node:path.basename(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.path.basename(System.String,System.String)", sourceName: "basename", targetName: "basename", providerParameters: [stringParameter("path"), optionalStringParameter("suffix")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("suffix", stringTargetType, { optional: true }),
-    ], stringTargetType),
-    pathCall("dirname", "node:path.dirname(System.String)", "Tsonic.CSharp.Node.path.dirname(System.String)", "dirname", [stringParameter("path")], stringProviderType, [
+    ], targetReturnType: stringTargetType }),
+    pathCall({ exportName: "dirname", signatureId: "node:path.dirname(System.String)", targetMemberId: "Tsonic.CSharp.Node.path.dirname(System.String)", sourceName: "dirname", targetName: "dirname", providerParameters: [stringParameter("path")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], stringTargetType),
-    pathCall("extname", "node:path.extname(System.String)", "Tsonic.CSharp.Node.path.extname(System.String)", "extname", [stringParameter("path")], stringProviderType, [
+    ], targetReturnType: stringTargetType }),
+    pathCall({ exportName: "extname", signatureId: "node:path.extname(System.String)", targetMemberId: "Tsonic.CSharp.Node.path.extname(System.String)", sourceName: "extname", targetName: "extname", providerParameters: [stringParameter("path")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], stringTargetType),
-    pathCall("isAbsolute", "node:path.isAbsolute(System.String)", "Tsonic.CSharp.Node.path.isAbsolute(System.String)", "isAbsolute", [stringParameter("path")], boolProviderType, [
+    ], targetReturnType: stringTargetType }),
+    pathCall({ exportName: "isAbsolute", signatureId: "node:path.isAbsolute(System.String)", targetMemberId: "Tsonic.CSharp.Node.path.isAbsolute(System.String)", sourceName: "isAbsolute", targetName: "isAbsolute", providerParameters: [stringParameter("path")], providerReturnType: boolProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], boolTargetType),
-    pathCall(nodePathJoinExportName, nodePathJoinSignatureId, "Tsonic.CSharp.Node.path.join(System.String[])", "join", [stringRestParameter], stringProviderType, [
+    ], targetReturnType: boolTargetType }),
+    pathCall({ exportName: nodePathJoinExportName, signatureId: nodePathJoinSignatureId, targetMemberId: "Tsonic.CSharp.Node.path.join(System.String[])", sourceName: "join", targetName: "join", providerParameters: [stringRestParameter], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("paths", stringTargetType, { paramsArray: true }),
-    ], stringTargetType),
-    pathCall("matchesGlob", "node:path.matchesGlob(System.String,System.String)", "Tsonic.CSharp.Node.path.matchesGlob(System.String,System.String)", "matchesGlob", [stringParameter("path"), stringParameter("pattern")], boolProviderType, [
+    ], targetReturnType: stringTargetType }),
+    pathCall({ exportName: "matchesGlob", signatureId: "node:path.matchesGlob(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.path.matchesGlob(System.String,System.String)", sourceName: "matchesGlob", targetName: "matchesGlob", providerParameters: [stringParameter("path"), stringParameter("pattern")], providerReturnType: boolProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("pattern", stringTargetType),
-    ], boolTargetType),
-    pathCall("normalize", "node:path.normalize(System.String)", "Tsonic.CSharp.Node.path.normalize(System.String)", "normalize", [stringParameter("path")], stringProviderType, [
+    ], targetReturnType: boolTargetType }),
+    pathCall({ exportName: "normalize", signatureId: "node:path.normalize(System.String)", targetMemberId: "Tsonic.CSharp.Node.path.normalize(System.String)", sourceName: "normalize", targetName: "normalize", providerParameters: [stringParameter("path")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], stringTargetType),
-    pathCall("parse", "node:path.parse(System.String)", "Tsonic.CSharp.Node.path.parse(System.String)", "parse", [stringParameter("path")], parsedPathProviderType, [
+    ], targetReturnType: stringTargetType }),
+    pathCall({ exportName: "parse", signatureId: "node:path.parse(System.String)", targetMemberId: "Tsonic.CSharp.Node.path.parse(System.String)", sourceName: "parse", targetName: "parse", providerParameters: [stringParameter("path")], providerReturnType: parsedPathProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], parsedPathTargetType),
-    pathCall("relative", "node:path.relative(System.String,System.String)", "Tsonic.CSharp.Node.path.relative(System.String,System.String)", "relative", [stringParameter("from"), stringParameter("to")], stringProviderType, [
+    ], targetReturnType: parsedPathTargetType }),
+    pathCall({ exportName: "relative", signatureId: "node:path.relative(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.path.relative(System.String,System.String)", sourceName: "relative", targetName: "relative", providerParameters: [stringParameter("from"), stringParameter("to")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("from", stringTargetType),
       targetParameter("to", stringTargetType),
-    ], stringTargetType),
-    pathCall("resolve", "node:path.resolve(System.String[])", "Tsonic.CSharp.Node.path.resolve(System.String[])", "resolve", [stringRestParameter], stringProviderType, [
+    ], targetReturnType: stringTargetType }),
+    pathCall({ exportName: "resolve", signatureId: "node:path.resolve(System.String[])", targetMemberId: "Tsonic.CSharp.Node.path.resolve(System.String[])", sourceName: "resolve", targetName: "resolve", providerParameters: [stringRestParameter], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("paths", stringTargetType, { paramsArray: true }),
-    ], stringTargetType),
-    pathCall("toNamespacedPath", "node:path.toNamespacedPath(System.String)", "Tsonic.CSharp.Node.path.toNamespacedPath(System.String)", "toNamespacedPath", [stringParameter("path")], stringProviderType, [
+    ], targetReturnType: stringTargetType }),
+    pathCall({ exportName: "toNamespacedPath", signatureId: "node:path.toNamespacedPath(System.String)", targetMemberId: "Tsonic.CSharp.Node.path.toNamespacedPath(System.String)", sourceName: "toNamespacedPath", targetName: "toNamespacedPath", providerParameters: [stringParameter("path")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("path", stringTargetType),
-    ], stringTargetType),
-    pathCall("format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)", "Tsonic.CSharp.Node.path.format(Tsonic.CSharp.Node.ParsedPath)", "format", [{ name: "pathObject", type: parsedPathProviderType }], stringProviderType, [
+    ], targetReturnType: stringTargetType }),
+    pathCall({ exportName: "format", signatureId: "node:path.format(Tsonic.CSharp.Node.ParsedPath)", targetMemberId: "Tsonic.CSharp.Node.path.format(Tsonic.CSharp.Node.ParsedPath)", sourceName: "format", targetName: "format", providerParameters: [{ name: "pathObject", type: parsedPathProviderType }], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("pathObject", parsedPathTargetType),
-    ], stringTargetType),
+    ], targetReturnType: stringTargetType }),
   ];
 }
 
-function pathCall(
-  sourceName: string,
-  signatureId: string,
-  targetMemberId: string,
-  targetName: string,
-  providerParameters: readonly NodePathProviderParameter[],
-  providerReturnType: ProviderTypeExpression,
-  targetParameters: readonly ReturnType<typeof targetParameter>[],
-  targetReturnType: TargetTypeRef,
-): NodePathCallTargetMember {
-  return {
-    exportName: sourceName,
-    signatureId,
-    providerParameters,
-    providerReturnType,
-    member: {
-      id: targetMemberId,
-      sourceName,
-      targetName,
-      kind: "method",
-      parameters: targetParameters,
-      returnType: targetReturnType,
-      declaringType: nodePathTargetType,
-      static: true,
-    },
-  };
+function pathCall(row: NodePathCallTargetMetadataRow): NodePathCallTargetMember {
+  return nodejsModuleCallTargetMetadata({
+    ...row,
+    declaringType: nodePathTargetType,
+  });
 }
 
 const nodePathCallTargetMemberByProviderDeclarationIdentity =

@@ -40,7 +40,7 @@ export function getNodeBufferEqualsTargetMember(): TargetMember {
   return {
     id: nodeBufferEqualsTargetMemberId,
     sourceName: nodeBufferEqualsExportName,
-    targetName: nodeBufferEqualsExportName,
+    targetName: "equals",
     kind: "method",
     parameters: [targetParameter("otherBuffer", nodeBufferTargetType)],
     returnType: nodeBufferBoolTargetType,
@@ -49,26 +49,26 @@ export function getNodeBufferEqualsTargetMember(): TargetMember {
 }
 
 export function getNodeBufferSliceTargetMember(): TargetMember {
-  return nodeBufferRangeTargetMember(
-    nodeBufferSliceTargetMemberId,
-    nodeBufferSliceExportName,
-    "slice",
-  );
+  return nodeBufferRangeTargetMember({
+    targetMemberId: nodeBufferSliceTargetMemberId,
+    sourceName: nodeBufferSliceExportName,
+    targetName: "slice",
+  });
 }
 
 export function getNodeBufferSubarrayTargetMember(): TargetMember {
-  return nodeBufferRangeTargetMember(
-    nodeBufferSubarrayTargetMemberId,
-    nodeBufferSubarrayExportName,
-    "subarray",
-  );
+  return nodeBufferRangeTargetMember({
+    targetMemberId: nodeBufferSubarrayTargetMemberId,
+    sourceName: nodeBufferSubarrayExportName,
+    targetName: "subarray",
+  });
 }
 
 export function getNodeBufferToStringTargetMember(): TargetMember {
   return {
     id: nodeBufferToStringTargetMemberId,
     sourceName: nodeBufferToStringExportName,
-    targetName: nodeBufferToStringExportName,
+    targetName: "toString",
     kind: "method",
     parameters: [
       targetParameter("encoding", nodeBufferStringTargetType, { optional: true }),
@@ -80,15 +80,15 @@ export function getNodeBufferToStringTargetMember(): TargetMember {
   };
 }
 
-function nodeBufferRangeTargetMember(
-  targetMemberId: string,
-  sourceName: string,
-  targetName: string,
-): TargetMember {
+function nodeBufferRangeTargetMember(row: {
+  readonly targetMemberId: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+}): TargetMember {
   return {
-    id: targetMemberId,
-    sourceName,
-    targetName,
+    id: row.targetMemberId,
+    sourceName: row.sourceName,
+    targetName: row.targetName,
     kind: "method",
     parameters: [
       targetParameter("start", nodeBufferNullableIntTargetType(), { optional: true }),

@@ -2,9 +2,6 @@ import type {
   ProviderExportDeclaration,
   ProviderParameterDeclaration,
   ProviderTypeExpression,
-  TargetMember,
-  TargetParameter,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpStringTargetType,
@@ -16,6 +13,13 @@ import {
   getNodejsProviderExportSignatureDeclarationMetadata,
   nodejsProviderExportSignatureDeclarationMetadataIndex,
 } from "./metadata-indexes.js";
+import {
+  nodejsModuleCallTargetMetadata,
+} from "./members/target-member-metadata.js";
+import type {
+  NodejsModuleCallTargetMetadata,
+  NodejsModuleCallTargetMetadataRow,
+} from "./members/target-member-metadata.js";
 
 const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
@@ -29,15 +33,8 @@ const callbackProviderType = {
 const stringTargetType = csharpStringTargetType();
 const utilTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.util", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "util"));
 
-interface NodeUtilCallTargetMember {
-  readonly exportName: string;
-  readonly signatureId: string;
-  readonly targetMemberId: string;
-  readonly targetName: string;
-  readonly providerParameters: readonly ProviderParameterDeclaration[];
-  readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}
+type NodeUtilCallTargetMember = NodejsModuleCallTargetMetadata;
+type NodeUtilCallTargetMetadataRow = Omit<NodejsModuleCallTargetMetadataRow, "declaringType">;
 
 export interface NodeUtilUnsupportedTargetIdentity {
   readonly exportName: string;
@@ -94,16 +91,16 @@ export function nodeUtilUnsupportedTargetIdentities(): readonly NodeUtilUnsuppor
 export function nodeUtilCallTargetMembers(): readonly NodeUtilCallTargetMember[] {
   const stringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType });
   return [
-    utilCall(nodeUtilStripVtControlCharactersExportName, nodeUtilStripVtControlCharactersSignatureId, "Tsonic.CSharp.Node.util.stripVTControlCharacters(System.String)", "stripVTControlCharacters", [
+    utilCall({ exportName: nodeUtilStripVtControlCharactersExportName, signatureId: nodeUtilStripVtControlCharactersSignatureId, targetMemberId: "Tsonic.CSharp.Node.util.stripVTControlCharacters(System.String)", sourceName: "stripVTControlCharacters", targetName: "stripVTControlCharacters", providerParameters: [
       stringParameter("str"),
-    ], stringProviderType, [
+    ], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("input", stringTargetType),
-    ], stringTargetType),
-    utilCall(nodeUtilToUsvStringExportName, nodeUtilToUsvStringSignatureId, "Tsonic.CSharp.Node.util.toUSVString(System.String)", "toUSVString", [
+    ], targetReturnType: stringTargetType }),
+    utilCall({ exportName: nodeUtilToUsvStringExportName, signatureId: nodeUtilToUsvStringSignatureId, targetMemberId: "Tsonic.CSharp.Node.util.toUSVString(System.String)", sourceName: "toUSVString", targetName: "toUSVString", providerParameters: [
       stringParameter("string"),
-    ], stringProviderType, [
+    ], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("input", stringTargetType),
-    ], stringTargetType),
+    ], targetReturnType: stringTargetType }),
   ];
 }
 
@@ -185,34 +182,11 @@ function unknownRestParameter(name: string): ProviderParameterDeclaration {
   };
 }
 
-function utilCall(
-  sourceName: string,
-  signatureId: string,
-  targetMemberId: string,
-  targetName: string,
-  providerParameters: readonly ProviderParameterDeclaration[],
-  providerReturnType: ProviderTypeExpression,
-  targetParameters: readonly TargetParameter[],
-  targetReturnType: TargetTypeRef,
-): NodeUtilCallTargetMember {
-  return {
-    exportName: sourceName,
-    signatureId,
-    targetMemberId,
-    targetName,
-    providerParameters,
-    providerReturnType,
-    member: {
-      id: targetMemberId,
-      sourceName,
-      targetName,
-      kind: "method",
-      parameters: targetParameters,
-      returnType: targetReturnType,
-      declaringType: utilTargetType,
-      static: true,
-    },
-  };
+function utilCall(row: NodeUtilCallTargetMetadataRow): NodeUtilCallTargetMember {
+  return nodejsModuleCallTargetMetadata({
+    ...row,
+    declaringType: utilTargetType,
+  });
 }
 
 const nodeUtilUnsupportedCalls = [

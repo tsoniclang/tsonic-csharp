@@ -373,11 +373,19 @@ test("architecture validator rejects Node target member synthesis from source na
           targetName: exportName,
         },
       };
+      return { sourceName, targetName };
+      return { sourceName: sourceMemberName, targetName: sourceMemberName };
+      return { targetName: nodeBufferFromExportName };
     `,
     [
       "nodejs-target-id-source-name-synthesis",
       "nodejs-target-member-name-source-copy",
       "nodejs-target-member-name-source-copy",
+      "nodejs-target-member-name-source-copy",
+      "nodejs-target-member-name-source-copy",
+      "nodejs-target-member-name-source-copy",
+      "nodejs-target-member-name-source-copy",
+      "nodejs-target-name-source-constant-copy",
       "nodejs-target-id-signature-slice",
     ],
   );
@@ -390,6 +398,14 @@ test("architecture validator rejects Node target member synthesis from source na
         .map(providerMemberForUnsupportedUrlClassMember),
     `,
     ["nodejs-local-export-member-filter"],
+  );
+
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/nodejs/filesystem/calls.ts",
+    `
+      const member = entries.find((row) => row.signatureId === signatureId);
+    `,
+    ["node-local-export-signature-selection"],
   );
 });
 

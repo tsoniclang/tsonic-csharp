@@ -1,12 +1,16 @@
 import type {
-  ProviderTypeExpression,
   TargetMember,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   getNodejsProviderExportDeclarationTargetMember,
   nodejsProviderExportDeclarationTargetMemberIndex,
 } from "../metadata-indexes.js";
+import {
+  nodejsModulePropertyTargetMetadata,
+} from "../members/target-member-metadata.js";
+import type {
+  NodejsModulePropertyTargetMetadataRow,
+} from "../members/target-member-metadata.js";
 import {
   nodePathModuleSpecifier,
 } from "./identity.js";
@@ -19,6 +23,8 @@ import type {
   NodePathPropertyTargetMember,
 } from "./types.js";
 
+type NodePathPropertyTargetMetadataRow = Omit<NodejsModulePropertyTargetMetadataRow, "declaringType">;
+
 export function getNodePathPropertyTargetMember(exportName: string | undefined): TargetMember | undefined {
   return getNodejsProviderExportDeclarationTargetMember(
     nodePathPropertyTargetMemberByProviderDeclarationIdentity,
@@ -29,32 +35,16 @@ export function getNodePathPropertyTargetMember(exportName: string | undefined):
 
 export function nodePathPropertyTargetMembers(): readonly NodePathPropertyTargetMember[] {
   return [
-    pathProperty("sep", "Tsonic.CSharp.Node.path.sep", "sep", stringProviderType, stringTargetType),
-    pathProperty("delimiter", "Tsonic.CSharp.Node.path.delimiter", "delimiter", stringProviderType, stringTargetType),
+    pathProperty({ exportName: "sep", targetMemberId: "Tsonic.CSharp.Node.path.sep", sourceName: "sep", targetName: "sep", providerType: stringProviderType, targetReturnType: stringTargetType }),
+    pathProperty({ exportName: "delimiter", targetMemberId: "Tsonic.CSharp.Node.path.delimiter", sourceName: "delimiter", targetName: "delimiter", providerType: stringProviderType, targetReturnType: stringTargetType }),
   ];
 }
 
-function pathProperty(
-  sourceName: string,
-  targetMemberId: string,
-  targetName: string,
-  providerType: ProviderTypeExpression,
-  targetType: TargetTypeRef,
-): NodePathPropertyTargetMember {
-  return {
-    exportName: sourceName,
-    providerType,
-    member: {
-      id: targetMemberId,
-      sourceName,
-      targetName,
-      kind: "property",
-      parameters: [],
-      returnType: targetType,
-      declaringType: nodePathTargetType,
-      static: true,
-    },
-  };
+function pathProperty(row: NodePathPropertyTargetMetadataRow): NodePathPropertyTargetMember {
+  return nodejsModulePropertyTargetMetadata({
+    ...row,
+    declaringType: nodePathTargetType,
+  });
 }
 
 const nodePathPropertyTargetMemberByProviderDeclarationIdentity =

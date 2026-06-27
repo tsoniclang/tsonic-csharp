@@ -2,9 +2,6 @@ import type {
   ProviderExportDeclaration,
   ProviderParameterDeclaration,
   ProviderTypeExpression,
-  TargetMember,
-  TargetParameter,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpQualifiedTypeRenderShape,
@@ -18,6 +15,13 @@ import {
   getNodejsProviderExportSignatureDeclarationMetadata,
   nodejsProviderExportSignatureDeclarationMetadataIndex,
 } from "./metadata-indexes.js";
+import {
+  nodejsModuleCallTargetMetadata,
+} from "./members/target-member-metadata.js";
+import type {
+  NodejsModuleCallTargetMetadata,
+  NodejsModuleCallTargetMetadataRow,
+} from "./members/target-member-metadata.js";
 
 const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
@@ -34,15 +38,8 @@ const stringTargetType = csharpStringTargetType();
 const voidTargetType = csharpVoidTargetType();
 const assertTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.assert", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "assert"));
 
-export interface NodeAssertCallTargetMember {
-  readonly exportName: string;
-  readonly signatureId: string;
-  readonly targetMemberId: string;
-  readonly targetName: string;
-  readonly providerParameters: readonly ProviderParameterDeclaration[];
-  readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}
+export type NodeAssertCallTargetMember = NodejsModuleCallTargetMetadata;
+type NodeAssertCallTargetMetadataRow = Omit<NodejsModuleCallTargetMetadataRow, "declaringType">;
 
 export interface NodeAssertUnsupportedTargetIdentity {
   readonly exportName: string;
@@ -102,36 +99,36 @@ export function nodeAssertUnsupportedTargetIdentities(): readonly NodeAssertUnsu
 
 export function nodeAssertCallTargetMembers(): readonly NodeAssertCallTargetMember[] {
   return [
-    assertCall(nodeAssertOkExportName, nodeAssertOkSignatureId, "Tsonic.CSharp.Node.assert.ok(System.Boolean,System.String)", "ok", [
+    assertCall({ exportName: nodeAssertOkExportName, signatureId: nodeAssertOkSignatureId, targetMemberId: "Tsonic.CSharp.Node.assert.ok(System.Boolean,System.String)", sourceName: "ok", targetName: "ok", providerParameters: [
       boolParameter("value"),
       stringParameter("message", true),
-    ], voidProviderType, [
+    ], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("value", boolTargetType),
       targetParameter("message", stringTargetType, { optional: true }),
-    ], voidTargetType),
-    assertCall(nodeAssertFailExportName, nodeAssertFailSignatureId, "Tsonic.CSharp.Node.assert.fail(System.String)", "fail", [
+    ], targetReturnType: voidTargetType }),
+    assertCall({ exportName: nodeAssertFailExportName, signatureId: nodeAssertFailSignatureId, targetMemberId: "Tsonic.CSharp.Node.assert.fail(System.String)", sourceName: "fail", targetName: "fail", providerParameters: [
       stringParameter("message", true),
-    ], voidProviderType, [
+    ], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("message", stringTargetType, { optional: true }),
-    ], voidTargetType),
-    assertCall(nodeAssertStrictEqualExportName, nodeAssertStrictEqualSignatureId, "Tsonic.CSharp.Node.assert.strictEqual(System.Object,System.Object,System.String)", "strictEqual", [
+    ], targetReturnType: voidTargetType }),
+    assertCall({ exportName: nodeAssertStrictEqualExportName, signatureId: nodeAssertStrictEqualSignatureId, targetMemberId: "Tsonic.CSharp.Node.assert.strictEqual(System.Object,System.Object,System.String)", sourceName: "strictEqual", targetName: "strictEqual", providerParameters: [
       unknownParameter("actual"),
       unknownParameter("expected"),
       stringParameter("message", true),
-    ], voidProviderType, [
+    ], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("actual", objectTargetType),
       targetParameter("expected", objectTargetType),
       targetParameter("message", stringTargetType, { optional: true }),
-    ], voidTargetType),
-    assertCall(nodeAssertNotStrictEqualExportName, nodeAssertNotStrictEqualSignatureId, "Tsonic.CSharp.Node.assert.notStrictEqual(System.Object,System.Object,System.String)", "notStrictEqual", [
+    ], targetReturnType: voidTargetType }),
+    assertCall({ exportName: nodeAssertNotStrictEqualExportName, signatureId: nodeAssertNotStrictEqualSignatureId, targetMemberId: "Tsonic.CSharp.Node.assert.notStrictEqual(System.Object,System.Object,System.String)", sourceName: "notStrictEqual", targetName: "notStrictEqual", providerParameters: [
       unknownParameter("actual"),
       unknownParameter("expected"),
       stringParameter("message", true),
-    ], voidProviderType, [
+    ], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("actual", objectTargetType),
       targetParameter("expected", objectTargetType),
       targetParameter("message", stringTargetType, { optional: true }),
-    ], voidTargetType),
+    ], targetReturnType: voidTargetType }),
   ];
 }
 
@@ -199,34 +196,11 @@ function callbackParameter(name: string): ProviderParameterDeclaration {
   };
 }
 
-function assertCall(
-  sourceName: string,
-  signatureId: string,
-  targetMemberId: string,
-  targetName: string,
-  providerParameters: readonly ProviderParameterDeclaration[],
-  providerReturnType: ProviderTypeExpression,
-  targetParameters: readonly TargetParameter[],
-  targetReturnType: TargetTypeRef,
-): NodeAssertCallTargetMember {
-  return {
-    exportName: sourceName,
-    signatureId,
-    targetMemberId,
-    targetName,
-    providerParameters,
-    providerReturnType,
-    member: {
-      id: targetMemberId,
-      sourceName,
-      targetName,
-      kind: "method",
-      parameters: targetParameters,
-      returnType: targetReturnType,
-      declaringType: assertTargetType,
-      static: true,
-    },
-  };
+function assertCall(row: NodeAssertCallTargetMetadataRow): NodeAssertCallTargetMember {
+  return nodejsModuleCallTargetMetadata({
+    ...row,
+    declaringType: assertTargetType,
+  });
 }
 
 const equalityAssertParameters = [

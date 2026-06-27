@@ -300,23 +300,31 @@ export const analysisAbstractionRules = Object.freeze([
   },
   {
     id: "node-local-export-signature-selection",
-    pattern: /\.find\s*\(\s*\(?\s*entry\s*\)?\s*=>\s*entry\.(?:exportName|signatureId)\s*===/g,
+    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    pattern: /\.find\s*\(\s*\(?\s*(?:entry|member|row|candidate)\s*\)?\s*=>\s*(?:entry|member|row|candidate)\.(?:exportName|signatureId|memberName)\s*===/g,
     replacement:
       "Node provider member selection must use canonical declaration/signature identity indexes rather than local export/signature search.",
   },
   {
     id: "nodejs-target-id-source-name-synthesis",
     filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
-    pattern: /\b(?:id|targetIdentityId)\s*:\s*`(?:unsupported:)?Tsonic\.CSharp\.Node\.[^`]*\$\{\s*(?:exportName|memberName)\s*\}/g,
+    pattern: /\b(?:id|targetMemberId|targetIdentityId)\s*:\s*`(?:unsupported:)?Tsonic\.CSharp\.Node\.[^`]*\$\{\s*(?:sourceName|sourceMemberName|exportName|memberName|targetName)\s*\}/g,
     replacement:
       "Node target member and unsupported target identities must be declared by provider metadata rows, not synthesized from source export/member names.",
   },
   {
     id: "nodejs-target-member-name-source-copy",
     filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
-    pattern: /\b(?:sourceName|targetName)\s*:\s*(?:exportName|memberName)\b/g,
+    pattern: /(?<!\.)\b(?:sourceName|targetName)\s*(?::\s*(?:sourceName|sourceMemberName|exportName|memberName)\b|(?=\s*[,}]))/g,
     replacement:
       "Node target member source/target names must be explicit metadata fields; do not copy source export/member names into target member shape.",
+  },
+  {
+    id: "nodejs-target-name-source-constant-copy",
+    filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
+    pattern: /\btargetName\s*:\s*node[A-Za-z0-9]*(?:ExportName|MemberName)\b/g,
+    replacement:
+      "Node target member target names must be explicit target metadata, not copied from source export/member name constants.",
   },
   {
     id: "nodejs-target-id-signature-slice",
@@ -328,7 +336,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "nodejs-local-export-member-filter",
     filePattern: /(?:^|\/)surfaces\/nodejs\/.+\.ts$/,
-    pattern: /\.filter\s*\(\s*\(?\s*member\s*\)?\s*=>\s*member\.exportName\s*===/g,
+    pattern: /\.filter\s*\(\s*\(?\s*(?:entry|member|row|candidate)\s*\)?\s*=>\s*(?:entry|member|row|candidate)\.(?:exportName|signatureId|memberName)\s*===/g,
     replacement:
       "Node provider declarations should be built from canonical provider metadata records instead of local export-name member filters.",
   },
