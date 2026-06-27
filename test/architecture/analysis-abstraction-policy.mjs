@@ -347,15 +347,6 @@ export const analysisAbstractionDebtOwners = Object.freeze([
 ]);
 
 export const analysisAbstractionDebtCatalog = Object.freeze([
-  entry(
-    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
-    {
-      "js-surface-call-provider-kind-literal": 16,
-    },
-    "provider-metadata-candidate",
-    "surface-provider",
-    "Replace call-provider source-family kind rows with canonical declarative provider metadata rows and explicit semantic exception records selected by source declaration/signature identity.",
-  ),
 ]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {

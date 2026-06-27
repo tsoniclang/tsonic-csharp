@@ -31,7 +31,7 @@ import {
   numberTargetMemberIdentityIndex,
 } from "../../numbers.js";
 import {
-  objectTargetMembersForSourceMember,
+  objectTargetMemberIdentityIndex,
 } from "../../objects.js";
 import {
   regExpTargetMemberIdentityIndex,
@@ -77,18 +77,22 @@ interface SourceCallMetadataRow {
 }
 
 type SourceCallMemberProvider =
-  | { readonly kind: "metadata-index"; readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]> }
-  | { readonly kind: "date-call-kind" }
-  | { readonly kind: "object-composite" }
-  | { readonly kind: "array-carrier" }
-  | { readonly kind: "collection-carrier" };
+  {
+    readonly membersBySourceIdentity?: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
+    readonly dateCallConstructMembers?: true;
+    readonly objectPrimitiveReceiverMembers?: true;
+    readonly objectRecordDictionaryMembers?: true;
+    readonly arrayCarrierMembers?: true;
+    readonly collectionCarrierMembers?: true;
+  };
 
-type SourceCallCallablePolicy =
-  | { readonly kind: "members-exist" }
-  | { readonly kind: "array-members-or-call-surface" }
-  | { readonly kind: "collection-members-exist" }
-  | { readonly kind: "always" }
-  | { readonly kind: "never" };
+interface SourceCallCallablePolicy {
+  readonly membersExist?: true;
+  readonly arrayMembersOrCallSurface?: true;
+  readonly collectionMembersExist?: true;
+  readonly always?: true;
+  readonly never?: true;
+}
 
 const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
   metadataIndexPolicy({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex),
@@ -98,33 +102,37 @@ const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
   metadataIndexPolicy({ prefixes: ["RegExp."] }, regExpTargetMemberIdentityIndex),
   {
     identity: { prefixes: ["Date."] },
-    members: { kind: "date-call-kind" },
-    callable: { kind: "members-exist" },
+    members: { dateCallConstructMembers: true },
+    callable: { membersExist: true },
   },
   metadataIndexPolicy({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
   {
     identity: { prefixes: ["Object."] },
-    members: { kind: "object-composite" },
-    callable: { kind: "members-exist" },
+    members: {
+      membersBySourceIdentity: objectTargetMemberIdentityIndex,
+      objectPrimitiveReceiverMembers: true,
+      objectRecordDictionaryMembers: true,
+    },
+    callable: { membersExist: true },
   },
   {
     identity: { prefixes: ["Array.", "ReadonlyArray."] },
-    members: { kind: "array-carrier" },
-    callable: { kind: "array-members-or-call-surface" },
+    members: { arrayCarrierMembers: true },
+    callable: { arrayMembersOrCallSurface: true },
   },
   {
     identity: collectionIdentityPolicy,
-    members: { kind: "collection-carrier" },
-    callable: { kind: "collection-members-exist" },
+    members: { collectionCarrierMembers: true },
+    callable: { collectionMembersExist: true },
   },
   {
     identity: { prefixes: ["Console."] },
-    members: { kind: "metadata-index", membersBySourceIdentity: consoleTargetMembersBySourceIdentity },
-    callable: { kind: "members-exist" },
+    members: { membersBySourceIdentity: consoleTargetMembersBySourceIdentity },
+    callable: { membersExist: true },
   },
   {
     identity: { prefixes: ["Promise."] },
-    callable: { kind: "never" },
+    callable: { never: true },
   },
 ];
 
@@ -176,28 +184,30 @@ function callMembersFromProvider(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  switch (provider.kind) {
-    case "metadata-index":
-      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity);
-    case "date-call-kind":
-      return dateTargetMembersForSourceMember(sourceMember, isNewExpression(request.call, context) ? "new" : "call");
-    case "object-composite":
-      return [
-        ...objectTargetMembersForSourceMember(sourceMember),
-        ...getObjectPrimitiveReceiverCallMembers(request, context, host, sourceMember),
-        ...getObjectRecordDictionaryCallMembers(sourceMember, request, context, host),
-      ];
-    case "array-carrier":
-      return arrayMembersFromClosedFacts(sourceMember, request, context, host);
-    case "collection-carrier":
-      return collectionTargetMembersForSourceMember(
+  return [
+    ...(provider.membersBySourceIdentity === undefined ? [] : jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity)),
+    ...(provider.dateCallConstructMembers === true
+      ? dateTargetMembersForSourceMember(sourceMember, isNewExpression(request.call, context) ? "new" : "call")
+      : []),
+    ...(provider.objectPrimitiveReceiverMembers === true
+      ? getObjectPrimitiveReceiverCallMembers(request, context, host, sourceMember)
+      : []),
+    ...(provider.objectRecordDictionaryMembers === true
+      ? getObjectRecordDictionaryCallMembers(sourceMember, request, context, host)
+      : []),
+    ...(provider.arrayCarrierMembers === true
+      ? arrayMembersFromClosedFacts(sourceMember, request, context, host)
+      : []),
+    ...(provider.collectionCarrierMembers === true
+      ? collectionTargetMembersForSourceMember(
         sourceMember,
         getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
         jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, collectionConstructorIdentityPolicy)
           ? getSourceLibraryCallResultTargetType(request, context, host)
           : undefined,
-      );
-  }
+      )
+      : []),
+  ];
 }
 
 function callablePolicyIsSatisfied(
@@ -206,19 +216,26 @@ function callablePolicyIsSatisfied(
   sourceMember: SourceLibraryMember,
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
 ): boolean {
-  switch (policy.kind) {
-    case "members-exist":
-      return provider === undefined ? false : callableMembersFromProvider(provider, sourceMember, selectedIdentity).length > 0;
-    case "array-members-or-call-surface":
-      return arrayTargetMembersForSourceMember(sourceMember).length > 0 ||
-        jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, arrayCallableIdentityPolicy);
-    case "collection-members-exist":
-      return hasCallableTargetMember(collectionTargetMembersForSourceMember(sourceMember, undefined, undefined));
-    case "always":
-      return true;
-    case "never":
-      return false;
+  if (policy.never === true) {
+    return false;
   }
+  if (policy.always === true) {
+    return true;
+  }
+  if (policy.membersExist === true && provider !== undefined && callableMembersFromProvider(provider, sourceMember, selectedIdentity).length > 0) {
+    return true;
+  }
+  if (
+    policy.arrayMembersOrCallSurface === true &&
+    (arrayTargetMembersForSourceMember(sourceMember).length > 0 ||
+      jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, arrayCallableIdentityPolicy))
+  ) {
+    return true;
+  }
+  if (policy.collectionMembersExist === true && hasCallableTargetMember(collectionTargetMembersForSourceMember(sourceMember, undefined, undefined))) {
+    return true;
+  }
+  return false;
 }
 
 function callableMembersFromProvider(
@@ -226,19 +243,10 @@ function callableMembersFromProvider(
   sourceMember: SourceLibraryMember,
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
 ): readonly TargetMember[] {
-  const members = (() => {
-    switch (provider.kind) {
-    case "metadata-index":
-      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity);
-    case "date-call-kind":
-      return dateTargetMembersForSourceMember(sourceMember, "call");
-    case "object-composite":
-      return objectTargetMembersForSourceMember(sourceMember);
-    case "array-carrier":
-    case "collection-carrier":
-      return [];
-    }
-  })();
+  const members = [
+    ...(provider.membersBySourceIdentity === undefined ? [] : jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity)),
+    ...(provider.dateCallConstructMembers === true ? dateTargetMembersForSourceMember(sourceMember, "call") : []),
+  ];
   return members.filter(targetMemberIsCallable);
 }
 
@@ -282,7 +290,7 @@ function metadataIndexPolicy(
 ): SourceCallMetadataRow {
   return {
     identity,
-    members: { kind: "metadata-index", membersBySourceIdentity },
-    callable: { kind: "members-exist" },
+    members: { membersBySourceIdentity },
+    callable: { membersExist: true },
   };
 }
