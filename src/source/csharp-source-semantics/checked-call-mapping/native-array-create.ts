@@ -27,6 +27,9 @@ import {
   instantiateSelectedTargetMember,
 } from "../selected-target-member-instantiation.js";
 import {
+  findTargetMember,
+} from "../target-member-selection.js";
+import {
   targetMemberIsClosed,
 } from "../target-ref-utils.js";
 import type {
@@ -48,8 +51,8 @@ export function mapDotnetNativeArrayCreateCall(
   if (targetBinding === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_CREATE_TARGET_FACT_NOT_PROVEN", 9100135, "C# native array creation requires finalized provider target binding facts for the explicit .NET Array source contract."));
   }
-  const member = targetBinding.members?.find((candidate) => candidate.id === selectedMemberId);
-  if (member === undefined) {
+  const member = findTargetMember(targetBinding, virtualDeclaration);
+  if (member === undefined || !isDotnetNativeArrayCreateMemberId(member.id)) {
     return rejectObservation(csharpProviderDiagnostic(
       extensionId,
       "CSHARP_NATIVE_ARRAY_CREATE_MEMBER_FACT_NOT_PROVEN",

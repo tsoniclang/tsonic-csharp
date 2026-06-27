@@ -166,6 +166,39 @@ test("architecture validator rejects procedural source-member policy dispatch", 
   );
 });
 
+test("architecture validator rejects source-family-shaped closed-fact requirements", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/receiver-validation.ts",
+    `
+      const rows = [
+        { requirement: { kind: "array-receiver" } },
+        { requirement: { kind: "collection-receiver", target: "map" } },
+        { requirement: { kind: "collection-receiver", target: "set" } },
+      ];
+    `,
+    [
+      "source-family-closed-facts-requirement",
+      "source-family-closed-facts-requirement",
+      "source-family-closed-facts-requirement",
+      "source-family-closed-facts-requirement",
+      "source-family-closed-facts-requirement",
+    ],
+  );
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/surfaces/js/calls/closed-facts/receiver-validation.ts",
+      `
+        const rows = [
+          { requirement: { kind: "receiver", target: "array-like" } },
+          { requirement: { kind: "receiver", target: "selected-collection-carrier" } },
+          { requirement: { kind: "known-argument-targets" } },
+        ];
+      `,
+    ),
+    [],
+  );
+});
+
 test("architecture validator rejects executable hooks in policy-like records", () => {
   const hookRule = analysisAbstractionRules.find((rule) => rule.id === "source-id-executable-policy-hook");
   assert.notEqual(hookRule, undefined);
@@ -287,6 +320,27 @@ test("architecture validator rejects JS surface provider kind literals", () => {
       "js-surface-property-legacy-provider-shape",
       "js-surface-property-legacy-provider-shape",
       "js-surface-property-legacy-provider-shape",
+    ],
+  );
+});
+
+test("architecture validator rejects array lifecycle source-member target factories", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/array-carrier-lifecycle/array-use-rules.ts",
+    `
+      type SelectedSourceMemberTargetMemberFactory = (sourceMember) => [];
+      const selectedSourceMemberTargetMemberFactories = [
+        (sourceMember) => arrayTargetMembersForSourceMember(sourceMember),
+        (sourceMember) => objectTargetMembersForSourceMember(sourceMember),
+        (sourceMember) => jsonTargetMembersForSourceMember(sourceMember),
+      ];
+    `,
+    [
+      "js-array-lifecycle-source-member-factory-list",
+      "js-array-lifecycle-source-member-factory-list",
+      "js-array-lifecycle-source-member-factory-list",
+      "js-array-lifecycle-source-member-factory-list",
+      "js-array-lifecycle-source-member-factory-list",
     ],
   );
 });

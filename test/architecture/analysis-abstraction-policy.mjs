@@ -179,6 +179,13 @@ export const analysisAbstractionRules = Object.freeze([
       "Closed-fact validation must consume generic lazy analysis records and provider facts, not source-family validator tables.",
   },
   {
+    id: "source-family-closed-facts-requirement",
+    filePattern: /(?:^|\/)surfaces\/js\/calls\/closed-facts\/[^/]+\.ts$/,
+    pattern: /"(?:array-receiver|collection-receiver)"|\btarget\s*:\s*"(?:map|set)"/g,
+    replacement:
+      "Closed-fact requirements must use generic requirement and target-predicate kinds; concrete source families belong in declarative identity rows or provider metadata.",
+  },
+  {
     id: "executable-surface-member-template",
     pattern: /\bcreateMembers\s*:\s*\(/g,
     replacement:
@@ -272,6 +279,13 @@ export const analysisAbstractionRules = Object.freeze([
     pattern: /\b(?:CsharpJsPropertyMemberProvider(?:Value)?|CsharpJsPropertyPrecheck(?:Rule|Result)|propertyMemberProviderBySourceIdentity|propertyMemberRows|propertyPrecheckRows|propertyPrecheckRuleSelectors|propertyMemberFromProvider|fixedMetadataRow(?:FromIndex)?|fixedReceiverMetadataRow)\b|\bkind\s*:\s*"(?:adapter|operation-adapter|property-adapter|property-provider)"/g,
     replacement:
       "JS surface properties must use one JsSurfacePropertyRow schema and generic property target providers; legacy property-provider shapes and adapter-only provider kinds are not allowed.",
+  },
+  {
+    id: "js-array-lifecycle-source-member-factory-list",
+    filePattern: /(?:^|\/)surfaces\/js\/array-carrier-lifecycle\/[^/]+\.ts$/,
+    pattern: /\b(?:SelectedSourceMemberTargetMemberFactory|selectedSourceMemberTargetMemberFactories|arrayTargetMembersForSourceMember|objectTargetMembersForSourceMember|jsonTargetMembersForSourceMember)\b/g,
+    replacement:
+      "Array carrier lifecycle must consume generic structural analysis and selected-target metadata rows, not maintain source-family target-member factory lists.",
   },
   {
     id: "procedural-source-member-table-dispatch",

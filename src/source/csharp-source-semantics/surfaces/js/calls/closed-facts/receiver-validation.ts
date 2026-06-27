@@ -10,10 +10,6 @@ import {
   isCsharpBooleanTargetType,
 } from "../../booleans.js";
 import {
-  isCsharpJsMapTargetType,
-  isCsharpJsSetTargetType,
-} from "../../collections.js";
-import {
   isCsharpJsDateRuntimeCarrier,
 } from "../../date/index.js";
 import {
@@ -41,6 +37,10 @@ import {
   getSourceLibraryCallReceiverTargetTypes,
 } from "../helpers.js";
 import {
+  collectionPolicyForSelectedSourceIdentity,
+  collectionPolicyForTargetType,
+} from "../../collection-target-metadata/definitions.js";
+import {
   arrayConcatSourceMemberPolicy,
   arrayStaticCallWithoutReceiverPolicy,
   collectionConstructorIdentityPolicy,
@@ -60,11 +60,10 @@ interface ClosedFactsRule {
 }
 
 type ClosedFactsRequirement =
+  | { readonly kind: "all"; readonly requirements: readonly ClosedFactsRequirement[]; readonly except?: JsSurfaceSourceIdentitySelector }
   | { readonly kind: "receiver"; readonly target: ReceiverTargetCondition; readonly except?: JsSurfaceSourceIdentitySelector; readonly selectedDeclarationSatisfies?: boolean }
   | { readonly kind: "arguments"; readonly conditions: readonly ArgumentCondition[] }
-  | { readonly kind: "object-assign" }
-  | { readonly kind: "array-receiver"; readonly concatRequiresKnownArguments?: boolean; readonly except?: JsSurfaceSourceIdentitySelector }
-  | { readonly kind: "collection-receiver"; readonly target: "map" | "set"; readonly except?: JsSurfaceSourceIdentitySelector };
+  | { readonly kind: "known-argument-targets" };
 
 type ReceiverTargetCondition =
   | "array-like"
@@ -73,12 +72,12 @@ type ReceiverTargetCondition =
   | "boolean"
   | "regexp"
   | "date"
-  | "js-object";
+  | "js-object"
+  | "selected-collection-carrier";
 
-interface ArgumentCondition {
-  readonly index: number;
-  readonly target: ArgumentTargetCondition;
-}
+type ArgumentCondition =
+  | { readonly index: number; readonly target: ArgumentTargetCondition }
+  | { readonly fromIndex: number; readonly target: ArgumentTargetCondition };
 
 type ArgumentTargetCondition =
   | "string"
@@ -98,7 +97,11 @@ const numberStaticCallWithoutReceiverPolicy = {
 } satisfies JsSurfaceSourceIdentitySelector;
 
 const closedFactRequirementRows: readonly ClosedFactsRule[] = [
-  { identity: { prefixes: ["Array."] }, requirement: { kind: "array-receiver", except: arrayStaticCallWithoutReceiverPolicy, concatRequiresKnownArguments: true } },
+  { identity: arrayConcatSourceMemberPolicy, requirement: { kind: "all", requirements: [
+    { kind: "receiver", target: "array-like" },
+    { kind: "known-argument-targets" },
+  ] } },
+  { identity: { prefixes: ["Array."] }, requirement: { kind: "receiver", target: "array-like", except: arrayStaticCallWithoutReceiverPolicy } },
   { identity: { prefixes: ["ReadonlyArray."] }, requirement: { kind: "receiver", target: "array-like" } },
   { identity: { prefixes: ["String."] }, requirement: { kind: "receiver", target: "string", except: stringStaticCallWithoutReceiverPolicy } },
   { identity: { prefixes: ["Number."] }, requirement: { kind: "receiver", target: "number", except: numberStaticCallWithoutReceiverPolicy } },
@@ -119,9 +122,11 @@ const closedFactRequirementRows: readonly ClosedFactsRule[] = [
     { index: 0, target: "js-object" },
     { index: 1, target: "string" },
   ] } },
-  { identity: { ids: ["Object.assign"] }, requirement: { kind: "object-assign" } },
-  { identity: { prefixes: ["Map.", "ReadonlyMap."] }, requirement: { kind: "collection-receiver", target: "map", except: collectionConstructorIdentityPolicy } },
-  { identity: { prefixes: ["Set.", "ReadonlySet."] }, requirement: { kind: "collection-receiver", target: "set", except: collectionConstructorIdentityPolicy } },
+  { identity: { ids: ["Object.assign"] }, requirement: { kind: "arguments", conditions: [
+    { index: 0, target: "js-object" },
+    { fromIndex: 1, target: "object-helper" },
+  ] } },
+  { identity: { prefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."] }, requirement: { kind: "receiver", target: "selected-collection-carrier", except: collectionConstructorIdentityPolicy } },
 ];
 
 export function sourceLibraryCallReceiverHasClosedFacts(
@@ -147,37 +152,20 @@ function closedFactsRequirementIsSatisfied(
     return true;
   }
   switch (requirement.kind) {
+    case "all":
+      return requirement.requirements.every((innerRequirement) =>
+        closedFactsRequirementIsSatisfied(innerRequirement, request, context, selectedIdentity, host)
+      );
     case "receiver":
       return requirement.selectedDeclarationSatisfies === true && request.sourceSelectedDeclaration !== undefined
         ? true
         : getSourceLibraryCallReceiverTargetTypes(request, context, host)
-          .some((receiverType) => receiverMatchesTargetCondition(receiverType, requirement.target, request, context, host));
+          .some((receiverType) => receiverMatchesTargetCondition(receiverType, requirement.target, request, context, selectedIdentity, host));
     case "arguments":
       return argumentConditionsAreSatisfied(requirement.conditions, request, context, host);
-    case "object-assign":
-      return objectAssignFactsAreClosed(request, context, host);
-    case "array-receiver":
-      return arrayReceiverFactsAreClosed(requirement, request, context, host, selectedIdentity);
-    case "collection-receiver":
-      return getSourceLibraryCallReceiverTargetTypes(request, context, host)
-        .some((receiverType) => requirement.target === "map" ? isCsharpJsMapTargetType(receiverType) : isCsharpJsSetTargetType(receiverType));
+    case "known-argument-targets":
+      return getSourceLibraryCallArgumentTargetTypes(request, context, host).every((argumentType) => argumentType !== undefined);
   }
-}
-
-function arrayReceiverFactsAreClosed(
-  requirement: Extract<ClosedFactsRequirement, { readonly kind: "array-receiver" }>,
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpJsSurfaceHost,
-  selectedIdentity: ReturnType<typeof jsSurfaceSelectedSourceIdentityForMember>,
-): boolean {
-  if (requirement.concatRequiresKnownArguments === true &&
-    jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, arrayConcatSourceMemberPolicy) &&
-    getSourceLibraryCallArgumentTargetTypes(request, context, host).some((argumentType) => argumentType === undefined)) {
-    return false;
-  }
-  return getSourceLibraryCallReceiverTargetTypes(request, context, host)
-    .some((receiverType) => getCsharpArrayLikeElementType(receiverType) !== undefined);
 }
 
 function argumentConditionsAreSatisfied(
@@ -187,17 +175,14 @@ function argumentConditionsAreSatisfied(
   host: CsharpJsSurfaceHost,
 ): boolean {
   const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
-  return conditions.every((condition) => argumentMatchesTargetCondition(argumentTypes[condition.index], condition.target, host));
-}
-
-function objectAssignFactsAreClosed(
-  request: CheckedCallMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedCall">,
-  host: CsharpJsSurfaceHost,
-): boolean {
-  const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
-  return isCsharpJsObjectCarrierTargetType(argumentTypes[0]) &&
-    argumentTypes.slice(1).every((argumentType) => isSupportedObjectHelperSourceTargetType(argumentType, host));
+  return conditions.every((condition) => {
+    if ("index" in condition) {
+      return argumentMatchesTargetCondition(argumentTypes[condition.index], condition.target, host);
+    }
+    return argumentTypes
+      .slice(condition.fromIndex)
+      .every((argumentType) => argumentMatchesTargetCondition(argumentType, condition.target, host));
+  });
 }
 
 function receiverMatchesTargetCondition(
@@ -205,6 +190,7 @@ function receiverMatchesTargetCondition(
   condition: ReceiverTargetCondition,
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  selectedIdentity: ReturnType<typeof jsSurfaceSelectedSourceIdentityForMember>,
   host: CsharpJsSurfaceHost,
 ): boolean {
   switch (condition) {
@@ -225,6 +211,10 @@ function receiverMatchesTargetCondition(
       return isCsharpJsDateRuntimeCarrier(receiverType);
     case "js-object":
       return isCsharpJsObjectCarrierTargetType(receiverType);
+    case "selected-collection-carrier": {
+      const policy = collectionPolicyForSelectedSourceIdentity(selectedIdentity);
+      return policy !== undefined && collectionPolicyForTargetType(receiverType) === policy;
+    }
   }
 }
 
@@ -247,12 +237,11 @@ function argumentMatchesTargetCondition(
 
 function closedFactsRequirementExcept(requirement: ClosedFactsRequirement): JsSurfaceSourceIdentitySelector | undefined {
   switch (requirement.kind) {
+    case "all":
     case "receiver":
-    case "array-receiver":
-    case "collection-receiver":
       return requirement.except;
     case "arguments":
-    case "object-assign":
+    case "known-argument-targets":
       return undefined;
   }
 }

@@ -15,22 +15,18 @@ import {
   csharpReadOnlyListTargetType,
 } from "../../../target-types.js";
 import {
-  arrayTargetMembersForSourceMember,
-} from "../arrays/target-members/index.js";
-import {
   csharpJsArrayCarrierTargetType,
   isCsharpJsArrayCarrierTargetType,
 } from "../array-target-type.js";
 import {
-  jsonTargetMembersForSourceMember,
-} from "../json.js";
-import {
   isCsharpJsObjectCarrierTargetType,
-  objectTargetMembersForSourceMember,
 } from "../objects.js";
 import {
   getCsharpJsSourceLibraryPropertyMember,
 } from "../properties/member-providers/index.js";
+import {
+  jsSurfaceSelectedTargetMembersForSourceMember,
+} from "../selected-target-member-metadata.js";
 import type {
   SourceLibraryMember,
 } from "../source-library.js";
@@ -41,17 +37,6 @@ import type {
   CsharpArrayCarrierRequirement,
   LifecycleContext,
 } from "./types.js";
-
-type SelectedSourceMemberTargetMemberFactory = (
-  sourceMember: SourceLibraryMember,
-  elementType: TargetTypeRef,
-) => readonly TargetMember[];
-
-const selectedSourceMemberTargetMemberFactories: readonly SelectedSourceMemberTargetMemberFactory[] = [
-  (sourceMember, elementType) => arrayTargetMembersForSourceMember(sourceMember, elementType),
-  (sourceMember) => objectTargetMembersForSourceMember(sourceMember),
-  (sourceMember) => jsonTargetMembersForSourceMember(sourceMember),
-];
 
 export function carrierRequirementsForStructuralPropertyUse(
   use: TargetSourceUseRecord,
@@ -135,11 +120,7 @@ function targetMembersForSelectedSourceMember(
   sourceMember: SourceLibraryMember,
   elementType: TargetTypeRef,
 ): readonly TargetMember[] {
-  const members: TargetMember[] = [];
-  for (const factory of selectedSourceMemberTargetMemberFactories) {
-    members.push(...factory(sourceMember, elementType));
-  }
-  return members;
+  return jsSurfaceSelectedTargetMembersForSourceMember(sourceMember, elementType);
 }
 
 function targetMemberReceiverType(member: TargetMember): TargetTypeRef | undefined {
