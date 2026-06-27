@@ -40,7 +40,7 @@ import {
 import type {
   JsSurfaceOperationRow,
   JsSurfaceOperationTargetProvider,
-  JsSurfaceOperationTargetProviderAdapter,
+  JsSurfaceOperationTargetProviderResolver,
 } from "./operation-types.js";
 import {
   jsSurfaceTargetMemberIsCallable,
@@ -66,16 +66,25 @@ export function metadataIndexProvider(
   };
 }
 
-export function operationAdapterProvider(
-  adapter: JsSurfaceOperationTargetProviderAdapter,
+export function contextualMetadataProvider(
+  resolver: JsSurfaceOperationTargetProviderResolver,
 ): JsSurfaceOperationTargetProvider {
   return {
-    kind: "operation-adapter",
-    adapter,
+    kind: "contextual-metadata",
+    resolver,
   };
 }
 
-export function callConstructDiscriminatorProvider(): JsSurfaceOperationTargetProviderAdapter {
+export function semanticExceptionProvider(
+  resolver: JsSurfaceOperationTargetProviderResolver,
+): JsSurfaceOperationTargetProvider {
+  return {
+    kind: "semantic-exception",
+    resolver,
+  };
+}
+
+export function callConstructDiscriminatorProvider(): JsSurfaceOperationTargetProviderResolver {
   return {
     id: "call-construct-discriminator",
     selectTargetMembers: (request) =>
@@ -84,7 +93,7 @@ export function callConstructDiscriminatorProvider(): JsSurfaceOperationTargetPr
   };
 }
 
-export function primitiveReceiverStaticHelperProvider(): JsSurfaceOperationTargetProviderAdapter {
+export function primitiveReceiverStaticHelperProvider(): JsSurfaceOperationTargetProviderResolver {
   return {
     id: "primitive-receiver-static-helper",
     selectTargetMembers: (request) => getObjectPrimitiveReceiverCallMembers(request.request, request.context, request.host),
@@ -94,7 +103,7 @@ export function primitiveReceiverStaticHelperProvider(): JsSurfaceOperationTarge
 
 export function recordDictionaryStaticHelperProvider(
   operation: ObjectRecordDictionaryOperation,
-): JsSurfaceOperationTargetProviderAdapter {
+): JsSurfaceOperationTargetProviderResolver {
   return {
     id: "record-dictionary-static-helper",
     selectTargetMembers: (request) => getObjectRecordDictionaryCallMembers(operation, request.request, request.context, request.host),
@@ -104,9 +113,9 @@ export function recordDictionaryStaticHelperProvider(
 
 export function closedSequenceCarrierProvider(
   options: { readonly requireResultElementType: boolean },
-): JsSurfaceOperationTargetProviderAdapter {
+): JsSurfaceOperationTargetProviderResolver {
   return {
-    id: "closed-sequence-carrier",
+    id: "closed-sequence-target-metadata",
     selectTargetMembers: (request) => arrayMembersFromClosedFacts(request.sourceMember, request.request, request.context, request.host, options),
     hasCallableProvider: (request) =>
       arrayTargetMembersForSourceMember(request.sourceMember).some(jsSurfaceTargetMemberIsCallable),
@@ -115,9 +124,9 @@ export function closedSequenceCarrierProvider(
 
 export function closedKeyedCollectionCarrierProvider(
   options: { readonly useResultCarrier: boolean },
-): JsSurfaceOperationTargetProviderAdapter {
+): JsSurfaceOperationTargetProviderResolver {
   return {
-    id: "closed-keyed-collection-carrier",
+    id: "closed-keyed-collection-target-metadata",
     selectTargetMembers: (request) =>
       collectionTargetMembersForSourceMember(
         request.sourceMember,

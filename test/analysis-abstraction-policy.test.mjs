@@ -235,6 +235,8 @@ test("architecture validator rejects JS surface provider kind literals", () => {
     "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
     `
       members: { kind: "date-call-kind" };
+      targetProvider: { kind: "operation-adapter" };
+      const provider = operationAdapterProvider(makeThing());
       case "object-composite":
       case "array-carrier":
       case "collection-carrier":
@@ -246,6 +248,8 @@ test("architecture validator rejects JS surface provider kind literals", () => {
       "js-surface-call-provider-kind-literal",
       "js-surface-call-provider-kind-literal",
       "js-surface-call-provider-kind-literal",
+      "js-surface-call-legacy-provider-shape",
+      "js-surface-call-legacy-provider-shape",
     ],
   );
 

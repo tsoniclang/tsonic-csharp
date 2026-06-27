@@ -33,11 +33,15 @@ export type JsSurfaceOperationTargetProvider =
     readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
   }
   | {
-    readonly kind: "operation-adapter";
-    readonly adapter: JsSurfaceOperationTargetProviderAdapter;
+    readonly kind: "contextual-metadata";
+    readonly resolver: JsSurfaceOperationTargetProviderResolver;
+  }
+  | {
+    readonly kind: "semantic-exception";
+    readonly resolver: JsSurfaceOperationTargetProviderResolver;
   };
 
-export interface JsSurfaceOperationTargetProviderAdapter {
+export interface JsSurfaceOperationTargetProviderResolver {
   readonly id: string;
   readonly selectTargetMembers: (request: JsSurfaceCallTargetProviderRequest) => readonly TargetMember[];
   readonly hasCallableProvider: (request: JsSurfaceCallCallableProviderRequest) => boolean;

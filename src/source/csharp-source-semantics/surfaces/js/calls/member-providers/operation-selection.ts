@@ -100,8 +100,9 @@ function targetMembersFromProvider(
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
-    case "operation-adapter":
-      return provider.adapter.selectTargetMembers(request);
+    case "contextual-metadata":
+    case "semantic-exception":
+      return provider.resolver.selectTargetMembers(request);
   }
 }
 
@@ -112,7 +113,8 @@ function providerHasCallableMember(
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable);
-    case "operation-adapter":
-      return provider.adapter.hasCallableProvider(request);
+    case "contextual-metadata":
+    case "semantic-exception":
+      return provider.resolver.hasCallableProvider(request);
   }
 }

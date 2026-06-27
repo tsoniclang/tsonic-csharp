@@ -255,7 +255,7 @@ export const analysisAbstractionRules = Object.freeze([
   {
     id: "js-surface-call-legacy-provider-shape",
     filePattern: /(?:^|\/)surfaces\/js\/calls\/member-providers\/[^/]+\.ts$/,
-    pattern: /\b(?:SourceCallMetadataRow|JsSurfaceCallPolicyKind|JsSurfaceCallTargetProvider|JsSurfaceCallTargetProviderAdapter|sourceCallMetadataRows|metadataIndexPolicy)\b|readonly kind: "adapter"/g,
+    pattern: /\b(?:SourceCallMetadataRow|JsSurfaceCallPolicyKind|JsSurfaceCallTargetProvider|JsSurfaceCallTargetProviderAdapter|sourceCallMetadataRows|metadataIndexPolicy|operationAdapterProvider)\b|\bkind\s*:\s*"(?:adapter|operation-adapter)"/g,
     replacement:
       "JS surface calls must use one JsSurfaceOperationRow schema and generic operation target providers; legacy call-provider shapes and adapter-only provider kinds are not allowed.",
   },
