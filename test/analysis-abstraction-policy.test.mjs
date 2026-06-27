@@ -432,6 +432,7 @@ test("architecture validator rejects array lifecycle source-member target factor
         (sourceMember) => objectTargetMembersForSourceMember(sourceMember),
         (sourceMember) => jsonTargetMembersForSourceMember(sourceMember),
       ];
+      const selected = getSelectedSourceLibraryMemberForStructuralUse(use, context) as SourceLibraryMember;
     `,
     [
       "js-surface-source-member-target-lookup-api",
@@ -442,6 +443,8 @@ test("architecture validator rejects array lifecycle source-member target factor
       "js-array-lifecycle-source-member-factory-list",
       "js-array-lifecycle-source-member-factory-list",
       "js-array-lifecycle-source-member-factory-list",
+      "js-array-lifecycle-raw-source-member-selection",
+      "js-array-lifecycle-raw-source-member-selection",
     ],
   );
 });

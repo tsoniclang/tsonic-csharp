@@ -322,6 +322,13 @@ export const analysisAbstractionRules = Object.freeze([
       "Array carrier lifecycle must consume generic structural analysis and selected-target metadata rows, not maintain source-family target-member factory lists.",
   },
   {
+    id: "js-array-lifecycle-raw-source-member-selection",
+    filePattern: /(?:^|\/)surfaces\/js\/array-carrier-lifecycle\/(?!source-library-selection\.ts$)[^/]+\.ts$/,
+    pattern: /\b(?:getSelectedSourceLibraryMemberForStructuralUse|SourceLibraryMember)\b/g,
+    replacement:
+      "Array carrier lifecycle planning must consume selected source identity extracted from structural analysis records; raw source-library members are allowed only at the source identity extraction boundary.",
+  },
+  {
     id: "procedural-source-member-table-dispatch",
     pattern: /\b[A-Za-z_$][\w$]*(?:Policies|PolicyRows|Rules|Rows|Records|Providers|Resolvers|Requirements|RequirementRows|MemberPolicies|CallPolicies)\.(?:find|some)\s*\([\s\S]{0,240}?\b(?:sourceMember|sourceLibraryMemberMatches)\b/g,
     replacement:

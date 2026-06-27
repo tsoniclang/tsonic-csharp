@@ -8,23 +8,29 @@ import {
   resolveSourceLibraryMemberIdentity,
 } from "../source-library.js";
 import type {
-  SourceLibraryMember,
-} from "../source-library.js";
+  JsSurfaceSelectedSourceIdentity,
+} from "../target-member-metadata.js";
+import {
+  jsSurfaceSelectedSourceIdentityForMember,
+} from "../target-member-metadata.js";
 import type {
   LifecycleContext,
 } from "./types.js";
 
-export function getSelectedSourceLibraryMemberForStructuralUse(
+export function getSelectedSourceIdentityForStructuralUse(
   use: TargetSourceUseRecord,
   lifecycleContext: LifecycleContext,
-): SourceLibraryMember | undefined {
-  return sourceLibraryMemberFromDeclaration(use.selectedDeclaration, lifecycleContext);
+): JsSurfaceSelectedSourceIdentity | undefined {
+  return selectedSourceIdentityFromDeclaration(use.selectedDeclaration, lifecycleContext);
 }
 
-function sourceLibraryMemberFromDeclaration(
+function selectedSourceIdentityFromDeclaration(
   declaration: TargetSourceUseRecord["selectedDeclaration"],
   lifecycleContext: LifecycleContext,
-): SourceLibraryMember | undefined {
+): JsSurfaceSelectedSourceIdentity | undefined {
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  return resolveSourceLibraryMemberIdentity(declaration, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
+  return sourceMember === undefined
+    ? undefined
+    : jsSurfaceSelectedSourceIdentityForMember(sourceMember);
 }

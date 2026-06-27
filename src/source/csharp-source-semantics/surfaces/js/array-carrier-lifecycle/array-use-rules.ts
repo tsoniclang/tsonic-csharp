@@ -22,19 +22,24 @@ import {
   isCsharpJsObjectCarrierTargetType,
 } from "../objects.js";
 import {
-  getCsharpJsSourceLibraryPropertyMember,
-} from "../properties/member-providers/index.js";
+  jsSurfacePropertyRows,
+} from "../properties/member-providers/target-member-resolvers.js";
+import type {
+  JsSurfacePropertyTargetProvider,
+  JsSurfacePropertyTargetProviderRequest,
+} from "../properties/member-providers/types.js";
 import {
   jsSurfaceSelectedTargetMembersForSelectedIdentity,
 } from "../selected-target-member-metadata.js";
 import type {
-  SourceLibraryMember,
-} from "../source-library.js";
-import {
-  jsSurfaceSelectedSourceIdentityForMember,
+  JsSurfaceSelectedSourceIdentity,
 } from "../target-member-metadata.js";
 import {
-  getSelectedSourceLibraryMemberForStructuralUse,
+  jsSurfaceSelectMetadataRowForSourceIdentity,
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
+} from "../target-member-metadata.js";
+import {
+  getSelectedSourceIdentityForStructuralUse,
 } from "./source-library-selection.js";
 import type {
   CsharpArrayCarrierRequirement,
@@ -46,14 +51,14 @@ export function carrierRequirementsForStructuralPropertyUse(
   elementType: TargetTypeRef,
   lifecycleContext: LifecycleContext,
 ): readonly CsharpArrayCarrierRequirement[] {
-  const sourceMember = getSelectedSourceLibraryMemberForStructuralUse(use, lifecycleContext);
-  if (sourceMember === undefined) {
+  const selectedIdentity = getSelectedSourceIdentityForStructuralUse(use, lifecycleContext);
+  if (selectedIdentity === undefined) {
     return ["full-js"];
   }
   if (use.operation === "property") {
-    return propertyCarrierRequirementsForSelectedMember(sourceMember, elementType, use.access);
+    return propertyCarrierRequirementsForSelectedIdentity(selectedIdentity, elementType, use.access);
   }
-  return receiverCarrierRequirementsForSelectedMember(sourceMember, elementType, use.access);
+  return receiverCarrierRequirementsForSelectedIdentity(selectedIdentity, elementType, use.access);
 }
 
 export function carrierRequirementsForStructuralCallArgumentUse(
@@ -61,12 +66,12 @@ export function carrierRequirementsForStructuralCallArgumentUse(
   elementType: TargetTypeRef,
   lifecycleContext: LifecycleContext,
 ): readonly CsharpArrayCarrierRequirement[] {
-  const sourceMember = getSelectedSourceLibraryMemberForStructuralUse(use, lifecycleContext);
-  if (sourceMember === undefined || use.argumentIndex === undefined) {
+  const selectedIdentity = getSelectedSourceIdentityForStructuralUse(use, lifecycleContext);
+  if (selectedIdentity === undefined || use.argumentIndex === undefined) {
     return ["full-js"];
   }
   const argumentIndex = use.argumentIndex;
-  const members = targetMembersForSelectedSourceMember(sourceMember, elementType);
+  const members = targetMembersForSelectedIdentity(selectedIdentity, elementType);
   if (members.length === 0) {
     return ["full-js"];
   }
@@ -77,35 +82,30 @@ export function carrierRequirementsForStructuralCallArgumentUse(
   );
 }
 
-function propertyCarrierRequirementsForSelectedMember(
-  sourceMember: SourceLibraryMember,
+function propertyCarrierRequirementsForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
   elementType: TargetTypeRef,
   access: TargetSourceAccessKind,
 ): readonly CsharpArrayCarrierRequirement[] {
   if (access !== "read") {
     return ["full-js"];
   }
-  if (getCsharpJsSourceLibraryPropertyMember(sourceMember, csharpReadOnlyListTargetType(elementType)) !== undefined) {
-    return ["length-read"];
+  const propertyRequirements = carrierRequirementsForStructuralPropertyReceivers(selectedIdentity, elementType);
+  if (propertyRequirements.length > 0) {
+    return propertyRequirements;
   }
-  if (getCsharpJsSourceLibraryPropertyMember(sourceMember, csharpListTargetType(elementType)) !== undefined) {
-    return ["length-read"];
-  }
-  if (getCsharpJsSourceLibraryPropertyMember(sourceMember, csharpJsArrayCarrierTargetType(elementType)) !== undefined) {
-    return ["full-js"];
-  }
-  return receiverCarrierRequirementsForSelectedMember(sourceMember, elementType, access);
+  return receiverCarrierRequirementsForSelectedIdentity(selectedIdentity, elementType, access);
 }
 
-function receiverCarrierRequirementsForSelectedMember(
-  sourceMember: SourceLibraryMember,
+function receiverCarrierRequirementsForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
   elementType: TargetTypeRef,
   access: TargetSourceAccessKind,
 ): readonly CsharpArrayCarrierRequirement[] {
   if (access !== "read") {
     return ["full-js"];
   }
-  const members = targetMembersForSelectedSourceMember(sourceMember, elementType);
+  const members = targetMembersForSelectedIdentity(selectedIdentity, elementType);
   if (members.length === 0) {
     return ["full-js"];
   }
@@ -119,14 +119,56 @@ function receiverCarrierRequirementsForSelectedMember(
   return requirements.length === 0 ? ["full-js"] : requirements;
 }
 
-function targetMembersForSelectedSourceMember(
-  sourceMember: SourceLibraryMember,
+function carrierRequirementsForStructuralPropertyReceivers(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  elementType: TargetTypeRef,
+): readonly CsharpArrayCarrierRequirement[] {
+  for (const candidate of structuralPropertyReceiverCandidates(elementType)) {
+    if (propertyTargetMembersForSelectedIdentity(selectedIdentity, candidate.receiverType).length === 0) {
+      continue;
+    }
+    return [candidate.requirement];
+  }
+  return [];
+}
+
+function structuralPropertyReceiverCandidates(
+  elementType: TargetTypeRef,
+): readonly { readonly receiverType: TargetTypeRef; readonly requirement: CsharpArrayCarrierRequirement }[] {
+  return [
+    { receiverType: csharpReadOnlyListTargetType(elementType), requirement: "length-read" },
+    { receiverType: csharpListTargetType(elementType), requirement: "length-read" },
+    { receiverType: csharpJsArrayCarrierTargetType(elementType), requirement: "full-js" },
+  ];
+}
+
+function propertyTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  receiverType: TargetTypeRef,
+): readonly TargetMember[] {
+  const row = jsSurfaceSelectMetadataRowForSourceIdentity(jsSurfacePropertyRows, selectedIdentity);
+  return row?.targetProviders?.flatMap((provider) =>
+    propertyTargetMembersFromProvider(provider, { selectedIdentity, receiverType })) ?? [];
+}
+
+function propertyTargetMembersFromProvider(
+  provider: JsSurfacePropertyTargetProvider,
+  request: JsSurfacePropertyTargetProviderRequest,
+): readonly TargetMember[] {
+  switch (provider.kind) {
+    case "metadata-index":
+      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
+    case "contextual-metadata":
+    case "semantic-exception":
+      return provider.resolver.selectTargetMembers(request);
+  }
+}
+
+function targetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
   elementType: TargetTypeRef,
 ): readonly TargetMember[] {
-  return jsSurfaceSelectedTargetMembersForSelectedIdentity(
-    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
-    elementType,
-  );
+  return jsSurfaceSelectedTargetMembersForSelectedIdentity(selectedIdentity, elementType);
 }
 
 function targetMemberReceiverType(member: TargetMember): TargetTypeRef | undefined {
