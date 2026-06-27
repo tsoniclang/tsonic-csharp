@@ -67,6 +67,13 @@ const stringStaticCallIdentityPolicy = {
     "String.fromCodePoint",
   ],
 } as const satisfies JsSurfaceSourceIdentitySelector;
+const unsupportedStringExactSemanticsIdentityPolicy = {
+  ids: [
+    "String.raw",
+    "String.match",
+    "String.matchAll",
+  ],
+} as const satisfies JsSurfaceSourceIdentitySelector;
 const numberStaticCallIdentityPolicy = {
   ids: [
     "Number.parseInt",
@@ -92,6 +99,20 @@ const dateStaticCallIdentityPolicy = {
 export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex, { capabilityId: "surface.js.math", requiredFacts: selectedSignatureProviderFacts }),
   operationRowFromMetadataIndex(stringStaticCallIdentityPolicy, stringTargetMemberIdentityIndex, { capabilityId: "surface.js.string-methods", requiredFacts: selectedSignatureProviderFacts }),
+  {
+    identity: unsupportedStringExactSemanticsIdentityPolicy,
+    policyKind: "unsupported",
+    unsupported: {
+      reason: "String.raw, String.prototype.match, and String.prototype.matchAll require closed template-object, RegExp coercion, RegExpMatchArray, iterator, group, and lastIndex semantics before C# emission.",
+      requiredFacts: [
+        "selected String source declaration/signature identity",
+        "closed template-object or RegExp carrier facts",
+        "RegExp match result and iterator carrier metadata",
+        "runtime helper metadata proving ECMAScript String exactness",
+      ],
+      capabilityId: "surface.js.string-methods",
+    },
+  },
   {
     ...operationRowFromMetadataIndex({ prefixes: ["String."] }, stringTargetMemberIdentityIndex, { capabilityId: "surface.js.string-methods", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "receiver", target: "string" },

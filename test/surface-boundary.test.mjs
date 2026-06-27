@@ -1888,6 +1888,46 @@ test("JS surface rejects selected string helpers without closed string receiver 
   assert.match(result.diagnostic.message, /receiver lacks finalized target runtime facts/);
 });
 
+test("JS surface hard-rejects selected String.raw and regex match lanes until exact runtime facts exist", () => {
+  const receiver = {};
+  const pattern = {};
+  const rawTemplate = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [receiver, stringType()],
+    [pattern, stringType()],
+    [rawTemplate, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const matchResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("String", "match"), {
+    arguments: [pattern],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+  const matchAllResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("String", "matchAll"), {
+    arguments: [pattern],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+  const rawResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("String", "raw"), {
+    arguments: [rawTemplate],
+  }), fakeContext(facts));
+
+  assert.equal(matchResult.kind, "reject");
+  assert.equal(matchResult.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(matchResult.diagnostic.message, /String\.match/);
+  assert.match(matchResult.diagnostic.message, /RegExpMatchArray/);
+
+  assert.equal(matchAllResult.kind, "reject");
+  assert.equal(matchAllResult.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(matchAllResult.diagnostic.message, /String\.matchAll/);
+  assert.match(matchAllResult.diagnostic.message, /iterator/);
+
+  assert.equal(rawResult.kind, "reject");
+  assert.equal(rawResult.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(rawResult.diagnostic.message, /String\.raw/);
+  assert.match(rawResult.diagnostic.message, /template-object/);
+});
+
 test("JS surface maps Math.max only with provider-proven numeric arguments", () => {
   const call = {};
   const left = {};
