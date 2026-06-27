@@ -227,6 +227,32 @@ export const analysisAbstractionRules = Object.freeze([
       "Source-id table dispatch must become generic selector lookup over selected declaration/signature identity and metadata rows.",
   },
   {
+    id: "function-valued-source-member-provider-hook",
+    pattern: /\b[A-Za-z_$][\w$]*ForSourceMember\s*:\s*\([^)\n]*\bsourceMember\b[^)\n]*\)\s*=>/g,
+    replacement:
+      "Provider metadata rows must name provider/runtime metadata records; do not store executable hooks that accept sourceMember.",
+  },
+  {
+    id: "source-member-provider-hook-dispatch",
+    pattern: /\b[A-Za-z_$][\w$]*\.membersForSourceMember\s*\(\s*sourceMember\s*\)/g,
+    replacement:
+      "Source-member provider hook dispatch must become generic selection over declarative provider metadata rows.",
+  },
+  {
+    id: "js-surface-call-provider-kind-literal",
+    filePattern: /(?:^|\/)surfaces\/js\/calls\/member-providers\/[^/]+\.ts$/,
+    pattern: /"(?:date-call-kind|object-composite|array-carrier|collection-carrier|console-metadata)"/g,
+    replacement:
+      "JS surface call provider behavior must be declared as provider metadata facts; source-family kind literals must not drive generic call analysis or target selection.",
+  },
+  {
+    id: "js-surface-property-provider-kind-literal",
+    filePattern: /(?:^|\/)surfaces\/js\/properties\/member-providers\/[^/]+\.ts$/,
+    pattern: /"(?:collection-size|string-length|array-length)"/g,
+    replacement:
+      "JS surface property provider behavior must be declared as provider metadata facts; source-family kind literals must not drive generic property analysis or target selection.",
+  },
+  {
     id: "procedural-source-member-table-dispatch",
     pattern: /\b[A-Za-z_$][\w$]*(?:Policies|PolicyRows|Rules|Rows|Records|Providers|Resolvers|Requirements|RequirementRows|MemberPolicies|CallPolicies)\.(?:find|some)\s*\([\s\S]{0,240}?\b(?:sourceMember|sourceLibraryMemberMatches)\b/g,
     replacement:
@@ -245,6 +271,13 @@ export const analysisAbstractionRules = Object.freeze([
       "Target member names and ids must be declared by provider/runtime metadata rows, not synthesized from source member names or identities.",
   },
   {
+    id: "provider-row-target-member-from-created-source-member",
+    filePattern: /(?:^|\/)surfaces\/js\/(?:calls|properties)\/member-providers\/[^/]+\.ts$/,
+    pattern: /\b[A-Za-z0-9]+(?:Property)?TargetMembers?ForSourceMember\s*\(\s*createSourceLibraryMember\s*\(/g,
+    replacement:
+      "Provider rows must reference provider metadata rows directly; do not synthesize target members by recreating source-library members from source names.",
+  },
+  {
     id: "node-local-export-signature-selection",
     pattern: /\.find\s*\(\s*\(?\s*entry\s*\)?\s*=>\s*entry\.(?:exportName|signatureId)\s*===/g,
     replacement:
@@ -259,6 +292,12 @@ export const analysisAbstractionRules = Object.freeze([
 ]);
 
 export const analysisAbstractionFileRules = Object.freeze([
+  {
+    id: "policy-shaped-file",
+    pattern: /(?:^|\/)[^/]+-policy\.ts$/,
+    replacement:
+      "Policy-shaped modules must either be pure declarative metadata awaiting migration to canonical provider rows or be renamed/rebuilt as generic selectors; executable semantic behavior is not allowed.",
+  },
   {
     id: "procedural-policy-file",
     pattern: /(?:^|\/)(?:policy|selection-policy|property-policy|array-use-policy)\.ts$/,
@@ -307,7 +346,44 @@ export const analysisAbstractionDebtOwners = Object.freeze([
   "tests",
 ]);
 
-export const analysisAbstractionDebtCatalog = Object.freeze([]);
+export const analysisAbstractionDebtCatalog = Object.freeze([
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
+    {
+      "js-surface-call-provider-kind-literal": 16,
+    },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Replace call-provider source-family kind rows with canonical declarative provider metadata rows and explicit semantic exception records selected by source declaration/signature identity.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
+    {
+      "js-surface-property-provider-kind-literal": 3,
+    },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Replace property-provider kind switch selection with canonical declarative provider metadata rows and generic property selectors.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/target-member-resolvers.ts",
+    {
+      "js-surface-property-provider-kind-literal": 10,
+    },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Move property target member kind rows into provider/runtime metadata records instead of source-family property provider kinds.",
+  ),
+  entry(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/types.ts",
+    {
+      "js-surface-property-provider-kind-literal": 3,
+    },
+    "provider-metadata-candidate",
+    "surface-provider",
+    "Replace source-family property provider kind union with declarative provider metadata facts.",
+  ),
+]);
 
 export function collectAnalysisAbstractionFindings(repoRoot) {
   return sourceFiles(join(repoRoot, "src")).flatMap((filePath) => {

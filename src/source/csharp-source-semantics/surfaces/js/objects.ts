@@ -164,4 +164,4 @@ const objectTargetMemberMetadata = [
     returnType: csharpSourcePrimitiveTargetType("bool"),
   }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const objectTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Object", objectTargetMemberMetadata);
+export const objectTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Object", objectTargetMemberMetadata);

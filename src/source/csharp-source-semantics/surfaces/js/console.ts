@@ -99,4 +99,4 @@ const consoleTargetMemberMetadata = [
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.countReset", sourceName: "countReset", targetName: "countReset", parameters: [optionalStringParameter("label")] }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 
-const consoleTargetMembersBySourceIdentity = jsSurfaceTargetMemberMetadataIdentityIndex("Console", consoleTargetMemberMetadata);
+export const consoleTargetMembersBySourceIdentity = jsSurfaceTargetMemberMetadataIdentityIndex("Console", consoleTargetMemberMetadata);

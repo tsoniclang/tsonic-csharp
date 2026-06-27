@@ -197,7 +197,7 @@ const stringTargetMemberMetadata = [
     { id: "Tsonic.CSharp.Js.String.valueOf", sourceName: "valueOf", targetName: "valueOf" },
   ].map((row) => stringReceiverHelperMemberMetadata({ ...row, parameters: [stringReceiverParameter], returnType: stringType })),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const stringTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("String", stringTargetMemberMetadata);
+export const stringTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("String", stringTargetMemberMetadata);
 
 function stringHelperMemberMetadata(row: StringHelperMetadataRow): JsSurfaceTargetMemberMetadata {
   return {

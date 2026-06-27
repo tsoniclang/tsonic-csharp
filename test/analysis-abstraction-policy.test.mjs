@@ -215,6 +215,94 @@ test("architecture validator rejects target-member synthesis from source names",
   );
 });
 
+test("architecture validator rejects source-member provider hooks", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
+    `
+      type SourceCallMemberProvider =
+        | { readonly kind: "metadata-by-source-identity"; readonly membersForSourceMember: (sourceMember: SourceLibraryMember) => readonly TargetMember[] };
+      return provider.membersForSourceMember(sourceMember);
+    `,
+    [
+      "function-valued-source-member-provider-hook",
+      "source-member-provider-hook-dispatch",
+    ],
+  );
+});
+
+test("architecture validator rejects JS surface provider kind literals", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
+    `
+      members: { kind: "date-call-kind" };
+      case "object-composite":
+      case "array-carrier":
+      case "collection-carrier":
+      case "console-metadata":
+    `,
+    [
+      "js-surface-call-provider-kind-literal",
+      "js-surface-call-provider-kind-literal",
+      "js-surface-call-provider-kind-literal",
+      "js-surface-call-provider-kind-literal",
+      "js-surface-call-provider-kind-literal",
+    ],
+  );
+
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
+    `
+      case "collection-size":
+      case "string-length":
+      case "array-length":
+    `,
+    [
+      "js-surface-property-provider-kind-literal",
+      "js-surface-property-provider-kind-literal",
+      "js-surface-property-provider-kind-literal",
+    ],
+  );
+});
+
+test("architecture validator rejects policy-shaped filenames", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-policy.ts",
+    `
+      export const csharpJsMapCollectionPolicy = {
+        sourceNames: ["Map", "ReadonlyMap"],
+        target: { id: "Tsonic.CSharp.Js.Map" },
+      };
+    `,
+    ["policy-shaped-file"],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-metadata.ts",
+      `
+        export const csharpJsMapCollectionMetadata = {
+          sourceNames: ["Map", "ReadonlyMap"],
+          target: { id: "Tsonic.CSharp.Js.Map" },
+        };
+      `,
+    ),
+    [],
+  );
+});
+
+test("architecture validator rejects provider-row target members built from source names", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/precheck-rules.ts",
+    `
+      targetMemberExistsRow(
+        sourceKey("Object", sourceName),
+        objectTargetMembersForSourceMember(createSourceLibraryMember("Object", sourceName)),
+      );
+    `,
+    ["provider-row-target-member-from-created-source-member"],
+  );
+});
+
 test("architecture validator rejects executable selectors in metadata-policy files only", () => {
   assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-policy.ts",
@@ -226,6 +314,7 @@ test("architecture validator rejects executable selectors in metadata-policy fil
       };
     `,
     [
+      "policy-shaped-file",
       "collection-target-metadata-executable-policy-file",
       "collection-target-metadata-executable-policy-file",
     ],

@@ -1,12 +1,12 @@
+import type {
+  TargetMember,
+} from "@tsonic/tsts";
 import {
-  jsonTargetMembersForSourceMember,
+  jsonTargetMemberIdentityIndex,
 } from "../../json.js";
 import {
-  objectTargetMembersForSourceMember,
+  objectTargetMemberIdentityIndex,
 } from "../../objects.js";
-import {
-  createSourceLibraryMember,
-} from "../../source-library.js";
 import type {
   SourceLibraryMemberKey,
 } from "../../source-library.js";
@@ -33,20 +33,20 @@ export const propertyPrecheckRows: readonly CsharpJsPropertyPrecheckRule[] = [
     result: "defer",
   },
   ...objectPropertySourceNames.map((sourceName) =>
-    targetMemberExistsRow(sourceKey("Object", sourceName), objectTargetMembersForSourceMember(createSourceLibraryMember("Object", sourceName)))
+    targetMemberExistsRow(sourceKey("Object", sourceName), objectTargetMemberIdentityIndex)
   ),
   ...jsonPropertySourceNames.map((sourceName) =>
-    targetMemberExistsRow(sourceKey("JSON", sourceName), jsonTargetMembersForSourceMember(createSourceLibraryMember("JSON", sourceName)))
+    targetMemberExistsRow(sourceKey("JSON", sourceName), jsonTargetMemberIdentityIndex)
   ),
 ];
 
 function targetMemberExistsRow(
   sourceId: SourceLibraryMemberKey,
-  members: ReturnType<typeof objectTargetMembersForSourceMember>,
+  index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
 ): CsharpJsPropertyPrecheckRule {
   return {
     sourceId,
-    result: { kind: "target-member-exists", members },
+    result: { kind: "target-member-exists", members: index.get(sourceId) ?? [] },
   };
 }
 

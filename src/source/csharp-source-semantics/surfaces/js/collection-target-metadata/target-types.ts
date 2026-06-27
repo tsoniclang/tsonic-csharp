@@ -10,10 +10,10 @@ import {
 } from "./member-builders.js";
 import {
   csharpJsMapCollectionPolicy,
-} from "./map-policy.js";
+} from "./map-metadata.js";
 import {
   csharpJsSetCollectionPolicy,
-} from "./set-policy.js";
+} from "./set-metadata.js";
 import type {
   CsharpJsCollectionTargetTypeRef,
   CsharpJsCollectionTypePolicy,

@@ -47,7 +47,7 @@ const booleanTargetMemberMetadata = [
     receiverPassing: "first-argument",
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const booleanTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Boolean", booleanTargetMemberMetadata);
+export const booleanTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Boolean", booleanTargetMemberMetadata);
 
 export function isCsharpBooleanTargetType(type: unknown): boolean {
   return (type as { readonly kind?: unknown; readonly name?: unknown } | undefined)?.kind === "source-primitive" &&

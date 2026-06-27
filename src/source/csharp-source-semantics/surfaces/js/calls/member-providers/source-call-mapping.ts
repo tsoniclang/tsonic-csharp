@@ -10,10 +10,10 @@ import {
   arrayTargetMembersForSourceMember,
 } from "../../arrays.js";
 import {
-  booleanTargetMembersForSourceMember,
+  booleanTargetMemberIdentityIndex,
 } from "../../booleans.js";
 import {
-  consoleTargetMembersForSourceMember,
+  consoleTargetMembersBySourceIdentity,
 } from "../../console.js";
 import {
   collectionTargetMembersForSourceMember,
@@ -22,23 +22,24 @@ import {
   dateTargetMembersForSourceMember,
 } from "../../date/index.js";
 import {
-  jsonTargetMembersForSourceMember,
+  jsonTargetMemberIdentityIndex,
 } from "../../json.js";
 import {
-  mathTargetMembersForSourceMember,
+  mathTargetMemberIdentityIndex,
 } from "../../math.js";
 import {
-  numberTargetMembersForSourceMember,
+  numberTargetMemberIdentityIndex,
 } from "../../numbers.js";
 import {
   objectTargetMembersForSourceMember,
 } from "../../objects.js";
 import {
-  regExpTargetMembersForSourceMember,
+  regExpTargetMemberIdentityIndex,
 } from "../../regexp/index.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMember,
+  SourceLibraryMemberKey,
 } from "../../source-library.js";
 import {
   type JsSurfaceSelectedSourceIdentity,
@@ -46,9 +47,10 @@ import {
   jsSurfaceSelectMetadataRowForSourceIdentity,
   jsSurfaceSelectedSourceIdentityForMember,
   jsSurfaceSourceIdentityMatchesSelector,
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
-  stringTargetMembersForSourceMember,
+  stringTargetMemberIdentityIndex,
 } from "../../strings.js";
 import {
   getSourceLibraryCallArgumentTargetTypes,
@@ -75,12 +77,11 @@ interface SourceCallMetadataRow {
 }
 
 type SourceCallMemberProvider =
-  | { readonly kind: "metadata-by-source-identity"; readonly membersForSourceMember: (sourceMember: SourceLibraryMember) => readonly TargetMember[] }
+  | { readonly kind: "metadata-index"; readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]> }
   | { readonly kind: "date-call-kind" }
   | { readonly kind: "object-composite" }
   | { readonly kind: "array-carrier" }
-  | { readonly kind: "collection-carrier" }
-  | { readonly kind: "console-metadata" };
+  | { readonly kind: "collection-carrier" };
 
 type SourceCallCallablePolicy =
   | { readonly kind: "members-exist" }
@@ -90,17 +91,17 @@ type SourceCallCallablePolicy =
   | { readonly kind: "never" };
 
 const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
-  metadataPolicy({ prefixes: ["Math."] }, mathTargetMembersForSourceMember),
-  metadataPolicy({ prefixes: ["String."] }, stringTargetMembersForSourceMember),
-  metadataPolicy({ prefixes: ["Number."] }, numberTargetMembersForSourceMember),
-  metadataPolicy({ prefixes: ["Boolean."] }, booleanTargetMembersForSourceMember),
-  metadataPolicy({ prefixes: ["RegExp."] }, regExpTargetMembersForSourceMember),
+  metadataIndexPolicy({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex),
+  metadataIndexPolicy({ prefixes: ["String."] }, stringTargetMemberIdentityIndex),
+  metadataIndexPolicy({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex),
+  metadataIndexPolicy({ prefixes: ["Boolean."] }, booleanTargetMemberIdentityIndex),
+  metadataIndexPolicy({ prefixes: ["RegExp."] }, regExpTargetMemberIdentityIndex),
   {
     identity: { prefixes: ["Date."] },
     members: { kind: "date-call-kind" },
     callable: { kind: "members-exist" },
   },
-  metadataPolicy({ prefixes: ["JSON."] }, jsonTargetMembersForSourceMember),
+  metadataIndexPolicy({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
   {
     identity: { prefixes: ["Object."] },
     members: { kind: "object-composite" },
@@ -118,7 +119,7 @@ const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
   },
   {
     identity: { prefixes: ["Console."] },
-    members: { kind: "console-metadata" },
+    members: { kind: "metadata-index", membersBySourceIdentity: consoleTargetMembersBySourceIdentity },
     callable: { kind: "members-exist" },
   },
   {
@@ -176,8 +177,8 @@ function callMembersFromProvider(
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
   switch (provider.kind) {
-    case "metadata-by-source-identity":
-      return provider.membersForSourceMember(sourceMember);
+    case "metadata-index":
+      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity);
     case "date-call-kind":
       return dateTargetMembersForSourceMember(sourceMember, isNewExpression(request.call, context) ? "new" : "call");
     case "object-composite":
@@ -196,8 +197,6 @@ function callMembersFromProvider(
           ? getSourceLibraryCallResultTargetType(request, context, host)
           : undefined,
       );
-    case "console-metadata":
-      return consoleTargetMembersForSourceMember(sourceMember);
   }
 }
 
@@ -209,7 +208,7 @@ function callablePolicyIsSatisfied(
 ): boolean {
   switch (policy.kind) {
     case "members-exist":
-      return provider === undefined ? false : callableMembersFromProvider(provider, sourceMember).length > 0;
+      return provider === undefined ? false : callableMembersFromProvider(provider, sourceMember, selectedIdentity).length > 0;
     case "array-members-or-call-surface":
       return arrayTargetMembersForSourceMember(sourceMember).length > 0 ||
         jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, arrayCallableIdentityPolicy);
@@ -225,10 +224,11 @@ function callablePolicyIsSatisfied(
 function callableMembersFromProvider(
   provider: SourceCallMemberProvider,
   sourceMember: SourceLibraryMember,
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
 ): readonly TargetMember[] {
   switch (provider.kind) {
-    case "metadata-by-source-identity":
-      return provider.membersForSourceMember(sourceMember);
+    case "metadata-index":
+      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity);
     case "date-call-kind":
       return dateTargetMembersForSourceMember(sourceMember, "call");
     case "object-composite":
@@ -236,8 +236,6 @@ function callableMembersFromProvider(
     case "array-carrier":
     case "collection-carrier":
       return [];
-    case "console-metadata":
-      return consoleTargetMembersForSourceMember(sourceMember);
   }
 }
 
@@ -267,13 +265,13 @@ function arrayElementTypeFromClosedFacts(
     getSourceLibraryCallArgumentTargetTypes(request, context, host).map(getCsharpArrayLikeElementType).find((element) => element !== undefined);
 }
 
-function metadataPolicy(
+function metadataIndexPolicy(
   identity: JsSurfaceSourceIdentitySelector,
-  membersForSourceMember: (sourceMember: SourceLibraryMember) => readonly TargetMember[],
+  membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
 ): SourceCallMetadataRow {
   return {
     identity,
-    members: { kind: "metadata-by-source-identity", membersForSourceMember },
+    members: { kind: "metadata-index", membersBySourceIdentity },
     callable: { kind: "members-exist" },
   };
 }

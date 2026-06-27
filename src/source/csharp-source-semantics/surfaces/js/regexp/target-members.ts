@@ -61,7 +61,7 @@ const regExpTargetMemberMetadata = [
     returnType: regExpBoolType,
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const regExpTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpTargetMemberMetadata);
+export const regExpTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpTargetMemberMetadata);
 
 const regExpPropertyTargetMemberMetadata = [
   ...[
@@ -80,7 +80,7 @@ const regExpPropertyTargetMemberMetadata = [
   ].map(regExpPropertyMetadata),
   regExpPropertyMetadata({ id: "Tsonic.CSharp.Js.RegExp.lastIndex", sourceName: "lastIndex", targetName: "lastIndex", returnType: csharpSourcePrimitiveTargetType("int32") }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const regExpPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpPropertyTargetMemberMetadata);
+export const regExpPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpPropertyTargetMemberMetadata);
 
 function regExpPropertyMetadata(row: RegExpPropertyMetadataRow): JsSurfaceTargetMemberMetadata {
   return {

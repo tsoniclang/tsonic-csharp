@@ -218,7 +218,7 @@ const jsonTargetMemberMetadata = [
     },
   }),
 ] satisfies readonly JsonTargetMemberMetadata[];
-const jsonTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("JSON", jsonTargetMemberMetadata);
+export const jsonTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("JSON", jsonTargetMemberMetadata);
 
 function isCheckedJsonParseCall(
   call: Node,

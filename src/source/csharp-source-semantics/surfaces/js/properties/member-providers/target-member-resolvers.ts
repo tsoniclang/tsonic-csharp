@@ -2,16 +2,15 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
-  mathPropertyTargetMemberForSourceMember,
+  mathPropertyTargetMemberIdentityIndex,
 } from "../../math.js";
 import {
-  numberPropertyTargetMemberForSourceMember,
+  numberPropertyTargetMemberIdentityIndex,
 } from "../../numbers.js";
 import {
-  regExpPropertyTargetMemberForSourceMember,
+  regExpPropertyTargetMemberIdentityIndex,
 } from "../../regexp/index.js";
 import {
-  createSourceLibraryMember,
   csharpSourcePrimitiveTargetType,
 } from "../../source-library.js";
 import type {
@@ -61,17 +60,17 @@ const numberPropertySourceNames = [
 
 const propertyMemberRows: readonly CsharpJsPropertyMemberProvider[] = [
   ...mathPropertySourceNames.map((sourceName) =>
-    fixedMetadataRow(sourceKey("Math", sourceName), singleTargetMember(mathPropertyTargetMemberForSourceMember(createSourceLibraryMember("Math", sourceName))))
+    fixedMetadataRowFromIndex(sourceKey("Math", sourceName), mathPropertyTargetMemberIdentityIndex)
   ),
   ...regExpStringPropertySourceNames.map((sourceName) =>
-    fixedMetadataRow(sourceKey("RegExp", sourceName), singleTargetMember(regExpPropertyTargetMemberForSourceMember(createSourceLibraryMember("RegExp", sourceName))))
+    fixedMetadataRowFromIndex(sourceKey("RegExp", sourceName), regExpPropertyTargetMemberIdentityIndex)
   ),
   ...regExpBooleanPropertySourceNames.map((sourceName) =>
-    fixedMetadataRow(sourceKey("RegExp", sourceName), singleTargetMember(regExpPropertyTargetMemberForSourceMember(createSourceLibraryMember("RegExp", sourceName))))
+    fixedMetadataRowFromIndex(sourceKey("RegExp", sourceName), regExpPropertyTargetMemberIdentityIndex)
   ),
-  fixedMetadataRow("RegExp.lastIndex", singleTargetMember(regExpPropertyTargetMemberForSourceMember(createSourceLibraryMember("RegExp", "lastIndex")))),
+  fixedMetadataRowFromIndex("RegExp.lastIndex", regExpPropertyTargetMemberIdentityIndex),
   ...numberPropertySourceNames.map((sourceName) =>
-    fixedMetadataRow(sourceKey("Number", sourceName), singleTargetMember(numberPropertyTargetMemberForSourceMember(createSourceLibraryMember("Number", sourceName))))
+    fixedMetadataRowFromIndex(sourceKey("Number", sourceName), numberPropertyTargetMemberIdentityIndex)
   ),
   fixedKindRow("Map.size", "collection-size"),
   fixedKindRow("ReadonlyMap.size", "collection-size"),
@@ -97,6 +96,13 @@ function fixedMetadataRow(
   };
 }
 
+function fixedMetadataRowFromIndex(
+  sourceId: SourceLibraryMemberKey,
+  index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+): CsharpJsPropertyMemberProvider {
+  return fixedMetadataRow(sourceId, index.get(sourceId) ?? []);
+}
+
 function fixedKindRow(
   sourceId: SourceLibraryMemberKey,
   kind: Extract<CsharpJsPropertyMemberProvider["member"], { readonly kind: "collection-size" | "string-length" | "array-length" }>["kind"],
@@ -112,10 +118,4 @@ function sourceKey(
   sourceName: string,
 ): SourceLibraryMemberKey {
   return `${declaringName}.${sourceName}`;
-}
-
-function singleTargetMember(
-  member: TargetMember | undefined,
-): readonly TargetMember[] {
-  return member === undefined ? [] : [member];
 }

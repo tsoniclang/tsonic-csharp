@@ -56,7 +56,7 @@ const numberTargetMemberMetadata = [
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toString", sourceName: "toString", targetName: "toString", parameters: [numberValueParameter], returnType: stringType, receiverPassing: "first-argument" }),
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.valueOf", sourceName: "valueOf", targetName: "valueOf", parameters: [numberValueParameter], returnType: numberType, receiverPassing: "first-argument" }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-const numberTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberTargetMemberMetadata);
+export const numberTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberTargetMemberMetadata);
 const numberPropertyTargetMemberMetadata = [
   { id: "Tsonic.CSharp.Js.Number.MAX_VALUE", sourceName: "MAX_VALUE", targetName: "MAX_VALUE" },
   { id: "Tsonic.CSharp.Js.Number.MIN_VALUE", sourceName: "MIN_VALUE", targetName: "MIN_VALUE" },
@@ -67,7 +67,7 @@ const numberPropertyTargetMemberMetadata = [
   { id: "Tsonic.CSharp.Js.Number.NaN", sourceName: "NaN", targetName: "NaN" },
   { id: "Tsonic.CSharp.Js.Number.EPSILON", sourceName: "EPSILON", targetName: "EPSILON" },
 ].map(numberPropertyMetadata) satisfies readonly JsSurfaceTargetMemberMetadata[];
-const numberPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberPropertyTargetMemberMetadata);
+export const numberPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberPropertyTargetMemberMetadata);
 
 export function isCsharpNumberTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "source-primitive" &&
