@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { dirname, join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   TstsProviderContractVersion,
   createCompilerSessionFromFiles,
   formatDiagnostics,
 } from "@tsonic/tsts";
+import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import {
   createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
@@ -13,8 +16,10 @@ import {
   csharpObservedTargetAssignabilityFactKey,
   csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
+import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
 const searchValuesModule = "@example/csharp/search-values.js";
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 test("C# post-check target assignability reports target invalidity without changing the TS relation", () => {
   const sourceText = `
@@ -82,7 +87,78 @@ test("C# post-check target assignability cannot make TypeScript-invalid assignme
   assert.equal(targetDiagnostics.length, 0);
 });
 
-test("C# post-check target assignability fails closed on TypeScript any boundaries", () => {
+test("C# post-check target assignability fails closed when target type facts are missing", () => {
+  const sourceText = `
+    declare let x: number;
+    declare let y: number;
+    x = y;
+  `;
+  const session = createNativeSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const assignment = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  assert.ok(assignment);
+  session.extensionHost?.facts.set(assignment, csharpObservedTargetAssignabilityFactKey, {
+    source: {},
+    target: {},
+    relation: "assignment",
+    expression: assignment,
+  }, [{ message: "Test-injected post-check assignment observation without target type facts." }]);
+
+  session.finalizeExtensions();
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 1);
+  assert.match(targetDiagnostics[0].message, /requires finalized source and target type facts/u);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === 2322), false);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
+});
+
+test("C# target generic constraints diagnose unproven provider type arguments after TSTS accepts source syntax", () => {
+  const sourceText = `
+    import type { SearchValues } from "@example/csharp/search-values.js";
+
+    type Bad = SearchValues<object>;
+  `;
+  const session = createSearchValuesSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 9100145), true, formatDiagnostics(diagnostics));
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_CONSTRAINT_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 1);
+  assert.match(targetDiagnostics[0].message, /requires a finalized target type fact/u);
+});
+
+test("C# target generic constraints diagnose reflected notnull violations through TSTS type references", () => {
+  const sourceText = `
+    import type { int32 } from "@tsonic/core/types.js";
+    import type { NotNullTarget } from "@tsonic/dotnet/ProviderConstraintFixtures.js";
+
+    type Good = NotNullTarget<int32>;
+    type Bad = NotNullTarget<null>;
+  `;
+  const session = createDotnetConstraintSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 9100145), true, formatDiagnostics(diagnostics));
+
+  const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_CONSTRAINT_INVALID"
+  ) ?? [];
+  assert.equal(targetDiagnostics.length, 1);
+  assert.match(targetDiagnostics[0].message, /notnull|target type fact/u);
+});
+
+test("C# post-check target assignability fails closed on TypeScript any boundaries without changing the TS relation", () => {
   const sourceText = `
     declare let value: any;
     declare let target: number;
@@ -100,7 +176,8 @@ test("C# post-check target assignability fails closed on TypeScript any boundari
     diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID"
   ) ?? [];
   assert.equal(targetDiagnostics.length, 1);
-  assert.match(targetDiagnostics[0].message, /TypeScript any boundary/);
+  assert.match(targetDiagnostics[0].message, /cannot cross a TypeScript any boundary/u);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === 2322), false);
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
 });
 
@@ -127,7 +204,7 @@ test("C# post-check target assignment requires writable selected provider proper
   }, [{ message: "Test-injected post-check assignment observation after TSTS accepted the source assignment." }]);
   session.extensionHost?.facts.set(left, csharpTargetOperationFactKey, selectedMemberOperation({
     id: "Example.Target.ReadonlyValue",
-    sourceName: "value",
+    sourceName: "providerSelectedDeclarationName",
     targetName: "ReadonlyValue",
     kind: "property",
     readonly: true,
@@ -140,6 +217,51 @@ test("C# post-check target assignment requires writable selected provider proper
   ) ?? [];
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /readonly property 'ReadonlyValue'/u);
+  assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === diagnostics[0].numericCode), true);
+});
+
+test("C# post-check target assignment requires writable selected provider indexer facts", () => {
+  const session = createNativeSession(`
+    declare class Headers { [key: string]: number }
+    declare let headers: Headers;
+    headers["Accept"] = 1;
+  `);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const assignment = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  const left = assignment?.Left;
+  assert.ok(assignment);
+  assert.ok(left);
+  session.extensionHost?.facts.set(assignment, csharpObservedTargetAssignabilityFactKey, {
+    source: { kind: "source-primitive", name: "float64" },
+    target: { kind: "source-primitive", name: "float64" },
+    relation: "assignment",
+    expression: assignment,
+  }, [{ message: "Test-injected post-check assignment observation after TSTS accepted the source assignment." }]);
+  session.extensionHost?.facts.set(left, csharpTargetOperationFactKey, selectedMemberOperation({
+    id: "Example.Headers.Item(System.String)",
+    sourceName: "item",
+    targetName: "Item",
+    kind: "indexer",
+    readonly: true,
+    parameters: [
+      {
+        name: "key",
+        type: { kind: "target-named", id: "System.String" },
+        passingMode: "by-value",
+      },
+    ],
+  }), [{ message: "Test-injected selected provider string indexer fact proving readonly target mutability." }]);
+
+  session.finalizeExtensions();
+
+  const diagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_TARGET_MEMBER_WRITE_INVALID"
+  ) ?? [];
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /readonly indexer 'Item'/u);
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === diagnostics[0].numericCode), true);
 });
 
@@ -251,9 +373,53 @@ function createSearchValuesSession(sourceText) {
     extensionHostOptions: {
       activeTarget: "csharp",
       extensions: [
+        createTsonicCoreSourceExtension(),
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createProviderBackedSearchValuesExtension(),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ],
+    },
+  });
+}
+
+function createDotnetConstraintSession(sourceText) {
+  const constraintAssembly = buildConstraintFixture();
+  const target = {
+    id: "csharp",
+    options: {
+      references: {
+        assemblies: [{ include: constraintAssembly }],
+      },
+    },
+  };
+  return createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", JSON.stringify({
+        name: "@tsonic/core",
+        version: "1.0.0",
+        type: "module",
+        exports: {
+          "./types.js": {
+            types: "./types.d.ts",
+            default: "./types.js",
+          },
+        },
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strictNullChecks: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: [
+        createTsonicCoreSourceExtension(),
+        createCsharpSourceSemanticsExtension(csharpProviderContext(target)),
+        createCsharpTargetSemanticsExtension(csharpProviderContext(target)),
       ],
     },
   });
@@ -274,6 +440,7 @@ function createNativeSession(sourceText) {
     extensionHostOptions: {
       activeTarget: "csharp",
       extensions: [
+        createTsonicCoreSourceExtension(),
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
@@ -368,7 +535,16 @@ function createProviderBackedSearchValuesExtension() {
                 id: "System.Collections.Generic.List`1",
                 displayName: "System.Collections.Generic.List<T>",
               },
-              typeParameters: [{ name: "T" }],
+              typeParameters: [{
+                name: "T",
+                constraints: [{
+                  kind: "target-named",
+                  target: "csharp",
+                  id: "System.IEquatable`1",
+                  typeArguments: [{ kind: "type-parameter", name: "T" }],
+                  sourceShape: { kind: "unknown" },
+                }],
+              }],
               members: [{
                 id: "SearchValues.value",
                 name: "value",
@@ -392,8 +568,7 @@ function createProviderBackedSearchValuesExtension() {
   };
 }
 
-function csharpProviderContext() {
-  const target = { id: "csharp" };
+function csharpProviderContext(target = { id: "csharp" }) {
   return {
     project: {
       entryPoint: "index.ts",
@@ -402,4 +577,17 @@ function csharpProviderContext() {
     target,
     selectedSurfaces: [],
   };
+}
+
+function buildConstraintFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/constraints/ConstraintProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/constraints/obj/");
+  return buildDotnetFixture({
+    project,
+    outputDirectory,
+    intermediateDirectory,
+    outputAssemblyName: "ConstraintProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/constraints"),
+  });
 }

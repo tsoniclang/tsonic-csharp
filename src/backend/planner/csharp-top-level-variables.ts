@@ -1,11 +1,16 @@
 import {
+  AsVariableDeclaration,
   AsVariableDeclarationList,
   AsVariableStatement,
+  HasSourceKind,
+  KindArrayBindingPattern,
+  KindObjectBindingPattern,
   NodeFlagsConst,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
+  CsharpExpression,
   CsharpStatement,
   CsharpTypeDeclaration,
   CsharpTypeMember,
@@ -44,9 +49,14 @@ export function planTopLevelVariableStatement(
       namespaceMembers.push(planValueTypeDeclaration(declaration, valueType, sourceFile, input, diagnostics));
       continue;
     }
-    const destructured = planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state);
-    if (destructured.length > 1 || (destructured.length === 1 && destructured[0]?.kind !== "LocalDeclarationStatement")) {
-      moduleMembers.push(...topLevelBindingFields(destructured, isConst, diagnostics, declaration));
+    const variable = AsVariableDeclaration(declaration)!;
+    const destructured = isBindingPattern(variable.name, input)
+      ? planLocalDeclarationStatements(declaration, sourceFile, input, diagnostics, state)
+      : undefined;
+    if (destructured !== undefined) {
+      const planned = topLevelBindingFields(destructured, isConst, diagnostics, declaration);
+      moduleMembers.push(...planned.fields);
+      topLevelStatements.push(...planned.statements);
       continue;
     }
     const field = planLocalDeclaration(declaration, sourceFile, input, diagnostics, state);
@@ -55,9 +65,16 @@ export function planTopLevelVariableStatement(
       name: field.name,
       type: field.type,
       modifiers: isConst ? ["public", "static", "readonly"] : ["public", "static"],
-      ...(field.initializer === undefined ? {} : { initializer: field.initializer }),
     });
+    if (field.initializer !== undefined) {
+      topLevelStatements.push(topLevelFieldAssignment(field.name, field.initializer));
+    }
   }
+}
+
+interface TopLevelBindingPlan {
+  readonly fields: readonly CsharpTypeMember[];
+  readonly statements: readonly CsharpStatement[];
 }
 
 function topLevelBindingFields(
@@ -65,8 +82,9 @@ function topLevelBindingFields(
   isConst: boolean,
   diagnostics: TargetDiagnostic[],
   diagnosticNode: Node,
-): readonly CsharpTypeMember[] {
+): TopLevelBindingPlan {
   const fields: CsharpTypeMember[] = [];
+  const initializers: CsharpStatement[] = [];
   for (const statement of statements) {
     if (statement.kind !== "LocalDeclarationStatement") {
       diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "Top-level destructuring requires field-initializable binding projections."));
@@ -82,8 +100,33 @@ function topLevelBindingFields(
         "static",
         ...(isConst ? ["readonly" as const] : []),
       ],
-      ...(statement.initializer === undefined ? {} : { initializer: statement.initializer }),
     });
+    if (statement.initializer !== undefined) {
+      initializers.push(topLevelFieldAssignment(statement.name, statement.initializer));
+    }
   }
-  return fields;
+  return {
+    fields,
+    statements: initializers,
+  };
+}
+
+function topLevelFieldAssignment(
+  name: string,
+  initializer: CsharpExpression,
+): CsharpStatement {
+  return {
+    kind: "ExpressionStatement",
+    expression: {
+      kind: "AssignmentExpression",
+      left: { kind: "IdentifierName", name },
+      operatorToken: { kind: "EqualsToken" },
+      right: initializer,
+    },
+  };
+}
+
+function isBindingPattern(node: Node | undefined, input: TargetCompileInput): boolean {
+  return HasSourceKind(input.ast, node, KindObjectBindingPattern) ||
+    HasSourceKind(input.ast, node, KindArrayBindingPattern);
 }

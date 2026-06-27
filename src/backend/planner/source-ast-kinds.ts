@@ -57,6 +57,7 @@ export const KindNumericLiteral = "KindNumericLiteral";
 export const KindObjectBindingPattern = "KindObjectBindingPattern";
 export const KindObjectKeyword = "KindObjectKeyword";
 export const KindObjectLiteralExpression = "KindObjectLiteralExpression";
+export const KindOmittedExpression = "KindOmittedExpression";
 export const KindParameter = "KindParameter";
 export const KindParenthesizedExpression = "KindParenthesizedExpression";
 export const KindPostfixUnaryExpression = "KindPostfixUnaryExpression";

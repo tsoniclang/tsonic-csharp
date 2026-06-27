@@ -7,7 +7,9 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  getRuntimeCarrierForExpression,
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   targetTypeRefsMatch,
@@ -20,9 +22,11 @@ export function requireCsharpStringRuntimeCarrier(
   diagnostics: TargetDiagnostic[],
   description: string,
 ): boolean {
-  const carrier = getRuntimeCarrierForExpression(input, node, sourceFile);
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
+  const carrier = probeCarrierFromResolution(carrierResolution);
   if (carrier === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, `${description} requires a finalized target string runtime carrier fact before C# emission.`));
+    const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the string expression.");
+    diagnostics.push(unsupportedNodeDiagnostic(node, `${description} requires a finalized target string runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
     return false;
   }
   if (!targetTypeRefsMatch(carrier, csharpStringTargetType())) {

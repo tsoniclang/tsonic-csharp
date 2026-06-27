@@ -14,7 +14,11 @@ import {
   createDotnetTargetBindingProvider,
 } from "../../providers/dotnet/index.js";
 import {
+  tsonicCoreSourceExtensionId,
+} from "@tsonic/source-core";
+import {
   csharpTargetSemanticsExtensionId,
+  csharpSourceSemanticsExtensionId,
   csharpProviderVersion,
   csharpTargetId,
 } from "./identity.js";
@@ -25,7 +29,7 @@ import {
   asType,
 } from "./target-ref-utils.js";
 import {
-  createCsharpCompositeOperationsProvider,
+  createCsharpTargetOperationsProvider,
 } from "./operations-provider.js";
 import {
   recordCsharpRuntimeCarrierFactsBeforeFinalization,
@@ -42,9 +46,6 @@ import {
   recordCsharpCheckedOperatorFactsBeforeFinalization,
 } from "./checked-operator-lifecycle.js";
 import {
-  recordCsharpCheckedOperationFactsBeforeFinalization,
-} from "./checked-operation-lifecycle.js";
-import {
   recordCsharpNativeArrayFactsBeforeFinalization,
 } from "./native-array-lifecycle.js";
 import {
@@ -52,7 +53,7 @@ import {
 } from "./csharp-operation-lifecycle.js";
 import {
   validateCsharpObservedAssignabilityFactsBeforeFinalization,
-} from "./checked-assignability-validation.js";
+} from "./checked-assignability-validation/index.js";
 import {
   diagnoseOpaqueAnyOperationsBeforeFinalization,
 } from "./opaque-any-diagnostics.js";
@@ -63,22 +64,20 @@ import {
   recordCsharpSourceDeclarationFactsBeforeFinalization,
 } from "./source-declaration-facts.js";
 import {
-  validateCsharpSourceFlowFactsBeforeFinalization,
-} from "./source-flow-validation.js";
-import {
   recordCsharpAssertionConversionFactsBeforeFinalization,
 } from "./source-assertion-conversions.js";
 import {
-  createCsharpExtensionSemanticHosts,
+  getCsharpExtensionSemanticHosts,
 } from "./semantic-hosts.js";
 import {
-  recordCsharpSelectedSurfaceOperationFactsBeforeFinalization,
-  recordCsharpSelectedSurfaceSeedFactsBeforeFinalization,
-  registerCsharpSelectedSurfaceProviders,
+  recordCsharpJsSurfaceOperationFactsBeforeFinalization,
+  recordCsharpJsSurfaceSeedFactsBeforeFinalization,
 } from "./surface-extensions.js";
 
 export function createCsharpTargetSemanticsExtension(context: TargetProviderContext): CompilerExtension {
-  const hosts = createCsharpExtensionSemanticHosts(context);
+  const hosts = getCsharpExtensionSemanticHosts(context);
+  const jsSurfaceSelected = context.selectedSurfaces.some((surface) => surface.id === "js");
+  const nodejsSurfaceSelected = context.selectedSurfaces.some((surface) => surface.id === "nodejs");
   return {
     identity: {
       id: csharpTargetSemanticsExtensionId,
@@ -89,32 +88,40 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       kind: "target",
       target: csharpTargetId,
     },
+    dependencies: {
+      dependsOn: [tsonicCoreSourceExtensionId, csharpSourceSemanticsExtensionId],
+      runsAfter: [tsonicCoreSourceExtensionId, csharpSourceSemanticsExtensionId],
+    },
     initialize(extensionContext): void {
       extensionContext.registerTargetBindingProvider(createDotnetTargetBindingProvider({
         provider: hosts.dotnetProvider,
         references: hosts.dotnetReflectionReferences,
         targetFramework: hosts.dotnetTargetFramework,
       }));
-      extensionContext.registerTargetSemanticProvider(createCsharpCompositeOperationsProvider(hosts.operationsProviderHost, {
-        jsSurface: context.selectedSurfaces.some((surface) => surface.id === "js"),
-        nodejsSurface: context.selectedSurfaces.some((surface) => surface.id === "nodejs"),
+      extensionContext.registerTargetSemanticProvider(createCsharpTargetOperationsProvider(hosts.operationsProviderHost, {
+        jsSurface: jsSurfaceSelected,
+        nodejsSurface: nodejsSurfaceSelected,
       }));
-      registerCsharpSelectedSurfaceProviders(context, extensionContext);
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        recordCsharpSelectedSurfaceSeedFactsBeforeFinalization(context, lifecycleContext, hosts);
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
-        recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext);
-        validateCsharpSourceFlowFactsBeforeFinalization(lifecycleContext);
+        recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
+        if (jsSurfaceSelected) {
+          recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts);
+        }
         recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
         recordCsharpAssertionConversionFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
         recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
         recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
+        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
         recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
         recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost);
-        recordCsharpCheckedOperationFactsBeforeFinalization(lifecycleContext);
         recordCsharpNativeArrayFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
-        recordCsharpSelectedSurfaceOperationFactsBeforeFinalization(context, lifecycleContext, hosts);
+        if (jsSurfaceSelected) {
+          recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "suppress" });
+          recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
+          recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "append" });
+        }
         recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
         diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode);
         validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);

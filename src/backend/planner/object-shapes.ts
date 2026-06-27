@@ -7,6 +7,7 @@ import {
   objectShapeDeclarationMatches,
   renderObjectShapeInterfaces,
   renderObjectShapeMembers,
+  renderObjectShapeTypeParameters,
 } from "./object-shape-declarations.js";
 
 export {
@@ -51,8 +52,16 @@ export function csharpTypeFromObjectShapeFact(
   if (fact.constructible === true) {
     return targetType;
   }
+  if (isSourceDeclaredNominalShape(fact)) {
+    return targetType;
+  }
   registerObjectShapeDeclaration(input, targetType.name, fact, diagnostics, diagnosticSubject);
   return targetType;
+}
+
+function isSourceDeclaredNominalShape(fact: CsharpObjectShapeFact): boolean {
+  return fact.targetType.kind === "target-named" &&
+    (fact.targetType as { readonly csharpSourceDeclarationKind?: unknown }).csharpSourceDeclarationKind !== undefined;
 }
 
 function registerObjectShapeDeclaration(
@@ -82,6 +91,10 @@ function registerObjectShapeDeclaration(
   if (interfaces === undefined) {
     return;
   }
+  const typeParameters = renderObjectShapeTypeParameters(fact, diagnostics, diagnosticSubject);
+  if (typeParameters === undefined) {
+    return;
+  }
   const implementsInterface = interfaces.length > 0;
   const members = renderObjectShapeMembers(fact, implementsInterface, diagnostics, diagnosticSubject);
   if (members === undefined) {
@@ -91,6 +104,7 @@ function registerObjectShapeDeclaration(
     kind: "ClassDeclaration",
     name,
     modifiers: ["public"],
+    ...(typeParameters.length === 0 ? {} : { typeParameters }),
     ...(interfaces.length === 0 ? {} : { interfaces }),
     members,
   });

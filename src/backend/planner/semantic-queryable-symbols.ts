@@ -12,7 +12,7 @@ export function getQueryableSymbol(node: Node, sourceFile: SourceFile, input: Ta
     case KindIdentifier:
     case KindPropertyAccessExpression:
     case KindElementAccessExpression:
-      return input.semantics.getSymbolAtLocation(node, { sourceFile }) ?? input.semantics.getResolvedSymbol(node, { sourceFile });
+      return input.analysis.getSymbolAtLocation(node, { sourceFile }) ?? input.analysis.getResolvedSymbol(node, { sourceFile });
     default:
       return undefined;
   }

@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
+import {
   createDestructuringPlannerState,
   planParameterBindingPrelude,
 } from "../dist/backend/planner/bindings.js";
@@ -264,6 +269,30 @@ test("parameter destructuring fails closed without carrier or object-shape facts
   assert.deepEqual(statements, []);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Array destructuring requires a finalized provider array or tuple runtime-carrier fact/);
+});
+
+test("parameter destructuring diagnostics preserve missing carrier reason and evidence", () => {
+  const pattern = arrayBindingPattern([
+    bindingElement(identifier("first")),
+  ]);
+  parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      missingRuntimeCarrierReason: "parameter array carrier was not finalized",
+      missingRuntimeCarrierEvidence: [{ message: "binding parameter T[] lacked array carrier fact" }],
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /parameter array carrier was not finalized/);
+  assert.deepEqual(diagnostics[0].evidence, ["binding parameter T[] lacked array carrier fact"]);
 });
 
 test("nested array parameter destructuring uses finalized nested array carrier facts", () => {
@@ -666,17 +695,31 @@ function fakeInput(options = {}) {
       getPointerFact: () => undefined,
       getFunctionPointerFact: () => undefined,
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getTypeAtLocation: () => undefined,
       getTypeFromTypeNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
-      getTargetBindingForReference: () => undefined,
       isProjectSourceShapeForNode: () => false,
     },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => runtimeCarrierResolution(options, runtimeCarriers, subject),
+      resolveRuntimeCarrierForNode: (subject) => runtimeCarrierResolution(options, runtimeCarriers, subject),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
+    },
   };
+}
+
+function runtimeCarrierResolution(options, runtimeCarriers, subject) {
+  const fact = runtimeCarriers.get(subject);
+  return fact === undefined
+    ? missingCarrierResolution(options.missingRuntimeCarrierReason, options.missingRuntimeCarrierEvidence)
+    : resolvedCarrierResolution(fact.carrier);
 }
 
 const sourceFile = {};

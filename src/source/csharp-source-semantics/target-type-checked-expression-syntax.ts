@@ -5,12 +5,15 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  runtimeCarrierFactKey,
+} from "@tsonic/tsts";
+import {
   asNodeSubject,
   getNodeField,
 } from "./ast-utils.js";
 import {
   getLiteralTargetTypeRefForKnownOperatorOperand,
-} from "./checked-operator-mapping.js";
+} from "./checked-operator-mapping/index.js";
 import {
   getBinaryOperatorText,
   getPrefixUnaryOperatorText,
@@ -77,6 +80,12 @@ export function getTargetTypeRefFromCheckedExpressionSyntax(
   const operator = getBinaryOperatorText(ast, node);
   if (operator === undefined) {
     return undefined;
+  }
+  if (operator === "??") {
+    const carrier = context.factResolver.resolve(node, runtimeCarrierFactKey)?.carrier;
+    if (carrier !== undefined) {
+      return carrier;
+    }
   }
   const operandOptions = operator === "??"
     ? {

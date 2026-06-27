@@ -43,9 +43,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  invalidExpression,
-} from "./invalid-expression.js";
-import {
   getTargetTypeRefForNode,
 } from "./runtime-carriers.js";
 import {
@@ -59,7 +56,7 @@ type ExpectedExpressionPlanner = (
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
-) => CsharpExpression;
+) => CsharpExpression | undefined;
 
 export function tryPlanRecordDictionaryLiteralWithExpectedType(
   node: Node,
@@ -86,13 +83,13 @@ function planRecordDictionaryLiteral(
   diagnostics: TargetDiagnostic[],
   dictionaryType: TargetTypeRef,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const properties = (AsObjectLiteralExpression(node)!.Properties?.Nodes ?? [])
     .filter((property): property is Node => property !== undefined);
   const type = csharpTypeFromTargetTypeRef(dictionaryType);
   if (type === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Record dictionary object literal emission requires a renderable provider-owned Dictionary target type."));
-    return invalidExpression("unrenderable Record dictionary target type");
+    return undefined;
   }
   if (properties.length === 0) {
     return {
@@ -104,18 +101,18 @@ function planRecordDictionaryLiteral(
   const [keyType, valueType] = dictionaryType.kind === "target-named" ? dictionaryType.typeArguments ?? [] : [];
   if (keyType === undefined || valueType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Record dictionary object literal emission requires finalized key and value target type facts before C# emission."));
-    return invalidExpression("record dictionary literal without key/value target facts");
+    return undefined;
   }
   const valueCsharpType = csharpTypeFromTargetTypeRef(valueType);
   if (valueCsharpType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Record dictionary object literal values require a renderable finalized value target type before C# emission."));
-    return invalidExpression("record dictionary literal without renderable value type");
+    return undefined;
   }
   const collectionInitializers = properties
     .map((property) => planRecordDictionaryInitializer(property, keyType, valueType, valueCsharpType, sourceFile, input, diagnostics, planExpressionWithExpectedType))
     .filter((initializer): initializer is CsharpCollectionInitializerElement => initializer !== undefined);
   if (collectionInitializers.length !== properties.length) {
-    return invalidExpression("record dictionary literal with unsupported member");
+    return undefined;
   }
   return {
     kind: "ObjectCreationExpression",
@@ -145,10 +142,14 @@ function planRecordDictionaryInitializer(
       if (key === undefined) {
         return undefined;
       }
+      const expression = planRecordDictionaryValue(propertyAssignment.Initializer, valueType, valueCsharpType, sourceFile, input, diagnostics, planExpressionWithExpectedType);
+      if (expression === undefined) {
+        return undefined;
+      }
       return {
         kind: "IndexerInitializer",
         arguments: [key],
-        expression: planRecordDictionaryValue(propertyAssignment.Initializer, valueType, valueCsharpType, sourceFile, input, diagnostics, planExpressionWithExpectedType),
+        expression,
       };
     }
     case KindShorthandPropertyAssignment: {
@@ -163,10 +164,14 @@ function planRecordDictionaryInitializer(
         diagnostics.push(unsupportedNodeDiagnostic(property, "Record dictionary shorthand must carry a finalized source name and value carrier before C# emission."));
         return undefined;
       }
+      const expression = planRecordDictionaryValue(nameNode, valueType, valueCsharpType, sourceFile, input, diagnostics, planExpressionWithExpectedType);
+      if (expression === undefined) {
+        return undefined;
+      }
       return {
         kind: "IndexerInitializer",
         arguments: [key],
-        expression: planRecordDictionaryValue(nameNode, valueType, valueCsharpType, sourceFile, input, diagnostics, planExpressionWithExpectedType),
+        expression,
       };
     }
     case KindSpreadAssignment:
@@ -189,7 +194,7 @@ function planRecordDictionaryValue(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   if (isCsharpRecordDictionaryTargetType(valueType) && HasSourceKind(input.ast, valueNode, KindObjectLiteralExpression)) {
     return planRecordDictionaryLiteral(valueNode, sourceFile, input, diagnostics, valueType, planExpressionWithExpectedType);
   }

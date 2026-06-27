@@ -1,4 +1,4 @@
-import type { ArgumentPassingFact, Node, SourceFile } from "@tsonic/tsts";
+import type { ArgumentPassingFact, Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpArgument,
@@ -9,21 +9,21 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
-  invalidExpression,
-} from "./invalid-expression.js";
-import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
   isAstNode,
 } from "./source-ast.js";
+import {
+  targetTypeRefEquals,
+} from "../../source/csharp-source-semantics/target-ref-utils.js";
 
 export type ExpressionPlanner = (
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-) => CsharpExpression;
+) => CsharpExpression | undefined;
 
 export type ExpectedExpressionPlanner = (
   node: Node,
@@ -32,7 +32,7 @@ export type ExpectedExpressionPlanner = (
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
-) => CsharpExpression;
+) => CsharpExpression | undefined;
 
 export function planCallArgumentCore(
   node: Node,
@@ -43,19 +43,27 @@ export function planCallArgumentCore(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
-): CsharpArgument {
+  conversionExpectedTargetType?: TargetTypeRef,
+): CsharpArgument | undefined {
   const argumentPassing = input.facts.getArgumentPassingFact(node);
   if (argumentPassing === undefined) {
-    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject) };
+    const expression = planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType);
+    return expression === undefined ? undefined : { kind: "Argument", expression };
   }
   if (!isAstNode(argumentPassing.targetExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
-    return { kind: "Argument", expression: planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject) };
+    const expression = planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType);
+    return expression === undefined ? undefined : { kind: "Argument", expression };
+  }
+  const passing = getCsharpArgumentPassing(argumentPassing.mode, node, diagnostics);
+  const expression = planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType);
+  if (expression === undefined) {
+    return undefined;
   }
   return {
     kind: "Argument",
-    expression: planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject),
-    passing: getCsharpArgumentPassing(argumentPassing.mode),
+    expression,
+    ...(passing !== undefined ? { passing } : {}),
   };
 }
 
@@ -68,27 +76,38 @@ function planCallArgumentExpression(
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
-): CsharpExpression {
+  conversionExpectedTargetType?: TargetTypeRef,
+): CsharpExpression | undefined {
   const conversion = input.facts.getTargetConversionFact(node);
   if (conversion?.operation !== undefined) {
     return planExpression(node, sourceFile, input, diagnostics);
-  }
-  if (expectedType !== undefined) {
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   if (conversion?.convertedType !== undefined) {
     const convertedType = csharpTypeFromTargetTypeRef(conversion.convertedType);
     if (convertedType === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion requires a renderable target type before C# emission."));
-      return invalidExpression("target argument conversion type");
+      return undefined;
     }
-    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, convertedType, expectedTypeSubject);
+    if (conversionExpectedTargetType !== undefined && !targetTypeRefEquals(conversion.convertedType, conversionExpectedTargetType)) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion fact does not match the selected call parameter type."));
+      return undefined;
+    }
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType ?? convertedType, expectedTypeSubject);
+  }
+  if (expectedType !== undefined) {
+    return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   return planExpression(node, sourceFile, input, diagnostics);
 }
 
-function getCsharpArgumentPassing(mode: ArgumentPassingFact["mode"]): CsharpArgument["passing"] {
+function getCsharpArgumentPassing(
+  mode: ArgumentPassingFact["mode"],
+  node: Node,
+  diagnostics: TargetDiagnostic[],
+): CsharpArgument["passing"] {
   switch (mode) {
+    case "by-value":
+      return undefined;
     case "byref-writeonly-must-init":
       return "out";
     case "byref-readwrite":
@@ -96,6 +115,7 @@ function getCsharpArgumentPassing(mode: ArgumentPassingFact["mode"]): CsharpArgu
     case "byref-readonly":
       return "in";
     default:
+      diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission does not support finalized argument-passing mode '${mode}'.`));
       return undefined;
   }
 }

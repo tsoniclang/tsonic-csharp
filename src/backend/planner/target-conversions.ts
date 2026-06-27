@@ -2,7 +2,6 @@ import type { TargetOperationFact, Node } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
   csharpStaticMemberExpression,
@@ -24,8 +23,11 @@ export function applyTargetConversionFact(
   node: Node,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-  expression: CsharpExpression,
-): CsharpExpression {
+  expression: CsharpExpression | undefined,
+): CsharpExpression | undefined {
+  if (expression === undefined) {
+    return undefined;
+  }
   const conversion = input.facts.getTargetConversionFact(node);
   if (conversion === undefined || conversion.operation === undefined) {
     return expression;
@@ -65,7 +67,7 @@ function planTargetConversionOperation(
   conversion: TargetConversion,
   expression: CsharpExpression,
   diagnostics: TargetDiagnostic[],
-): CsharpExpression {
+): CsharpExpression | undefined {
   const operation = conversion.operation;
   if (operation === undefined) {
     return expression;
@@ -79,7 +81,7 @@ function planTargetConversionOperation(
       return planTargetConversionOperator(node, input, operation, conversion, expression, diagnostics);
     default:
       diagnostics.push(unsupportedNodeDiagnostic(node, `Target conversion operation '${operation.operationKind}' is not renderable by the C# backend.`));
-      return invalidExpression("unsupported target conversion operation");
+      return undefined;
   }
 }
 
@@ -89,10 +91,10 @@ function planTargetConversionMethodCall(
   operation: TargetOperationFact,
   expression: CsharpExpression,
   diagnostics: TargetDiagnostic[],
-): CsharpExpression {
+): CsharpExpression | undefined {
   const callee = targetConversionStaticMethodCallee(input, operation, diagnostics, node);
   if (callee === undefined) {
-    return invalidExpression("target conversion method");
+    return undefined;
   }
   return {
     kind: "InvocationExpression",
@@ -119,12 +121,12 @@ function planTargetConversionConstructor(
   conversion: TargetConversion,
   expression: CsharpExpression,
   diagnostics: TargetDiagnostic[],
-): CsharpExpression {
+): CsharpExpression | undefined {
   const targetTypeRef = conversion.convertedType;
   const targetType = targetTypeRef === undefined ? undefined : csharpTypeFromTargetTypeRef(targetTypeRef);
   if (targetType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Target conversion constructor requires a renderable target type before C# emission."));
-    return invalidExpression("target conversion constructor");
+    return undefined;
   }
   return {
     kind: "ObjectCreationExpression",
@@ -140,25 +142,25 @@ function planTargetConversionOperator(
   conversion: TargetConversion,
   expression: CsharpExpression,
   diagnostics: TargetDiagnostic[],
-): CsharpExpression {
+): CsharpExpression | undefined {
   const csharpOperation = getRequiredCsharpTargetConversionOperation(input, node, operation, diagnostics, "C# target conversion operator emission");
   if (csharpOperation === undefined) {
-    return invalidExpression("target conversion operator");
+    return undefined;
   }
   if (csharpOperation.kind !== "cast") {
     if (csharpOperation.kind !== "conversion-operator") {
       diagnostics.push(unsupportedNodeDiagnostic(node, `C# target conversion operator emission requires a finalized C# cast or conversion-operator fact, but provider recorded '${csharpOperation.kind}'.`));
-      return invalidExpression("target conversion operator kind");
+      return undefined;
     }
     if (!isMatchingConversionOperatorFact(csharpOperation, conversion)) {
       diagnostics.push(unsupportedNodeDiagnostic(node, "C# target conversion operator emission received mismatched source or target conversion facts."));
-      return invalidExpression("target conversion operator mismatch");
+      return undefined;
     }
   }
   const targetType = csharpTypeFromTargetTypeRef(csharpOperation.targetType);
   if (targetType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# target conversion cast requires a renderable target type before C# emission."));
-    return invalidExpression("target conversion cast type");
+    return undefined;
   }
   return {
     kind: "CastExpression",

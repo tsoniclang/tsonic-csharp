@@ -84,6 +84,18 @@ export interface CsharpExtensionSemanticHosts {
   };
 }
 
+const csharpExtensionSemanticHostsByTarget = new WeakMap<TargetProviderContext["target"], CsharpExtensionSemanticHosts>();
+
+export function getCsharpExtensionSemanticHosts(context: Pick<TargetProviderContext, "target" | "selectedSurfaces">): CsharpExtensionSemanticHosts {
+  const existing = csharpExtensionSemanticHostsByTarget.get(context.target);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const created = createCsharpExtensionSemanticHosts(context);
+  csharpExtensionSemanticHostsByTarget.set(context.target, created);
+  return created;
+}
+
 export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderContext, "target" | "selectedSurfaces">): CsharpExtensionSemanticHosts {
   const typescriptCompatibilityMode = readCsharpTypescriptCompatibilityMode(context.target);
   const dotnetReflectionReferences = readCsharpReflectionReferencePaths(context.target);
@@ -162,6 +174,7 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
   } satisfies CsharpObjectShapeLifecycleHost;
   const checkedOperatorLifecycleHost = {
     getTargetTypeRefForSubject,
+    getCsharpTargetBindingByTargetId: targetTypeResolutionHost.getCsharpTargetBindingByTargetId,
   } satisfies CsharpCheckedOperatorLifecycleHost;
   const runtimeCarrierHost = {
     getTargetTypeRefForSubject,

@@ -48,7 +48,7 @@ export function getSemanticOwnership(
   const sourceOwned = isSourceOwnedProjectShapeSubject(node, sourceFile, input);
   if (!sourceOwned) {
     appendSemanticNodeFactReasons(reasons, input, node, sourceFile, "semantic node");
-    appendTargetFactReasons(reasons, input, input.semantics.getResolvedSymbol(node, { sourceFile }), "resolved symbol");
+    appendTargetFactReasons(reasons, input, input.analysis.getResolvedSymbol(node, { sourceFile }), "resolved symbol");
   }
   return {
     requiresTargetFact: !sourceOwned && reasons.length > 0,

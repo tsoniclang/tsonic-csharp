@@ -51,16 +51,28 @@ export function planForStatement(
   const initializer = statement.Initializer === undefined
     ? undefined
     : planForInitializer(statement.Initializer, sourceFile, input, diagnostics, state);
+  const condition = statement.Condition === undefined
+    ? undefined
+    : planConditionExpression(statement.Condition, "For statement", sourceFile, input, diagnostics, state);
+  if (statement.Condition !== undefined && condition === undefined) {
+    return initializer?.prelude ?? [];
+  }
+  const incrementor = statement.Incrementor === undefined
+    ? undefined
+    : planExpression(statement.Incrementor, sourceFile, input, diagnostics, state);
+  if (statement.Incrementor !== undefined && incrementor === undefined) {
+    return initializer?.prelude ?? [];
+  }
   const plannedFor: CsharpStatement = {
     kind: "ForStatement",
     ...(initializer?.initializer !== undefined
       ? { initializer: initializer.initializer }
       : {}),
     ...(statement.Condition !== undefined
-      ? { condition: planConditionExpression(statement.Condition, "For statement", sourceFile, input, diagnostics, state) }
+      ? { condition }
       : {}),
     ...(statement.Incrementor !== undefined
-      ? { incrementor: planExpression(statement.Incrementor, sourceFile, input, diagnostics, state) }
+      ? { incrementor }
       : {}),
     body: {
       kind: "Block",
@@ -122,10 +134,11 @@ function planForInitializer(
       prelude: [],
     };
   }
+  const expression = planExpression(node, sourceFile, input, diagnostics, state);
   return {
-    initializer: {
+    initializer: expression === undefined ? undefined : {
       kind: "Expression",
-      expression: planExpression(node, sourceFile, input, diagnostics, state),
+      expression,
     },
     prelude: [],
   };

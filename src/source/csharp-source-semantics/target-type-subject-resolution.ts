@@ -2,11 +2,9 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   TargetTypeRef,
-  Type,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
-  getNodeNameText,
   isControlFlowLabelIdentifier,
   isSemanticTypeQueryableValueExpressionNode,
   isTypeSyntaxNode,
@@ -41,27 +39,27 @@ import {
   getTargetTypeRefFromDeclarationAnnotation,
 } from "./target-type-resolution-facts.js";
 import {
+  getCallableExpressionTargetTypeRefForSubject,
+} from "./target-type-subject-resolution/callable-expression.js";
+import {
+  getPreferredTargetTypeRefForSubject,
+} from "./target-type-subject-resolution/preference.js";
+import {
+  resolveTargetTypeRefFromReferenceFacts,
+} from "./target-type-subject-resolution/reference-facts.js";
+import {
+  getSourceDeclarationTargetTypeRef,
+} from "./target-type-subject-resolution/source-declaration.js";
+import type {
+  CsharpTargetTypeResolver,
+} from "./target-type-subject-resolution/types.js";
+import {
   resolveTargetTypeRefFromSubjectFacts,
 } from "./target-type-subject-facts.js";
-import {
-  getAliasedSymbolIfAvailable,
-  getSymbolForDeclarationLookup,
-  getSymbolDeclarations,
-} from "./symbol-utils.js";
-import {
-  sourceDeclarationTargetType,
-} from "./source-declaration-facts.js";
-import {
-  getCallableExpressionTargetTypeRef,
-  isCallableExpressionNode,
-} from "./callable-target-types.js";
 
-export type CsharpTargetTypeResolver = (
-  type: Type | undefined,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions,
-  host: CsharpTargetTypeResolutionHost,
-) => TargetTypeRef | undefined;
+export type {
+  CsharpTargetTypeResolver,
+} from "./target-type-subject-resolution/types.js";
 
 export function resolveTargetTypeRefForSubjectCore(
   subject: ExtensionFactSubject | undefined,
@@ -82,6 +80,15 @@ export function resolveTargetTypeRefForSubjectCore(
   if (subjectType !== undefined) {
     return resolveTargetTypeRefForType(subjectType, context, options, host);
   }
+  const node = asNodeSubject(subject);
+  const checker = context.compiler?.checker;
+  const ast = context.compiler?.ast;
+  if (node !== undefined && ast !== undefined && isTypeSyntaxNode(ast, node)) {
+    const syntaxType = getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
+    if (syntaxType !== undefined) {
+      return syntaxType;
+    }
+  }
   const directFact = resolveTargetTypeRefFromSubjectFacts(
     subject,
     context,
@@ -96,17 +103,24 @@ export function resolveTargetTypeRefForSubjectCore(
         resolveTargetTypeRefForType,
       ),
   );
-  if (directFact !== undefined) {
-    return directFact;
-  }
   const referenceFact = resolveTargetTypeRefFromReferenceFacts(
     subject,
     context,
     options,
-    host,
-    recursiveTargetTypeResolver,
-    resolveTargetTypeRefForType,
+    (factSubject, factContext, factOptions) =>
+      resolveTargetTypeRefForSubjectCore(
+        factSubject,
+        factContext,
+        factOptions,
+        host,
+        recursiveTargetTypeResolver,
+        resolveTargetTypeRefForType,
+      ),
   );
+  const preferredFact = getPreferredTargetTypeRefForSubject(directFact, referenceFact);
+  if (preferredFact !== undefined) {
+    return preferredFact;
+  }
   if (referenceFact !== undefined) {
     return referenceFact;
   }
@@ -126,7 +140,9 @@ export function resolveTargetTypeRefForSubjectCore(
   if (providerVirtualTarget !== undefined) {
     return enrichCsharpTargetTypeRef(providerVirtualTarget, host);
   }
-  const syntaxType = getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
+  const syntaxType = node !== undefined && ast !== undefined && isTypeSyntaxNode(ast, node)
+    ? undefined
+    : getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
   if (syntaxType !== undefined) {
     return syntaxType;
   }
@@ -134,14 +150,24 @@ export function resolveTargetTypeRefForSubjectCore(
   if (sourceDeclarationTarget !== undefined) {
     return sourceDeclarationTarget;
   }
-  const callableExpressionTarget = getCallableExpressionTargetTypeRefForSubject(
-    subject,
-    context,
-    options,
-    host,
-    recursiveTargetTypeResolver,
-    resolveTargetTypeRefForType,
-  );
+  const callableExpressionTarget = options.allowSemanticTypeQuery === false
+    ? undefined
+    : getCallableExpressionTargetTypeRefForSubject(
+        subject,
+        context,
+        options,
+        host,
+        (callableSubject, callableContext, callableOptions, callableHost) =>
+          resolveTargetTypeRefForSubjectCore(
+            callableSubject,
+            callableContext,
+            callableOptions,
+            callableHost,
+            recursiveTargetTypeResolver,
+            resolveTargetTypeRefForType,
+          ),
+        resolveTargetTypeRefForType,
+      );
   if (callableExpressionTarget !== undefined) {
     return callableExpressionTarget;
   }
@@ -163,9 +189,6 @@ export function resolveTargetTypeRefForSubjectCore(
   if (declarationType !== undefined) {
     return declarationType;
   }
-  const node = asNodeSubject(subject);
-  const checker = context.compiler?.checker;
-  const ast = context.compiler?.ast;
   const type = node === undefined || checker === undefined || options.allowSemanticTypeQuery === false
     ? undefined
     : ast !== undefined && isControlFlowLabelIdentifier(ast, node)
@@ -179,148 +202,4 @@ export function resolveTargetTypeRefForSubjectCore(
     ...options,
     ...(ast !== undefined && node !== undefined ? { sourceFile: ast.getSourceFile(node) } : {}),
   }, host);
-}
-
-function getCallableExpressionTargetTypeRefForSubject(
-  subject: ExtensionFactSubject,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions,
-  host: CsharpTargetTypeResolutionHost,
-  recursiveTargetTypeResolver: CsharpRecursiveTargetTypeResolver,
-  resolveTargetTypeRefForType: CsharpTargetTypeResolver,
-): TargetTypeRef | undefined {
-  const node = asNodeSubject(subject);
-  const ast = context.compiler?.ast;
-  const checker = context.compiler?.checker;
-  if (node === undefined || ast === undefined || checker === undefined || !isCallableExpressionNode(ast, node)) {
-    return undefined;
-  }
-  const sourceFile = ast.getSourceFile(node);
-  if (sourceFile === undefined) {
-    return undefined;
-  }
-  const type = asType(checker.getTypeAtLocation(node, { sourceFile }));
-  return type === undefined
-    ? undefined
-    : getCallableExpressionTargetTypeRef(node, type, sourceFile, context, {
-        getTargetTypeRefForSubject: (callableSubject, callableContext, callableOptions) =>
-          resolveTargetTypeRefForSubjectCore(
-            callableSubject,
-            callableContext,
-            {
-              ...options,
-              ...callableOptions,
-              sourceFile,
-            },
-            host,
-            recursiveTargetTypeResolver,
-            resolveTargetTypeRefForType,
-          ),
-        getTargetTypeRefForType: (callableType, callableContext, callableOptions) =>
-          resolveTargetTypeRefForType(
-            callableType,
-            callableContext,
-            {
-              ...options,
-              ...callableOptions,
-              sourceFile,
-            },
-            host,
-          ),
-      });
-}
-
-function getSourceDeclarationTargetTypeRef(
-  subject: ExtensionFactSubject,
-  context: ExtensionObservationContext,
-): TargetTypeRef | undefined {
-  const node = asNodeSubject(subject);
-  const ast = context.compiler?.ast;
-  const checker = context.compiler?.checker;
-  if (node === undefined || ast === undefined || checker === undefined) {
-    return undefined;
-  }
-  const symbol = getSymbolForDeclarationLookup(ast, checker, node, ast.getSourceFile(node));
-  for (const declaration of getSymbolDeclarations(symbol)) {
-    const kind = ast.kindName(declaration);
-    if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
-      continue;
-    }
-    const name = getNodeNameText(declaration);
-    if (name.length === 0) {
-      continue;
-    }
-    return sourceDeclarationTargetType(name, kind);
-  }
-  return undefined;
-}
-
-function resolveTargetTypeRefFromReferenceFacts(
-  subject: ExtensionFactSubject,
-  context: ExtensionObservationContext,
-  options: TargetTypeRefResolutionOptions,
-  host: CsharpTargetTypeResolutionHost,
-  recursiveTargetTypeResolver: CsharpRecursiveTargetTypeResolver,
-  resolveTargetTypeRefForType: CsharpTargetTypeResolver,
-): TargetTypeRef | undefined {
-  const node = asNodeSubject(subject);
-  const ast = context.compiler?.ast;
-  const checker = context.compiler?.checker;
-  if (node === undefined || ast === undefined || checker === undefined) {
-    return undefined;
-  }
-  const sourceFile = ast.getSourceFile(node);
-  const symbol = getSymbolForDeclarationLookup(ast, checker, node, sourceFile);
-  for (const referenceSubject of uniqueReferenceSubjects([
-    symbol,
-    getAliasedSymbolForReference(symbol, context, sourceFile),
-  ])) {
-    const fact = resolveTargetTypeRefFromSubjectFacts(
-      referenceSubject,
-      context,
-      options,
-      (factSubject, factContext, factOptions) =>
-        resolveTargetTypeRefForSubjectCore(
-          factSubject,
-          factContext,
-          factOptions,
-          host,
-          recursiveTargetTypeResolver,
-          resolveTargetTypeRefForType,
-        ),
-    );
-    if (fact !== undefined) {
-      return fact;
-    }
-  }
-  return undefined;
-}
-
-function getAliasedSymbolForReference(
-  symbol: ExtensionFactSubject | undefined,
-  context: ExtensionObservationContext,
-  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
-): ExtensionFactSubject | undefined {
-  const checker = context.compiler?.checker;
-  if (checker === undefined) {
-    return undefined;
-  }
-  try {
-    return getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
-  } catch {
-    return undefined;
-  }
-}
-
-function uniqueReferenceSubjects(subjects: readonly (ExtensionFactSubject | undefined)[]): readonly ExtensionFactSubject[] {
-  const seen = new Set<ExtensionFactSubject>();
-  const result: ExtensionFactSubject[] = [];
-  for (const subject of subjects) {
-    if (subject === undefined || seen.has(subject)) {
-      continue;
-    }
-    seen.add(subject);
-    result.push(subject);
-  }
-  return result;
 }

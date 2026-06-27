@@ -38,8 +38,8 @@ export {
   dotnetConstraintToTargetConstraint,
   dotnetExportToTargetBinding,
   dotnetTypeRefToTargetTypeRef,
-} from "./model-target-conversion.js";
+} from "./model-target-conversion/index.js";
 export type {
   DotnetTargetMember,
   DotnetTargetParameter,
-} from "./model-target-conversion.js";
+} from "./model-target-conversion/index.js";

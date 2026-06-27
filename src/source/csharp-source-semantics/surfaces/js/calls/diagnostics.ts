@@ -1,0 +1,50 @@
+import {
+  rejectObservation,
+} from "@tsonic/tsts";
+import type {
+  CheckedCallMappingResult,
+  ExtensionObservation,
+} from "@tsonic/tsts";
+import type {
+  CsharpJsSurfaceHost,
+  SourceLibraryMember,
+} from "../source-library.js";
+import {
+  sourceLibraryMemberIdentity,
+} from "../source-library.js";
+
+export function rejectSourceLibraryCallWithoutClosedFacts(
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceLibraryMemberIdentity(sourceMember)}' because the selected receiver lacks finalized target runtime facts.`));
+}
+
+export function rejectSourceLibraryCallMissingSelectedSignature(
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_REQUIRES_SELECTED_SIGNATURE", 9100113, `C# JS surface call '${sourceLibraryMemberIdentity(sourceMember)}' requires exact selected TypeScript library signature identity before target mapping.`));
+}
+
+export function rejectSourceLibraryCallSignatureDeclarationMismatch(
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_SIGNATURE_DECLARATION_MISMATCH", 9100114, `C# JS surface call '${sourceLibraryMemberIdentity(sourceMember)}' received mismatched selected TypeScript declaration and signature facts.`));
+}
+
+export function rejectSourceLibraryCallWithoutUniqueTargetMember(
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED", 9100110, `C# JS surface could not map checked TypeScript library call '${sourceLibraryMemberIdentity(sourceMember)}' to a unique target member from finalized argument facts.`));
+}
+
+export function rejectSourceLibraryCallWithoutClosedArgumentFacts(
+  sourceMember: SourceLibraryMember,
+  host: CsharpJsSurfaceHost,
+  argumentIndex: number,
+): ExtensionObservation<CheckedCallMappingResult> {
+  return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT", 9100116, `C# JS surface call '${sourceLibraryMemberIdentity(sourceMember)}' requires finalized closed target facts for argument ${argumentIndex + 1}.`));
+}

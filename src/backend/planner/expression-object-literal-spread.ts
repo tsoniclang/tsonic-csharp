@@ -18,6 +18,10 @@ import type {
   CsharpObjectShapeFact,
 } from "../../source/csharp-facts.js";
 import {
+  csharpObjectShapeMemberLookupFailureMessage,
+  resolveCsharpObjectShapeMemberByFinalizedSourceName,
+} from "../../source/csharp-facts.js";
+import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
@@ -55,13 +59,17 @@ export function planObjectShapeSpreadAssignments(
     return [];
   }
   const sourceExpression = planExpression(expression, sourceFile, input, diagnostics);
+  if (sourceExpression === undefined) {
+    return [];
+  }
   const assignments: CsharpObjectInitializerAssignment[] = [];
   for (const sourceMember of sourceShape.members) {
-    const targetMember = targetShape.members.find((member) => member.sourceName === sourceMember.sourceName);
-    if (targetMember === undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Object literal spread source member '${sourceMember.sourceName}' requires a finalized target object-shape member carrier before C# emission.`));
+    const targetMemberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(targetShape, sourceMember.sourceName, "finalized-object-spread-member");
+    if (targetMemberLookup.kind !== "resolved") {
+      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, csharpObjectShapeMemberLookupFailureMessage(targetMemberLookup, "Object literal spread target shape")));
       return [];
     }
+    const targetMember = targetMemberLookup.member;
     if (!objectShapeMemberTypesMatch(sourceMember, targetMember)) {
       diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Object literal spread member '${sourceMember.sourceName}' requires matching finalized source and target member carriers.`));
       return [];

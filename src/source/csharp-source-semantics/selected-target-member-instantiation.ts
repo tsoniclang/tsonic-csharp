@@ -15,8 +15,18 @@ export function instantiateSelectedTargetMember(
   host: CsharpTargetEnrichmentHost,
   options: { readonly declaringTargetType?: TargetTypeRef } = {},
 ): TargetMember | undefined {
+  if (!selectedTargetTypeArgumentListMatchesMember(selectedSignature)) {
+    return undefined;
+  }
   return enrichCsharpTargetMember(selectedSignature.member, host, {
     declaringTargetType: options.declaringTargetType,
     methodTargetTypeArguments: selectedSignature.targetTypeArguments ?? [],
   });
+}
+
+function selectedTargetTypeArgumentListMatchesMember(selectedSignature: SelectedTargetSignatureFact): boolean {
+  if (selectedSignature.targetTypeArguments === undefined) {
+    return true;
+  }
+  return selectedSignature.targetTypeArguments.length === (selectedSignature.member.typeParameters?.length ?? 0);
 }

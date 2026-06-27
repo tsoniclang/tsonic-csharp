@@ -267,7 +267,27 @@ sealed partial class ReflectionProvider
 
     static string SourceTypeName(Type type)
     {
+        return SourceTypeName(type, false);
+    }
+
+    static string SourceTypeName(Type type, bool disambiguateByArity)
+    {
+        var baseName = SourceTypeBaseName(type);
+        var arity = GenericTypeNameArity(type);
+        return disambiguateByArity && arity > 0 ? $"{baseName}_{arity}" : baseName;
+    }
+
+    static string SourceTypeBaseName(Type type)
+    {
         return Identifier(StripGenericArity(type.Name));
+    }
+
+    static int GenericTypeNameArity(Type type)
+    {
+        var tick = type.Name.IndexOf('`');
+        return tick < 0 || tick == type.Name.Length - 1 || !int.TryParse(type.Name[(tick + 1)..], out var arity)
+            ? 0
+            : arity;
     }
 
     static string LowerCamel(string name)
@@ -303,5 +323,65 @@ sealed partial class ReflectionProvider
                 : '_').ToArray();
         var result = new string(chars);
         return char.IsDigit(result[0]) ? $"_{result}" : result;
+    }
+
+    static string ParameterIdentifier(ParameterInfo parameter, int index)
+    {
+        var name = Identifier(parameter.Name ?? $"arg{index}");
+        return IsReservedTypeScriptIdentifier(name) ? $"{name}Parameter" : name;
+    }
+
+    static bool IsReservedTypeScriptIdentifier(string name)
+    {
+        return name is
+            "arguments" or
+            "await" or
+            "break" or
+            "case" or
+            "catch" or
+            "class" or
+            "const" or
+            "continue" or
+            "debugger" or
+            "default" or
+            "delete" or
+            "do" or
+            "else" or
+            "enum" or
+            "eval" or
+            "export" or
+            "extends" or
+            "false" or
+            "finally" or
+            "for" or
+            "function" or
+            "if" or
+            "implements" or
+            "import" or
+            "in" or
+            "instanceof" or
+            "interface" or
+            "let" or
+            "new" or
+            "null" or
+            "package" or
+            "private" or
+            "protected" or
+            "public" or
+            "return" or
+            "static" or
+            "super" or
+            "switch" or
+            "this" or
+            "throw" or
+            "true" or
+            "try" or
+            "typeof" or
+            "undefined" or
+            "var" or
+            "void" or
+            "while" or
+            "with" or
+            "yield";
     }
 }

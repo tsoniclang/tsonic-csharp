@@ -9,7 +9,11 @@ import type {
 } from "@tsonic/target-api";
 import {
   csharpProviderVersion,
+  csharpSourceSemanticsExtensionId,
 } from "./identity.js";
+import {
+  tsonicCoreSourceExtensionId,
+} from "@tsonic/source-core";
 import {
   csharpSourceSemanticsModules,
 } from "./source-modules.js";
@@ -20,7 +24,7 @@ import {
 export function createCsharpSourceSemanticsExtension(_context: TargetProviderContext): CompilerExtension {
   const sourceSemantics = createSourceSemanticsExtension({
     identity: {
-      id: "tsonic.csharp.source-semantics",
+      id: csharpSourceSemanticsExtensionId,
       version: csharpProviderVersion,
       capabilityNamespace: "tsonic.csharp.source",
     },
@@ -28,6 +32,10 @@ export function createCsharpSourceSemanticsExtension(_context: TargetProviderCon
   });
   return {
     ...sourceSemantics,
+    dependencies: {
+      dependsOn: [tsonicCoreSourceExtensionId],
+      runsAfter: [tsonicCoreSourceExtensionId],
+    },
     initialize(extensionContext): void {
       extensionContext.registerTargetBindingProvider(createCsharpSourceVirtualModulesProvider());
       sourceSemantics.initialize?.(extensionContext);

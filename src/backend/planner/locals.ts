@@ -1,14 +1,28 @@
-import { AsVariableDeclaration } from "./source-ast.js";
+import {
+  AsAsExpression,
+  AsTypeAssertion,
+  AsVariableDeclaration,
+  HasSourceKind,
+  KindArrowFunction,
+  KindFunctionExpression,
+} from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpLocalDeclaration, CsharpStatement } from "../roslyn/syntax.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
+import {
+  getCsharpTypeFromSemanticType,
+} from "./csharp-semantic-types.js";
 import { planExpressionWithExpectedType } from "./expressions.js";
+import { getLambdaTargetContext } from "./expression-lambdas.js";
 import { planVariableBindingStatements } from "./bindings.js";
 import {
   declareCsharpLocalBindingName,
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
+import {
+  csharpTargetOperationFactKey,
+} from "../../source/csharp-facts.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
@@ -19,7 +33,19 @@ export function planLocalDeclaration(
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
   const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, input) ?? variable.name ?? variable.Initializer;
-  const type = getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
+  const explicitType = variable.Type === undefined
+    ? undefined
+    : getCsharpTypeForNode(variable.Type, sourceFile, input, undefined, diagnostics);
+  const inferredLambdaType = variable.Initializer !== undefined
+    ? getLambdaTargetContext(variable.Initializer, sourceFile, input, explicitType)
+    : undefined;
+  const constAssertionType = variable.Type === undefined && variable.Initializer !== undefined
+    ? getConstAssertionInitializerType(variable.Initializer, sourceFile, input)
+    : undefined;
+  const type = inferredLambdaType ??
+    explicitType ??
+    constAssertionType ??
+    getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   return {
     kind: "VariableDeclarator",
@@ -59,8 +85,42 @@ function getInitializerTypeSubject(
   if (initializer === undefined) {
     return undefined;
   }
+  const assertion = AsAsExpression(initializer) ?? AsTypeAssertion(initializer);
+  const assertedTarget = assertion?.Type;
+  if (assertedTarget !== undefined) {
+    return isConstAssertionType(assertedTarget, input) ? assertion?.Expression : assertedTarget;
+  }
+  if (HasSourceKind(input.ast, initializer, KindArrowFunction) || HasSourceKind(input.ast, initializer, KindFunctionExpression)) {
+    return initializer;
+  }
   return input.facts.getRuntimeCarrierFact(initializer) !== undefined ||
-    input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined
+    input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined ||
+    input.facts.getFact(initializer, csharpTargetOperationFactKey) !== undefined
     ? initializer
     : undefined;
+}
+
+function isConstAssertionType(
+  node: Node,
+  input: TargetCompileInput,
+): boolean {
+  const name = input.ast.name(node) ?? getTypeReferenceName(node);
+  return name !== undefined && input.ast.text(name) === "const";
+}
+
+function getConstAssertionInitializerType(
+  initializer: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpLocalDeclaration["type"] | undefined {
+  const assertion = AsAsExpression(initializer) ?? AsTypeAssertion(initializer);
+  if (assertion?.Type === undefined || assertion.Expression === undefined || !isConstAssertionType(assertion.Type, input)) {
+    return undefined;
+  }
+  return getCsharpTypeFromSemanticType(input.analysis.getTypeAtLocation(assertion.Expression, { sourceFile }), sourceFile, input);
+}
+
+function getTypeReferenceName(node: Node): Node | undefined {
+  const value = Object.getOwnPropertyDescriptor(node, "TypeName")?.value;
+  return typeof value === "object" && value !== null ? value as Node : undefined;
 }

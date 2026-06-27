@@ -1,5 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { targetOperationFactKey } from "@tsonic/tsts";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { planExpression, planExpressionWithExpectedType } from "../dist/backend/planner/expressions.js";
 import {
   KindArrayLiteralExpression,
@@ -27,6 +33,9 @@ import {
   csharpTaskTargetType,
   csharpVoidTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  mapCsharpCheckedOperator,
+} from "../dist/source/csharp-source-semantics/checked-operator-mapping/index.js";
 
 test("binary expression emission requires selected target operator fact even for source primitives", () => {
   const left = identifier("left");
@@ -39,7 +48,7 @@ test("binary expression emission requires selected target operator fact even for
     runtimeCarrier: sourcePrimitiveCarrier("int32"),
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# binary operator emission requires a selected provider operator fact/);
   assert.match(diagnostics[0].message, /operand node runtime carrier/);
@@ -69,6 +78,53 @@ test("binary expression emission uses the finalized selected target operator fac
   assert.deepEqual(diagnostics, []);
   assert.deepEqual(output.operatorToken, { kind: "PlusToken" });
   assert.equal(printCsharpExpression(output), "left + right");
+});
+
+test("checked provider-owned binary operators fail closed without selected provider operator identity", () => {
+  const left = identifier("left");
+  const right = identifier("right");
+  const expression = binary(left, right);
+  const providerType = csharpTargetNamedType("ProviderOperators.Number", undefined, csharpQualifiedTypeRenderShape("ProviderOperators", "Number"));
+  const context = fakeObservationContext();
+  const result = mapCsharpCheckedOperator({
+    expression,
+    operator: "+",
+    left,
+    right,
+    target: "csharp",
+  }, context, fakeOperatorHost(providerType));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_OPERATOR_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /requires an exact finalized provider operator identity selected by TSTS/u);
+  assert.equal(context.writes.length, 0);
+});
+
+test("checked provider-owned binary operators consume finalized exact provider operator identity", () => {
+  const left = identifier("left");
+  const right = identifier("right");
+  const expression = binary(left, right);
+  const providerType = csharpTargetNamedType("ProviderOperators.Number", undefined, csharpQualifiedTypeRenderShape("ProviderOperators", "Number"));
+  const selectedOperation = {
+    operationId: "ProviderOperators.Number.op_Addition(ProviderOperators.Number,ProviderOperators.Number)",
+    operationKind: "operator",
+    targetOperation: "op_Addition",
+    resultType: providerType,
+  };
+  const context = fakeObservationContext(new Map([
+    [factEntryKey(expression, targetOperationFactKey), selectedOperation],
+  ]));
+  const result = mapCsharpCheckedOperator({
+    expression,
+    operator: "+",
+    left,
+    right,
+    target: "csharp",
+  }, context, fakeOperatorHost(providerType));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation, selectedOperation);
+  assert.equal(context.writes.length, 0);
 });
 
 test("assignment expression emission uses canonical assignment AST", () => {
@@ -121,8 +177,7 @@ test("assignment expression fails closed when provider-owned storage lacks selec
     targetBindingSubject: receiver,
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
-  assert.equal(output.reason, "assignment operand facts");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# property access 'value' must be selected by TSTS\/provider facts before emission/);
 });
@@ -151,7 +206,7 @@ test("destructuring assignment fails closed without finalized storage facts", ()
     },
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
 });
@@ -180,7 +235,7 @@ test("object destructuring assignment fails closed before ordinary assignment em
     },
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
 });
@@ -233,7 +288,7 @@ test("nullish coalescing expected-type emission fails closed without finalized r
     },
   }), diagnostics, { kind: "PredefinedType", name: "int" });
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized operator result target type/);
 });
@@ -288,7 +343,7 @@ test("operator token facts must map to supported Roslyn tokens", () => {
     },
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /unsupported finalized operator token 'raw C# fragment'/);
 });
@@ -306,7 +361,7 @@ test("prefix unary expression emission requires selected target operator fact", 
     runtimeCarrier: sourcePrimitiveCarrier("int32"),
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# prefix unary operator emission requires a selected provider operator fact/);
 });
@@ -320,9 +375,26 @@ test("bigint literal emission requires finalized runtime carrier fact", () => {
 
   const output = planExpression(expression, {}, fakeInput(), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /BigInt literal emission requires a finalized runtime carrier fact/);
+});
+
+test("bigint literal carrier diagnostics preserve resolver reason and evidence", () => {
+  const expression = {
+    Kind: KindBigIntLiteral,
+    Text: "1n",
+  };
+  const diagnostics = [];
+
+  planExpression(expression, {}, fakeInput({
+    missingRuntimeCarrierReason: "BigInt literal target primitive fact was not finalized",
+    missingRuntimeCarrierEvidence: [{ message: "source primitive bigint lacked System.Numerics.BigInteger mapping" }],
+  }), diagnostics);
+
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /BigInt literal target primitive fact was not finalized/);
+  assert.deepEqual(diagnostics[0].evidence, ["source primitive bigint lacked System.Numerics.BigInteger mapping"]);
 });
 
 test("bigint literal emission uses finalized BigInteger carrier and Roslyn AST", () => {
@@ -356,7 +428,7 @@ test("RegExp literal emission requires finalized runtime carrier facts", () => {
     regexpLiteral: { pattern: "value", flags: "g" },
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /RegExp literal emission requires a finalized JS surface RegExp runtime carrier fact/);
 });
@@ -395,7 +467,7 @@ test("template expression emission requires finalized string carrier facts", () 
 
   const output = planExpression(expression, {}, fakeInput(), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Template string emission requires a finalized target string runtime carrier fact/);
 });
@@ -423,7 +495,7 @@ test("no-substitution template literal requires finalized string carrier facts",
 
   const output = planExpression(expression, {}, fakeInput(), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /No-substitution template literal emission requires a finalized target string runtime carrier fact/);
 });
@@ -439,7 +511,7 @@ test("await expression emission requires finalized awaited Promise/Task carrier 
     ]),
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Await expression emission requires a finalized Promise\/Task target carrier fact/);
 });
@@ -456,7 +528,7 @@ test("await expression emission rejects mismatched await-result carrier facts", 
     ]),
   }), diagnostics);
 
-  assert.equal(output.kind, "InvalidExpression");
+  assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /await-result carrier to match the awaited Promise\/Task result carrier/);
 });
@@ -548,6 +620,43 @@ function sourcePrimitiveCarrier(name) {
   };
 }
 
+function fakeOperatorHost(providerType) {
+  const binding = {
+    id: providerType.id,
+    target: "csharp",
+    kind: "struct",
+    sourceName: "Number",
+    targetName: "ProviderOperators.Number",
+  };
+  return {
+    getTargetTypeRefForSubject: (subject) => subject?.Kind === KindIdentifier ? providerType : undefined,
+    getCsharpTargetBindingByTargetId: (targetId) => targetId === providerType.id ? binding : undefined,
+  };
+}
+
+function fakeObservationContext(entries = new Map()) {
+  const writes = [];
+  return {
+    writes,
+    extensionId: "tsonic.csharp.operations",
+    facts: {
+      get: (subject, key) => entries.get(factEntryKey(subject, key)),
+      set: (subject, key, value, evidence = []) => {
+        writes.push({ subject, key, value, evidence });
+        entries.set(factEntryKey(subject, key), value);
+        return "inserted";
+      },
+    },
+    factResolver: {
+      resolve: (subject, key) => entries.get(factEntryKey(subject, key)),
+    },
+  };
+}
+
+function factEntryKey(subject, key) {
+  return `${subject?.Text ?? subject?.Kind ?? "subject"}:${key.id}`;
+}
+
 function fakeInput(options = {}) {
   return {
     ast: fakeAst,
@@ -591,10 +700,8 @@ function fakeInput(options = {}) {
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
     },
-    semantics: {
-      getTargetBindingForReference: () => undefined,
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
@@ -603,6 +710,15 @@ function fakeInput(options = {}) {
       describeTypeAtLocation: () => undefined,
       isProjectSourceShapeForNode: () => false,
       isProjectSourceConstructibleObjectForNode: () => false,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => runtimeCarrierResolution(options, subject),
+      resolveRuntimeCarrierForNode: (subject) => runtimeCarrierResolution(options, subject),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: {
       isAny: () => false,
@@ -626,6 +742,14 @@ function fakeInput(options = {}) {
       getTypeReferenceTarget: (type) => type,
     },
   };
+}
+
+function runtimeCarrierResolution(options, subject) {
+  const fact = options.runtimeCarrierFacts?.get(subject) ??
+    (subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined);
+  return fact === undefined
+    ? missingCarrierResolution(options.missingRuntimeCarrierReason, options.missingRuntimeCarrierEvidence)
+    : resolvedCarrierResolution(fact.carrier);
 }
 
 const fakeAst = {

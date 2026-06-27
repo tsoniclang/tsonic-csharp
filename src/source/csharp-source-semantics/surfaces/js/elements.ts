@@ -3,6 +3,10 @@ import type {
   CheckedOperationMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
+  TargetTypeRef,
+} from "@tsonic/tsts";
+import {
+  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
   mapCsharpJsArrayElementAccess,
@@ -14,9 +18,6 @@ import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
 import {
-  csharpJsCheckedTypeQuery,
-} from "./source-library.js";
-import {
   mapCsharpJsStringElementAccess,
 } from "./strings.js";
 
@@ -25,15 +26,31 @@ export function mapCsharpSourceLibraryCheckedElementAccess(
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = host.unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.receiverType, context, csharpJsCheckedTypeQuery) ??
-      host.getTargetTypeRefForSubject(request.receiver, context, csharpJsCheckedTypeQuery),
-  );
-  const semanticReceiverType = receiverType ?? host.unwrapNullableTargetType(
+  const receiverCarrier = getFinalizedReceiverCarrier(request, context, host);
+  const semanticReceiverType = host.unwrapNullableTargetType(
     host.getTargetTypeRefForSubject(request.receiverType, context, { allowRuntimeCarrier: false }) ??
       host.getTargetTypeRefForSubject(request.receiver, context, { allowRuntimeCarrier: false }),
   );
-  return mapCsharpJsArrayElementAccess(request, context, receiverType ?? semanticReceiverType, host) ??
-    mapCsharpJsRecordDictionaryElementAccess(request, context, semanticReceiverType, host) ??
-    mapCsharpJsStringElementAccess(request, context, receiverType, host);
+  return mapCsharpJsArrayElementAccess(request, context, receiverCarrier, host) ??
+    mapCsharpJsRecordDictionaryElementAccess(request, context, receiverCarrier ?? semanticReceiverType, host) ??
+    mapCsharpJsStringElementAccess(request, context, receiverCarrier ?? semanticReceiverType, host);
+}
+
+function getFinalizedReceiverCarrier(
+  request: CheckedElementAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  return host.unwrapNullableTargetType(
+    context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
+      (request.receiverType === undefined ? undefined : context.factResolver.resolve(request.receiverType, runtimeCarrierFactKey)?.carrier) ??
+      host.getTargetTypeRefForSubject(request.receiver, context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: false,
+      }) ??
+      host.getTargetTypeRefForSubject(request.receiverType, context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: false,
+      }),
+  );
 }

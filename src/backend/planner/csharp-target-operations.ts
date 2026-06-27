@@ -23,9 +23,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  invalidExpression,
-} from "./invalid-expression.js";
-import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 
@@ -73,13 +70,18 @@ export function csharpStaticMemberExpression(
   node: Node,
   purpose: string,
 ): CsharpExpression | undefined {
-  if (operation.kind !== "member" || operation.static !== true) {
+  if (operation.kind !== "member") {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `${purpose} requires a finalized C# member operation fact, but provider recorded '${operation.kind}'.`));
+    return undefined;
+  }
+  if (operation.static !== true) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `${purpose} requires a finalized static C# member operation fact before emission.`));
     return undefined;
   }
   const declaringType = operation.declaringType === undefined ? undefined : csharpTypeFromTargetTypeRef(operation.declaringType);
   if (declaringType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(node, `${purpose} requires a provider-owned declaring target type fact before C# emission.`));
-    return invalidExpression(`${purpose} declaring type`);
+    return undefined;
   }
   return {
     kind: "SimpleMemberAccessExpression",

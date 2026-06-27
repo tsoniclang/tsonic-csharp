@@ -3,6 +3,7 @@ import type {
   ExtensionObservationContext,
   Node,
   SourceFile,
+  Symbol,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -50,9 +51,9 @@ export function getCallableExpressionTargetTypeRef(
   if (signature === undefined) {
     return undefined;
   }
-  const semanticParameters = ((signature as { readonly parameters?: readonly unknown[] }).parameters ?? [])
+  const semanticParameters = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
     .map((parameter) => host.getTargetTypeRefForType(
-      compiler.checker.getTypeOfSymbol(parameter as never, { sourceFile }),
+      compiler.checker.getTypeOfSymbol(parameter, { sourceFile }),
       context,
       options,
     ));

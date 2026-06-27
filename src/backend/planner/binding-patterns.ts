@@ -17,6 +17,7 @@ import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.j
 import { allocateDestructuringTemp } from "./binding-state.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
+import { getCsharpTypeFromSemanticType } from "./csharp-semantic-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { requireCsharpIdentifier } from "./identifiers.js";
 import {
@@ -24,9 +25,16 @@ import {
   planObjectBindingPattern,
 } from "./binding-object-patterns.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
-import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
+import {
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
+import {
+  getArrayBoundaryCoreCarrierForExpression,
+} from "./array-boundary-facts.js";
 
 export function planBindingPatternFromExpression(
   patternNode: Node,
@@ -87,7 +95,9 @@ function planBindingNameFromProjection(
     return [{
       kind: "LocalDeclarationStatement",
       name: requireCsharpIdentifier(Node_Text(name), diagnostics, "Destructuring binding"),
-      type: projectedType ?? getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
+      type: projectedType ??
+        getCsharpTypeFromSemanticType(input.analysis.getTypeAtLocation(name, { sourceFile }), sourceFile, input) ??
+        getCsharpTypeForNode(name, sourceFile, input, invalidCsharpType("missing destructured binding type"), diagnostics),
       initializer: projected,
     }];
   }
@@ -117,7 +127,9 @@ export function getCsharpTypeForExpressionCarrier(
   diagnosticNode: Node,
   description: string,
 ): CsharpTypeNode {
-  const carrier = getRuntimeCarrierForExpression(input, expression, sourceFile);
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
+  const carrier = getArrayBoundaryCoreCarrierForExpression(input, expression, sourceFile) ??
+    probeCarrierFromResolution(carrierResolution);
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
   if (type !== undefined) {
     return type;
@@ -129,6 +141,7 @@ export function getCsharpTypeForExpressionCarrier(
       return objectShapeType;
     }
   }
-  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires a finalized runtime carrier fact before C# emission.`));
+  const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the destructuring source expression.");
+  diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${description} requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
   return invalidCsharpType("missing destructuring source carrier");
 }

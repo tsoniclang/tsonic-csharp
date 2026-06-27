@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpArgument,
@@ -6,12 +6,15 @@ import type {
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
 
+export type PlannedExpression = CsharpExpression | undefined;
+export type PlannedArgument = CsharpArgument | undefined;
+
 export type ExpressionPlanner = (
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-) => CsharpExpression;
+) => PlannedExpression;
 
 export type CallArgumentPlanner = (
   node: Node,
@@ -20,7 +23,8 @@ export type CallArgumentPlanner = (
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
-) => CsharpArgument;
+  conversionExpectedTargetType?: TargetTypeRef,
+) => PlannedArgument;
 
 export type ExpectedExpressionPlanner = (
   node: Node,
@@ -29,4 +33,4 @@ export type ExpectedExpressionPlanner = (
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
-) => CsharpExpression;
+) => PlannedExpression;

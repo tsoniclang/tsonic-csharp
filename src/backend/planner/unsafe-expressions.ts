@@ -92,7 +92,6 @@ export function expressionRequiresUnsafe(
       return expression.parts.some((part) =>
         part.kind === "Interpolation" && expressionRequiresUnsafe(part.expression, blockRequiresUnsafe)
       );
-    case "InvalidExpression":
     case "LiteralExpression":
     case "NumericLiteralExpression":
     case "CharacterLiteralExpression":

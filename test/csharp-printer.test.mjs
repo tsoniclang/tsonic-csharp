@@ -42,11 +42,26 @@ test("printer renders cast expression nodes", () => {
   );
 });
 
-test("printer fails closed for invalid or foreign raw syntax nodes", () => {
-  assert.throws(
-    () => printCsharpExpression({ kind: "InvalidExpression", reason: "unsupported expression" }),
-    /Invalid C# expression reached printer: unsupported expression/,
+test("printer renders generic member invocation from Roslyn AST nodes", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "Helpers" },
+        name: "apply",
+        typeArguments: [
+          { kind: "PredefinedType", name: "int" },
+          { kind: "PredefinedType", name: "string" },
+        ],
+      },
+      arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "value" } }],
+    }),
+    "Helpers.apply<int, string>(value)",
   );
+});
+
+test("printer fails closed for invalid or foreign raw syntax nodes", () => {
   assert.throws(
     () => printCsharpExpression({ kind: "RawExpression", code: "Console.WriteLine(1)" }),
     /Unsupported C# expression syntax reached printer: RawExpression/,
@@ -58,6 +73,10 @@ test("printer fails closed for invalid or foreign raw syntax nodes", () => {
   assert.throws(
     () => printCsharpType({ kind: "RawType", text: "dynamic" }),
     /Unsupported C# type syntax reached printer: RawType/,
+  );
+  assert.throws(
+    () => printCsharpType({ kind: "InvalidType", reason: "missing fact" }),
+    /Invalid C# type reached printer: missing fact/,
   );
   assert.throws(
     () => printCsharpCompilationUnit({

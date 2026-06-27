@@ -43,3 +43,8 @@ public sealed class UnmanagedTarget<T>
     where T : unmanaged
 {
 }
+
+public sealed class NotNullTarget<T>
+    where T : notnull
+{
+}

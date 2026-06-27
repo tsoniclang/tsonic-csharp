@@ -1,9 +1,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { attributeFactKey, providerVirtualDeclarationFactKey, sourcePrimitiveFactKey, targetBindingFactKey } from "@tsonic/tsts";
+import {
+  argumentPassingFactKey,
+  attributeFactKey,
+  defaultValueFactKey,
+  deferObservation,
+  fieldFactKey,
+  flowStateFactKey,
+  providerVirtualDeclarationFactKey,
+  selectedTargetSignatureFactKey,
+  sourcePrimitiveFactKey,
+  structFactKey,
+  targetBindingFactKey,
+} from "@tsonic/tsts";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { createCsharpTargetSemanticsExtension } from "../dist/index.js";
+import { createCsharpNativeOperationsProvider } from "../dist/source/csharp-source-semantics/operations-provider.js";
 import { selectTargetMember } from "../dist/source/csharp-source-semantics/target-member-selection.js";
+import {
+  csharpNullableValueTargetType,
+  csharpSourcePrimitiveDotnetMetadataName,
+} from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("C# provider rejects ambiguous target members instead of ranking candidates", () => {
   const provider = getNativeSemanticProvider();
@@ -60,6 +76,416 @@ test("target member selection does not treat System.Object as an implicit wildca
     selectTargetMember([member], { arguments: [argument] }, context, resolveTargetTypeRef),
     undefined,
   );
+});
+
+test("target member selection uses source marker target expression for byref parameters", () => {
+  const key = {};
+  const outCall = {};
+  const value = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const member = {
+    id: "Example.Target.tryGetValue(System.String,out System.Int32)",
+    sourceName: "tryGetValue",
+    targetName: "TryGetValue",
+    kind: "method",
+    parameters: [
+      targetParameter("key", csharpStringType()),
+      targetParameter("value", int32, "byref-writeonly-must-init"),
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const context = fakeObservationContext({
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: value,
+    },
+  });
+  const resolveTargetTypeRef = (subject) => {
+    if (subject === key) {
+      return csharpStringType();
+    }
+    if (subject === value) {
+      return int32;
+    }
+    return undefined;
+  };
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [key, outCall] }, context, resolveTargetTypeRef)?.id,
+    member.id,
+  );
+});
+
+test("target member selection rejects byref parameters without source marker facts", () => {
+  const key = {};
+  const outCall = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const member = {
+    id: "Example.Target.tryGetValue(System.String,out System.Int32)",
+    sourceName: "tryGetValue",
+    targetName: "TryGetValue",
+    kind: "method",
+    parameters: [
+      targetParameter("key", csharpStringType()),
+      targetParameter("value", int32, "byref-writeonly-must-init"),
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const resolveTargetTypeRef = (subject) => subject === key ? csharpStringType() : int32;
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [key, outCall] }, fakeObservationContext({}), resolveTargetTypeRef),
+    undefined,
+  );
+});
+
+test("target member selection rejects byref parameter mode mismatches", () => {
+  const key = {};
+  const outCall = {};
+  const value = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const member = {
+    id: "Example.Target.tryGetValue(System.String,out System.Int32)",
+    sourceName: "tryGetValue",
+    targetName: "TryGetValue",
+    kind: "method",
+    parameters: [
+      targetParameter("key", csharpStringType()),
+      targetParameter("value", int32, "byref-writeonly-must-init"),
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
+  const context = fakeObservationContext({
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-readwrite",
+      targetExpression: value,
+    },
+  });
+  const resolveTargetTypeRef = (subject) => subject === key ? csharpStringType() : int32;
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [key, outCall] }, context, resolveTargetTypeRef),
+    undefined,
+  );
+});
+
+test("C# provider derives out/ref/in passing from selected target parameter facts", () => {
+  const provider = getNativeSemanticProvider();
+  const argument = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const cases = [
+    ["notNamedOut", "byref-writeonly-must-init"],
+    ["notNamedRef", "byref-readwrite"],
+    ["notNamedIn", "byref-readonly"],
+  ];
+
+  for (const [name, mode] of cases) {
+    const result = provider.resolveParameterPassing({
+      target: "csharp",
+      parameter: targetParameter(name, int32, mode),
+      argument,
+    }, fakeObservationContext({}));
+
+    assert.equal(result.kind, "accept", name);
+    assert.deepEqual(result.value.passing, {
+      mode,
+      targetExpression: argument,
+    });
+  }
+
+  const markerCall = {};
+  const mismatch = provider.resolveParameterPassing({
+    target: "csharp",
+    parameter: targetParameter("notNamedOut", int32, "byref-writeonly-must-init"),
+    argument: markerCall,
+  }, fakeObservationContext({
+    argumentPassingSubject: markerCall,
+    argumentPassing: {
+      mode: "byref-readwrite",
+      targetExpression: argument,
+    },
+  }));
+
+  assert.equal(mismatch.kind, "reject");
+  assert.equal(mismatch.diagnostic.extensionCode, "CSHARP_ARGUMENT_PASSING_MODE_MISMATCH");
+});
+
+test("C# provider rejects missing or mutated target parameter-mode facts before recording selected operations", () => {
+  const provider = getNativeSemanticProvider();
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const outCall = {};
+  const value = int32;
+  const scenarios = [
+    {
+      name: "missing omitted optional passing mode",
+      arguments: [],
+      member: {
+        ...method("Example.Target.missing(System.String)", csharpStringType(), {
+          sourceName: "missing",
+          targetName: "Missing",
+          overloadGroup: "Example.Target.missing",
+        }),
+        parameters: [{
+          name: "notNamedOptional",
+          type: csharpStringType(),
+          optional: true,
+          defaultValue: { kind: "string", value: "proved" },
+        }],
+      },
+    },
+    {
+      name: "mutated noncanonical passing mode",
+      arguments: [outCall],
+      context: {
+        argumentPassingSubject: outCall,
+        argumentPassing: {
+          mode: "out",
+          targetExpression: value,
+        },
+      },
+      member: {
+        ...method("Example.Target.mutated(out System.Int32)", int32, {
+          sourceName: "mutated",
+          targetName: "Mutated",
+          overloadGroup: "Example.Target.mutated",
+        }),
+        parameters: [{
+          name: "notNamedOut",
+          type: int32,
+          passingMode: "out",
+        }],
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const selectedDeclaration = {};
+    const containerSymbol = {};
+    const recordedFacts = [];
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call: {},
+      callee: {},
+      calleePropertyName: scenario.member.sourceName,
+      sourceSelectedDeclaration: selectedDeclaration,
+      sourceSelectedContainerSymbol: containerSymbol,
+      arguments: scenario.arguments,
+    }, fakeObservationContext({
+      ...scenario.context,
+      targetBindingSubject: containerSymbol,
+      targetBinding: {
+        id: "Example.Target",
+        sourceName: "Target",
+        targetName: "Target",
+        target: "csharp",
+        kind: "class",
+        members: [scenario.member],
+      },
+      virtualDeclarationSubject: selectedDeclaration,
+      virtualDeclaration: {
+        ...virtualMember(scenario.member.overloadGroup, scenario.member.sourceName),
+        signatureId: scenario.member.id,
+      },
+      recordedFacts,
+    }));
+
+    assert.equal(result.kind, "reject", scenario.name);
+    assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND", scenario.name);
+    assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false, scenario.name);
+  }
+});
+
+test("target member selection rejects source marker wrappers for by-value parameters", () => {
+  const outCall = {};
+  const value = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const member = method("Example.Target.m(System.Int32)", int32);
+  const context = fakeObservationContext({
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: value,
+    },
+  });
+  const resolveTargetTypeRef = (subject) => subject === value ? int32 : undefined;
+
+  assert.equal(
+    selectTargetMember([member], { arguments: [outCall] }, context, resolveTargetTypeRef),
+    undefined,
+  );
+});
+
+test("C# provider validates generic constraints only from finalized target facts", () => {
+  const provider = getNativeSemanticProvider({
+    bindings: [
+      {
+        id: "Example.Widget",
+        sourceName: "Widget",
+        targetName: "Widget",
+        target: "csharp",
+        kind: "class",
+        implementedContracts: [{
+          kind: "implements",
+          contract: "Example.ITagged",
+        }],
+        members: [{
+          id: "Example.Widget..ctor()",
+          sourceName: "constructor",
+          targetName: ".ctor",
+          kind: "constructor",
+          parameters: [],
+          returnType: { kind: "target-named", id: "Example.Widget" },
+        }],
+      },
+      {
+        id: "Example.StructValue",
+        sourceName: "StructValue",
+        targetName: "StructValue",
+        target: "csharp",
+        kind: "struct",
+      },
+    ],
+  });
+
+  const widget = { kind: "target-named", id: "Example.Widget" };
+  const structValue = { kind: "target-named", id: "Example.StructValue" };
+  const widgetArray = { kind: "array", element: widget };
+
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "reference-type" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widgetArray,
+    constraint: { kind: "reference-type" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: structValue,
+    constraint: { kind: "value-type" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "constructible" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "implements", contract: "Example.ITagged" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "target-specific", target: "csharp", name: "notnull" },
+  }, fakeObservationContext({})).kind, "accept");
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: structValue,
+    constraint: { kind: "target-specific", target: "csharp", name: "notnull" },
+  }, fakeObservationContext({})).kind, "accept");
+});
+
+test("C# provider rejects generic constraints without finalized target proof", () => {
+  const provider = getNativeSemanticProvider({
+    bindings: [{
+      id: "Example.Widget",
+      sourceName: "Widget",
+      targetName: "Widget",
+      target: "csharp",
+      kind: "class",
+    }],
+  });
+  const widget = { kind: "target-named", id: "Example.Widget" };
+  const unknown = { kind: "target-named", id: "Example.Unknown" };
+
+  const missingContract = provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "implements", contract: "Example.ITagged" },
+  }, fakeObservationContext({}));
+  assert.equal(missingContract.kind, "reject");
+  assert.equal(missingContract.diagnostic.extensionCode, "CSHARP_TARGET_CONSTRAINT_INVALID");
+
+  const missingBinding = provider.validateTargetConstraint({
+    target: "csharp",
+    source: unknown,
+    constraint: { kind: "reference-type" },
+  }, fakeObservationContext({}));
+  assert.equal(missingBinding.kind, "reject");
+
+  const unsupportedConstraint = provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: { kind: "target-specific", target: "rust", name: "Send" },
+  }, fakeObservationContext({}));
+  assert.equal(unsupportedConstraint.kind, "reject");
+
+  const unsupportedTargetConstraint = provider.validateTargetConstraint({
+    target: "csharp",
+    source: widget,
+    constraint: {
+      kind: "unsupported",
+      target: "csharp",
+      id: "Example.PointerContract",
+      reason: "Constraint uses a provider type-ref that is not representable.",
+    },
+  }, fakeObservationContext({}));
+  assert.equal(unsupportedTargetConstraint.kind, "reject");
+  assert.match(unsupportedTargetConstraint.diagnostic.message, /not supported by the C# target provider/u);
+
+  const nullableValue = provider.validateTargetConstraint({
+    target: "csharp",
+    source: csharpNullableValueTargetType({ kind: "source-primitive", name: "int32" }),
+    constraint: { kind: "target-specific", target: "csharp", name: "notnull" },
+  }, fakeObservationContext({}));
+  assert.equal(nullableValue.kind, "reject");
+  assert.equal(nullableValue.diagnostic.extensionCode, "CSHARP_TARGET_CONSTRAINT_INVALID");
+});
+
+test("C# provider validates source primitive generic constraints from reflected primitive contract facts", () => {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const int64 = { kind: "source-primitive", name: "int64" };
+  const int32Binding = {
+    id: "System.Int32",
+    sourceName: "Int32",
+    targetName: "Int32",
+    target: "csharp",
+    kind: "struct",
+    implementedContracts: [{
+      kind: "implements",
+      contract: "System.IEquatable`1",
+      typeArguments: [int32],
+    }],
+  };
+  const provider = getNativeSemanticProvider({
+    bindings: [int32Binding],
+    metadataBindings: [[csharpSourcePrimitiveDotnetMetadataName("int32"), int32Binding]],
+  });
+
+  assert.equal(provider.validateTargetConstraint({
+    target: "csharp",
+    source: int32,
+    constraint: { kind: "implements", contract: "System.IEquatable`1", typeArguments: [int32] },
+  }, fakeObservationContext({})).kind, "accept");
+
+  const mismatchedArgument = provider.validateTargetConstraint({
+    target: "csharp",
+    source: int32,
+    constraint: { kind: "implements", contract: "System.IEquatable`1", typeArguments: [int64] },
+  }, fakeObservationContext({}));
+  assert.equal(mismatchedArgument.kind, "reject");
+
+  const missingArgument = provider.validateTargetConstraint({
+    target: "csharp",
+    source: int32,
+    constraint: { kind: "implements", contract: "System.IEquatable`1" },
+  }, fakeObservationContext({}));
+  assert.equal(missingArgument.kind, "reject");
 });
 
 test("C# provider selects from a proven provider binding using checked source member and target argument facts", () => {
@@ -155,6 +581,441 @@ test("C# erased source marker rejects missing provider member identity", () => {
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_ERASED_SOURCE_MARKER_IDENTITY_NOT_PROVEN");
   assert.equal("value" in result, false);
+});
+
+test("C# source marker mapping ignores same-spelling non-core virtual declarations", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "out",
+    sourceSelectedDeclaration: selectedDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "./local.js",
+      moduleSpecifier: "./local.js",
+      virtualFileName: "tsts-provider://local",
+      exportName: "out",
+      memberId: "./local.js::out",
+    },
+  }));
+
+  assert.equal(result.kind, "defer");
+});
+
+test("C# erased source marker rejects missing finalized source facts", () => {
+  const provider = getNativeSemanticProvider();
+  const cases = [
+    ["out", "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN"],
+    ["ref", "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN"],
+    ["inref", "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN"],
+    ["borrow", "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN"],
+    ["borrowMut", "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN"],
+    ["move", "CSHARP_FLOW_MARKER_FACT_NOT_PROVEN"],
+    ["field", "CSHARP_FIELD_MARKER_FACT_NOT_PROVEN"],
+    ["attribute", "CSHARP_ATTRIBUTE_MARKER_FACT_NOT_PROVEN"],
+    ["defaultof", "CSHARP_DEFAULT_MARKER_FACT_NOT_PROVEN"],
+    ["struct", "CSHARP_STRUCT_MARKER_FACT_NOT_PROVEN"],
+  ];
+
+  for (const [marker, code] of cases) {
+    const call = {};
+    const selectedDeclaration = {};
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call,
+      callee: {},
+      calleePropertyName: marker,
+      sourceSelectedDeclaration: selectedDeclaration,
+      arguments: [],
+    }, fakeObservationContext({
+      virtualDeclarationSubject: selectedDeclaration,
+      virtualDeclaration: coreLangMarker(marker),
+    }));
+
+    assert.equal(result.kind, "reject", marker);
+    assert.equal(result.diagnostic.extensionCode, code);
+  }
+});
+
+test("C# erased source marker rejects unsupported flow markers even with finalized source facts", () => {
+  const provider = getNativeSemanticProvider();
+  const cases = [
+    ["borrow", "borrowed-shared"],
+    ["borrowMut", "borrowed-mut"],
+    ["move", "moved"],
+  ];
+
+  for (const [marker, state] of cases) {
+    const call = {};
+    const selectedDeclaration = {};
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call,
+      callee: {},
+      calleePropertyName: marker,
+      sourceSelectedDeclaration: selectedDeclaration,
+      arguments: [],
+    }, fakeObservationContext({
+      virtualDeclarationSubject: selectedDeclaration,
+      virtualDeclaration: coreLangMarker(marker),
+      flowStateSubject: call,
+      flowState: { state },
+    }));
+
+    assert.equal(result.kind, "reject", marker);
+    assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED");
+    assert.match(result.diagnostic.message, new RegExp(marker, "u"));
+  }
+});
+
+test("C# source markers validate finalized facts before selected signature reuse", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedMember = {
+    id: "Example.Identity.SourceMarker",
+    sourceName: "out",
+    targetName: "SourceMarker",
+    kind: "method",
+    parameters: [],
+  };
+  const targetExpression = { Kind: 1, Text: "value" };
+  const outCall = {};
+  const outDeclaration = {};
+  const missingOut = provider.mapCheckedCall({
+    target: "csharp",
+    call: outCall,
+    callee: {},
+    calleePropertyName: "out",
+    sourceSelectedDeclaration: outDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: outDeclaration,
+    virtualDeclaration: coreLangMarker("out"),
+    selectedSignatureSubject: outCall,
+    selectedSignature: { member: selectedMember },
+  }));
+
+  assert.equal(missingOut.kind, "reject");
+  assert.equal(missingOut.diagnostic.extensionCode, "CSHARP_ARGUMENT_MARKER_FACT_NOT_PROVEN");
+
+  const borrowCall = {};
+  const borrowDeclaration = {};
+  const unsupportedBorrow = provider.mapCheckedCall({
+    target: "csharp",
+    call: borrowCall,
+    callee: {},
+    calleePropertyName: "borrow",
+    sourceSelectedDeclaration: borrowDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: borrowDeclaration,
+    virtualDeclaration: coreLangMarker("borrow"),
+    selectedSignatureSubject: borrowCall,
+    selectedSignature: { member: selectedMember },
+    flowStateSubject: borrowCall,
+    flowState: { state: "borrowed-shared" },
+  }));
+
+  assert.equal(unsupportedBorrow.kind, "reject");
+  assert.equal(unsupportedBorrow.diagnostic.extensionCode, "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED");
+
+  const validOutCall = {};
+  const validOutDeclaration = {};
+  const validOut = provider.mapCheckedCall({
+    target: "csharp",
+    call: validOutCall,
+    callee: {},
+    calleePropertyName: "out",
+    sourceSelectedDeclaration: validOutDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: validOutDeclaration,
+    virtualDeclaration: coreLangMarker("out"),
+    selectedSignatureSubject: validOutCall,
+    selectedSignature: { member: selectedMember },
+    argumentPassingSubject: validOutCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression,
+    },
+  }));
+
+  assert.equal(validOut.kind, "accept", validOut.kind === "reject" ? validOut.diagnostic.message : undefined);
+  assert.equal(validOut.value.selectedSignature.member.id, "@tsonic/core/lang.js::out");
+});
+
+test("C# source markers reject malformed finalized facts", () => {
+  const provider = getNativeSemanticProvider();
+  const targetExpression = { Kind: 1, Text: "value" };
+  const typeNode = { Kind: "KindTypeReference", Text: "int32" };
+  const cases = [
+    {
+      marker: "out",
+      code: "CSHARP_ARGUMENT_MARKER_MODE_NOT_PROVEN",
+      options: {
+        argumentPassing: {
+          mode: "byref-readwrite",
+          targetExpression,
+        },
+      },
+    },
+    {
+      marker: "out",
+      code: "CSHARP_ARGUMENT_MARKER_STORAGE_NOT_PROVEN",
+      options: {
+        argumentPassing: {
+          mode: "byref-writeonly-must-init",
+        },
+      },
+    },
+    {
+      marker: "field",
+      code: "CSHARP_FIELD_MARKER_TYPE_NOT_PROVEN",
+      options: {
+        field: {
+          name: "value",
+        },
+      },
+    },
+    {
+      marker: "field",
+      code: "CSHARP_FIELD_MARKER_NAME_NOT_PROVEN",
+      options: {
+        field: {
+          type: typeNode,
+        },
+      },
+    },
+    {
+      marker: "defaultof",
+      code: "CSHARP_DEFAULT_MARKER_TYPE_NOT_PROVEN",
+      options: {
+        defaultValue: {},
+      },
+    },
+    {
+      marker: "struct",
+      code: "CSHARP_STRUCT_MARKER_VALUE_TYPE_NOT_PROVEN",
+      options: {
+        structFact: {
+          valueType: false,
+          fields: [],
+        },
+      },
+    },
+    {
+      marker: "struct",
+      code: "CSHARP_STRUCT_MARKER_FIELDS_NOT_PROVEN",
+      options: {
+        structFact: {
+          valueType: true,
+        },
+      },
+    },
+  ];
+
+  for (const scenario of cases) {
+    const call = {};
+    const selectedDeclaration = {};
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call,
+      callee: {},
+      calleePropertyName: scenario.marker,
+      sourceSelectedDeclaration: selectedDeclaration,
+      arguments: [],
+    }, fakeObservationContext({
+      virtualDeclarationSubject: selectedDeclaration,
+      virtualDeclaration: coreLangMarker(scenario.marker),
+      argumentPassingSubject: call,
+      fieldSubject: call,
+      defaultValueSubject: call,
+      structFactSubject: call,
+      ...scenario.options,
+    }));
+
+    assert.equal(result.kind, "reject", scenario.marker);
+    assert.equal(result.diagnostic.extensionCode, scenario.code);
+    assert.ok(result.diagnostic.evidence?.length > 0);
+  }
+});
+
+test("C# attribute builder marker rejects malformed finalized attribute facts", () => {
+  const provider = getNativeSemanticProvider();
+  const cases = [
+    {
+      code: "CSHARP_ATTRIBUTE_MARKER_TARGET_NOT_PROVEN",
+      attribute: {
+        attributeName: "RouteAttribute",
+      },
+    },
+    {
+      code: "CSHARP_ATTRIBUTE_MARKER_NAME_NOT_PROVEN",
+      attribute: {
+        target: {},
+      },
+    },
+  ];
+
+  for (const scenario of cases) {
+    const call = {};
+    const result = provider.mapCheckedCall({
+      target: "csharp",
+      call,
+      callee: {},
+      calleePropertyName: "add",
+      arguments: [],
+    }, fakeObservationContext({
+      attributeSubject: call,
+      attribute: scenario.attribute,
+    }));
+
+    assert.equal(result.kind, "reject", scenario.code);
+    assert.equal(result.diagnostic.extensionCode, scenario.code);
+    assert.ok(result.diagnostic.evidence?.length > 0);
+  }
+});
+
+test("C# erased source marker accepts supported markers only with finalized source facts", () => {
+  const provider = getNativeSemanticProvider();
+  const outCall = {};
+  const outDeclaration = {};
+  const defaultCall = {};
+  const defaultDeclaration = {};
+  const fieldCall = {};
+  const fieldDeclaration = {};
+  const structCall = {};
+  const structDeclaration = {};
+  const targetExpression = { Kind: 1, Text: "value" };
+  const typeNode = { Kind: "KindTypeReference", Text: "int32" };
+
+  const outResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: outCall,
+    callee: {},
+    calleePropertyName: "out",
+    sourceSelectedDeclaration: outDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: outDeclaration,
+    virtualDeclaration: coreLangMarker("out"),
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression,
+    },
+  }));
+
+  const refCall = {};
+  const refDeclaration = {};
+  const refResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: refCall,
+    callee: {},
+    calleePropertyName: "ref",
+    sourceSelectedDeclaration: refDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: refDeclaration,
+    virtualDeclaration: coreLangMarker("ref"),
+    argumentPassingSubject: refCall,
+    argumentPassing: {
+      mode: "byref-readwrite",
+      targetExpression,
+    },
+  }));
+
+  const inrefCall = {};
+  const inrefDeclaration = {};
+  const inrefResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: inrefCall,
+    callee: {},
+    calleePropertyName: "inref",
+    sourceSelectedDeclaration: inrefDeclaration,
+    arguments: [targetExpression],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: inrefDeclaration,
+    virtualDeclaration: coreLangMarker("inref"),
+    argumentPassingSubject: inrefCall,
+    argumentPassing: {
+      mode: "byref-readonly",
+      targetExpression,
+    },
+  }));
+
+  const defaultResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: defaultCall,
+    callee: {},
+    calleePropertyName: "defaultof",
+    sourceSelectedDeclaration: defaultDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: defaultDeclaration,
+    virtualDeclaration: coreLangMarker("defaultof"),
+    defaultValueSubject: defaultCall,
+    defaultValue: {
+      type: typeNode,
+    },
+  }));
+
+  const fieldResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: fieldCall,
+    callee: {},
+    calleePropertyName: "field",
+    sourceSelectedDeclaration: fieldDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: fieldDeclaration,
+    virtualDeclaration: coreLangMarker("field"),
+    fieldSubject: fieldCall,
+    field: {
+      name: "count",
+      type: typeNode,
+    },
+  }));
+
+  const structResult = provider.mapCheckedCall({
+    target: "csharp",
+    call: structCall,
+    callee: {},
+    calleePropertyName: "struct",
+    sourceSelectedDeclaration: structDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    virtualDeclarationSubject: structDeclaration,
+    virtualDeclaration: coreLangMarker("struct"),
+    structFactSubject: structCall,
+    structFact: {
+      valueType: true,
+      fields: [{
+        name: "count",
+        type: typeNode,
+      }],
+    },
+  }));
+
+  assert.equal(outResult.kind, "accept", outResult.kind === "reject" ? outResult.diagnostic.message : undefined);
+  assert.equal(outResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::out");
+  assert.equal(refResult.kind, "accept", refResult.kind === "reject" ? refResult.diagnostic.message : undefined);
+  assert.equal(refResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::ref");
+  assert.equal(inrefResult.kind, "accept", inrefResult.kind === "reject" ? inrefResult.diagnostic.message : undefined);
+  assert.equal(inrefResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::inref");
+  assert.equal(defaultResult.kind, "accept", defaultResult.kind === "reject" ? defaultResult.diagnostic.message : undefined);
+  assert.equal(defaultResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::defaultof");
+  assert.equal(fieldResult.kind, "accept", fieldResult.kind === "reject" ? fieldResult.diagnostic.message : undefined);
+  assert.equal(fieldResult.value.selectedSignature.member.id, "source-semantics.field:count");
+  assert.equal(structResult.kind, "accept", structResult.kind === "reject" ? structResult.diagnostic.message : undefined);
+  assert.equal(structResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::struct");
 });
 
 test("C# attribute builder marker identity comes from finalized attribute facts", () => {
@@ -332,7 +1193,369 @@ test("C# provider maps calls from the exact selected signature identity before d
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
-test("C# provider rejects overloaded member selections without exact signature identity", () => {
+test("C# provider maps constructors from exact selected signature identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const call = { Kind: "KindNewExpression" };
+  const recordedFacts = [];
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Target" },
+    members: [
+      constructorMember("Example.Target..ctor(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      constructorMember("Example.Target..ctor(System.Int64)", { kind: "source-primitive", name: "int64" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target..ctor", "constructor"),
+      signatureId: "Example.Target..ctor(System.Int64)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target..ctor(System.Int64)");
+  const operationFact = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(operationFact?.operationKind, "constructor");
+  assert.deepEqual(operationFact?.resultType, {
+    kind: "target-named",
+    id: "Example.Target",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Target" },
+  });
+});
+
+test("C# provider selects provider constructors from a selected provider type identity", () => {
+  const provider = getNativeSemanticProvider();
+  const containerSymbol = {};
+  const argument = csharpStringType();
+  const binding = {
+    id: "Example.Exception",
+    sourceName: "Exception",
+    targetName: "Exception",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Exception" },
+    members: [
+      {
+        ...constructorMember("Example.Exception..ctor(System.String)", csharpStringType()),
+        overloadGroup: "Example.Exception..ctor",
+      },
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: { Kind: "KindNewExpression" },
+    callee: {},
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, "Example.Exception..ctor(System.String)");
+});
+
+test("C# provider selects constructor overloads only within the proven provider constructor group", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Target" },
+    members: [
+      constructorMember("Example.Target..ctor(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      constructorMember("Example.Target..ctor(System.Int64)", { kind: "source-primitive", name: "int64" }),
+      {
+        ...constructorMember("Example.Target.OtherConstructor(System.Int32)", { kind: "source-primitive", name: "int32" }),
+        overloadGroup: "Example.Target.OtherConstructor",
+      },
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: { Kind: "KindNewExpression" },
+    callee: {},
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int64",
+      runtimeBase: "number",
+      signed: true,
+      width: 64,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target..ctor", "constructor"),
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target..ctor(System.Int64)");
+});
+
+test("C# provider maps constructor byref parameters from source marker target expressions", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const outCall = {};
+  const value = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Target" },
+    members: [
+      {
+        ...constructorMember("Example.Target..ctor(out System.Int32)", { kind: "source-primitive", name: "int32" }),
+        parameters: [
+          targetParameter("value", { kind: "source-primitive", name: "int32" }, "byref-writeonly-must-init"),
+        ],
+      },
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: { Kind: "KindNewExpression" },
+    callee: {},
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [outCall],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: value,
+    },
+    sourcePrimitiveSubject: value,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target..ctor", "constructor"),
+      signatureId: "Example.Target..ctor(out System.Int32)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target..ctor(out System.Int32)");
+});
+
+test("C# provider rejects constructor byref parameters without source marker facts", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const recordedFacts = [];
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Target" },
+    members: [
+      {
+        ...constructorMember("Example.Target..ctor(out System.Int32)", { kind: "source-primitive", name: "int32" }),
+        parameters: [
+          targetParameter("value", { kind: "source-primitive", name: "int32" }, "byref-writeonly-must-init"),
+        ],
+      },
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: { Kind: "KindNewExpression" },
+    callee: {},
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target..ctor", "constructor"),
+      signatureId: "Example.Target..ctor(out System.Int32)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
+test("C# provider closes exact selected generic call signatures without sibling overload search", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = { kind: "source-primitive", name: "int32" };
+  const genericMember = {
+    id: "Example.Target.identity``1(T)",
+    sourceName: "identity",
+    targetName: "Identity",
+    kind: "method",
+    typeParameters: [{ name: "T" }],
+    parameters: [{
+      name: "value",
+      type: { kind: "type-parameter", name: "T" },
+      passingMode: "by-value",
+    }],
+    returnType: { kind: "type-parameter", name: "T" },
+    overloadGroup: "Example.Target.identity",
+  };
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      genericMember,
+      method("Example.Target.identity(System.Int32)", argument, {
+        sourceName: "identity",
+        targetName: "Identity",
+        overloadGroup: "Example.Target.identity",
+      }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "identity",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.identity", "identity"),
+      signatureId: genericMember.id,
+    },
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, genericMember.id);
+  assert.deepEqual(result.value.selectedSignature.member.parameters[0].type, argument);
+  assert.deepEqual(result.value.selectedSignature.member.returnType, argument);
+});
+
+test("C# provider rejects exact selected generic signatures with contradictory target facts", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const string = csharpStringType();
+  const genericMember = {
+    id: "Example.Target.pair``1(T,T)",
+    sourceName: "pair",
+    targetName: "Pair",
+    kind: "method",
+    typeParameters: [{ name: "T" }],
+    parameters: [
+      {
+        name: "left",
+        type: { kind: "type-parameter", name: "T" },
+        passingMode: "by-value",
+      },
+      {
+        name: "right",
+        type: { kind: "type-parameter", name: "T" },
+        passingMode: "by-value",
+      },
+    ],
+    returnType: { kind: "type-parameter", name: "T" },
+    overloadGroup: "Example.Target.pair",
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "pair",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [int32, string],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: {
+      id: "Example.Target",
+      sourceName: "Target",
+      targetName: "Target",
+      target: "csharp",
+      kind: "class",
+      members: [genericMember],
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.pair", "pair"),
+      signatureId: genericMember.id,
+    },
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+});
+
+test("C# provider resolves overloaded member selections from provider member identity and target facts", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -379,11 +1602,11 @@ test("C# provider rejects overloaded member selections without exact signature i
     },
   }));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
-test("C# provider refines collapsed source overloads only inside the selected provider overload group", () => {
+test("C# provider honors exact selected call signature identity over sibling argument matches", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -432,6 +1655,204 @@ test("C# provider refines collapsed source overloads only inside the selected pr
   }));
 
   assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
+});
+
+test("C# provider selects within a proven overload group from target argument facts", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      method("Example.Target.m(System.Int64)", { kind: "source-primitive", name: "int64" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
+test("C# provider maps calls from TSTS-selected callee symbol virtual declaration facts", () => {
+  const provider = getNativeSemanticProvider();
+  const calleeSymbol = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+      method("Example.Target.m(System.Int64)", { kind: "source-primitive", name: "int64" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleeSymbol,
+    calleePropertyName: "m",
+    calleeReceiverSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: calleeSymbol,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
+test("C# provider may refine an exact source signature inside the same provider overload group", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Byte)", { kind: "source-primitive", name: "uint8" }),
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+      signatureId: "Example.Target.m(System.Byte)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
+test("C# provider accepts literal arguments for exact selected target signatures", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const literalArgument = { Kind: 1, Text: "0" };
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [literalArgument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+      signatureId: "Example.Target.m(System.Int32)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
@@ -530,6 +1951,56 @@ test("C# provider rejects same-spelling call members without selected provider i
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+});
+
+test("C# provider rejects provider-owned receiver calls without selected member identity", () => {
+  const receiver = {};
+  const receiverType = {
+    kind: "target-named",
+    id: "Example.Exception",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Exception" },
+  };
+  const binding = {
+    id: "Example.Exception",
+    sourceName: "Exception",
+    targetName: "Exception",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Exception" },
+    members: [
+      {
+        id: "Example.Exception.ToString()",
+        sourceName: "toString",
+        targetName: "ToString",
+        kind: "method",
+        parameters: [],
+        returnType: csharpStringType(),
+        overloadGroup: "Example.Exception.ToString",
+        declaringType: receiverType,
+      },
+    ],
+  };
+  const provider = getNativeSemanticProvider({ bindings: [binding] });
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleeReceiver: receiver,
+    calleeReceiverType: receiverType,
+    calleePropertyName: "toString",
+    arguments: [],
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(
+    result.diagnostic.message,
+    "C# provider could not map checked call 'toString' on target 'Example.Exception'.",
+  );
 });
 
 test("C# provider maps property access from selected provider member identity instead of property text", () => {
@@ -643,12 +2114,16 @@ test("C# provider reports selected unsupported property identities with provider
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
+  const recordedFacts = [];
   const binding = {
     id: "Example.Target",
     sourceName: "Target",
     targetName: "Target",
     target: "csharp",
     kind: "class",
+    members: [
+      property("Example.Target.FallbackPointerProperty", "pointerProperty", "FallbackPointerProperty"),
+    ],
     unsupportedMembers: [
       unsupportedMember("property", "Example.Target.PointerProperty", "pointerProperty", "PointerProperty", "Property type cannot be represented as closed .NET target type facts. System.Int32* is unsupported."),
     ],
@@ -666,18 +2141,23 @@ test("C# provider reports selected unsupported property identities with provider
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Target.PointerProperty", "pointerProperty"),
+    recordedFacts,
   }));
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_UNSUPPORTED");
   assert.match(result.diagnostic.message, /Property type cannot be represented/u);
   assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, "Example.Target.PointerProperty", "property");
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
 test("C# provider rejects events even when target facts exist until event source semantics exist", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
+  const recordedFacts = [];
   const binding = {
     id: "Example.Target",
     sourceName: "Target",
@@ -685,6 +2165,7 @@ test("C# provider rejects events even when target facts exist until event source
     target: "csharp",
     kind: "class",
     members: [
+      property("Example.Target.FallbackChanged", "changed", "FallbackChanged"),
       eventMember("Example.Target.Changed", "changed", "Changed"),
     ],
     unsupportedMembers: [
@@ -704,17 +2185,23 @@ test("C# provider rejects events even when target facts exist until event source
     targetBinding: binding,
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: virtualMember("Example.Target.Changed", "changed"),
+    recordedFacts,
   }));
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_EVENT_UNSUPPORTED");
   assert.match(result.diagnostic.message, /add\/remove subscription semantics/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, "Example.Target.Changed", "event");
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
 test("C# provider reports selected unsupported call identities with provider reason", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
+  const argument = {};
+  const recordedFacts = [];
   const signatureId = "Example.Target.PointerReturn(System.Int32*)";
   const binding = {
     id: "Example.Target",
@@ -722,6 +2209,9 @@ test("C# provider reports selected unsupported call identities with provider rea
     targetName: "Target",
     target: "csharp",
     kind: "class",
+    members: [
+      method("Example.Target.FallbackPointerReturn(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "pointerReturn", targetName: "PointerReturn", overloadGroup: "Example.Target.FallbackPointerReturn" }),
+    ],
     unsupportedMembers: [
       unsupportedMember("method", signatureId, "pointerReturn", "PointerReturn", "Method return type cannot be represented as closed .NET target type facts. System.Int32* is unsupported."),
     ],
@@ -734,24 +2224,181 @@ test("C# provider reports selected unsupported call identities with provider rea
     calleePropertyName: "notUsedForSelection",
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
-    arguments: [],
+    arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
     virtualDeclarationSubject: selectedDeclaration,
     virtualDeclaration: {
       ...virtualMember("Example.Target.PointerReturn", "pointerReturn"),
       signatureId,
     },
+    recordedFacts,
   }));
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_UNSUPPORTED");
   assert.match(result.diagnostic.message, /Method return type cannot be represented/u);
   assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, signatureId, "method");
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
-test("C# provider refines selected indexer overload groups from provider signature identity", () => {
+test("C# provider reports selected unsupported constructor identities with provider reason", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const recordedFacts = [];
+  const signatureId = "Example.Target..ctor(System.Int32*)";
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      constructorMember("Example.Target..ctor(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+    unsupportedMembers: [
+      unsupportedMember("constructor", signatureId, "constructor", ".ctor", "Constructor signature contains parameter 'pointer' with type 'System.Int32*' that cannot be represented as closed .NET target type facts."),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target..ctor", "constructor"),
+      signatureId,
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Constructor signature contains parameter 'pointer'/u);
+  assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, signatureId, "constructor");
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
+test("C# provider reports selected unsupported indexer identities with provider reason", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const argument = {};
+  const recordedFacts = [];
+  const signatureId = "Example.Target.Item(System.Int32*)";
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      indexer("Example.Target.FallbackItem(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "item", overloadGroup: "Example.Target.FallbackItem" }),
+    ],
+    unsupportedMembers: [
+      unsupportedMember("indexer", signatureId, "item", "Item", "Indexer signature contains parameter 'pointer' with type 'System.Int32*' that cannot be represented as closed .NET target type facts."),
+    ],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedDeclaration: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.Item", "item"),
+      signatureId,
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Indexer signature contains parameter 'pointer'/u);
+  assert.match(result.diagnostic.message, /System\.Int32\*/u);
+  assertUnsupportedDiagnosticEvidence(result.diagnostic, signatureId, "indexer");
+  assert.equal("value" in result, false);
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
+test("C# provider does not infer unsupported identity from metadata-name-only matches", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const binding = {
+    id: "Test.Assembly::Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    unsupportedMembers: [
+      unsupportedMember("property", "Test.Assembly::Example.Target.PointerProperty", "pointerProperty", "PointerProperty", "Property type cannot be represented as closed .NET target type facts.", {
+        metadataName: "Example.Target.PointerProperty",
+      }),
+    ],
+  };
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    propertyName: "pointerProperty",
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target.PointerProperty", "pointerProperty"),
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_PROPERTY_NOT_FOUND");
+  assert.doesNotMatch(result.diagnostic.message, /Property type cannot be represented/u);
+});
+
+test("C# provider honors exact selected indexer signature identity over sibling argument matches", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const receiverType = {};
@@ -794,7 +2441,160 @@ test("C# provider refines selected indexer overload groups from provider signatu
   }));
 
   assert.equal(result.kind, "accept");
-  assert.equal(result.value.operation.operationId, "Example.Target.Item(System.Int32)");
+  assert.equal(result.value.operation.operationId, "Example.Target.Item(System.Int64)");
+});
+
+test("C# provider maps selected string indexers from provider signature identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const argument = csharpStringType();
+  const binding = {
+    id: "Example.Headers",
+    sourceName: "Headers",
+    targetName: "Headers",
+    target: "csharp",
+    kind: "class",
+    members: [
+      indexer("Example.Headers.Item(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "item", overloadGroup: "Example.Headers.Item" }),
+      indexer("Example.Headers.Item(System.String)", csharpStringType(), { sourceName: "item", overloadGroup: "Example.Headers.Item" }),
+    ],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedDeclaration: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Headers.Item", "item"),
+      signatureId: "Example.Headers.Item(System.String)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.operation.operationId, "Example.Headers.Item(System.String)");
+});
+
+test("C# provider maps selected byref indexers from source marker target expressions", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const outCall = {};
+  const value = {};
+  const recordedFacts = [];
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const binding = {
+    id: "Example.RefIndexer",
+    sourceName: "RefIndexer",
+    targetName: "RefIndexer",
+    target: "csharp",
+    kind: "class",
+    members: [{
+      id: "Example.RefIndexer.Item(out System.Int32)",
+      sourceName: "item",
+      targetName: "Item",
+      kind: "indexer",
+      parameters: [targetParameter("value", int32, "byref-writeonly-must-init")],
+      returnType: csharpStringType(),
+      overloadGroup: "Example.RefIndexer.Item",
+    }],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedDeclaration: selectedDeclaration,
+    argument: outCall,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: value,
+    },
+    sourcePrimitiveSubject: value,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.RefIndexer.Item", "item"),
+      signatureId: "Example.RefIndexer.Item(out System.Int32)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.operation.operationId, "Example.RefIndexer.Item(out System.Int32)");
+  const csharpOperation = recordedFacts.find((fact) => fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(csharpOperation?.selectedMember?.parameters[0]?.passingMode, "byref-writeonly-must-init");
+});
+
+test("C# provider rejects selected byref indexers without source marker facts", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const argument = {};
+  const recordedFacts = [];
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const binding = {
+    id: "Example.RefIndexer",
+    sourceName: "RefIndexer",
+    targetName: "RefIndexer",
+    target: "csharp",
+    kind: "class",
+    members: [{
+      id: "Example.RefIndexer.Item(out System.Int32)",
+      sourceName: "item",
+      targetName: "Item",
+      kind: "indexer",
+      parameters: [targetParameter("value", int32, "byref-writeonly-must-init")],
+      returnType: csharpStringType(),
+      overloadGroup: "Example.RefIndexer.Item",
+    }],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression: {},
+    receiver: {},
+    receiverType,
+    sourceSelectedDeclaration: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.RefIndexer.Item", "item"),
+      signatureId: "Example.RefIndexer.Item(out System.Int32)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_NOT_FOUND");
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
 test("target member selection binds first-argument receiver generics before explicit arguments", () => {
@@ -1042,6 +2842,7 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
   const selectedDeclaration = {};
   const containerSymbol = {};
   const call = {};
+  const outCall = {};
   const int32 = { kind: "source-primitive", name: "int32" };
   const receiver = spanType(int32);
   const other = readOnlySpanType(int32);
@@ -1056,7 +2857,7 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
     calleePropertyName: "overlaps",
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
-    arguments: [other, offset],
+    arguments: [other, outCall],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
     targetBinding: overlapExtensionsBinding(),
@@ -1064,6 +2865,11 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
     virtualDeclaration: {
       ...virtualMember("Example.MemoryExtensions.Overlaps", "overlaps"),
       signatureId: "Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)",
+    },
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: offset,
     },
     recordedFacts,
   }));
@@ -1256,33 +3062,31 @@ test("target member selection does not treat opaque any or unknown as wildcard t
   }
 });
 
-function getNativeSemanticProvider() {
-  const semanticProviders = [];
-  const target = { id: "csharp" };
-  const extension = createCsharpTargetSemanticsExtension({
-    project: {
-      entryPoint: "index.ts",
-      targets: [target],
+function getNativeSemanticProvider(options = {}) {
+  const bindings = new Map((options.bindings ?? []).map((binding) => [binding.id, binding]));
+  const metadataBindings = new Map(options.metadataBindings ?? []);
+  const baseTypes = new Map(options.baseTypes ?? []);
+  return createCsharpNativeOperationsProvider({
+    getCsharpTargetBindingByTargetId: (targetId) => bindings.get(targetId),
+    getCsharpTargetBindingByMetadataName: (metadataName) => metadataBindings.get(metadataName),
+    getTargetTypeRefForSubject(subject, context) {
+      if (subject !== undefined && typeof subject === "object" && typeof subject.kind === "string") {
+        return subject;
+      }
+      const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
+      return primitive === undefined ? undefined : {
+        kind: "source-primitive",
+        name: primitive.kind,
+      };
     },
-    target,
-    selectedSurfaces: [],
+    getBaseTargetTypeRef(type) {
+      return type.kind === "target-named" ? baseTypes.get(type.id) : undefined;
+    },
+    getCsharpObjectShapeFactForSubject: () => undefined,
+    mapRuntimeCarrier() {
+      return deferObservation;
+    },
   });
-  extension.initialize({
-    registerTargetBindingProvider: () => true,
-    registerTargetSemanticProvider(provider) {
-      semanticProviders.push(provider);
-      return true;
-    },
-    registerLifecycleHook: () => true,
-    factResolver: {
-      register: () => true,
-    },
-    facts: {
-      set() {},
-    },
-  });
-  assert.equal(semanticProviders.length, 1);
-  return semanticProviders[0];
 }
 
 function method(id, parameterType, options = {}) {
@@ -1334,16 +3138,40 @@ function eventMember(id, sourceName, targetName) {
   };
 }
 
-function unsupportedMember(memberKind, targetId, sourceName, targetName, reason) {
+function constructorMember(id, parameterType) {
+  return {
+    id,
+    sourceName: "constructor",
+    targetName: ".ctor",
+    kind: "constructor",
+    parameters: [{
+      name: "value",
+      type: parameterType,
+      passingMode: "by-value",
+    }],
+    overloadGroup: "Example.Target..ctor",
+  };
+}
+
+function unsupportedMember(memberKind, targetId, sourceName, targetName, reason, options = {}) {
   return {
     kind: "unsupported-member",
     memberKind,
     sourceName,
     targetName,
     targetId,
-    metadataName: targetId,
+    metadataName: options.metadataName ?? targetId,
     reason,
   };
+}
+
+function assertUnsupportedDiagnosticEvidence(diagnostic, targetId, memberKind) {
+  assert.ok(diagnostic.evidence?.some((entry) =>
+    entry.message.includes("unsupported target member") &&
+    entry.details?.targetId === targetId &&
+    entry.details?.memberKind === memberKind &&
+    typeof entry.details.reason === "string"
+  ), JSON.stringify(diagnostic.evidence));
 }
 
 function indexer(id, parameterType, options = {}) {
@@ -1395,6 +3223,8 @@ function csharpIEnumerableType(element) {
     id: "System.Collections.Generic.IEnumerable`1",
     typeArguments: [element],
     csharpRender: { kind: "named", namespace: ["System", "Collections", "Generic"], name: "IEnumerable" },
+    csharpArrayLiteralElementType: element,
+    csharpEnumerableElementType: element,
   };
 }
 
@@ -1462,6 +3292,18 @@ function readOnlySpanType(element) {
   };
 }
 
+function coreLangMarker(exportName) {
+  return {
+    providerId: "test",
+    providerVersion: "0",
+    providerModuleId: "@tsonic/core/lang.js",
+    moduleSpecifier: "@tsonic/core/lang.js",
+    virtualFileName: "tsts-provider://@tsonic/core/lang.js",
+    exportName,
+    memberId: `@tsonic/core/lang.js::${exportName}`,
+  };
+}
+
 function virtualMember(memberId, memberName = "m") {
   return {
     providerId: "test",
@@ -1478,6 +3320,9 @@ function fakeObservationContext(options) {
   return {
     facts: {
       get(subject, key) {
+        if (subject === options.selectedSignatureSubject && key === selectedTargetSignatureFactKey) {
+          return options.selectedSignature;
+        }
         if (subject === options.virtualSignatureSubject && key === providerVirtualDeclarationFactKey) {
           return options.virtualSignatureDeclaration;
         }
@@ -1487,6 +3332,21 @@ function fakeObservationContext(options) {
         if (subject === options.attributeSubject && key === attributeFactKey) {
           return options.attribute;
         }
+        if (subject === options.fieldSubject && key === fieldFactKey) {
+          return options.field;
+        }
+        if (subject === options.argumentPassingSubject && key === argumentPassingFactKey) {
+          return options.argumentPassing;
+        }
+        if (subject === options.defaultValueSubject && key === defaultValueFactKey) {
+          return options.defaultValue;
+        }
+        if (subject === options.flowStateSubject && key === flowStateFactKey) {
+          return options.flowState;
+        }
+        if (subject === options.structFactSubject && key === structFactKey) {
+          return options.structFact;
+        }
         return undefined;
       },
       set(subject, key, value, evidence) {
@@ -1495,6 +3355,33 @@ function fakeObservationContext(options) {
     },
     factResolver: {
       resolve(subject, key) {
+        if (subject === options.selectedSignatureSubject && key === selectedTargetSignatureFactKey) {
+          return options.selectedSignature;
+        }
+        if (subject === options.virtualSignatureSubject && key === providerVirtualDeclarationFactKey) {
+          return options.virtualSignatureDeclaration;
+        }
+        if (subject === options.virtualDeclarationSubject && key === providerVirtualDeclarationFactKey) {
+          return options.virtualDeclaration;
+        }
+        if (subject === options.attributeSubject && key === attributeFactKey) {
+          return options.attribute;
+        }
+        if (subject === options.fieldSubject && key === fieldFactKey) {
+          return options.field;
+        }
+        if (subject === options.argumentPassingSubject && key === argumentPassingFactKey) {
+          return options.argumentPassing;
+        }
+        if (subject === options.defaultValueSubject && key === defaultValueFactKey) {
+          return options.defaultValue;
+        }
+        if (subject === options.flowStateSubject && key === flowStateFactKey) {
+          return options.flowState;
+        }
+        if (subject === options.structFactSubject && key === structFactKey) {
+          return options.structFact;
+        }
         if (subject === options.targetBindingSubject && key === targetBindingFactKey) {
           return options.targetBinding;
         }
@@ -1509,6 +3396,7 @@ function fakeObservationContext(options) {
       ast: {
         kindName: (node) => node === undefined ? "Undefined" : node.Kind === 1 ? "KindNumericLiteral" : String(node.Kind),
         text: (node) => node?.Text ?? "",
+        typeArguments: () => [],
         is: {
           IsStringLiteral: () => false,
         },

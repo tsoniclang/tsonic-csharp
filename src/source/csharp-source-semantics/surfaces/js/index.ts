@@ -15,7 +15,19 @@ import type {
 } from "@tsonic/tsts";
 import {
   mapCsharpJsRegExpRuntimeCarrier,
-} from "./regexp.js";
+} from "./regexp/index.js";
+import {
+  mapCsharpJsDateRuntimeCarrier,
+} from "./date/index.js";
+import {
+  mapCsharpJsJsonRuntimeCarrier,
+} from "./json.js";
+import {
+  mapCsharpJsCollectionRuntimeCarrier,
+} from "./collections.js";
+import {
+  mapCsharpJsArrayRuntimeCarrier,
+} from "./array-carriers.js";
 import type {
   CsharpJsSurfaceHost,
 } from "./source-library.js";
@@ -61,7 +73,22 @@ export function createCsharpJsSurfaceMappers(host: CsharpJsSurfaceHost): CsharpJ
       if (request.target !== undefined && request.target !== host.targetId) {
         return deferObservation;
       }
-      return mapCsharpJsRegExpRuntimeCarrier(request, context);
+      const regExpCarrier = mapCsharpJsRegExpRuntimeCarrier(request, context);
+      if (regExpCarrier.kind !== "defer") {
+        return regExpCarrier;
+      }
+      const dateCarrier = mapCsharpJsDateRuntimeCarrier(request, context);
+      if (dateCarrier.kind !== "defer") {
+        return dateCarrier;
+      }
+      const arrayCarrier = mapCsharpJsArrayRuntimeCarrier(request, context, host);
+      if (arrayCarrier.kind !== "defer") {
+        return arrayCarrier;
+      }
+      const jsonCarrier = mapCsharpJsJsonRuntimeCarrier(request, context, host);
+      return jsonCarrier.kind === "defer"
+        ? mapCsharpJsCollectionRuntimeCarrier(request, context, host)
+        : jsonCarrier;
     },
     mapCheckedCall(request, context) {
       if (request.target !== undefined && request.target !== host.targetId) {

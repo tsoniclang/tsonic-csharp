@@ -1,56 +1,84 @@
 import type {
   ProviderExportDeclaration,
   ProviderTypeExpression,
+  TargetBindingFact,
   TargetMember,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  csharpNullableTargetType,
   csharpNullableValueTargetType,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpVoidTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
-  targetProperty,
 } from "../js/source-library.js";
+import type {
+  CsharpTargetNamedTypeRef,
+} from "../js/source-library.js";
+import {
+  getNodejsProviderExportDeclarationTargetMember,
+  getNodejsProviderExportSignatureDeclarationTargetMember,
+  nodejsProviderExportDeclarationTargetMemberIndex,
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex,
+} from "./metadata-indexes.js";
+import {
+  nodejsClassPropertyTargetMetadata,
+  nodejsModuleCallTargetMetadata,
+  nodejsModulePropertyTargetMetadata,
+} from "./members/target-member-metadata.js";
+import type {
+  NodejsModuleCallTargetMetadata,
+  NodejsModuleCallTargetMetadataRow,
+  NodejsModulePropertyTargetMetadata,
+  NodejsModulePropertyTargetMetadataRow,
+} from "./members/target-member-metadata.js";
+import type {
+  NodejsClassPropertyTargetMember,
+} from "./members/types.js";
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
 const voidProviderType = { kind: "void" } satisfies ProviderTypeExpression;
+const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
+const undefinedProviderType = { kind: "void" } satisfies ProviderTypeExpression;
+const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const stringTargetType = csharpStringTargetType();
 const intTargetType = csharpSourcePrimitiveTargetType("int32");
+const boolTargetType = csharpSourcePrimitiveTargetType("bool");
 const voidTargetType = csharpVoidTargetType();
 const processTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.process", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "process"));
+const processEnvTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.ProcessEnv", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "ProcessEnv"));
+const processVersionsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.ProcessVersions", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "ProcessVersions"));
+const processEnvProviderType = { kind: "provider-ref", name: "ProcessEnv" } satisfies ProviderTypeExpression;
+const processVersionsProviderType = { kind: "provider-ref", name: "ProcessVersions" } satisfies ProviderTypeExpression;
+const stringOrUndefinedProviderType = { kind: "union", types: [stringProviderType, undefinedProviderType] } satisfies ProviderTypeExpression;
+const stringOrNumberProviderType = { kind: "union", types: [stringProviderType, numberProviderType] } satisfies ProviderTypeExpression;
 
-interface NodeProcessProviderParameter {
-  readonly name: string;
-  readonly type: ProviderTypeExpression;
-  readonly optional?: boolean;
-}
+type NodeProcessCallTargetMember = NodejsModuleCallTargetMetadata;
+type NodeProcessPropertyTargetMember = NodejsModulePropertyTargetMetadata;
+type NodeProcessCallTargetMetadataRow = Omit<NodejsModuleCallTargetMetadataRow, "declaringType">;
+type NodeProcessPropertyTargetMetadataRow = Omit<NodejsModulePropertyTargetMetadataRow, "declaringType">;
 
-interface NodeProcessCallTargetMember {
+export interface NodeProcessUnsupportedTargetIdentity {
   readonly exportName: string;
-  readonly signatureId: string;
-  readonly providerParameters: readonly NodeProcessProviderParameter[];
-  readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}
-
-interface NodeProcessPropertyTargetMember {
-  readonly exportName: string;
-  readonly providerType: ProviderTypeExpression;
-  readonly member: TargetMember;
+  readonly targetIdentityId: string;
+  readonly displayName: string;
 }
 
 export const nodeProcessModuleSpecifier = "node:process";
 export const nodeProcessCwdExportName = "cwd";
 export const nodeProcessCwdSignatureId = "node:process.cwd()";
 export const nodeProcessPlatformExportName = "platform";
+export const nodeProcessEnvExportName = "env";
+export const nodeProcessProcessEnvExportName = "ProcessEnv";
+export const nodeProcessProcessVersionsExportName = "ProcessVersions";
 
 export function nodeProcessExports(): readonly ProviderExportDeclaration[] {
   return [
+    nodeProcessEnvExportDeclaration(),
+    nodeProcessVersionsExportDeclaration(),
     ...nodeProcessCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
       id: `node:process.${exportName}`,
       name: exportName,
@@ -90,91 +118,237 @@ export function getNodeProcessCallTargetMember(
   exportName: string | undefined,
   signatureId: string | undefined,
 ): TargetMember | undefined {
-  return nodeProcessCallTargetMembers()
-    .find((entry) => entry.exportName === exportName && (signatureId === undefined || entry.signatureId === signatureId))
-    ?.member;
+  return getNodejsProviderExportSignatureDeclarationTargetMember(
+    nodeProcessCallTargetMemberByProviderDeclarationIdentity,
+    nodeProcessModuleSpecifier,
+    exportName,
+    signatureId,
+  );
 }
 
 export function getNodeProcessPropertyTargetMember(exportName: string | undefined): TargetMember | undefined {
-  return nodeProcessPropertyTargetMembers().find((entry) => entry.exportName === exportName)?.member;
+  return getNodejsProviderExportDeclarationTargetMember(
+    nodeProcessPropertyTargetMemberByProviderDeclarationIdentity,
+    nodeProcessModuleSpecifier,
+    exportName,
+  );
 }
 
-export function nodeProcessCallTargetMembers(): readonly {
-  readonly exportName: string;
-  readonly signatureId: string;
-  readonly providerParameters: readonly NodeProcessProviderParameter[];
-  readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}[] {
+export function nodeProcessCallTargetMembers(): readonly NodeProcessCallTargetMember[] {
   const stringParameter = (name: string) => ({ name, type: stringProviderType });
   const optionalNumberParameter = (name: string) => ({ name, type: numberProviderType, optional: true });
   return [
-    processCall("chdir", "node:process.chdir(System.String)", [stringParameter("directory")], voidProviderType, [
+    processCall({ exportName: "chdir", signatureId: "node:process.chdir(System.String)", targetMemberId: "Tsonic.CSharp.Node.process.chdir(System.String)", sourceName: "chdir", targetName: "chdir", providerParameters: [stringParameter("directory")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("directory", stringTargetType),
-    ], voidTargetType),
-    processCall(nodeProcessCwdExportName, nodeProcessCwdSignatureId, [], stringProviderType, [], stringTargetType),
-    processCall("exit", "node:process.exit(System.Nullable`1)", [optionalNumberParameter("code")], voidProviderType, [
+    ], targetReturnType: voidTargetType }),
+    processCall({ exportName: nodeProcessCwdExportName, signatureId: nodeProcessCwdSignatureId, targetMemberId: "Tsonic.CSharp.Node.process.cwd()", sourceName: "cwd", targetName: "cwd", providerParameters: [], providerReturnType: stringProviderType, targetParameters: [], targetReturnType: stringTargetType }),
+    processCall({ exportName: "exit", signatureId: "node:process.exit(System.Nullable`1)", targetMemberId: "Tsonic.CSharp.Node.process.exit(System.Nullable`1)", sourceName: "exit", targetName: "exit", providerParameters: [optionalNumberParameter("code")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("code", csharpNullableValueTargetType(intTargetType), { optional: true }),
-    ], voidTargetType),
+    ], targetReturnType: voidTargetType }),
+    processCall({ exportName: "kill", signatureId: "node:process.kill(System.Int32,System.Object)", targetMemberId: "Tsonic.CSharp.Node.process.kill(System.Int32,System.Object)", sourceName: "kill", targetName: "kill", providerParameters: [
+      { name: "pid", type: numberProviderType },
+      { name: "signal", type: stringOrNumberProviderType, optional: true },
+    ], providerReturnType: boolProviderType, targetParameters: [
+      targetParameter("pid", intTargetType),
+      targetParameter("signal", objectTargetType, { optional: true, csharpAcceptsClosedSourceArgument: true }),
+    ], targetReturnType: boolTargetType }),
   ];
 }
 
-export function nodeProcessPropertyTargetMembers(): readonly {
-  readonly exportName: string;
-  readonly providerType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}[] {
+export function nodeProcessPropertyTargetMembers(): readonly NodeProcessPropertyTargetMember[] {
   return [
-    processProperty("arch", stringProviderType, stringTargetType),
-    processProperty("argv", { kind: "array", elementType: stringProviderType }, { kind: "array", element: stringTargetType }),
-    processProperty("argv0", stringProviderType, stringTargetType),
-    processProperty("execPath", stringProviderType, stringTargetType),
-    processProperty("exitCode", { kind: "union", types: [numberProviderType, { kind: "literal", value: null }] }, csharpNullableValueTargetType(intTargetType)),
-    processProperty("pid", numberProviderType, intTargetType),
-    processProperty(nodeProcessPlatformExportName, stringProviderType, stringTargetType),
-    processProperty("ppid", numberProviderType, intTargetType),
-    processProperty("version", stringProviderType, stringTargetType),
+    processProperty({ exportName: "arch", targetMemberId: "Tsonic.CSharp.Node.process.arch", sourceName: "arch", targetName: "arch", providerType: stringProviderType, targetReturnType: stringTargetType }),
+    processProperty({ exportName: "argv", targetMemberId: "Tsonic.CSharp.Node.process.argv", sourceName: "argv", targetName: "argv", providerType: { kind: "array", elementType: stringProviderType }, targetReturnType: { kind: "array", element: stringTargetType } }),
+    processProperty({ exportName: "argv0", targetMemberId: "Tsonic.CSharp.Node.process.argv0", sourceName: "argv0", targetName: "argv0", providerType: stringProviderType, targetReturnType: stringTargetType }),
+    processProperty({ exportName: nodeProcessEnvExportName, targetMemberId: "Tsonic.CSharp.Node.process.env", sourceName: "env", targetName: "env", providerType: processEnvProviderType, targetReturnType: processEnvTargetType }),
+    processProperty({ exportName: "execPath", targetMemberId: "Tsonic.CSharp.Node.process.execPath", sourceName: "execPath", targetName: "execPath", providerType: stringProviderType, targetReturnType: stringTargetType }),
+    processProperty({ exportName: "exitCode", targetMemberId: "Tsonic.CSharp.Node.process.exitCode", sourceName: "exitCode", targetName: "exitCode", providerType: { kind: "union", types: [numberProviderType, { kind: "literal", value: null }] }, targetReturnType: csharpNullableValueTargetType(intTargetType) }),
+    processProperty({ exportName: "pid", targetMemberId: "Tsonic.CSharp.Node.process.pid", sourceName: "pid", targetName: "pid", providerType: numberProviderType, targetReturnType: intTargetType }),
+    processProperty({ exportName: nodeProcessPlatformExportName, targetMemberId: "Tsonic.CSharp.Node.process.platform", sourceName: "platform", targetName: "platform", providerType: stringProviderType, targetReturnType: stringTargetType }),
+    processProperty({ exportName: "ppid", targetMemberId: "Tsonic.CSharp.Node.process.ppid", sourceName: "ppid", targetName: "ppid", providerType: numberProviderType, targetReturnType: intTargetType }),
+    processProperty({ exportName: "version", targetMemberId: "Tsonic.CSharp.Node.process.version", sourceName: "version", targetName: "version", providerType: stringProviderType, targetReturnType: stringTargetType }),
+    processProperty({ exportName: "versions", targetMemberId: "Tsonic.CSharp.Node.process.versions", sourceName: "versions", targetName: "versions", providerType: processVersionsProviderType, targetReturnType: processVersionsTargetType }),
   ];
 }
 
-function processCall(
-  exportName: string,
-  signatureId: string,
-  providerParameters: readonly NodeProcessProviderParameter[],
-  providerReturnType: ProviderTypeExpression,
-  targetParameters: readonly ReturnType<typeof targetParameter>[],
-  targetReturnType: TargetTypeRef,
-): NodeProcessCallTargetMember {
+export function nodeProcessUnsupportedTargetIdentities(): readonly NodeProcessUnsupportedTargetIdentity[] {
+  return [];
+}
+
+export function nodeProcessClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
+  return [
+    ...nodeProcessEnvClassPropertyTargetMembers(),
+    ...nodeProcessVersionsClassPropertyTargetMembers(),
+  ];
+}
+
+function nodeProcessEnvClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
+  return [
+    nodejsClassPropertyTargetMetadata({
+      exportName: nodeProcessProcessEnvExportName,
+      memberName: "Item",
+      memberId: "Tsonic.CSharp.Node.ProcessEnv.Item(System.String)",
+      targetMemberId: "Tsonic.CSharp.Node.ProcessEnv.Item(System.String)",
+      sourceName: "Item",
+      targetName: "Item",
+      memberKind: "indexer",
+      providerType: stringOrUndefinedProviderType,
+      targetParameters: [targetParameter("key", stringTargetType)],
+      targetReturnType: csharpNullableTargetType(stringTargetType),
+      declaringType: processEnvTargetType,
+    }),
+  ];
+}
+
+function nodeProcessVersionsClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
+  return [
+    nodejsClassPropertyTargetMetadata({
+      exportName: nodeProcessProcessVersionsExportName,
+      memberName: "node",
+      memberId: "Tsonic.CSharp.Node.ProcessVersions.node",
+      targetMemberId: "Tsonic.CSharp.Node.ProcessVersions.node",
+      sourceName: "node",
+      targetName: "node",
+      memberKind: "property",
+      providerType: stringProviderType,
+      targetParameters: [],
+      targetReturnType: stringTargetType,
+      declaringType: processVersionsTargetType,
+      readonly: true,
+    }),
+    nodejsClassPropertyTargetMetadata({
+      exportName: nodeProcessProcessVersionsExportName,
+      memberName: "v8",
+      memberId: "Tsonic.CSharp.Node.ProcessVersions.v8",
+      targetMemberId: "Tsonic.CSharp.Node.ProcessVersions.v8",
+      sourceName: "v8",
+      targetName: "v8",
+      memberKind: "property",
+      providerType: stringProviderType,
+      targetParameters: [],
+      targetReturnType: stringTargetType,
+      declaringType: processVersionsTargetType,
+      readonly: true,
+    }),
+    nodejsClassPropertyTargetMetadata({
+      exportName: nodeProcessProcessVersionsExportName,
+      memberName: "dotnet",
+      memberId: "Tsonic.CSharp.Node.ProcessVersions.dotnet",
+      targetMemberId: "Tsonic.CSharp.Node.ProcessVersions.dotnet",
+      sourceName: "dotnet",
+      targetName: "dotnet",
+      memberKind: "property",
+      providerType: stringProviderType,
+      targetParameters: [],
+      targetReturnType: stringTargetType,
+      declaringType: processVersionsTargetType,
+      readonly: true,
+    }),
+    nodejsClassPropertyTargetMetadata({
+      exportName: nodeProcessProcessVersionsExportName,
+      memberName: "tsonic",
+      memberId: "Tsonic.CSharp.Node.ProcessVersions.tsonic",
+      targetMemberId: "Tsonic.CSharp.Node.ProcessVersions.tsonic",
+      sourceName: "tsonic",
+      targetName: "tsonic",
+      memberKind: "property",
+      providerType: stringProviderType,
+      targetParameters: [],
+      targetReturnType: stringTargetType,
+      declaringType: processVersionsTargetType,
+      readonly: true,
+    }),
+  ];
+}
+
+function nodeProcessEnvExportDeclaration(): ProviderExportDeclaration {
   return {
-    exportName,
-    signatureId,
-    providerParameters,
-    providerReturnType,
-    member: targetMethod(
-      `Tsonic.CSharp.Node.process.${exportName}(${signatureId.slice("node:process.".length + exportName.length + 1, -1)})`,
-      exportName,
-      exportName,
-      targetParameters,
-      targetReturnType,
-      {
-        declaringType: processTargetType,
-        static: true,
-      },
-    ),
+    id: `node:process.${nodeProcessProcessEnvExportName}`,
+    name: nodeProcessProcessEnvExportName,
+    kind: "interface",
+    targetIdentity: {
+      target: "csharp",
+      id: processEnvTargetType.id,
+      displayName: "Tsonic.CSharp.Node.ProcessEnv",
+    },
+    targetBinding: processClassTargetBinding({
+      sourceName: nodeProcessProcessEnvExportName,
+      targetType: processEnvTargetType,
+      kind: "interface",
+      members: nodeProcessEnvClassPropertyTargetMembers(),
+    }),
+    members: [{
+      id: "Tsonic.CSharp.Node.ProcessEnv.Item(System.String)",
+      name: "Item",
+      kind: "indexer",
+      signatures: [{
+        id: "Tsonic.CSharp.Node.ProcessEnv.Item(System.String)",
+        parameters: [{ name: "key", type: stringProviderType }],
+        returnType: stringOrUndefinedProviderType,
+      }],
+    }],
   };
 }
 
-function processProperty(
-  exportName: string,
-  providerType: ProviderTypeExpression,
-  targetType: TargetTypeRef,
-): NodeProcessPropertyTargetMember {
+function nodeProcessVersionsExportDeclaration(): ProviderExportDeclaration {
   return {
-    exportName,
-    providerType,
-    member: targetProperty(`Tsonic.CSharp.Node.process.${exportName}`, exportName, exportName, targetType, {
-      declaringType: processTargetType,
-      static: true,
+    id: `node:process.${nodeProcessProcessVersionsExportName}`,
+    name: nodeProcessProcessVersionsExportName,
+    kind: "interface",
+    targetIdentity: {
+      target: "csharp",
+      id: processVersionsTargetType.id,
+      displayName: "Tsonic.CSharp.Node.ProcessVersions",
+    },
+    targetBinding: processClassTargetBinding({
+      sourceName: nodeProcessProcessVersionsExportName,
+      targetType: processVersionsTargetType,
+      kind: "interface",
+      members: nodeProcessVersionsClassPropertyTargetMembers(),
     }),
+    members: nodeProcessVersionsClassPropertyTargetMembers()
+      .map((member) => ({
+        id: member.memberId,
+        name: member.memberName,
+        kind: "property" as const,
+        readonly: true,
+        type: stringProviderType,
+      })),
   };
 }
+
+function processClassTargetBinding(row: {
+  readonly sourceName: string;
+  readonly targetType: CsharpTargetNamedTypeRef;
+  readonly kind: TargetBindingFact["kind"];
+  readonly members: readonly NodejsClassPropertyTargetMember[];
+}): TargetBindingFact {
+  return {
+    id: row.targetType.id,
+    sourceName: row.sourceName,
+    targetName: row.targetType.id,
+    target: "csharp",
+    kind: row.kind,
+    members: row.members.map((member) => member.member),
+  };
+}
+
+function processCall(row: NodeProcessCallTargetMetadataRow): NodeProcessCallTargetMember {
+  return nodejsModuleCallTargetMetadata({
+    ...row,
+    declaringType: processTargetType,
+  });
+}
+
+function processProperty(row: NodeProcessPropertyTargetMetadataRow): NodeProcessPropertyTargetMember {
+  return nodejsModulePropertyTargetMetadata({
+    ...row,
+    declaringType: processTargetType,
+  });
+}
+
+const nodeProcessCallTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportSignatureDeclarationTargetMemberIndex(nodeProcessModuleSpecifier, nodeProcessCallTargetMembers());
+
+const nodeProcessPropertyTargetMemberByProviderDeclarationIdentity =
+  nodejsProviderExportDeclarationTargetMemberIndex(nodeProcessModuleSpecifier, nodeProcessPropertyTargetMembers());

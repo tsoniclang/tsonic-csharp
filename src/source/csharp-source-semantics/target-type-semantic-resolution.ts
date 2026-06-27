@@ -22,8 +22,10 @@ import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
 import {
-  isSourceLibraryType,
-} from "./source-library.js";
+  classifySourceStandardLibraryType,
+  isSourceStandardLibraryPromiseType,
+  isSourceStandardLibraryRecordType,
+} from "./source-type-classification.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -39,18 +41,38 @@ export function getSourceArrayTargetTypeRef(
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   const types = context.compiler?.types;
-  if (types === undefined || !types.isArrayLike(type, typeShapeOptions(options))) {
+  const shapeOptions = typeShapeOptions(options);
+  if (types === undefined || types.isTuple(type) || !types.isArrayLike(type, shapeOptions)) {
     return undefined;
   }
-  const sourceArrayType = isSourceLibraryType(type, context, "Array") ||
-    isSourceLibraryType(type, context, "ReadonlyArray");
-  if (!sourceArrayType) {
+  const sourceArrayType = classifySourceStandardLibraryType(type, context)?.category === "array";
+  const typeArguments = getTypeArgumentsForArrayShape(type, context, options);
+  if (!sourceArrayType && typeArguments.length === 0) {
     return undefined;
   }
-  const element = resolver.resolveType(getFirstTypeArgument(type, context, options), context, options, host);
+  const element = resolver.resolveType(typeArguments[0], context, options, host);
   return element === undefined
     ? undefined
     : { kind: "array", element };
+}
+
+function getTypeArgumentsForArrayShape(
+  type: Type,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+): readonly Type[] {
+  const types = context.compiler?.types;
+  if (types === undefined) {
+    return [];
+  }
+  const direct = types.getTypeArguments(type, typeShapeOptions(options)).filter((candidate): candidate is Type => candidate !== undefined);
+  if (direct.length > 0) {
+    return direct;
+  }
+  const target = types.getTypeReferenceTarget(type);
+  return target === undefined
+    ? []
+    : types.getTypeArguments(target, typeShapeOptions(options)).filter((candidate): candidate is Type => candidate !== undefined);
 }
 
 export function getSourcePromiseTargetTypeRef(
@@ -60,7 +82,7 @@ export function getSourcePromiseTargetTypeRef(
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
-  if (!isSourceLibraryType(type, context, "Promise")) {
+  if (!isSourceStandardLibraryPromiseType(type, context)) {
     return undefined;
   }
   const result = resolver.resolveType(getFirstTypeArgument(type, context, options), context, options, host);
@@ -77,7 +99,7 @@ export function getSourceRecordTargetTypeRef(
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
-  if (!isSourceLibraryType(type, context, "Record")) {
+  if (!isSourceStandardLibraryRecordType(type, context)) {
     return undefined;
   }
   const types = context.compiler?.types;
@@ -105,6 +127,9 @@ export function getCallableTargetTypeRefForSemanticType(
   const checker = context.compiler?.checker;
   const types = context.compiler?.types;
   if (checker === undefined || types === undefined) {
+    return undefined;
+  }
+  if (classifySourceStandardLibraryType(type, context) !== undefined) {
     return undefined;
   }
   const signatures = types.getCallSignatures(type);

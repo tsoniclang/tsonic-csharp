@@ -4,7 +4,7 @@ using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, bool AllModules, IReadOnlyList<string> Exports, string? ReferenceDirectory, IReadOnlyList<string> References)
+sealed record Request(string NamespaceName, string ModuleSpecifier, string ModuleSpecifierPrefix, bool AllModules, IReadOnlyList<string> Exports, IReadOnlyList<string> TargetIds, IReadOnlyList<string> MetadataNames, string? ReferenceDirectory, IReadOnlyList<string> References)
 {
     public static Request Parse(string[] args)
     {
@@ -13,6 +13,8 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
         var moduleSpecifierPrefix = "";
         var allModules = false;
         var exports = new List<string>();
+        var targetIds = new List<string>();
+        var metadataNames = new List<string>();
         string? referenceDirectory = null;
         var references = new List<string>();
         for (var index = 0; index < args.Length; index++)
@@ -35,6 +37,12 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                 case "--export":
                     exports.Add(RequiredValue(args, ref index, arg));
                     break;
+                case "--target-id":
+                    targetIds.Add(RequiredValue(args, ref index, arg));
+                    break;
+                case "--metadata-name":
+                    metadataNames.Add(RequiredValue(args, ref index, arg));
+                    break;
                 case "--reference-dir":
                     referenceDirectory = RequiredValue(args, ref index, arg);
                     break;
@@ -45,7 +53,7 @@ sealed record Request(string NamespaceName, string ModuleSpecifier, string Modul
                     throw new InvalidOperationException($"Unknown argument '{arg}'.");
             }
         }
-        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, allModules, exports, referenceDirectory, references);
+        return new Request(namespaceName, moduleSpecifier, moduleSpecifierPrefix, allModules, exports, targetIds, metadataNames, referenceDirectory, references);
     }
 
     static string RequiredValue(string[] args, ref int index, string name)

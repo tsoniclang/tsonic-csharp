@@ -8,7 +8,6 @@ import {
 } from "./module-specifier.js";
 
 export const dotnetNativeArrayTypeId = "tsonic.dotnet.System.Array`1";
-export const dotnetNativeArrayFactoryNamespaceId = "tsonic.dotnet.System.Array";
 export const dotnetNativeArrayCreateMemberId = `${dotnetNativeArrayTypeId}.create(System.Int32)`;
 export const dotnetNativeArrayLengthMemberId = `${dotnetNativeArrayTypeId}.Length`;
 export const dotnetNativeArrayIndexerMemberId = `${dotnetNativeArrayTypeId}.Item(System.Int32)`;
@@ -26,19 +25,26 @@ const nativeArraySourceType = {
   moduleSpecifier: systemModuleSpecifier,
   typeArguments: [typeParameter],
 } satisfies DotnetTypeRef;
+const dotnetNativeArrayProviderExportNames = new Set(["Array"]);
 
-export function augmentDotnetModuleWithNativeArray(module: DotnetModuleModel): DotnetModuleModel {
-  if (module.moduleSpecifier !== systemModuleSpecifier) {
+export interface DotnetNativeArrayAugmentationOptions {
+  readonly broadImport?: boolean;
+  readonly requestedExports?: readonly string[];
+}
+
+export function augmentDotnetModuleWithNativeArray(
+  module: DotnetModuleModel,
+  options: DotnetNativeArrayAugmentationOptions = { broadImport: true },
+): DotnetModuleModel {
+  if (module.moduleSpecifier !== systemModuleSpecifier || !shouldAugmentNativeArray(options)) {
     return module;
   }
   return {
     ...module,
     exports: [
       ...module.exports.filter((declaration) =>
-        !(declaration.kind === "type" && declaration.sourceName === "Array") &&
-        !(declaration.kind === "namespace" && declaration.sourceName === "Array" && declaration.namespaceName === dotnetNativeArrayFactoryNamespaceId)
+        !(declaration.kind === "type" && dotnetNativeArrayProviderExportNames.has(declaration.sourceName))
       ),
-      dotnetNativeArrayFactoryNamespace(),
       dotnetNativeArrayDeclaration(),
     ],
   };
@@ -48,10 +54,14 @@ export function isDotnetNativeArrayCreateMemberId(memberId: string): boolean {
   return memberId === dotnetNativeArrayCreateMemberId;
 }
 
+function shouldAugmentNativeArray(options: DotnetNativeArrayAugmentationOptions): boolean {
+  return options.broadImport === true || options.requestedExports?.includes("Array") === true;
+}
+
 function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
   return {
     kind: "type",
-    typeKind: "interface",
+    typeKind: "class",
     sourceName: "Array",
     namespaceName: "System",
     targetId: dotnetNativeArrayTypeId,
@@ -60,6 +70,29 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
     typeParameters: [{ name: "T", defaultType: { kind: "unknown" } }],
     targetType: nativeArrayType,
     members: [
+      {
+        kind: "method",
+        sourceName: "create",
+        targetName: "create",
+        targetId: dotnetNativeArrayCreateMemberId,
+        metadataName: "System.Array`1.create(System.Int32)",
+        static: true,
+        signatures: [
+          {
+            id: dotnetNativeArrayCreateMemberId,
+            typeParameters: [{ name: "T" }],
+            parameters: [
+              {
+                name: "length",
+                type: int32Type,
+                passingMode: "by-value",
+              },
+            ],
+            returnType: nativeArraySourceType,
+            targetReturnType: nativeArrayType,
+          },
+        ],
+      },
       {
         kind: "property",
         sourceName: "length",
@@ -89,37 +122,6 @@ function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {
               },
             ],
             returnType: typeParameter,
-          },
-        ],
-      },
-    ],
-  };
-}
-
-function dotnetNativeArrayFactoryNamespace(): DotnetModuleModel["exports"][number] {
-  return {
-    kind: "namespace",
-    sourceName: "Array",
-    namespaceName: dotnetNativeArrayFactoryNamespaceId,
-    exports: [
-      {
-        kind: "function",
-        sourceName: "create",
-        targetId: dotnetNativeArrayCreateMemberId,
-        metadataName: "System.Array`1.create(System.Int32)",
-        signatures: [
-          {
-            id: dotnetNativeArrayCreateMemberId,
-            typeParameters: [{ name: "T" }],
-            parameters: [
-              {
-                name: "length",
-                type: int32Type,
-                passingMode: "by-value",
-              },
-            ],
-            returnType: nativeArraySourceType,
-            targetReturnType: nativeArrayType,
           },
         ],
       },

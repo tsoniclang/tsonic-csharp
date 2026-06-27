@@ -15,6 +15,7 @@ import {
 export function getTargetTypeRefFromDirectFacts(
   input: TargetCompileInput,
   subject: ExtensionFactSubject | undefined,
+  options: { readonly includeRuntimeCarrier?: boolean } = {},
 ): TargetTypeRef | undefined {
   if (subject === undefined) {
     return undefined;
@@ -23,13 +24,15 @@ export function getTargetTypeRefFromDirectFacts(
   if (targetTypeRef !== undefined) {
     return targetTypeRef;
   }
-  const runtimeCarrier = input.facts.getRuntimeCarrierFact(subject)?.carrier;
-  if (runtimeCarrier !== undefined) {
-    return runtimeCarrier;
+  if (options.includeRuntimeCarrier !== false) {
+    const runtimeCarrier = input.facts.getRuntimeCarrierFact(subject)?.carrier;
+    if (runtimeCarrier !== undefined) {
+      return runtimeCarrier;
+    }
   }
   const pointer = input.facts.getPointerFact(subject);
   if (pointer !== undefined) {
-    const pointee = getTargetTypeRefFromDirectFacts(input, pointer.pointee);
+    const pointee = getTargetTypeRefFromDirectFacts(input, pointer.pointee, options);
     if (pointee !== undefined) {
       return {
         kind: "pointer",
@@ -40,8 +43,8 @@ export function getTargetTypeRefFromDirectFacts(
   }
   const functionPointer = input.facts.getFunctionPointerFact(subject);
   if (functionPointer !== undefined) {
-    const args = functionPointer.parameters.map((parameter) => getTargetTypeRefFromDirectFacts(input, parameter));
-    const result = getTargetTypeRefFromDirectFacts(input, functionPointer.result);
+    const args = functionPointer.parameters.map((parameter) => getTargetTypeRefFromDirectFacts(input, parameter, options));
+    const result = getTargetTypeRefFromDirectFacts(input, functionPointer.result, options);
     if (result !== undefined && args.every((argument) => argument !== undefined)) {
       return {
         kind: "function-pointer",

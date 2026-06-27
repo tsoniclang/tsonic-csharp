@@ -1,0 +1,78 @@
+import {
+  csharpQualifiedTypeRenderShape,
+  csharpTargetNamedType,
+} from "../../js/source-library.js";
+
+export const nodeBufferModuleSpecifier = "node:buffer";
+export const nodeBufferExportName = "Buffer";
+export const nodeBufferFromExportName = "from";
+export const nodeBufferFromStringMemberId = "node:buffer.Buffer.from";
+export const nodeBufferFromStringSignatureId = "node:buffer.Buffer.from(System.String,System.String)";
+export const nodeBufferAllocExportName = "alloc";
+export const nodeBufferAllocMemberId = "node:buffer.Buffer.alloc";
+export const nodeBufferAllocSignatureId = "node:buffer.Buffer.alloc(System.Int32)";
+export const nodeBufferAllocUnsafeExportName = "allocUnsafe";
+export const nodeBufferAllocUnsafeMemberId = "node:buffer.Buffer.allocUnsafe";
+export const nodeBufferAllocUnsafeSignatureId = "node:buffer.Buffer.allocUnsafe(System.Int32)";
+export const nodeBufferAllocUnsafeSlowExportName = "allocUnsafeSlow";
+export const nodeBufferAllocUnsafeSlowMemberId = "node:buffer.Buffer.allocUnsafeSlow";
+export const nodeBufferAllocUnsafeSlowSignatureId = "node:buffer.Buffer.allocUnsafeSlow(System.Int32)";
+export const nodeBufferByteLengthExportName = "byteLength";
+export const nodeBufferByteLengthMemberId = "node:buffer.Buffer.byteLength";
+export const nodeBufferByteLengthSignatureId = "node:buffer.Buffer.byteLength(System.String,System.String)";
+export const nodeBufferCompareExportName = "compare";
+export const nodeBufferCompareMemberId = "node:buffer.Buffer.compare";
+export const nodeBufferCompareSignatureId = "node:buffer.Buffer.compare(Tsonic.CSharp.Node.Buffer,Tsonic.CSharp.Node.Buffer)";
+export const nodeBufferConcatExportName = "concat";
+export const nodeBufferConcatMemberId = "node:buffer.Buffer.concat";
+export const nodeBufferConcatSignatureId = "node:buffer.Buffer.concat(Tsonic.CSharp.Node.Buffer[],System.Nullable`1)";
+export const nodeBufferEqualsExportName = "equals";
+export const nodeBufferEqualsMemberId = "node:buffer.Buffer.equals";
+export const nodeBufferEqualsSignatureId = "node:buffer.Buffer.equals(Tsonic.CSharp.Node.Buffer)";
+export const nodeBufferIsEncodingExportName = "isEncoding";
+export const nodeBufferIsEncodingMemberId = "node:buffer.Buffer.isEncoding";
+export const nodeBufferIsEncodingSignatureId = "node:buffer.Buffer.isEncoding(System.String)";
+export const nodeBufferLengthMemberId = "node:buffer.Buffer.length";
+export const nodeBufferOfExportName = "of";
+export const nodeBufferOfMemberId = "node:buffer.Buffer.of";
+export const nodeBufferOfSignatureId = "node:buffer.Buffer.of(System.Int32[])";
+export const nodeBufferSliceExportName = "slice";
+export const nodeBufferSliceMemberId = "node:buffer.Buffer.slice";
+export const nodeBufferSliceSignatureId = "node:buffer.Buffer.slice(System.Nullable`1,System.Nullable`1)";
+export const nodeBufferSubarrayExportName = "subarray";
+export const nodeBufferSubarrayMemberId = "node:buffer.Buffer.subarray";
+export const nodeBufferSubarraySignatureId = "node:buffer.Buffer.subarray(System.Nullable`1,System.Nullable`1)";
+export const nodeBufferToStringExportName = "toString";
+export const nodeBufferToStringMemberId = "node:buffer.Buffer.toString";
+export const nodeBufferToStringSignatureId = "node:buffer.Buffer.toString(System.String,System.Int32,System.Nullable`1)";
+
+export const nodeBufferAtobExportName = "atob";
+export const nodeBufferAtobSignatureId = "node:buffer.atob(System.String)";
+export const nodeBufferBtoaExportName = "btoa";
+export const nodeBufferBtoaSignatureId = "node:buffer.btoa(System.String)";
+export const nodeBufferIsAsciiExportName = "isAscii";
+export const nodeBufferIsAsciiSignatureId = "node:buffer.isAscii(Tsonic.CSharp.Node.Buffer)";
+export const nodeBufferIsUtf8ExportName = "isUtf8";
+export const nodeBufferIsUtf8SignatureId = "node:buffer.isUtf8(Tsonic.CSharp.Node.Buffer)";
+
+export const nodeBufferTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.Buffer", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "Buffer"));
+export const nodeBufferModuleTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.buffer", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "buffer"));
+
+export const nodeBufferFromStringTargetMemberId = "Tsonic.CSharp.Node.Buffer.from(System.String,System.String)";
+export const nodeBufferAllocTargetMemberId = "Tsonic.CSharp.Node.Buffer.alloc(System.Int32)";
+export const nodeBufferAllocUnsafeTargetMemberId = "Tsonic.CSharp.Node.Buffer.allocUnsafe(System.Int32)";
+export const nodeBufferAllocUnsafeSlowTargetMemberId = "Tsonic.CSharp.Node.Buffer.allocUnsafeSlow(System.Int32)";
+export const nodeBufferByteLengthTargetMemberId = "Tsonic.CSharp.Node.Buffer.byteLength(System.String,System.String)";
+export const nodeBufferCompareTargetMemberId = "Tsonic.CSharp.Node.Buffer.compare(Tsonic.CSharp.Node.Buffer,Tsonic.CSharp.Node.Buffer)";
+export const nodeBufferConcatTargetMemberId = "Tsonic.CSharp.Node.Buffer.concat(Tsonic.CSharp.Node.Buffer[],System.Nullable`1)";
+export const nodeBufferLengthTargetMemberId = "Tsonic.CSharp.Node.Buffer.length";
+export const nodeBufferIsEncodingTargetMemberId = "Tsonic.CSharp.Node.Buffer.isEncoding(System.String)";
+export const nodeBufferOfTargetMemberId = "Tsonic.CSharp.Node.Buffer.of(System.Int32[])";
+export const nodeBufferEqualsTargetMemberId = "Tsonic.CSharp.Node.Buffer.equals(Tsonic.CSharp.Node.Buffer)";
+export const nodeBufferSliceTargetMemberId = "Tsonic.CSharp.Node.Buffer.slice(System.Nullable`1,System.Nullable`1)";
+export const nodeBufferSubarrayTargetMemberId = "Tsonic.CSharp.Node.Buffer.subarray(System.Nullable`1,System.Nullable`1)";
+export const nodeBufferToStringTargetMemberId = "Tsonic.CSharp.Node.Buffer.toString(System.String,System.Int32,System.Nullable`1)";
+export const nodeBufferAtobTargetMemberId = "Tsonic.CSharp.Node.buffer.atob(System.String)";
+export const nodeBufferBtoaTargetMemberId = "Tsonic.CSharp.Node.buffer.btoa(System.String)";
+export const nodeBufferIsAsciiTargetMemberId = "Tsonic.CSharp.Node.buffer.isAscii(Tsonic.CSharp.Node.Buffer)";
+export const nodeBufferIsUtf8TargetMemberId = "Tsonic.CSharp.Node.buffer.isUtf8(Tsonic.CSharp.Node.Buffer)";

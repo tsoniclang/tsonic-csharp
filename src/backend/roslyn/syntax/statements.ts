@@ -41,12 +41,19 @@ export type CsharpSwitchLabel =
   | { readonly kind: "CaseSwitchLabel"; readonly expression: CsharpExpression }
   | { readonly kind: "DefaultSwitchLabel" };
 
-export interface CsharpCatchClause {
-  readonly kind: "CatchClause";
-  readonly variableType?: CsharpTypeNode;
-  readonly variableName?: string;
-  readonly body: CsharpBlock;
-}
+export type CsharpCatchClause =
+  | {
+      readonly kind: "CatchClause";
+      readonly body: CsharpBlock;
+      readonly variableName?: never;
+      readonly variableType?: never;
+    }
+  | {
+      readonly kind: "CatchClause";
+      readonly variableName: string;
+      readonly variableType: CsharpTypeNode;
+      readonly body: CsharpBlock;
+    };
 
 export type CsharpForInitializer =
   | { readonly kind: "VariableDeclaration"; readonly locals: readonly CsharpLocalDeclaration[] }

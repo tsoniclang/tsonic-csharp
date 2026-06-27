@@ -1,0 +1,74 @@
+import type {
+  CsharpClassDeclaration,
+  CsharpTypeMember,
+  CsharpTypeParameter,
+} from "../../roslyn/syntax.js";
+import type {
+  CsharpObjectShapeFact,
+} from "../../../source/csharp-facts.js";
+import {
+  sameCsharpType,
+} from "../csharp-types.js";
+import {
+  objectShapeStorageMemberName,
+} from "../object-shape-storage.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../target-types.js";
+import {
+  renderObjectShapeTypeParameters,
+} from "./type-parameters.js";
+
+export function objectShapeDeclarationMatches(
+  declaration: CsharpClassDeclaration,
+  fact: CsharpObjectShapeFact,
+): boolean {
+  const typeParameters = renderObjectShapeTypeParameters(fact, undefined, undefined);
+  if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
+    return false;
+  }
+  for (const member of fact.members) {
+    if (member.memberKind === "method") {
+      const storageName = objectShapeStorageMemberName(fact, member);
+      if (!declaration.members.some((candidate) => candidate.kind === "FieldDeclaration" && candidate.name === storageName)) {
+        return false;
+      }
+      if (!declaration.members.some((candidate) => candidate.kind === "MethodDeclaration" && candidate.name === member.targetName)) {
+        return false;
+      }
+      continue;
+    }
+    const renderedType = csharpTypeFromTargetTypeRef(member.type);
+    const declarationMember = declaration.members
+      .filter(isObjectShapeStorageDeclaration)
+      .find((candidate) => candidate.name === member.targetName);
+    if (declarationMember === undefined || renderedType === undefined || !sameCsharpType(declarationMember.type, renderedType)) {
+      return false;
+    }
+  }
+  return declaration.members.every((member) => {
+    if (member.kind === "MethodDeclaration") {
+      return fact.members.some((candidate) => candidate.memberKind === "method" && candidate.targetName === member.name);
+    }
+    if (member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration") {
+      return fact.members.some((candidate) =>
+        (candidate.memberKind === "method" ? objectShapeStorageMemberName(fact, candidate) : candidate.targetName) === member.name);
+    }
+    return true;
+  });
+}
+
+function isObjectShapeStorageDeclaration(
+  member: CsharpTypeMember,
+): member is Extract<CsharpTypeMember, { readonly kind: "FieldDeclaration" | "PropertyDeclaration" }> {
+  return member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration";
+}
+
+function objectShapeTypeParametersMatch(
+  actual: readonly CsharpTypeParameter[] | undefined,
+  expected: readonly CsharpTypeParameter[],
+): boolean {
+  const actualParameters = actual ?? [];
+  return actualParameters.length === expected.length &&
+    actualParameters.every((parameter, index) => parameter.name === expected[index]?.name);
+}

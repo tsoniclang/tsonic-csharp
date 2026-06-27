@@ -1,10 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import { csharpTargetConversionOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
-import { getCsharpProviderConversionOperator } from "../dist/source/csharp-source-semantics/provider-conversion-operators.js";
+import { getCsharpProviderConversionOperatorById } from "../dist/source/csharp-source-semantics/provider-conversion-operators.js";
 import { csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
@@ -188,7 +192,7 @@ test("planner diagnoses unsupported target conversion operations instead of inve
     },
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized C# target conversion operation fact/);
 });
@@ -208,9 +212,38 @@ test("planner rejects conversion methods without a finalized C# operation fact",
     },
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a finalized C# target conversion operation fact/);
+});
+
+test("planner rejects conversion methods whose finalized C# operation is not static", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      convertedType: { kind: "target-named", id: "System.Byte" },
+      operation: {
+        operationId: "System.Convert.ToByte",
+        operationKind: "method",
+        targetOperation: "ToByte",
+      },
+    },
+    csharpOperationSubject: value,
+    csharpOperation: {
+      kind: "member",
+      operationId: "System.Convert.ToByte",
+      operationKind: "method",
+      memberName: "ToByte",
+      static: false,
+      declaringType: csharpTargetNamedType("System.Convert", undefined, csharpQualifiedTypeRenderShape("System", "Convert")),
+    },
+  }), diagnostics);
+
+  assert.equal(expression, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a finalized static C# member operation fact/);
 });
 
 test("provider generic conversion operators substitute target type arguments before checked conversion emission", () => {
@@ -237,7 +270,13 @@ test("provider generic conversion operators substitute target type arguments bef
     }],
   };
 
-  const result = getCsharpProviderConversionOperator(wrapperInt, boxInt, hostForBindings([binding]), "implicit-only");
+  const result = getCsharpProviderConversionOperatorById(
+    "Example.Box`1.op_Implicit(Example.Wrapper`1<T>)",
+    wrapperInt,
+    boxInt,
+    hostForBindings([binding]),
+    "implicit-only",
+  );
 
   assert.equal(result.kind, "matched");
   assert.equal(result.operation.operationId, "Example.Box`1.op_Implicit(Example.Wrapper`1<T>)");
@@ -299,14 +338,21 @@ function fakeInput(options = {}) {
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
     },
-    semantics: {
-      getTargetBindingForReference: () => undefined,
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
       describeTypeAtLocation: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: () => missingCarrierResolution(),
+      resolveRuntimeCarrierForNode: () => missingCarrierResolution(),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
   };
 }

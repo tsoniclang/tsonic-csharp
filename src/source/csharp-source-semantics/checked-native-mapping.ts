@@ -1,6 +1,9 @@
 import {
   acceptObservation,
+  argumentPassingFactKey,
+  contextualTargetTypeFactKey,
   deferObservation,
+  rejectObservation,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -25,13 +28,19 @@ import {
   csharpTargetId,
 } from "./identity.js";
 import {
+  subjectIsSourceCoreStructDeclarationPayload,
+} from "./source-core-struct-markers.js";
+import {
+  csharpProviderDiagnostic,
+} from "./diagnostics.js";
+import {
   getCsharpConversionOperation,
 } from "./target-rules.js";
 import {
   getCsharpCollectionElementTargetType,
 } from "./target-types.js";
 import {
-  getCsharpProviderConversionOperator,
+  requiresCsharpProviderConversionEvidence,
 } from "./provider-conversion-operators.js";
 import {
   targetOperation,
@@ -39,6 +48,7 @@ import {
 import {
   asTargetParameter,
   targetTypeRefEquals,
+  targetTypeRefKey,
 } from "./target-ref-utils.js";
 import {
   isLiteralRepresentableAsTargetType,
@@ -84,17 +94,37 @@ export function mapCsharpNativeCheckedIteration(
 export function mapCsharpContextualTargetType(
   request: ContextualTargetTypeRequest,
   context: ExtensionObservationContext<"type.recordContextualTargetType">,
-  _host: CsharpOperationsProviderHost,
+  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<ContextualTargetTypeResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const existing = context.facts.get(request.expression, contextualTargetTypeFactKey);
+  if (existing !== undefined) {
+    return acceptObservation<ContextualTargetTypeResult>(
+      existing,
+      [{ message: "C# reused existing contextual target type fact for repeated TSTS contextual observation." }],
+    );
+  }
+  if (subjectIsSourceCoreStructDeclarationPayload(request.expression, context)) {
+    return acceptObservation<ContextualTargetTypeResult>(
+      { type: request.context },
+      [{ message: "C# acknowledged TSTS contextual type for source-core struct schema payload without target metadata; schema payload is source metadata, not emitted code." }],
+    );
+  }
   if (isAttributeSelectorCallbackExpression(request.expression, context)) {
     return deferObservation;
   }
+  const targetType = host.getTargetTypeRefForSubject(request.context, context);
+  if (targetType === undefined) {
+    return acceptObservation<ContextualTargetTypeResult>({
+      type: request.context,
+    }, [{ message: "C# acknowledged TSTS contextual type without target metadata; no deterministic C# target type was available." }]);
+  }
   return acceptObservation<ContextualTargetTypeResult>({
     type: request.context,
-  }, [{ message: "C# contextual target type recorded from checked TSTS contextual type for post-check target mapping." }]);
+    targetType,
+  }, [{ message: "C# contextual target type recorded from checked TSTS contextual type and deterministic C# target type." }]);
 }
 
 export function mapCsharpCheckedConversion(
@@ -105,7 +135,7 @@ export function mapCsharpCheckedConversion(
   if (request.targetPlatform !== undefined && request.targetPlatform !== csharpTargetId) {
     return deferObservation;
   }
-  const source = host.getTargetTypeRefForSubject(request.source, context);
+  const source = host.getTargetTypeRefForSubject(request.source, context, noRuntimeCarrierQuery);
   const target = host.getTargetTypeRefForSubject(request.target, context);
   if (target === undefined) {
     return deferObservation;
@@ -136,23 +166,35 @@ export function mapCsharpCheckedConversion(
       convertedType: target,
     }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
   }
-  const providerConversion = getCsharpProviderConversionOperator(source, target, host, "implicit-only");
-  if (providerConversion.kind === "matched") {
-    context.facts.set(
-      request.source,
-      csharpTargetConversionOperationFactKey,
-      providerConversion.csharpOperation,
-      [{ message: "C# provider implicit conversion operator recorded from reflected target member facts." }],
-    );
-    return acceptObservation<CheckedConversionMappingResult>({
-      sourceType: providerConversion.operator.sourceType,
-      convertedType: target,
-      operation: providerConversion.operation,
-    }, [{ message: "C# target conversion recorded from reflected provider implicit conversion operator." }]);
-  }
   const operation = getCsharpConversionOperation(source, target);
   if (operation !== undefined) {
     context.facts.set(request.source, csharpTargetConversionOperationFactKey, operation.csharpOperation, [{ message: "C# target conversion static member recorded from selected target conversion." }]);
+  }
+  if (operation === undefined && requiresCsharpProviderConversionEvidence(source, target, host)) {
+    return rejectObservation({
+      ...csharpProviderDiagnostic(
+        context.extensionId,
+        "CSHARP_PROVIDER_CHECKED_CONVERSION_UNSUPPORTED",
+        9100138,
+        "C# provider checked conversion requires a finalized provider conversion operator fact.",
+      ),
+      nodeOrSpan: request.expression,
+      evidence: [
+        {
+          message: "Missing provider conversion operator",
+          details: "The source or target type is provider-owned, so checked conversion emission requires an exact TSTS-selected provider conversion operator identity. The current checked conversion observation request exposes source and target types only, not the selected provider conversion operator id.",
+        },
+        {
+          message: "Source C# target type",
+          details: source ?? "unresolved",
+        },
+        {
+          message: "Target C# target type",
+          details: target,
+        },
+      ],
+      identity: `csharp-provider-checked-conversion-unsupported:${subjectIdentity(request.expression)}:${source === undefined ? "unresolved" : targetTypeRefKey(source)}=>${targetTypeRefKey(target)}`,
+    });
   }
   return acceptObservation<CheckedConversionMappingResult>({
     ...(source !== undefined ? { sourceType: source } : {}),
@@ -163,7 +205,7 @@ export function mapCsharpCheckedConversion(
 
 export function mapCsharpParameterPassing(
   request: ParameterPassingRequest,
-  _context: ExtensionObservationContext<"parameter.resolvePassing">,
+  context: ExtensionObservationContext<"parameter.resolvePassing">,
 ): ExtensionObservation<ParameterPassingResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
@@ -172,10 +214,31 @@ export function mapCsharpParameterPassing(
   if (parameter === undefined) {
     return deferObservation;
   }
+  const sourceMarkerPassing = context.facts.get(request.argument, argumentPassingFactKey);
+  if (sourceMarkerPassing !== undefined) {
+    if (sourceMarkerPassing.mode !== parameter.passingMode) {
+      return rejectObservation(csharpProviderDiagnostic(
+        context.extensionId,
+        "CSHARP_ARGUMENT_PASSING_MODE_MISMATCH",
+        9100148,
+        `C# parameter passing requires '${parameter.passingMode}', but the selected source marker provided '${sourceMarkerPassing.mode}'.`,
+      ));
+    }
+    return acceptObservation<ParameterPassingResult>({
+      passing: sourceMarkerPassing,
+    }, [{ message: "C# argument passing reused the finalized source-core storage marker fact for the selected provider parameter." }]);
+  }
   return acceptObservation<ParameterPassingResult>({
     passing: {
       mode: parameter.passingMode,
       ...(request.argument !== undefined ? { targetExpression: request.argument } : {}),
     },
   }, [{ message: "C# argument passing recorded from selected target parameter." }]);
+}
+
+function subjectIdentity(subject: unknown): string {
+  if (subject !== null && typeof subject === "object" && "id" in subject) {
+    return String((subject as { readonly id?: unknown }).id ?? "unknown");
+  }
+  return "unknown";
 }

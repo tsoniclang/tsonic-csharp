@@ -24,6 +24,7 @@ export type {
   CsharpModifier,
   CsharpParameter,
   CsharpPropertyDeclaration,
+  CsharpStaticConstructorDeclaration,
   CsharpTypeMember,
   CsharpTypeParameter,
 } from "./syntax/members.js";

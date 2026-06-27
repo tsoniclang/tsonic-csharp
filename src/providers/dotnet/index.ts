@@ -46,6 +46,10 @@ export type {
   DotnetReflectionTypeDataProviderOptions,
 } from "./reflection/provider.js";
 export type {
+  DotnetReflectionProviderBroker,
+} from "./reflection/broker.js";
+export type {
+  DotnetProviderModuleRequestTelemetry,
   DotnetProviderTelemetry,
   DotnetProviderTelemetrySnapshot,
 } from "./reflection/telemetry.js";
@@ -53,7 +57,12 @@ export {
   createDotnetReflectionTypeDataProvider,
 } from "./reflection/provider.js";
 export {
+  createDotnetReflectionProviderBroker,
+} from "./reflection/broker.js";
+export {
   createDotnetProviderTelemetry,
+  dotnetProviderTelemetryCounters,
+  formatDotnetProviderTelemetrySnapshot,
 } from "./reflection/telemetry.js";
 export {
   createDotnetModuleSpecifier,

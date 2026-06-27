@@ -1,4 +1,5 @@
 export {
+  createCsharpLifecycleObservationContext,
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carrier-context.js";
 export type {

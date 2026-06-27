@@ -115,7 +115,7 @@ export function appendSemanticNodeFactReasons(
   sourceFile: SourceFile,
   label: string,
 ): void {
-  const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
+  const targetBinding = input.targetFacts.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding !== undefined) {
     reasons.push(`${label} target binding`);
   } else {
@@ -135,7 +135,7 @@ function getTargetTypeRefForSemanticType(
   sourceFile: SourceFile,
 ): TargetTypeRef | undefined {
   const type = IsTypeSyntaxNode(input.ast, node)
-    ? input.semantics.getTypeFromTypeNode(node, { sourceFile })
-    : input.semantics.getTypeAtLocation(node, { sourceFile });
+    ? input.analysis.getTypeFromTypeNode(node, { sourceFile })
+    : input.analysis.getTypeAtLocation(node, { sourceFile });
   return getTargetTypeRefForType(input, type, sourceFile);
 }

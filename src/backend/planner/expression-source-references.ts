@@ -6,6 +6,7 @@ import {
   KindFunctionDeclaration,
   KindPropertyAccessExpression,
   KindVariableDeclaration,
+  Node_Name,
   Node_Text,
   SourceFile_FileName,
 } from "./source-ast.js";
@@ -14,8 +15,8 @@ import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression } from "../roslyn/syntax.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
-import { requireCsharpIdentifier } from "./identifiers.js";
+import { requireCsharpIdentifier, sanitizeIdentifier } from "./identifiers.js";
+import { planIdentifierName } from "./names.js";
 import {
   getCsharpLocalBindingName,
 } from "./bindings.js";
@@ -31,20 +32,23 @@ export function planIdentifierExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const sourceName = Node_Text(AsIdentifier(identifier));
-  const sourceReference = input.semantics.getProjectSourceReferenceForNode(identifier, { sourceFile });
+  const sourceReference = input.analysis.getProjectSourceReferenceForNode(identifier, { sourceFile });
+  const referenceTargetBinding = input.targetFacts.getTargetBindingForReference(identifier, { sourceFile });
+  if (isGlobalUndefinedExpression(identifier, sourceName, sourceFile, input, sourceReference, referenceTargetBinding)) {
+    return { kind: "LiteralExpression", value: null };
+  }
   if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Declaration/provider identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
-    return invalidExpression("declaration identifier expression");
+    return undefined;
   }
-  const referenceTargetBinding = input.semantics.getTargetBindingForReference(identifier, { sourceFile });
   if (referenceTargetBinding !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
-    return invalidExpression("provider-owned identifier expression");
+    return undefined;
   }
-  const directSymbol = input.semantics.getSymbolAtLocation(identifier, { sourceFile });
-  const resolvedSymbol = input.semantics.getResolvedSymbol(identifier, { sourceFile });
+  const directSymbol = input.analysis.getSymbolAtLocation(identifier, { sourceFile });
+  const resolvedSymbol = input.analysis.getResolvedSymbol(identifier, { sourceFile });
   const directTargetBinding = input.facts.getTargetBindingFact(directSymbol) ??
     input.facts.getTargetBindingFact(resolvedSymbol);
   if (
@@ -52,7 +56,7 @@ export function planIdentifierExpression(
     isProviderVirtualDeclarationIdentifier(identifier, sourceFile, input)
   ) {
     diagnostics.push(unsupportedNodeDiagnostic(identifier, `Provider-owned identifier '${sourceName}' requires a selected target operation or type-position usage before C# emission.`));
-    return invalidExpression("provider-owned identifier expression");
+    return undefined;
   }
   const sourceModuleMemberReference = planProjectSourceModuleMemberReference(identifier, sourceFile, input, diagnostics);
   if (sourceModuleMemberReference !== undefined) {
@@ -65,8 +69,25 @@ export function planIdentifierExpression(
   };
 }
 
+function isGlobalUndefinedExpression(
+  identifier: Node,
+  sourceName: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  sourceReference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
+  targetBinding: ReturnType<TargetCompileInput["targetFacts"]["getTargetBindingForReference"]>,
+): boolean {
+  if (!nullLiteralGlobalSourceNames.has(sourceName) || sourceReference !== undefined || targetBinding !== undefined) {
+    return false;
+  }
+  const type = input.analysis.getTypeAtLocation(identifier, { sourceFile });
+  return type !== undefined && input.types.isNullish(type);
+}
+
+const nullLiteralGlobalSourceNames = new Set(["undefined"]);
+
 export function isExternalDeclarationReference(
-  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
+  reference: ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {
@@ -90,7 +111,7 @@ export function planProjectSourceModuleMemberReference(
   }
   if (!isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Cross-file source reference requires a top-level function or variable declaration resolved by TSTS."));
-    return invalidExpression("cross-file source reference");
+    return undefined;
   }
   return {
     kind: "SimpleMemberAccessExpression",
@@ -98,7 +119,7 @@ export function planProjectSourceModuleMemberReference(
       kind: "IdentifierName",
       name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
     },
-    name: requireCsharpIdentifier(sourceReference.symbol.Name, diagnostics, "Cross-file source reference"),
+    name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
   };
 }
 
@@ -121,7 +142,7 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
       kind: "IdentifierName",
       name: sourceFileClassName(input, SourceFile_FileName(sourceReference.sourceFile)),
     },
-    name: requireCsharpIdentifier(sourceReference.symbol.Name, diagnostics, "Cross-file source reference"),
+    name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
   };
 }
 
@@ -129,8 +150,8 @@ function getProjectSourceReferenceForModuleMemberNode(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]> {
-  return input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }) ??
+): ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]> {
+  return input.analysis.getProjectSourceReferenceForNode(node, { sourceFile }) ??
     getProjectSourceReferenceForPropertyAccessName(node, sourceFile, input);
 }
 
@@ -140,8 +161,8 @@ function isProviderVirtualDeclarationIdentifier(
   input: TargetCompileInput,
 ): boolean {
   const symbols = [
-    input.semantics.getSymbolAtLocation(identifier, { sourceFile }),
-    input.semantics.getResolvedSymbol(identifier, { sourceFile }),
+    input.analysis.getSymbolAtLocation(identifier, { sourceFile }),
+    input.analysis.getResolvedSymbol(identifier, { sourceFile }),
   ];
   return symbols.some((symbol) => {
     if (symbol === undefined) {
@@ -170,16 +191,33 @@ function isModuleStaticValueDeclaration(declaration: Node, input: TargetCompileI
     HasSourceKind(input.ast, declaration, KindExportAssignment);
 }
 
+function planProjectSourceModuleMemberName(
+  declaration: Node,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): string {
+  if (HasSourceKind(input.ast, declaration, KindExportAssignment)) {
+    return sanitizeIdentifier("default");
+  }
+  return planIdentifierName(
+    Node_Name(declaration),
+    "InvalidCrossFileReference",
+    input,
+    diagnostics,
+    "Cross-file source reference",
+  );
+}
+
 function getProjectSourceReferenceForPropertyAccessName(
   node: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]> {
+): ReturnType<TargetCompileInput["analysis"]["getProjectSourceReferenceForNode"]> {
   if (!HasSourceKind(input.ast, node, KindPropertyAccessExpression)) {
     return undefined;
   }
   const name = AsPropertyAccessExpression(node)?.name;
   return name === undefined
     ? undefined
-    : input.semantics.getProjectSourceReferenceForNode(name, { sourceFile });
+    : input.analysis.getProjectSourceReferenceForNode(name, { sourceFile });
 }

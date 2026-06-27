@@ -19,9 +19,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  invalidExpression,
-} from "./invalid-expression.js";
-import {
   requireCsharpIdentifier,
 } from "./identifiers.js";
 import {
@@ -60,27 +57,59 @@ export function tryPlanCompatRuntimePropertySet(
   }
   const operation = getRequiredCompatRuntimeMemberOperation(operationNode, "C# compat-runtime any property set", input, diagnostics);
   if (operation === undefined || receiverNode === undefined) {
-    return invalidExpression("compat any property set operation");
-  }
-  if (operation.operationKind === "property") {
-    return {
-      kind: "AssignmentExpression",
-      left: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: planExpression(receiverNode, sourceFile, input, diagnostics),
-        name: requireCsharpIdentifier(operation.memberName, diagnostics, "C# compat-runtime property setter member"),
-      },
-      operatorToken: { kind: "EqualsToken" },
-      right: rightNode === undefined
-        ? invalidExpression("compat any property set value")
-        : planExpression(rightNode, sourceFile, input, diagnostics),
-    };
+    return undefined;
   }
   if (operation.operationKind !== "method") {
-    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `C# compat-runtime any property set requires a finalized method or property operation fact, but provider recorded '${operation.operationKind}'.`));
-    return invalidExpression("compat any property set kind");
+    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `C# compat-runtime any property set requires a finalized method operation fact with explicit argument projection, but provider recorded '${operation.operationKind}'.`));
+    return undefined;
   }
-  return planCompatRuntimeMethodInvocation(operationNode, operation, receiverNode, [rightNode], false, "C# compat-runtime any property set", sourceFile, input, diagnostics, planExpression);
+  const receiver = planExpression(receiverNode, sourceFile, input, diagnostics);
+  return receiver === undefined
+    ? undefined
+    : planCompatRuntimeMethodInvocation(operationNode, operation, receiver, [rightNode], false, "C# compat-runtime any property set", sourceFile, input, diagnostics, planExpression);
+}
+
+export function tryPlanCompatRuntimeElementGet(
+  operationNode: Node,
+  receiverNode: Node | undefined,
+  argumentNode: Node | undefined,
+  optional: boolean,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  if (!isOpaqueAnyReceiver(receiverNode, sourceFile, input)) {
+    return undefined;
+  }
+  return planCompatRuntimeReceiverOperation(operationNode, receiverNode, optional, [argumentNode], "C# compat-runtime any element get", sourceFile, input, diagnostics, planExpression);
+}
+
+export function tryPlanCompatRuntimeElementSet(
+  operationNode: Node,
+  receiverNode: Node | undefined,
+  argumentNode: Node | undefined,
+  rightNode: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  if (!isOpaqueAnyReceiver(receiverNode, sourceFile, input)) {
+    return undefined;
+  }
+  const operation = getRequiredCompatRuntimeMemberOperation(operationNode, "C# compat-runtime any element set", input, diagnostics);
+  if (operation === undefined || receiverNode === undefined) {
+    return undefined;
+  }
+  if (operation.operationKind !== "method") {
+    diagnostics.push(unsupportedNodeDiagnostic(operationNode, `C# compat-runtime any element set requires a finalized method operation fact, but provider recorded '${operation.operationKind}'.`));
+    return undefined;
+  }
+  const receiver = planExpression(receiverNode, sourceFile, input, diagnostics);
+  return receiver === undefined
+    ? undefined
+    : planCompatRuntimeMethodInvocation(operationNode, operation, receiver, [argumentNode, rightNode], false, "C# compat-runtime any element set", sourceFile, input, diagnostics, planExpression);
 }
 
 export function tryPlanCompatRuntimeCall(
@@ -123,29 +152,33 @@ function planCompatRuntimeReceiverOperation(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const operation = getRequiredCompatRuntimeMemberOperation(operationNode, purpose, input, diagnostics);
   if (operation === undefined || receiverNode === undefined) {
-    return invalidExpression("compat any operation");
+    return undefined;
+  }
+  const receiver = planExpression(receiverNode, sourceFile, input, diagnostics);
+  if (receiver === undefined) {
+    return undefined;
   }
   if (operation.operationKind === "property" && argumentNodes.length === 0) {
     return {
       kind: optional ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression",
-      receiver: planExpression(receiverNode, sourceFile, input, diagnostics),
+      receiver,
       name: requireCsharpIdentifier(operation.memberName, diagnostics, `${purpose} property member`),
     };
   }
   if (operation.operationKind !== "method") {
     diagnostics.push(unsupportedNodeDiagnostic(operationNode, `${purpose} requires a finalized method operation fact, but provider recorded '${operation.operationKind}'.`));
-    return invalidExpression("compat any operation kind");
+    return undefined;
   }
-  return planCompatRuntimeMethodInvocation(operationNode, operation, receiverNode, argumentNodes, optional, purpose, sourceFile, input, diagnostics, planExpression);
+  return planCompatRuntimeMethodInvocation(operationNode, operation, receiver, argumentNodes, optional, purpose, sourceFile, input, diagnostics, planExpression);
 }
 
 function planCompatRuntimeMethodInvocation(
   operationNode: Node,
   operation: CsharpTargetMemberOperationFact,
-  receiverNode: Node,
+  receiver: CsharpExpression,
   argumentNodes: readonly (Node | undefined)[],
   optional: boolean,
   purpose: string,
@@ -153,16 +186,16 @@ function planCompatRuntimeMethodInvocation(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const arguments_ = planCompatRuntimeArguments(operationNode, operation.argumentProjection, argumentNodes, purpose, sourceFile, input, diagnostics, planExpression);
   if (arguments_ === undefined) {
-    return invalidExpression("compat any operation arguments");
+    return undefined;
   }
   return {
     kind: "InvocationExpression",
     callee: {
       kind: optional ? "ConditionalAccessExpression" : "SimpleMemberAccessExpression",
-      receiver: planExpression(receiverNode, sourceFile, input, diagnostics),
+      receiver,
       name: requireCsharpIdentifier(operation.memberName, diagnostics, `${purpose} method member`),
     },
     arguments: arguments_,
@@ -249,8 +282,7 @@ function getRequiredCompatRuntimeMemberOperation(
 }
 
 function isClosedCompatRuntimeOperation(operation: CsharpTargetMemberOperationFact): boolean {
-  return isCsharpClosedCompatRuntimeCarrier(operation.declaringType) ||
-    isCsharpClosedCompatRuntimeCarrier(operation.resultType);
+  return isCsharpClosedCompatRuntimeCarrier(operation.declaringType);
 }
 
 function isOpaqueAnyReceiver(

@@ -1,8 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { planCsharpArtifacts } from "../dist/backend/planner/csharp-planner.js";
 import { planCsharpEntrypointSourceFile } from "../dist/backend/planner/csharp-entrypoint-planner.js";
 import { planSourceFile } from "../dist/backend/planner/csharp-source-file-planner.js";
+import { planCsharpModuleInitialization } from "../dist/backend/planner/csharp-module-initialization.js";
+import { validateSourceFileOutputIdentities } from "../dist/backend/planner/source-paths.js";
 import {
   KindExpressionStatement,
   KindStringLiteral,
@@ -13,13 +19,15 @@ test("executable output plans a Roslyn AST entrypoint that invokes module initia
     outputType: "Exe",
   });
   const diagnostics = [];
-  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics);
+  validateSourceFileOutputIdentities(input, diagnostics);
+  const moduleInitialization = planCsharpModuleInitialization(input);
+  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics, moduleInitialization);
 
   assert.deepEqual(diagnostics, []);
   assert.ok(plannedSource);
   assert.equal(plannedSource.hasModuleInitializer, true);
 
-  const entrypoint = planCsharpEntrypointSourceFile(input, [plannedSource]);
+  const entrypoint = planCsharpEntrypointSourceFile(input, [plannedSource], moduleInitialization);
 
   assert.ok(entrypoint);
   assert.equal(entrypoint.path, "generated/TsonicEntrypoint.cs");
@@ -60,10 +68,12 @@ test("executable output still materializes source artifacts from the planned Ros
 test("library output does not synthesize executable entrypoint AST or artifacts", () => {
   const input = fakeInput();
   const diagnostics = [];
-  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics);
+  validateSourceFileOutputIdentities(input, diagnostics);
+  const moduleInitialization = planCsharpModuleInitialization(input);
+  const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics, moduleInitialization);
   assert.deepEqual(diagnostics, []);
   assert.ok(plannedSource);
-  assert.equal(planCsharpEntrypointSourceFile(input, [plannedSource]), undefined);
+  assert.equal(planCsharpEntrypointSourceFile(input, [plannedSource], moduleInitialization), undefined);
 
   const result = planCsharpArtifacts(input);
   assert.deepEqual(result.diagnostics, []);
@@ -72,14 +82,17 @@ test("library output does not synthesize executable entrypoint AST or artifacts"
 });
 
 function fakeInput(options = {}) {
+  const target = { id: "csharp", options };
   return {
-    target: { id: "csharp", options },
+    project: { entryPoint: "index.ts", targets: [target] },
+    target,
     runtimeReferences: [],
     sourceFiles: [sourceFile()],
     paths: { projectRoot: "/project" },
     ast: fakeAst,
     facts: fakeFacts,
-    semantics: fakeSemantics,
+    analysis: fakeSemantics,
+    targetFacts: fakeTargetFacts,
     types: fakeTypes,
   };
 }
@@ -103,6 +116,7 @@ function sourceFile() {
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
+  getFileName: (sourceFile) => sourceFile?.FileName ?? "",
   getSourceFile: () => undefined,
   forEachChild: () => undefined,
   typeArguments: () => [],
@@ -154,10 +168,9 @@ const fakeFacts = {
 };
 
 const fakeSemantics = {
-  getTargetBindingForReference: () => undefined,
   getProjectSourceReferenceForNode: () => undefined,
   getProjectSourceDeclarationForNode: () => undefined,
-  getRuntimeCarrierForNode: () => undefined,
+  getProjectSourceModuleDependencies: () => [],
   getObjectShapeForNode: () => undefined,
   getResolvedSymbol: () => undefined,
   getSymbolAtLocation: () => undefined,
@@ -165,7 +178,16 @@ const fakeSemantics = {
   getTypeFromTypeNode: () => undefined,
   describeTypeAtLocation: () => undefined,
   getEnumMemberConstant: () => undefined,
-  getReturnTypeCarrierFromDeclaration: () => undefined,
+};
+
+const fakeTargetFacts = {
+  getTargetBinding: () => undefined,
+  getTargetBindingForReference: () => undefined,
+  resolveRuntimeCarrier: () => missingCarrierResolution(),
+  resolveRuntimeCarrierForNode: () => missingCarrierResolution(),
+  resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+  resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+  resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
 };
 
 const fakeTypes = {

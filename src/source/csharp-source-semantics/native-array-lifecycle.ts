@@ -10,7 +10,6 @@ import type {
 import {
   dotnetNativeArrayIndexerMemberId,
   dotnetNativeArrayLengthMemberId,
-  dotnetNativeArrayTypeId,
 } from "../../providers/dotnet/native-array.js";
 import {
   asNodeSubject,
@@ -21,9 +20,6 @@ import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
 import {
-  csharpProviderDiagnostic,
-} from "./diagnostics.js";
-import {
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
   targetOperation,
@@ -31,6 +27,9 @@ import {
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carrier-context.js";
+import {
+  csharpProviderDiagnostic,
+} from "./diagnostics.js";
 import {
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
@@ -85,15 +84,8 @@ function recordNativeArrayLengthFact(
   if (receiverType?.kind !== "array") {
     return;
   }
-  const member = host.getCsharpTargetBindingByTargetId(dotnetNativeArrayTypeId)?.members?.find((candidate) => candidate.id === dotnetNativeArrayLengthMemberId);
   const propertyName = compiler.ast.text(compiler.ast.name(node));
-  if (member === undefined || member.sourceName !== propertyName) {
-    context.diagnostics.append(csharpProviderDiagnostic(
-      "tsonic.csharp.operations",
-      "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED",
-      9100136,
-      "C# native array property access requires the provider-owned native array length member; other JavaScript array properties require an explicit selected surface.",
-    ));
+  if (propertyName !== "length") {
     return;
   }
   const resultType = csharpSourcePrimitiveTargetType("int32");
@@ -123,16 +115,6 @@ function recordNativeArrayElementAccessFact(
   }
   const receiverType = getNativeArrayReceiverType(receiver, sourceFile, context, host);
   if (receiverType?.kind !== "array") {
-    return;
-  }
-  const member = host.getCsharpTargetBindingByTargetId(dotnetNativeArrayTypeId)?.members?.find((candidate) => candidate.id === dotnetNativeArrayIndexerMemberId);
-  if (member === undefined) {
-    context.diagnostics.append(csharpProviderDiagnostic(
-      "tsonic.csharp.operations",
-      "CSHARP_TARGET_INDEXER_NOT_FOUND",
-      9100103,
-      "C# native array element access requires the provider-owned native array indexer member.",
-    ));
     return;
   }
   if (!hasIntegralIndex(argument, context, host)) {

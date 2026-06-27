@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
+import { getExplicitReturnType } from "../dist/backend/planner/declaration-return-types.js";
 import { planTypeParameters } from "../dist/backend/planner/type-parameters.js";
 import { KindIdentifier, KindTypeReference } from "../dist/backend/planner/source-ast.js";
 import { isCsharpThrowableCarrier } from "../dist/backend/planner/statement-output.js";
@@ -22,12 +23,31 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
+  csharpEnumerableTargetType,
   getCsharpArrayLiteralElementTargetType,
+  getCsharpCollectionElementTargetType,
+  getCsharpReadOnlyIndexableCollectionElementTargetType,
+  isCsharpDenseMutableCollectionTargetType,
+  isCsharpReadOnlyIndexableCollectionTargetType,
+  csharpListTargetType,
+  csharpReadOnlyListTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpJsArrayCarrierTargetType,
+} from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
 import {
   csharpJsRegExpTargetType,
   isCsharpJsRegExpRuntimeCarrier,
-} from "../dist/source/csharp-source-semantics/surfaces/js/regexp.js";
+} from "../dist/source/csharp-source-semantics/surfaces/js/regexp/index.js";
+import {
+  csharpJsDateTargetType,
+  isCsharpJsDateRuntimeCarrier,
+} from "../dist/source/csharp-source-semantics/surfaces/js/date/index.js";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
 
 test("throwable carriers require explicit C# target capability metadata", () => {
   assert.equal(isCsharpThrowableCarrier({ kind: "target-named", id: "System.Exception" }), false);
@@ -78,9 +98,53 @@ test("collection literal acceptance requires explicit C# target metadata", () =>
   assert.deepEqual(getCsharpArrayLiteralElementTargetType(enrichedEnumerable), intType);
 });
 
+test("collection shape matching requires explicit C# target metadata", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const rawEnumerable = {
+    kind: "target-named",
+    id: "System.Collections.Generic.IEnumerable`1",
+    typeArguments: [intType],
+  };
+  const rawReadOnlyList = {
+    kind: "target-named",
+    id: "System.Collections.Generic.IReadOnlyList`1",
+    typeArguments: [intType],
+  };
+  const rawList = {
+    kind: "target-named",
+    id: "System.Collections.Generic.List`1",
+    typeArguments: [intType],
+  };
+
+  assert.equal(getCsharpCollectionElementTargetType(rawEnumerable), undefined);
+  assert.equal(getCsharpReadOnlyIndexableCollectionElementTargetType(rawReadOnlyList), undefined);
+  assert.equal(isCsharpReadOnlyIndexableCollectionTargetType(rawReadOnlyList), false);
+  assert.equal(isCsharpDenseMutableCollectionTargetType(rawList), false);
+  assert.deepEqual(getCsharpCollectionElementTargetType(csharpEnumerableTargetType(intType)), intType);
+  assert.deepEqual(getCsharpReadOnlyIndexableCollectionElementTargetType(csharpReadOnlyListTargetType(intType)), intType);
+  assert.equal(isCsharpDenseMutableCollectionTargetType(csharpListTargetType(intType)), true);
+});
+
+test("read-only indexable collection matching requires explicit target metadata", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const rawJsArray = {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Js.JSArray`1",
+    typeArguments: [intType],
+  };
+
+  assert.equal(isCsharpReadOnlyIndexableCollectionTargetType(rawJsArray), false);
+  assert.equal(isCsharpReadOnlyIndexableCollectionTargetType(csharpJsArrayCarrierTargetType(intType)), true);
+});
+
 test("JS RegExp runtime carrier requires explicit JS surface metadata", () => {
   assert.equal(isCsharpJsRegExpRuntimeCarrier({ kind: "target-named", id: "Tsonic.CSharp.Js.RegExp" }), false);
   assert.equal(isCsharpJsRegExpRuntimeCarrier(csharpJsRegExpTargetType()), true);
+});
+
+test("JS Date runtime carrier requires explicit JS surface metadata", () => {
+  assert.equal(isCsharpJsDateRuntimeCarrier({ kind: "target-named", id: "Tsonic.CSharp.Js.Date" }), false);
+  assert.equal(isCsharpJsDateRuntimeCarrier(csharpJsDateTargetType()), true);
 });
 
 test("type parameter constraints render finalized C# type facts", () => {
@@ -187,7 +251,50 @@ test("provider-owned generic target type references require finalized target arg
   assert.match(missingDiagnostics[0].message, /requires target type facts for every type argument/);
 });
 
-test("advanced erased type syntax emits only from TSTS semantic result facts", () => {
+test("ptr and fnptr type references render only from finalized source-core type facts", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const intType = typeReferenceNode("int32");
+  const boolType = typeReferenceNode("bool");
+  const pointerType = typeReferenceNode("ptr", [intType]);
+  const functionPointerType = typeReferenceNode("fnptr", [intType, boolType]);
+  const diagnostics = [];
+  const input = fakeTypeInput(sourceFile, {
+    sourcePrimitives: new Map([
+      [intType, sourcePrimitive("int32")],
+      [boolType, sourcePrimitive("bool")],
+    ]),
+    pointerFacts: new Map([[pointerType, {
+      pointee: intType,
+      mutability: "target-defined",
+      unsafeRequired: true,
+    }]]),
+    functionPointerFacts: new Map([[functionPointerType, {
+      parameters: [intType],
+      result: boolType,
+      abi: ["target-default"],
+      unsafeRequired: true,
+    }]]),
+  });
+
+  assert.equal(printCsharpType(getCsharpTypeForNode(pointerType, sourceFile, input, undefined, diagnostics)), "int*");
+  assert.equal(printCsharpType(getCsharpTypeForNode(functionPointerType, sourceFile, input, undefined, diagnostics)), "delegate*<int, bool>");
+  assert.deepEqual(diagnostics, []);
+
+  const missingDiagnostics = [];
+  const missing = getCsharpTypeForNode(pointerType, sourceFile, fakeTypeInput(sourceFile, {
+    pointerFacts: new Map([[pointerType, {
+      pointee: intType,
+      mutability: "target-defined",
+      unsafeRequired: true,
+    }]]),
+  }), undefined, missingDiagnostics);
+
+  assert.equal(missing.kind, "InvalidType");
+  assert.equal(missingDiagnostics.length, 1);
+  assert.match(missingDiagnostics[0].message, /Pointer type marker requires a finalized pointee target type/);
+});
+
+test("advanced erased type syntax emits only from finalized runtime carrier facts", () => {
   const sourceExample = `
     type Result<T> = T extends string ? Readonly<{ value: T }> : never;
   `;
@@ -198,23 +305,65 @@ test("advanced erased type syntax emits only from TSTS semantic result facts", (
   const conditionalType = { Kind: "KindConditionalType" };
   const mappedType = { Kind: "KindMappedType" };
   const utilityType = typeReferenceNode("Readonly");
+  const semanticOnlyType = typeReferenceNode("Partial");
   const tstsStringResult = { kind: "semantic-string-result" };
   const diagnostics = [];
   const input = fakeTypeInput(sourceFile, {
     semanticTypes: new Map([
       [conditionalType, tstsStringResult],
       [utilityType, tstsStringResult],
+      [semanticOnlyType, tstsStringResult],
+    ]),
+    runtimeCarriers: new Map([
+      [conditionalType, csharpStringTargetType()],
+      [utilityType, csharpStringTargetType()],
     ]),
     stringSemanticTypes: new Set([tstsStringResult]),
   });
 
   assert.equal(printCsharpType(getCsharpTypeForNode(conditionalType, sourceFile, input, undefined, diagnostics)), "string");
   assert.equal(printCsharpType(getCsharpTypeForNode(utilityType, sourceFile, input, undefined, diagnostics)), "string");
+  const semanticOnly = getCsharpTypeForNode(semanticOnlyType, sourceFile, input, undefined, diagnostics);
   const missing = getCsharpTypeForNode(mappedType, sourceFile, input, undefined, diagnostics);
 
+  assert.equal(semanticOnly.kind, "InvalidType");
   assert.equal(missing.kind, "InvalidType");
+  assert.equal(diagnostics.length, 2);
+  assert.match(diagnostics[0].message, /requires a closed target type from TSTS\/provider facts/);
+  assert.match(diagnostics[1].message, /requires a closed target type from TSTS\/provider facts/);
+});
+
+test("backend type rendering rejects primitive semantic shapes without finalized carriers", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const value = { Kind: KindIdentifier, Text: "value" };
+  const numberType = { kind: "semantic-number" };
+  const diagnostics = [];
+  const rendered = getCsharpTypeForNode(value, sourceFile, fakeTypeInput(sourceFile, {
+    semanticTypes: new Map([[value, numberType]]),
+    numberSemanticTypes: new Set([numberType]),
+  }), undefined, diagnostics);
+
+  assert.equal(rendered.kind, "InvalidType");
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a closed target type from TSTS\/provider facts/);
+});
+
+test("inferred declaration return diagnostics preserve resolver reason and evidence", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const declaration = { Kind: "KindFunctionDeclaration", name: { Kind: KindIdentifier, Text: "make" } };
+  const diagnostics = [];
+
+  const rendered = getExplicitReturnType(undefined, declaration, "function declaration", sourceFile, fakeTypeInput(sourceFile, {
+    declarationReturnCarrierResolution: missingCarrierResolution(
+      "return type alias lacked a finalized target carrier",
+      [{ message: "TSTS selected signature return Alias<T>; Alias<T> leaf carrier was missing" }],
+    ),
+  }), diagnostics);
+
+  assert.equal(rendered.kind, "InvalidType");
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /return type alias lacked a finalized target carrier/);
+  assert.deepEqual(diagnostics[0].evidence, ["TSTS selected signature return Alias<T>; Alias<T> leaf carrier was missing"]);
 });
 
 function typeParameterNode(name) {
@@ -235,6 +384,15 @@ function typeReferenceNode(name, typeArguments = []) {
 
 function sourceFileNode(fileName) {
   return { Kind: "KindSourceFile", FileName: fileName, IsDeclarationFile: false, Statements: { Nodes: [] } };
+}
+
+function sourcePrimitive(kind) {
+  return {
+    kind,
+    runtimeBase: kind === "bool" ? "boolean" : "number",
+    signed: kind !== "bool",
+    width: kind === "bool" ? undefined : 32,
+  };
 }
 
 function fakeInput(options) {
@@ -299,9 +457,9 @@ function fakeTypeInput(sourceFile, options = {}) {
       getObjectShapeFact: () => undefined,
       getTargetBindingFact: () => undefined,
       getFact: () => undefined,
-      getSourcePrimitiveFact: () => undefined,
-      getPointerFact: () => undefined,
-      getFunctionPointerFact: () => undefined,
+      getSourcePrimitiveFact: (subject) => options.sourcePrimitives?.get(subject),
+      getPointerFact: (subject) => options.pointerFacts?.get(subject),
+      getFunctionPointerFact: (subject) => options.functionPointerFacts?.get(subject),
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
       getTargetIterationFact: () => undefined,
@@ -312,24 +470,28 @@ function fakeTypeInput(sourceFile, options = {}) {
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getTargetBindingForReference: (subject) => options.targetBindings?.get(subject),
       getProjectSourceDeclarationForNode: () => undefined,
       getTypeFromTypeNode: (subject) => options.semanticTypes?.get(subject),
       getTypeAtLocation: (subject) => options.semanticTypes?.get(subject),
       describeTypeAtLocation: () => "<unresolved>",
-      getResolvedCallReturnRuntimeCarrier: () => undefined,
-      getResolvedCallReturnType: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getProjectSourceReferenceForSymbol: () => undefined,
     },
+    targetFacts: {
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(options.runtimeCarriers?.get(subject)),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(options.runtimeCarriers?.get(subject)),
+      getTargetBindingForReference: (subject) => options.targetBindings?.get(subject),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => options.declarationReturnCarrierResolution ?? missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
+    },
     types: {
       isAny: () => false,
       isUnknown: () => false,
-      isNumberLike: () => false,
+      isNumberLike: (type) => options.numberSemanticTypes?.has(type) === true,
       isStringLike: (type) => options.stringSemanticTypes?.has(type) === true,
       isBooleanLike: () => false,
       isBigIntLike: () => false,

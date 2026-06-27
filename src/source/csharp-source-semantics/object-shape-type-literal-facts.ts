@@ -14,14 +14,11 @@ import {
   isTypeLiteralLikeNode,
 } from "./ast-utils.js";
 import {
-  getObjectShapeTargetName,
+  createObjectShapeTargetType,
 } from "./object-shape-identity.js";
 import {
   generatedObjectShapeMemberName,
 } from "./target-ref-utils.js";
-import {
-  csharpTargetNamedType,
-} from "./target-types.js";
 import type {
   CsharpObjectShapeSemanticsHost,
 } from "./object-shape-types.js";
@@ -44,9 +41,8 @@ export function deriveCsharpObjectShapeFactForSubject(
   if (shapeMembers.length !== members.length) {
     return undefined;
   }
-  const targetName = getObjectShapeTargetName("__TsonicShape", shapeMembers);
   return {
-    targetType: csharpTargetNamedType(targetName, undefined, { kind: "named", name: targetName }),
+    targetType: createObjectShapeTargetType("__TsonicShape", shapeMembers),
     members: shapeMembers,
   };
 }

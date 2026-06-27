@@ -18,6 +18,11 @@ import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
 
 test("planner emits generic interface/class declarations from finalized constraint and heritage facts", () => {
   const sourceExample = `
@@ -260,7 +265,7 @@ function fakeInput(sourceFile, options) {
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
     },
-    semantics: {
+    analysis: {
       getProjectSourceReferenceForNode: (subject) => {
         const declaration = references.get(subject);
         return declaration === undefined
@@ -268,17 +273,23 @@ function fakeInput(sourceFile, options) {
           : { declaration, sourceFile, symbol: { Name: declaration.name?.Text ?? "" } };
       },
       getProjectSourceDeclarationForNode: (subject) => references.get(subject),
-      getTargetBindingForReference: () => undefined,
       getProjectSourceMethodDispatch: () => undefined,
       getTypeFromTypeNode: () => undefined,
       getTypeAtLocation: () => undefined,
       describeTypeAtLocation: () => undefined,
-      getResolvedCallReturnRuntimeCarrier: () => undefined,
       getResolvedCallReturnType: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
       getProjectSourceReferenceForSymbol: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(runtimeCarriers.get(subject)),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: emptyTypeQueries(),
   };

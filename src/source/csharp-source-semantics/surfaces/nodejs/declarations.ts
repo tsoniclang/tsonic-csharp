@@ -18,8 +18,21 @@ export function getNodejsCheckedCallDeclaration(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): NodejsProviderDeclarationIdentity | undefined {
+  if (request.sourceSelectedSignature === undefined) {
+    return undefined;
+  }
+  return getProviderExportDeclaration(context, request.sourceSelectedSignature) ??
+    getProviderExportDeclaration(context, request.sourceSelectedDeclaration);
+}
+
+export function getNodejsCallDeclarationWithoutSelectedSignature(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): NodejsProviderDeclarationIdentity | undefined {
+  if (request.sourceSelectedSignature !== undefined) {
+    return undefined;
+  }
   for (const subject of [
-    request.sourceSelectedSignature,
     request.sourceSelectedDeclaration,
     request.calleeAliasedSymbol,
     request.calleeResolvedSymbol,

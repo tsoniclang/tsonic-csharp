@@ -33,7 +33,6 @@ import {
   csharpProviderDiagnostic,
 } from "./diagnostics.js";
 import {
-  getCsharpProviderConversionOperator,
   requiresCsharpProviderConversionEvidence,
 } from "./provider-conversion-operators.js";
 import {
@@ -181,26 +180,6 @@ function getAssertionConversionOperation(
   if (isLiteralRepresentableAsTargetType(target, expression, context)) {
     return undefined;
   }
-  const providerConversion = getCsharpProviderConversionOperator(source, target, host, "explicit-or-implicit");
-  if (providerConversion.kind === "matched") {
-    return {
-      kind: "conversion",
-      operation: providerConversion.operation,
-      csharpOperation: providerConversion.csharpOperation,
-    };
-  }
-  if (providerConversion.kind === "ambiguous") {
-    return {
-      kind: "diagnostic",
-      code: "CSHARP_PROVIDER_ASSERTION_CONVERSION_AMBIGUOUS",
-      numericCode: 9100123,
-      message: "C# provider assertion conversion is ambiguous.",
-      evidence: [{
-        message: "Candidate conversion operators",
-        details: providerConversion.candidateIds.join(", "),
-      }],
-    };
-  }
   const conversion = getCsharpConversionOperation(source, target);
   if (conversion !== undefined) {
     return {
@@ -217,7 +196,7 @@ function getAssertionConversionOperation(
       message: "C# provider assertion conversion requires a finalized provider conversion operator fact.",
       evidence: [{
         message: "Missing provider conversion operator",
-        details: "The target type is provider-owned, so assertion emission cannot synthesize a C# cast without a reflected op_Implicit or op_Explicit member matching the source and target types.",
+        details: "The target type is provider-owned, so assertion emission requires an exact TSTS-selected provider conversion operator identity. Type assertions do not currently expose selected provider conversion operator identity to the C# provider.",
       }],
     };
   }

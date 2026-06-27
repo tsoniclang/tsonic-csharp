@@ -28,10 +28,12 @@ import {
   tsonicCoreSourceSemanticsModules,
 } from "@tsonic/source-core";
 import {
+  csharpObjectShapeFactKey,
   csharpTargetOperationFactKey,
   csharpTargetConversionOperationFactKey,
 } from "../dist/source/csharp-facts.js";
 import { csharpSourceSemanticsModules } from "../dist/source/csharp-source-semantics/source-modules.js";
+import { createCsharpSourceVirtualModulesProvider } from "../dist/source/csharp-source-semantics/source-virtual-modules.js";
 
 test("source-semantics virtual attribute helpers do not introduce any-typed lanes", () => {
   const declarations = providerExportDeclarationsForSourceModule({
@@ -83,6 +85,40 @@ test("source-semantics keeps neutral primitives separate from C# aliases", () =>
   assert.equal(neutralExports.includes("long"), false);
   assert.equal(neutralExports.includes("byte"), false);
   assert.deepEqual(csharpExports, [
+    "bool",
+    "byte",
+    "char",
+    "decimal",
+    "double",
+    "float",
+    "int",
+    "long",
+    "nint",
+    "nuint",
+    "sbyte",
+    "short",
+    "uint",
+    "ulong",
+    "ushort",
+  ]);
+});
+
+test("C# source alias provider does not own or redefine portable core modules", () => {
+  const provider = createCsharpSourceVirtualModulesProvider();
+
+  assert.deepEqual(provider.ownsModule("@tsonic/core/types.js", {}), { kind: "unowned" });
+  assert.deepEqual(provider.ownsModule("@tsonic/core/lang.js", {}), { kind: "unowned" });
+  assert.deepEqual(provider.ownsModule("@tsonic/csharp/types.js", {}), { kind: "owned" });
+  assert.deepEqual(provider.ownsModule("@tsonic/csharp/lang.js", {}), { kind: "owned" });
+
+  const coreResolution = provider.resolveModule("@tsonic/core/types.js", {});
+  assert.equal(coreResolution.extensionCode, "CSHARP_SOURCE_MODULE_UNOWNED");
+
+  const csharpTypesResolution = provider.resolveModule("@tsonic/csharp/types.js", {});
+  assert.equal(csharpTypesResolution.kind, "virtual");
+  const csharpTypesModel = provider.getDeclarationModel(csharpTypesResolution);
+  assert.equal(csharpTypesModel.moduleSpecifier, "@tsonic/csharp/types.js");
+  assert.deepEqual(csharpTypesModel.exports.map((declaration) => declaration.name).sort(), [
     "bool",
     "byte",
     "char",
@@ -298,6 +334,10 @@ test("source-semantics does not synthesize C# operator facts for opaque any oper
   assert.deepEqual(extensionHost.facts.get(dynamicUse, runtimeCarrierFactKey)?.carrier, { kind: "opaque", id: "any" });
   assert.equal(extensionHost.facts.get(binary, targetOperationFactKey), undefined);
   assert.equal(extensionHost.facts.get(binary, csharpTargetOperationFactKey), undefined);
+  assert.ok(extensionHost.diagnostics.all().some((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_OPERATOR_NOT_MAPPED" &&
+    diagnostic.message.includes("explicit compat-runtime carrier operation facts")
+  ));
   const anyOperationDiagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
     diagnostic.extensionCode === "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED"
   );
@@ -502,6 +542,229 @@ test("source-semantics records source-core marker facts and rejects unproven sto
   ));
 });
 
+test("C# target maps source-core struct declarations to one named value-type carrier", () => {
+  const sourceText = `
+    import { field, struct } from "@tsonic/core/lang.js";
+
+    const Point = struct({ x: field<number>(), y: field<number>() });
+    type Point = typeof Point;
+
+    function createPoint(x: number, y: number): Point {
+      return { x, y };
+    }
+
+    function distance(p1: Point, p2: Point): number {
+      return p2.x - p1.x;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./lang.js": "./lang.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const objectLiterals = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression");
+  assert.equal(objectLiterals.length, 2);
+  assert.equal(extensionHost.facts.get(objectLiterals[0], runtimeCarrierFactKey), undefined);
+  assert.equal(extensionHost.facts.get(objectLiterals[0], csharpObjectShapeFactKey), undefined);
+  assert.equal(extensionHost.facts.get(objectLiterals[1], runtimeCarrierFactKey)?.carrier.id, "Point");
+  assert.equal(extensionHost.facts.get(objectLiterals[1], csharpObjectShapeFactKey)?.targetType.id, "Point");
+
+  const pointReferences = collectNodesByKind(sourceFile, session.ast, "KindTypeReference")
+    .filter((node) => session.ast.text(node.TypeName) === "Point");
+  assert.equal(pointReferences.length, 3);
+  assert.deepEqual(pointReferences.map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier.id), [
+    "Point",
+    "Point",
+    "Point",
+  ]);
+  assert.deepEqual(pointReferences.map((node) => extensionHost.facts.get(node, csharpObjectShapeFactKey)?.targetType.id), [
+    "Point",
+    "Point",
+    "Point",
+  ]);
+
+  const propertyAccesses = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .filter((node) => ["p1", "p2"].includes(session.ast.text(node.Expression)));
+  assert.equal(propertyAccesses.length, 2);
+  assert.deepEqual(propertyAccesses.map((node) => extensionHost.facts.get(node, targetOperationFactKey)?.targetOperation), ["x", "x"]);
+  assert.deepEqual(propertyAccesses.map((node) => extensionHost.facts.get(node, csharpTargetOperationFactKey)?.memberName), ["x", "x"]);
+});
+
+test("source-semantics keeps imported interface storage carriers separate from object-literal adapter carriers", () => {
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/types.ts", `
+        export const touched = 1;
+        export interface Marker {
+          value: number;
+        }
+        export interface Named {
+          name: string;
+        }
+      `],
+      ["/src/index.ts", `
+        import type { Marker } from "./types.js";
+        import { type Named } from "./types.js";
+
+        const marker: Marker = { value: 1 };
+        const named: Named = { name: "item" };
+
+        export function read(): string {
+          return named.name;
+        }
+      `],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const objectLiteralCarrierIds = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier.id);
+  assert.equal(objectLiteralCarrierIds.length, 2);
+  assert.match(objectLiteralCarrierIds[0], /^__TsonicShape_Marker_/u);
+  assert.match(objectLiteralCarrierIds[1], /^__TsonicShape_Named_/u);
+
+  const declaredStorageCarrierIds = collectNodesByKind(sourceFile, session.ast, "KindVariableDeclaration")
+    .map((node) => session.ast.name(node))
+    .filter((name) => name !== undefined && ["marker", "named"].includes(session.ast.text(name)))
+    .map((name) => extensionHost.facts.get(name, runtimeCarrierFactKey)?.carrier.id);
+  assert.deepEqual(declaredStorageCarrierIds, ["Marker", "Named"]);
+
+  const typeReferenceCarrierIds = collectNodesByKind(sourceFile, session.ast, "KindTypeReference")
+    .map((node) => extensionHost.facts.get(node, runtimeCarrierFactKey)?.carrier.id)
+    .filter((id) => id === "Marker" || id === "Named");
+  assert.deepEqual(typeReferenceCarrierIds, ["Marker", "Named"]);
+});
+
+test("source-semantics closes generic structural object-literal carriers over type parameters", () => {
+  const sourceText = `
+    type Box<T> = { value: T };
+
+    export function create<T>(value: T): Box<T> {
+      return { value };
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const objectLiteral = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")[0];
+  const fact = extensionHost.facts.get(objectLiteral, csharpObjectShapeFactKey);
+
+  assert.match(fact?.targetType.id, /^__TsonicShape_/u);
+  assert.deepEqual(fact.targetType.typeArguments, [{ kind: "type-parameter", name: "T" }]);
+  assert.deepEqual(fact.members, [{
+    sourceName: "value",
+    targetName: "value",
+    memberKind: "property",
+    type: { kind: "type-parameter", name: "T" },
+  }]);
+  assert.deepEqual(extensionHost.facts.get(objectLiteral, runtimeCarrierFactKey)?.carrier, fact.targetType);
+});
+
+test("source-semantics records inline object parameter shapes for checked member access", () => {
+  const sourceText = `
+    export function read(input: { count: number }): number {
+      return input.count;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const typeLiteral = collectNodesByKind(sourceFile, session.ast, "KindTypeLiteral")[0];
+  const propertyAccess = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .find((node) => session.ast.text(node.Expression) === "input");
+  const fact = extensionHost.facts.get(typeLiteral, csharpObjectShapeFactKey);
+
+  assert.match(fact?.targetType.id, /^__TsonicShape_/u);
+  assert.deepEqual(fact.members.map((member) => [member.sourceName, member.targetName]), [["count", "count"]]);
+  assert.equal(extensionHost.facts.get(propertyAccess, targetOperationFactKey)?.targetOperation, "count");
+  assert.equal(extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey)?.memberName, "count");
+});
+
 test("source-semantics rejects source-core marker calls missing required type evidence", () => {
   const sourceText = `
     import { attribute, defaultof, field } from "@tsonic/core/lang.js";
@@ -692,11 +955,17 @@ test("source-semantics ignores local names that are not configured source-core i
     function out<T>(value: T): T {
       return value;
     }
+    function borrow<T>(value: T): T {
+      return value;
+    }
 
     type int = number;
+    type ptr<T> = T;
     type LocalInt = int;
+    type LocalPtr = ptr<number>;
     let value = 1;
     out(value);
+    borrow(value);
   `;
   const session = createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -722,10 +991,15 @@ test("source-semantics ignores local names that are not configured source-core i
   const extensionHost = session.finalizeExtensions();
   const localAlias = collectNodesByKind(sourceFile, session.ast, "KindTypeAliasDeclaration")
     .find((node) => session.ast.text(session.ast.name(node)) === "LocalInt");
+  const localPointerAlias = collectNodesByKind(sourceFile, session.ast, "KindTypeAliasDeclaration")
+    .find((node) => session.ast.text(session.ast.name(node)) === "LocalPtr");
   const outCall = collectCallsByCalleeText(sourceFile, session.ast, "out")[0];
+  const borrowCall = collectCallsByCalleeText(sourceFile, session.ast, "borrow")[0];
 
   assert.equal(extensionHost.facts.get(localAlias, sourcePrimitiveFactKey), undefined);
+  assert.equal(extensionHost.facts.get(localPointerAlias, pointerFactKey), undefined);
   assert.equal(extensionHost.facts.get(outCall, argumentPassingFactKey), undefined);
+  assert.equal(extensionHost.facts.get(borrowCall, flowStateFactKey), undefined);
   assert.deepEqual(extensionHost.diagnostics.all(), []);
 });
 

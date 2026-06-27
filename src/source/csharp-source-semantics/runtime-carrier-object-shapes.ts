@@ -36,9 +36,15 @@ export function recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
   objectShape: CsharpObjectShapeFact,
 ): void {
-  context.facts.set(request.type, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to runtime carrier type." }]);
+  const sourceDeclaredStruct = isSourceDeclaredStructObjectShapeFact(objectShape);
+  if (!sourceDeclaredStruct) {
+    context.facts.set(request.type, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to runtime carrier type." }]);
+  }
   if (request.sourceTypeReference !== undefined) {
     context.facts.set(request.sourceTypeReference, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type reference." }]);
+  }
+  if (sourceDeclaredStruct) {
+    return;
   }
   if (request.sourceTypeSymbol !== undefined) {
     context.facts.set(request.sourceTypeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
@@ -47,4 +53,9 @@ export function recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(
   if (typeSymbol !== undefined) {
     context.facts.set(typeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
   }
+}
+
+function isSourceDeclaredStructObjectShapeFact(objectShape: CsharpObjectShapeFact): boolean {
+  return objectShape.targetType.kind === "target-named" &&
+    (objectShape.targetType as { readonly csharpSourceDeclarationKind?: string }).csharpSourceDeclarationKind === "struct";
 }

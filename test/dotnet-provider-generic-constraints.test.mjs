@@ -55,6 +55,14 @@ test(".NET provider keeps CLR generic constraints in target facts, not source vi
     provider.findTargetBindingByTargetId(rawUnmanagedTarget.targetId).typeParameters[0].constraints.map(targetConstraintKindOrName),
     ["unmanaged"],
   );
+
+  const rawNotNullTarget = getDeclaration(module, "ProviderConstraintFixtures.NotNullTarget`1");
+  const sourceNotNullTarget = getSourceDeclaration(sourceModel, "NotNullTarget");
+  assert.equal(sourceNotNullTarget.typeParameters?.[0]?.constraints, undefined);
+  assert.deepEqual(
+    provider.findTargetBindingByTargetId(rawNotNullTarget.targetId).typeParameters[0].constraints.map(targetConstraintKindOrName),
+    ["target-specific:csharp:notnull"],
+  );
 });
 
 test(".NET provider preserves nested and generic target identities without metadata-name fallback", () => {
@@ -118,6 +126,12 @@ function getSourceMember(declaration, sourceName) {
 }
 
 function targetConstraintKindOrName(constraint) {
+  if (constraint.kind === "target-specific") {
+    return `${constraint.kind}:${constraint.target}:${constraint.name}`;
+  }
+  if (constraint.kind === "unsupported") {
+    return `${constraint.kind}:${constraint.target}:${stripAssemblyQualifiers(constraint.id).split(".").at(-1)}`;
+  }
   if (constraint.kind !== "implements") {
     return constraint.kind;
   }

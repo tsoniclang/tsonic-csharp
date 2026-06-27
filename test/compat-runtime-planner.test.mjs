@@ -1,5 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import {
   tryPlanCompatRuntimePropertyGet,
@@ -8,6 +13,7 @@ import {
   KindBinaryExpression,
   KindCallExpression,
   KindEqualsToken,
+  KindElementAccessExpression,
   KindIdentifier,
   KindNewExpression,
   KindNumericLiteral,
@@ -41,9 +47,29 @@ test("compat any property get fails closed without finalized operation facts", (
     runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /compat-runtime any property get requires a finalized closed compat-runtime operation fact/u);
+});
+
+test("compat any property get rejects facts with only a closed result carrier", () => {
+  const receiver = identifier("value");
+  const propertyAccess = property(receiver, "name");
+  const diagnostics = [];
+  const expression = planExpression(propertyAccess, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[propertyAccess, {
+      ...compatRuntimeOperation("ReadCompatSlot", [
+        { kind: "literal", value: "TargetSlot" },
+      ]),
+      declaringType: undefined,
+      resultType: tsValueCarrier(),
+    }]]),
+  }), diagnostics);
+
+  assert.equal(expression, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a closed TsValue\/TsObject\/TsArray\/TsFunction carrier/u);
 });
 
 test("compat any property set renders closed carrier setter operations from explicit projection", () => {
@@ -63,6 +89,77 @@ test("compat any property set renders closed carrier setter operations from expl
   assert.equal(printCsharpExpression(expression), 'value.WriteCompatSlot("TargetSlot", 1)');
 });
 
+test("compat any property set rejects property assignment facts without explicit projection", () => {
+  const receiver = identifier("value");
+  const propertyAccess = property(receiver, "name");
+  const assignment = binary(propertyAccess, numeric("1"));
+  const diagnostics = [];
+  const operation = {
+    ...compatRuntimeOperation("WritableCompatSlot", undefined),
+    operationKind: "property",
+    argumentProjection: undefined,
+  };
+  const expression = planExpression(assignment, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[assignment, operation]]),
+  }), diagnostics);
+
+  assert.equal(expression, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /property set requires a finalized method operation fact with explicit argument projection/u);
+});
+
+test("compat any element get renders closed carrier getter operations from explicit key projection", () => {
+  const receiver = identifier("value");
+  const key = identifier("key");
+  const elementAccess = element(receiver, key);
+  const diagnostics = [];
+  const expression = planExpression(elementAccess, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[elementAccess, compatRuntimeOperation("ReadCompatElement", [
+      { kind: "source-argument", index: 0 },
+    ])]]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "value.ReadCompatElement(key)");
+});
+
+test("compat any element set renders closed carrier setter operations from explicit key and value projection", () => {
+  const receiver = identifier("value");
+  const key = identifier("key");
+  const elementAccess = element(receiver, key);
+  const assignment = binary(elementAccess, numeric("1"));
+  const diagnostics = [];
+  const expression = planExpression(assignment, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[assignment, compatRuntimeOperation("WriteCompatElement", [
+      { kind: "source-argument", index: 0 },
+      { kind: "source-argument", index: 1 },
+    ])]]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "value.WriteCompatElement(key, 1)");
+});
+
+test("compat any element get fails closed when key projection is missing", () => {
+  const receiver = identifier("value");
+  const key = identifier("key");
+  const elementAccess = element(receiver, key);
+  const diagnostics = [];
+  const expression = planExpression(elementAccess, {}, fakeInput({
+    runtimeCarriers: new Map([[receiver, anyCarrierFact()]]),
+    operations: new Map([[elementAccess, compatRuntimeOperation("ReadCompatElement", [
+      { kind: "source-argument", index: 1 },
+    ])]]),
+  }), diagnostics);
+
+  assert.equal(expression, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires source argument index 1/u);
+});
+
 test("compat any property set fails closed when projection is missing", () => {
   const receiver = identifier("value");
   const propertyAccess = property(receiver, "name");
@@ -76,7 +173,7 @@ test("compat any property set fails closed when projection is missing", () => {
     }]]),
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires an explicit finalized argument projection/u);
 });
@@ -120,26 +217,31 @@ test("compat carrier facts are rejected in strict-native target mode", () => {
     ])]]),
   }), diagnostics);
 
-  assert.equal(expression.kind, "InvalidExpression");
+  assert.equal(expression, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /only valid when the C# target selects typescriptCompatibility: "compat"/u);
 });
 
 test("compat any operations do not apply to unknown or object carriers", () => {
-  const receiver = identifier("value");
-  const propertyAccess = property(receiver, "name");
-  const diagnostics = [];
-  const expression = tryPlanCompatRuntimePropertyGet(propertyAccess, receiver, false, {}, fakeInput({
-    runtimeCarriers: new Map([[receiver, { carrier: { kind: "opaque", id: "unknown" } }]]),
-    operations: new Map([[propertyAccess, compatRuntimeOperation("ReadCompatSlot", [
-      { kind: "literal", value: "TargetSlot" },
-    ])]]),
-  }), diagnostics, () => {
-    throw new Error("compat planner must not request expression planning for non-any carriers");
-  });
+  for (const [description, runtimeCarrier] of [
+    ["unknown", { carrier: { kind: "opaque", id: "unknown" } }],
+    ["object", { carrier: { kind: "target-named", id: "System.Object" } }],
+  ]) {
+    const receiver = identifier(description);
+    const propertyAccess = property(receiver, "name");
+    const diagnostics = [];
+    const expression = tryPlanCompatRuntimePropertyGet(propertyAccess, receiver, false, {}, fakeInput({
+      runtimeCarriers: new Map([[receiver, runtimeCarrier]]),
+      operations: new Map([[propertyAccess, compatRuntimeOperation("ReadCompatSlot", [
+        { kind: "literal", value: "TargetSlot" },
+      ])]]),
+    }), diagnostics, () => {
+      throw new Error("compat planner must not request expression planning for non-any carriers");
+    });
 
-  assert.equal(expression, undefined);
-  assert.deepEqual(diagnostics, []);
+    assert.equal(expression, undefined, description);
+    assert.deepEqual(diagnostics, [], description);
+  }
 });
 
 function fakeInput(options = {}) {
@@ -172,16 +274,23 @@ function fakeInput(options = {}) {
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
     },
-    semantics: {
-      getTargetBindingForReference: () => undefined,
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
       getTypeAtLocation: () => undefined,
       getTypeFromTypeNode: () => undefined,
       describeTypeAtLocation: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(options.runtimeCarriers?.get(subject)?.carrier),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(options.runtimeCarriers?.get(subject)?.carrier),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: {
       isAny: () => false,
@@ -240,6 +349,14 @@ function property(receiver, name) {
     Kind: KindPropertyAccessExpression,
     Expression: receiver,
     name: identifier(name),
+  };
+}
+
+function element(receiver, argument) {
+  return {
+    Kind: KindElementAccessExpression,
+    Expression: receiver,
+    ArgumentExpression: argument,
   };
 }
 

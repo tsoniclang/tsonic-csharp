@@ -33,6 +33,16 @@ public sealed class ConstructorTarget
         Value = flag ? marker : 0;
     }
 
+    internal ConstructorTarget(decimal hidden)
+    {
+        Value = (int)hidden;
+    }
+
+    private ConstructorTarget(double hidden)
+    {
+        Value = (int)hidden;
+    }
+
     public int Value { get; }
 
     public string Label { get; } = "";

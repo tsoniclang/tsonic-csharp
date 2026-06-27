@@ -1,0 +1,61 @@
+import type {
+  TargetTypeRef,
+} from "@tsonic/tsts";
+import type {
+  CsharpRuntimeUnionTargetTypeRef,
+} from "./definitions.js";
+import {
+  csharpQualifiedTypeRenderShape,
+} from "./render-shapes.js";
+import {
+  csharpTargetNamedType,
+} from "./target-refs.js";
+
+export function csharpAnyRuntimeCarrier(): TargetTypeRef {
+  return { kind: "opaque", id: "any" };
+}
+
+export function csharpRuntimeUnionTargetType(arms: readonly TargetTypeRef[]): CsharpRuntimeUnionTargetTypeRef | undefined {
+  if (arms.length < 2 || arms.length > 8) {
+    return undefined;
+  }
+  const targetType = csharpTargetNamedType(
+    `Tsonic.CSharp.Runtime.Union\`${arms.length}`,
+    arms,
+    csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Union"),
+  );
+  return {
+    kind: "target-named",
+    id: targetType.id,
+    typeArguments: arms,
+    ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
+    csharpRuntimeUnionArms: arms,
+  } satisfies CsharpRuntimeUnionTargetTypeRef;
+}
+
+export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "opaque" && type.id === "any";
+}
+
+export function isCsharpClosedCompatRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" &&
+    (
+      type.id === "Tsonic.CSharp.Js.TsValue" ||
+      type.id === "Tsonic.CSharp.Js.TsObject" ||
+      type.id === "Tsonic.CSharp.Js.TsArray" ||
+      type.id === "Tsonic.CSharp.Js.TsFunction"
+    );
+}
+
+export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {
+  return type?.kind === "target-named" &&
+    typeof type.id === "string" &&
+    type.id.startsWith("Tsonic.CSharp.Runtime.Union`") &&
+    Array.isArray((type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms);
+}
+
+export function getCsharpRuntimeUnionArms(type: TargetTypeRef | undefined): readonly TargetTypeRef[] | undefined {
+  return isCsharpRuntimeUnionTargetType(type)
+    ? type.csharpRuntimeUnionArms
+    : undefined;
+}

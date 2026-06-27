@@ -39,13 +39,17 @@ import {
   getCsharpOperatorResultTypeRefForOperator,
   getLiteralTargetTypeRefForKnownOperatorOperand,
   getNullishTargetTypeRefForKnownOperatorOperand,
-} from "./checked-operator-mapping.js";
+  operatorRequiresSelectedProviderIdentity,
+} from "./checked-operator-mapping/index.js";
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carriers.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
+import type {
+  CsharpProviderConversionOperatorHost,
+} from "./provider-conversion-operators.js";
 
 export interface CsharpCheckedOperatorLifecycleHost {
   readonly getTargetTypeRefForSubject: (
@@ -53,6 +57,7 @@ export interface CsharpCheckedOperatorLifecycleHost {
     context: ExtensionObservationContext,
     options?: TargetTypeRefResolutionOptions,
   ) => TargetTypeRef | undefined;
+  readonly getCsharpTargetBindingByTargetId: CsharpProviderConversionOperatorHost["getCsharpTargetBindingByTargetId"];
 }
 
 export function recordCsharpCheckedOperatorFactsBeforeFinalization(
@@ -77,14 +82,21 @@ export function recordCsharpCheckedOperatorFactsBeforeFinalization(
     while (progressed) {
       progressed = false;
       for (const node of pending) {
-        if (lifecycleContext.host.facts.get(node, targetOperationFactKey) !== undefined) {
+        const existingTargetOperation = lifecycleContext.host.facts.get(node, targetOperationFactKey);
+        const existingCsharpOperation = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey);
+        if (existingTargetOperation !== undefined && existingCsharpOperation !== undefined) {
           continue;
         }
         const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
         if (operation !== undefined) {
-          lifecycleContext.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
-          lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
-          progressed = true;
+          if (existingTargetOperation === undefined) {
+            lifecycleContext.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
+            lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
+            progressed = true;
+          } else if (existingCsharpOperation === undefined && existingTargetOperation.operationId === operation.operation.operationId) {
+            lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from existing checked TSTS/provider operator fact." }]);
+            progressed = true;
+          }
         }
       }
     }
@@ -151,7 +163,10 @@ function getCsharpCheckedOperatorFactsFromSyntax(
   if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
     return undefined;
   }
-  const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right);
+  if (operatorRequiresSelectedProviderIdentity(operator, left, right, host)) {
+    return undefined;
+  }
+  const resultType = getCsharpOperatorResultTypeRefForOperator(operator, left, right, expectedResult);
   const operationId = `tsonic.csharp.operator.${targetOperator}`;
   return {
     operation: targetOperation(

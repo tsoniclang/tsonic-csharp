@@ -1,6 +1,7 @@
 import type { TargetArtifact, TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { materializeCsharpOutputPlan } from "./csharp-output-plan.js";
 import { planCsharpEntrypointSourceFile } from "./csharp-entrypoint-planner.js";
+import { planCsharpModuleInitialization } from "./csharp-module-initialization.js";
 import { planSourceFile } from "./csharp-source-file-planner.js";
 import type { PlannedCsharpSourceFile } from "./csharp-source-file-planner.js";
 import { planCsharpProjectFile } from "./project-artifacts.js";
@@ -24,8 +25,9 @@ export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningRe
     };
   }
   const plannedSources: PlannedCsharpSourceFile[] = [];
+  const moduleInitialization = planCsharpModuleInitialization(input);
   for (const sourceFile of input.sourceFiles) {
-    const plannedSource = planSourceFile(sourceFile, input, diagnostics);
+    const plannedSource = planSourceFile(sourceFile, input, diagnostics, moduleInitialization);
     if (plannedSource !== undefined) {
       plannedSources.push(plannedSource);
     }
@@ -42,10 +44,10 @@ export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningRe
     }),
     sources: [
       ...plannedSources.map((source) => ({
-        path: sourceFileArtifactPath(input, source.fileName, source.moduleClassName),
+        path: sourceFileArtifactPath(input, source.fileName),
         unit: source.unit,
       })),
-      ...[planCsharpEntrypointSourceFile(input, plannedSources)].filter((source): source is NonNullable<typeof source> => source !== undefined),
+      ...[planCsharpEntrypointSourceFile(input, plannedSources, moduleInitialization)].filter((source): source is NonNullable<typeof source> => source !== undefined),
     ],
   });
   return {

@@ -11,6 +11,7 @@ import type {
   Node,
   SourceFile,
   TargetMember,
+  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -28,12 +29,6 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
-import {
-  requireCsharpIdentifier,
-} from "./identifiers.js";
-import {
-  invalidExpression,
-} from "./invalid-expression.js";
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
@@ -61,16 +56,20 @@ export function planSelectedTargetCallArguments(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planCallArgument: CallArgumentPlanner,
-): readonly CsharpArgument[] {
+): readonly CsharpArgument[] | undefined {
   const receiverArgument = planSelectedTargetReceiverArgument(callee, member, argumentArrayLiteralElementTypes, sourceFile, input, diagnostics, planCallArgument);
   const parameterOffset = receiverArgument === undefined ? 0 : 1;
-  const argumentsList = (expression?.Arguments?.Nodes ?? [])
-    .filter((argument): argument is Node => argument !== undefined)
-    .map((argument, index) => {
-      const parameter = member.parameters[index + parameterOffset];
-      const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(argument, parameter.type, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
-      return planCallArgument(argument, sourceFile, input, diagnostics, expectedType);
-    });
+  const argumentsList: CsharpArgument[] = [];
+  for (const [index, argument] of (expression?.Arguments?.Nodes ?? []).filter((candidate): candidate is Node => candidate !== undefined).entries()) {
+    const parameter = getTargetParameterForArgument(member.parameters, index + parameterOffset);
+    const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
+    const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(argument, targetType, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
+    const planned = planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, targetType);
+    if (planned === undefined) {
+      return undefined;
+    }
+    argumentsList.push(planned);
+  }
   return receiverArgument === undefined ? argumentsList : [receiverArgument, ...argumentsList];
 }
 
@@ -80,16 +79,15 @@ export function planSelectedTargetReceiverExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
-  if (!HasSourceKind(input.ast, receiver, KindIdentifier)) {
-    return planExpression(receiver, sourceFile, input, diagnostics);
+): CsharpExpression | undefined {
+  if (HasSourceKind(input.ast, receiver, KindIdentifier)) {
+    const sourceName = Node_Text(AsIdentifier(receiver));
+    if (isExternalDeclarationReference(input.analysis.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile, input)) {
+      diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
+      return undefined;
+    }
   }
-  const sourceName = Node_Text(AsIdentifier(receiver));
-  if (isExternalDeclarationReference(input.semantics.getProjectSourceReferenceForNode(receiver, { sourceFile }), sourceFile, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(receiver, `Selected instance target member '${sourceName}' requires a value receiver; provider declaration identifiers cannot be emitted as instance receivers.`));
-    return invalidExpression("provider declaration receiver");
-  }
-  return { kind: "IdentifierName", name: requireCsharpIdentifier(sourceName, diagnostics, "Selected target receiver") };
+  return planExpression(receiver, sourceFile, input, diagnostics);
 }
 
 export function targetStaticMemberExpression(
@@ -107,7 +105,7 @@ export function planSelectedTargetCallee(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
   if (operation.operationKind !== "method" && operation.operationKind !== "constructor" && operation.operationKind !== "operator") {
     diagnostics.push({
       code: "CSHARP_UNSUPPORTED_AST",
@@ -115,26 +113,29 @@ export function planSelectedTargetCallee(
       source: "tsonic-csharp",
       message: `Selected target call requires a C# method, constructor, or operator operation fact, but provider recorded '${operation.operationKind}'.`,
     });
-    return invalidExpression("selected target call operation kind");
+    return undefined;
   }
   if (callee !== undefined && HasSourceKind(input.ast, callee, KindPropertyAccessExpression)) {
     const property = AsPropertyAccessExpression(callee)!;
     if (operation.static === true) {
       return planSelectedStaticTargetCallee(operation, diagnostics, callee);
     }
+    const receiver = planSelectedTargetReceiverExpression(property.Expression!, sourceFile, input, diagnostics, planExpression);
+    if (receiver === undefined) {
+      return undefined;
+    }
     return {
       kind: property.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-      receiver: planSelectedTargetReceiverExpression(property.Expression!, sourceFile, input, diagnostics, planExpression),
+      receiver,
       name: operation.memberName,
     };
   }
   if (callee !== undefined && HasSourceKind(input.ast, callee, KindIdentifier)) {
-    return operation.static === true
-      ? planSelectedStaticTargetCallee(operation, diagnostics, callee)
-      : {
-          kind: "IdentifierName",
-          name: operation.memberName,
-        };
+    if (operation.static === true) {
+      return planSelectedStaticTargetCallee(operation, diagnostics, callee);
+    }
+    diagnostics.push(unsupportedNodeDiagnostic(callee, `Selected instance target call '${operation.memberName}' requires a value receiver before C# emission.`));
+    return undefined;
   }
   diagnostics.push({
     code: "CSHARP_UNSUPPORTED_AST",
@@ -142,16 +143,15 @@ export function planSelectedTargetCallee(
     source: "tsonic-csharp",
     message: "Selected target call requires an identifier or property-access callee before C# emission.",
   });
-  return invalidExpression("selected target call callee");
+  return undefined;
 }
 
 function planSelectedStaticTargetCallee(
   operation: CsharpTargetMemberOperationFact,
   diagnostics: TargetDiagnostic[],
   node: Node,
-): CsharpExpression {
-  return csharpStaticMemberExpression(operation, diagnostics, node, "Selected static target call") ??
-    invalidExpression("selected target static call");
+): CsharpExpression | undefined {
+  return csharpStaticMemberExpression(operation, diagnostics, node, "Selected static target call");
 }
 
 function planSelectedTargetReceiverArgument(
@@ -189,8 +189,24 @@ function planSelectedTargetReceiverArgument(
     return undefined;
   }
   const parameter = member.parameters[0];
-  const expectedType = parameter === undefined ? undefined : getExpectedArgumentRenderType(receiver, parameter.type, input, argumentArrayLiteralElementTypes?.[0]);
-  return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType);
+  const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
+  const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(receiver, targetType, input, argumentArrayLiteralElementTypes?.[0]);
+  return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType, undefined, targetType);
+}
+
+function getTargetParameterForArgument(parameters: readonly TargetParameter[], index: number): TargetParameter | undefined {
+  const parameter = parameters[index];
+  if (parameter !== undefined) {
+    return parameter;
+  }
+  const last = parameters[parameters.length - 1];
+  return last?.paramsArray === true ? last : undefined;
+}
+
+function getTargetParameterRenderType(parameter: TargetParameter): TargetTypeRef {
+  return parameter.paramsArray === true && parameter.type.kind === "array"
+    ? parameter.type.element
+    : parameter.type;
 }
 
 function isProviderStaticContainerReceiver(
@@ -203,7 +219,7 @@ function isProviderStaticContainerReceiver(
   if (declaringType?.kind !== "target-named") {
     return false;
   }
-  const binding = input.semantics.getTargetBindingForReference(receiver, { sourceFile });
+  const binding = input.targetFacts.getTargetBindingForReference(receiver, { sourceFile });
   return binding?.target === "csharp" && binding.id === declaringType.id;
 }
 

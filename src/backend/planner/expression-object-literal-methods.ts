@@ -21,9 +21,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  invalidExpression,
-} from "./invalid-expression.js";
-import {
   objectShapeStorageMemberName,
 } from "./object-shapes.js";
 import {
@@ -33,7 +30,6 @@ import {
   planBlockStatements,
 } from "./statements.js";
 import {
-  diagnoseMissingLambdaTargetContext,
   isAsyncExpression,
   isCsharpDelegateType,
   planLambdaParameters,
@@ -65,10 +61,14 @@ export function planObjectShapeMethodMemberAssignment(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a finalized delegate target type before C# emission.`));
     return undefined;
   }
+  const expression = planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType);
+  if (expression === undefined) {
+    return undefined;
+  }
   return {
     kind: "AssignmentExpression",
     name: objectShapeStorageMemberName(objectShape, member),
-    expression: planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType),
+    expression,
   };
 }
 
@@ -78,20 +78,20 @@ function planObjectLiteralMethodAsLambda(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const method = AsMethodDeclaration(methodNode);
-  diagnoseMissingLambdaTargetContext(methodNode, sourceFile, input, diagnostics, expectedType);
+  void expectedType;
   if (method === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method-declaration AST node."));
-    return invalidExpression("object literal method without method declaration");
+    return undefined;
   }
   if ((method.TypeParameters?.Nodes ?? []).some((typeParameter) => typeParameter !== undefined)) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal generic methods require finalized target delegate facts before C# emission."));
-    return invalidExpression("generic object literal method");
+    return undefined;
   }
   if (method.Body === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method body."));
-    return invalidExpression("object literal method without body");
+    return undefined;
   }
   return {
     kind: "LambdaExpression",

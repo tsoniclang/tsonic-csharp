@@ -215,18 +215,16 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   assert.equal(nativeArray.targetId, dotnetNativeArrayTypeId);
 
   const model = dotnetModuleToProviderDeclarationModel(module);
-  const providerArray = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "interface");
-  const providerArrayNamespace = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "namespace");
+  const providerArray = model.exports.find((declaration) => declaration.name === "Array" && declaration.kind === "class");
   assert.ok(providerArray);
-  assert.ok(providerArrayNamespace);
   assert.equal(providerArray.id, dotnetNativeArrayTypeId);
   assert.deepEqual(providerArray.typeParameters, [{ name: "T", defaultType: { kind: "unknown" } }]);
 
-  const create = providerArrayNamespace.members.find((member) => member.name === "create");
+  const create = providerArray.members.find((member) => member.name === "create");
   const length = providerArray.members.find((member) => member.name === "length");
   const indexer = providerArray.members.find((member) => member.kind === "indexer");
   assert.equal(create.id, dotnetNativeArrayCreateMemberId);
-  assert.equal(create.static, undefined);
+  assert.equal(create.static, true);
   assert.deepEqual(create.signatures[0].typeParameters, [{ name: "T" }]);
   assert.deepEqual(create.signatures[0].returnType, {
     kind: "provider-ref",
@@ -294,6 +292,55 @@ test(".NET reflection provider reloads requested export slices from persistent c
   assert.equal(snapshot.modelBytes < 1_000_000, true, JSON.stringify(snapshot));
   assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Convert"), true);
   assert.equal(cached.exports.some((declaration) => declaration.sourceName === "Console"), false);
+});
+
+test(".NET reflection provider keeps requested-export memory slices isolated from broad modules", () => {
+  const telemetry = createDotnetProviderTelemetry();
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    telemetry,
+  });
+  const sliced = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in sliced, true, JSON.stringify(sliced));
+  assert.equal(sliced.exports.some((declaration) => declaration.sourceName === "Convert"), true);
+  assert.equal(sliced.exports.some((declaration) => declaration.sourceName === "Console"), false);
+
+  const broad = provider.getModule("@tsonic/dotnet/System.js", {});
+  assert.equal("exports" in broad, true, JSON.stringify(broad));
+  assert.equal(broad.exports.some((declaration) => declaration.sourceName === "Console"), true);
+
+  const slicedAgain = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["Convert"] });
+  assert.equal("exports" in slicedAgain, true, JSON.stringify(slicedAgain));
+  assert.equal(slicedAgain.exports.some((declaration) => declaration.sourceName === "Convert"), true);
+  assert.equal(slicedAgain.exports.some((declaration) => declaration.sourceName === "Console"), false);
+
+  const snapshot = provider.getTelemetrySnapshot();
+  assert.equal(snapshot.toolInvocations, 2);
+  assert.equal(snapshot.memoryCacheMisses, 2);
+  assert.equal(snapshot.memoryCacheHits, 1);
+});
+
+test(".NET reflection provider target-binding cache preserves member-complete bindings after virtual declaration slicing", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", { requestedExports: ["Exception"] });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in model, true, JSON.stringify(model));
+  const exception = model.exports.find((declaration) => declaration.name === "Exception");
+  assert.ok(exception);
+
+  const binding = provider.findTargetBindingByTargetId(exception.targetIdentity.id);
+  assert.ok(binding);
+  assert.equal(
+    binding.members?.some((member) => member.id === `${exception.targetIdentity.id}..ctor(System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e::System.String)`),
+    true,
+  );
+  assert.equal(
+    binding.members?.some((member) => member.id === `${exception.targetIdentity.id}.ToString()`),
+    true,
+  );
 });
 
 test(".NET provider declaration model omits source members without truthful source shapes", () => {
@@ -546,6 +593,65 @@ test(".NET provider declaration model projects inherited source members determin
     ["text"],
     ["count"],
   ]);
+});
+
+test(".NET provider declaration model substitutes inherited generic type arguments without source-name lookup", () => {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const baseType = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "GenericBase",
+    namespaceName: "ProviderModelFixtures",
+    targetId: testTargetId("ProviderModelFixtures.GenericBase`1"),
+    metadataName: "ProviderModelFixtures.GenericBase`1",
+    typeParameters: [{ name: "T" }],
+    members: [
+      {
+        kind: "property",
+        sourceName: "value",
+        targetName: "Value",
+        targetId: testTargetId("ProviderModelFixtures.GenericBase`1.Value"),
+        metadataName: "ProviderModelFixtures.GenericBase`1.Value",
+        readable: true,
+        type: { kind: "type-parameter", name: "T" },
+      },
+      methodMember("ProviderModelFixtures.GenericBase`1", "echo", "Echo", [
+        { name: "value", type: { kind: "type-parameter", name: "T" }, passingMode: "by-value" },
+      ], { kind: "type-parameter", name: "T" }),
+    ],
+  };
+  const derivedType = {
+    kind: "type",
+    typeKind: "class",
+    sourceName: "IntDerived",
+    namespaceName: "ProviderModelFixtures",
+    targetId: testTargetId("ProviderModelFixtures.IntDerived"),
+    metadataName: "ProviderModelFixtures.IntDerived",
+    baseType: namedDotnetTypeRef("ProviderModelFixtures.GenericBase`1", {
+      typeArguments: [int32],
+      sourceShape: {
+        kind: "provider-ref",
+        name: "GenericBase",
+        typeArguments: [int32],
+      },
+    }),
+  };
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+    namespaceName: "ProviderModelFixtures",
+    exports: [baseType, derivedType],
+  });
+  const derived = sourceModel.exports.find((declaration) => declaration.name === "IntDerived");
+  assert.ok(derived);
+  const value = derived.members.find((member) => member.kind === "property" && member.name === "value");
+  const echo = derived.members.find((member) => member.kind === "method" && member.name === "echo");
+  assert.deepEqual(value.type, int32);
+  assert.deepEqual(echo.signatures[0].parameters[0].type, int32);
+  assert.deepEqual(echo.signatures[0].returnType, int32);
+
+  const targetBinding = dotnetExportToTargetBinding(derivedType);
+  assert.deepEqual(targetBinding.csharpBaseType.typeArguments, [int32]);
 });
 
 test(".NET target refs do not promote any or unknown to CLR object", () => {
@@ -807,7 +913,7 @@ test(".NET reflection provider records attribute facts as target data without so
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceTarget = declarationModel.exports.find((declaration) => declaration.name === "AttributeTarget");
   assert.ok(sourceTarget);
-  assert.equal(JSON.stringify(sourceTarget).includes("SampleAttribute"), false);
+  assert.equal(JSON.stringify(stripTargetPayload(sourceTarget)).includes("SampleAttribute"), false);
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderAttributeFixtures.js", "ProviderAttributeFixtures.AttributeTarget");
   assert.equal(binding.attributes?.length, rawTarget.attributes?.length);
@@ -1029,13 +1135,65 @@ test(".NET target binding provider uses configured provider identity for diagnos
   assert.equal(ownership.diagnostic.extensionCode, rejectedDiagnostic.code);
   assert.equal(ownership.diagnostic.message, rejectedDiagnostic.message);
 
-  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Text.js", {});
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.Text.js", { broadImport: true });
   assert.equal(resolution.kind, "virtual");
   assert.equal(resolution.providerModuleId, "@tsonic/dotnet/System.Text.js");
   assert.match(
     resolution.virtualFileName,
-    /^tsts-provider:\/\/acme\.dotnet\.fixture-provider\/%40tsonic%2Fdotnet%2FSystem\.Text\.js\.d\.ts$/u,
+    /^tsts-provider:\/\/acme\.dotnet\.fixture-provider\/%40tsonic%2Fdotnet%2FSystem\.Text\.js\/broad\.d\.ts$/u,
   );
+});
+
+test(".NET target binding provider preserves requested-export slices through declaration model loading", () => {
+  const identity = {
+    id: "acme.dotnet.sliced-provider",
+    version: "1.2.3",
+    target: "csharp",
+    displayName: "Acme .NET Sliced Provider",
+  };
+  const observedContexts = [];
+  const bindingProvider = createDotnetTargetBindingProvider({
+    provider: {
+      identity,
+      ownsModule() {
+        return { kind: "owned" };
+      },
+      getModule(specifier, context) {
+        observedContexts.push({ specifier, context });
+        return {
+          moduleSpecifier: specifier,
+          namespaceName: "System",
+          exports: (context.requestedExports ?? []).map((sourceName) => ({
+            kind: "type",
+            typeKind: "class",
+            sourceName,
+            namespaceName: "System",
+            targetId: testTargetId(`System.${sourceName}`),
+            metadataName: `System.${sourceName}`,
+          })),
+        };
+      },
+    },
+  });
+
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", {
+    requestedExports: ["Convert"],
+  });
+  assert.equal(resolution.kind, "virtual");
+  assert.deepEqual(resolution.requestedExports, ["Convert"]);
+  assert.equal(resolution.broadImport, undefined);
+  assert.match(
+    resolution.virtualFileName,
+    /^tsts-provider:\/\/acme\.dotnet\.sliced-provider\/%40tsonic%2Fdotnet%2FSystem\.js\/slice-Convert\.d\.ts$/u,
+  );
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in model, true, JSON.stringify(model));
+  assert.deepEqual(observedContexts, [{
+    specifier: "@tsonic/dotnet/System.js",
+    context: { requestedExports: ["Convert"] },
+  }]);
+  assert.deepEqual(model.exports.map((declaration) => declaration.name), ["Convert"]);
 });
 
 test(".NET reflection provider proves collection constructor array-literal element metadata", () => {
@@ -1064,6 +1222,8 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
   assert.ok(rawTarget);
   const rawConstructors = rawTarget.members.filter((member) => member.kind === "constructor");
   assert.equal(rawConstructors.length, 6);
+  const rawConstructorIds = rawConstructors.flatMap((member) => member.signatures?.map((signature) => stripAssemblyQualifiers(signature.id)) ?? []);
+  assert.equal(rawConstructorIds.some((id) => id.includes("System.Decimal") || id.includes("System.Double")), false);
 
   const optionalConstructor = constructorSignature(rawTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32,System.String)");
   assert.deepEqual(optionalConstructor.parameters.map((parameter) => parameter.name), ["value", "label"]);
@@ -1093,6 +1253,10 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
   const sourceModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "ConstructorTarget");
   assert.ok(sourceTarget);
+  const sourceConstructorIds = sourceTarget.members
+    ?.filter((member) => member.kind === "constructor")
+    .flatMap((member) => member.signatures?.map((signature) => stripAssemblyQualifiers(signature.id)) ?? []) ?? [];
+  assert.equal(sourceConstructorIds.some((id) => id.includes("System.Decimal") || id.includes("System.Double")), false);
   const sourceOptionalConstructor = constructorSignature(sourceTarget, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32,System.String)");
   assert.equal(sourceOptionalConstructor.parameters[1].optional, true);
   assert.equal("defaultValue" in sourceOptionalConstructor.parameters[1], false);
@@ -1100,10 +1264,46 @@ test(".NET reflection provider preserves exact constructor facts and unsupported
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConstructorFixtures.js", "ProviderConstructorFixtures.ConstructorTarget");
   const targetOptionalConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32,System.String)");
   assert.ok(targetOptionalConstructor);
+  const targetConstructorIds = binding.members
+    ?.filter((member) => member.kind === "constructor")
+    .map((member) => stripAssemblyQualifiers(member.id)) ?? [];
+  assert.equal(targetConstructorIds.some((id) => id.includes("System.Decimal") || id.includes("System.Double")), false);
   assert.equal(targetOptionalConstructor.kind, "constructor");
   assert.equal(targetOptionalConstructor.targetName, ".ctor");
   assert.equal(stripAssemblyQualifiers(targetOptionalConstructor.overloadGroup), "ProviderConstructorFixtures.ConstructorTarget..ctor");
   assert.deepEqual(targetOptionalConstructor.parameters[1].defaultValue, { kind: "string", value: "default" });
+  const targetParamsConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(System.Int32[])");
+  const targetRefConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(ref System.Int64)");
+  const targetOutConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(out System.Int16)");
+  const targetInConstructor = findByIdSuffix(binding.members, "ProviderConstructorFixtures.ConstructorTarget..ctor(in System.Boolean,System.Char)");
+  assert.ok(targetParamsConstructor);
+  assert.ok(targetRefConstructor);
+  assert.ok(targetOutConstructor);
+  assert.ok(targetInConstructor);
+  assert.deepEqual(parameterFacts(targetParamsConstructor.parameters), [
+    {
+      name: "values",
+      type: { kind: "array", element: { kind: "source-primitive", name: "int32" } },
+      passingMode: "by-value",
+      paramsArray: true,
+    },
+  ]);
+  assert.deepEqual(parameterFacts(targetRefConstructor.parameters), [
+    { name: "value", type: { kind: "source-primitive", name: "int64" }, passingMode: "byref-readwrite" },
+  ]);
+  assert.deepEqual(parameterFacts(targetOutConstructor.parameters), [
+    { name: "value", type: { kind: "source-primitive", name: "int16" }, passingMode: "byref-writeonly-must-init" },
+  ]);
+  assert.deepEqual(parameterFacts(targetInConstructor.parameters), [
+    { name: "flag", type: { kind: "source-primitive", name: "bool" }, passingMode: "byref-readonly" },
+    {
+      name: "marker",
+      type: { kind: "source-primitive", name: "char" },
+      passingMode: "by-value",
+      optional: true,
+      defaultValue: { kind: "source-primitive", name: "char", value: "x" },
+    },
+  ]);
 
   const unsupportedTarget = module.exports.find((declaration) => declaration.sourceName === "UnsupportedConstructorTarget");
   assert.ok(unsupportedTarget);
@@ -1425,6 +1625,7 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
   assert.deepEqual(sourceMemoryStream?.extends, [{
     kind: "provider-ref",
     name: "Stream",
+    moduleSpecifier: "@tsonic/dotnet/System.IO.js",
   }]);
 
   const tasksModule = provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", {});
@@ -1541,6 +1742,10 @@ test(".NET reflection provider records generic constraints and variance as targe
     "unmanaged",
   ]);
 
+  const rawNotNullTarget = module.exports.find((declaration) => declaration.sourceName === "NotNullTarget");
+  assert.ok(rawNotNullTarget);
+  assert.deepEqual(rawNotNullTarget.typeParameters?.[0]?.constraints, [{ kind: "not-null" }]);
+
   const rawProducer = module.exports.find((declaration) => declaration.sourceName === "IProducer");
   assert.ok(rawProducer);
   assert.equal(rawProducer.typeParameters?.[0]?.variance, "out");
@@ -1561,6 +1766,12 @@ test(".NET reflection provider records generic constraints and variance as targe
     "implements",
     "implements",
   ]);
+  const notNullBinding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderConstraintFixtures.js", "ProviderConstraintFixtures.NotNullTarget`1");
+  assert.deepEqual(notNullBinding.typeParameters[0].constraints, [{
+    kind: "target-specific",
+    target: "csharp",
+    name: "notnull",
+  }]);
   const declarationModel = dotnetModuleToProviderDeclarationModel(module);
   const sourceReferenceNewTarget = declarationModel.exports.find((declaration) => declaration.name === "ReferenceNewTarget");
   assert.ok(sourceReferenceNewTarget);
@@ -1571,6 +1782,12 @@ test(".NET reflection provider records generic constraints and variance as targe
   const sourceCopy = sourceReferenceNewTarget.members.find((member) => member.kind === "method" && member.name === "copy");
   assert.ok(sourceCopy);
   assert.equal(sourceCopy.signatures[0].typeParameters[0].constraints, undefined);
+  const sourceNotNullTarget = declarationModel.exports.find((declaration) => declaration.name === "NotNullTarget");
+  assert.ok(sourceNotNullTarget);
+  assert.deepEqual(sourceNotNullTarget.typeParameters?.map((parameter) => ({
+    name: parameter.name,
+    constraints: parameter.constraints,
+  })), [{ name: "T", constraints: undefined }]);
   const sourceProducer = declarationModel.exports.find((declaration) => declaration.name === "IProducer");
   assert.ok(sourceProducer);
   assert.deepEqual(sourceProducer.typeParameters, [{ name: "T", variance: "out" }]);
@@ -1630,22 +1847,81 @@ test(".NET reflection provider records conversion operators as target-only facts
   assert.deepEqual(pointerSourceConversionBinding.unsupportedMembers, rawPointerSourceConversion.unsupportedMembers);
 });
 
-test(".NET provider source declarations keep readonly TS-compatible numeric indexers", () => {
+test(".NET provider source declarations expose readonly TS-compatible string indexers", () => {
+  const model = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@example/headers.js",
+    namespaceName: "Example",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "Headers",
+        namespaceName: "Example",
+        targetId: testTargetId("Example.Headers"),
+        metadataName: "Example.Headers",
+        members: [
+          {
+            kind: "indexer",
+            sourceName: "item",
+            targetName: "Item",
+            targetId: testTargetId("Example.Headers.Item(System.String)"),
+            metadataName: "Example.Headers.Item(System.String)",
+            readable: true,
+            writable: false,
+            signatures: [
+              {
+                id: testTargetId("Example.Headers.Item(System.String)"),
+                targetName: "Item",
+                parameters: [
+                  { name: "name", type: { kind: "string" } },
+                ],
+                returnType: { kind: "string" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  const headers = model.exports.find((declaration) => declaration.name === "Headers");
+  assert.ok(headers);
+  const indexers = headers.members.filter((member) => member.kind === "indexer");
+  assert.equal(indexers.length, 1);
+  assert.equal(indexers[0].readonly, true);
+  assert.deepEqual(indexers[0].signatures[0].parameters[0].type, { kind: "string" });
+  assert.deepEqual(indexers[0].signatures[0].returnType, { kind: "string" });
+});
+
+test(".NET provider source declarations keep TS-compatible numeric and string indexers", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const specializedModule = provider.getModule("@tsonic/dotnet/System.Collections.Specialized.js", {});
   assert.equal("exports" in specializedModule, true);
 
   const rawNameValueCollection = specializedModule.exports.find((declaration) => declaration.sourceName === "NameValueCollection");
   assert.ok(rawNameValueCollection);
-  assert.equal(rawNameValueCollection.members.filter((member) => member.kind === "indexer").length, 2);
+  const rawIndexers = rawNameValueCollection.members.filter((member) => member.kind === "indexer");
+  assert.equal(rawIndexers.length, 2);
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(specializedModule);
   const nameValueCollection = declarationModel.exports.find((declaration) => declaration.name === "NameValueCollection");
   assert.ok(nameValueCollection);
   const indexers = nameValueCollection.members.filter((member) => member.kind === "indexer");
-  assert.equal(indexers.length, 1);
-  assert.equal(indexers[0].readonly, true);
-  assert.deepEqual(indexers[0].signatures[0].parameters[0].type, { kind: "source-primitive", name: "int32" });
+  assert.equal(indexers.length, 2);
+  assert.equal(indexers.some((member) =>
+    member.signatures[0].parameters[0].type.kind === "string"
+  ), true);
+  assert.equal(indexers.some((member) =>
+    member.signatures[0].parameters[0].type.kind === "source-primitive" &&
+    member.signatures[0].parameters[0].type.name === "int32"
+  ), true);
+  for (const indexer of indexers) {
+    const raw = rawIndexers.find((member) =>
+      JSON.stringify(member.signatures[0].parameters[0].type) === JSON.stringify(indexer.signatures[0].parameters[0].type)
+    );
+    assert.ok(raw);
+    assert.equal(indexer.readonly, raw.writable === true ? undefined : true);
+  }
 });
 
 test(".NET target bindings retain generic Dictionary indexers as target-only facts", () => {
@@ -1723,7 +1999,7 @@ test(".NET provider source declarations omit signatures that reference unexporta
   const declarationModel = dotnetModuleToProviderDeclarationModel(threadingModule);
   const preAllocatedOverlapped = declarationModel.exports.find((declaration) => declaration.name === "PreAllocatedOverlapped");
   assert.ok(preAllocatedOverlapped);
-  assert.doesNotMatch(JSON.stringify(preAllocatedOverlapped), /IOCompletionCallback/);
+  assert.doesNotMatch(JSON.stringify(stripTargetPayload(preAllocatedOverlapped)), /IOCompletionCallback/);
 });
 
 test(".NET reflection provider exposes delegates with source shells and target delegate identity", () => {
@@ -1979,26 +2255,88 @@ test(".NET reflection provider classifies unsupported type families without sile
   assert.equal("exports" in systemModule, true);
 
   const unsupportedFamilies = new Map(systemModule.unsupportedExports?.map((declaration) => [declaration.sourceName, declaration]) ?? []);
-  const action = unsupportedFamilies.get("Action");
-  const func = unsupportedFamilies.get("Func");
+  const enumerator = unsupportedFamilies.get("Enumerator");
 
-  assert.ok(action);
-  assert.equal(action.kind, "unsupported-type-family");
-  assert.ok(action.metadataNames.includes("System.Action"));
-  assert.ok(action.metadataNames.includes("System.Action`1"));
-  assert.match(action.reason, /provider type-family declaration model/);
+  assert.ok(enumerator);
+  assert.equal(enumerator.kind, "unsupported-type-family");
+  assert.ok(enumerator.metadataNames.includes("System.ArraySegment`1.Enumerator"));
+  assert.ok(enumerator.metadataNames.includes("System.Span`1.Enumerator"));
+  assert.match(enumerator.reason, /provider type-family declaration model/);
 
-  assert.ok(func);
-  assert.equal(func.kind, "unsupported-type-family");
-  assert.ok(func.metadataNames.includes("System.Func`1"));
-  assert.ok(func.metadataNames.includes("System.Func`2"));
-  assert.match(func.reason, /provider type-family declaration model/);
-
-  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Action`1"));
-  assert.ok(systemModule.targetOnlyTypes?.some((declaration) => declaration.metadataName === "System.Func`2"));
-
+  assert.ok(systemModule.exports.some((declaration) => declaration.sourceName === "Action_1" && declaration.kind === "type"));
+  assert.ok(systemModule.exports.some((declaration) => declaration.sourceName === "Func_2" && declaration.kind === "type"));
   assert.equal(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Action`1")?.kind, "delegate");
   assert.equal(getDotnetBinding(provider, "@tsonic/dotnet/System.js", "System.Func`2")?.kind, "delegate");
+});
+
+test(".NET reflection provider keeps requested unsupported type-family target IDs target-only", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.js", {
+    requestedMetadataNames: ["System.Span`1.Enumerator"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  assert.equal(module.exports.some((declaration) => declaration.sourceName === "Enumerator"), false);
+  const targetOnlyEnumerator = module.targetOnlyTypes?.find((declaration) =>
+    declaration.metadataName === "System.Span`1.Enumerator"
+  );
+  assert.ok(targetOnlyEnumerator);
+
+  const unsupportedFamily = module.unsupportedExports?.find((declaration) =>
+    declaration.kind === "unsupported-type-family" &&
+    declaration.sourceName === "Enumerator"
+  );
+  assert.ok(unsupportedFamily);
+  assert.ok(unsupportedFamily.metadataNames.includes("System.ArraySegment`1.Enumerator"));
+  assert.ok(unsupportedFamily.metadataNames.includes("System.Span`1.Enumerator"));
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  assert.equal(sourceModel.exports.some((declaration) => declaration.name === "Enumerator"), false);
+
+  const bindingProvider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const binding = bindingProvider.findTargetBindingByMetadataName("System.Span`1.Enumerator");
+  assert.ok(binding);
+  assert.equal(binding.kind, "struct");
+  assert.equal(binding.sourceName, "Enumerator");
+});
+
+test(".NET reflection provider keeps requested unsupported source exports target-only", () => {
+  const reference = buildUnsupportedMemberFixture();
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    references: [reference],
+  });
+  const module = provider.getModule("@tsonic/dotnet/ProviderUnsupportedMemberFixtures.js", {
+    requestedMetadataNames: ["ProviderUnsupportedMemberFixtures.PointerDelegate"],
+  });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  assert.equal(module.exports.some((declaration) => declaration.sourceName === "PointerDelegate"), false);
+  const targetOnlyPointerDelegate = module.targetOnlyTypes?.find((declaration) =>
+    declaration.metadataName === "ProviderUnsupportedMemberFixtures.PointerDelegate"
+  );
+  assert.ok(targetOnlyPointerDelegate);
+  assert.equal(targetOnlyPointerDelegate.typeKind, "delegate");
+
+  const unsupportedPointerDelegate = module.unsupportedExports?.find((declaration) =>
+    declaration.kind === "unsupported-type-export" &&
+    declaration.sourceName === "PointerDelegate"
+  );
+  assert.ok(unsupportedPointerDelegate);
+  assert.match(unsupportedPointerDelegate.reason, /Delegate invoke signature/u);
+  assert.match(unsupportedPointerDelegate.reason, /System\.Int32\*/u);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  assert.equal(sourceModel.exports.some((declaration) => declaration.name === "PointerDelegate"), false);
+
+  const bindingProvider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    references: [reference],
+  });
+  const binding = bindingProvider.findTargetBindingByMetadataName("ProviderUnsupportedMemberFixtures.PointerDelegate");
+  assert.ok(binding);
+  assert.equal(binding.kind, "delegate");
+  assert.equal(binding.sourceName, "PointerDelegate");
 });
 
 test(".NET reflection provider records unsupported members instead of silently dropping them", () => {
@@ -2008,6 +2346,7 @@ test(".NET reflection provider records unsupported members instead of silently d
   assert.equal("exports" in module, true);
 
   const typeByName = new Map(module.exports.map((declaration) => [declaration.sourceName, declaration]));
+  const targetOnlyTypeByName = new Map(module.targetOnlyTypes?.map((declaration) => [declaration.sourceName, declaration]) ?? []);
   const staticInterface = typeByName.get("IStaticInterfaceMember");
   const genericHolder = typeByName.get("GenericHolder");
   const multiIndexer = typeByName.get("MultiIndexer");
@@ -2016,8 +2355,8 @@ test(".NET reflection provider records unsupported members instead of silently d
   const byRefReturnSignatures = typeByName.get("ByRefReturnSignatures");
   const genericNumber = typeByName.get("GenericNumber");
   const pointerConversion = typeByName.get("PointerConversion");
-  const pointerDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "PointerDelegate");
-  const refReturnDelegate = module.targetOnlyTypes?.find((declaration) => declaration.sourceName === "RefReturnDelegate");
+  const pointerDelegate = targetOnlyTypeByName.get("PointerDelegate");
+  const refReturnDelegate = targetOnlyTypeByName.get("RefReturnDelegate");
   assert.ok(staticInterface);
   assert.ok(genericHolder);
   assert.ok(multiIndexer);
@@ -2236,7 +2575,11 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
 
   const binding = dotnetExportToTargetBinding(declaration);
 
-  assert.equal(binding.typeParameters[0].constraints[0].kind, "reference-type");
+  assert.deepEqual(binding.typeParameters[0].constraints.map((constraint) => constraint.kind), [
+    "reference-type",
+    "unsupported",
+  ]);
+  assert.equal(binding.typeParameters[0].constraints[1].id, testTargetId("ProviderModelFixtures.PointerContract"));
   assert.deepEqual(binding.typeParameters[0].unsupportedConstraints, declaration.typeParameters[0].unsupportedConstraints);
   assert.equal(binding.implementedContracts[0].kind, "implements");
   assert.deepEqual(binding.unsupportedImplementedContracts, declaration.unsupportedImplementedContracts);
@@ -2278,6 +2621,20 @@ function parameterFacts(parameters) {
     ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
     ...(parameter.unsupportedDefaultValue !== undefined ? { unsupportedDefaultValue: parameter.unsupportedDefaultValue } : {}),
   }));
+}
+
+function stripTargetPayload(value) {
+  if (Array.isArray(value)) {
+    return value.map(stripTargetPayload);
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== "targetBinding" && key !== "targetIdentity")
+        .map(([key, nested]) => [key, stripTargetPayload(nested)]),
+    );
+  }
+  return value;
 }
 
 function typeFact(type) {

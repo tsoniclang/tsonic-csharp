@@ -20,16 +20,15 @@ import {
   SourceKind,
   isAstNode,
 } from "./source-ast.js";
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import {
   planArrayLiteralExpressionFromFacts,
-} from "./array-literals.js";
+} from "./array-literals/index.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
 import { planRegularExpressionLiteral } from "./regular-expression-literals.js";
 import { applyTargetConversionFact } from "./target-conversions.js";
 import {
@@ -47,7 +46,7 @@ import {
   planCallExpression,
   planElementAccessExpression,
   planPropertyAccessExpression,
-} from "./expression-target-members.js";
+} from "./expression-target-members/index.js";
 import { planExpressionWithExpectedTypeCore } from "./expression-expected-types.js";
 import {
   planCallArgumentCore,
@@ -75,7 +74,7 @@ export function planExpression(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const expression = planExpressionCore(node, sourceFile, input, diagnostics, state);
   return applyTargetConversionFact(node, input, diagnostics, expression);
 }
@@ -86,7 +85,7 @@ function planExpressionCore(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   state?: DestructuringPlannerState,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const defaultValue = input.facts.getDefaultValueFact(node);
   if (defaultValue !== undefined) {
     return {
@@ -105,10 +104,14 @@ function planExpressionCore(
     expressionSourceFile: SourceFile,
     expressionInput: TargetCompileInput,
     expressionDiagnostics: TargetDiagnostic[],
-  ): CsharpExpression => planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state);
+  ): CsharpExpression | undefined => planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state);
+  const sourceSyntaxDiagnosticsStart = diagnostics.length;
   const sourceSyntax = tryPlanSourceSyntaxExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
   if (sourceSyntax !== undefined) {
     return sourceSyntax;
+  }
+  if (diagnostics.length > sourceSyntaxDiagnosticsStart) {
+    return undefined;
   }
   switch (SourceKind(input.ast, node)) {
     case KindIdentifier:
@@ -118,8 +121,7 @@ function planExpressionCore(
     case KindTypeOfExpression:
       return planTypeofExpression(node, sourceFile, input, diagnostics);
     case KindDeleteExpression:
-      return tryPlanJsArrayDeleteExpression(node, sourceFile, input, diagnostics, scopedPlanExpression) ??
-        invalidExpression("unsupported delete expression");
+      return tryPlanJsArrayDeleteExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindArrayLiteralExpression: {
       return planArrayLiteralExpressionFromFacts(node, sourceFile, input, diagnostics, {
         planExpression: (element, elementSourceFile, elementInput, elementDiagnostics) =>
@@ -130,7 +132,7 @@ function planExpressionCore(
     }
     case KindObjectLiteralExpression:
       diagnostics.push(unsupportedNodeDiagnostic(node, "Object literals require an explicit target type before C# emission."));
-      return invalidExpression("object literal without target type");
+      return undefined;
     case KindTemplateExpression:
       return planTemplateExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindPropertyAccessExpression:
@@ -150,12 +152,12 @@ function planExpressionCore(
         diagnostics,
         (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
           planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject) =>
-          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, state),
+        (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType) =>
+          planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state),
       );
     case KindNewExpression:
-      return planNewExpression(node, sourceFile, input, diagnostics, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType) =>
-        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, undefined, state));
+      return planNewExpression(node, sourceFile, input, diagnostics, (argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType) =>
+        planCallArgument(argumentNode, argumentSourceFile, argumentInput, argumentDiagnostics, expectedType, expectedTypeSubject, conversionExpectedTargetType, state));
     case KindPrefixUnaryExpression: {
       return planPrefixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
@@ -165,11 +167,11 @@ function planExpressionCore(
     case KindBinaryExpression: {
       const binary = tryPlanBinaryExpression(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
         planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state));
-      return binary ?? invalidExpression("unsupported binary expression");
+      return binary;
     }
     default: {
       diagnostics.push(unsupportedNodeDiagnostic(node, "Expression is outside the current C# planning surface."));
-      return invalidExpression("unsupported expression");
+      return undefined;
     }
   }
 }
@@ -181,8 +183,9 @@ export function planCallArgument(
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
+  conversionExpectedTargetType?: TargetTypeRef,
   state?: DestructuringPlannerState,
-): CsharpArgument {
+): CsharpArgument | undefined {
   return planCallArgumentCore(
     node,
     sourceFile,
@@ -194,6 +197,7 @@ export function planCallArgument(
       planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state),
     expectedType,
     expectedTypeSubject,
+    conversionExpectedTargetType,
   );
 }
 
@@ -205,7 +209,7 @@ export function planExpressionWithExpectedType(
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const expression = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
     planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
       planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),

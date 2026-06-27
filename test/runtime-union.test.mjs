@@ -1,10 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  missingCarrierResolution,
+  missingParameterCarrierResolution,
+  resolvedCarrierResolution,
+} from "./helpers/target-facts.mjs";
+import {
   createCompilerSessionFromFiles,
   formatDiagnostics,
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
+import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import {
@@ -168,6 +174,7 @@ function createCompilerSession(sourceText) {
     extensionHostOptions: {
       activeTarget: "csharp",
       extensions: [
+        createTsonicCoreSourceExtension(),
         createCsharpSourceSemanticsExtension(csharpProviderContext()),
         createCsharpTargetSemanticsExtension(csharpProviderContext()),
       ],
@@ -234,16 +241,23 @@ function fakeInput(options = {}) {
       getStructFact: () => undefined,
       getAttributeFact: () => undefined,
     },
-    semantics: {
-      getTargetBindingForReference: () => undefined,
+    analysis: {
       getProjectSourceReferenceForNode: () => undefined,
-      getRuntimeCarrierForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
       getTypeAtLocation: () => undefined,
       getTypeFromTypeNode: () => undefined,
       describeTypeAtLocation: () => undefined,
+    },
+    targetFacts: {
+      getTargetBinding: () => undefined,
+      getTargetBindingForReference: () => undefined,
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
+      resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: {
       isAny: () => false,

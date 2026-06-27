@@ -66,7 +66,7 @@ function getFinalizedTargetName(
   if (sourceFile === undefined) {
     return undefined;
   }
-  const symbol = input.semantics.getSymbolAtLocation(node, { sourceFile }) ??
-    input.semantics.getResolvedSymbol(node, { sourceFile });
+  const symbol = input.analysis.getSymbolAtLocation(node, { sourceFile }) ??
+    input.analysis.getResolvedSymbol(node, { sourceFile });
   return input.facts.getFact(symbol, csharpTargetNameFactKey)?.name;
 }

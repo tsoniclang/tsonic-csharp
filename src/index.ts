@@ -4,6 +4,8 @@ export {
   csharpTypesModule,
   createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
+  createCsharpJsSurfaceExtension,
+  createCsharpNodejsSurfaceExtension,
 } from "./source/csharp-source-semantics.js";
 export type {
   CsharpArgument,
@@ -50,6 +52,7 @@ export type {
   DotnetParameterDefaultValue,
   DotnetProviderDiagnostic,
   DotnetProviderIdentity,
+  DotnetProviderModuleRequestTelemetry,
   DotnetProviderModuleContext,
   DotnetProviderModuleResult,
   DotnetProviderOwnership,

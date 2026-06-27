@@ -6,9 +6,9 @@ using System.Text.Json.Serialization;
 
 sealed partial class ReflectionProvider
 {
-    Type[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes)
+    Type[] SourceClosureTypes(Type[] allTypes, Type[] exportedTypes, ISet<string> sourceExportableTargetIds)
     {
-        if (request.Exports.Count == 0)
+        if (request.Exports.Count == 0 && request.TargetIds.Count == 0 && request.MetadataNames.Count == 0)
         {
             return [];
         }
@@ -23,6 +23,7 @@ sealed partial class ReflectionProvider
                 if (normalized is null ||
                     normalized.Namespace != activeNamespaceName ||
                     exportedTargetIds.Contains(TargetId(normalized)) ||
+                    !sourceExportableTargetIds.Contains(TargetId(normalized)) ||
                     !allTypesByTargetId.ContainsKey(TargetId(normalized)))
                 {
                     continue;
@@ -32,7 +33,7 @@ sealed partial class ReflectionProvider
         }
         return closureTargetIds
             .Select(targetId => allTypesByTargetId[targetId])
-            .Where(type => UnsupportedSourceExportReason(type) is null)
+            .Where(type => sourceExportableTargetIds.Contains(TargetId(type)))
             .ToArray();
     }
 
@@ -45,10 +46,11 @@ sealed partial class ReflectionProvider
         {
             kind = "type",
             typeKind = TypeKind(type),
-            sourceName = SourceTypeName(type),
+            sourceName = ProviderSourceTypeName(type),
             namespaceName = activeNamespaceName,
             targetId = TargetId(type),
             metadataName = MetadataName(type),
+            assembly = AssemblyReference(type.Assembly),
             displayName = DisplayName(type),
             renderShape = RenderShape(type),
             attributes = attributes.Supported.Length == 0 ? null : attributes.Supported,

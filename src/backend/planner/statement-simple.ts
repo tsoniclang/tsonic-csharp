@@ -38,7 +38,9 @@ import {
   planExpressionWithExpectedType,
 } from "./expressions.js";
 import {
-  getRuntimeCarrierForExpression,
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   findControlLabel,
@@ -64,22 +66,28 @@ export function planReturnStatement(
     isVoidCsharpType(state.currentReturnType)
   ) {
     const voidExpression = AsVoidExpression(statement.Expression)!;
+    const discarded = planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state);
+    if (discarded === undefined) {
+      return [];
+    }
     return [
-      expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state))),
+      expressionStatement(planDiscardedExpression(discarded)),
       { kind: "ReturnStatement" },
     ];
   }
   const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
   const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
+  const expression = statement.Expression === undefined
+    ? undefined
+    : expectedReturnExpressionType === undefined
+      ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
+      : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state);
+  if (statement.Expression !== undefined && expression === undefined) {
+    return [];
+  }
   return [{
     kind: "ReturnStatement",
-    ...(statement.Expression !== undefined
-      ? {
-          expression: expectedReturnExpressionType === undefined
-            ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
-            : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state),
-        }
-      : {}),
+    ...(expression !== undefined ? { expression } : {}),
   }];
 }
 
@@ -129,14 +137,22 @@ export function planThrowStatement(
     diagnostics.push(unsupportedNodeDiagnostic(node, "Throw statement must have an expression."));
     return [];
   }
-  const carrier = getRuntimeCarrierForExpression(input, statement.Expression, sourceFile);
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, statement.Expression, sourceFile);
+  const carrier = probeCarrierFromResolution(carrierResolution);
   if (!isCsharpThrowableCarrier(carrier)) {
-    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require finalized TSTS/provider exception-carrier facts before C# emission."));
+    const detail = carrier === undefined
+      ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the thrown expression.")
+      : { reason: "Resolved thrown expression carrier is not a target throwable carrier.", evidence: [] };
+    diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, `Throw statements require finalized TSTS/provider exception-carrier facts before C# emission. ${detail.reason}`, detail.evidence));
+    return [];
+  }
+  const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+  if (expression === undefined) {
     return [];
   }
   return [{
     kind: "ThrowStatement",
-    expression: planExpression(statement.Expression, sourceFile, input, diagnostics, state),
+    expression,
   }];
 }
 
@@ -177,7 +193,9 @@ export function planExpressionStatement(
   }
   if (HasSourceKind(input.ast, expression, KindVoidExpression)) {
     const voidExpression = AsVoidExpression(expression!)!;
-    return [expressionStatement(planDiscardedExpression(planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state)))];
+    const planned = planExpression(voidExpression.Expression!, sourceFile, input, diagnostics, state);
+    return planned === undefined ? [] : [expressionStatement(planDiscardedExpression(planned))];
   }
-  return [expressionStatement(planDiscardedExpression(planExpression(expression!, sourceFile, input, diagnostics, state)))];
+  const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
+  return planned === undefined ? [] : [expressionStatement(planDiscardedExpression(planned))];
 }

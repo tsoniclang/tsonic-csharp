@@ -73,10 +73,14 @@ export function planObjectShapeLiteralAssignment(
         diagnostics.push(unsupportedNodeDiagnostic(property, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
         return [];
       }
+      const expression = planExpressionWithExpectedType(propertyAssignment.Initializer, sourceFile, input, diagnostics, memberType);
+      if (expression === undefined) {
+        return [];
+      }
       return [{
         kind: "AssignmentExpression",
         name: objectShapeStorageMemberName(objectShape, member),
-        expression: planExpressionWithExpectedType(propertyAssignment.Initializer, sourceFile, input, diagnostics, memberType),
+        expression,
       }];
     }
     case KindShorthandPropertyAssignment: {
@@ -97,10 +101,14 @@ export function planObjectShapeLiteralAssignment(
         diagnostics.push(unsupportedNodeDiagnostic(property, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
         return [];
       }
+      const expression = planExpressionWithExpectedType(nameNode, sourceFile, input, diagnostics, memberType);
+      if (expression === undefined) {
+        return [];
+      }
       return [{
         kind: "AssignmentExpression",
         name: objectShapeStorageMemberName(objectShape, member),
-        expression: planExpressionWithExpectedType(nameNode, sourceFile, input, diagnostics, memberType),
+        expression,
       }];
     }
     case KindMethodDeclaration: {

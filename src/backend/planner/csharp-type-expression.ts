@@ -1,10 +1,7 @@
 import {
   AsExpressionWithTypeArguments,
-  KindClassDeclaration,
-  KindEnumDeclaration,
   KindExpressionWithTypeArguments,
   KindIdentifier,
-  KindInterfaceDeclaration,
   KindPropertyAccessExpression,
 } from "./source-ast.js";
 import type {
@@ -22,9 +19,6 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  requireCsharpIdentifier,
-} from "./identifiers.js";
-import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
@@ -40,8 +34,8 @@ import {
   invalidCsharpType,
 } from "./csharp-type-primitives.js";
 import {
-  isProviderVirtualSourceFile,
-} from "./provider-virtual-source-files.js";
+  getCsharpTypeFromProjectSourceReferenceNode,
+} from "./project-source-types.js";
 
 export function expressionToCsharpType(
   node: Node | undefined,
@@ -84,14 +78,9 @@ function getCsharpTypeForExpressionReference(
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode {
-  const sourceReferenceName = getProjectSourceReferenceTypeName(
-    input.semantics.getProjectSourceReferenceForNode(node, { sourceFile }),
-    input,
-  );
-  if (sourceReferenceName !== undefined) {
-    return diagnostics === undefined
-      ? { kind: "IdentifierName", name: sourceReferenceName }
-      : { kind: "IdentifierName", name: requireCsharpIdentifier(sourceReferenceName, diagnostics, "Project source type reference") };
+  const sourceReferenceType = getCsharpTypeFromProjectSourceReferenceNode(node, sourceFile, input, diagnostics);
+  if (sourceReferenceType !== undefined) {
+    return sourceReferenceType;
   }
   const targetCarrier = getTargetTypeRefForNode(input, node, sourceFile);
   if (targetCarrier !== undefined) {
@@ -100,7 +89,7 @@ function getCsharpTypeForExpressionReference(
       return csharpType;
     }
   }
-  const targetBinding = input.semantics.getTargetBindingForReference(node, { sourceFile });
+  const targetBinding = input.targetFacts.getTargetBindingForReference(node, { sourceFile });
   if (targetBinding !== undefined) {
     const targetType = csharpTargetTypeFromBinding(targetBinding);
     const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
@@ -110,27 +99,4 @@ function getCsharpTypeForExpressionReference(
   }
   diagnostics?.push(unsupportedNodeDiagnostic(node, "C# type expression emission requires a provider target binding or a project-source class/interface declaration."));
   return invalidCsharpType("unresolved type expression");
-}
-
-function getProjectSourceReferenceTypeName(
-  reference: ReturnType<TargetCompileInput["semantics"]["getProjectSourceReferenceForNode"]>,
-  input: TargetCompileInput,
-): string | undefined {
-  if (reference === undefined) {
-    return undefined;
-  }
-  if (input.facts.getTargetBindingFact(reference.symbol) !== undefined) {
-    return undefined;
-  }
-  if (reference.sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, reference.sourceFile)) {
-    return undefined;
-  }
-  if (
-    input.ast.kindName(reference.declaration) !== KindClassDeclaration &&
-    input.ast.kindName(reference.declaration) !== KindInterfaceDeclaration &&
-    input.ast.kindName(reference.declaration) !== KindEnumDeclaration
-  ) {
-    return undefined;
-  }
-  return reference.symbol.Name;
 }

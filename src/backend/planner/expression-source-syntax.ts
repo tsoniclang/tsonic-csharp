@@ -33,7 +33,6 @@ import {
   SourceKind,
 } from "./source-ast.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { invalidExpression } from "./invalid-expression.js";
 import type {
   ExpressionPlanner,
 } from "./expression-planner-types.js";
@@ -52,7 +51,9 @@ import {
   targetTypeRefsMatch,
 } from "./target-types.js";
 import {
-  getRuntimeCarrierForExpression,
+  probeCarrierFromResolution,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   getCsharpTaskResultTargetType,
@@ -71,14 +72,14 @@ export function tryPlanSourceSyntaxExpression(
       return { kind: "LiteralExpression", value: Node_Text(AsStringLiteral(node)) };
     case KindNoSubstitutionTemplateLiteral:
       if (!requireCsharpStringRuntimeCarrier(node, sourceFile, input, diagnostics, "No-substitution template literal emission")) {
-        return invalidExpression("template literal without target string carrier");
+        return undefined;
       }
       return { kind: "LiteralExpression", value: Node_Text(AsNoSubstitutionTemplateLiteral(node)) };
     case KindNumericLiteral: {
       const value = parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(node)));
       if (value === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Numeric literal emission requires parseable finite source literal text from TSTS."));
-        return invalidExpression("invalid numeric literal");
+        return undefined;
       }
       return { kind: "LiteralExpression", value };
     }
@@ -86,21 +87,23 @@ export function tryPlanSourceSyntaxExpression(
       const value = parseBigIntLiteral(Node_Text(AsBigIntLiteral(node)));
       if (value === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires parseable source literal text from TSTS."));
-        return invalidExpression("invalid bigint literal");
+        return undefined;
       }
-      const carrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
+      const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
+      const carrier = probeCarrierFromResolution(carrierResolution);
       if (carrier === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a finalized runtime carrier fact before C# emission."));
-        return invalidExpression("bigint literal without runtime carrier");
+        const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the BigInt literal.");
+        diagnostics.push(unsupportedNodeDiagnostic(node, `BigInt literal emission requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
+        return undefined;
       }
       if (!targetTypeRefsMatch(carrier, csharpBigIntegerTargetType())) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a finalized System.Numerics.BigInteger runtime carrier fact."));
-        return invalidExpression("bigint literal without BigInteger carrier");
+        return undefined;
       }
       const bigIntegerType = csharpTypeFromTargetTypeRef(carrier);
       if (bigIntegerType === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "BigInt literal emission requires a renderable System.Numerics.BigInteger target type."));
-        return invalidExpression("bigint literal without renderable target type");
+        return undefined;
       }
       return {
         kind: "InvocationExpression",
@@ -135,44 +138,62 @@ export function tryPlanSourceSyntaxExpression(
       return planExpression(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics);
     case KindParenthesizedExpression: {
       const expression = AsParenthesizedExpression(node)!;
+      const inner = planExpression(expression.Expression!, sourceFile, input, diagnostics);
+      if (inner === undefined) {
+        return undefined;
+      }
       return {
         kind: "ParenthesizedExpression",
-        expression: planExpression(expression.Expression!, sourceFile, input, diagnostics),
+        expression: inner,
       };
     }
     case KindAwaitExpression: {
       const expression = AsAwaitExpression(node)!;
       if (expression.Expression === undefined) {
         diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression must have an expression."));
-        return invalidExpression("await without expression");
+        return undefined;
       }
-      const awaitedCarrier = getRuntimeCarrierForExpression(input, expression.Expression, sourceFile);
+      const awaitedCarrierResolution = resolveRuntimeCarrierForExpression(input, expression.Expression, sourceFile);
+      const awaitedCarrier = probeCarrierFromResolution(awaitedCarrierResolution);
       const awaitedResultCarrier = getCsharpTaskResultTargetType(awaitedCarrier);
       if (awaitedResultCarrier === undefined) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression emission requires a finalized Promise/Task target carrier fact for the awaited expression."));
-        return invalidExpression("await without Promise/Task carrier");
+        const detail = missingCarrierDiagnosticDetail(awaitedCarrierResolution, "Runtime carrier fact is missing for the awaited expression.");
+        diagnostics.push(unsupportedNodeDiagnostic(node, `Await expression emission requires a finalized Promise/Task target carrier fact for the awaited expression. ${detail.reason}`, detail.evidence));
+        return undefined;
       }
-      const awaitCarrier = getRuntimeCarrierForExpression(input, node, sourceFile);
+      const awaitCarrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
+      const awaitCarrier = probeCarrierFromResolution(awaitCarrierResolution);
       if (
         awaitCarrier === undefined
           ? !targetTypeRefsMatch(awaitedResultCarrier, csharpVoidTargetType())
           : !targetTypeRefsMatch(awaitCarrier, awaitedResultCarrier)
       ) {
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Await expression emission requires the finalized await-result carrier to match the awaited Promise/Task result carrier."));
-        return invalidExpression("await result carrier mismatch");
+        const detail = missingCarrierDiagnosticDetail(awaitCarrierResolution, "Runtime carrier fact is missing for the await expression result.");
+        diagnostics.push(unsupportedNodeDiagnostic(node, `Await expression emission requires the finalized await-result carrier to match the awaited Promise/Task result carrier. ${detail.reason}`, detail.evidence));
+        return undefined;
+      }
+      const awaited = planExpression(expression.Expression, sourceFile, input, diagnostics);
+      if (awaited === undefined) {
+        return undefined;
       }
       return {
         kind: "AwaitExpression",
-        expression: planExpression(expression.Expression, sourceFile, input, diagnostics),
+        expression: awaited,
       };
     }
     case KindConditionalExpression: {
       const expression = AsConditionalExpression(node)!;
+      const condition = planExpression(expression.Condition!, sourceFile, input, diagnostics);
+      const whenTrue = planExpression(expression.WhenTrue!, sourceFile, input, diagnostics);
+      const whenFalse = planExpression(expression.WhenFalse!, sourceFile, input, diagnostics);
+      if (condition === undefined || whenTrue === undefined || whenFalse === undefined) {
+        return undefined;
+      }
       return {
         kind: "ConditionalExpression",
-        condition: planExpression(expression.Condition!, sourceFile, input, diagnostics),
-        whenTrue: planExpression(expression.WhenTrue!, sourceFile, input, diagnostics),
-        whenFalse: planExpression(expression.WhenFalse!, sourceFile, input, diagnostics),
+        condition,
+        whenTrue,
+        whenFalse,
       };
     }
     default:

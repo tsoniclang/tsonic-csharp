@@ -2,29 +2,39 @@ import type {
   ProviderExportDeclaration,
   ProviderParameterDeclaration,
   ProviderTypeExpression,
-  TargetMember,
-  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpStringTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-  targetMethod,
   targetParameter,
 } from "../js/source-library.js";
+import {
+  getNodejsProviderExportSignatureDeclarationMetadata,
+  nodejsProviderExportSignatureDeclarationMetadataIndex,
+} from "./metadata-indexes.js";
+import {
+  nodejsModuleCallTargetMetadata,
+} from "./members/target-member-metadata.js";
+import type {
+  NodejsModuleCallTargetMetadata,
+  NodejsModuleCallTargetMetadataRow,
+} from "./members/target-member-metadata.js";
 
 const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
+const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
+const voidProviderType = { kind: "void" } satisfies ProviderTypeExpression;
+const callbackProviderType = {
+  kind: "function",
+  parameters: [{ name: "args", type: { kind: "array", elementType: unknownProviderType }, rest: true }],
+  returnType: voidProviderType,
+} satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
 const utilTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.util", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "util"));
 
-interface NodeUtilCallTargetMember {
-  readonly exportName: string;
-  readonly signatureId: string;
-  readonly providerParameters: readonly ProviderParameterDeclaration[];
-  readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}
+type NodeUtilCallTargetMember = NodejsModuleCallTargetMetadata;
+type NodeUtilCallTargetMetadataRow = Omit<NodejsModuleCallTargetMetadataRow, "declaringType">;
 
 export interface NodeUtilUnsupportedTargetIdentity {
   readonly exportName: string;
@@ -40,6 +50,12 @@ export const nodeUtilFormatWithOptionsExportName = "formatWithOptions";
 export const nodeUtilFormatWithOptionsSignatureId = "node:util.formatWithOptions(System.Object,System.Object,System.Object[])";
 export const nodeUtilInspectExportName = "inspect";
 export const nodeUtilInspectSignatureId = "node:util.inspect(System.Object)";
+export const nodeUtilDebuglogExportName = "debuglog";
+export const nodeUtilDebuglogSignatureId = "node:util.debuglog(System.String)";
+export const nodeUtilDeprecateExportName = "deprecate";
+export const nodeUtilDeprecateSignatureId = "node:util.deprecate(Function,System.String,System.String)";
+export const nodeUtilIsDeepStrictEqualExportName = "isDeepStrictEqual";
+export const nodeUtilIsDeepStrictEqualSignatureId = "node:util.isDeepStrictEqual(System.Object,System.Object)";
 export const nodeUtilStripVtControlCharactersExportName = "stripVTControlCharacters";
 export const nodeUtilStripVtControlCharactersSignatureId = "node:util.stripVTControlCharacters(System.String)";
 export const nodeUtilToUsvStringExportName = "toUSVString";
@@ -48,7 +64,7 @@ export const nodeUtilToUsvStringSignatureId = "node:util.toUSVString(System.Stri
 export function nodeUtilExports(): readonly ProviderExportDeclaration[] {
   return [
     ...nodeUtilUnsupportedTargetIdentities().map((identity) =>
-      unsupportedUtilFunction(identity.exportName, identity.signatureId, unsupportedUtilParameters(identity.exportName))
+      unsupportedUtilFunction(identity.exportName, identity.signatureId, unsupportedUtilParameters(identity.exportName, identity.signatureId))
     ),
     ...nodeUtilCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
       id: `node:util.${exportName}`,
@@ -64,32 +80,27 @@ export function nodeUtilExports(): readonly ProviderExportDeclaration[] {
 }
 
 export function nodeUtilUnsupportedTargetIdentities(): readonly NodeUtilUnsupportedTargetIdentity[] {
-  return [
-    unsupportedUtilTargetIdentity(nodeUtilFormatExportName, nodeUtilFormatSignatureId),
-    unsupportedUtilTargetIdentity(nodeUtilFormatWithOptionsExportName, nodeUtilFormatWithOptionsSignatureId),
-    unsupportedUtilTargetIdentity(nodeUtilInspectExportName, nodeUtilInspectSignatureId),
-  ];
+  return nodeUtilUnsupportedCalls.map(({ exportName, signatureId, targetIdentityId, displayName }) => ({
+    exportName,
+    signatureId,
+    targetIdentityId,
+    displayName,
+  }));
 }
 
-export function nodeUtilCallTargetMembers(): readonly {
-  readonly exportName: string;
-  readonly signatureId: string;
-  readonly providerParameters: readonly ProviderParameterDeclaration[];
-  readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
-}[] {
+export function nodeUtilCallTargetMembers(): readonly NodeUtilCallTargetMember[] {
   const stringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType });
   return [
-    utilCall(nodeUtilStripVtControlCharactersExportName, nodeUtilStripVtControlCharactersSignatureId, [
+    utilCall({ exportName: nodeUtilStripVtControlCharactersExportName, signatureId: nodeUtilStripVtControlCharactersSignatureId, targetMemberId: "Tsonic.CSharp.Node.util.stripVTControlCharacters(System.String)", sourceName: "stripVTControlCharacters", targetName: "stripVTControlCharacters", providerParameters: [
       stringParameter("str"),
-    ], stringProviderType, [
+    ], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("input", stringTargetType),
-    ], stringTargetType),
-    utilCall(nodeUtilToUsvStringExportName, nodeUtilToUsvStringSignatureId, [
+    ], targetReturnType: stringTargetType }),
+    utilCall({ exportName: nodeUtilToUsvStringExportName, signatureId: nodeUtilToUsvStringSignatureId, targetMemberId: "Tsonic.CSharp.Node.util.toUSVString(System.String)", sourceName: "toUSVString", targetName: "toUSVString", providerParameters: [
       stringParameter("string"),
-    ], stringProviderType, [
+    ], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("input", stringTargetType),
-    ], stringTargetType),
+    ], targetReturnType: stringTargetType }),
   ];
 }
 
@@ -105,43 +116,39 @@ function unsupportedUtilFunction(
     signatures: [{
       id: signatureId,
       parameters,
-      returnType: stringProviderType,
+      returnType: unsupportedUtilReturnType(exportName, signatureId),
     }],
   };
 }
 
-function unsupportedUtilTargetIdentity(
+function unsupportedUtilParameters(
   exportName: string,
   signatureId: string,
-): NodeUtilUnsupportedTargetIdentity {
-  return {
-    exportName,
-    signatureId,
-    targetIdentityId: `unsupported:Tsonic.CSharp.Node.util.${exportName}(${signatureId.slice("node:util.".length + exportName.length + 1, -1)})`,
-    displayName: `unsupported NodeJS util.${exportName}`,
-  };
+): readonly ProviderParameterDeclaration[] {
+  return unsupportedUtilMetadata(exportName, signatureId).parameters;
 }
 
-function unsupportedUtilParameters(exportName: string): readonly ProviderParameterDeclaration[] {
-  switch (exportName) {
-    case nodeUtilFormatExportName:
-      return [
-        unknownParameter("format", true),
-        unknownRestParameter("args"),
-      ];
-    case nodeUtilFormatWithOptionsExportName:
-      return [
-        unknownParameter("inspectOptions"),
-        unknownParameter("formatValue"),
-        unknownRestParameter("args"),
-      ];
-    case nodeUtilInspectExportName:
-      return [
-        unknownParameter("object"),
-      ];
-    default:
-      return [];
+function unsupportedUtilReturnType(
+  exportName: string,
+  signatureId: string,
+): ProviderTypeExpression {
+  return unsupportedUtilMetadata(exportName, signatureId).returnType;
+}
+
+function unsupportedUtilMetadata(
+  exportName: string,
+  signatureId: string,
+): typeof nodeUtilUnsupportedCalls[number] {
+  const metadata = getNodejsProviderExportSignatureDeclarationMetadata(
+    nodeUtilUnsupportedCallByProviderDeclarationIdentity,
+    nodeUtilModuleSpecifier,
+    exportName,
+    signatureId,
+  );
+  if (metadata === undefined) {
+    throw new Error(`Missing C# NodeJS util unsupported metadata for signature '${signatureId}'.`);
   }
+  return metadata;
 }
 
 function unknownParameter(name: string, optional = false): ProviderParameterDeclaration {
@@ -149,6 +156,21 @@ function unknownParameter(name: string, optional = false): ProviderParameterDecl
     name,
     type: unknownProviderType,
     ...(optional ? { optional: true } : {}),
+  };
+}
+
+function stringParameter(name: string, optional = false): ProviderParameterDeclaration {
+  return {
+    name,
+    type: stringProviderType,
+    ...(optional ? { optional: true } : {}),
+  };
+}
+
+function callbackParameter(name: string): ProviderParameterDeclaration {
+  return {
+    name,
+    type: callbackProviderType,
   };
 }
 
@@ -160,29 +182,88 @@ function unknownRestParameter(name: string): ProviderParameterDeclaration {
   };
 }
 
-function utilCall(
-  exportName: string,
-  signatureId: string,
-  providerParameters: readonly ProviderParameterDeclaration[],
-  providerReturnType: ProviderTypeExpression,
-  targetParameters: readonly ReturnType<typeof targetParameter>[],
-  targetReturnType: TargetTypeRef,
-): NodeUtilCallTargetMember {
-  return {
-    exportName,
-    signatureId,
-    providerParameters,
-    providerReturnType,
-    member: targetMethod(
-      `Tsonic.CSharp.Node.util.${exportName}(${signatureId.slice("node:util.".length + exportName.length + 1, -1)})`,
-      exportName,
-      exportName,
-      targetParameters,
-      targetReturnType,
-      {
-        declaringType: utilTargetType,
-        static: true,
-      },
-    ),
-  };
+function utilCall(row: NodeUtilCallTargetMetadataRow): NodeUtilCallTargetMember {
+  return nodejsModuleCallTargetMetadata({
+    ...row,
+    declaringType: utilTargetType,
+  });
 }
+
+const nodeUtilUnsupportedCalls = [
+  {
+    exportName: nodeUtilFormatExportName,
+    signatureId: nodeUtilFormatSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])",
+    displayName: "unsupported NodeJS util.format",
+    parameters: [
+      unknownParameter("format", true),
+      unknownRestParameter("args"),
+    ],
+    returnType: stringProviderType,
+  },
+  {
+    exportName: nodeUtilFormatWithOptionsExportName,
+    signatureId: nodeUtilFormatWithOptionsSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.formatWithOptions(System.Object,System.Object,System.Object[])",
+    displayName: "unsupported NodeJS util.formatWithOptions",
+    parameters: [
+      unknownParameter("inspectOptions"),
+      unknownParameter("formatValue"),
+      unknownRestParameter("args"),
+    ],
+    returnType: stringProviderType,
+  },
+  {
+    exportName: nodeUtilInspectExportName,
+    signatureId: nodeUtilInspectSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.inspect(System.Object)",
+    displayName: "unsupported NodeJS util.inspect",
+    parameters: [
+      unknownParameter("object"),
+    ],
+    returnType: stringProviderType,
+  },
+  {
+    exportName: nodeUtilDebuglogExportName,
+    signatureId: nodeUtilDebuglogSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.debuglog(System.String)",
+    displayName: "unsupported NodeJS util.debuglog",
+    parameters: [
+      stringParameter("section"),
+    ],
+    returnType: callbackProviderType,
+  },
+  {
+    exportName: nodeUtilDeprecateExportName,
+    signatureId: nodeUtilDeprecateSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.deprecate(Function,System.String,System.String)",
+    displayName: "unsupported NodeJS util.deprecate",
+    parameters: [
+      callbackParameter("fn"),
+      stringParameter("msg"),
+      stringParameter("code", true),
+    ],
+    returnType: callbackProviderType,
+  },
+  {
+    exportName: nodeUtilIsDeepStrictEqualExportName,
+    signatureId: nodeUtilIsDeepStrictEqualSignatureId,
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.util.isDeepStrictEqual(System.Object,System.Object)",
+    displayName: "unsupported NodeJS util.isDeepStrictEqual",
+    parameters: [
+      unknownParameter("val1"),
+      unknownParameter("val2"),
+    ],
+    returnType: boolProviderType,
+  },
+] satisfies readonly {
+  readonly exportName: string;
+  readonly signatureId: string;
+  readonly targetIdentityId: string;
+  readonly displayName: string;
+  readonly parameters: readonly ProviderParameterDeclaration[];
+  readonly returnType: ProviderTypeExpression;
+}[];
+
+const nodeUtilUnsupportedCallByProviderDeclarationIdentity =
+  nodejsProviderExportSignatureDeclarationMetadataIndex(nodeUtilModuleSpecifier, nodeUtilUnsupportedCalls);

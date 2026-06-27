@@ -65,10 +65,6 @@ export function resolveTargetTypeRefForTypeCore(
   if (types === undefined) {
     return resolveNonPrimitiveRuntimeCarrier(type, context, options, host, resolveTargetTypeArgumentsForType);
   }
-  const typeParameterName = getTypeParameterName(type, context);
-  if (typeParameterName !== undefined) {
-    return { kind: "type-parameter", name: typeParameterName };
-  }
   const sourceArray = getSourceArrayTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (sourceArray !== undefined) {
     return sourceArray;
@@ -80,6 +76,10 @@ export function resolveTargetTypeRefForTypeCore(
   const sourceRecord = getSourceRecordTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (sourceRecord !== undefined) {
     return sourceRecord;
+  }
+  const typeParameterName = getTypeParameterName(type, context);
+  if (typeParameterName !== undefined) {
+    return { kind: "type-parameter", name: typeParameterName };
   }
   const binding = resolveTargetBinding(type.symbol, context);
   if (binding !== undefined) {
@@ -101,13 +101,13 @@ export function resolveTargetTypeRefForTypeCore(
       ...(targetTypeArguments.length > 0 ? { typeArguments: targetTypeArguments } : {}),
     }, host);
   }
-  const callable = getCallableTargetTypeRefForSemanticType(type, context, options, host, recursiveTargetTypeResolver);
-  if (callable !== undefined) {
-    return callable;
-  }
   const runtimeCarrier = resolveNonPrimitiveRuntimeCarrier(type, context, options, host, resolveTargetTypeArgumentsForType);
   if (runtimeCarrier !== undefined) {
     return runtimeCarrier;
+  }
+  const callable = getCallableTargetTypeRefForSemanticType(type, context, options, host, recursiveTargetTypeResolver);
+  if (callable !== undefined) {
+    return callable;
   }
   if (types.isBooleanLike(type)) {
     return csharpSourcePrimitiveTargetType("bool");
@@ -129,7 +129,7 @@ export function resolveTargetTypeRefForTypeCore(
     if (nullable !== undefined) {
       return nullable;
     }
-    return undefined;
+    return getHomogeneousPrimitiveUnionTargetTypeRef(type, context);
   }
   const declaredShape = host.getSemanticTypeDeclarationShape(type, context);
   if (declaredShape !== undefined) {
@@ -138,6 +138,34 @@ export function resolveTargetTypeRefForTypeCore(
   const tuple = getTupleTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (tuple !== undefined) {
     return tuple;
+  }
+  return undefined;
+}
+
+function getHomogeneousPrimitiveUnionTargetTypeRef(
+  type: Type,
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  const types = context.compiler?.types;
+  if (types === undefined || !types.isUnion(type)) {
+    return undefined;
+  }
+  const members = types.getUnionOrIntersectionTypes(type)
+    .filter((member): member is Type => member !== undefined && !types.isNullish(member));
+  if (members.length === 0) {
+    return undefined;
+  }
+  if (members.every((member) => types.isStringLike(member))) {
+    return csharpStringTargetType();
+  }
+  if (members.every((member) => types.isBooleanLike(member))) {
+    return csharpSourcePrimitiveTargetType("bool");
+  }
+  if (members.every((member) => types.isNumberLike(member))) {
+    return csharpSourcePrimitiveTargetType("float64");
+  }
+  if (members.every((member) => types.isBigIntLike(member))) {
+    return csharpBigIntegerTargetType();
   }
   return undefined;
 }

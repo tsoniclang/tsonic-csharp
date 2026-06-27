@@ -1,39 +1,60 @@
 import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
-import type {
-  ExtensionEvidence,
-  ExtensionObservationContext,
-  Node,
-  SourceFile,
-  TargetTypeRef,
+  providerVirtualDeclarationFactKey,
 } from "@tsonic/tsts";
 import {
-  asNodeSubject,
-  getNodeField,
-  getNodeNameText,
   visitAstReaderNodes,
 } from "./ast-utils.js";
-import {
-  csharpTargetNamedType,
-} from "./target-types.js";
 import type {
-  CsharpTargetNamedTypeRef,
-} from "./target-types.js";
+  CsharpObjectShapeSemanticsHost,
+} from "./object-shape-types.js";
+import {
+  createSourceDeclarationObservationContext,
+} from "./source-declaration-facts/context.js";
+import type {
+  SourceDeclarationLifecycleContext,
+} from "./source-declaration-facts/context.js";
+import {
+  recordSourceDeclarationTarget,
+} from "./source-declaration-facts/recording.js";
+import {
+  getCsharpSourceStructDeclarationTargetForSubject,
+} from "./source-declaration-facts/struct-declaration.js";
+import {
+  getEnumMemberTargetType,
+  getSourceDeclarationTargetType,
+} from "./source-declaration-facts/target-type.js";
+
+export {
+  getCsharpSourceStructDeclarationTargetForSubject,
+} from "./source-declaration-facts/struct-declaration.js";
+export {
+  sourceDeclarationTargetType,
+} from "./source-declaration-facts/target-type.js";
 
 export function recordCsharpSourceDeclarationFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
+  lifecycleContext: SourceDeclarationLifecycleContext,
+  host: CsharpObjectShapeSemanticsHost,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
     return;
   }
   for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+    if (
+      sourceFile === undefined ||
+      sourceFile.IsDeclarationFile === true ||
+      lifecycleContext.host.facts.get(sourceFile, providerVirtualDeclarationFactKey) !== undefined
+    ) {
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      const declarationTarget = getSourceDeclarationTargetType(compiler.ast, node);
+      const context = createSourceDeclarationObservationContext(lifecycleContext, compiler);
+      const structDeclaration = getCsharpSourceStructDeclarationTargetForSubject(node, context, host);
+      if (structDeclaration !== undefined) {
+        recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, structDeclaration.targetType, structDeclaration.objectShape);
+        return;
+      }
+      const declarationTarget = getSourceDeclarationTargetType(compiler.ast, node, context);
       if (declarationTarget !== undefined) {
         recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, declarationTarget);
         return;
@@ -44,77 +65,4 @@ export function recordCsharpSourceDeclarationFactsBeforeFinalization(
       }
     });
   }
-}
-
-function recordSourceDeclarationTarget(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  sourceFile: SourceFile,
-  declaration: Node,
-  targetType: TargetTypeRef,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const fact = { carrier: targetType };
-  const evidence: readonly ExtensionEvidence[] = [{ message: "C# source declaration runtime carrier recorded from TSTS source declaration identity." }];
-  lifecycleContext.host.facts.set(declaration, runtimeCarrierFactKey, fact, evidence);
-  const name = asNodeSubject(getNodeField(declaration, "name"));
-  if (name !== undefined) {
-    lifecycleContext.host.facts.set(name, runtimeCarrierFactKey, fact, evidence);
-    const symbol = compiler.checker.getSymbolAtLocation(name, { sourceFile }) ??
-      compiler.checker.getResolvedSymbol(name, { sourceFile });
-    if (symbol !== undefined) {
-      lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
-    }
-    const type = compiler.checker.getTypeAtLocation(name, { sourceFile });
-    if (type !== undefined) {
-      lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, fact, evidence);
-      if (type.symbol !== undefined) {
-        lifecycleContext.host.facts.set(type.symbol, runtimeCarrierFactKey, fact, evidence);
-      }
-    }
-  }
-}
-
-function getSourceDeclarationTargetType(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): TargetTypeRef | undefined {
-  const kind = ast.kindName(node);
-  if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
-    return undefined;
-  }
-  return sourceDeclarationTargetType(getNodeNameText(node), kind);
-}
-
-function getEnumMemberTargetType(
-  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
-  node: Node,
-): TargetTypeRef | undefined {
-  if (ast.kindName(node) !== "KindEnumMember") {
-    return undefined;
-  }
-  const enumDeclaration = ast.parent(node);
-  return enumDeclaration === undefined || ast.kindName(enumDeclaration) !== "KindEnumDeclaration"
-    ? undefined
-    : sourceDeclarationTargetType(getNodeNameText(enumDeclaration), "KindEnumDeclaration");
-}
-
-export function sourceDeclarationTargetType(
-  name: string,
-  kind: "KindClassDeclaration" | "KindInterfaceDeclaration" | "KindEnumDeclaration",
-  typeArguments?: readonly TargetTypeRef[],
-): TargetTypeRef | undefined {
-  if (name.length === 0) {
-    return undefined;
-  }
-  return {
-    ...csharpTargetNamedType(name, typeArguments, { kind: "named", name }),
-    csharpSourceDeclarationKind: kind === "KindClassDeclaration"
-      ? "class" as const
-      : kind === "KindInterfaceDeclaration"
-        ? "interface" as const
-        : "enum" as const,
-  } as CsharpTargetNamedTypeRef;
 }

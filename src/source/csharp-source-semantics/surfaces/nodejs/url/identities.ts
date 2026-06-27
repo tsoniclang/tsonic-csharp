@@ -1,0 +1,12 @@
+export const nodeUrlModuleSpecifier = "node:url";
+export const nodeUrlUrlExportName = "URL";
+export const nodeUrlUrlConstructorMemberId = "node:url.URL.constructor";
+export const nodeUrlUrlConstructorSignatureId = "node:url.URL.constructor(System.String,System.String)";
+export const nodeUrlUrlHrefMemberId = "node:url.URL.href";
+export const nodeUrlUrlCanParseMemberId = "node:url.URL.canParse";
+export const nodeUrlUrlCanParseSignatureId = "node:url.URL.canParse(System.String,System.String)";
+export const nodeUrlPathToFileUrlExportName = "pathToFileURL";
+export const nodeUrlPathToFileUrlSignatureId = "node:url.pathToFileURL(System.String)";
+export const nodeUrlFileUrlToPathExportName = "fileURLToPath";
+export const nodeUrlFileUrlToPathStringSignatureId = "node:url.fileURLToPath(System.String)";
+export const nodeUrlFileUrlToPathUrlSignatureId = "node:url.fileURLToPath(Tsonic.CSharp.Node.URL)";

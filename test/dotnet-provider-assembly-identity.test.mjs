@@ -39,10 +39,34 @@ test(".NET reflection provider does not first-win duplicate source names from di
   assertDistinctAssemblyQualifiedIdentities(widgetExports);
 });
 
+test(".NET reflection provider records assembly reference facts on supported modules and types", () => {
+  const acmeDll = buildAssemblyIdentityFixture("Acme.Contracts", "acme");
+  const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll] });
+  const module = provider.getModule("@tsonic/dotnet/Shared.js", {});
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  assertAssemblyReference(module.assembly, "Acme.Contracts");
+  assert.equal(module.assembly.path.endsWith("Acme.Contracts.dll"), true);
+
+  const widget = module.exports.find(isSharedWidgetDeclaration);
+  assert.ok(widget, "Expected Shared.Widget to be a normal supported export with one referenced assembly.");
+  assertAssemblyReference(widget.assembly, "Acme.Contracts");
+  assert.equal(widget.assembly.path.endsWith("Acme.Contracts.dll"), true);
+  assert.equal(module.unsupportedExports, undefined);
+});
+
 function isSharedWidgetDeclaration(declaration) {
   return declaration.kind === "type" &&
     declaration.sourceName === "Widget" &&
     declaration.namespaceName === "Shared";
+}
+
+function assertAssemblyReference(reference, name) {
+  assert.ok(reference, "Expected assembly reference facts.");
+  assert.equal(reference.name, name);
+  assert.match(reference.version, /^\d+\.\d+\.\d+\.\d+$/u);
+  assert.equal(reference.culture, undefined);
+  assert.equal(typeof reference.path, "string");
 }
 
 function assertAssemblyCollisionEvidence(declaration) {

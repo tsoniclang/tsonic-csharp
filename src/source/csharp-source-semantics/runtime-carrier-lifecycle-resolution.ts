@@ -18,6 +18,9 @@ import {
 import {
   mapRuntimeCarrier,
 } from "./runtime-carrier-mapping.js";
+import {
+  targetTypeRefIsClosed,
+} from "./target-ref-utils.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "./runtime-carrier-types.js";
@@ -70,8 +73,9 @@ export function getRuntimeCarrierSyntaxTargetTypeRef(
   if (typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
-  return {
+  const targetType = {
     ...declaringType,
     ...(typeArguments.length > 0 ? { typeArguments: typeArguments as readonly TargetTypeRef[] } : {}),
   };
+  return targetTypeRefIsClosed(targetType) ? targetType : undefined;
 }

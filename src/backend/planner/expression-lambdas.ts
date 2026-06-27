@@ -4,7 +4,9 @@ import {
   AsParameterDeclaration,
   HasSourceKind,
   HasSyntacticModifier,
+  KindArrowFunction,
   KindBlock,
+  KindFunctionExpression,
   KindIdentifier,
   Node_Text,
   ModifierFlagsAsync,
@@ -36,7 +38,7 @@ type ExpressionPlanner = (
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-) => CsharpExpression;
+) => CsharpExpression | undefined;
 
 export function planArrowFunctionExpression(
   node: Node,
@@ -46,25 +48,30 @@ export function planArrowFunctionExpression(
   planExpression: ExpressionPlanner,
   expectedType?: CsharpTypeNode,
   state?: DestructuringPlannerState,
-): CsharpExpression {
+): CsharpExpression | undefined {
   const expression = AsArrowFunction(node)!;
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
+  const targetType = getLambdaTargetContext(node, sourceFile, input, expectedType);
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetType);
   if (HasSourceKind(input.ast, expression.Body, KindBlock)) {
     return {
       kind: "LambdaExpression",
       ...(isAsyncExpression(node) ? { async: true } : {}),
-      parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, expectedType),
+      parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetType),
       body: {
         kind: "Block",
         statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics, state),
       },
     };
   }
+  const body = planExpression(expression.Body!, sourceFile, input, diagnostics);
+  if (body === undefined) {
+    return undefined;
+  }
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
-    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, expectedType),
-    body: planExpression(expression.Body!, sourceFile, input, diagnostics),
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetType),
+    body,
   };
 }
 
@@ -77,11 +84,12 @@ export function planFunctionExpression(
   state?: DestructuringPlannerState,
 ): CsharpExpression {
   const expression = AsFunctionExpression(node)!;
-  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, expectedType);
+  const targetType = getLambdaTargetContext(node, sourceFile, input, expectedType);
+  diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetType);
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
-    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, expectedType),
+    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetType),
     body: {
       kind: "Block",
       statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics, state),
@@ -155,14 +163,71 @@ export function diagnoseMissingLambdaTargetContext(
   diagnostics: TargetDiagnostic[],
   expectedType?: CsharpTypeNode,
 ): void {
-  if (expectedType !== undefined && isCsharpDelegateType(expectedType)) {
-    return;
-  }
-  const contextualType = getContextualTargetCsharpType(node, sourceFile, input);
-  if (contextualType !== undefined && isCsharpDelegateType(contextualType)) {
+  if (getLambdaTargetContext(node, sourceFile, input, expectedType) !== undefined) {
     return;
   }
   diagnostics.push(unsupportedNodeDiagnostic(node, "Lambda emission requires a contextual function/delegate type from TSTS or provider facts before C# emission."));
+}
+
+export function getLambdaTargetContext(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  expectedType?: CsharpTypeNode,
+): CsharpTypeNode | undefined {
+  if (!HasSourceKind(input.ast, node, KindArrowFunction) && !HasSourceKind(input.ast, node, KindFunctionExpression)) {
+    return undefined;
+  }
+  if (expectedType !== undefined && isCsharpDelegateType(expectedType)) {
+    return expectedType;
+  }
+  const contextualType = getContextualTargetCsharpType(node, sourceFile, input);
+  if (contextualType !== undefined && isCsharpDelegateType(contextualType)) {
+    return contextualType;
+  }
+  const explicitSignatureType = getExplicitLambdaSignatureTarget(node, sourceFile, input);
+  if (explicitSignatureType !== undefined && isCsharpDelegateType(explicitSignatureType)) {
+    return explicitSignatureType;
+  }
+  return undefined;
+}
+
+function getExplicitLambdaSignatureTarget(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const expression = AsArrowFunction(node) ?? AsFunctionExpression(node);
+  if (expression === undefined) {
+    return undefined;
+  }
+  const parameterTypes = (expression.Parameters?.Nodes ?? []).map((parameterNode) => {
+    const parameter = AsParameterDeclaration(parameterNode);
+    return parameter?.Type === undefined
+      ? undefined
+      : getCsharpTypeForNode(parameter.Type, sourceFile, input);
+  });
+  if (!parameterTypes.every((parameterType): parameterType is CsharpTypeNode => parameterType !== undefined && parameterType.kind !== "InvalidType")) {
+    return undefined;
+  }
+  const returnType = expression.Type === undefined
+    ? undefined
+    : getCsharpTypeForNode(expression.Type, sourceFile, input);
+  if (returnType === undefined || returnType.kind === "InvalidType") {
+    return undefined;
+  }
+  if (returnType.kind === "PredefinedType" && returnType.name === "void") {
+    return {
+      kind: "IdentifierName",
+      name: "Action",
+      ...(parameterTypes.length === 0 ? {} : { typeArguments: parameterTypes }),
+    };
+  }
+  return {
+    kind: "IdentifierName",
+    name: "Func",
+    typeArguments: [...parameterTypes, returnType],
+  };
 }
 
 export function isCsharpDelegateType(type: CsharpTypeNode): boolean {
@@ -183,7 +248,11 @@ function getContextualTargetCsharpType(
 ): CsharpTypeNode | undefined {
   const fact = input.facts.getContextualTargetTypeFact(node);
   const targetType = fact?.targetType ?? getContextualTargetRefFromSubject(fact?.type, sourceFile, input);
-  return targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+  const csharpType = targetType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetType);
+  if (csharpType !== undefined) {
+    return csharpType;
+  }
+  return undefined;
 }
 
 function getContextualTargetRefFromSubject(

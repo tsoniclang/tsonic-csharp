@@ -58,6 +58,8 @@ function getOperatorTextFromKindName(kind: string): string | undefined {
       return ">>";
     case "KindGreaterThanGreaterThanGreaterThanToken":
       return ">>>";
+    case "KindInKeyword":
+      return "in";
     case "KindPlusToken":
       return "+";
     case "KindMinusToken":
@@ -80,10 +82,16 @@ function getOperatorTextFromKindName(kind: string): string | undefined {
       return "/=";
     case "KindPercentEqualsToken":
       return "%=";
+    case "KindAmpersandAmpersandEqualsToken":
+      return "&&=";
     case "KindAmpersandEqualsToken":
       return "&=";
+    case "KindBarBarEqualsToken":
+      return "||=";
     case "KindBarEqualsToken":
       return "|=";
+    case "KindQuestionQuestionEqualsToken":
+      return "??=";
     case "KindCaretEqualsToken":
       return "^=";
     case "KindLessThanLessThanEqualsToken":

@@ -180,12 +180,41 @@ test(".NET provider records unsupported default parameter values without exposin
 test(".NET selected target-member identity enforces optional and params-array arity facts", () => {
   const optionalMember = method("Example.Target.Optional(System.String,System.String)", [
     parameter("value", stringType()),
-    parameter("name", stringType(), { optional: true }),
+    parameter("name", stringType(), { optional: true, defaultValue: { kind: "string", value: "proved" } }),
   ]);
   assert.equal(selectBySignature(optionalMember, 1)?.id, optionalMember.id);
   assert.equal(selectBySignature(optionalMember, 2)?.id, optionalMember.id);
   assert.equal(selectBySignature(optionalMember, 0), undefined);
   assert.equal(selectBySignature(optionalMember, 3), undefined);
+
+  const optionalWithoutDefaultMember = method("Example.Target.OptionalWithoutDefault(System.String,System.String)", [
+    parameter("value", stringType()),
+    parameter("name", stringType(), { optional: true }),
+  ]);
+  assert.equal(selectBySignature(optionalWithoutDefaultMember, 1), undefined);
+  assert.equal(selectBySignature(optionalWithoutDefaultMember, 2)?.id, optionalWithoutDefaultMember.id);
+
+  const defaultWithoutOptionalMember = method("Example.Target.DefaultWithoutOptional(System.String,System.String)", [
+    parameter("value", stringType()),
+    parameter("name", stringType(), { defaultValue: { kind: "string", value: "not-optional" } }),
+  ]);
+  assert.equal(selectBySignature(defaultWithoutOptionalMember, 1), undefined);
+  assert.equal(selectBySignature(defaultWithoutOptionalMember, 2)?.id, defaultWithoutOptionalMember.id);
+
+  const unsupportedDefaultMember = method("Example.Target.UnsupportedDefault(System.String,System.String)", [
+    parameter("value", stringType()),
+    parameter("name", stringType(), {
+      optional: true,
+      unsupportedDefaultValue: {
+        kind: "unsupported-default-value",
+        id: "Example.Target.UnsupportedDefault:parameter:name:default",
+        parameterName: "name",
+        reason: "Default is not representable.",
+      },
+    }),
+  ]);
+  assert.equal(selectBySignature(unsupportedDefaultMember, 1), undefined);
+  assert.equal(selectBySignature(unsupportedDefaultMember, 2)?.id, unsupportedDefaultMember.id);
 
   const paramsMember = method("Example.Target.Params(System.String,System.String[])", [
     parameter("format", stringType()),
@@ -194,6 +223,13 @@ test(".NET selected target-member identity enforces optional and params-array ar
   assert.equal(selectBySignature(paramsMember, 1)?.id, paramsMember.id);
   assert.equal(selectBySignature(paramsMember, 3)?.id, paramsMember.id);
   assert.equal(selectBySignature(paramsMember, 0), undefined);
+
+  const arrayWithoutParamsMember = method("Example.Target.ArrayWithoutParams(System.String,System.String[])", [
+    parameter("format", stringType()),
+    parameter("values", { kind: "array", element: stringType() }),
+  ]);
+  assert.equal(selectBySignature(arrayWithoutParamsMember, 1), undefined);
+  assert.equal(selectBySignature(arrayWithoutParamsMember, 3), undefined);
 
   const requiredMember = method("Example.Target.Required(System.String,System.String)", [
     parameter("value", stringType()),
@@ -206,6 +242,22 @@ test(".NET selected target-member identity enforces optional and params-array ar
     parameter("tail", stringType()),
   ]);
   assert.equal(selectBySignature(malformedParamsMember, 2), undefined);
+
+  const malformedParamsTypeMember = method("Example.Target.MalformedParamsType(System.String,System.String)", [
+    parameter("format", stringType()),
+    parameter("values", stringType(), { paramsArray: true }),
+  ]);
+  assert.equal(selectBySignature(malformedParamsTypeMember, 1), undefined);
+  assert.equal(selectBySignature(malformedParamsTypeMember, 2), undefined);
+
+  const malformedParamsPassingMember = method("Example.Target.MalformedParamsPassing(System.String,System.String[])", [
+    parameter("format", stringType()),
+    parameter("values", { kind: "array", element: stringType() }, {
+      paramsArray: true,
+      passingMode: "byref-readwrite",
+    }),
+  ]);
+  assert.equal(selectBySignature(malformedParamsPassingMember, 1), undefined);
 });
 
 function rawSignature(module, typeName, memberName, signatureId) {
@@ -264,6 +316,7 @@ function stripAssemblyQualifiers(id) {
 }
 
 function selectBySignature(member, argumentCount) {
+  const arguments_ = Array.from({ length: argumentCount }, () => ({}));
   return findTargetMemberForCall(
     {
       id: "Example.Target",
@@ -274,9 +327,9 @@ function selectBySignature(member, argumentCount) {
       members: [member],
     },
     { signatureId: member.id },
-    { arguments: Array.from({ length: argumentCount }, () => ({})) },
+    { arguments: arguments_ },
     {},
-    () => undefined,
+    (subject) => arguments_.includes(subject) ? stringType() : undefined,
   );
 }
 

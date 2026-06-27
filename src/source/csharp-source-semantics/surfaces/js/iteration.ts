@@ -1,4 +1,5 @@
 import {
+  ExtensionObservationPoint,
   acceptObservation,
   deferObservation,
   rejectObservation,
@@ -31,7 +32,7 @@ import {
   csharpTargetOperationFromMember,
 } from "./source-library.js";
 import {
-  getCsharpRecordDictionaryKeysTargetMembers,
+  csharpRecordDictionaryKeysMemberCandidates as recordDictionaryKeyCollectionCandidates,
   isCsharpRecordDictionaryTargetType,
 } from "../../dictionaries.js";
 import {
@@ -43,7 +44,7 @@ import {
   visitAstReaderNodes,
 } from "../../ast-utils.js";
 import {
-  createRuntimeCarrierLifecycleObservationContext,
+  createCsharpLifecycleObservationContext,
 } from "../../runtime-carriers.js";
 
 export function recordCsharpJsSurfaceIterationFactsBeforeFinalization(
@@ -54,7 +55,7 @@ export function recordCsharpJsSurfaceIterationFactsBeforeFinalization(
   if (compiler === undefined) {
     return;
   }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext) as unknown as ExtensionObservationContext<"operation.mapCheckedIteration">;
+  const context = createCsharpLifecycleObservationContext(lifecycleContext, ExtensionObservationPoint.mapCheckedIteration);
   for (const sourceFile of compiler.getSourceFiles()) {
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
@@ -105,6 +106,9 @@ export function mapCsharpJsSurfaceCheckedIteration(
   context: ExtensionObservationContext<"operation.mapCheckedIteration">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> {
+  if (request.target !== undefined && request.target !== host.targetId) {
+    return deferObservation;
+  }
   const seededExpressionCarrier = context.factResolver.resolve(request.expression, runtimeCarrierFactKey)?.carrier;
   const expressionType = seededExpressionCarrier ??
     host.getTargetTypeRefForSubject(request.expression, context, csharpJsCheckedTypeQuery) ??
@@ -177,7 +181,7 @@ export function mapCsharpJsSurfaceCheckedIteration(
       if (host.getCsharpTargetBindingByTargetId === undefined || host.getCsharpTargetBindingByMetadataName === undefined) {
         return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_RECORD_DICTIONARY_FOR_IN_PROVIDER_FACT_MISSING", 9100126, "C# Record dictionary for-in requires provider-owned Dictionary target binding facts before key enumeration emission."));
       }
-      const candidates = getCsharpRecordDictionaryKeysTargetMembers(expressionType, {
+      const candidates = recordDictionaryKeyCollectionCandidates(expressionType, {
         getCsharpTargetBindingByTargetId: host.getCsharpTargetBindingByTargetId,
         getCsharpTargetBindingByMetadataName: host.getCsharpTargetBindingByMetadataName,
       });

@@ -1,7 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpEnumerableTargetType } from "../dist/source/csharp-source-semantics/target-types.js";
 import { getRequiredCsharpTargetMemberOperationForSelectedSignature } from "../dist/backend/planner/csharp-target-operations.js";
+import { planCallArgumentCore } from "../dist/backend/planner/expression-call-arguments.js";
+import {
+  planSelectedTargetCallee,
+  planSelectedTargetReceiverExpression,
+} from "../dist/backend/planner/expression-selected-target-members.js";
+import {
+  KindIdentifier,
+} from "../dist/backend/planner/source-ast.js";
 
 test("call emission requires finalized C# target member operation facts", () => {
   const call = { Kind: 1 };
@@ -134,6 +143,206 @@ test("call emission rejects operation facts that change target parameter passing
   assert.match(diagnostics[0].message, /parameter-passing/);
 });
 
+test("call emission rejects operation facts with mismatched target operation kind", () => {
+  const call = { Kind: 1 };
+  const selected = closedIdentityMember({ kind: "target-named", id: "System.String" });
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "indexer",
+        memberName: "Identity",
+        resultType: selected.returnType,
+        selectedMember: selected,
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# call emission",
+  );
+
+  assert.equal(operation, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /target operation kind/);
+});
+
+test("call argument emission applies explicit target conversion facts before selected expected types", () => {
+  const argument = identifier("value");
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: { kind: "source-primitive", name: "int64" },
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+    { kind: "PredefinedType", name: "long" },
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "Argument",
+    expression: { kind: "IdentifierName", name: "value_as_long" },
+  });
+});
+
+test("call argument emission separates semantic conversion type from render expected type", () => {
+  const argument = identifier("value");
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: int32,
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+    { kind: "PredefinedType", name: "long" },
+    undefined,
+    int32,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "Argument",
+    expression: { kind: "IdentifierName", name: "value_as_long" },
+  });
+});
+
+test("call argument emission rejects conversion facts that mismatch selected expected types", () => {
+  const argument = identifier("value");
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: { kind: "source-primitive", name: "int64" },
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+    { kind: "PredefinedType", name: "int" },
+    undefined,
+    int32,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /conversion fact does not match/);
+});
+
+test("call argument emission permits array render carriers for selected collection parameters", () => {
+  const argument = identifier("items");
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const enumerableInt32 = csharpEnumerableTargetType(int32);
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      conversionSubject: argument,
+      conversion: {
+        convertedType: enumerableInt32,
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedTypeKindExpressionPlanner,
+    { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+    undefined,
+    enumerableInt32,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "Argument",
+    expression: { kind: "IdentifierName", name: "items_as_ArrayType" },
+  });
+});
+
+test("call argument emission rejects unsupported finalized argument-passing modes", () => {
+  const argument = identifier("borrow");
+  const targetExpression = identifier("value");
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeArgumentInput({
+      argumentPassingSubject: argument,
+      argumentPassing: {
+        mode: "borrow-shared",
+        targetExpression,
+      },
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+  );
+
+  assert.equal(planned.passing, undefined);
+  assert.deepEqual(planned.expression, { kind: "IdentifierName", name: "value" });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /does not support finalized argument-passing mode 'borrow-shared'/);
+});
+
+test("selected target receiver expression uses planned binding identity instead of source text", () => {
+  const receiver = identifier("array");
+  const diagnostics = [];
+  const expression = planSelectedTargetReceiverExpression(
+    receiver,
+    sourceFile,
+    fakeSelectedInput(),
+    diagnostics,
+    () => ({ kind: "IdentifierName", name: "array_1" }),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(expression, { kind: "IdentifierName", name: "array_1" });
+});
+
+test("selected target identifier calls reject instance members without a value receiver", () => {
+  const callee = identifier("parse");
+  const diagnostics = [];
+  const expression = planSelectedTargetCallee(
+    callee,
+    {
+      kind: "member",
+      operationId: "Example.Parser.Parse",
+      operationKind: "method",
+      memberName: "Parse",
+      static: false,
+    },
+    sourceFile,
+    fakeSelectedInput(),
+    diagnostics,
+    () => {
+      throw new Error("bare instance target call must not ask expression planner for a callee");
+    },
+  );
+
+  assert.equal(expression, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a value receiver/);
+});
+
 function selectedMember() {
   return {
     id: "Example.Box.identity``1",
@@ -207,3 +416,53 @@ function fakeInput(options = {}) {
     },
   };
 }
+
+function fakeArgumentInput(options = {}) {
+  return {
+    facts: {
+      getArgumentPassingFact: (subject) =>
+        subject === options.argumentPassingSubject ? options.argumentPassing : undefined,
+      getTargetConversionFact: (subject) =>
+        subject === options.conversionSubject ? options.conversion : undefined,
+    },
+  };
+}
+
+function fakeSelectedInput() {
+  return {
+    ast: {
+      kindName: (node) => String(node?.Kind),
+    },
+    analysis: {
+      getProjectSourceReferenceForNode: () => undefined,
+      getTargetBindingForReference: () => undefined,
+    },
+  };
+}
+
+function identifier(text) {
+  return { Kind: KindIdentifier, Text: text };
+}
+
+function identifierExpressionPlanner(node) {
+  return { kind: "IdentifierName", name: node.Text };
+}
+
+function expectedIdentifierExpressionPlanner(node, _sourceFile, _input, _diagnostics, expectedType) {
+  return {
+    kind: "IdentifierName",
+    name: `${node.Text}_as_${expectedType.name}`,
+  };
+}
+
+function expectedTypeKindExpressionPlanner(node, _sourceFile, _input, _diagnostics, expectedType) {
+  return {
+    kind: "IdentifierName",
+    name: `${node.Text}_as_${expectedType.kind}`,
+  };
+}
+
+const sourceFile = {
+  FileName: "/src/index.ts",
+  IsDeclarationFile: false,
+};

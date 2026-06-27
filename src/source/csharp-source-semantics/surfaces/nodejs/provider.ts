@@ -17,6 +17,10 @@ import {
   getNodejsTargetIdentity,
 } from "./members.js";
 import {
+  nodeAssertExports,
+  nodeAssertModuleSpecifier,
+} from "./assert.js";
+import {
   nodeBufferExports,
   nodeBufferModuleSpecifier,
 } from "./buffer.js";
@@ -27,7 +31,7 @@ import {
 import {
   nodeFsExports,
   nodeFsModuleSpecifier,
-} from "./filesystem.js";
+} from "./filesystem/index.js";
 import {
   nodeOsExports,
   nodeOsModuleSpecifier,
@@ -54,6 +58,7 @@ import {
 } from "./module-specifiers.js";
 
 const canonicalModules = new Map<string, readonly ProviderExportDeclaration[]>([
+  [nodeAssertModuleSpecifier, nodeAssertExports()],
   [nodeBufferModuleSpecifier, nodeBufferExports()],
   [nodePathModuleSpecifier, nodePathExports()],
   [nodeFsModuleSpecifier, nodeFsExports()],

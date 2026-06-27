@@ -7,25 +7,29 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
-  selectTargetMember,
   selectExactTargetMember,
-} from "./target-member-arguments.js";
+  selectTargetMember,
+  selectProviderSelectedTargetMember,
+} from "./target-member-arguments/index.js";
 import type {
   TargetMemberSelectionOptions,
-} from "./target-member-arguments.js";
+} from "./target-member-arguments/index.js";
 import type {
   TargetTypeRefResolver,
 } from "./target-type-ref-resolution.js";
+import {
+  targetTypeRefEquals,
+} from "./target-ref-utils.js";
 
 export {
   selectTargetMember,
-} from "./target-member-arguments.js";
+} from "./target-member-arguments/index.js";
 export {
   isLiteralRepresentableAsTargetType,
 } from "./target-member-literals.js";
 export type {
   TargetMemberSelectionOptions,
-} from "./target-member-arguments.js";
+} from "./target-member-arguments/index.js";
 export type {
   TargetTypeRefResolutionOptions,
   TargetTypeRefResolver,
@@ -39,6 +43,38 @@ export function findTargetMemberForCall(
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
 ): TargetMember | undefined {
+  if (declaration?.signatureId !== undefined) {
+    const selectedMember = getTargetMemberById(binding, declaration.signatureId);
+    const exactMember = selectedMember === undefined
+      ? undefined
+      : selectProviderSelectedTargetMember(
+          selectedMember,
+          {
+            arguments: request.arguments,
+            receiver: request.calleeReceiver,
+            sourceSelectedSignature: request.sourceSelectedSignature,
+          },
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
+    if (exactMember !== undefined) {
+      return exactMember;
+    }
+    return selectedMember === undefined
+      ? undefined
+      : selectTargetMember(
+          getTargetMemberCandidatesForSelectedMember(binding.members ?? [], selectedMember),
+          {
+            arguments: request.arguments,
+            receiver: request.calleeReceiver,
+            sourceSelectedSignature: request.sourceSelectedSignature,
+          },
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
+  }
   const candidates = getTargetMemberCandidates(binding, declaration);
   if (candidates.length === 1) {
     return selectExactTargetMember(
@@ -46,23 +82,24 @@ export function findTargetMemberForCall(
       {
         arguments: request.arguments,
         receiver: request.calleeReceiver,
+        sourceSelectedSignature: request.sourceSelectedSignature,
       },
       options,
     );
   }
-  if (declaration?.signatureId !== undefined && candidates.length > 1) {
-    return selectTargetMember(
-      candidates,
-      {
-        arguments: request.arguments,
-        receiver: request.calleeReceiver,
-      },
-      context,
-      resolveTargetTypeRef,
-      options,
-    );
-  }
-  return undefined;
+  return declaration?.memberId === undefined
+    ? undefined
+    : selectTargetMember(
+        candidates,
+        {
+          arguments: request.arguments,
+          receiver: request.calleeReceiver,
+          sourceSelectedSignature: request.sourceSelectedSignature,
+        },
+        context,
+        resolveTargetTypeRef,
+        options,
+      );
 }
 
 export function findTargetMemberForElementAccess(
@@ -73,6 +110,37 @@ export function findTargetMemberForElementAccess(
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
 ): TargetMember | undefined {
+  if (declaration?.signatureId !== undefined) {
+    const selectedMember = getTargetMemberById(binding, declaration.signatureId);
+    const exactMember = selectedMember === undefined
+      ? undefined
+      : selectProviderSelectedTargetMember(
+          selectedMember,
+          {
+            arguments: [request.argument],
+          },
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
+    if (exactMember !== undefined) {
+      return exactMember;
+    }
+    return selectedMember === undefined
+      ? selectSingleProviderIndexer(binding, request, options)
+      : selectTargetMember(
+          getTargetMemberCandidatesForSelectedMember(binding.members ?? [], selectedMember),
+          {
+            arguments: [request.argument],
+          },
+          context,
+          resolveTargetTypeRef,
+          options,
+        );
+  }
+  if (declaration === undefined) {
+    return selectSingleProviderIndexer(binding, request, options);
+  }
   const candidates = getTargetMemberCandidates(binding, declaration);
   if (candidates.length === 1) {
     return selectExactTargetMember(
@@ -83,18 +151,39 @@ export function findTargetMemberForElementAccess(
       options,
     );
   }
-  if (declaration?.signatureId !== undefined && candidates.length > 1) {
-    return selectTargetMember(
-      candidates,
-      {
-        arguments: [request.argument],
-      },
-      context,
-      resolveTargetTypeRef,
-      options,
-    );
+  if (declaration?.memberId === undefined) {
+    return selectSingleProviderIndexer(binding, request, options);
   }
-  return undefined;
+  const selected = selectTargetMember(
+    candidates,
+    {
+      arguments: [request.argument],
+    },
+    context,
+    resolveTargetTypeRef,
+    options,
+  );
+  return selected
+    ?? (candidates.length === 0
+      ? selectSingleProviderIndexer(binding, request, options)
+      : undefined);
+}
+
+function selectSingleProviderIndexer(
+  binding: TargetBindingFact,
+  request: CheckedElementAccessMappingRequest,
+  options: TargetMemberSelectionOptions,
+): TargetMember | undefined {
+  const indexerCandidates = (binding.members ?? []).filter((member) => member.kind === "indexer");
+  return indexerCandidates.length === 1
+    ? selectExactTargetMember(
+        indexerCandidates[0]!,
+        {
+          arguments: [request.argument],
+        },
+        options,
+      )
+    : undefined;
 }
 
 export function findTargetMember(
@@ -106,31 +195,84 @@ export function findTargetMember(
     return members.find((member) => member.id === declaration.signatureId);
   }
   if (declaration?.memberId !== undefined) {
-    return members.find((member) => member.id === declaration.memberId);
+    const selectedMember = members.find((member) => member.id === declaration.memberId);
+    if (selectedMember !== undefined) {
+      return selectedMember;
+    }
+    return createProviderSelectedMemberGroup(declaration.memberId, members.filter((member) => member.overloadGroup === declaration.memberId));
   }
   return undefined;
+}
+
+function createProviderSelectedMemberGroup(memberId: string, candidates: readonly TargetMember[]): TargetMember | undefined {
+  const first = candidates[0];
+  if (first === undefined) {
+    return undefined;
+  }
+  if (!candidates.every((candidate) => hasSameTargetMemberGroupOperation(first, candidate))) {
+    return undefined;
+  }
+  return {
+    id: memberId,
+    sourceName: first.sourceName,
+    targetName: first.targetName,
+    kind: first.kind,
+    parameters: [],
+    ...(first.static === true ? { static: true } : {}),
+    ...(first.readonly === true ? { readonly: true } : {}),
+    ...(first.receiverPassing !== undefined ? { receiverPassing: first.receiverPassing } : {}),
+    ...(first.declaringType !== undefined ? { declaringType: first.declaringType } : {}),
+  };
+}
+
+function hasSameTargetMemberGroupOperation(left: TargetMember, right: TargetMember): boolean {
+  return left.kind === right.kind &&
+    left.sourceName === right.sourceName &&
+    left.targetName === right.targetName &&
+    left.static === right.static &&
+    left.readonly === right.readonly &&
+    left.receiverPassing === right.receiverPassing &&
+    optionalTargetTypeRefEquals(left.declaringType, right.declaringType);
+}
+
+function optionalTargetTypeRefEquals(left: TargetMember["declaringType"], right: TargetMember["declaringType"]): boolean {
+  if (left === undefined || right === undefined) {
+    return left === right;
+  }
+  return targetTypeRefEquals(left, right);
 }
 
 function getTargetMemberCandidates(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
 ): readonly TargetMember[] {
-  const members = binding.members ?? [];
   if (declaration?.signatureId !== undefined) {
-    const signatureMember = members.find((member) => member.id === declaration.signatureId);
-    if (signatureMember === undefined) {
-      return [];
-    }
-    return getTargetMemberCandidatesForSelectedMember(members, signatureMember);
+    const signatureMember = getTargetMemberById(binding, declaration.signatureId);
+    return signatureMember === undefined ? [] : [signatureMember];
   }
   if (declaration?.memberId !== undefined) {
-    const selectedMember = members.find((member) => member.id === declaration.memberId);
-    if (selectedMember !== undefined) {
-      return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
-    }
-    return members.filter((member) => member.overloadGroup === declaration.memberId);
+    return getTargetMemberCandidatesForMemberId(binding, declaration.memberId);
   }
   return [];
+}
+
+function getTargetMemberCandidatesForMemberId(
+  binding: TargetBindingFact,
+  memberId: string,
+): readonly TargetMember[] {
+  const members = binding.members ?? [];
+  const selectedMember = members.find((member) => member.id === memberId);
+  if (selectedMember !== undefined) {
+    return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
+  }
+  return members.filter((member) => member.overloadGroup === memberId);
+}
+
+function getTargetMemberById(
+  binding: TargetBindingFact,
+  memberId: string,
+): TargetMember | undefined {
+  return (binding.members ?? []).find((member) => member.id === memberId);
 }
 
 function getTargetMemberCandidatesForSelectedMember(

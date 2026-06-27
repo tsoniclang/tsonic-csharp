@@ -16,15 +16,22 @@ import type {
 } from "../roslyn/syntax.js";
 import {
   getCsharpTypeForNode,
+  predefined,
+  sameCsharpType,
 } from "./csharp-types.js";
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
+  getArrayBoundaryCoreCarrierForExpression,
+} from "./array-boundary-facts.js";
+import {
   requireCsharpIdentifier,
 } from "./identifiers.js";
 import {
-  getRuntimeCarrierForExpression,
+  missingCarrierDiagnosticDetail,
+  probeCarrierFromResolution,
+  resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
   expressionStatement,
@@ -33,7 +40,7 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
-  targetTypeRefFromFactSubject,
+  csharpTypeFromIterationElementFact,
 } from "./statement-iteration-facts.js";
 import type {
   CsharpTargetIterationFact,
@@ -82,7 +89,9 @@ export function planForInBinding(
       kind: "LocalDeclarationStatement",
       name: requireCsharpIdentifier(Node_Text(variable.name), diagnostics, "For-in key binding"),
       node: first,
-      currentType: getCsharpTypeForNode(variable.name, sourceFile, input, undefined, diagnostics),
+      currentType: variable.Type === undefined
+        ? undefined
+        : getCsharpTypeForNode(variable.Type, sourceFile, input, undefined, diagnostics),
     };
   }
   if (HasSourceKind(input.ast, initializer, KindIdentifier)) {
@@ -103,13 +112,16 @@ export function getForInKeyType(
   diagnosticNode: Node,
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> | undefined {
-  const targetKeyType = selectedIteration.elementType === undefined
-    ? undefined
-    : targetTypeRefFromFactSubject(selectedIteration.elementType);
-  const keyType = targetKeyType === undefined ? undefined : csharpTypeFromTargetTypeRef(targetKeyType);
+  const keyType = csharpTypeFromIterationElementFact(selectedIteration, diagnosticNode, diagnostics, "C# for-in key emission", "key");
   if (keyType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-in key emission requires a provider iteration fact with a closed target key type."));
     return undefined;
+  }
+  if (selectedIteration.lowering.kind === "index-key" || selectedIteration.lowering.kind === "object-shape-keys") {
+    const stringType = predefined("string");
+    if (!sameCsharpType(keyType, stringType)) {
+      diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `C# for-in ${selectedIteration.lowering.kind} lowering requires finalized provider key type string.`));
+      return undefined;
+    }
   }
   return keyType;
 }
@@ -120,12 +132,15 @@ export function getCsharpTypeForForInCollection(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
-  const carrier = getRuntimeCarrierForExpression(input, expression, sourceFile);
+  const carrier = getArrayBoundaryCoreCarrierForExpression(input, expression, sourceFile) ??
+    probeCarrierFromResolution(resolveRuntimeCarrierForExpression(input, expression, sourceFile));
   const type = carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
   if (type !== undefined) {
     return type;
   }
-  diagnostics.push(unsupportedNodeDiagnostic(expression, "For-in collection temp requires a finalized runtime carrier fact before C# emission."));
+  const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
+  const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the for-in collection expression.");
+  diagnostics.push(unsupportedNodeDiagnostic(expression, `For-in collection temp requires a finalized runtime carrier fact before C# emission. ${detail.reason}`, detail.evidence));
   return undefined;
 }
 
@@ -134,8 +149,12 @@ export function planForInKeyBindingStatement(
   keyType: ReturnType<typeof getCsharpTypeForNode>,
   indexName: string,
   selectedIteration: CsharpTargetIterationFact,
-): CsharpStatement {
-  return planForInKeyBindingStatementFromExpression(binding, keyType, forInKeyExpression(indexName, selectedIteration));
+  diagnostics: TargetDiagnostic[],
+): CsharpStatement | undefined {
+  const keyExpression = forInKeyExpression(indexName, selectedIteration, binding.node, diagnostics);
+  return keyExpression === undefined
+    ? undefined
+    : planForInKeyBindingStatementFromExpression(binding, keyType, keyExpression);
 }
 
 export function planForInKeyBindingStatementFromExpression(
@@ -159,12 +178,15 @@ export function planForInKeyBindingStatementFromExpression(
   });
 }
 
-function forInKeyExpression(indexName: string, selectedIteration: CsharpTargetIterationFact): CsharpExpression {
+function forInKeyExpression(
+  indexName: string,
+  selectedIteration: CsharpTargetIterationFact,
+  diagnosticNode: Node,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
   if (selectedIteration.lowering.kind !== "index-key" || selectedIteration.lowering.keyConversion !== "invariant-string") {
-    return {
-      kind: "InvalidExpression",
-      reason: "unsupported for-in key conversion",
-    };
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-in index-key lowering requires finalized invariant-string key conversion facts."));
+    return undefined;
   }
   return {
     kind: "InvocationExpression",

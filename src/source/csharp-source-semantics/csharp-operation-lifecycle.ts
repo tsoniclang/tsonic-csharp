@@ -76,12 +76,6 @@ function walkSelectedCallOperationFacts(
   }
   lifecycleContext.host.facts.set(
     node,
-    selectedTargetSignatureFactKey,
-    { member },
-    [{ message: "C# selected target signature finalized from checked provider call and provider target identity." }],
-  );
-  lifecycleContext.host.facts.set(
-    node,
     csharpTargetOperationFactKey,
     csharpTargetOperationFromMember(member),
     [{ message: "C# selected call operation finalized from closed TSTS selected target signature." }],

@@ -140,10 +140,10 @@ export function planObjectShapeForInStatement(
         {
           kind: "LocalDeclarationStatement",
           name: keysName,
-          type: { kind: "ArrayType", elementType: predefined("string") },
+          type: { kind: "ArrayType", elementType: keyType },
           initializer: {
             kind: "ArrayCreationExpression",
-            elementType: predefined("string"),
+            elementType: keyType,
             elements: objectShape.members.map((member) => ({ kind: "LiteralExpression", value: member.sourceName }) satisfies CsharpExpression),
           },
         },

@@ -15,6 +15,10 @@ export function getCsharpObjectShapeFactForNode(
   if (node === undefined) {
     return undefined;
   }
+  const typeReference = getCsharpObjectShapeFactForTypeReferenceName(node, sourceFile, input);
+  if (typeReference !== undefined) {
+    return typeReference;
+  }
   const direct = input.facts.getFact(node, csharpObjectShapeFactKey);
   if (direct !== undefined) {
     return direct;
@@ -24,8 +28,8 @@ export function getCsharpObjectShapeFactForNode(
     return declarationAnnotation;
   }
   const semanticType = IsTypeSyntaxNode(input.ast, node)
-    ? input.semantics.getTypeFromTypeNode(node, { sourceFile })
-    : input.semantics.getTypeAtLocation(node, { sourceFile });
+    ? input.analysis.getTypeFromTypeNode(node, { sourceFile })
+    : input.analysis.getTypeAtLocation(node, { sourceFile });
   return input.facts.getFact(semanticType, csharpObjectShapeFactKey) ??
     input.facts.getFact(semanticType?.symbol, csharpObjectShapeFactKey);
 }
@@ -35,7 +39,7 @@ function getCsharpObjectShapeFactForDeclarationAnnotation(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): CsharpObjectShapeFact | undefined {
-  const symbol = input.semantics.getSymbolAtLocation(node, { sourceFile });
+  const symbol = input.analysis.getSymbolAtLocation(node, { sourceFile });
   const declarations = (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
     ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
   for (const declaration of declarations) {
@@ -46,6 +50,23 @@ function getCsharpObjectShapeFactForDeclarationAnnotation(
     }
   }
   return undefined;
+}
+
+function getCsharpObjectShapeFactForTypeReferenceName(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpObjectShapeFact | undefined {
+  if (input.ast.kindName(node) !== "KindTypeReference") {
+    return undefined;
+  }
+  const typeName = asNodeSubject(getNodeField(node, "TypeName"));
+  if (typeName === undefined) {
+    return undefined;
+  }
+  return input.facts.getFact(typeName, csharpObjectShapeFactKey) ??
+    input.facts.getFact(input.analysis.getSymbolAtLocation(typeName, { sourceFile }), csharpObjectShapeFactKey) ??
+    input.facts.getFact(input.analysis.getResolvedSymbol(typeName, { sourceFile }), csharpObjectShapeFactKey);
 }
 
 function getNodeField(node: Node | undefined, field: string): unknown {

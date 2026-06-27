@@ -10,10 +10,17 @@ import type {
   CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
+import {
+  getArrayBoundaryCoreCarrierForExpression,
+} from "./array-boundary-facts.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
-import { getRuntimeCarrierForExpression } from "./runtime-carriers.js";
+import {
+  missingCarrierDiagnosticDetail,
+  probeCarrierFromResolution,
+  resolveRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
   csharpListTargetType,
@@ -40,10 +47,14 @@ export function planArrayBindingPattern(
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,
   sourceCarrierOverride?: TargetTypeRef,
 ): readonly CsharpStatement[] {
-  const sourceCarrier = sourceCarrierOverride ?? getRuntimeCarrierForExpression(input, sourceNode, sourceFile);
+  const sourceCarrier = sourceCarrierOverride ??
+    getArrayBoundaryCoreCarrierForExpression(input, sourceNode, sourceFile) ??
+    probeCarrierFromResolution(resolveRuntimeCarrierForExpression(input, sourceNode, sourceFile));
   const bindingCarrier = arrayBindingCarrier(sourceCarrier);
   if (bindingCarrier === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(patternNode, "Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression."));
+    const resolution = resolveRuntimeCarrierForExpression(input, sourceNode, sourceFile);
+    const detail = missingCarrierDiagnosticDetail(resolution, "Runtime carrier fact is missing for the array destructuring source expression.");
+    diagnostics.push(unsupportedNodeDiagnostic(patternNode, `Array destructuring requires a finalized provider array or tuple runtime-carrier fact for the source expression. ${detail.reason}`, detail.evidence));
     return [];
   }
   const elements = AsBindingPattern(patternNode)?.Elements?.Nodes ?? [];
@@ -84,7 +95,7 @@ export type BindingDefaultExpressionPlanner = (
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
-) => CsharpExpression;
+) => CsharpExpression | undefined;
 
 function planArrayBindingElement(
   elementNode: Node,
@@ -126,8 +137,11 @@ function planArrayBindingElement(
       diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Array destructuring defaults require the active expression planner before C# emission."));
       return [];
     }
-    const fallback = planArrayBindingDefaultProjection(sourceExpression, index, projected, sourceCarrier, element.Initializer, sourceFile, input, diagnostics, projectedType, state, planDefaultExpressionWithExpectedType);
-    return planBindingNameFromProjection(name, fallback, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
+    const defaultedProjection = planArrayBindingDefaultProjection(sourceExpression, index, projected, sourceCarrier, element.Initializer, sourceFile, input, diagnostics, projectedType, state, planDefaultExpressionWithExpectedType);
+    if (defaultedProjection === undefined) {
+      return [];
+    }
+    return planBindingNameFromProjection(name, defaultedProjection, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
   }
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, elementCarrier);
 }
@@ -163,7 +177,11 @@ function planArrayBindingDefaultProjection(
   projectedType: CsharpTypeNode,
   state: DestructuringPlannerState,
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
-): CsharpExpression {
+): CsharpExpression | undefined {
+  const whenFalse = planDefaultExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, projectedType, initializer, state);
+  if (whenFalse === undefined) {
+    return undefined;
+  }
   return {
     kind: "ConditionalExpression",
     condition: {
@@ -177,7 +195,7 @@ function planArrayBindingDefaultProjection(
       right: { kind: "LiteralExpression", value: index },
     },
     whenTrue: projected,
-    whenFalse: planDefaultExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, projectedType, initializer, state),
+    whenFalse,
   };
 }
 

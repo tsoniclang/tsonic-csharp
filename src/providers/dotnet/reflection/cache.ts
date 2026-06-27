@@ -19,10 +19,13 @@ export interface DotnetProviderCache {
 export interface DotnetProviderCacheRequest {
   readonly providerId: string;
   readonly providerVersion: string;
+  readonly providerCacheAbiVersion: string;
   readonly targetFramework: string;
   readonly moduleSpecifier: string;
   readonly namespaceName: string;
   readonly requestedExports: readonly string[] | undefined;
+  readonly requestedTargetIds: readonly string[] | undefined;
+  readonly requestedMetadataNames: readonly string[] | undefined;
   readonly broadImport: boolean | undefined;
   readonly referenceDirectory: string | undefined;
   readonly referenceIdentities: readonly Readonly<Record<string, unknown>>[];

@@ -12,12 +12,21 @@ import type {
   CsharpTargetEnrichmentHost,
 } from "../../target-enrichment.js";
 export type {
-  SourceLibraryDeclaringName,
+  SourceLibraryDeclaringKey,
   SourceLibraryMember,
+  SourceLibraryMemberKey,
+  SourceLibraryMemberIdentityPolicy,
+  SourceLibraryMemberKeyPrefix,
 } from "../../source-library.js";
 export {
-  getSourceLibraryMember,
-  isSourceLibraryType,
+  createSourceLibraryMember,
+  isBundledStandardLibraryType,
+  resolveSourceLibraryMemberIdentity,
+  sourceLibraryMemberIdSet,
+  sourceLibraryMemberIdentity,
+  sourceLibraryMemberMatches,
+  sourceLibraryMemberMatchesAny,
+  sourceLibraryMemberMatchesAnyPrefix,
 } from "../../source-library.js";
 export {
   csharpTargetOperationFromMember,
@@ -38,6 +47,7 @@ export {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
   csharpListTargetType,
+  csharpNullableTargetType,
   csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
   csharpReadOnlyListTargetType,
@@ -45,6 +55,7 @@ export {
   csharpStringTargetType,
   csharpTargetNamedType,
   csharpVoidTargetType,
+  isCsharpValueTypeTargetType,
   targetMethod,
   targetParameter,
   targetProperty,
@@ -79,6 +90,7 @@ export interface CsharpJsSurfaceHost {
     request: {
       readonly arguments: readonly ExtensionFactSubject[];
       readonly receiver?: ExtensionFactSubject;
+      readonly sourceSelectedSignature?: unknown;
     },
     context: ExtensionObservationContext,
     options?: {

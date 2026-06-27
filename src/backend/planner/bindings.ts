@@ -56,12 +56,16 @@ export function planVariableBindingStatements(
   const sourceName = allocateDestructuringTemp(state);
   const sourceExpression: CsharpExpression = { kind: "IdentifierName", name: sourceName };
   const sourceType = getCsharpTypeForExpressionCarrier(initializer, sourceFile, input, diagnostics, bindingName, "Destructuring source expression");
+  const initializerExpression = planExpression(initializer, sourceFile, input, diagnostics);
+  if (initializerExpression === undefined) {
+    return [];
+  }
   return [
     {
       kind: "LocalDeclarationStatement",
       name: sourceName,
       type: sourceType,
-      initializer: planExpression(initializer, sourceFile, input, diagnostics),
+      initializer: initializerExpression,
     },
     ...planBindingPatternFromExpression(bindingName, sourceExpression, initializer, sourceFile, input, diagnostics, state, undefined, planExpressionWithExpectedType),
   ];

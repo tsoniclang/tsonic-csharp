@@ -4,6 +4,7 @@ import type { CsharpTypeNode } from "./types.js";
 
 export type CsharpTypeMember =
   | CsharpConstructorDeclaration
+  | CsharpStaticConstructorDeclaration
   | CsharpMethodDeclaration
   | CsharpFieldDeclaration
   | CsharpPropertyDeclaration;
@@ -44,6 +45,12 @@ export interface CsharpConstructorDeclaration {
   readonly attributes?: readonly CsharpAttribute[];
   readonly parameters: readonly CsharpParameter[];
   readonly baseArguments?: readonly CsharpArgument[];
+  readonly body: CsharpBlock;
+}
+
+export interface CsharpStaticConstructorDeclaration {
+  readonly kind: "StaticConstructorDeclaration";
+  readonly name: string;
   readonly body: CsharpBlock;
 }
 

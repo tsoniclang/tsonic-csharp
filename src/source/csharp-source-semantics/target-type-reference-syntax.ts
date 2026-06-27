@@ -20,8 +20,10 @@ import {
 } from "./source-declaration-facts.js";
 import {
   getSourceLibraryDeclarationName,
-  isSourceLibraryType,
 } from "./source-library.js";
+import {
+  isSourceStandardLibraryPromiseType,
+} from "./source-type-classification.js";
 import {
   getAliasedSymbolIfAvailable,
   getSymbolDeclarations,
@@ -71,16 +73,17 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return undefined;
   }
   const sourceFile = ast.getSourceFile(node);
-  const typeNameSymbol = checker.getSymbolAtLocation(typeName, { sourceFile });
-  const typeNameResolvedSymbol = getResolvedSymbolIfAvailable(checker, typeName, sourceFile);
-  const type = asType(checker.getTypeFromTypeNode(node));
+  const symbol = checker.getSymbolAtLocation(typeName, { sourceFile });
+  const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
+  const type = asType(checker.getTypeFromTypeNode(node, { sourceFile }));
+  const typeAliasSymbol = (type as { readonly aliasSymbol?: ExtensionFactSubject } | undefined)?.aliasSymbol;
   const candidateSubjects: readonly (ExtensionFactSubject | undefined)[] = [
     node,
     typeName,
-    typeNameSymbol,
-    typeNameResolvedSymbol,
-    getAliasedSymbolIfAvailable(checker, typeNameSymbol, sourceFile),
-    getAliasedSymbolIfAvailable(checker, typeNameResolvedSymbol, sourceFile),
+    symbol,
+    aliasedSymbol,
+    typeAliasSymbol,
+    type?.symbol,
   ];
   for (const candidate of candidateSubjects) {
     if (candidate === undefined) {
@@ -103,7 +106,7 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
   }
   const recordDictionaryType = getRecordDictionaryTypeRefFromTypeReference(
-    [typeNameSymbol, getAliasedSymbolIfAvailable(checker, typeNameSymbol, sourceFile)],
+    candidateSubjects,
     node,
     context,
     options,
@@ -130,18 +133,6 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
     return aliasedType;
   }
   return undefined;
-}
-
-function getResolvedSymbolIfAvailable(
-  checker: NonNullable<ExtensionObservationContext["compiler"]>["checker"],
-  node: Node,
-  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
-): ExtensionFactSubject | undefined {
-  try {
-    return checker.getResolvedSymbolOrNil(node, { sourceFile });
-  } catch {
-    return undefined;
-  }
 }
 
 function getRecordDictionaryTypeRefFromTypeReference(
@@ -180,7 +171,7 @@ function getSourcePromiseTargetTypeRefFromSyntax(
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   const ast = context.compiler?.ast;
-  if (ast === undefined || type === undefined || !isSourceLibraryType(type, context, "Promise")) {
+  if (ast === undefined || type === undefined || !isSourceStandardLibraryPromiseType(type, context)) {
     return undefined;
   }
   const resultTypeNode = ast.typeArguments(node)[0];
@@ -218,6 +209,9 @@ function getTargetTypeRefFromSourceDeclarationReference(
     for (const declaration of getSymbolDeclarations(subject)) {
       const kind = ast.kindName(declaration);
       if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
+        continue;
+      }
+      if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
         continue;
       }
       return sourceDeclarationTargetType(

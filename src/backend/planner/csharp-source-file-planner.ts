@@ -34,7 +34,10 @@ import type {
 import { diagnoseUnresolvedAttributeApplications, isErasedAttributeExpressionStatement } from "./attributes.js";
 import { getCsharpTypeForNode, predefined } from "./csharp-types.js";
 import { planTopLevelVariableStatement } from "./csharp-top-level-variables.js";
-import { csharpModuleInitMethodName } from "./csharp-entrypoint-planner.js";
+import {
+  csharpModuleInitMethodName,
+} from "./csharp-entrypoint-planner.js";
+import type { CsharpModuleInitializationPlan } from "./csharp-module-initialization.js";
 import { planClassDeclaration, planEnumDeclaration, planFunctionDeclaration, planInterfaceDeclaration } from "./declarations.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { planExpression } from "./expressions.js";
@@ -59,6 +62,7 @@ export function planSourceFile(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
+  moduleInitialization: CsharpModuleInitializationPlan,
 ): PlannedCsharpSourceFile | undefined {
   const fileName = SourceFile_FileName(sourceFile);
   if (sourceFile.IsDeclarationFile || isProviderVirtualSourceFile(input, sourceFile)) {
@@ -66,7 +70,8 @@ export function planSourceFile(
   }
   beginObjectShapePlanning(input);
   const moduleClassName = sourceFileClassName(input, fileName);
-  const hasModuleInitializer = hasRuntimeTopLevel(sourceFile, input);
+  const hasModuleInitializer = hasRuntimeTopLevel(sourceFile, input) ||
+    moduleInitialization.requiresInitializer(sourceFile);
   const members: CsharpTypeMember[] = [];
   const namespaceMembers: CsharpTypeDeclaration[] = [];
   const topLevelStatements: CsharpStatement[] = [];
@@ -126,13 +131,26 @@ export function planSourceFile(
   }
   diagnoseUnresolvedAttributeApplications(sourceFile, input, diagnostics);
   if (hasModuleInitializer) {
-    members.unshift({
+    members.push({
+      kind: "StaticConstructorDeclaration",
+      name: moduleClassName,
+      body: {
+        kind: "Block",
+        statements: [
+          ...moduleInitialization.dependenciesFor(sourceFile)
+            .filter((dependency) => dependency !== sourceFile)
+            .map((dependency) => createModuleInitializerCall(sourceFileClassName(input, SourceFile_FileName(dependency)))),
+          ...topLevelStatements,
+        ],
+      },
+    });
+    members.push({
       kind: "MethodDeclaration",
       name: csharpModuleInitMethodName,
       modifiers: ["public", "static"],
       returnType: predefined("void"),
       parameters: [],
-      body: { kind: "Block", statements: topLevelStatements },
+      body: { kind: "Block", statements: [] },
     });
   }
   if (members.length > 0) {
@@ -163,6 +181,21 @@ export function planSourceFile(
     unit: requiresUnsafe ? markCompilationUnitUnsafe(unit) : unit,
     requiresUnsafe,
     hasModuleInitializer,
+  };
+}
+
+function createModuleInitializerCall(moduleClassName: string): CsharpStatement {
+  return {
+    kind: "ExpressionStatement",
+    expression: {
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: moduleClassName },
+        name: csharpModuleInitMethodName,
+      },
+      arguments: [],
+    },
   };
 }
 

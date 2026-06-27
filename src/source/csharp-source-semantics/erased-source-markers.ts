@@ -51,15 +51,21 @@ export function getCheckedAttributeBuilderFact(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): AttributeFact | undefined {
-  return context.facts.get(request.call, attributeFactKey) ??
-    context.facts.get(request.calleeReceiver, attributeFactKey);
+  const receiverFact = request.calleeReceiver === undefined
+    ? undefined
+    : context.factResolver.resolve(request.calleeReceiver, attributeFactKey) ??
+      context.facts.get(request.calleeReceiver, attributeFactKey);
+  return context.factResolver.resolve(request.call, attributeFactKey) ??
+    context.facts.get(request.call, attributeFactKey) ??
+    receiverFact;
 }
 
 export function getCheckedFieldFact(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): FieldFact | undefined {
-  return context.facts.get(request.call, fieldFactKey);
+  return context.factResolver.resolve(request.call, fieldFactKey) ??
+    context.facts.get(request.call, fieldFactKey);
 }
 
 export function erasedSourceSemanticsMember(
