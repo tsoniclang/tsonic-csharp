@@ -1507,19 +1507,85 @@ test("JS surface maps console.assert through closed condition and message facts"
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.assert");
 });
 
-test("JS surface rejects console.dirxml when selected arguments do not match runtime shape", () => {
-  const call = {};
-  const first = {};
-  const second = {};
+test("JS surface maps console assert optional and variadic source shape", () => {
+  const zeroArgCall = {};
+  const multiArgCall = {};
+  const condition = {};
+  const message = {};
+  const count = {};
   const facts = new TestFactStore();
   const targetTypes = new Map([
-    [first, stringType()],
-    [second, stringType()],
+    [condition, boolType()],
+    [message, stringType()],
+    [count, float64Type()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
 
-  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Console", "dirxml"), {
-    arguments: [first, second],
+  const zeroArgResult = provider.mapCheckedCall(jsCallRequest(zeroArgCall, sourceLibraryMemberDeclaration("Console", "assert")), fakeContext(facts));
+  const multiArgResult = provider.mapCheckedCall(jsCallRequest(multiArgCall, sourceLibraryMemberDeclaration("Console", "assert"), {
+    arguments: [condition, message, count],
+  }), fakeContext(facts));
+
+  assert.equal(zeroArgResult.kind, "accept");
+  assert.equal(zeroArgResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.assert");
+  assert.equal(zeroArgResult.value.selectedSignature.member.parameters[0]?.optional, true);
+  assert.equal(zeroArgResult.value.selectedSignature.member.parameters[1]?.paramsArray, true);
+  assert.equal(multiArgResult.kind, "accept");
+  assert.equal(multiArgResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.assert");
+});
+
+test("JS surface maps full selected Console member shapes", () => {
+  const item = {};
+  const options = {};
+  const properties = {};
+  const label = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [item, stringType()],
+    [options, stringType()],
+    [properties, int32ReadOnlyListType()],
+    [label, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const dirResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Console", "dir"), {
+    arguments: [item, options],
+  }), fakeContext(facts));
+  const dirNoArgResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Console", "dir")), fakeContext(facts));
+  const dirxmlResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Console", "dirxml"), {
+    arguments: [item, options],
+  }), fakeContext(facts));
+  const tableResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Console", "table"), {
+    arguments: [item, properties],
+  }), fakeContext(facts));
+  const timeStampResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Console", "timeStamp"), {
+    arguments: [label],
+  }), fakeContext(facts));
+
+  assert.equal(dirResult.kind, "accept");
+  assert.equal(dirResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.dir");
+  assert.equal(dirNoArgResult.kind, "accept");
+  assert.equal(dirNoArgResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.dir");
+  assert.equal(dirxmlResult.kind, "accept");
+  assert.equal(dirxmlResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.dirxml");
+  assert.equal(dirxmlResult.value.selectedSignature.member.parameters[0]?.paramsArray, true);
+  assert.equal(tableResult.kind, "accept");
+  assert.equal(tableResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.table");
+  assert.equal(timeStampResult.kind, "accept");
+  assert.equal(timeStampResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.console.timeStamp");
+});
+
+test("JS surface rejects console.time when selected arguments do not match runtime shape", () => {
+  const call = {};
+  const label = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [label, float64Type()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Console", "time"), {
+    arguments: [label],
   }), fakeContext(facts));
 
   assert.equal(result.kind, "reject");

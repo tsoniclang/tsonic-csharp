@@ -52,6 +52,13 @@ function consoleDataParameter(): ConsoleTargetParameter {
   });
 }
 
+function optionalObjectParameter(name: string): ConsoleTargetParameter {
+  return targetParameter(name, objectTargetType, {
+    optional: true,
+    csharpAcceptsClosedSourceArgument: true,
+  });
+}
+
 function optionalStringParameter(name: string): ConsoleTargetParameter {
   return targetParameter(name, stringTargetType, { optional: true });
 }
@@ -74,13 +81,13 @@ const consoleTargetMemberMetadata = [
     sourceName: "assert",
     targetName: "assert",
     parameters: [
-      targetParameter("condition", csharpSourcePrimitiveTargetType("bool")),
-      optionalStringParameter("message"),
+      targetParameter("condition", csharpSourcePrimitiveTargetType("bool"), { optional: true }),
+      consoleDataParameter(),
     ],
   }),
-  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.dir", sourceName: "dir", targetName: "dir", parameters: [targetParameter("obj", objectTargetType, { csharpAcceptsClosedSourceArgument: true })] }),
-  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.dirxml", sourceName: "dirxml", targetName: "dirxml", parameters: [targetParameter("obj", objectTargetType, { csharpAcceptsClosedSourceArgument: true })] }),
-  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.table", sourceName: "table", targetName: "table", parameters: [targetParameter("data", objectTargetType, { csharpAcceptsClosedSourceArgument: true })] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.dir", sourceName: "dir", targetName: "dir", parameters: [optionalObjectParameter("item"), optionalObjectParameter("options")] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.dirxml", sourceName: "dirxml", targetName: "dirxml", parameters: [consoleDataParameter()] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.table", sourceName: "table", targetName: "table", parameters: [optionalObjectParameter("tabularData"), optionalObjectParameter("properties")] }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.time", sourceName: "time", targetName: "time", parameters: [optionalStringParameter("label")] }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.timeEnd", sourceName: "timeEnd", targetName: "timeEnd", parameters: [optionalStringParameter("label")] }),
   consoleMethodMetadata({
@@ -92,6 +99,7 @@ const consoleTargetMemberMetadata = [
       consoleDataParameter(),
     ],
   }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.timeStamp", sourceName: "timeStamp", targetName: "timeStamp", parameters: [optionalStringParameter("label")] }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.count", sourceName: "count", targetName: "count", parameters: [optionalStringParameter("label")] }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.countReset", sourceName: "countReset", targetName: "countReset", parameters: [optionalStringParameter("label")] }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
