@@ -182,6 +182,7 @@ const sourceLibraryDeclaringNames: ReadonlySet<SourceLibraryDeclaringKey> = new 
 const sourceLibraryConstructorDeclaringNames: ReadonlySet<string> = new Set([
   "RegExpConstructor",
   "BooleanConstructor",
+  "NumberConstructor",
   "ArrayConstructor",
   "DateConstructor",
   "MapConstructor",

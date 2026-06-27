@@ -660,6 +660,71 @@ test("JS surface maps Number static methods and constants from selected declarat
   assert.equal(facts.get(property, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.Number.MAX_SAFE_INTEGER");
 });
 
+test("JS surface maps Number call conversion from selected declaration and closed argument facts", () => {
+  const call = { Kind: "KindCallExpression" };
+  const argument = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [argument, stringType()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("NumberConstructor", ""), {
+    arguments: [argument],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Globals.Number(System.Object)");
+  assert.equal(result.value.selectedSignature.member.targetName, "Number");
+  assert.equal(result.value.selectedSignature.member.returnType.name, "float64");
+  assert.equal(facts.get(call, csharpTargetOperationFactKey)?.operationKind, "method");
+});
+
+test("JS surface maps zero-argument Number call conversion from selected declaration", () => {
+  const call = { Kind: "KindCallExpression" };
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("NumberConstructor", "")), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Globals.Number(System.Object)");
+  assert.equal(result.value.selectedSignature.member.parameters[0].optional, true);
+});
+
+test("JS surface rejects Number call conversion without closed argument facts", () => {
+  const call = { Kind: "KindCallExpression" };
+  const argument = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("NumberConstructor", ""), {
+    arguments: [argument],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.match(result.diagnostic.message, /Number\.constructor/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface rejects new Number until an explicit wrapper carrier exists", () => {
+  const construct = { Kind: "KindNewExpression" };
+  const argument = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [argument, float64Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(construct, sourceLibraryMemberDeclaration("NumberConstructor", ""), {
+    arguments: [argument],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Number\.constructor/);
+  assert.equal(facts.get(construct, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps Map and Set runtime built-ins from selected declarations and closed carrier facts", () => {
   const mapConstruct = { Kind: "KindNewExpression" };
   const setConstruct = { Kind: "KindNewExpression" };

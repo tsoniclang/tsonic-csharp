@@ -105,6 +105,9 @@ export type JsSurfaceSemanticExceptionSelection =
     readonly kind: "boolean-call-construct";
   }
   | {
+    readonly kind: "number-call-construct";
+  }
+  | {
     readonly kind: "object-primitive-receiver-to-string";
   };
 

@@ -14,6 +14,7 @@ import type {
 } from "./target-member-metadata.js";
 import {
   jsSurfaceTargetMembersForSelectedSourceIdentity,
+  jsSurfaceTargetMemberFromMetadata,
   jsSurfaceTargetMemberMetadataIdentityIndex,
 } from "./target-member-metadata.js";
 import type {
@@ -21,11 +22,17 @@ import type {
 } from "./target-member-metadata.js";
 
 const numberOpsType = csharpTargetNamedType("Tsonic.CSharp.Js.Number", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Number"));
+const globalsType = csharpTargetNamedType("Tsonic.CSharp.Js.Globals", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Globals"));
+const objectType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const stringType = csharpStringTargetType();
 const numberType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const numberValueParameter = targetParameter("value", numberType);
+const numberConversionParameter = targetParameter("value", objectType, {
+  optional: true,
+  csharpAcceptsClosedSourceArgument: true,
+});
 const numberCapabilityId = "surface.js.number-methods";
 const numberRequiredFacts = [
   "selected source declaration/signature identity",
@@ -39,6 +46,9 @@ interface NumberMethodMetadataRow {
   readonly targetName: string;
   readonly parameters: readonly ReturnType<typeof targetParameter>[];
   readonly returnType: TargetTypeRef;
+  readonly declaringType?: TargetTypeRef;
+  readonly requiredFacts?: readonly string[];
+  readonly semanticEquivalence?: string;
   readonly receiverPassing?: "first-argument";
 }
 
@@ -74,6 +84,26 @@ const numberPropertyTargetMemberMetadata = [
 ].map(numberPropertyMetadata) satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const numberPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberPropertyTargetMemberMetadata);
 
+const numberConstructorCallTargetMemberMetadata = [
+  numberMethodMetadata({
+    id: "Tsonic.CSharp.Js.Globals.Number(System.Object)",
+    sourceName: "constructor",
+    targetName: "Number",
+    parameters: [numberConversionParameter],
+    returnType: numberType,
+    declaringType: globalsType,
+    requiredFacts: [
+      "selected NumberConstructor call signature identity",
+      "call-vs-construct expression shape",
+      "closed target facts for provided conversion argument",
+      "Tsonic.CSharp.Js.Globals.Number runtime metadata row",
+    ],
+    semanticEquivalence: "Selected Number(value) source call preserves ECMAScript Number conversion semantics through Tsonic.CSharp.Js.Globals.Number; new Number(value) is intentionally not selected without a closed wrapper-object carrier.",
+  }),
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+
+const numberConstructorCallTargetMembers = numberConstructorCallTargetMemberMetadata.map(jsSurfaceTargetMemberFromMetadata);
+
 export function isCsharpNumberTargetType(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "source-primitive" &&
     (
@@ -94,6 +124,15 @@ export function numberTargetMembersForSelectedIdentity(
   return jsSurfaceTargetMembersForSelectedSourceIdentity(numberTargetMemberIdentityIndex, selectedIdentity);
 }
 
+export function numberConstructorTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  mode: "call" | "new",
+): readonly TargetMember[] {
+  return mode === "call" && selectedIdentity.key === "Number.constructor"
+    ? numberConstructorCallTargetMembers
+    : [];
+}
+
 function numberMethodMetadata(row: NumberMethodMetadataRow): JsSurfaceTargetMemberMetadata {
   return {
     id: row.id,
@@ -102,12 +141,12 @@ function numberMethodMetadata(row: NumberMethodMetadataRow): JsSurfaceTargetMemb
     kind: "method",
     parameters: row.parameters,
     returnType: row.returnType,
-    declaringType: numberOpsType,
+    declaringType: row.declaringType ?? numberOpsType,
     static: true,
     ...(row.receiverPassing === undefined ? {} : { receiverPassing: row.receiverPassing }),
     capabilityId: numberCapabilityId,
-    requiredFacts: numberRequiredFacts,
-    semanticEquivalence: "Selected Tsonic.CSharp.Js.Number runtime member preserves ECMAScript Number operation semantics for closed primitive numeric carriers.",
+    requiredFacts: row.requiredFacts ?? numberRequiredFacts,
+    semanticEquivalence: row.semanticEquivalence ?? "Selected Tsonic.CSharp.Js.Number runtime member preserves ECMAScript Number operation semantics for closed primitive numeric carriers.",
   };
 }
 

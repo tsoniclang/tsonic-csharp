@@ -84,6 +84,9 @@ const numberStaticCallIdentityPolicy = {
     "Number.isSafeInteger",
   ],
 } as const satisfies JsSurfaceSourceIdentitySelector;
+const numberConstructorIdentityPolicy = {
+  ids: ["Number.constructor"],
+} as const satisfies JsSurfaceSourceIdentitySelector;
 const booleanConstructorIdentityPolicy = {
   ids: ["Boolean.constructor"],
 } as const satisfies JsSurfaceSourceIdentitySelector;
@@ -121,6 +124,20 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     closedFacts: { kind: "receiver", target: "string" },
   },
   operationRowFromMetadataIndex(numberStaticCallIdentityPolicy, numberTargetMemberIdentityIndex, { capabilityId: "surface.js.number-methods", requiredFacts: selectedSignatureProviderFacts }),
+  {
+    identity: numberConstructorIdentityPolicy,
+    policyKind: "semantic-exception",
+    semanticException: {
+      reason: "Number(value) converts to a primitive number while new Number(value) requires an explicit wrapper-object carrier that the selected C# JS surface does not expose yet.",
+      requiredFacts: [
+        "selected NumberConstructor source declaration/signature identity",
+        "call expression construct-vs-call shape",
+        "closed conversion argument target facts",
+      ],
+      capabilityId: "surface.js.number-methods",
+    },
+    targetProviders: [semanticExceptionProvider({ kind: "number-call-construct" })],
+  },
   {
     ...operationRowFromMetadataIndex({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex, { capabilityId: "surface.js.number-methods", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "receiver", target: "number" },
