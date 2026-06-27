@@ -264,6 +264,38 @@ test("architecture validator rejects JS surface provider kind literals", () => {
   );
 });
 
+test("architecture validator rejects JS source-family provider flags", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
+    `
+      const row = {
+        members: {
+          dateCallConstructMembers: true,
+          objectPrimitiveReceiverMembers: true,
+          objectRecordDictionaryMembers: true,
+          arrayCarrierMembers: true,
+          collectionCarrierMembers: true,
+        },
+        callable: {
+          membersExist: true,
+          arrayMembersOrCallSurface: true,
+          collectionMembersExist: true,
+        },
+      };
+    `,
+    [
+      "js-surface-source-family-provider-flag",
+      "js-surface-source-family-provider-flag",
+      "js-surface-source-family-provider-flag",
+      "js-surface-source-family-provider-flag",
+      "js-surface-source-family-provider-flag",
+      "js-surface-source-family-provider-flag",
+      "js-surface-source-family-provider-flag",
+      "js-surface-source-family-provider-flag",
+    ],
+  );
+});
+
 test("architecture validator rejects policy-shaped filenames", () => {
   assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/collection-target-metadata/map-policy.ts",

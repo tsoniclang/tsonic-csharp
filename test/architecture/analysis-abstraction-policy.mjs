@@ -246,6 +246,13 @@ export const analysisAbstractionRules = Object.freeze([
       "JS surface call provider behavior must be declared as provider metadata facts; source-family kind literals must not drive generic call analysis or target selection.",
   },
   {
+    id: "js-surface-source-family-provider-flag",
+    filePattern: /(?:^|\/)surfaces\/js\/calls\/member-providers\/[^/]+\.ts$/,
+    pattern: /\b(?:dateCallConstructMembers|objectPrimitiveReceiverMembers|objectRecordDictionaryMembers|arrayCarrierMembers|collectionCarrierMembers|membersExist|arrayMembersOrCallSurface|collectionMembersExist)\b/g,
+    replacement:
+      "JS surface call mapping must use declarative operation rows and generic target providers, not source-family boolean flags or family-specific callable policy flags.",
+  },
+  {
     id: "js-surface-property-provider-kind-literal",
     filePattern: /(?:^|\/)surfaces\/js\/properties\/member-providers\/[^/]+\.ts$/,
     pattern: /"(?:collection-size|string-length|array-length)"/g,

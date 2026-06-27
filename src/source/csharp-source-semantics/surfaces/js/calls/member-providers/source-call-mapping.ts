@@ -72,26 +72,49 @@ import {
 
 interface SourceCallMetadataRow {
   readonly identity: JsSurfaceSourceIdentitySelector;
-  readonly members?: SourceCallMemberProvider;
-  readonly callable?: SourceCallCallablePolicy;
+  readonly policyKind: JsSurfaceCallPolicyKind;
+  readonly targetProviders?: readonly JsSurfaceCallTargetProvider[];
+  readonly semanticException?: JsSurfaceCallSemanticException;
 }
 
-type SourceCallMemberProvider =
-  {
-    readonly membersBySourceIdentity?: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
-    readonly dateCallConstructMembers?: true;
-    readonly objectPrimitiveReceiverMembers?: true;
-    readonly objectRecordDictionaryMembers?: true;
-    readonly arrayCarrierMembers?: true;
-    readonly collectionCarrierMembers?: true;
+type JsSurfaceCallPolicyKind =
+  | "provider-member"
+  | "carrier-member"
+  | "semantic-exception"
+  | "unsupported";
+
+type JsSurfaceCallTargetProvider =
+  | {
+    readonly kind: "metadata-index";
+    readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
+  }
+  | {
+    readonly kind: "adapter";
+    readonly adapter: JsSurfaceCallTargetProviderAdapter;
   };
 
-interface SourceCallCallablePolicy {
-  readonly membersExist?: true;
-  readonly arrayMembersOrCallSurface?: true;
-  readonly collectionMembersExist?: true;
-  readonly always?: true;
-  readonly never?: true;
+interface JsSurfaceCallTargetProviderAdapter {
+  readonly id: string;
+  readonly selectTargetMembers: (request: JsSurfaceCallTargetProviderRequest) => readonly TargetMember[];
+  readonly hasCallableProvider: (request: JsSurfaceCallCallableProviderRequest) => boolean;
+}
+
+interface JsSurfaceCallSemanticException {
+  readonly reason: string;
+  readonly requiredFacts: readonly string[];
+}
+
+interface JsSurfaceCallTargetProviderRequest {
+  readonly sourceMember: SourceLibraryMember;
+  readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
+  readonly request: CheckedCallMappingRequest;
+  readonly context: ExtensionObservationContext<"operation.mapCheckedCall">;
+  readonly host: CsharpJsSurfaceHost;
+}
+
+interface JsSurfaceCallCallableProviderRequest {
+  readonly sourceMember: SourceLibraryMember;
+  readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
 }
 
 const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
@@ -102,37 +125,41 @@ const sourceCallMetadataRows: readonly SourceCallMetadataRow[] = [
   metadataIndexPolicy({ prefixes: ["RegExp."] }, regExpTargetMemberIdentityIndex),
   {
     identity: { prefixes: ["Date."] },
-    members: { dateCallConstructMembers: true },
-    callable: { membersExist: true },
+    policyKind: "semantic-exception",
+    semanticException: {
+      reason: "Date call and construct source operations have different JavaScript runtime semantics but share the Date source family.",
+      requiredFacts: ["selected source declaration/signature identity", "call expression construct-vs-call shape"],
+    },
+    targetProviders: [adapterProvider(callConstructDiscriminatorProvider())],
   },
   metadataIndexPolicy({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
   {
     identity: { prefixes: ["Object."] },
-    members: {
-      membersBySourceIdentity: objectTargetMemberIdentityIndex,
-      objectPrimitiveReceiverMembers: true,
-      objectRecordDictionaryMembers: true,
-    },
-    callable: { membersExist: true },
+    policyKind: "carrier-member",
+    targetProviders: [
+      metadataIndexProvider(objectTargetMemberIdentityIndex),
+      adapterProvider(primitiveReceiverStaticHelperProvider()),
+      adapterProvider(recordDictionaryStaticHelperProvider()),
+    ],
   },
   {
     identity: { prefixes: ["Array.", "ReadonlyArray."] },
-    members: { arrayCarrierMembers: true },
-    callable: { arrayMembersOrCallSurface: true },
+    policyKind: "carrier-member",
+    targetProviders: [adapterProvider(closedSequenceCarrierProvider())],
   },
   {
     identity: collectionIdentityPolicy,
-    members: { collectionCarrierMembers: true },
-    callable: { collectionMembersExist: true },
+    policyKind: "carrier-member",
+    targetProviders: [adapterProvider(closedKeyedCollectionCarrierProvider())],
   },
   {
     identity: { prefixes: ["Console."] },
-    members: { membersBySourceIdentity: consoleTargetMembersBySourceIdentity },
-    callable: { membersExist: true },
+    policyKind: "provider-member",
+    targetProviders: [metadataIndexProvider(consoleTargetMembersBySourceIdentity)],
   },
   {
     identity: { prefixes: ["Promise."] },
-    callable: { never: true },
+    policyKind: "unsupported",
   },
 ];
 
@@ -142,11 +169,11 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  const policy = sourceCallMetadataRowForSourceMember(sourceMember);
-  return policy?.members === undefined
+  const row = sourceCallMetadataRowForSourceMember(sourceMember);
+  return row === undefined || row.policyKind === "unsupported"
     ? []
-    : callMembersFromProvider(
-        policy.members,
+    : callMembersFromOperationRow(
+        row,
         sourceMember,
         jsSurfaceSelectedSourceIdentityForMember(sourceMember),
         request,
@@ -158,15 +185,13 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
 export function csharpJsSourceLibraryMemberHasCallableProvider(
   sourceMember: SourceLibraryMember,
 ): boolean {
-  const policy = sourceCallMetadataRowForSourceMember(sourceMember);
-  return policy?.callable === undefined
+  const row = sourceCallMetadataRowForSourceMember(sourceMember);
+  return row === undefined
     ? false
-    : callablePolicyIsSatisfied(
-        policy.callable,
-        policy.members,
-        sourceMember,
-        jsSurfaceSelectedSourceIdentityForMember(sourceMember),
-      );
+    : operationRowHasCallableProvider(row, {
+      sourceMember,
+      selectedIdentity: jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+    });
 }
 
 function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember): SourceCallMetadataRow | undefined {
@@ -176,86 +201,54 @@ function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember)
   );
 }
 
-function callMembersFromProvider(
-  provider: SourceCallMemberProvider,
+function callMembersFromOperationRow(
+  row: SourceCallMetadataRow,
   sourceMember: SourceLibraryMember,
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
-  return [
-    ...(provider.membersBySourceIdentity === undefined ? [] : jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity)),
-    ...(provider.dateCallConstructMembers === true
-      ? dateTargetMembersForSourceMember(sourceMember, isNewExpression(request.call, context) ? "new" : "call")
-      : []),
-    ...(provider.objectPrimitiveReceiverMembers === true
-      ? getObjectPrimitiveReceiverCallMembers(request, context, host, sourceMember)
-      : []),
-    ...(provider.objectRecordDictionaryMembers === true
-      ? getObjectRecordDictionaryCallMembers(sourceMember, request, context, host)
-      : []),
-    ...(provider.arrayCarrierMembers === true
-      ? arrayMembersFromClosedFacts(sourceMember, request, context, host)
-      : []),
-    ...(provider.collectionCarrierMembers === true
-      ? collectionTargetMembersForSourceMember(
-        sourceMember,
-        getSourceLibraryCallReceiverTargetTypes(request, context, host)[0],
-        jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, collectionConstructorIdentityPolicy)
-          ? getSourceLibraryCallResultTargetType(request, context, host)
-          : undefined,
-      )
-      : []),
-  ];
+  const providerRequest = { sourceMember, selectedIdentity, request, context, host } satisfies JsSurfaceCallTargetProviderRequest;
+  return (row.targetProviders ?? []).flatMap((provider) => targetMembersFromProvider(provider, providerRequest));
 }
 
-function callablePolicyIsSatisfied(
-  policy: SourceCallCallablePolicy,
-  provider: SourceCallMemberProvider | undefined,
-  sourceMember: SourceLibraryMember,
-  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+function operationRowHasCallableProvider(
+  row: SourceCallMetadataRow,
+  request: JsSurfaceCallCallableProviderRequest,
 ): boolean {
-  if (policy.never === true) {
-    return false;
+  switch (row.policyKind) {
+    case "unsupported":
+      return false;
+    case "provider-member":
+    case "carrier-member":
+    case "semantic-exception":
+      return (row.targetProviders ?? []).some((provider) => providerHasCallableMember(provider, request));
   }
-  if (policy.always === true) {
-    return true;
-  }
-  if (policy.membersExist === true && provider !== undefined && callableMembersFromProvider(provider, sourceMember, selectedIdentity).length > 0) {
-    return true;
-  }
-  if (
-    policy.arrayMembersOrCallSurface === true &&
-    (arrayTargetMembersForSourceMember(sourceMember).length > 0 ||
-      jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, arrayCallableIdentityPolicy))
-  ) {
-    return true;
-  }
-  if (policy.collectionMembersExist === true && hasCallableTargetMember(collectionTargetMembersForSourceMember(sourceMember, undefined, undefined))) {
-    return true;
-  }
-  return false;
 }
 
-function callableMembersFromProvider(
-  provider: SourceCallMemberProvider,
-  sourceMember: SourceLibraryMember,
-  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+function targetMembersFromProvider(
+  provider: JsSurfaceCallTargetProvider,
+  request: JsSurfaceCallTargetProviderRequest,
 ): readonly TargetMember[] {
-  const members = [
-    ...(provider.membersBySourceIdentity === undefined ? [] : jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity)),
-    ...(provider.dateCallConstructMembers === true ? dateTargetMembersForSourceMember(sourceMember, "call") : []),
-  ];
-  return members.filter(targetMemberIsCallable);
+  switch (provider.kind) {
+    case "metadata-index":
+      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
+    case "adapter":
+      return provider.adapter.selectTargetMembers(request);
+  }
 }
 
-function hasCallableTargetMember(members: readonly TargetMember[]): boolean {
-  return members.some(targetMemberIsCallable);
-}
-
-function targetMemberIsCallable(member: TargetMember): boolean {
-  return member.kind !== "property";
+function providerHasCallableMember(
+  provider: JsSurfaceCallTargetProvider,
+  request: JsSurfaceCallCallableProviderRequest,
+): boolean {
+  switch (provider.kind) {
+    case "metadata-index":
+      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity).some(targetMemberIsCallable);
+    case "adapter":
+      return provider.adapter.hasCallableProvider(request);
+  }
 }
 
 function arrayMembersFromClosedFacts(
@@ -290,7 +283,78 @@ function metadataIndexPolicy(
 ): SourceCallMetadataRow {
   return {
     identity,
-    members: { membersBySourceIdentity },
-    callable: { membersExist: true },
+    policyKind: "provider-member",
+    targetProviders: [metadataIndexProvider(membersBySourceIdentity)],
   };
+}
+
+function metadataIndexProvider(
+  membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+): JsSurfaceCallTargetProvider {
+  return {
+    kind: "metadata-index",
+    membersBySourceIdentity,
+  };
+}
+
+function adapterProvider(adapter: JsSurfaceCallTargetProviderAdapter): JsSurfaceCallTargetProvider {
+  return {
+    kind: "adapter",
+    adapter,
+  };
+}
+
+function callConstructDiscriminatorProvider(): JsSurfaceCallTargetProviderAdapter {
+  return {
+    id: "call-construct-discriminator",
+    selectTargetMembers: (request) =>
+      dateTargetMembersForSourceMember(request.sourceMember, isNewExpression(request.request.call, request.context) ? "new" : "call"),
+    hasCallableProvider: (request) => dateTargetMembersForSourceMember(request.sourceMember, "call").some(targetMemberIsCallable),
+  };
+}
+
+function primitiveReceiverStaticHelperProvider(): JsSurfaceCallTargetProviderAdapter {
+  return {
+    id: "primitive-receiver-static-helper",
+    selectTargetMembers: (request) => getObjectPrimitiveReceiverCallMembers(request.request, request.context, request.host, request.sourceMember),
+    hasCallableProvider: () => false,
+  };
+}
+
+function recordDictionaryStaticHelperProvider(): JsSurfaceCallTargetProviderAdapter {
+  return {
+    id: "record-dictionary-static-helper",
+    selectTargetMembers: (request) => getObjectRecordDictionaryCallMembers(request.sourceMember, request.request, request.context, request.host),
+    hasCallableProvider: () => false,
+  };
+}
+
+function closedSequenceCarrierProvider(): JsSurfaceCallTargetProviderAdapter {
+  return {
+    id: "closed-sequence-carrier",
+    selectTargetMembers: (request) => arrayMembersFromClosedFacts(request.sourceMember, request.request, request.context, request.host),
+    hasCallableProvider: (request) =>
+      arrayTargetMembersForSourceMember(request.sourceMember).some(targetMemberIsCallable) ||
+      jsSurfaceSourceIdentityMatchesSelector(request.selectedIdentity, arrayCallableIdentityPolicy),
+  };
+}
+
+function closedKeyedCollectionCarrierProvider(): JsSurfaceCallTargetProviderAdapter {
+  return {
+    id: "closed-keyed-collection-carrier",
+    selectTargetMembers: (request) =>
+      collectionTargetMembersForSourceMember(
+        request.sourceMember,
+        getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
+        jsSurfaceSourceIdentityMatchesSelector(request.selectedIdentity, collectionConstructorIdentityPolicy)
+          ? getSourceLibraryCallResultTargetType(request.request, request.context, request.host)
+          : undefined,
+      ),
+    hasCallableProvider: (request) =>
+      collectionTargetMembersForSourceMember(request.sourceMember, undefined, undefined).some(targetMemberIsCallable),
+  };
+}
+
+function targetMemberIsCallable(member: TargetMember): boolean {
+  return member.kind !== "property";
 }
