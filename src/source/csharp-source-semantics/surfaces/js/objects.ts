@@ -2,9 +2,6 @@ import type {
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import type {
-  SourceLibraryMember,
-} from "./source-library.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpListTargetType,
@@ -22,7 +19,6 @@ import type {
 import {
   jsSurfaceTargetMemberFromMetadata,
   jsSurfaceTargetMemberMetadataIdentityIndex,
-  jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
@@ -33,6 +29,7 @@ const jsObjectCarrierType = csharpTargetNamedType("Tsonic.CSharp.Js.JSObject", u
 const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const objectMemberTypeParameter = { kind: "type-parameter" as const, name: "T" };
 type ObjectTargetParameter = ReturnType<typeof targetParameter>;
+export type ObjectRecordDictionaryOperation = "keys" | "values" | "entries";
 
 interface ObjectRuntimeMethodRow {
   readonly id: string;
@@ -58,12 +55,11 @@ interface JsObjectInstanceMethodRow {
   readonly returnType: TargetTypeRef;
 }
 
-export function objectTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
-  return jsSurfaceTargetMembersForSourceMember(objectTargetMemberIdentityIndex, sourceMember);
-}
-
-export function hasObjectTargetMember(sourceName: string): boolean {
-  return objectTargetMemberMetadata.some((member) => member.sourceName === sourceName);
+interface ObjectRecordDictionaryOperationRow {
+  readonly id: string;
+  readonly sourceName: ObjectRecordDictionaryOperation;
+  readonly targetName: string;
+  readonly returnElement: "key" | "value" | "entry";
 }
 
 export function csharpJsObjectCarrierTargetType(): TargetTypeRef {
@@ -102,16 +98,17 @@ export function objectRecordDictionaryTargetMembersForOperation(
   dictionaryType: CsharpRecordDictionaryTargetTypeRef,
 ): readonly TargetMember[] {
   const valueType = dictionaryType.typeArguments?.[1];
-  if (valueType === undefined) {
+  const operationRow = objectRecordDictionaryOperationRows[operation];
+  if (valueType === undefined || operationRow === undefined) {
     return [];
   }
-  return [
-      objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.keys:dictionary", sourceName: "keys", targetName: "keys", valueType: dictionaryType, returnElementType: csharpStringTargetType() }),
-      objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.values:dictionary", sourceName: "values", targetName: "values", valueType: dictionaryType, returnElementType: valueType }),
-      objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.entries:dictionary", sourceName: "entries", targetName: "entries", valueType: dictionaryType, returnElementType: { kind: "tuple", elements: [csharpStringTargetType(), valueType] } }),
-    ]
-    .filter((member) => member.sourceName === operation)
-    .map(jsSurfaceTargetMemberFromMetadata);
+  return [objectHelperMethod({
+    id: operationRow.id,
+    sourceName: operationRow.sourceName,
+    targetName: operationRow.targetName,
+    valueType: dictionaryType,
+    returnElementType: objectRecordDictionaryReturnElementType(operationRow.returnElement, valueType),
+  })].map(jsSurfaceTargetMemberFromMetadata);
 }
 
 function jsObjectInstanceMethod(row: JsObjectInstanceMethodRow): JsSurfaceTargetMemberMetadata {
@@ -165,3 +162,38 @@ const objectTargetMemberMetadata = [
   }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const objectTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Object", objectTargetMemberMetadata);
+
+const objectRecordDictionaryOperationRows = {
+  keys: {
+    id: "Tsonic.CSharp.Js.Object.keys:dictionary",
+    sourceName: "keys",
+    targetName: "keys",
+    returnElement: "key",
+  },
+  values: {
+    id: "Tsonic.CSharp.Js.Object.values:dictionary",
+    sourceName: "values",
+    targetName: "values",
+    returnElement: "value",
+  },
+  entries: {
+    id: "Tsonic.CSharp.Js.Object.entries:dictionary",
+    sourceName: "entries",
+    targetName: "entries",
+    returnElement: "entry",
+  },
+} satisfies Record<ObjectRecordDictionaryOperation, ObjectRecordDictionaryOperationRow>;
+
+function objectRecordDictionaryReturnElementType(
+  returnElement: ObjectRecordDictionaryOperationRow["returnElement"],
+  valueType: TargetTypeRef,
+): TargetTypeRef {
+  switch (returnElement) {
+    case "key":
+      return csharpStringTargetType();
+    case "value":
+      return valueType;
+    case "entry":
+      return { kind: "tuple", elements: [csharpStringTargetType(), valueType] };
+  }
+}

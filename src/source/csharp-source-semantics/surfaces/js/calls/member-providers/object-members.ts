@@ -11,6 +11,7 @@ import {
   numberTargetMembersForSelectedIdentity,
 } from "../../numbers.js";
 import {
+  type ObjectRecordDictionaryOperation,
   objectRecordDictionaryTargetMembersForOperation,
 } from "../../objects.js";
 import type {
@@ -41,8 +42,6 @@ export const objectRecordDictionaryCallRows = [
   readonly identity: JsSurfaceSourceIdentitySelector;
   readonly operation: ObjectRecordDictionaryOperation;
 }[];
-
-export type ObjectRecordDictionaryOperation = "keys" | "values" | "entries";
 
 export function getObjectPrimitiveReceiverCallMembers(
   request: CheckedCallMappingRequest,

@@ -210,6 +210,12 @@ export const analysisAbstractionRules = Object.freeze([
       "Replace source-name target-member helper APIs with selected source declaration/signature identity indexes.",
   },
   {
+    id: "source-name-runtime-member-filter",
+    pattern: /\.filter\s*\(\s*\(?\s*(?:member|row|candidate|record)\s*\)?\s*=>\s*(?:member|row|candidate|record)\.sourceName\s*(?:={2,3}|!={1,2})/g,
+    replacement:
+      "Do not select target/runtime members by filtering sourceName at execution time; use declarative rows indexed by selected source identity or explicit operation metadata.",
+  },
+  {
     id: "source-library-member-name-call",
     pattern: /(?<!function\s)\bsourceLibraryMemberName\s*\(/g,
     replacement:

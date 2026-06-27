@@ -249,6 +249,29 @@ test("architecture validator rejects target-member synthesis from source names",
   );
 });
 
+test("architecture validator rejects runtime member filtering by source names", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/objects.ts",
+    `
+      return rows
+        .filter((member) => member.sourceName === operation)
+        .map(jsSurfaceTargetMemberFromMetadata);
+    `,
+    ["source-name-runtime-member-filter"],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/surfaces/js/objects.ts",
+      `
+        const row = rowsByOperation[operation];
+        return row === undefined ? [] : [targetMemberFromExplicitRow(row)];
+      `,
+    ),
+    [],
+  );
+});
+
 test("architecture validator rejects array target ids defaulted from source names", () => {
   assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/arrays/target-members/builders.ts",

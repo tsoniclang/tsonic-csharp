@@ -16,6 +16,9 @@ import {
   dateTargetMembersForSelectedIdentity,
 } from "../../date/index.js";
 import type {
+  ObjectRecordDictionaryOperation,
+} from "../../objects.js";
+import type {
   CsharpJsSurfaceHost,
   SourceLibraryMemberKey,
 } from "../../source-library.js";
@@ -29,9 +32,6 @@ import {
   getSourceLibraryCallResultTargetType,
   isNewExpression,
 } from "../helpers.js";
-import type {
-  ObjectRecordDictionaryOperation,
-} from "./object-members.js";
 import {
   getObjectPrimitiveReceiverCallMembers,
   getObjectRecordDictionaryCallMembers,
