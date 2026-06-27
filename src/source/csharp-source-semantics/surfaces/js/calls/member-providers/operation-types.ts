@@ -1,0 +1,66 @@
+import type {
+  CheckedCallMappingRequest,
+  ExtensionObservationContext,
+  TargetMember,
+} from "@tsonic/tsts";
+import type {
+  CsharpJsSurfaceHost,
+  SourceLibraryMember,
+  SourceLibraryMemberKey,
+} from "../../source-library.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
+  JsSurfaceSourceIdentitySelector,
+} from "../../target-member-metadata.js";
+
+export interface JsSurfaceOperationRow {
+  readonly identity: JsSurfaceSourceIdentitySelector;
+  readonly policyKind: JsSurfaceOperationPolicyKind;
+  readonly targetProviders?: readonly JsSurfaceOperationTargetProvider[];
+  readonly semanticException?: JsSurfaceOperationSemanticException;
+  readonly callableWithoutContext?: boolean;
+}
+
+export type JsSurfaceOperationPolicyKind =
+  | "provider-member"
+  | "carrier-member"
+  | "semantic-exception"
+  | "unsupported";
+
+export type JsSurfaceOperationTargetProvider =
+  | {
+    readonly kind: "metadata-index";
+    readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
+  }
+  | {
+    readonly kind: "operation-adapter";
+    readonly adapter: JsSurfaceOperationTargetProviderAdapter;
+  };
+
+export interface JsSurfaceOperationTargetProviderAdapter {
+  readonly id: string;
+  readonly selectTargetMembers: (request: JsSurfaceCallTargetProviderRequest) => readonly TargetMember[];
+  readonly hasCallableProvider: (request: JsSurfaceCallCallableProviderRequest) => boolean;
+}
+
+export interface JsSurfaceOperationSemanticException {
+  readonly reason: string;
+  readonly requiredFacts: readonly string[];
+}
+
+export interface JsSurfaceCallTargetProviderRequest {
+  readonly sourceMember: SourceLibraryMember;
+  readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
+  readonly request: CheckedCallMappingRequest;
+  readonly context: ExtensionObservationContext<"operation.mapCheckedCall">;
+  readonly host: CsharpJsSurfaceHost;
+}
+
+export interface JsSurfaceCallCallableProviderRequest {
+  readonly sourceMember: SourceLibraryMember;
+  readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
+}
+
+export function jsSurfaceTargetMemberIsCallable(member: TargetMember): boolean {
+  return member.kind !== "property";
+}
