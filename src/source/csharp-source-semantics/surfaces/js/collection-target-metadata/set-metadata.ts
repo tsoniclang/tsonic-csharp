@@ -5,6 +5,7 @@ import type {
 const elementType = { kind: "type-argument", index: 0 } as const;
 const declaringType = { kind: "declaring" } as const;
 const boolType = { kind: "primitive", name: "bool" } as const;
+const intType = { kind: "primitive", name: "int32" } as const;
 const voidType = { kind: "void" } as const;
 const elementEnumerableType = { kind: "enumerable", element: elementType } as const;
 const entryType = { kind: "tuple", elements: [elementType, elementType] } as const;
@@ -39,6 +40,16 @@ export const csharpJsSetCollectionPolicy = {
           returnType: declaringType,
         },
       ],
+    },
+    {
+      sourceName: "size",
+      members: [{
+        id: "Tsonic.CSharp.Js.Set.size",
+        targetName: "size",
+        kind: "property",
+        parameters: [],
+        returnType: intType,
+      }],
     },
     {
       sourceName: "add",

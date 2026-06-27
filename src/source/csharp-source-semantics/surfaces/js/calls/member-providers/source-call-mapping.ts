@@ -213,7 +213,7 @@ function callablePolicyIsSatisfied(
       return arrayTargetMembersForSourceMember(sourceMember).length > 0 ||
         jsSurfaceSourceIdentityMatchesSelector(selectedIdentity, arrayCallableIdentityPolicy);
     case "collection-members-exist":
-      return collectionTargetMembersForSourceMember(sourceMember, undefined, undefined).length > 0;
+      return hasCallableTargetMember(collectionTargetMembersForSourceMember(sourceMember, undefined, undefined));
     case "always":
       return true;
     case "never":
@@ -226,7 +226,8 @@ function callableMembersFromProvider(
   sourceMember: SourceLibraryMember,
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
 ): readonly TargetMember[] {
-  switch (provider.kind) {
+  const members = (() => {
+    switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity);
     case "date-call-kind":
@@ -236,7 +237,17 @@ function callableMembersFromProvider(
     case "array-carrier":
     case "collection-carrier":
       return [];
-  }
+    }
+  })();
+  return members.filter(targetMemberIsCallable);
+}
+
+function hasCallableTargetMember(members: readonly TargetMember[]): boolean {
+  return members.some(targetMemberIsCallable);
+}
+
+function targetMemberIsCallable(member: TargetMember): boolean {
+  return member.kind !== "property";
 }
 
 function arrayMembersFromClosedFacts(

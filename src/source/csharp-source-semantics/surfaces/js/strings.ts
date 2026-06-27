@@ -33,6 +33,7 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
+  jsSurfaceSingleTargetMemberForSourceMember,
   jsSurfaceTargetMemberMetadataIdentityIndex,
   jsSurfaceTargetMembersForSourceMember,
 } from "./target-member-metadata.js";
@@ -66,6 +67,10 @@ export function mapCsharpJsStringElementAccess(
 
 export function stringTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
   return jsSurfaceTargetMembersForSourceMember(stringTargetMemberIdentityIndex, sourceMember);
+}
+
+export function stringPropertyTargetMemberForSourceMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
+  return jsSurfaceSingleTargetMemberForSourceMember(stringPropertyTargetMemberIdentityIndex, sourceMember);
 }
 
 const stringType = csharpStringTargetType();
@@ -198,6 +203,18 @@ const stringTargetMemberMetadata = [
   ].map((row) => stringReceiverHelperMemberMetadata({ ...row, parameters: [stringReceiverParameter], returnType: stringType })),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const stringTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("String", stringTargetMemberMetadata);
+
+const stringPropertyTargetMemberMetadata = [
+  {
+    id: "System.String.Length",
+    sourceName: "length",
+    targetName: "Length",
+    kind: "property",
+    returnType: intType,
+    declaringType: stringType,
+  },
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+export const stringPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("String", stringPropertyTargetMemberMetadata);
 
 function stringHelperMemberMetadata(row: StringHelperMetadataRow): JsSurfaceTargetMemberMetadata {
   return {

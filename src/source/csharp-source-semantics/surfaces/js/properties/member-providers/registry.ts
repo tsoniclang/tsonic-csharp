@@ -6,7 +6,7 @@ import {
   getCsharpArrayLengthMember,
 } from "../../arrays.js";
 import {
-  getCollectionPropertyTargetMember,
+  collectionTargetMembersForSourceMember,
 } from "../../collections.js";
 import type {
   SourceLibraryMember,
@@ -76,16 +76,8 @@ function propertyMemberFromProvider(
   switch (provider.kind) {
     case "metadata-row":
       return singlePropertyMember(provider.members);
-    case "collection-size":
-      return getCollectionPropertyTargetMember(sourceMember, receiverType);
-    case "string-length":
-      return jsSurfaceTargetMemberFromMetadata({
-        id: "tsonic.csharp.js.String.length",
-        sourceName: "length",
-        targetName: "Length",
-        kind: "property",
-        returnType: int32PropertyReturnType,
-      });
+    case "collection-member":
+      return singlePropertyMember(collectionTargetMembersForSourceMember(sourceMember, receiverType, undefined));
     case "array-length": {
       const lengthMember = receiverType?.kind === "array"
         ? "length"

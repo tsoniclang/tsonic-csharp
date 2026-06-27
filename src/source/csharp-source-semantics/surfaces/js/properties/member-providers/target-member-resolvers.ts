@@ -2,6 +2,9 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
+  stringPropertyTargetMemberIdentityIndex,
+} from "../../strings.js";
+import {
   mathPropertyTargetMemberIdentityIndex,
 } from "../../math.js";
 import {
@@ -72,11 +75,11 @@ const propertyMemberRows: readonly CsharpJsPropertyMemberProvider[] = [
   ...numberPropertySourceNames.map((sourceName) =>
     fixedMetadataRowFromIndex(sourceKey("Number", sourceName), numberPropertyTargetMemberIdentityIndex)
   ),
-  fixedKindRow("Map.size", "collection-size"),
-  fixedKindRow("ReadonlyMap.size", "collection-size"),
-  fixedKindRow("Set.size", "collection-size"),
-  fixedKindRow("ReadonlySet.size", "collection-size"),
-  fixedKindRow("String.length", "string-length"),
+  fixedKindRow("Map.size", "collection-member"),
+  fixedKindRow("ReadonlyMap.size", "collection-member"),
+  fixedKindRow("Set.size", "collection-member"),
+  fixedKindRow("ReadonlySet.size", "collection-member"),
+  fixedMetadataRowFromIndex("String.length", stringPropertyTargetMemberIdentityIndex),
   fixedKindRow("Array.length", "array-length"),
   fixedKindRow("ReadonlyArray.length", "array-length"),
 ];
@@ -105,7 +108,7 @@ function fixedMetadataRowFromIndex(
 
 function fixedKindRow(
   sourceId: SourceLibraryMemberKey,
-  kind: Extract<CsharpJsPropertyMemberProvider["member"], { readonly kind: "collection-size" | "string-length" | "array-length" }>["kind"],
+  kind: Extract<CsharpJsPropertyMemberProvider["member"], { readonly kind: "collection-member" | "array-length" }>["kind"],
 ): CsharpJsPropertyMemberProvider {
   return {
     sourceId,

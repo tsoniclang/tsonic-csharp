@@ -359,7 +359,7 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry(
     "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
     {
-      "js-surface-property-provider-kind-literal": 3,
+      "js-surface-property-provider-kind-literal": 1,
     },
     "provider-metadata-candidate",
     "surface-provider",
@@ -368,7 +368,7 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry(
     "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/target-member-resolvers.ts",
     {
-      "js-surface-property-provider-kind-literal": 10,
+      "js-surface-property-provider-kind-literal": 3,
     },
     "provider-metadata-candidate",
     "surface-provider",
@@ -377,7 +377,7 @@ export const analysisAbstractionDebtCatalog = Object.freeze([
   entry(
     "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/types.ts",
     {
-      "js-surface-property-provider-kind-literal": 3,
+      "js-surface-property-provider-kind-literal": 1,
     },
     "provider-metadata-candidate",
     "surface-provider",

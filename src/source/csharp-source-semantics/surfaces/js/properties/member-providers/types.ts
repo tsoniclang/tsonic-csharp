@@ -25,6 +25,5 @@ export type CsharpJsPropertyPrecheckResult =
 
 export type CsharpJsPropertyMemberProviderKind =
   | { readonly kind: "metadata-row"; readonly members: readonly TargetMember[] }
-  | { readonly kind: "collection-size" }
-  | { readonly kind: "string-length" }
+  | { readonly kind: "collection-member" }
   | { readonly kind: "array-length" };

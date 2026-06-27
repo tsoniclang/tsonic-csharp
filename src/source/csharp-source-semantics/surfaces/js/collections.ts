@@ -37,7 +37,6 @@ export {
   csharpJsMapTargetType,
   csharpJsSetTargetType,
   collectionTargetMembersForSourceMember,
-  getCollectionPropertyTargetMember,
   getCsharpJsIterableElementType,
   isCsharpJsMapTargetType,
   isCsharpJsSetTargetType,

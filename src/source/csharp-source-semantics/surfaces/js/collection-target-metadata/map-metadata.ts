@@ -6,6 +6,7 @@ const keyType = { kind: "type-argument", index: 0 } as const;
 const valueType = { kind: "type-argument", index: 1 } as const;
 const declaringType = { kind: "declaring" } as const;
 const boolType = { kind: "primitive", name: "bool" } as const;
+const intType = { kind: "primitive", name: "int32" } as const;
 const voidType = { kind: "void" } as const;
 const entryType = { kind: "tuple", elements: [keyType, valueType] } as const;
 const entriesEnumerableType = { kind: "enumerable", element: entryType } as const;
@@ -41,6 +42,16 @@ export const csharpJsMapCollectionPolicy = {
           returnType: declaringType,
         },
       ],
+    },
+    {
+      sourceName: "size",
+      members: [{
+        id: "Tsonic.CSharp.Js.Map.size",
+        targetName: "size",
+        kind: "property",
+        parameters: [],
+        returnType: intType,
+      }],
     },
     {
       sourceName: "get",

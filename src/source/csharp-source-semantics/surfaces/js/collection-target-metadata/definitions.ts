@@ -13,7 +13,6 @@ import {
   type JsSurfaceSourceIdentitySelector,
   jsSurfaceSelectMetadataRowForSourceIdentity,
   jsSurfaceSelectedSourceIdentityForMember,
-  jsSurfaceSourceIdentityMatchesSelector,
 } from "../target-member-metadata.js";
 import {
   getSourceStandardLibraryDeclaringNameForType,
@@ -71,15 +70,6 @@ export function collectionMemberPolicyForSelectedSourceIdentity(
 export function collectionPolicyForSourceType(type: Type, context: ExtensionObservationContext): CsharpJsCollectionTypePolicy | undefined {
   const declaringName = getSourceStandardLibraryDeclaringNameForType(type, context);
   return declaringName === undefined ? undefined : collectionPolicyForSourceName(declaringName);
-}
-
-export const collectionSizeIdentityPolicy = sourceMemberIdentityPolicyForSourceNames(
-  csharpJsCollectionPolicies.flatMap((policy) => policy.sourceNames),
-  "size",
-);
-
-export function collectionSourceIdentityMatchesSize(identity: JsSurfaceSelectedSourceIdentity): boolean {
-  return jsSurfaceSourceIdentityMatchesSelector(identity, collectionSizeIdentityPolicy);
 }
 
 export function collectionPolicyForTargetType(type: TargetTypeRef | undefined): CsharpJsCollectionTypePolicy | undefined {

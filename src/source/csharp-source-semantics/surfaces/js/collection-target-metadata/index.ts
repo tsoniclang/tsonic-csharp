@@ -4,9 +4,6 @@ import type {
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
-import {
-  csharpSourcePrimitiveTargetType,
-} from "../source-library.js";
 import type {
   SourceLibraryMember,
 } from "../source-library.js";
@@ -27,7 +24,6 @@ import {
   collectionPolicyForSelectedSourceIdentity,
   collectionPolicyForSourceType,
   collectionPolicyForTargetType,
-  collectionSourceIdentityMatchesSize,
 } from "./definitions.js";
 
 export {
@@ -76,25 +72,6 @@ export function collectionTargetMembersForSourceMember(
       declaringType: collectionType,
       typeArguments,
     }).map(jsSurfaceTargetMemberFromMetadata);
-}
-
-export function getCollectionPropertyTargetMember(sourceMember: SourceLibraryMember, receiverType: TargetTypeRef | undefined): TargetMember | undefined {
-  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
-  if (!collectionSourceIdentityMatchesSize(selectedIdentity)) {
-    return undefined;
-  }
-  const policy = collectionPolicyForSelectedSourceIdentity(selectedIdentity);
-  if (policy === undefined || collectionPolicyForTargetType(receiverType) !== policy) {
-    return undefined;
-  }
-  return jsSurfaceTargetMemberFromMetadata({
-    id: `Tsonic.CSharp.Js.${policy.target.name}.size`,
-    sourceName: "size",
-    targetName: "size",
-    kind: "property",
-    returnType: csharpSourcePrimitiveTargetType("int32"),
-    declaringType: receiverType,
-  });
 }
 
 function closedCollectionTypeForPolicy(
