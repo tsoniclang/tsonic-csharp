@@ -1036,6 +1036,19 @@ test("JS surface maps Math.PI through the selected JS runtime declaration", () =
   assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Js.Math.PI");
 });
 
+test("JS surface rejects selected Math properties without provider metadata rows", () => {
+  const expression = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedPropertyAccess(sourceLibraryPropertyRequest(expression, sourceLibraryMemberDeclaration("Math", "missingConstant"), "not-the-selected-name"), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Math\.missingConstant/);
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps Date static calls through selected JS runtime declarations", () => {
   const call = {};
   const facts = new TestFactStore();
