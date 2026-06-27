@@ -144,7 +144,6 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   {
     identity: objectToStringIdentityPolicy,
     policyKind: "semantic-exception",
-    closedFacts: { kind: "receiver", target: "js-object" },
     semanticException: {
       reason: "Object.prototype.toString delegates primitive receivers to selected JS wrapper surface members.",
       requiredFacts: ["selected source declaration/signature identity", "resolved primitive receiver carrier"],

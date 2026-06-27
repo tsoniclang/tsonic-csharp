@@ -398,6 +398,59 @@ test("JS surface maps Boolean.valueOf from selected declaration and closed bool 
   assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
 });
 
+test("JS surface maps Object.toString to BooleanOps for closed bool primitive receivers", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, boolType()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Object", "toString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.BooleanOps.toString");
+  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
+});
+
+test("JS surface rejects Boolean methods without closed bool receiver facts", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Boolean", "toString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /Boolean\.toString/);
+  assert.match(result.diagnostic.message, /receiver lacks finalized target runtime facts/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface rejects Boolean methods for non-boolean closed receivers", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, float64Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Boolean", "valueOf"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /Boolean\.valueOf/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps Number.toString from selected declaration and closed number receiver facts", () => {
   const call = {};
   const receiver = {};

@@ -10,9 +10,10 @@ export function targetMemberAsSourceSelectedSignature(member: TargetMember): Tar
   if (member.receiverPassing !== "first-argument") {
     return member;
   }
-  const [, ...sourceParameters] = member.parameters;
+  const [receiverParameter, ...sourceParameters] = member.parameters;
   return {
     ...member,
+    ...(receiverParameter === undefined ? {} : { declaringType: receiverParameter.type }),
     parameters: sourceParameters,
   };
 }
