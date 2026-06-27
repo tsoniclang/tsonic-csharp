@@ -24,6 +24,7 @@ import type {
   JsSurfaceCallTargetProviderRequest,
   JsSurfaceOperationRow,
   JsSurfaceOperationTargetProvider,
+  JsSurfaceUnsupportedOperation,
 } from "./operation-types.js";
 
 export function getCsharpJsSourceLibraryCallMembersFromProviders(
@@ -53,6 +54,15 @@ export function csharpJsSourceLibraryMemberHasCallableProvider(
     : operationRowHasCallableProvider(row, {
       selectedIdentity: jsSurfaceSelectedSourceIdentityForMember(sourceMember),
     });
+}
+
+export function getCsharpJsSourceLibraryUnsupportedOperation(
+  sourceMember: SourceLibraryMember,
+): JsSurfaceUnsupportedOperation | undefined {
+  const row = sourceCallMetadataRowForSourceMember(sourceMember);
+  return row?.policyKind === "unsupported"
+    ? row.unsupported ?? defaultUnsupportedOperation
+    : undefined;
 }
 
 function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember): JsSurfaceOperationRow | undefined {
@@ -104,3 +114,13 @@ function providerHasCallableMember(
 ): boolean {
   return operationTargetProviderHasCallableMember(provider, request);
 }
+
+const defaultUnsupportedOperation = {
+  reason: "The selected JS surface operation has no closed provider/runtime target operation metadata.",
+  requiredFacts: [
+    "selected JS source declaration/signature identity",
+    "surface target operation metadata",
+    "surface runtime artifact metadata",
+  ],
+  capabilityId: "diagnostic.unsupported-selected-surface-operation",
+} satisfies JsSurfaceUnsupportedOperation;

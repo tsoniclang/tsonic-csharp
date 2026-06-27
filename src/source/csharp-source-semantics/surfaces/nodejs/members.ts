@@ -2,6 +2,9 @@ export {
   getNodejsCallTargetMember,
 } from "./members/call-targets.js";
 export {
+  getNodejsUnsupportedTargetIdentityFromMetadata,
+} from "./members/metadata-index.js";
+export {
   getCsharpNodejsPropertyOperation,
 } from "./members/property-operations.js";
 export {
