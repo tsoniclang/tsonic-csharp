@@ -74,7 +74,7 @@ export function mapCsharpSourceLibraryCheckedCall(
     }
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
-  const selectedMember = selectSourceLibraryCallMember(sourceMember, candidates, request, context, host);
+  const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host);
   if (!sourceLibraryCallReceiverHasClosedFacts(request, context, sourceMember, host)) {
     if (csharpJsSourceLibraryCallCanWaitForFinalizedFacts(request, context, sourceMember, host, options.phase)) {
       return undefined;

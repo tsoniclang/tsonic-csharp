@@ -294,6 +294,13 @@ export const analysisAbstractionRules = Object.freeze([
       "JS surface operation rows must reference declarative provider/runtime metadata, carrier selectors, or explicit exception ids; executable target-provider callbacks are not allowed in row/provider shape.",
   },
   {
+    id: "js-surface-call-selector-declaring-type-synthesis",
+    filePattern: /(?:^|\/)surfaces\/js\/calls\/target-selection\.ts$/,
+    pattern: /\b(?:sourceLibraryCallSelectionOptions|declaringTargetType|declaringTypeParameters|getCsharpArrayLikeElementType)\b/g,
+    replacement:
+      "JS surface call selection must use selected target member metadata plus generic argument/receiver inference; it must not synthesize declaring type arguments from JS source-family receiver shapes.",
+  },
+  {
     id: "js-surface-property-provider-kind-literal",
     filePattern: /(?:^|\/)surfaces\/js\/properties\/member-providers\/[^/]+\.ts$/,
     pattern: /"(?:collection-size|string-length|array-length)"/g,

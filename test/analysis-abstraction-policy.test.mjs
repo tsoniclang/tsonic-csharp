@@ -386,6 +386,25 @@ test("architecture validator rejects JS surface provider kind literals", () => {
   );
 
   assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/calls/target-selection.ts",
+    `
+      export function sourceLibraryCallSelectionOptions() {
+        const receiver = getCsharpArrayLikeElementType(type);
+        return {
+          declaringTargetType: receiver,
+          declaringTypeParameters: [{ name: "T" }],
+        };
+      }
+    `,
+    [
+      "js-surface-call-selector-declaring-type-synthesis",
+      "js-surface-call-selector-declaring-type-synthesis",
+      "js-surface-call-selector-declaring-type-synthesis",
+      "js-surface-call-selector-declaring-type-synthesis",
+    ],
+  );
+
+  assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
     `
       case "collection-size":
