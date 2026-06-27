@@ -1,6 +1,10 @@
 import type {
   TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  isCsharpReadOnlyIndexableCollectionTargetType,
+} from "../../../../target-types.js";
 import {
   csharpJsArrayCarrierId,
 } from "../../array-target-type.js";
@@ -11,6 +15,9 @@ import {
   csharpJsSetCollectionPolicy,
 } from "../../collection-target-metadata/set-metadata.js";
 import {
+  jsonTargetMemberIdentityIndex,
+} from "../../json.js";
+import {
   stringPropertyTargetMemberIdentityIndex,
 } from "../../strings.js";
 import {
@@ -19,6 +26,9 @@ import {
 import {
   numberPropertyTargetMemberIdentityIndex,
 } from "../../numbers.js";
+import {
+  objectTargetMemberIdentityIndex,
+} from "../../objects.js";
 import {
   regExpPropertyTargetMemberIdentityIndex,
 } from "../../regexp/index.js";
@@ -29,113 +39,178 @@ import type {
   SourceLibraryMemberKey,
 } from "../../source-library.js";
 import type {
-  CsharpJsPropertyMemberProvider,
-  CsharpJsReceiverPropertyMember,
+  JsSurfaceSourceIdentitySelector,
+} from "../../target-member-metadata.js";
+import type {
+  JsSurfacePropertyPrecheck,
+  JsSurfacePropertyRow,
+  JsSurfacePropertyTargetProvider,
+  JsSurfacePropertyTargetProviderResolver,
+  JsSurfaceReceiverPropertyMember,
+  JsSurfaceReceiverPropertySelector,
 } from "./types.js";
-
-const mathPropertySourceNames = [
-  "E",
-  "PI",
-  "LN2",
-  "LN10",
-  "LOG2E",
-  "LOG10E",
-  "SQRT1_2",
-  "SQRT2",
-] as const;
-
-const regExpStringPropertySourceNames = [
-  "source",
-  "flags",
-] as const;
-
-const regExpBooleanPropertySourceNames = [
-  "global",
-  "hasIndices",
-  "ignoreCase",
-  "multiline",
-  "dotAll",
-  "unicode",
-  "unicodeSets",
-  "sticky",
-] as const;
-
-const numberPropertySourceNames = [
-  "MAX_VALUE",
-  "MIN_VALUE",
-  "MAX_SAFE_INTEGER",
-  "MIN_SAFE_INTEGER",
-  "POSITIVE_INFINITY",
-  "NEGATIVE_INFINITY",
-  "NaN",
-  "EPSILON",
-] as const;
 
 export const int32PropertyReturnType = csharpSourcePrimitiveTargetType("int32");
 
-const arrayLengthReceiverMembers: readonly CsharpJsReceiverPropertyMember[] = [
+const objectCallablePropertyIdentities = [
+  "Object.keys",
+  "Object.values",
+  "Object.entries",
+  "Object.assign",
+  "Object.hasOwn",
+] as const satisfies readonly SourceLibraryMemberKey[];
+
+const jsonCallablePropertyIdentities = [
+  "JSON.parse",
+  "JSON.stringify",
+] as const satisfies readonly SourceLibraryMemberKey[];
+
+const arrayLengthPropertyIdentities = [
+  "Array.length",
+  "ReadonlyArray.length",
+] as const satisfies readonly SourceLibraryMemberKey[];
+
+const mapSizePropertyIdentities = [
+  "Map.size",
+  "ReadonlyMap.size",
+] as const satisfies readonly SourceLibraryMemberKey[];
+
+const setSizePropertyIdentities = [
+  "Set.size",
+  "ReadonlySet.size",
+] as const satisfies readonly SourceLibraryMemberKey[];
+
+const arrayLengthReceiverMembers: readonly JsSurfaceReceiverPropertyMember[] = [
   arrayLengthReceiverMember({ kind: "target-array" }, "length"),
   arrayLengthReceiverMember({ kind: "target-id", id: csharpJsArrayCarrierId }, "length"),
   arrayLengthReceiverMember({ kind: "target-feature", feature: "read-only-indexable" }, "Count"),
 ];
 
-const propertyMemberRows: readonly CsharpJsPropertyMemberProvider[] = [
-  ...mathPropertySourceNames.map((sourceName) =>
-    fixedMetadataRowFromIndex(sourceKey("Math", sourceName), mathPropertyTargetMemberIdentityIndex)
-  ),
-  ...regExpStringPropertySourceNames.map((sourceName) =>
-    fixedMetadataRowFromIndex(sourceKey("RegExp", sourceName), regExpPropertyTargetMemberIdentityIndex)
-  ),
-  ...regExpBooleanPropertySourceNames.map((sourceName) =>
-    fixedMetadataRowFromIndex(sourceKey("RegExp", sourceName), regExpPropertyTargetMemberIdentityIndex)
-  ),
-  fixedMetadataRowFromIndex("RegExp.lastIndex", regExpPropertyTargetMemberIdentityIndex),
-  ...numberPropertySourceNames.map((sourceName) =>
-    fixedMetadataRowFromIndex(sourceKey("Number", sourceName), numberPropertyTargetMemberIdentityIndex)
-  ),
-  fixedReceiverMetadataRow("Map.size", [collectionSizeReceiverMember(csharpJsMapCollectionPolicy.target.id, "Tsonic.CSharp.Js.Map.size")]),
-  fixedReceiverMetadataRow("ReadonlyMap.size", [collectionSizeReceiverMember(csharpJsMapCollectionPolicy.target.id, "Tsonic.CSharp.Js.Map.size")]),
-  fixedReceiverMetadataRow("Set.size", [collectionSizeReceiverMember(csharpJsSetCollectionPolicy.target.id, "Tsonic.CSharp.Js.Set.size")]),
-  fixedReceiverMetadataRow("ReadonlySet.size", [collectionSizeReceiverMember(csharpJsSetCollectionPolicy.target.id, "Tsonic.CSharp.Js.Set.size")]),
-  fixedMetadataRowFromIndex("String.length", stringPropertyTargetMemberIdentityIndex),
-  fixedReceiverMetadataRow("Array.length", arrayLengthReceiverMembers),
-  fixedReceiverMetadataRow("ReadonlyArray.length", arrayLengthReceiverMembers),
+const mapSizeReceiverMembers: readonly JsSurfaceReceiverPropertyMember[] = [
+  collectionSizeReceiverMember(csharpJsMapCollectionPolicy.target.id, "Tsonic.CSharp.Js.Map.size"),
 ];
 
-export const propertyMemberProviderBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, CsharpJsPropertyMemberProvider> =
-  new Map(propertyMemberRows.map((provider) => [provider.sourceId, provider]));
+const setSizeReceiverMembers: readonly JsSurfaceReceiverPropertyMember[] = [
+  collectionSizeReceiverMember(csharpJsSetCollectionPolicy.target.id, "Tsonic.CSharp.Js.Set.size"),
+];
 
-function fixedMetadataRow(
-  sourceId: SourceLibraryMemberKey,
-  members: readonly TargetMember[],
-): CsharpJsPropertyMemberProvider {
+export const jsSurfacePropertyRows: readonly JsSurfacePropertyRow[] = [
+  {
+    identity: { prefixes: ["Console."] },
+    precheck: "defer",
+  },
+  metadataPresencePrecheckRow({ ids: objectCallablePropertyIdentities }, objectTargetMemberIdentityIndex),
+  metadataPresencePrecheckRow({ ids: jsonCallablePropertyIdentities }, jsonTargetMemberIdentityIndex),
+  propertyRowFromMetadataIndex({ prefixes: ["Math."] }, mathPropertyTargetMemberIdentityIndex),
+  propertyRowFromMetadataIndex({ prefixes: ["RegExp."] }, regExpPropertyTargetMemberIdentityIndex),
+  propertyRowFromMetadataIndex({ prefixes: ["Number."] }, numberPropertyTargetMemberIdentityIndex),
+  propertyRowFromMetadataIndex({ ids: ["String.length"] }, stringPropertyTargetMemberIdentityIndex),
+  propertyRowFromContextualMetadata({ ids: mapSizePropertyIdentities }, receiverTargetMetadataProvider(mapSizeReceiverMembers)),
+  propertyRowFromContextualMetadata({ ids: setSizePropertyIdentities }, receiverTargetMetadataProvider(setSizeReceiverMembers)),
+  propertyRowFromContextualMetadata({ ids: arrayLengthPropertyIdentities }, receiverTargetMetadataProvider(arrayLengthReceiverMembers)),
+];
+
+function propertyRowFromMetadataIndex(
+  identity: JsSurfaceSourceIdentitySelector,
+  membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+): JsSurfacePropertyRow {
   return {
-    sourceId,
-    member: { members },
+    identity,
+    targetProviders: [metadataIndexProvider(membersBySourceIdentity)],
   };
 }
 
-function fixedMetadataRowFromIndex(
-  sourceId: SourceLibraryMemberKey,
-  index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
-): CsharpJsPropertyMemberProvider {
-  return fixedMetadataRow(sourceId, index.get(sourceId) ?? []);
+function propertyRowFromContextualMetadata(
+  identity: JsSurfaceSourceIdentitySelector,
+  resolver: JsSurfacePropertyTargetProviderResolver,
+): JsSurfacePropertyRow {
+  return {
+    identity,
+    targetProviders: [contextualMetadataProvider(resolver)],
+  };
 }
 
-function fixedReceiverMetadataRow(
-  sourceId: SourceLibraryMemberKey,
-  receiverMembers: readonly CsharpJsReceiverPropertyMember[],
-): CsharpJsPropertyMemberProvider {
+function metadataPresencePrecheckRow(
+  identity: JsSurfaceSourceIdentitySelector,
+  membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+): JsSurfacePropertyRow {
   return {
-    sourceId,
-    member: { receiverMembers },
+    identity,
+    precheck: targetMemberExistsPrecheck(metadataIndexProvider(membersBySourceIdentity)),
   };
+}
+
+function targetMemberExistsPrecheck(
+  targetProvider: JsSurfacePropertyTargetProvider,
+): JsSurfacePropertyPrecheck {
+  return {
+    kind: "target-member-exists",
+    targetProvider,
+  };
+}
+
+function metadataIndexProvider(
+  membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+): JsSurfacePropertyTargetProvider {
+  return {
+    kind: "metadata-index",
+    membersBySourceIdentity,
+  };
+}
+
+function contextualMetadataProvider(
+  resolver: JsSurfacePropertyTargetProviderResolver,
+): JsSurfacePropertyTargetProvider {
+  return {
+    kind: "contextual-metadata",
+    resolver,
+  };
+}
+
+function receiverTargetMetadataProvider(
+  receiverMembers: readonly JsSurfaceReceiverPropertyMember[],
+): JsSurfacePropertyTargetProviderResolver {
+  return {
+    id: "receiver-target-metadata",
+    selectTargetMembers: (request) => {
+      const member = selectReceiverPropertyMember(receiverMembers, request.receiverType);
+      return member === undefined ? [] : [member];
+    },
+  };
+}
+
+function selectReceiverPropertyMember(
+  members: readonly JsSurfaceReceiverPropertyMember[],
+  receiverType: TargetTypeRef | undefined,
+): TargetMember | undefined {
+  const match = members.find((member) => receiverPropertySelectorMatches(member.receiver, receiverType));
+  if (match === undefined) {
+    return undefined;
+  }
+  return {
+    ...match.member,
+    ...(match.useReceiverAsDeclaringType === true && receiverType !== undefined ? { declaringType: receiverType } : {}),
+  };
+}
+
+function receiverPropertySelectorMatches(
+  selector: JsSurfaceReceiverPropertySelector,
+  receiverType: TargetTypeRef | undefined,
+): boolean {
+  switch (selector.kind) {
+    case "target-array":
+      return receiverType?.kind === "array";
+    case "target-id":
+      return receiverType?.kind === "target-named" && receiverType.id === selector.id;
+    case "target-feature":
+      return selector.feature === "read-only-indexable" && isCsharpReadOnlyIndexableCollectionTargetType(receiverType);
+  }
 }
 
 function arrayLengthReceiverMember(
-  receiver: CsharpJsReceiverPropertyMember["receiver"],
+  receiver: JsSurfaceReceiverPropertySelector,
   targetName: string,
-): CsharpJsReceiverPropertyMember {
+): JsSurfaceReceiverPropertyMember {
   return {
     receiver,
     member: {
@@ -152,7 +227,7 @@ function arrayLengthReceiverMember(
 function collectionSizeReceiverMember(
   targetId: string,
   memberId: string,
-): CsharpJsReceiverPropertyMember {
+): JsSurfaceReceiverPropertyMember {
   return {
     receiver: { kind: "target-id", id: targetId },
     useReceiverAsDeclaringType: true,
@@ -165,11 +240,4 @@ function collectionSizeReceiverMember(
       returnType: int32PropertyReturnType,
     },
   };
-}
-
-function sourceKey(
-  declaringName: "Math" | "RegExp" | "Number",
-  sourceName: string,
-): SourceLibraryMemberKey {
-  return `${declaringName}.${sourceName}`;
 }

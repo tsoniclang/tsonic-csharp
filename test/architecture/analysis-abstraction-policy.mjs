@@ -267,6 +267,13 @@ export const analysisAbstractionRules = Object.freeze([
       "JS surface property provider behavior must be declared as provider metadata facts; source-family kind literals must not drive generic property analysis or target selection.",
   },
   {
+    id: "js-surface-property-legacy-provider-shape",
+    filePattern: /(?:^|\/)surfaces\/js\/properties\/member-providers\/[^/]+\.ts$/,
+    pattern: /\b(?:CsharpJsPropertyMemberProvider(?:Value)?|CsharpJsPropertyPrecheck(?:Rule|Result)|propertyMemberProviderBySourceIdentity|propertyMemberRows|propertyPrecheckRows|propertyPrecheckRuleSelectors|propertyMemberFromProvider|fixedMetadataRow(?:FromIndex)?|fixedReceiverMetadataRow)\b|\bkind\s*:\s*"(?:adapter|operation-adapter|property-adapter|property-provider)"/g,
+    replacement:
+      "JS surface properties must use one JsSurfacePropertyRow schema and generic property target providers; legacy property-provider shapes and adapter-only provider kinds are not allowed.",
+  },
+  {
     id: "procedural-source-member-table-dispatch",
     pattern: /\b[A-Za-z_$][\w$]*(?:Policies|PolicyRows|Rules|Rows|Records|Providers|Resolvers|Requirements|RequirementRows|MemberPolicies|CallPolicies)\.(?:find|some)\s*\([\s\S]{0,240}?\b(?:sourceMember|sourceLibraryMemberMatches)\b/g,
     replacement:

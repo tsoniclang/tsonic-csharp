@@ -2,30 +2,23 @@ import type {
   TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import {
-  isCsharpReadOnlyIndexableCollectionTargetType,
-} from "../../../../target-types.js";
 import type {
   SourceLibraryMember,
 } from "../../source-library.js";
 import {
-  type JsSurfaceSourceIdentitySelector,
   jsSurfaceSelectMetadataRowForSourceIdentity,
   jsSurfaceSelectedSourceIdentityForMember,
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
-  propertyPrecheckRows,
-} from "./precheck-rules.js";
-import {
-  propertyMemberProviderBySourceIdentity,
+  jsSurfacePropertyRows,
 } from "./target-member-resolvers.js";
 import type {
-  CsharpJsPropertyMemberProviderValue,
-  CsharpJsPropertyPrecheckRule,
-  CsharpJsPropertyPrecheckResult,
-  CsharpJsReceiverPropertyMember,
-  CsharpJsReceiverPropertySelector,
   CsharpJsSourceLibraryPropertyPrecheck,
+  JsSurfacePropertyPrecheck,
+  JsSurfacePropertyRow,
+  JsSurfacePropertyTargetProvider,
+  JsSurfacePropertyTargetProviderRequest,
 } from "./types.js";
 
 export function getCsharpJsSourceLibraryPropertyMember(
@@ -33,79 +26,58 @@ export function getCsharpJsSourceLibraryPropertyMember(
   receiverType: TargetTypeRef | undefined,
 ): TargetMember | undefined {
   const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
-  const provider = propertyMemberProviderBySourceIdentity.get(selectedIdentity.key);
-  return provider === undefined
+  const row = propertyRowForSourceMember(sourceMember);
+  return row === undefined
     ? undefined
-    : propertyMemberFromProvider(provider.member, receiverType);
+    : singlePropertyMember(propertyMembersFromRow(row, { sourceMember, selectedIdentity, receiverType }));
 }
 
 export function csharpJsSourceLibraryPropertyPrecheck(sourceMember: SourceLibraryMember): CsharpJsSourceLibraryPropertyPrecheck {
-  const rule = jsSurfaceSelectMetadataRowForSourceIdentity(
-    propertyPrecheckRows,
-    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
-    propertyPrecheckRuleSelectors,
-  );
-  return rule === undefined
+  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
+  const row = propertyRowForSourceMember(sourceMember);
+  return row?.precheck === undefined
     ? "continue"
-    : propertyPrecheckResult(rule.result);
+    : propertyPrecheckResult(row.precheck, { sourceMember, selectedIdentity });
 }
 
-function propertyPrecheckRuleSelectors(rule: CsharpJsPropertyPrecheckRule): readonly JsSurfaceSourceIdentitySelector[] {
-  return [
-    ...(rule.sourceId === undefined ? [] : [{ ids: [rule.sourceId] }]),
-    ...(rule.identity === undefined ? [] : [rule.identity]),
-  ];
+function propertyRowForSourceMember(sourceMember: SourceLibraryMember): JsSurfacePropertyRow | undefined {
+  return jsSurfaceSelectMetadataRowForSourceIdentity(
+    jsSurfacePropertyRows,
+    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+  );
 }
 
 function propertyPrecheckResult(
-  result: CsharpJsPropertyPrecheckResult,
-): ReturnType<typeof csharpJsSourceLibraryPropertyPrecheck> {
-  return typeof result === "string"
-    ? result
-    : result.members.length > 0 ? "defer" : "reject-unmapped";
-}
-
-function propertyMemberFromProvider(
-  provider: CsharpJsPropertyMemberProviderValue,
-  receiverType: TargetTypeRef | undefined,
-): TargetMember | undefined {
-  if (provider.members !== undefined) {
-    return singlePropertyMember(provider.members);
+  precheck: JsSurfacePropertyPrecheck,
+  request: Omit<JsSurfacePropertyTargetProviderRequest, "receiverType">,
+): CsharpJsSourceLibraryPropertyPrecheck {
+  if (typeof precheck === "string") {
+    return precheck;
   }
-  if (provider.receiverMembers !== undefined) {
-    return selectReceiverPropertyMember(provider.receiverMembers, receiverType);
-  }
-  return undefined;
+  const members = targetMembersFromProvider(precheck.targetProvider, request);
+  return members.length > 0 ? "defer" : "reject-unmapped";
 }
 
 function singlePropertyMember(members: readonly TargetMember[]): TargetMember | undefined {
   return members.length === 1 ? members[0] : undefined;
 }
 
-function selectReceiverPropertyMember(
-  members: readonly CsharpJsReceiverPropertyMember[],
-  receiverType: TargetTypeRef | undefined,
-): TargetMember | undefined {
-  const match = members.find((member) => receiverPropertySelectorMatches(member.receiver, receiverType));
-  if (match === undefined) {
-    return undefined;
-  }
-  return {
-    ...match.member,
-    ...(match.useReceiverAsDeclaringType === true && receiverType !== undefined ? { declaringType: receiverType } : {}),
-  };
+function propertyMembersFromRow(
+  row: JsSurfacePropertyRow,
+  request: JsSurfacePropertyTargetProviderRequest,
+): readonly TargetMember[] {
+  return (row.targetProviders ?? []).flatMap((provider) => targetMembersFromProvider(provider, request));
 }
 
-function receiverPropertySelectorMatches(
-  selector: CsharpJsReceiverPropertySelector,
-  receiverType: TargetTypeRef | undefined,
-): boolean {
-  switch (selector.kind) {
-    case "target-array":
-      return receiverType?.kind === "array";
-    case "target-id":
-      return receiverType?.kind === "target-named" && receiverType.id === selector.id;
-    case "target-feature":
-      return selector.feature === "read-only-indexable" && isCsharpReadOnlyIndexableCollectionTargetType(receiverType);
+function targetMembersFromProvider(
+  provider: JsSurfacePropertyTargetProvider,
+  request: JsSurfacePropertyTargetProviderRequest,
+): readonly TargetMember[] {
+  switch (provider.kind) {
+    case "metadata-index":
+      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
+    case "contextual-metadata":
+    case "semantic-exception":
+      return provider.resolver.selectTargetMembers(request);
   }
 }

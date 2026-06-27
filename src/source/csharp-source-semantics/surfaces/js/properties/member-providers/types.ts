@@ -1,40 +1,63 @@
 import type {
   TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
-  SourceLibraryMemberIdentityPolicy,
+  SourceLibraryMember,
   SourceLibraryMemberKey,
 } from "../../source-library.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
+  JsSurfaceSourceIdentitySelector,
+} from "../../target-member-metadata.js";
 
 export type CsharpJsSourceLibraryPropertyPrecheck = "continue" | "defer" | "reject-unmapped";
 
-export interface CsharpJsPropertyMemberProvider {
-  readonly sourceId: SourceLibraryMemberKey;
-  readonly member: CsharpJsPropertyMemberProviderValue;
+export interface JsSurfacePropertyRow {
+  readonly identity: JsSurfaceSourceIdentitySelector;
+  readonly precheck?: JsSurfacePropertyPrecheck;
+  readonly targetProviders?: readonly JsSurfacePropertyTargetProvider[];
 }
 
-export interface CsharpJsPropertyPrecheckRule {
-  readonly sourceId?: SourceLibraryMemberKey;
-  readonly identity?: SourceLibraryMemberIdentityPolicy;
-  readonly result: CsharpJsPropertyPrecheckResult;
+export type JsSurfacePropertyPrecheck =
+  | Exclude<CsharpJsSourceLibraryPropertyPrecheck, "continue">
+  | {
+    readonly kind: "target-member-exists";
+    readonly targetProvider: JsSurfacePropertyTargetProvider;
+  };
+
+export type JsSurfacePropertyTargetProvider =
+  | {
+    readonly kind: "metadata-index";
+    readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
+  }
+  | {
+    readonly kind: "contextual-metadata";
+    readonly resolver: JsSurfacePropertyTargetProviderResolver;
+  }
+  | {
+    readonly kind: "semantic-exception";
+    readonly resolver: JsSurfacePropertyTargetProviderResolver;
+  };
+
+export interface JsSurfacePropertyTargetProviderResolver {
+  readonly id: string;
+  readonly selectTargetMembers: (request: JsSurfacePropertyTargetProviderRequest) => readonly TargetMember[];
 }
 
-export type CsharpJsPropertyPrecheckResult =
-  | CsharpJsSourceLibraryPropertyPrecheck
-  | { readonly kind: "target-member-exists"; readonly members: readonly TargetMember[] };
-
-export interface CsharpJsPropertyMemberProviderValue {
-  readonly members?: readonly TargetMember[];
-  readonly receiverMembers?: readonly CsharpJsReceiverPropertyMember[];
+export interface JsSurfacePropertyTargetProviderRequest {
+  readonly sourceMember: SourceLibraryMember;
+  readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
+  readonly receiverType?: TargetTypeRef;
 }
 
-export interface CsharpJsReceiverPropertyMember {
-  readonly receiver: CsharpJsReceiverPropertySelector;
+export interface JsSurfaceReceiverPropertyMember {
+  readonly receiver: JsSurfaceReceiverPropertySelector;
   readonly member: TargetMember;
   readonly useReceiverAsDeclaringType?: boolean;
 }
 
-export type CsharpJsReceiverPropertySelector =
+export type JsSurfaceReceiverPropertySelector =
   | { readonly kind: "target-array" }
   | { readonly kind: "target-id"; readonly id: string }
   | { readonly kind: "target-feature"; readonly feature: "read-only-indexable" };

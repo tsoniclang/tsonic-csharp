@@ -159,6 +159,7 @@ test("architecture validator rejects procedural source-member policy dispatch", 
       return propertyReceiverRequirementRows.some((policy) => sourceLibraryMemberMatches(sourceMember, policy.identity));
     `,
     [
+      "js-surface-property-legacy-provider-shape",
       "procedural-source-member-table-dispatch",
       "procedural-source-member-table-dispatch",
     ],
@@ -264,6 +265,28 @@ test("architecture validator rejects JS surface provider kind literals", () => {
       "js-surface-property-provider-kind-literal",
       "js-surface-property-provider-kind-literal",
       "js-surface-property-provider-kind-literal",
+    ],
+  );
+
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",
+    `
+      const provider: CsharpJsPropertyMemberProvider = propertyMemberProviderBySourceIdentity.get(selectedIdentity.key);
+      const member: CsharpJsPropertyMemberProviderValue = provider.member;
+      const precheck: CsharpJsPropertyPrecheckRule = propertyPrecheckRows[0];
+      const result: CsharpJsPropertyPrecheckResult = precheck.result;
+      const rows = propertyMemberRows;
+      targetProvider: { kind: "operation-adapter" };
+    `,
+    [
+      "js-surface-property-legacy-provider-shape",
+      "js-surface-property-legacy-provider-shape",
+      "js-surface-property-legacy-provider-shape",
+      "js-surface-property-legacy-provider-shape",
+      "js-surface-property-legacy-provider-shape",
+      "js-surface-property-legacy-provider-shape",
+      "js-surface-property-legacy-provider-shape",
+      "js-surface-property-legacy-provider-shape",
     ],
   );
 });
