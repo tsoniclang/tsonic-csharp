@@ -81,6 +81,12 @@ const stringReceiverParameter = targetParameter("value", stringType);
 const stringSearchParameter = targetParameter("search", stringType);
 const stringPositionParameter = targetParameter("position", intType, { optional: true });
 const stringIndexParameter = targetParameter("index", intType);
+const stringCapabilityId = "surface.js.string-methods";
+const stringRequiredFacts = [
+  "selected source declaration/signature identity",
+  "closed string receiver or static argument target facts",
+  "Tsonic.CSharp.Js.String runtime metadata row",
+] as const;
 
 interface StringHelperMetadataRow {
   readonly id: string;
@@ -98,6 +104,9 @@ const stringTargetMemberMetadata = [
     targetName: "ToString",
     kind: "method",
     returnType: stringType,
+    capabilityId: stringCapabilityId,
+    requiredFacts: ["selected source declaration/signature identity", "closed string receiver target facts", "System.String.ToString provider metadata row"],
+    semanticEquivalence: "System.String.ToString is selected only for closed string carriers and preserves ECMAScript String.prototype.toString primitive result semantics.",
   },
   {
     id: "tsonic.csharp.js.String.concat",
@@ -112,6 +121,9 @@ const stringTargetMemberMetadata = [
     declaringType: stringType,
     static: true,
     receiverPassing: "first-argument",
+    capabilityId: stringCapabilityId,
+    requiredFacts: stringRequiredFacts,
+    semanticEquivalence: "System.String.Concat is selected through explicit metadata for closed string concat operands.",
   },
   ...[
     { id: "Tsonic.CSharp.Js.String.fromCharCode", sourceName: "fromCharCode", targetName: "fromCharCode" },
@@ -211,6 +223,9 @@ const stringPropertyTargetMemberMetadata = [
     kind: "property",
     returnType: intType,
     declaringType: stringType,
+    capabilityId: stringCapabilityId,
+    requiredFacts: ["selected source property identity", "closed string receiver target facts", "System.String.Length provider metadata row"],
+    semanticEquivalence: "System.String.Length is selected only for closed string carriers and preserves ECMAScript String length code-unit semantics.",
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const stringPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("String", stringPropertyTargetMemberMetadata);
@@ -226,6 +241,9 @@ function stringHelperMemberMetadata(row: StringHelperMetadataRow): JsSurfaceTarg
     declaringType: stringHelperType,
     static: true,
     ...(row.receiverPassing === undefined ? {} : { receiverPassing: row.receiverPassing }),
+    capabilityId: stringCapabilityId,
+    requiredFacts: stringRequiredFacts,
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.String runtime member preserves ECMAScript String operation semantics for closed string carriers.",
   };
 }
 

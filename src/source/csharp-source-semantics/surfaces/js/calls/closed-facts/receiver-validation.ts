@@ -119,7 +119,7 @@ const closedFactRequirementRows: readonly ClosedFactsRule[] = [
     { index: 0, target: "object-helper" },
   ] } },
   { identity: { ids: ["Object.hasOwn"] }, requirement: { kind: "arguments", conditions: [
-    { index: 0, target: "js-object" },
+    { index: 0, target: "object-helper" },
     { index: 1, target: "string" },
   ] } },
   { identity: { ids: ["Object.assign"] }, requirement: { kind: "arguments", conditions: [

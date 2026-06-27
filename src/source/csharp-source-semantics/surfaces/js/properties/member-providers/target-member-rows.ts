@@ -80,6 +80,12 @@ const alwaysReceiverFacts = {
   requirement: { kind: "always" },
 } as const satisfies JsSurfacePropertyReceiverFacts;
 
+const selectedPropertyFacts = [
+  "selected source property identity",
+  "closed receiver target facts required by the selected metadata row",
+  "provider/runtime property metadata row",
+] as const;
+
 const stringReceiverFacts = {
   requirement: { kind: "host", predicate: "isCsharpStringType" },
 } as const satisfies JsSurfacePropertyReceiverFacts;
@@ -117,12 +123,12 @@ export const jsSurfacePropertyRows: readonly JsSurfacePropertyRow[] = [
     identity: { prefixes: ["Console."] },
     precheck: "defer",
   },
-  metadataPresencePrecheckRow({ ids: objectCallablePropertyIdentities }, objectTargetMemberIdentityIndex),
-  metadataPresencePrecheckRow({ ids: jsonCallablePropertyIdentities }, jsonTargetMemberIdentityIndex),
-  propertyRowFromMetadataIndex({ prefixes: ["Math."] }, mathPropertyTargetMemberIdentityIndex, alwaysReceiverFacts),
-  propertyRowFromMetadataIndex({ prefixes: ["RegExp."] }, regExpPropertyTargetMemberIdentityIndex, regexpReceiverFacts),
-  propertyRowFromMetadataIndex({ prefixes: ["Number."] }, numberPropertyTargetMemberIdentityIndex, numberStaticReceiverFacts),
-  propertyRowFromMetadataIndex({ ids: ["String.length"] }, stringPropertyTargetMemberIdentityIndex, stringReceiverFacts),
+  metadataPresencePrecheckRow({ ids: objectCallablePropertyIdentities }, objectTargetMemberIdentityIndex, "surface.js.object-runtime"),
+  metadataPresencePrecheckRow({ ids: jsonCallablePropertyIdentities }, jsonTargetMemberIdentityIndex, "surface.js.math-json-regexp"),
+  propertyRowFromMetadataIndex({ prefixes: ["Math."] }, mathPropertyTargetMemberIdentityIndex, alwaysReceiverFacts, "surface.js.math"),
+  propertyRowFromMetadataIndex({ prefixes: ["RegExp."] }, regExpPropertyTargetMemberIdentityIndex, regexpReceiverFacts, "surface.js.math-json-regexp"),
+  propertyRowFromMetadataIndex({ prefixes: ["Number."] }, numberPropertyTargetMemberIdentityIndex, numberStaticReceiverFacts, "surface.js.number-methods"),
+  propertyRowFromMetadataIndex({ ids: ["String.length"] }, stringPropertyTargetMemberIdentityIndex, stringReceiverFacts, "surface.js.string-methods"),
   propertyRowFromCollectionMetadata({ ids: mapSizePropertyIdentities }, mapSizeReceiverFacts),
   propertyRowFromCollectionMetadata({ ids: setSizePropertyIdentities }, setSizeReceiverFacts),
   propertyRowFromReceiverMetadata({ ids: arrayLengthPropertyIdentities }, arrayLengthReceiverMembers, arrayLengthReceiverFacts),
@@ -132,11 +138,14 @@ function propertyRowFromMetadataIndex(
   identity: JsSurfaceSourceIdentitySelector,
   membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
   receiverFacts?: JsSurfacePropertyReceiverFacts,
+  capabilityId?: string,
 ): JsSurfacePropertyRow {
   return {
     identity,
     ...(receiverFacts === undefined ? {} : { receiverFacts }),
     targetProviders: [metadataIndexProvider(membersBySourceIdentity)],
+    ...(capabilityId === undefined ? {} : { capabilityId }),
+    requiredFacts: selectedPropertyFacts,
   };
 }
 
@@ -166,10 +175,13 @@ function propertyRowFromReceiverMetadata(
 function metadataPresencePrecheckRow(
   identity: JsSurfaceSourceIdentitySelector,
   membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+  capabilityId?: string,
 ): JsSurfacePropertyRow {
   return {
     identity,
     precheck: targetMemberExistsPrecheck(metadataIndexProvider(membersBySourceIdentity)),
+    ...(capabilityId === undefined ? {} : { capabilityId }),
+    requiredFacts: ["selected source property identity", "provider/runtime callable metadata row"],
   };
 }
 

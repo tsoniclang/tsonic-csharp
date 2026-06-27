@@ -28,6 +28,12 @@ const objectRuntimeTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.Object",
 const jsObjectCarrierType = csharpTargetNamedType("Tsonic.CSharp.Js.JSObject", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JSObject"));
 const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const objectMemberTypeParameter = { kind: "type-parameter" as const, name: "T" };
+const objectCapabilityId = "surface.js.object-runtime";
+const objectRequiredFacts = [
+  "selected source declaration/signature identity",
+  "closed object argument or receiver target facts",
+  "Tsonic.CSharp.Js.Object runtime metadata row",
+] as const;
 type ObjectTargetParameter = ReturnType<typeof targetParameter>;
 export type ObjectRecordDictionaryOperation = "keys" | "values" | "entries";
 
@@ -80,6 +86,9 @@ function objectRuntimeMethod(row: ObjectRuntimeMethodRow): JsSurfaceTargetMember
     returnType: row.returnType,
     declaringType: objectRuntimeTargetType,
     static: true,
+    capabilityId: objectCapabilityId,
+    requiredFacts: objectRequiredFacts,
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.Object runtime member preserves ECMAScript Object operation semantics for closed object carriers.",
   };
 }
 
@@ -120,6 +129,9 @@ function jsObjectInstanceMethod(row: JsObjectInstanceMethodRow): JsSurfaceTarget
     parameters: row.parameters,
     returnType: row.returnType,
     declaringType: jsObjectCarrierType,
+    capabilityId: objectCapabilityId,
+    requiredFacts: objectRequiredFacts,
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.JSObject runtime member preserves ECMAScript Object prototype operation semantics for the closed JSObject carrier.",
   };
 }
 
@@ -149,6 +161,26 @@ const objectTargetMemberMetadata = [
     targetName: "hasOwn",
     parameters: [
       targetParameter("value", jsObjectCarrierType),
+      targetParameter("key", csharpStringTargetType()),
+    ],
+    returnType: csharpSourcePrimitiveTargetType("bool"),
+  }),
+  objectRuntimeMethod({
+    id: "Tsonic.CSharp.Js.Object.hasOwn:jsarray",
+    sourceName: "hasOwn",
+    targetName: "hasOwn",
+    parameters: [
+      targetParameter("value", csharpJsArrayCarrierTargetType(objectMemberTypeParameter)),
+      targetParameter("key", csharpStringTargetType()),
+    ],
+    returnType: csharpSourcePrimitiveTargetType("bool"),
+  }),
+  objectRuntimeMethod({
+    id: "Tsonic.CSharp.Js.Object.hasOwn:string",
+    sourceName: "hasOwn",
+    targetName: "hasOwn",
+    parameters: [
+      targetParameter("value", csharpStringTargetType()),
       targetParameter("key", csharpStringTargetType()),
     ],
     returnType: csharpSourcePrimitiveTargetType("bool"),

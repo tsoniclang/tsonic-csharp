@@ -23,6 +23,15 @@ const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringType = csharpStringTargetType();
 const booleanOpsType = csharpTargetNamedType("Tsonic.CSharp.Js.BooleanOps", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "BooleanOps"));
 const booleanReceiverParameter = targetParameter("value", boolType);
+const booleanMetadataEvidence = {
+  capabilityId: "surface.js.boolean-methods",
+  requiredFacts: [
+    "selected source declaration/signature identity",
+    "closed bool receiver target facts",
+    "Tsonic.CSharp.Js.BooleanOps runtime metadata row",
+  ],
+  semanticEquivalence: "Selected Tsonic.CSharp.Js.BooleanOps runtime member preserves ECMAScript Boolean primitive operation semantics.",
+} as const;
 const booleanTargetMemberMetadata = [
   {
     id: "Tsonic.CSharp.Js.BooleanOps.toString",
@@ -34,6 +43,7 @@ const booleanTargetMemberMetadata = [
     declaringType: booleanOpsType,
     static: true,
     receiverPassing: "first-argument",
+    ...booleanMetadataEvidence,
   },
   {
     id: "Tsonic.CSharp.Js.BooleanOps.valueOf",
@@ -45,6 +55,7 @@ const booleanTargetMemberMetadata = [
     declaringType: booleanOpsType,
     static: true,
     receiverPassing: "first-argument",
+    ...booleanMetadataEvidence,
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const booleanTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Boolean", booleanTargetMemberMetadata);

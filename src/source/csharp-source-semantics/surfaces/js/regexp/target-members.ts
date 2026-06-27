@@ -2,8 +2,11 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  csharpNullableTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpTargetNamedType,
   targetParameter,
 } from "../source-library.js";
 import type {
@@ -19,6 +22,13 @@ import {
 const regExpType = csharpJsRegExpTargetType();
 const regExpStringType = csharpStringTargetType();
 const regExpBoolType = csharpSourcePrimitiveTargetType("bool");
+const regExpMatchResultType = csharpTargetNamedType("Tsonic.CSharp.Js.RegExpMatchResult", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "RegExpMatchResult"));
+const regExpCapabilityId = "surface.js.math-json-regexp";
+const regExpRequiredFacts = [
+  "selected source declaration/signature identity",
+  "closed RegExp receiver or constructor target facts",
+  "Tsonic.CSharp.Js.RegExp runtime metadata row",
+] as const;
 
 interface RegExpPropertyMetadataRow {
   readonly id: string;
@@ -39,6 +49,21 @@ const regExpTargetMemberMetadata = [
     ],
     returnType: regExpType,
     declaringType: regExpType,
+    capabilityId: regExpCapabilityId,
+    requiredFacts: ["selected RegExp constructor source signature", "closed pattern argument target facts", "Tsonic.CSharp.Js.RegExp constructor metadata row"],
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.RegExp constructor preserves ECMAScript RegExp construction for closed string pattern and flag carriers.",
+  },
+  {
+    id: "Tsonic.CSharp.Js.RegExp.exec",
+    sourceName: "exec",
+    targetName: "exec",
+    kind: "method",
+    parameters: [targetParameter("value", regExpStringType)],
+    returnType: csharpNullableTargetType(regExpMatchResultType),
+    declaringType: regExpType,
+    capabilityId: regExpCapabilityId,
+    requiredFacts: regExpRequiredFacts,
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.RegExp.exec runtime member preserves ECMAScript RegExp.exec match/null semantics for closed string arguments.",
   },
   {
     id: "Tsonic.CSharp.Js.RegExp.test",
@@ -47,6 +72,10 @@ const regExpTargetMemberMetadata = [
     kind: "method",
     parameters: [targetParameter("value", regExpStringType)],
     returnType: regExpBoolType,
+    declaringType: regExpType,
+    capabilityId: regExpCapabilityId,
+    requiredFacts: regExpRequiredFacts,
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.RegExp.test runtime member preserves ECMAScript RegExp.test boolean match semantics for closed string arguments.",
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const regExpTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpTargetMemberMetadata);
@@ -78,5 +107,8 @@ function regExpPropertyMetadata(row: RegExpPropertyMetadataRow): JsSurfaceTarget
     kind: "property",
     returnType: row.returnType,
     declaringType: regExpType,
+    capabilityId: regExpCapabilityId,
+    requiredFacts: ["selected source property identity", "closed RegExp receiver target facts", "Tsonic.CSharp.Js.RegExp runtime property metadata row"],
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.RegExp runtime property preserves the corresponding ECMAScript RegExp property semantics for closed RegExp carriers.",
   };
 }
