@@ -15,8 +15,12 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMemberMetadataIdentityIndex,
   jsSurfaceTargetMembersForSourceMember,
+} from "./target-member-metadata.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
 } from "./target-member-metadata.js";
 
 const boolType = csharpSourcePrimitiveTargetType("bool");
@@ -56,4 +60,10 @@ export function isCsharpBooleanTargetType(type: unknown): boolean {
 
 export function booleanTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
   return jsSurfaceTargetMembersForSourceMember(booleanTargetMemberIdentityIndex, sourceMember);
+}
+
+export function booleanTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSelectedSourceIdentity(booleanTargetMemberIdentityIndex, selectedIdentity);
 }

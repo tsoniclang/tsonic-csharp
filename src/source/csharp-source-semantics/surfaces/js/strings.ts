@@ -34,8 +34,12 @@ import type {
 } from "./target-member-metadata.js";
 import {
   jsSurfaceSingleTargetMemberForSourceMember,
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMemberMetadataIdentityIndex,
   jsSurfaceTargetMembersForSourceMember,
+} from "./target-member-metadata.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
 } from "./target-member-metadata.js";
 
 export function mapCsharpJsStringElementAccess(
@@ -67,6 +71,12 @@ export function mapCsharpJsStringElementAccess(
 
 export function stringTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
   return jsSurfaceTargetMembersForSourceMember(stringTargetMemberIdentityIndex, sourceMember);
+}
+
+export function stringTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSelectedSourceIdentity(stringTargetMemberIdentityIndex, selectedIdentity);
 }
 
 export function stringPropertyTargetMemberForSourceMember(sourceMember: SourceLibraryMember): TargetMember | undefined {

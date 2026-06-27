@@ -4,11 +4,11 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
-  booleanTargetMembersForSourceMember,
+  booleanTargetMembersForSelectedIdentity,
 } from "../../booleans.js";
 import {
   isCsharpNumberTargetType,
-  numberTargetMembersForSourceMember,
+  numberTargetMembersForSelectedIdentity,
 } from "../../numbers.js";
 import {
   objectRecordDictionaryTargetMembersForOperation,
@@ -17,13 +17,10 @@ import type {
   CsharpJsSurfaceHost,
 } from "../../source-library.js";
 import {
-  createSourceLibraryMember,
-} from "../../source-library.js";
-import {
   type JsSurfaceSourceIdentitySelector,
 } from "../../target-member-metadata.js";
 import {
-  stringTargetMembersForSourceMember,
+  stringTargetMembersForSelectedIdentity,
 } from "../../strings.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
@@ -33,9 +30,9 @@ import {
   getSourceLibraryCallReceiverTargetTypes,
   isStringKeyedRecordDictionaryTargetType,
 } from "../helpers.js";
-const stringToStringSourceMember = createSourceLibraryMember("String", "toString");
-const booleanToStringSourceMember = createSourceLibraryMember("Boolean", "toString");
-const numberToStringSourceMember = createSourceLibraryMember("Number", "toString");
+const stringToStringIdentity = { key: "String.toString" } as const;
+const booleanToStringIdentity = { key: "Boolean.toString" } as const;
+const numberToStringIdentity = { key: "Number.toString" } as const;
 export const objectRecordDictionaryCallRows = [
   { identity: { ids: ["Object.keys"] }, operation: "keys" },
   { identity: { ids: ["Object.values"] }, operation: "values" },
@@ -54,9 +51,9 @@ export function getObjectPrimitiveReceiverCallMembers(
 ): readonly TargetMember[] {
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
   return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType))
-      ? stringTargetMembersForSourceMember(stringToStringSourceMember)
+      ? stringTargetMembersForSelectedIdentity(stringToStringIdentity)
     : receiverTypes.some((receiverType) => receiverType?.kind === "source-primitive" && receiverType.name === "bool")
-      ? booleanTargetMembersForSourceMember(booleanToStringSourceMember)
+      ? booleanTargetMembersForSelectedIdentity(booleanToStringIdentity)
       : numberOrNoObjectPrimitiveReceiverMembers(receiverTypes);
 }
 
@@ -78,6 +75,6 @@ function numberOrNoObjectPrimitiveReceiverMembers(
   receiverTypes: ReturnType<typeof getSourceLibraryCallReceiverTargetTypes>,
 ): readonly TargetMember[] {
   return receiverTypes.some((receiverType) => isCsharpNumberTargetType(receiverType))
-    ? numberTargetMembersForSourceMember(numberToStringSourceMember)
+    ? numberTargetMembersForSelectedIdentity(numberToStringIdentity)
     : [];
 }

@@ -17,8 +17,12 @@ import type {
 } from "./target-member-metadata.js";
 import {
   jsSurfaceSingleTargetMemberForSourceMember,
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMemberMetadataIdentityIndex,
   jsSurfaceTargetMembersForSourceMember,
+} from "./target-member-metadata.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
 } from "./target-member-metadata.js";
 
 const numberOpsType = csharpTargetNamedType("Tsonic.CSharp.Js.Number", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Number"));
@@ -85,6 +89,12 @@ export function isCsharpNumberTargetType(type: TargetTypeRef | undefined): boole
 
 export function numberTargetMembersForSourceMember(sourceMember: SourceLibraryMember): readonly TargetMember[] {
   return jsSurfaceTargetMembersForSourceMember(numberTargetMemberIdentityIndex, sourceMember);
+}
+
+export function numberTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+): readonly TargetMember[] {
+  return jsSurfaceTargetMembersForSelectedSourceIdentity(numberTargetMemberIdentityIndex, selectedIdentity);
 }
 
 export function numberPropertyTargetMemberForSourceMember(sourceMember: SourceLibraryMember): TargetMember | undefined {
