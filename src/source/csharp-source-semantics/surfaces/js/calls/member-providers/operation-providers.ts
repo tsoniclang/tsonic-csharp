@@ -146,7 +146,10 @@ function targetMembersFromSelectedMetadata(
       if (selection.requireResultElementType && contextualElementType === undefined) {
         return [];
       }
-      return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, { contextualElementType });
+      return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, {
+        contextualDeclaringType: getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
+        contextualElementType,
+      });
     }
     case "closed-keyed-collection":
       return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, {

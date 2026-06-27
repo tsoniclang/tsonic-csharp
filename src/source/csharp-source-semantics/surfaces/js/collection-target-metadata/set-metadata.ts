@@ -15,6 +15,8 @@ export const csharpJsSetCollectionPolicy = {
   sourceNames: ["Set", "ReadonlySet"],
   target: {
     surfaceKind: "set",
+    carrierLane: "compat-runtime",
+    equalitySemantics: "js-same-value-zero",
     id: "Tsonic.CSharp.Js.Set`1",
     name: "Set",
     namespaceName: "Tsonic.CSharp.Js",

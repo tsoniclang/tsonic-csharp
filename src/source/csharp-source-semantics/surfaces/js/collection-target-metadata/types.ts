@@ -25,6 +25,8 @@ export type CsharpJsCollectionTargetTypeRef = CsharpTargetNamedTypeRef & {
 
 export interface CsharpJsCollectionTargetTypeMetadata {
   readonly surfaceKind: CsharpJsCollectionSurfaceKind;
+  readonly carrierLane: "compat-runtime";
+  readonly equalitySemantics: "js-same-value-zero";
   readonly id: string;
   readonly name: string;
   readonly namespaceName: string;

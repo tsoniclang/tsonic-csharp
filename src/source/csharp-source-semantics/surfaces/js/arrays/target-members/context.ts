@@ -20,6 +20,9 @@ export interface ArrayTargetMemberContext {
   readonly enumerableType: TargetTypeRef;
   readonly readOnlyListType: TargetTypeRef;
   readonly listType: TargetTypeRef;
+  readonly keyEnumerableType: TargetTypeRef;
+  readonly valueEnumerableType: TargetTypeRef;
+  readonly entryEnumerableType: TargetTypeRef;
   readonly intType: TargetTypeRef;
   readonly doubleType: TargetTypeRef;
   readonly boolType: TargetTypeRef;
@@ -31,13 +34,18 @@ export interface ArrayTargetMemberContext {
 export function createArrayTargetMemberContext(receiverElementType?: TargetTypeRef): ArrayTargetMemberContext {
   const itemType: TargetTypeRef = receiverElementType ?? { kind: "type-parameter", name: "T" };
   const mappedItemType: TargetTypeRef = { kind: "type-parameter", name: "U" };
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const entryType: TargetTypeRef = { kind: "tuple", elements: [intType, itemType] };
   return {
     itemType,
     mappedItemType,
     enumerableType: csharpEnumerableTargetType(itemType),
     readOnlyListType: csharpReadOnlyListTargetType(itemType),
     listType: csharpListTargetType(itemType),
-    intType: csharpSourcePrimitiveTargetType("int32"),
+    keyEnumerableType: csharpEnumerableTargetType(intType),
+    valueEnumerableType: csharpEnumerableTargetType(itemType),
+    entryEnumerableType: csharpEnumerableTargetType(entryType),
+    intType,
     doubleType: csharpSourcePrimitiveTargetType("float64"),
     boolType: csharpSourcePrimitiveTargetType("bool"),
     stringType: csharpStringTargetType(),

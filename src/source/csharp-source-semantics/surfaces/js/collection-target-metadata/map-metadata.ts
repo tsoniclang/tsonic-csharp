@@ -17,6 +17,8 @@ export const csharpJsMapCollectionPolicy = {
   sourceNames: ["Map", "ReadonlyMap"],
   target: {
     surfaceKind: "map",
+    carrierLane: "compat-runtime",
+    equalitySemantics: "js-same-value-zero",
     id: "Tsonic.CSharp.Js.Map`2",
     name: "Map",
     namespaceName: "Tsonic.CSharp.Js",
