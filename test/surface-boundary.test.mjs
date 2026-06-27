@@ -1751,6 +1751,35 @@ test("JS surface maps Math.max only with provider-proven numeric arguments", () 
   assert.equal(result.value.selectedSignature.member.parameters[0]?.paramsArray, true);
 });
 
+test("JS surface rejects selected Math calls without closed numeric argument facts", () => {
+  const call = {};
+  const value = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Math", "abs"), {
+    arguments: [value],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.match(result.diagnostic.message, /argument 1/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface rejects selected Math calls without provider metadata rows", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Math", "missingOperation")), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Math\.missingOperation/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface hard-rejects selected standard-library properties without target facts", () => {
   const expression = {};
   const facts = new TestFactStore();
