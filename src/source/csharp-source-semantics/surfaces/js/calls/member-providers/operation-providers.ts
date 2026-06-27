@@ -11,6 +11,12 @@ import {
 import {
   dateTargetMembersForSelectedIdentity,
 } from "../../date/index.js";
+import {
+  jsonRecordDictionaryStringifyTargetMembers,
+} from "../../json.js";
+import type {
+  CsharpRecordDictionaryTargetTypeRef,
+} from "../../../../dictionaries.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMemberKey,
@@ -29,6 +35,7 @@ import {
   getSourceLibraryCallReceiverElementType,
   getSourceLibraryCallReceiverTargetTypes,
   getSourceLibraryCallResultTargetType,
+  isStringKeyedRecordDictionaryTargetType,
   isNewExpression,
 } from "../helpers.js";
 import {
@@ -51,11 +58,13 @@ import {
 export function operationRowFromMetadataIndex(
   identity: JsSurfaceSourceIdentitySelector,
   membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+  evidence: Pick<JsSurfaceOperationRow, "capabilityId" | "requiredFacts"> = {},
 ): JsSurfaceOperationRow {
   return {
     identity,
     policyKind: "provider-member",
     targetProviders: [metadataIndexProvider(membersBySourceIdentity)],
+    ...evidence,
   };
 }
 
@@ -156,7 +165,20 @@ function targetMembersFromRuntimeHelperSelection(
   switch (selection.kind) {
     case "record-dictionary":
       return getObjectRecordDictionaryCallMembers(selection.operation, request.request, request.context, request.host);
+    case "record-dictionary-json-stringify":
+      return getJsonRecordDictionaryStringifyCallMembers(request);
   }
+}
+
+function getJsonRecordDictionaryStringifyCallMembers(
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly TargetMember[] {
+  const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request.request, request.context, request.host)
+    .find((argumentType): argumentType is CsharpRecordDictionaryTargetTypeRef =>
+      argumentType !== undefined && isStringKeyedRecordDictionaryTargetType(argumentType, request.host));
+  return dictionaryType === undefined
+    ? []
+    : jsonRecordDictionaryStringifyTargetMembers(dictionaryType);
 }
 
 function targetMembersFromSemanticException(

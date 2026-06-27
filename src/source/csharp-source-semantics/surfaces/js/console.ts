@@ -22,6 +22,7 @@ interface ConsoleMethodMetadataRow {
   readonly sourceName: string;
   readonly targetName: string;
   readonly parameters?: readonly ConsoleTargetParameter[];
+  readonly capabilityId?: string;
 }
 
 function consoleMethodMetadata(row: ConsoleMethodMetadataRow): JsSurfaceTargetMemberMetadata {
@@ -34,6 +35,13 @@ function consoleMethodMetadata(row: ConsoleMethodMetadataRow): JsSurfaceTargetMe
     returnType: csharpVoidTargetType(),
     declaringType: consoleTargetType,
     static: true,
+    capabilityId: row.capabilityId ?? "surface.js.console",
+    requiredFacts: [
+      "selected source declaration/signature identity",
+      "closed console argument target facts",
+      "Tsonic.CSharp.Js.console runtime metadata row",
+    ],
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.console runtime member preserves the corresponding ECMAScript console side-effect contract for closed argument carriers.",
   };
 }
 
@@ -50,7 +58,7 @@ function optionalStringParameter(name: string): ConsoleTargetParameter {
 
 const consoleTargetMemberMetadata = [
   ...[
-    { id: "Tsonic.CSharp.Js.console.log", sourceName: "log", targetName: "log" },
+    { id: "Tsonic.CSharp.Js.console.log", sourceName: "log", targetName: "log", capabilityId: "surface.js.console-log" },
     { id: "Tsonic.CSharp.Js.console.error", sourceName: "error", targetName: "error" },
     { id: "Tsonic.CSharp.Js.console.warn", sourceName: "warn", targetName: "warn" },
     { id: "Tsonic.CSharp.Js.console.info", sourceName: "info", targetName: "info" },

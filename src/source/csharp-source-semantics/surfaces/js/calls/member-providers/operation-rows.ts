@@ -42,12 +42,18 @@ import type {
   JsSurfaceOperationRow,
 } from "./operation-types.js";
 
+const selectedSignatureProviderFacts = [
+  "selected source declaration/signature identity",
+  "closed receiver and argument target facts required by the selected metadata row",
+  "provider/runtime target member metadata row",
+] as const;
+
 export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
-  operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex),
-  operationRowFromMetadataIndex({ prefixes: ["String."] }, stringTargetMemberIdentityIndex),
-  operationRowFromMetadataIndex({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex),
-  operationRowFromMetadataIndex({ prefixes: ["Boolean."] }, booleanTargetMemberIdentityIndex),
-  operationRowFromMetadataIndex({ prefixes: ["RegExp."] }, regExpTargetMemberIdentityIndex),
+  operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex, { capabilityId: "surface.js.math", requiredFacts: selectedSignatureProviderFacts }),
+  operationRowFromMetadataIndex({ prefixes: ["String."] }, stringTargetMemberIdentityIndex, { capabilityId: "surface.js.string-methods", requiredFacts: selectedSignatureProviderFacts }),
+  operationRowFromMetadataIndex({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex, { capabilityId: "surface.js.number-methods", requiredFacts: selectedSignatureProviderFacts }),
+  operationRowFromMetadataIndex({ prefixes: ["Boolean."] }, booleanTargetMemberIdentityIndex, { capabilityId: "surface.js.boolean-methods", requiredFacts: selectedSignatureProviderFacts }),
+  operationRowFromMetadataIndex({ prefixes: ["RegExp."] }, regExpTargetMemberIdentityIndex, { capabilityId: "surface.js.math-json-regexp", requiredFacts: selectedSignatureProviderFacts }),
   {
     identity: { prefixes: ["Date."] },
     policyKind: "semantic-exception",
@@ -57,25 +63,38 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     },
     targetProviders: [semanticExceptionProvider({ kind: "date-call-construct" })],
   },
-  operationRowFromMetadataIndex({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
+  operationRowFromMetadataIndex({ ids: ["JSON.parse"] }, jsonTargetMemberIdentityIndex, { capabilityId: "surface.js.math-json-regexp", requiredFacts: selectedSignatureProviderFacts }),
+  {
+    identity: { ids: ["JSON.stringify"] },
+    policyKind: "runtime-helper",
+    capabilityId: "surface.js.math-json-regexp",
+    requiredFacts: selectedSignatureProviderFacts,
+    targetProviders: [
+      metadataIndexProvider(jsonTargetMemberIdentityIndex),
+      runtimeHelperProvider({ kind: "record-dictionary-json-stringify" }),
+    ],
+  },
   {
     identity: objectToStringIdentityPolicy,
     policyKind: "semantic-exception",
     semanticException: {
       reason: "Object.prototype.toString delegates primitive receivers to selected JS wrapper surface members.",
       requiredFacts: ["selected source declaration/signature identity", "resolved primitive receiver carrier"],
+      capabilityId: "surface.js.object-runtime",
     },
     targetProviders: [semanticExceptionProvider({ kind: "object-primitive-receiver-to-string" })],
   },
   ...objectRecordDictionaryCallRows.map((row): JsSurfaceOperationRow => ({
     identity: row.identity,
     policyKind: "runtime-helper",
+    capabilityId: "surface.js.object-runtime",
+    requiredFacts: ["selected source declaration/signature identity", "closed object-helper argument carrier", "Tsonic.CSharp.Js.Object runtime helper metadata row"],
     targetProviders: [
       metadataIndexProvider(objectTargetMemberIdentityIndex),
       runtimeHelperProvider({ kind: "record-dictionary", operation: row.operation }),
     ],
   })),
-  operationRowFromMetadataIndex({ prefixes: ["Object."] }, objectTargetMemberIdentityIndex),
+  operationRowFromMetadataIndex({ prefixes: ["Object."] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
   {
     identity: arrayConstructorIdentityPolicy,
     policyKind: "carrier-member",
@@ -100,6 +119,8 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   {
     identity: { prefixes: ["Console."] },
     policyKind: "provider-member",
+    capabilityId: "surface.js.console",
+    requiredFacts: selectedSignatureProviderFacts,
     targetProviders: [metadataIndexProvider(consoleTargetMembersBySourceIdentity)],
   },
   {

@@ -14,7 +14,12 @@ import {
 const mathTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.Math", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Math"));
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
-const longType = csharpSourcePrimitiveTargetType("int64");
+const mathCapabilityId = "surface.js.math";
+const mathRequiredFacts = [
+  "selected source declaration/signature identity",
+  "closed numeric argument target facts",
+  "Tsonic.CSharp.Js.Math runtime metadata row",
+] as const;
 
 interface MathMethodMetadataRow {
   readonly id: string;
@@ -40,6 +45,9 @@ function mathMethodMetadata(row: MathMethodMetadataRow): JsSurfaceTargetMemberMe
     returnType: row.returnType ?? doubleType,
     declaringType: mathTargetType,
     static: true,
+    capabilityId: mathCapabilityId,
+    requiredFacts: mathRequiredFacts,
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.Math runtime member preserves the corresponding ECMAScript Math operation semantics for closed numeric carriers.",
   };
 }
 
@@ -52,6 +60,9 @@ function mathPropertyMetadata(row: MathPropertyMetadataRow): JsSurfaceTargetMemb
     returnType: doubleType,
     declaringType: mathTargetType,
     static: true,
+    capabilityId: mathCapabilityId,
+    requiredFacts: ["selected source property identity", "Tsonic.CSharp.Js.Math runtime metadata row"],
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.Math runtime constant preserves the corresponding ECMAScript Math constant value.",
   };
 }
 
@@ -89,11 +100,11 @@ const mathTargetMemberMetadata = [
   mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.max", sourceName: "max", targetName: "max", parameters: [targetParameter("values", doubleType, { paramsArray: true })] }),
   mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.min", sourceName: "min", targetName: "min", parameters: [targetParameter("values", doubleType, { paramsArray: true })] }),
   mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.random", sourceName: "random", targetName: "random", parameters: [] }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.ceil", sourceName: "ceil", targetName: "ceil", parameters: [targetParameter("value", doubleType)], returnType: longType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.floor", sourceName: "floor", targetName: "floor", parameters: [targetParameter("value", doubleType)], returnType: longType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.round", sourceName: "round", targetName: "round", parameters: [targetParameter("value", doubleType)], returnType: longType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.trunc", sourceName: "trunc", targetName: "trunc", parameters: [targetParameter("value", doubleType)], returnType: longType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.sign", sourceName: "sign", targetName: "sign", parameters: [targetParameter("value", doubleType)], returnType: intType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.ceil", sourceName: "ceil", targetName: "ceil", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.floor", sourceName: "floor", targetName: "floor", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.round", sourceName: "round", targetName: "round", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.trunc", sourceName: "trunc", targetName: "trunc", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.sign", sourceName: "sign", targetName: "sign", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
   mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.imul", sourceName: "imul", targetName: "imul", parameters: [targetParameter("left", intType), targetParameter("right", intType)], returnType: intType }),
   mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.clz32", sourceName: "clz32", targetName: "clz32", parameters: [targetParameter("value", intType)], returnType: intType }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];

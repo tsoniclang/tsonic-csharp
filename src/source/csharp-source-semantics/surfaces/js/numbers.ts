@@ -26,6 +26,12 @@ const numberType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const numberValueParameter = targetParameter("value", numberType);
+const numberCapabilityId = "surface.js.number-methods";
+const numberRequiredFacts = [
+  "selected source declaration/signature identity",
+  "closed numeric argument or receiver target facts",
+  "Tsonic.CSharp.Js.Number runtime metadata row",
+] as const;
 
 interface NumberMethodMetadataRow {
   readonly id: string;
@@ -99,6 +105,9 @@ function numberMethodMetadata(row: NumberMethodMetadataRow): JsSurfaceTargetMemb
     declaringType: numberOpsType,
     static: true,
     ...(row.receiverPassing === undefined ? {} : { receiverPassing: row.receiverPassing }),
+    capabilityId: numberCapabilityId,
+    requiredFacts: numberRequiredFacts,
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.Number runtime member preserves ECMAScript Number operation semantics for closed primitive numeric carriers.",
   };
 }
 
@@ -111,5 +120,8 @@ function numberPropertyMetadata(row: NumberPropertyMetadataRow): JsSurfaceTarget
     returnType: numberType,
     declaringType: numberOpsType,
     static: true,
+    capabilityId: numberCapabilityId,
+    requiredFacts: ["selected source property identity", "Tsonic.CSharp.Js.Number runtime metadata row"],
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.Number runtime constant preserves the corresponding ECMAScript Number constant value.",
   };
 }

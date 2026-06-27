@@ -21,6 +21,8 @@ export interface JsSurfaceOperationRow {
   readonly targetProviders?: readonly JsSurfaceOperationTargetProvider[];
   readonly semanticException?: JsSurfaceOperationSemanticException;
   readonly callableWithoutContext?: boolean;
+  readonly capabilityId?: string;
+  readonly requiredFacts?: readonly string[];
 }
 
 export type JsSurfaceOperationPolicyKind =
@@ -62,6 +64,9 @@ export type JsSurfaceRuntimeHelperSelection =
   | {
     readonly kind: "record-dictionary";
     readonly operation: ObjectRecordDictionaryOperation;
+  }
+  | {
+    readonly kind: "record-dictionary-json-stringify";
   };
 
 export type JsSurfaceSemanticExceptionSelection =
@@ -75,6 +80,7 @@ export type JsSurfaceSemanticExceptionSelection =
 export interface JsSurfaceOperationSemanticException {
   readonly reason: string;
   readonly requiredFacts: readonly string[];
+  readonly capabilityId?: string;
 }
 
 export interface JsSurfaceCallTargetProviderRequest {

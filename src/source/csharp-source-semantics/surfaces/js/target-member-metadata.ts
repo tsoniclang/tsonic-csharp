@@ -25,6 +25,9 @@ export interface JsSurfaceTargetMemberMetadata {
   readonly static?: boolean;
   readonly receiverPassing?: TargetMember["receiverPassing"];
   readonly typeParameters?: readonly TargetTypeParameter[];
+  readonly capabilityId?: string;
+  readonly requiredFacts?: readonly string[];
+  readonly semanticEquivalence?: string;
 }
 
 export interface JsSurfaceSelectedSourceIdentity {
