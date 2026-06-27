@@ -1,6 +1,7 @@
 import type {
   ExtensionLifecycleContext,
   Node,
+  SourceFile,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -121,7 +122,7 @@ function getSelectedStandardLibraryDeclaration(
     return undefined;
   }
   const sourceFile = compiler.ast.getSourceFile(node);
-  const symbol = compiler.checker.getResolvedSymbol(node, { sourceFile }) ??
+  const symbol = safeGetResolvedSymbol(node, sourceFile, compiler.checker) ??
     compiler.checker.getSymbolAtLocation(node, { sourceFile });
   const declarations = (symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ?? [];
   for (const declaration of declarations) {
@@ -131,6 +132,18 @@ function getSelectedStandardLibraryDeclaration(
     }
   }
   return undefined;
+}
+
+function safeGetResolvedSymbol(
+  node: Node,
+  sourceFile: SourceFile | undefined,
+  checker: NonNullable<ExtensionLifecycleContext["compiler"]>["checker"],
+): ReturnType<NonNullable<ExtensionLifecycleContext["compiler"]>["checker"]["getResolvedSymbol"]> | undefined {
+  try {
+    return checker.getResolvedSymbol(node, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }
 
 function getStandardLibraryDeclarationSelection(

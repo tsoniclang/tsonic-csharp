@@ -104,7 +104,15 @@ export function mapCsharpSourceLibraryCheckedCall(
     if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
       return undefined;
     }
-    return rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host);
+    return rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host, {
+      candidates: candidates.map((candidate) => ({
+        id: candidate.id,
+        parameters: candidate.parameters.map((parameter) => parameter.type),
+        returnType: candidate.returnType,
+        receiverPassing: candidate.receiverPassing,
+      })),
+      argumentTypes: getSourceLibraryCallArgumentTargetTypes(request, context, host),
+    });
   }
   return acceptSourceLibraryCheckedCall(request, sourceMember, member, context);
 }

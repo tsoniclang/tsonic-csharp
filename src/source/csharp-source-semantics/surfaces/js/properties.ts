@@ -109,9 +109,9 @@ function recordCsharpSourceLibraryPropertyFact(
     return;
   }
   const propertySymbol = compiler.checker.getSymbolAtLocation(name, { sourceFile }) ??
-    compiler.checker.getResolvedSymbol(name, { sourceFile }) ??
+    safeGetResolvedSymbol(name, sourceFile, context) ??
     compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
-    compiler.checker.getResolvedSymbol(node, { sourceFile });
+    safeGetResolvedSymbol(node, sourceFile, context);
   const declaration = firstSymbolDeclaration(propertySymbol);
   const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
   const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
@@ -133,6 +133,18 @@ function recordCsharpSourceLibraryPropertyFact(
   }
   if (mapped?.kind !== "accept") {
     return;
+  }
+}
+
+function safeGetResolvedSymbol(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+): ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getResolvedSymbol"]> | undefined {
+  try {
+    return context.compiler?.checker.getResolvedSymbol(node, { sourceFile });
+  } catch {
+    return undefined;
   }
 }
 

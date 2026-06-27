@@ -66,16 +66,20 @@ export function getNodeFsCallTargetMember(
 }
 
 export function nodeFsCallExportDeclarations(): readonly ProviderExportDeclaration[] {
+  const membersByExportName = new Map<string, readonly NodeFsCallTargetMember[]>();
+  for (const member of nodeFsCallTargetMembers()) {
+    membersByExportName.set(member.exportName, [...membersByExportName.get(member.exportName) ?? [], member]);
+  }
   return [
-    ...nodeFsCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
+    ...[...membersByExportName.entries()].map(([exportName, members]) => ({
       id: `node:fs.${exportName}`,
       name: exportName,
       kind: "function" as const,
-      signatures: [{
+      signatures: members.map(({ signatureId, providerParameters, providerReturnType }) => ({
         id: signatureId,
         parameters: providerParameters,
         returnType: providerReturnType,
-      }],
+      })),
     })),
     ...nodeFsUnsupportedCallDeclarations(),
   ];

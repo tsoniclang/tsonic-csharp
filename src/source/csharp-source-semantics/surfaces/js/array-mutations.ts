@@ -34,6 +34,9 @@ import {
 import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
+import {
+  targetTypeRefKey,
+} from "../../target-ref-utils.js";
 
 export const csharpJsArrayDeleteAtOperationId = "tsonic.csharp.js.array.deleteAt";
 export const csharpJsArraySetLengthOperationId = "tsonic.csharp.js.array.setLength";
@@ -90,7 +93,9 @@ function recordDeleteElementFact(
   }
   const receiverCarrier = getJsArrayCarrierForReceiver(receiver, sourceFile, context, host);
   if (!isCsharpJsArrayCarrierTargetType(receiverCarrier)) {
-    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_DELETE_REQUIRES_JSARRAY", 9100141, "C# JS surface delete on arrays requires a finalized closed JSArray carrier; dense List<T> and CLR T[] cannot model holes."));
+    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_DELETE_REQUIRES_JSARRAY", 9100141, "C# JS surface delete on arrays requires a finalized closed JSArray carrier; dense List<T> and CLR T[] cannot model holes.", [
+      { message: `Resolved receiver carrier: ${receiverCarrier === undefined ? "missing" : targetTypeRefKey(receiverCarrier)}.` },
+    ]));
     return;
   }
   if (!hasIntegralIndex(argument, context, host)) {
@@ -131,7 +136,9 @@ function recordLengthMutationFact(
   }
   const receiverCarrier = getJsArrayCarrierForReceiver(receiver, sourceFile, context, host);
   if (!isCsharpJsArrayCarrierTargetType(receiverCarrier)) {
-    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_LENGTH_SET_REQUIRES_JSARRAY", 9100143, "C# JS surface Array.length mutation requires a finalized closed JSArray carrier; dense List<T> and CLR T[] cannot model length growth, truncation, and holes."));
+    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_LENGTH_SET_REQUIRES_JSARRAY", 9100143, "C# JS surface Array.length mutation requires a finalized closed JSArray carrier; dense List<T> and CLR T[] cannot model length growth, truncation, and holes.", [
+      { message: `Resolved receiver carrier: ${receiverCarrier === undefined ? "missing" : targetTypeRefKey(receiverCarrier)}.` },
+    ]));
     return;
   }
   if (!hasIntegralIndex(right, context, host)) {

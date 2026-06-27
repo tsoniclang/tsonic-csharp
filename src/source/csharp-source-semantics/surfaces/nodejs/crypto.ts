@@ -152,6 +152,13 @@ export function nodeCryptoCallTargetMembers(): readonly NodeCryptoCallTargetMemb
 }
 
 export function nodeCryptoClassCallTargetMembers(): readonly NodeCryptoClassCallTargetMember[] {
+  return [
+    ...nodeCryptoHashClassCallTargetMembers(),
+    ...nodeCryptoHmacClassCallTargetMembers(),
+  ];
+}
+
+function nodeCryptoHashClassCallTargetMembers(): readonly NodeCryptoClassCallTargetMember[] {
   const optionalStringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType, optional: true });
   const stringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType });
   return [
@@ -167,6 +174,13 @@ export function nodeCryptoClassCallTargetMembers(): readonly NodeCryptoClassCall
     ], targetReturnType: stringTargetType, declaringType: hashTargetType }),
     cryptoClassCall({ exportName: nodeCryptoHashExportName, memberName: "digest", memberId: "node:crypto.Hash.digest", signatureId: "node:crypto.Hash.digest()", targetMemberId: "Tsonic.CSharp.Node.Hash.digestBuffer()", sourceName: "digest", targetName: "digestBuffer", memberKind: "method", providerParameters: [], providerReturnType: bufferProviderType, targetParameters: [], targetReturnType: nodeBufferTargetType, declaringType: hashTargetType }),
     cryptoClassCall({ exportName: nodeCryptoHashExportName, memberName: "copy", memberId: "node:crypto.Hash.copy", signatureId: "node:crypto.Hash.copy()", targetMemberId: "Tsonic.CSharp.Node.Hash.copy()", sourceName: "copy", targetName: "copy", memberKind: "method", providerParameters: [], providerReturnType: hashProviderType, targetParameters: [], targetReturnType: hashTargetType, declaringType: hashTargetType }),
+  ];
+}
+
+function nodeCryptoHmacClassCallTargetMembers(): readonly NodeCryptoClassCallTargetMember[] {
+  const optionalStringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType, optional: true });
+  const stringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType });
+  return [
     cryptoClassCall({ exportName: nodeCryptoHmacExportName, memberName: "update", memberId: "node:crypto.Hmac.update", signatureId: "node:crypto.Hmac.update(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.Hmac.update(System.String,System.String)", sourceName: "update", targetName: "update", memberKind: "method", providerParameters: [stringParameter("data"), optionalStringParameter("inputEncoding")], providerReturnType: hmacProviderType, targetParameters: [
       targetParameter("data", stringTargetType),
       targetParameter("inputEncoding", stringTargetType, { optional: true }),
@@ -185,7 +199,7 @@ function nodeCryptoHashExportDeclaration(): ProviderExportDeclaration {
   return cryptoClassExportDeclaration(
     nodeCryptoHashExportName,
     "Tsonic.CSharp.Node.Hash",
-    nodeCryptoClassCallTargetMembers().filter((member) => member.exportName === nodeCryptoHashExportName),
+    nodeCryptoHashClassCallTargetMembers(),
   );
 }
 
@@ -193,7 +207,7 @@ function nodeCryptoHmacExportDeclaration(): ProviderExportDeclaration {
   return cryptoClassExportDeclaration(
     nodeCryptoHmacExportName,
     "Tsonic.CSharp.Node.Hmac",
-    nodeCryptoClassCallTargetMembers().filter((member) => member.exportName === nodeCryptoHmacExportName),
+    nodeCryptoHmacClassCallTargetMembers(),
   );
 }
 

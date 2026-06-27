@@ -13,9 +13,12 @@ import {
 } from "./diagnostics.js";
 import {
   isAstNode,
+  Node_Text,
+  SourceKind,
 } from "./source-ast.js";
 import {
   targetTypeRefEquals,
+  targetTypeRefKey,
 } from "../../source/csharp-source-semantics/target-ref-utils.js";
 
 export type ExpressionPlanner = (
@@ -89,7 +92,7 @@ function planCallArgumentExpression(
       return undefined;
     }
     if (conversionExpectedTargetType !== undefined && !targetTypeRefEquals(conversion.convertedType, conversionExpectedTargetType)) {
-      diagnostics.push(unsupportedNodeDiagnostic(node, "Selected target argument conversion fact does not match the selected call parameter type."));
+      diagnostics.push(unsupportedNodeDiagnostic(node, `Selected target argument conversion fact does not match the selected call parameter type. Node: ${SourceKind(input.ast, node)} '${Node_Text(node)}'. Conversion target: ${targetTypeRefKey(conversion.convertedType)}. Selected parameter target: ${targetTypeRefKey(conversionExpectedTargetType)}.`));
       return undefined;
     }
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType ?? convertedType, expectedTypeSubject);

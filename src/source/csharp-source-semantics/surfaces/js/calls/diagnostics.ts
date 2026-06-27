@@ -67,6 +67,7 @@ export function rejectSourceLibraryCallSignatureDeclarationMismatch(
 export function rejectSourceLibraryCallWithoutUniqueTargetMember(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
+  details?: unknown,
 ): ExtensionObservation<CheckedCallMappingResult> {
   return rejectObservation(host.csharpProviderDiagnostic(
     host.extensionId,
@@ -78,7 +79,7 @@ export function rejectSourceLibraryCallWithoutUniqueTargetMember(
       "finalized receiver carrier facts",
       "finalized argument carrier facts",
       "unambiguous generic selector result",
-    ]),
+    ], details),
   ));
 }
 
@@ -104,6 +105,7 @@ function missingSurfaceCallEvidence(
   sourceMember: SourceLibraryMember,
   reason: string,
   requiredFacts: readonly string[],
+  extraDetails?: unknown,
 ): readonly ExtensionEvidence[] {
   return [
     {
@@ -116,6 +118,7 @@ function missingSurfaceCallEvidence(
           "diagnostic.missing-target-fact",
           "diagnostic.unsupported-selected-surface-operation",
         ],
+        ...(extraDetails === undefined ? {} : { extraDetails }),
       },
     },
   ];

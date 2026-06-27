@@ -14,9 +14,6 @@ import {
   nodeBufferByteLengthExportName,
   nodeBufferByteLengthMemberId,
   nodeBufferByteLengthSignatureId,
-  nodeBufferCompareExportName,
-  nodeBufferCompareMemberId,
-  nodeBufferCompareSignatureId,
   nodeBufferConcatExportName,
   nodeBufferConcatMemberId,
   nodeBufferConcatSignatureId,
@@ -112,20 +109,6 @@ export function nodeBufferStaticMemberDeclarations(): ProviderClassMembers {
         parameters: [
           { name: "value", type: nodeBufferStringProviderType },
           { name: "encoding", type: nodeBufferStringProviderType, optional: true },
-        ],
-        returnType: nodeBufferNumberProviderType,
-      }],
-    },
-    {
-      id: nodeBufferCompareMemberId,
-      name: nodeBufferCompareExportName,
-      kind: "method",
-      static: true,
-      signatures: [{
-        id: nodeBufferCompareSignatureId,
-        parameters: [
-          { name: "buf1", type: nodeBufferProviderType },
-          { name: "buf2", type: nodeBufferProviderType },
         ],
         returnType: nodeBufferNumberProviderType,
       }],

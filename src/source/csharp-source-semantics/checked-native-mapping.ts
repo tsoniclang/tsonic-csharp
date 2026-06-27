@@ -3,6 +3,7 @@ import {
   argumentPassingFactKey,
   contextualTargetTypeFactKey,
   deferObservation,
+  providerVirtualDeclarationFactKey,
   rejectObservation,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
@@ -115,6 +116,11 @@ export function mapCsharpContextualTargetType(
   if (isAttributeSelectorCallbackExpression(request.expression, context)) {
     return deferObservation;
   }
+  if (contextualTypeIsProviderVirtualDeclaration(request, context)) {
+    return acceptObservation<ContextualTargetTypeResult>({
+      type: request.context,
+    }, [{ message: "C# acknowledged provider virtual contextual type without re-entering target type resolution during TSTS contextual checking." }]);
+  }
   const targetType = host.getTargetTypeRefForSubject(request.context, context);
   if (targetType === undefined) {
     return acceptObservation<ContextualTargetTypeResult>({
@@ -125,6 +131,17 @@ export function mapCsharpContextualTargetType(
     type: request.context,
     targetType,
   }, [{ message: "C# contextual target type recorded from checked TSTS contextual type and deterministic C# target type." }]);
+}
+
+function contextualTypeIsProviderVirtualDeclaration(
+  request: ContextualTargetTypeRequest,
+  context: ExtensionObservationContext<"type.recordContextualTargetType">,
+): boolean {
+  const symbol = typeof request.context === "object" && request.context !== null
+    ? (request.context as { readonly symbol?: object }).symbol
+    : undefined;
+  return context.facts.get(request.context, providerVirtualDeclarationFactKey) !== undefined ||
+    context.facts.get(symbol, providerVirtualDeclarationFactKey) !== undefined;
 }
 
 export function mapCsharpCheckedConversion(

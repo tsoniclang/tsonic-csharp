@@ -25,6 +25,9 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  targetMembersHaveCompatibleSourceSelectedSignature,
+} from "../../source/csharp-source-semantics/selected-target-source-signature.js";
 
 export function getRequiredCsharpTargetOperation(
   input: TargetCompileInput,
@@ -113,7 +116,9 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member facts: generic selected member '${selectedSignature.member.id}', C# selected member '${operation.selectedMember.id}'.`));
     return undefined;
   }
-  const mismatch = getSelectedMemberEmissionFactMismatch(selectedSignature.member, operation.selectedMember);
+  const mismatch = targetMembersHaveCompatibleSourceSelectedSignature(selectedSignature.member, operation.selectedMember)
+    ? undefined
+    : getSelectedMemberEmissionFactMismatch(selectedSignature.member, operation.selectedMember);
   if (mismatch !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member ${mismatch} facts for '${selectedSignature.member.id}'.`));
     return undefined;

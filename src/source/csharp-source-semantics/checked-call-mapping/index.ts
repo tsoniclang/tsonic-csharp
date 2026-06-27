@@ -33,6 +33,9 @@ import {
 import {
   instantiateSelectedTargetMember,
 } from "../selected-target-member-instantiation.js";
+import {
+  targetMemberAsSourceSelectedSignature,
+} from "../selected-target-source-signature.js";
 import type {
   TargetMemberSelectionOptions,
 } from "../target-member-arguments/index.js";
@@ -208,7 +211,7 @@ export function mapCsharpCheckedCall(
   }
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target call operation finalized from checked TSTS selection and provider target identity." }]);
   return acceptObservation<CheckedCallMappingResult>({
-    selectedSignature: { member: csharpMember },
+    selectedSignature: { member: targetMemberAsSourceSelectedSignature(csharpMember) },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
 }
 

@@ -1,6 +1,8 @@
 import {
   TstsProviderContractVersion,
   deferObservation,
+  runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedCallMappingRequest,
@@ -213,7 +215,14 @@ export function createCsharpJsSurfaceHost(
       context: ExtensionObservationContext,
       options: Pick<TargetMemberSelectionOptions, "declaringTargetType" | "declaringTypeParameters"> = {},
     ) =>
-      selectTargetMember(candidates, request, context, host.getTargetTypeRefForSubject, {
+      selectTargetMember(candidates, request, context, (subject, resolutionContext, resolutionOptions) =>
+        subject === undefined
+          ? undefined
+          : resolutionContext.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+            resolutionContext.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier ??
+            resolutionContext.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+            resolutionContext.facts.get(subject, runtimeCarrierFactKey)?.carrier ??
+            host.getTargetTypeRefForSubject(subject, resolutionContext, resolutionOptions), {
         getBaseTargetTypeRef: host.getBaseTargetTypeRef,
         ...options,
       }),

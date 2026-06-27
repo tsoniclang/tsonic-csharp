@@ -180,7 +180,8 @@ function carrierRequirementsForTargetTypes(
       requirements.push(requirement);
     }
   }
-  return requirements;
+  const selected = selectLeastPermissiveCarrierRequirement(requirements);
+  return selected === undefined ? [] : [selected];
 }
 
 function carrierRequirementForTargetType(
@@ -198,4 +199,30 @@ function carrierRequirementForTargetType(
   return getCsharpCollectionElementTargetType(targetType) === undefined
     ? undefined
     : "sequential-read";
+}
+
+function selectLeastPermissiveCarrierRequirement(
+  requirements: readonly CsharpArrayCarrierRequirement[],
+): CsharpArrayCarrierRequirement | undefined {
+  let selected: CsharpArrayCarrierRequirement | undefined;
+  for (const requirement of requirements) {
+    if (selected === undefined || carrierRequirementRank(requirement) < carrierRequirementRank(selected)) {
+      selected = requirement;
+    }
+  }
+  return selected;
+}
+
+function carrierRequirementRank(requirement: CsharpArrayCarrierRequirement): number {
+  switch (requirement) {
+    case "sequential-read":
+      return 1;
+    case "index-read":
+    case "length-read":
+      return 2;
+    case "dense-mutation":
+      return 3;
+    case "full-js":
+      return 4;
+  }
 }

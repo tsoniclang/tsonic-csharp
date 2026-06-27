@@ -64,13 +64,13 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
     propagateRuntimeCarrierObjectBindingFacts(lifecycleContext, sourceFile, nodes, host);
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    recordRuntimeCarrierSyntaxFacts(lifecycleContext, sourceFile, nodes, host);
+    propagateRuntimeCarrierReferencedFacts(lifecycleContext, sourceFile, nodes);
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
     propagateRuntimeCarrierInitializerFacts(lifecycleContext, sourceFile, nodes);
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    propagateRuntimeCarrierReferencedFacts(lifecycleContext, sourceFile, nodes);
+    recordRuntimeCarrierSyntaxFacts(lifecycleContext, sourceFile, nodes, host);
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
     propagateRuntimeCarrierExpectedFacts(lifecycleContext, sourceFile, nodes, host);

@@ -1456,13 +1456,13 @@ test("JS surface maps Object.hasOwn only from selected declaration and closed JS
   assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
 });
 
-test("JS surface rejects Object.hasOwn without closed JSObject target facts", () => {
+test("JS surface rejects Object.hasOwn without supported closed object-helper target facts", () => {
   const call = {};
   const value = {};
   const key = {};
   const facts = new TestFactStore();
   const targetTypes = new Map([
-    [value, stringType()],
+    [value, boolType()],
     [key, stringType()],
   ]);
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
@@ -1552,7 +1552,7 @@ test("JS surface does not map console or Object calls without selected declarati
   assert.equal(objectResult.kind, "defer");
 });
 
-test("JS surface hard-rejects selected RegExp calls without target runtime facts", () => {
+test("JS surface rejects selected RegExp calls without closed RegExp receiver facts", () => {
   const call = {};
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
@@ -1560,7 +1560,7 @@ test("JS surface hard-rejects selected RegExp calls without target runtime facts
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("RegExp", "exec")), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
   assert.match(result.diagnostic.message, /RegExp\.exec/);
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
@@ -2359,7 +2359,7 @@ test("NodeJS surface exposes URL as a provider-owned virtual module", () => {
   assert.equal(searchParams?.type?.kind, "provider-ref");
   assert.equal(searchParams?.type?.name, "URLSearchParams");
   assert.equal(pathToFileURL?.signatures?.[0]?.id, "node:url.pathToFileURL(System.String)");
-  assert.equal(format?.signatures?.[0]?.id, "node:url.format(System.Object)");
+  assert.equal(format?.signatures?.[0]?.id, "node:url.format(Tsonic.CSharp.Node.URL)");
 
   const constructorIdentity = bindingProvider.getTargetIdentity({
     moduleSpecifier: "url",
@@ -2380,7 +2380,7 @@ test("NodeJS surface exposes URL as a provider-owned virtual module", () => {
   const formatIdentity = bindingProvider.getTargetIdentity({
     moduleSpecifier: "url",
     exportName: "format",
-    signatureId: "node:url.format(System.Object)",
+    signatureId: "node:url.format(Tsonic.CSharp.Node.URL)",
   });
   const searchParamsIdentity = bindingProvider.getTargetIdentity({
     moduleSpecifier: "node:url",
@@ -2396,7 +2396,7 @@ test("NodeJS surface exposes URL as a provider-owned virtual module", () => {
   assert.equal(constructorIdentity?.id, "Tsonic.CSharp.Node.URL..ctor(System.String,System.String)");
   assert.equal(hrefIdentity?.id, "Tsonic.CSharp.Node.URL.href");
   assert.equal(pathIdentity?.id, "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
-  assert.equal(formatIdentity?.id, "unsupported:Tsonic.CSharp.Node.url.format(System.Object)");
+  assert.equal(formatIdentity?.id, "Tsonic.CSharp.Node.url.format(System.Object)");
   assert.equal(searchParamsIdentity?.id, "unsupported:Tsonic.CSharp.Node.URL.searchParams");
   assert.equal(appendIdentity?.id, "unsupported:Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
 });
