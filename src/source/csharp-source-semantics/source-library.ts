@@ -103,8 +103,7 @@ export function isBundledStandardLibraryType(type: Type, context: ExtensionObser
     (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
     [];
   return declarations.some((declaration) =>
-    ast.text(ast.name(declaration)) === name &&
-    isTstsBundledStandardLibraryFile(ast.getFileName(ast.getSourceFile(declaration))));
+    getSourceLibraryDeclarationName(declaration, context) === name);
 }
 
 export function getSourceLibraryDeclarationName(
@@ -119,9 +118,13 @@ export function getSourceLibraryDeclarationName(
   const sourceFile = ast.getSourceFile(declaration);
   const fileName = ast.getFileName(sourceFile);
   const name = ast.text(ast.name(declaration));
-  return isTstsBundledStandardLibraryFile(fileName) && isSourceLibraryTypeName(name)
-    ? name
-    : undefined;
+  if (!isTstsBundledStandardLibraryFile(fileName)) {
+    return undefined;
+  }
+  if (isSourceLibraryTypeName(name)) {
+    return name;
+  }
+  return sourceLibraryDeclaringName(name);
 }
 
 function sourceLibraryDeclaringName(name: string): SourceLibraryDeclaringKey | undefined {

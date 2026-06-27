@@ -4,6 +4,7 @@ import {
   createCompilerSessionFromFiles,
   formatDiagnostics,
   providerVirtualDeclarationFactKey,
+  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
   targetOperationFactKey,
 } from "@tsonic/tsts";
@@ -116,6 +117,31 @@ test("selected NodeJS Stats Date facts compose with JS Date calls after TSTS che
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.Stats.mtimeMs"));
 });
 
+test("selected NodeJS Stats Date facts preserve JS Date carrier through nullish coalescing", () => {
+  const session = createCsharpSession(`
+    import { statSync } from "node:fs";
+
+    export function selectedMtimeIso(path: string, maybeDate: Date | undefined): string {
+      const resolved = maybeDate ?? statSync(path).mtime;
+      return resolved.toISOString();
+    }
+  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const binary = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  const resolvedDeclaration = collectNodesByKind(sourceFile, session.ast, "KindVariableDeclaration")
+    .find((node) => session.ast.text(Object.getOwnPropertyDescriptor(node, "name")?.value) === "resolved");
+
+  assert.ok(binary);
+  assert.ok(resolvedDeclaration);
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+  assert.equal(extensionHost.facts.get(binary, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.Date");
+  assert.equal(extensionHost.facts.get(binary, targetOperationFactKey)?.resultType.id, "Tsonic.CSharp.Js.Date");
+  assert.equal(extensionHost.facts.get(resolvedDeclaration, runtimeCarrierFactKey)?.carrier.id, "Tsonic.CSharp.Js.Date");
+});
+
 function fakeContext(facts) {
   return {
     facts,
@@ -173,6 +199,10 @@ function collectFactValues(sourceFile, session, extensionHost, factKey) {
   return collectAllNodes(sourceFile, session.ast)
     .map((node) => extensionHost.facts.get(node, factKey))
     .filter((fact) => fact !== undefined);
+}
+
+function collectNodesByKind(sourceFile, ast, kindName) {
+  return collectAllNodes(sourceFile, ast).filter((node) => ast.kindName(node) === kindName);
 }
 
 function collectAllNodes(node, ast, result = []) {

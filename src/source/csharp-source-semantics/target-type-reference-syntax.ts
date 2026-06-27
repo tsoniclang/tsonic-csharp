@@ -211,6 +211,9 @@ function getTargetTypeRefFromSourceDeclarationReference(
       if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
         continue;
       }
+      if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
+        continue;
+      }
       return sourceDeclarationTargetType(
         getNodeNameText(declaration),
         kind,

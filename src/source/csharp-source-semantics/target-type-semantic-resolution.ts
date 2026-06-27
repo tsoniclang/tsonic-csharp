@@ -129,6 +129,9 @@ export function getCallableTargetTypeRefForSemanticType(
   if (checker === undefined || types === undefined) {
     return undefined;
   }
+  if (classifySourceStandardLibraryType(type, context) !== undefined) {
+    return undefined;
+  }
   const signatures = types.getCallSignatures(type);
   if (signatures.length !== 1) {
     return undefined;

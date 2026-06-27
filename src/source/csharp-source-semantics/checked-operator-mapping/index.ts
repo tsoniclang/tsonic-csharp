@@ -118,7 +118,7 @@ export function mapCsharpCheckedOperator(
   const left = bitwiseLiteralOperands.left;
   const right = bitwiseLiteralOperands.right;
   if (left === undefined || (request.right !== undefined && right === undefined)) {
-    return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' requires finalized provider operand carrier facts.`);
+    return deferObservation;
   }
   if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' requires explicit compat-runtime carrier operation facts for any operands.`);

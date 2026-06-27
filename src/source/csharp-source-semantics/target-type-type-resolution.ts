@@ -101,13 +101,13 @@ export function resolveTargetTypeRefForTypeCore(
       ...(targetTypeArguments.length > 0 ? { typeArguments: targetTypeArguments } : {}),
     }, host);
   }
-  const callable = getCallableTargetTypeRefForSemanticType(type, context, options, host, recursiveTargetTypeResolver);
-  if (callable !== undefined) {
-    return callable;
-  }
   const runtimeCarrier = resolveNonPrimitiveRuntimeCarrier(type, context, options, host, resolveTargetTypeArgumentsForType);
   if (runtimeCarrier !== undefined) {
     return runtimeCarrier;
+  }
+  const callable = getCallableTargetTypeRefForSemanticType(type, context, options, host, recursiveTargetTypeResolver);
+  if (callable !== undefined) {
+    return callable;
   }
   if (types.isBooleanLike(type)) {
     return csharpSourcePrimitiveTargetType("bool");

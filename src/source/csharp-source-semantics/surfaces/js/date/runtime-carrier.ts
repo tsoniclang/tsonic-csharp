@@ -1,4 +1,5 @@
 import type {
+  ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
   RuntimeCarrierFactRequest,
@@ -71,6 +72,19 @@ export function recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+      if (compiler.ast.is.IsTypeReferenceNode(node) && isCheckedSourceLibraryDateTypeReference(node, sourceFile, context)) {
+        const typeName = asNodeSubject(getNodeField(node, "TypeName"));
+        const type = compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+        recordDateRuntimeCarrierFacts(lifecycleContext, [
+          node,
+          typeName,
+          typeName === undefined ? undefined : compiler.checker.getSymbolAtLocation(typeName, { sourceFile }),
+          typeName === undefined ? undefined : compiler.checker.getResolvedSymbol(typeName, { sourceFile }),
+          type,
+          type?.symbol,
+        ], "C# JS surface Date runtime carrier recorded from checked TypeScript Date type reference.");
+        return;
+      }
       if (compiler.ast.is.IsNewExpression(node) !== true || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
         return;
       }
@@ -81,6 +95,31 @@ export function recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(
         carrier: csharpJsDateTargetType(),
       }, [{ message: "C# JS surface Date constructor runtime carrier recorded from checked TypeScript Date construction." }]);
     });
+  }
+}
+
+function isCheckedSourceLibraryDateTypeReference(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+): boolean {
+  const type = context.compiler?.checker.getTypeFromTypeNode(node, { sourceFile });
+  return type !== undefined && isSourceStandardLibraryDateType(type, context);
+}
+
+function recordDateRuntimeCarrierFacts(
+  lifecycleContext: { readonly host: ExtensionObservationContext["host"] },
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  message: string,
+): void {
+  const fact = {
+    carrier: csharpJsDateTargetType(),
+  };
+  const evidence = [{ message }];
+  for (const subject of subjects) {
+    if (subject !== undefined && lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey) === undefined) {
+      lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, fact, evidence);
+    }
   }
 }
 
