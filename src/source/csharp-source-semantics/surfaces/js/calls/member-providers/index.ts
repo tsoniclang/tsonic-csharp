@@ -8,4 +8,5 @@ export {
 export {
   csharpJsSourceLibraryMemberHasCallableProvider,
   getCsharpJsSourceLibraryCallMembersFromProviders,
+  getCsharpJsSourceLibraryUnsupportedOperation,
 } from "./operation-selection.js";

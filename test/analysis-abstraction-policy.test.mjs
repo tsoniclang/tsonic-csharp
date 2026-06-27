@@ -151,6 +151,51 @@ test("architecture validator rejects source-member id dispatch and tables", () =
   );
 });
 
+test("architecture validator rejects procedural selector branches over source names", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/calls/target-selection.ts",
+    `
+      if (sourceName === "push") {
+        return candidates[0];
+      }
+      switch (sourceMember.id) {
+        case "Array.push":
+          return candidates[0];
+      }
+      if (sourceMember.id.includes("Map.")) {
+        return candidates[0];
+      }
+      if (sourceName.startsWith("fs.")) {
+        return candidates[0];
+      }
+    `,
+    [
+      "source-member-id-switch",
+      "source-member-id-method-branch",
+      "source-name-branch",
+      "source-name-method-branch",
+    ],
+  );
+});
+
+test("architecture validator rejects Map and Set carrier selection from source-family spellings", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/backend/map-set-carriers.ts",
+    `
+      if (declaringName === "Map") {
+        return dictionaryCarrier;
+      }
+      if (declaringName !== "Set") {
+        return hashSetCarrier;
+      }
+    `,
+    [
+      "map-set-carrier-source-family-branch",
+      "map-set-carrier-source-family-branch",
+    ],
+  );
+});
+
 test("architecture validator rejects procedural source-member policy dispatch", () => {
   assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/registry.ts",

@@ -33,6 +33,9 @@ import {
   getSourceLibraryCallMembers,
 } from "./members.js";
 import {
+  getCsharpJsSourceLibraryUnsupportedOperation,
+} from "./member-providers/index.js";
+import {
   acceptSourceLibraryCheckedCall,
 } from "./operations.js";
 import {
@@ -62,7 +65,11 @@ export function mapCsharpSourceLibraryCheckedCall(
   ) {
     return rejectSourceLibraryCallSignatureDeclarationMismatch(sourceMember, host);
   }
-  const unsupported = rejectUnsupportedCsharpJsSourceLibraryCall(sourceMember, host);
+  const unsupported = rejectUnsupportedCsharpJsSourceLibraryCall(
+    sourceMember,
+    host,
+    getCsharpJsSourceLibraryUnsupportedOperation(sourceMember),
+  );
   if (unsupported !== undefined) {
     return unsupported;
   }

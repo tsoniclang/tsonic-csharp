@@ -126,5 +126,14 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   {
     identity: { prefixes: ["Promise."] },
     policyKind: "unsupported",
+    unsupported: {
+      reason: "Promise source operations require explicit Promise/Task carrier, scheduler, and async continuation facts before C# emission.",
+      requiredFacts: [
+        "selected Promise source declaration/signature identity",
+        "closed Promise result carrier",
+        "target async runtime/scheduler operation metadata",
+      ],
+      capabilityId: "diagnostic.unsupported-selected-surface-operation",
+    },
   },
 ];

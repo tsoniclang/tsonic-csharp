@@ -1565,6 +1565,21 @@ test("JS surface hard-rejects selected RegExp calls without target runtime facts
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
 
+test("JS surface hard-rejects declared unsupported selected operations with evidence", () => {
+  const call = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Promise", "then")), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Promise\.then/);
+  assert.match(result.diagnostic.message, /Promise\/Task carrier/);
+  assert.equal(result.diagnostic.evidence?.[0]?.details?.capabilityId, "diagnostic.unsupported-selected-surface-operation");
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps RegExp.test from selected declaration and closed RegExp receiver facts", () => {
   const call = {};
   const receiver = {};
@@ -2130,11 +2145,12 @@ test("NodeJS surface fails closed for unsupported assert provider identities", (
   const matchResult = provider.mapCheckedCall(nodejsCallRequest(matchCall, matchSignature), fakeContext(facts));
 
   assert.equal(deepStrictEqualResult.kind, "reject");
-  assert.equal(deepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.equal(deepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(deepStrictEqualResult.diagnostic.message, /node:assert\/strict/);
   assert.match(deepStrictEqualResult.diagnostic.message, /deepStrictEqual/);
+  assert.equal(deepStrictEqualResult.diagnostic.evidence?.[0]?.details?.capabilityId, "diagnostic.unsupported-selected-surface-operation");
   assert.equal(matchResult.kind, "reject");
-  assert.equal(matchResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.equal(matchResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(matchResult.diagnostic.message, /match/);
 });
 
@@ -2303,14 +2319,15 @@ test("NodeJS surface fails closed for unsupported util provider identities", () 
   const isDeepStrictEqualResult = provider.mapCheckedCall(nodejsCallRequest(isDeepStrictEqualCall, isDeepStrictEqualSignature), fakeContext(facts));
 
   assert.equal(formatResult.kind, "reject");
-  assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(formatResult.diagnostic.message, /node:util/);
   assert.match(formatResult.diagnostic.message, /format/);
+  assert.equal(formatResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
   assert.equal(inspectResult.kind, "reject");
-  assert.equal(inspectResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.equal(inspectResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(inspectResult.diagnostic.message, /inspect/);
   assert.equal(isDeepStrictEqualResult.kind, "reject");
-  assert.equal(isDeepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.equal(isDeepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(isDeepStrictEqualResult.diagnostic.message, /isDeepStrictEqual/);
 });
 
@@ -2469,14 +2486,15 @@ test("NodeJS surface fails closed for unsupported URL provider identities", () =
   const appendResult = provider.mapCheckedCall(nodejsCallRequest(appendCall, appendSignature), fakeContext(facts));
 
   assert.equal(formatResult.kind, "reject");
-  assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(formatResult.diagnostic.message, /node:url/);
   assert.match(formatResult.diagnostic.message, /format/);
   assert.equal(searchParamsResult.kind, "reject");
-  assert.equal(searchParamsResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROPERTY_NOT_MAPPED");
+  assert.equal(searchParamsResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(searchParamsResult.diagnostic.message, /searchParams/);
+  assert.equal(searchParamsResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.URL.searchParams");
   assert.equal(appendResult.kind, "reject");
-  assert.equal(appendResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.equal(appendResult.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(appendResult.diagnostic.message, /URLSearchParams/);
   assert.match(appendResult.diagnostic.message, /append/);
 });
@@ -2688,6 +2706,7 @@ test("NodeJS surface rejects optional-arity calls without selected signature ide
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_REQUIRES_SELECTED_SIGNATURE");
   assert.match(result.diagnostic.message, /randomInt/);
+  assert.equal(result.diagnostic.evidence?.[0]?.details?.reason, "NodeJS surface calls require TSTS-selected provider signature identity before target member selection");
 });
 
 test("NodeJS surface rejects selected provider members absent from the explicit surface map", () => {

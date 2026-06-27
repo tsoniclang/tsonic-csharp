@@ -98,6 +98,38 @@ test("native product boundary scanner ignores fixture strings", () => {
   assert.deepEqual(findings.map(formatNativeProductBoundaryFinding), []);
 });
 
+test("native product boundary scanner rejects runtime reflection and dynamic semantics", () => {
+  const findings = collectNativeProductBoundaryFindingsFromSources([
+    {
+      file: "src/generated-runtime-semantics.ts",
+      text: [
+        "const metadata = System.Reflection;",
+        "const property = target.GetProperty(name);",
+        "const methods = target.GetMethods();",
+        "const value = Activator.CreateInstance(type);",
+        "const loaded = Assembly.Load(name);",
+        "let carrier: dynamic;",
+      ].join("\n"),
+    },
+    {
+      file: "src/diagnostic-text.ts",
+      text: "const message = \"System.Reflection GetProperty dynamic are banned in generated output\";\n",
+    },
+  ]);
+
+  assert.deepEqual(
+    findings.map((finding) => `${finding.file}:${finding.ruleId}`),
+    [
+      "src/generated-runtime-semantics.ts:runtime-reflection-namespace",
+      "src/generated-runtime-semantics.ts:runtime-reflection-member-discovery",
+      "src/generated-runtime-semantics.ts:runtime-reflection-member-discovery",
+      "src/generated-runtime-semantics.ts:runtime-reflection-invocation",
+      "src/generated-runtime-semantics.ts:runtime-reflection-invocation",
+      "src/generated-runtime-semantics.ts:csharp-dynamic-semantics",
+    ],
+  );
+});
+
 test("native product manifest rejects non-ESM and third-party product dependencies", () => {
   const findings = collectNativeProductManifestFindingsFromText(
     "package.json",

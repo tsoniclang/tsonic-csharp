@@ -20,6 +20,7 @@ export interface JsSurfaceOperationRow {
   readonly policyKind: JsSurfaceOperationPolicyKind;
   readonly targetProviders?: readonly JsSurfaceOperationTargetProvider[];
   readonly semanticException?: JsSurfaceOperationSemanticException;
+  readonly unsupported?: JsSurfaceUnsupportedOperation;
   readonly callableWithoutContext?: boolean;
   readonly capabilityId?: string;
   readonly requiredFacts?: readonly string[];
@@ -81,6 +82,12 @@ export interface JsSurfaceOperationSemanticException {
   readonly reason: string;
   readonly requiredFacts: readonly string[];
   readonly capabilityId?: string;
+}
+
+export interface JsSurfaceUnsupportedOperation {
+  readonly reason: string;
+  readonly requiredFacts: readonly string[];
+  readonly capabilityId: string;
 }
 
 export interface JsSurfaceCallTargetProviderRequest {

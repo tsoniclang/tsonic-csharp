@@ -45,6 +45,18 @@ export const analysisAbstractionRules = Object.freeze([
       "Use declarative source identity policy records instead of source-member prefix control-flow branches.",
   },
   {
+    id: "source-member-id-switch",
+    pattern: /switch\s*\(\s*sourceMember\.id\s*\)/g,
+    replacement:
+      "Use declarative source identity policy records instead of switch-based source-member id selectors.",
+  },
+  {
+    id: "source-member-id-method-branch",
+    pattern: /sourceMember\.id\.(?:includes|endsWith|match)\s*\(/g,
+    replacement:
+      "Use declarative source identity policy records instead of source-member id string-method selector branches.",
+  },
+  {
     id: "source-member-id-map-dispatch",
     pattern: /\b[A-Za-z_$][\w$]*(?:BySource(?:Identity|Member|Id)?|ByIdentity|BySourceMember|RequirementRows|Requirements|Policies|Policy|Providers|Resolvers|Rows|Index|Map|Members|TargetMembers|TargetMember)?\.(?:get|has)\s*\(\s*sourceMember\.id\s*\)/g,
     allowedFilePattern: sourceIdentityMetadataFilePattern(),
@@ -75,6 +87,18 @@ export const analysisAbstractionRules = Object.freeze([
     pattern: /switch\s*\(\s*sourceName\s*\)/g,
     replacement:
       "Concrete source names belong in declarative policy/provider metadata, not switch-based selectors.",
+  },
+  {
+    id: "source-name-method-branch",
+    pattern: /\bsourceName\.(?:includes|endsWith|match)\s*\(|\bsourceName\.startsWith\s*\(\s*["'](?!#["'])/g,
+    replacement:
+      "Concrete source names belong in declarative policy/provider metadata, not string-method selector branches.",
+  },
+  {
+    id: "map-set-carrier-source-family-branch",
+    pattern: /\b(?:sourceName|declaringName|sourceMember\.(?:declaringName|memberName))\s*(?:={2,3}|!={1,2})\s*["'](?:Map|Set|ReadonlyMap|ReadonlySet)["']/g,
+    replacement:
+      "Map/Set carrier lane selection must consume selected source identity plus declared lane/equality facts; backend and selectors must not choose Dictionary, HashSet, or JS runtime carriers from source-family spelling.",
   },
   {
     id: "export-name-switch",
