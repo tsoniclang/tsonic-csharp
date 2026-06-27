@@ -32,10 +32,10 @@ import {
   objectRecordDictionaryCallRows,
 } from "./object-members.js";
 import {
-  carrierMemberProvider,
   metadataIndexProvider,
   operationRowFromMetadataIndex,
   runtimeHelperProvider,
+  selectedMetadataProvider,
   semanticExceptionProvider,
 } from "./operation-providers.js";
 import type {
@@ -80,22 +80,22 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     identity: arrayConstructorIdentityPolicy,
     policyKind: "carrier-member",
     callableWithoutContext: true,
-    targetProviders: [carrierMemberProvider({ kind: "sequence", requireResultElementType: true })],
+    targetProviders: [selectedMetadataProvider({ kind: "closed-sequence", requireResultElementType: true })],
   },
   {
     identity: { prefixes: ["Array.", "ReadonlyArray."] },
     policyKind: "carrier-member",
-    targetProviders: [carrierMemberProvider({ kind: "sequence", requireResultElementType: false })],
+    targetProviders: [selectedMetadataProvider({ kind: "closed-sequence", requireResultElementType: false })],
   },
   {
     identity: collectionConstructorIdentityPolicy,
     policyKind: "carrier-member",
-    targetProviders: [carrierMemberProvider({ kind: "keyed-collection", useResultCarrier: true })],
+    targetProviders: [selectedMetadataProvider({ kind: "closed-keyed-collection", useResultCarrier: true })],
   },
   {
     identity: collectionIdentityPolicy,
     policyKind: "carrier-member",
-    targetProviders: [carrierMemberProvider({ kind: "keyed-collection", useResultCarrier: false })],
+    targetProviders: [selectedMetadataProvider({ kind: "closed-keyed-collection", useResultCarrier: false })],
   },
   {
     identity: { prefixes: ["Console."] },

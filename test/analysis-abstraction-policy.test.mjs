@@ -331,7 +331,7 @@ test("architecture validator rejects array target ids defaulted from source name
 
 test("architecture validator rejects source-member provider hooks", () => {
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/operation-selection.ts",
     `
       type SourceCallMemberProvider =
         | { readonly kind: "metadata-by-source-identity"; readonly membersForSourceMember: (sourceMember: SourceLibraryMember) => readonly TargetMember[] };
@@ -346,7 +346,7 @@ test("architecture validator rejects source-member provider hooks", () => {
 
 test("architecture validator rejects JS surface provider kind literals", () => {
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/operation-types.ts",
     `
       members: { kind: "date-call-kind" };
       targetProvider: { kind: "operation-adapter" };
@@ -415,6 +415,22 @@ test("architecture validator rejects JS surface provider kind literals", () => {
       "js-surface-property-provider-kind-literal",
       "js-surface-property-provider-kind-literal",
       "js-surface-property-provider-kind-literal",
+    ],
+  );
+
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/selected-target-member-metadata.ts",
+    `
+      interface ContextualProvider {
+        readonly resolver: Resolver;
+        readonly selectTargetMembers: (request: Request) => readonly TargetMember[];
+      }
+      provider.resolver.selectTargetMembers(request);
+    `,
+    [
+      "js-surface-selected-target-executable-callback",
+      "js-surface-selected-target-executable-callback",
+      "js-surface-selected-target-executable-callback",
     ],
   );
 
@@ -488,7 +504,7 @@ test("architecture validator rejects array lifecycle source-member target factor
 
 test("architecture validator rejects JS source-family provider flags", () => {
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",
+    "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/operation-rows.ts",
     `
       const row = {
         members: {

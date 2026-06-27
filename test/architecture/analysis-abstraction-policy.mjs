@@ -294,6 +294,13 @@ export const analysisAbstractionRules = Object.freeze([
       "JS surface operation rows must reference declarative provider/runtime metadata, carrier selectors, or explicit exception ids; executable target-provider callbacks are not allowed in row/provider shape.",
   },
   {
+    id: "js-surface-selected-target-executable-callback",
+    filePattern: /(?:^|\/)surfaces\/js\/selected-target-member-metadata\.ts$/,
+    pattern: /\b(?:readonly\s+resolver\s*:|selectTargetMembers\s*:|\.selectTargetMembers\s*\()/g,
+    replacement:
+      "Selected target-member metadata must be declarative metadata providers plus generic materialization; executable selected-target callbacks are not allowed.",
+  },
+  {
     id: "js-surface-call-selector-declaring-type-synthesis",
     filePattern: /(?:^|\/)surfaces\/js\/calls\/target-selection\.ts$/,
     pattern: /\b(?:sourceLibraryCallSelectionOptions|declaringTargetType|declaringTypeParameters|getCsharpArrayLikeElementType)\b/g,

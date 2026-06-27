@@ -6,6 +6,9 @@ import {
   arrayTargetMembersForSelectedIdentity,
 } from "./arrays/target-members/index.js";
 import {
+  collectionTargetMembersForSelectedIdentity,
+} from "./collection-target-metadata/index.js";
+import {
   jsonTargetMemberIdentityIndex,
 } from "./json.js";
 import {
@@ -26,6 +29,8 @@ import type {
 export interface JsSurfaceSelectedTargetMemberLookupRequest {
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
   readonly contextualElementType?: TargetTypeRef;
+  readonly contextualDeclaringType?: TargetTypeRef;
+  readonly contextualResultType?: TargetTypeRef;
 }
 
 interface JsSurfaceSelectedTargetMemberRow {
@@ -39,28 +44,22 @@ type JsSurfaceSelectedTargetMemberProvider =
     readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
   }
   | {
-    readonly kind: "contextual-metadata";
-    readonly resolver: JsSurfaceSelectedTargetMemberProviderResolver;
+    readonly kind: "closed-sequence-metadata";
+  }
+  | {
+    readonly kind: "closed-keyed-collection-metadata";
   };
 
-interface JsSurfaceSelectedTargetMemberProviderResolver {
-  readonly id: string;
-  readonly selectTargetMembers: (request: JsSurfaceSelectedTargetMemberLookupRequest) => readonly TargetMember[];
-}
-
 const jsSurfaceSelectedTargetMemberRows: readonly JsSurfaceSelectedTargetMemberRow[] = [
-  selectedTargetMemberRowFromContextualMetadata({ prefixes: ["Array.", "ReadonlyArray."] }, {
-    id: "closed-sequence-selected-target-metadata",
-    selectTargetMembers: (request) =>
-      arrayTargetMembersForSelectedIdentity(request.selectedIdentity, request.contextualElementType),
-  }),
+  selectedTargetMemberRowFromClosedSequenceMetadata({ prefixes: ["Array.", "ReadonlyArray."] }),
+  selectedTargetMemberRowFromClosedKeyedCollectionMetadata({ prefixes: ["Map.", "ReadonlyMap.", "Set.", "ReadonlySet."] }),
   selectedTargetMemberRowFromMetadataIndex({ prefixes: ["Object."] }, objectTargetMemberIdentityIndex),
   selectedTargetMemberRowFromMetadataIndex({ prefixes: ["JSON."] }, jsonTargetMemberIdentityIndex),
 ];
 
 export function jsSurfaceSelectedTargetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
-  contextualElementType?: TargetTypeRef,
+  options: Omit<JsSurfaceSelectedTargetMemberLookupRequest, "selectedIdentity"> = {},
 ): readonly TargetMember[] {
   const row = jsSurfaceSelectMetadataRowForSourceIdentity(
     jsSurfaceSelectedTargetMemberRows,
@@ -68,7 +67,7 @@ export function jsSurfaceSelectedTargetMembersForSelectedIdentity(
   );
   return row === undefined
     ? []
-    : selectedTargetMembersFromRow(row, { selectedIdentity, contextualElementType });
+    : selectedTargetMembersFromRow(row, { selectedIdentity, ...options });
 }
 
 function selectedTargetMemberRowFromMetadataIndex(
@@ -84,15 +83,24 @@ function selectedTargetMemberRowFromMetadataIndex(
   };
 }
 
-function selectedTargetMemberRowFromContextualMetadata(
+function selectedTargetMemberRowFromClosedSequenceMetadata(
   identity: JsSurfaceSourceIdentitySelector,
-  resolver: JsSurfaceSelectedTargetMemberProviderResolver,
 ): JsSurfaceSelectedTargetMemberRow {
   return {
     identity,
     targetProviders: [{
-      kind: "contextual-metadata",
-      resolver,
+      kind: "closed-sequence-metadata",
+    }],
+  };
+}
+
+function selectedTargetMemberRowFromClosedKeyedCollectionMetadata(
+  identity: JsSurfaceSourceIdentitySelector,
+): JsSurfaceSelectedTargetMemberRow {
+  return {
+    identity,
+    targetProviders: [{
+      kind: "closed-keyed-collection-metadata",
     }],
   };
 }
@@ -111,7 +119,9 @@ function selectedTargetMembersFromProvider(
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
-    case "contextual-metadata":
-      return provider.resolver.selectTargetMembers(request);
+    case "closed-sequence-metadata":
+      return arrayTargetMembersForSelectedIdentity(request.selectedIdentity, request.contextualElementType);
+    case "closed-keyed-collection-metadata":
+      return collectionTargetMembersForSelectedIdentity(request.selectedIdentity, request.contextualDeclaringType, request.contextualResultType);
   }
 }

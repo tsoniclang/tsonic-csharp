@@ -146,7 +146,7 @@ function targetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   elementType: TargetTypeRef,
 ): readonly TargetMember[] {
-  return jsSurfaceSelectedTargetMembersForSelectedIdentity(selectedIdentity, elementType);
+  return jsSurfaceSelectedTargetMembersForSelectedIdentity(selectedIdentity, { contextualElementType: elementType });
 }
 
 function targetMemberReceiverType(member: TargetMember): TargetTypeRef | undefined {

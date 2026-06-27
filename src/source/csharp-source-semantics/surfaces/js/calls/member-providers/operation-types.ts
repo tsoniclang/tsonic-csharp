@@ -36,8 +36,8 @@ export type JsSurfaceOperationTargetProvider =
     readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
   }
   | {
-    readonly kind: "carrier-member";
-    readonly carrier: JsSurfaceCarrierMemberSelection;
+    readonly kind: "selected-metadata";
+    readonly metadata: JsSurfaceSelectedMetadataSelection;
   }
   | {
     readonly kind: "runtime-helper";
@@ -48,13 +48,13 @@ export type JsSurfaceOperationTargetProvider =
     readonly exception: JsSurfaceSemanticExceptionSelection;
   };
 
-export type JsSurfaceCarrierMemberSelection =
+export type JsSurfaceSelectedMetadataSelection =
   | {
-    readonly kind: "sequence";
+    readonly kind: "closed-sequence";
     readonly requireResultElementType: boolean;
   }
   | {
-    readonly kind: "keyed-collection";
+    readonly kind: "closed-keyed-collection";
     readonly useResultCarrier: boolean;
   };
 

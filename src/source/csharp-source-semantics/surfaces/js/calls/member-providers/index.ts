@@ -8,4 +8,4 @@ export {
 export {
   csharpJsSourceLibraryMemberHasCallableProvider,
   getCsharpJsSourceLibraryCallMembersFromProviders,
-} from "./source-call-mapping.js";
+} from "./operation-selection.js";

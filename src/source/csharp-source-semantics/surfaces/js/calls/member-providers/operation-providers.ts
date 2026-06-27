@@ -5,13 +5,9 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  arrayTargetMembersForSelectedIdentity,
   getCsharpArrayLikeElementType,
   getCsharpJsArrayCarrierElementType,
 } from "../../arrays.js";
-import {
-  collectionTargetMembersForSelectedIdentity,
-} from "../../collections.js";
 import {
   dateTargetMembersForSelectedIdentity,
 } from "../../date/index.js";
@@ -26,6 +22,9 @@ import {
   jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
+  jsSurfaceSelectedTargetMembersForSelectedIdentity,
+} from "../../selected-target-member-metadata.js";
+import {
   getSourceLibraryCallArgumentTargetTypes,
   getSourceLibraryCallReceiverElementType,
   getSourceLibraryCallReceiverTargetTypes,
@@ -38,10 +37,10 @@ import {
 } from "./object-members.js";
 import type {
   JsSurfaceCallTargetProviderRequest,
-  JsSurfaceCarrierMemberSelection,
   JsSurfaceCallCallableProviderRequest,
   JsSurfaceOperationRow,
   JsSurfaceOperationTargetProvider,
+  JsSurfaceSelectedMetadataSelection,
   JsSurfaceRuntimeHelperSelection,
   JsSurfaceSemanticExceptionSelection,
 } from "./operation-types.js";
@@ -69,12 +68,12 @@ export function metadataIndexProvider(
   };
 }
 
-export function carrierMemberProvider(
-  carrier: JsSurfaceCarrierMemberSelection,
+export function selectedMetadataProvider(
+  metadata: JsSurfaceSelectedMetadataSelection,
 ): JsSurfaceOperationTargetProvider {
   return {
-    kind: "carrier-member",
-    carrier,
+    kind: "selected-metadata",
+    metadata,
   };
 }
 
@@ -103,8 +102,8 @@ export function targetMembersFromOperationTargetProvider(
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
-    case "carrier-member":
-      return targetMembersFromCarrierSelection(provider.carrier, request);
+    case "selected-metadata":
+      return targetMembersFromSelectedMetadata(provider.metadata, request);
     case "runtime-helper":
       return targetMembersFromRuntimeHelperSelection(provider.helper, request);
     case "semantic-exception":
@@ -119,8 +118,8 @@ export function operationTargetProviderHasCallableMember(
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable);
-    case "carrier-member":
-      return carrierSelectionHasCallableMember(provider.carrier, request);
+    case "selected-metadata":
+      return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable);
     case "runtime-helper":
       return false;
     case "semantic-exception":
@@ -128,21 +127,25 @@ export function operationTargetProviderHasCallableMember(
   }
 }
 
-function targetMembersFromCarrierSelection(
-  selection: JsSurfaceCarrierMemberSelection,
+function targetMembersFromSelectedMetadata(
+  selection: JsSurfaceSelectedMetadataSelection,
   request: JsSurfaceCallTargetProviderRequest,
 ): readonly TargetMember[] {
   switch (selection.kind) {
-    case "sequence":
-      return arrayMembersFromClosedFacts(request, selection);
-    case "keyed-collection":
-      return collectionTargetMembersForSelectedIdentity(
-        request.selectedIdentity,
-        getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
-        selection.useResultCarrier
+    case "closed-sequence": {
+      const contextualElementType = sequenceElementTypeFromClosedFacts(request, selection);
+      if (selection.requireResultElementType && contextualElementType === undefined) {
+        return [];
+      }
+      return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, { contextualElementType });
+    }
+    case "closed-keyed-collection":
+      return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, {
+        contextualDeclaringType: getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
+        contextualResultType: selection.useResultCarrier
           ? getSourceLibraryCallResultTargetType(request.request, request.context, request.host)
           : undefined,
-      );
+      });
   }
 }
 
@@ -171,18 +174,6 @@ function targetMembersFromSemanticException(
   }
 }
 
-function carrierSelectionHasCallableMember(
-  selection: JsSurfaceCarrierMemberSelection,
-  request: JsSurfaceCallCallableProviderRequest,
-): boolean {
-  switch (selection.kind) {
-    case "sequence":
-      return arrayTargetMembersForSelectedIdentity(request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable);
-    case "keyed-collection":
-      return collectionTargetMembersForSelectedIdentity(request.selectedIdentity, undefined, undefined).some(jsSurfaceTargetMemberIsCallable);
-  }
-}
-
 function semanticExceptionHasCallableMember(
   selection: JsSurfaceSemanticExceptionSelection,
   request: JsSurfaceCallCallableProviderRequest,
@@ -195,18 +186,18 @@ function semanticExceptionHasCallableMember(
   }
 }
 
-function arrayMembersFromClosedFacts(
+function sequenceElementTypeFromClosedFacts(
   providerRequest: JsSurfaceCallTargetProviderRequest,
   options: {
     readonly requireResultElementType: boolean;
   },
-): readonly TargetMember[] {
+): TargetTypeRef | undefined {
   const { request, context, host } = providerRequest;
   const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
   if (options.requireResultElementType && resultElementType === undefined) {
-    return [];
+    return undefined;
   }
-  return arrayTargetMembersForSelectedIdentity(providerRequest.selectedIdentity, resultElementType ?? arrayElementTypeFromClosedFacts(request, context, host));
+  return resultElementType ?? arrayElementTypeFromClosedFacts(request, context, host);
 }
 
 function arrayElementTypeFromClosedFacts(
