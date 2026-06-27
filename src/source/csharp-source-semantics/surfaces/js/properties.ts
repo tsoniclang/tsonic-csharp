@@ -33,12 +33,10 @@ import {
 } from "./calls/member-providers/index.js";
 import {
   csharpJsSourceLibraryPropertyReceiverHasClosedFacts,
+  csharpJsSourceLibraryPropertyPrecheck,
   csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection,
   csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts,
-} from "./properties/receiver-facts.js";
-import {
-  csharpJsSourceLibraryPropertyPrecheck,
-  getCsharpJsSourceLibraryPropertyMember,
+  getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity,
 } from "./properties/member-providers/index.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryPropertyAccess,
@@ -52,6 +50,12 @@ import {
 import {
   createCsharpLifecycleObservationContext,
 } from "../../runtime-carriers.js";
+import type {
+  JsSurfaceSelectedSourceIdentity,
+} from "./target-member-metadata.js";
+import {
+  jsSurfaceSelectedSourceIdentityForMember,
+} from "./target-member-metadata.js";
 
 export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -168,7 +172,8 @@ function mapCsharpSourceLibraryPropertyOperation(
       ),
     }, [{ message: `C# JS surface callable property accepted from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'. Call expressions record the concrete target member; standalone callable values require finalized callable carrier facts before emission.` }]);
   }
-  const precheck = csharpJsSourceLibraryPropertyPrecheck(sourceMember);
+  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
+  const precheck = csharpJsSourceLibraryPropertyPrecheck(selectedIdentity);
   if (precheck === "defer") {
     return undefined;
   }
@@ -179,22 +184,22 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (unsupported !== undefined) {
     return unsupported;
   }
-  const receiverType = getSourceLibraryPropertyReceiverType(request, context, sourceMember, host);
-  if (receiverType === undefined && sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember)) {
+  const receiverType = getSourceLibraryPropertyReceiverType(request, context, selectedIdentity, host);
+  if (receiverType === undefined && sourceLibraryPropertyRequiresSeededReceiverFacts(selectedIdentity)) {
     return undefined;
   }
-  if (!sourceLibraryPropertyReceiverHasClosedFacts(receiverType, sourceMember, host)) {
+  if (!sourceLibraryPropertyReceiverHasClosedFacts(receiverType, selectedIdentity, host)) {
     return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }
-  const member = getSourceLibraryPropertyMember(sourceMember, receiverType);
+  const member = getSourceLibraryPropertyMember(selectedIdentity, receiverType);
   if (member === undefined) {
     return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }
-  if (!sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember) || receiverType?.kind !== "array") {
+  if (!sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity) || receiverType?.kind !== "array") {
     recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
   }
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember)
+    operation: sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity)
       ? targetOperation(member.id, "property", member.sourceName, {
           ...(member.returnType !== undefined ? { resultType: member.returnType } : {}),
         })
@@ -202,29 +207,29 @@ function mapCsharpSourceLibraryPropertyOperation(
   }, [{ message: `C# JS surface target property selected from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
 }
 
-function sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember: SourceLibraryMember): boolean {
-  return csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember);
+function sourceLibraryPropertyRequiresSeededReceiverFacts(selectedIdentity: JsSurfaceSelectedSourceIdentity): boolean {
+  return csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts(selectedIdentity);
 }
 
-function sourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember: SourceLibraryMember): boolean {
-  return csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection(sourceMember);
+function sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity: JsSurfaceSelectedSourceIdentity): boolean {
+  return csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity);
 }
 
 function sourceLibraryPropertyReceiverHasClosedFacts(
   receiverType: ReturnType<typeof getSourceLibraryPropertyReceiverType>,
-  sourceMember: SourceLibraryMember,
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  return csharpJsSourceLibraryPropertyReceiverHasClosedFacts(receiverType, sourceMember, host);
+  return csharpJsSourceLibraryPropertyReceiverHasClosedFacts(receiverType, selectedIdentity, host);
 }
 
 function getSourceLibraryPropertyReceiverType(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-  sourceMember: SourceLibraryMember,
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
   host: CsharpJsSurfaceHost,
 ): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
-  if (sourceLibraryPropertyRequiresSeededReceiverFacts(sourceMember)) {
+  if (sourceLibraryPropertyRequiresSeededReceiverFacts(selectedIdentity)) {
     return host.unwrapNullableTargetType(
       host.getTargetTypeRefForSubject(request.receiver, context, {
         allowRuntimeCarrier: true,
@@ -252,8 +257,8 @@ function getSourceLibraryPropertyReceiverType(
   );
 }
 
-function getSourceLibraryPropertyMember(sourceMember: SourceLibraryMember, receiverType: ReturnType<typeof getSourceLibraryPropertyReceiverType>): TargetMember | undefined {
-  return getCsharpJsSourceLibraryPropertyMember(sourceMember, receiverType);
+function getSourceLibraryPropertyMember(selectedIdentity: JsSurfaceSelectedSourceIdentity, receiverType: ReturnType<typeof getSourceLibraryPropertyReceiverType>): TargetMember | undefined {
+  return getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(selectedIdentity, receiverType);
 }
 
 function sourceLibrarySelectedDeclarationHasCallTarget(sourceMember: SourceLibraryMember): boolean {

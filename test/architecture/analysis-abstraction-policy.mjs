@@ -315,6 +315,13 @@ export const analysisAbstractionRules = Object.freeze([
       "JS surface executable property providers must consume selected source identity and finalized facts; raw source members belong only at the identity-extraction boundary.",
   },
   {
+    id: "js-surface-property-executable-target-provider-callback",
+    filePattern: /(?:^|\/)surfaces\/js\/properties\/member-providers\/[^/]+\.ts$/,
+    pattern: /\b(?:JsSurfacePropertyTargetProviderResolver|readonly\s+resolver\s*:|selectTargetMembers\s*:|\.selectTargetMembers\s*\()/g,
+    replacement:
+      "JS surface property rows must reference declarative provider/runtime metadata or receiver selectors; executable target-provider callbacks are not allowed in row/provider shape.",
+  },
+  {
     id: "js-array-lifecycle-source-member-factory-list",
     filePattern: /(?:^|\/)surfaces\/js\/array-carrier-lifecycle\/[^/]+\.ts$/,
     pattern: /\b(?:SelectedSourceMemberTargetMemberFactory|selectedSourceMemberTargetMemberFactories|arrayTargetMembersForSourceMember|objectTargetMembersForSourceMember|jsonTargetMembersForSourceMember)\b/g,

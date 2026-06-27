@@ -22,21 +22,13 @@ import {
   isCsharpJsObjectCarrierTargetType,
 } from "../objects.js";
 import {
-  jsSurfacePropertyRows,
-} from "../properties/member-providers/target-member-resolvers.js";
-import type {
-  JsSurfacePropertyTargetProvider,
-  JsSurfacePropertyTargetProviderRequest,
-} from "../properties/member-providers/types.js";
+  getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity,
+} from "../properties/member-providers/index.js";
 import {
   jsSurfaceSelectedTargetMembersForSelectedIdentity,
 } from "../selected-target-member-metadata.js";
 import type {
   JsSurfaceSelectedSourceIdentity,
-} from "../target-member-metadata.js";
-import {
-  jsSurfaceSelectMetadataRowForSourceIdentity,
-  jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../target-member-metadata.js";
 import {
   getSelectedSourceIdentityForStructuralUse,
@@ -146,22 +138,8 @@ function propertyTargetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   receiverType: TargetTypeRef,
 ): readonly TargetMember[] {
-  const row = jsSurfaceSelectMetadataRowForSourceIdentity(jsSurfacePropertyRows, selectedIdentity);
-  return row?.targetProviders?.flatMap((provider) =>
-    propertyTargetMembersFromProvider(provider, { selectedIdentity, receiverType })) ?? [];
-}
-
-function propertyTargetMembersFromProvider(
-  provider: JsSurfacePropertyTargetProvider,
-  request: JsSurfacePropertyTargetProviderRequest,
-): readonly TargetMember[] {
-  switch (provider.kind) {
-    case "metadata-index":
-      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
-    case "contextual-metadata":
-    case "semantic-exception":
-      return provider.resolver.selectTargetMembers(request);
-  }
+  const member = getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(selectedIdentity, receiverType);
+  return member === undefined ? [] : [member];
 }
 
 function targetMembersForSelectedIdentity(

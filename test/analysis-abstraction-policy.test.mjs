@@ -420,6 +420,24 @@ test("architecture validator rejects JS surface provider kind literals", () => {
       "js-surface-property-legacy-provider-shape",
     ],
   );
+
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/properties/member-providers/types.ts",
+    `
+      interface JsSurfacePropertyTargetProviderResolver {
+        readonly selectTargetMembers: (request: Request) => readonly TargetMember[];
+      }
+      type Provider = { readonly resolver: JsSurfacePropertyTargetProviderResolver };
+      provider.resolver.selectTargetMembers(request);
+    `,
+    [
+      "js-surface-property-executable-target-provider-callback",
+      "js-surface-property-executable-target-provider-callback",
+      "js-surface-property-executable-target-provider-callback",
+      "js-surface-property-executable-target-provider-callback",
+      "js-surface-property-executable-target-provider-callback",
+    ],
+  );
 });
 
 test("architecture validator rejects array lifecycle source-member target factories", () => {
@@ -520,6 +538,7 @@ test("architecture validator rejects raw source members in executable JS target 
     [
       "js-surface-property-provider-raw-source-member",
       "js-surface-property-provider-raw-source-member",
+      "js-surface-property-executable-target-provider-callback",
     ],
   );
 
@@ -530,7 +549,7 @@ test("architecture validator rejects raw source members in executable JS target 
         export interface Request {
           readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
         }
-        provider.selectTargetMembers(request.selectedIdentity);
+        targetMembersFromProvider(provider, request.selectedIdentity);
       `,
     ),
     [],

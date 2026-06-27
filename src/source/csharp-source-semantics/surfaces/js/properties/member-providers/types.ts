@@ -3,6 +3,9 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
+  CsharpJsSurfaceHost,
+} from "../../source-library.js";
+import type {
   SourceLibraryMemberKey,
 } from "../../source-library.js";
 import type {
@@ -15,6 +18,7 @@ export type CsharpJsSourceLibraryPropertyPrecheck = "continue" | "defer" | "reje
 export interface JsSurfacePropertyRow {
   readonly identity: JsSurfaceSourceIdentitySelector;
   readonly precheck?: JsSurfacePropertyPrecheck;
+  readonly receiverFacts?: JsSurfacePropertyReceiverFacts;
   readonly targetProviders?: readonly JsSurfacePropertyTargetProvider[];
 }
 
@@ -31,23 +35,34 @@ export type JsSurfacePropertyTargetProvider =
     readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
   }
   | {
-    readonly kind: "contextual-metadata";
-    readonly resolver: JsSurfacePropertyTargetProviderResolver;
+    readonly kind: "collection-metadata";
   }
   | {
-    readonly kind: "semantic-exception";
-    readonly resolver: JsSurfacePropertyTargetProviderResolver;
+    readonly kind: "receiver-member";
+    readonly members: readonly JsSurfaceReceiverPropertyMember[];
   };
-
-export interface JsSurfacePropertyTargetProviderResolver {
-  readonly id: string;
-  readonly selectTargetMembers: (request: JsSurfacePropertyTargetProviderRequest) => readonly TargetMember[];
-}
 
 export interface JsSurfacePropertyTargetProviderRequest {
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
   readonly receiverType?: TargetTypeRef;
 }
+
+export interface JsSurfacePropertyReceiverFacts {
+  readonly seedRequired?: boolean;
+  readonly finalCarrierSelection?: boolean;
+  readonly requirement?: JsSurfacePropertyReceiverRequirement;
+}
+
+export type JsSurfacePropertyReceiverRequirement =
+  | { readonly kind: "always" }
+  | { readonly kind: "array-like" }
+  | { readonly kind: "host"; readonly predicate: JsSurfacePropertyHostReceiverPredicate }
+  | { readonly kind: "target-type-id"; readonly id: string }
+  | { readonly kind: "target-feature"; readonly feature: "read-only-indexable" };
+
+export type JsSurfacePropertyHostReceiverPredicate =
+  | keyof Pick<CsharpJsSurfaceHost, "isCsharpStringType">
+  | "isCsharpBooleanTargetType";
 
 export interface JsSurfaceReceiverPropertyMember {
   readonly receiver: JsSurfaceReceiverPropertySelector;
