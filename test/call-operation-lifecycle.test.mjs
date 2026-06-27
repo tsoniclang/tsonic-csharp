@@ -47,6 +47,24 @@ test("selected call lifecycle does not record unresolved generic C# members", ()
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
 
+test("selected call lifecycle does not synthesize first-argument receiver operations", () => {
+  const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
+  const call = { Kind: 1 };
+  sourceFile.Statements.Nodes.push(call);
+  const facts = new TestFactStore();
+  facts.set(call, selectedTargetSignatureFactKey, {
+    member: firstArgumentReceiverMember(),
+  });
+
+  const host = fakeObservationHost(facts);
+  recordCsharpSelectedCallOperationFactsBeforeFinalization({
+    host,
+    compiler: fakeCompiler([sourceFile]),
+  }, fakeTargetTypeHost());
+
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
 test("selected call lifecycle rejects mismatched selected type argument facts", () => {
   const sourceFile = { IsDeclarationFile: false, Statements: { Nodes: [] } };
   const call = { Kind: 1 };
@@ -122,6 +140,31 @@ function csharpStringTargetType() {
     csharpRender: { kind: "predefined", name: "string" },
     csharpSpecialType: "string",
     csharpTypeofRuntimeKind: "string",
+  };
+}
+
+function firstArgumentReceiverMember() {
+  const spanType = {
+    kind: "target-named",
+    id: "Example.Span`1",
+    typeArguments: [{ kind: "source-primitive", name: "int32" }],
+  };
+  return {
+    id: "Example.MemoryExtensions.Clear(Example.Span`1<System.Int32>)",
+    sourceName: "clear",
+    targetName: "Clear",
+    kind: "method",
+    static: true,
+    receiverPassing: "first-argument",
+    declaringType: spanType,
+    parameters: [
+      {
+        name: "span",
+        type: spanType,
+        passingMode: "by-value",
+      },
+    ],
+    returnType: { kind: "source-primitive", name: "void" },
   };
 }
 

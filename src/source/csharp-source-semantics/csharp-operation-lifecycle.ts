@@ -69,6 +69,9 @@ function walkSelectedCallOperationFacts(
   if (selectedSignature === undefined) {
     return;
   }
+  if (selectedSignature.member.receiverPassing === "first-argument") {
+    return;
+  }
   const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, selectedSignature);
   const member = instantiateSelectedTargetMember(selectedSignature, host, { declaringTargetType });
   if (member === undefined || !targetMemberIsClosed(member)) {

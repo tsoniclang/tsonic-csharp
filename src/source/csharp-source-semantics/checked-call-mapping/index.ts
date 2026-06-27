@@ -105,7 +105,8 @@ export function mapCsharpCheckedCall(
   if (existingSelectedSignature !== undefined) {
     if (
       context.facts.get(request.call, csharpTargetOperationFactKey) === undefined &&
-      targetMemberIsClosed(existingSelectedSignature.member)
+      targetMemberIsClosed(existingSelectedSignature.member) &&
+      existingSelectedSignature.member.receiverPassing !== "first-argument"
     ) {
       recordCsharpTargetOperation(
         context,
