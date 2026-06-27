@@ -22,6 +22,8 @@ export {
   nodeBufferEqualsSignatureId,
   nodeBufferExportName,
   nodeBufferFromExportName,
+  nodeBufferFromBufferSignatureId,
+  nodeBufferFromNumberArraySignatureId,
   nodeBufferFromStringMemberId,
   nodeBufferFromStringSignatureId,
   nodeBufferIsEncodingExportName,

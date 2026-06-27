@@ -25,6 +25,7 @@ export const bufferProviderType = { kind: "provider-ref", moduleSpecifier: "node
 
 export const stringTargetType = csharpStringTargetType();
 export const boolTargetType = csharpSourcePrimitiveTargetType("bool");
+export const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 export const urlTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.URL", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "URL"));
 export const nullableUrlTargetType = csharpNullableTargetType(urlTargetType);
 export const bufferTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.Buffer", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "Buffer"));

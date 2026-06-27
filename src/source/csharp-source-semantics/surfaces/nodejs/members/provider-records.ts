@@ -14,6 +14,7 @@ import {
   nodeBufferModuleSpecifier,
 } from "../buffer.js";
 import {
+  nodeCryptoClassCallTargetMembers,
   nodeCryptoCallTargetMembers,
   nodeCryptoModuleSpecifier,
 } from "../crypto.js";
@@ -32,6 +33,8 @@ import {
   nodePathCallTargetMembers,
   nodePathClassPropertyTargetMembers,
   nodePathModuleSpecifier,
+  nodePathPathModuleClassCallTargetMembers,
+  nodePathPathModulePropertyTargetMembers,
   nodePathPropertyTargetMembers,
 } from "../path.js";
 import {
@@ -89,11 +92,14 @@ export function nodejsTargetMemberMetadataRecords(): readonly NodejsTargetMember
     ...moduleCallRecords(nodeAssertModuleSpecifier, nodeAssertCallTargetMembers()),
     ...moduleCallRecords(nodePathModuleSpecifier, nodePathCallTargetMembers()),
     ...modulePropertyRecords(nodePathModuleSpecifier, nodePathPropertyTargetMembers()),
+    ...classCallRecords(nodePathModuleSpecifier, nodePathPathModuleClassCallTargetMembers()),
+    ...classPropertyRecords(nodePathModuleSpecifier, nodePathPathModulePropertyTargetMembers()),
     ...classPropertyRecords(nodePathModuleSpecifier, nodePathClassPropertyTargetMembers()),
     ...moduleCallRecords(nodeFsModuleSpecifier, nodeFsCallTargetMembers()),
     ...classCallRecords(nodeFsModuleSpecifier, nodeFsClassCallTargetMembers()),
     ...classPropertyRecords(nodeFsModuleSpecifier, nodeFsClassPropertyTargetMembers()),
     ...moduleCallRecords(nodeCryptoModuleSpecifier, nodeCryptoCallTargetMembers()),
+    ...classCallRecords(nodeCryptoModuleSpecifier, nodeCryptoClassCallTargetMembers()),
     ...moduleCallRecords(nodeOsModuleSpecifier, nodeOsCallTargetMembers()),
     ...modulePropertyRecords(nodeOsModuleSpecifier, nodeOsPropertyTargetMembers()),
     ...moduleCallRecords(nodeProcessModuleSpecifier, nodeProcessCallTargetMembers()),

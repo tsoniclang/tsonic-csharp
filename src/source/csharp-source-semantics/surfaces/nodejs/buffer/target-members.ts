@@ -20,12 +20,18 @@ import {
   nodeBufferByteLengthMemberId,
   nodeBufferByteLengthExportName,
   nodeBufferByteLengthSignatureId,
+  nodeBufferCompareInstanceExportName,
+  nodeBufferCompareInstanceMemberId,
+  nodeBufferCompareInstanceSignatureId,
   nodeBufferCompareMemberId,
   nodeBufferCompareExportName,
   nodeBufferCompareSignatureId,
   nodeBufferConcatMemberId,
   nodeBufferConcatExportName,
   nodeBufferConcatSignatureId,
+  nodeBufferCopyExportName,
+  nodeBufferCopyMemberId,
+  nodeBufferCopySignatureId,
   nodeBufferEqualsMemberId,
   nodeBufferEqualsExportName,
   nodeBufferEqualsSignatureId,
@@ -34,6 +40,8 @@ import {
   nodeBufferAllocUnsafeExportName,
   nodeBufferAllocUnsafeSlowExportName,
   nodeBufferFromStringMemberId,
+  nodeBufferFromBufferSignatureId,
+  nodeBufferFromNumberArraySignatureId,
   nodeBufferFromStringSignatureId,
   nodeBufferFromExportName,
   nodeBufferIsAsciiExportName,
@@ -56,13 +64,19 @@ import {
   nodeBufferToStringExportName,
   nodeBufferToStringMemberId,
   nodeBufferToStringSignatureId,
+  nodeBufferWriteExportName,
+  nodeBufferWriteMemberId,
+  nodeBufferWriteSignatureId,
 } from "./identities.js";
 import {
+  getNodeBufferCompareInstanceTargetMember,
+  getNodeBufferCopyTargetMember,
   getNodeBufferEqualsTargetMember,
   getNodeBufferLengthTargetMember,
   getNodeBufferSliceTargetMember,
   getNodeBufferSubarrayTargetMember,
   getNodeBufferToStringTargetMember,
+  getNodeBufferWriteTargetMember,
 } from "./instance-members.js";
 import {
   getNodeBufferAllocTargetMember,
@@ -73,6 +87,8 @@ import {
   getNodeBufferByteLengthTargetMember,
   getNodeBufferCompareTargetMember,
   getNodeBufferConcatTargetMember,
+  getNodeBufferFromBufferTargetMember,
+  getNodeBufferFromNumberArrayTargetMember,
   getNodeBufferFromStringTargetMember,
   getNodeBufferIsAsciiTargetMember,
   getNodeBufferIsEncodingTargetMember,
@@ -96,6 +112,8 @@ export function nodeBufferModuleCallTargetMembers(): readonly NodejsModuleCallTa
 export function nodeBufferClassCallTargetMembers(): readonly NodejsClassCallTargetMember[] {
   return [
     nodeBufferClassCallTargetMember(nodeBufferFromExportName, nodeBufferFromStringMemberId, nodeBufferFromStringSignatureId, getNodeBufferFromStringTargetMember()),
+    nodeBufferClassCallTargetMember(nodeBufferFromExportName, nodeBufferFromStringMemberId, nodeBufferFromNumberArraySignatureId, getNodeBufferFromNumberArrayTargetMember()),
+    nodeBufferClassCallTargetMember(nodeBufferFromExportName, nodeBufferFromStringMemberId, nodeBufferFromBufferSignatureId, getNodeBufferFromBufferTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferAllocExportName, nodeBufferAllocMemberId, nodeBufferAllocSignatureId, getNodeBufferAllocTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferAllocUnsafeExportName, nodeBufferAllocUnsafeMemberId, nodeBufferAllocUnsafeSignatureId, getNodeBufferAllocUnsafeTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferAllocUnsafeSlowExportName, nodeBufferAllocUnsafeSlowMemberId, nodeBufferAllocUnsafeSlowSignatureId, getNodeBufferAllocUnsafeSlowTargetMember()),
@@ -105,9 +123,12 @@ export function nodeBufferClassCallTargetMembers(): readonly NodejsClassCallTarg
     nodeBufferClassCallTargetMember(nodeBufferIsEncodingExportName, nodeBufferIsEncodingMemberId, nodeBufferIsEncodingSignatureId, getNodeBufferIsEncodingTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferOfExportName, nodeBufferOfMemberId, nodeBufferOfSignatureId, getNodeBufferOfTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferEqualsExportName, nodeBufferEqualsMemberId, nodeBufferEqualsSignatureId, getNodeBufferEqualsTargetMember()),
+    nodeBufferClassCallTargetMember(nodeBufferCompareInstanceExportName, nodeBufferCompareInstanceMemberId, nodeBufferCompareInstanceSignatureId, getNodeBufferCompareInstanceTargetMember()),
+    nodeBufferClassCallTargetMember(nodeBufferCopyExportName, nodeBufferCopyMemberId, nodeBufferCopySignatureId, getNodeBufferCopyTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferSliceExportName, nodeBufferSliceMemberId, nodeBufferSliceSignatureId, getNodeBufferSliceTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferSubarrayExportName, nodeBufferSubarrayMemberId, nodeBufferSubarraySignatureId, getNodeBufferSubarrayTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferToStringExportName, nodeBufferToStringMemberId, nodeBufferToStringSignatureId, getNodeBufferToStringTargetMember()),
+    nodeBufferClassCallTargetMember(nodeBufferWriteExportName, nodeBufferWriteMemberId, nodeBufferWriteSignatureId, getNodeBufferWriteTargetMember()),
   ];
 }
 

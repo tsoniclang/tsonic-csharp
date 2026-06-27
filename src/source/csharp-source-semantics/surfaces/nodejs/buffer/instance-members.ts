@@ -5,6 +5,10 @@ import {
   targetParameter,
 } from "../../js/source-library.js";
 import {
+  nodeBufferCompareInstanceExportName,
+  nodeBufferCompareInstanceTargetMemberId,
+  nodeBufferCopyExportName,
+  nodeBufferCopyTargetMemberId,
   nodeBufferEqualsExportName,
   nodeBufferEqualsTargetMemberId,
   nodeBufferLengthTargetMemberId,
@@ -15,6 +19,8 @@ import {
   nodeBufferTargetType,
   nodeBufferToStringExportName,
   nodeBufferToStringTargetMemberId,
+  nodeBufferWriteExportName,
+  nodeBufferWriteTargetMemberId,
 } from "./identities.js";
 import {
   nodeBufferBoolTargetType,
@@ -48,6 +54,35 @@ export function getNodeBufferEqualsTargetMember(): TargetMember {
   };
 }
 
+export function getNodeBufferCompareInstanceTargetMember(): TargetMember {
+  return {
+    id: nodeBufferCompareInstanceTargetMemberId,
+    sourceName: nodeBufferCompareInstanceExportName,
+    targetName: "compare",
+    kind: "method",
+    parameters: [targetParameter("target", nodeBufferTargetType)],
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
+export function getNodeBufferCopyTargetMember(): TargetMember {
+  return {
+    id: nodeBufferCopyTargetMemberId,
+    sourceName: nodeBufferCopyExportName,
+    targetName: "copy",
+    kind: "method",
+    parameters: [
+      targetParameter("target", nodeBufferTargetType),
+      targetParameter("targetStart", nodeBufferIntTargetType, { optional: true }),
+      targetParameter("sourceStart", nodeBufferNullableIntTargetType(), { optional: true }),
+      targetParameter("sourceEnd", nodeBufferNullableIntTargetType(), { optional: true }),
+    ],
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
 export function getNodeBufferSliceTargetMember(): TargetMember {
   return nodeBufferRangeTargetMember({
     targetMemberId: nodeBufferSliceTargetMemberId,
@@ -76,6 +111,23 @@ export function getNodeBufferToStringTargetMember(): TargetMember {
       targetParameter("end", nodeBufferToStringEndTargetType(), { optional: true }),
     ],
     returnType: nodeBufferStringTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
+export function getNodeBufferWriteTargetMember(): TargetMember {
+  return {
+    id: nodeBufferWriteTargetMemberId,
+    sourceName: nodeBufferWriteExportName,
+    targetName: "write",
+    kind: "method",
+    parameters: [
+      targetParameter("str", nodeBufferStringTargetType),
+      targetParameter("offset", nodeBufferIntTargetType, { optional: true }),
+      targetParameter("length", nodeBufferNullableIntTargetType(), { optional: true }),
+      targetParameter("encoding", nodeBufferStringTargetType, { optional: true }),
+    ],
+    returnType: nodeBufferIntTargetType,
     declaringType: nodeBufferTargetType,
   };
 }

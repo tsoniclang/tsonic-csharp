@@ -21,6 +21,8 @@ import {
   nodeBufferConcatMemberId,
   nodeBufferConcatSignatureId,
   nodeBufferFromExportName,
+  nodeBufferFromBufferSignatureId,
+  nodeBufferFromNumberArraySignatureId,
   nodeBufferFromStringMemberId,
   nodeBufferFromStringSignatureId,
   nodeBufferIsEncodingExportName,
@@ -51,6 +53,18 @@ export function nodeBufferStaticMemberDeclarations(): ProviderClassMembers {
         parameters: [
           { name: "value", type: nodeBufferStringProviderType },
           { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+        ],
+        returnType: nodeBufferProviderType,
+      }, {
+        id: nodeBufferFromNumberArraySignatureId,
+        parameters: [
+          { name: "array", type: { kind: "array", elementType: nodeBufferNumberProviderType } },
+        ],
+        returnType: nodeBufferProviderType,
+      }, {
+        id: nodeBufferFromBufferSignatureId,
+        parameters: [
+          { name: "buffer", type: nodeBufferProviderType },
         ],
         returnType: nodeBufferProviderType,
       }],

@@ -2,6 +2,12 @@ import type {
   ProviderExportDeclaration,
 } from "@tsonic/tsts";
 import {
+  nodeBufferCompareInstanceExportName,
+  nodeBufferCompareInstanceMemberId,
+  nodeBufferCompareInstanceSignatureId,
+  nodeBufferCopyExportName,
+  nodeBufferCopyMemberId,
+  nodeBufferCopySignatureId,
   nodeBufferEqualsExportName,
   nodeBufferEqualsMemberId,
   nodeBufferEqualsSignatureId,
@@ -15,6 +21,9 @@ import {
   nodeBufferToStringExportName,
   nodeBufferToStringMemberId,
   nodeBufferToStringSignatureId,
+  nodeBufferWriteExportName,
+  nodeBufferWriteMemberId,
+  nodeBufferWriteSignatureId,
 } from "../identities.js";
 import {
   nodeBufferBoolProviderType,
@@ -33,6 +42,31 @@ export function nodeBufferInstanceMemberDeclarations(): ProviderClassMembers {
       kind: "property",
       readonly: true,
       type: nodeBufferNumberProviderType,
+    },
+    {
+      id: nodeBufferCompareInstanceMemberId,
+      name: nodeBufferCompareInstanceExportName,
+      kind: "method",
+      signatures: [{
+        id: nodeBufferCompareInstanceSignatureId,
+        parameters: [{ name: "target", type: nodeBufferProviderType }],
+        returnType: nodeBufferNumberProviderType,
+      }],
+    },
+    {
+      id: nodeBufferCopyMemberId,
+      name: nodeBufferCopyExportName,
+      kind: "method",
+      signatures: [{
+        id: nodeBufferCopySignatureId,
+        parameters: [
+          { name: "target", type: nodeBufferProviderType },
+          { name: "targetStart", type: nodeBufferNumberProviderType, optional: true },
+          { name: "sourceStart", type: nodeBufferNumberProviderType, optional: true },
+          { name: "sourceEnd", type: nodeBufferNumberProviderType, optional: true },
+        ],
+        returnType: nodeBufferNumberProviderType,
+      }],
     },
     {
       id: nodeBufferEqualsMemberId,
@@ -82,6 +116,21 @@ export function nodeBufferInstanceMemberDeclarations(): ProviderClassMembers {
           { name: "end", type: nodeBufferNumberProviderType, optional: true },
         ],
         returnType: nodeBufferStringProviderType,
+      }],
+    },
+    {
+      id: nodeBufferWriteMemberId,
+      name: nodeBufferWriteExportName,
+      kind: "method",
+      signatures: [{
+        id: nodeBufferWriteSignatureId,
+        parameters: [
+          { name: "str", type: nodeBufferStringProviderType },
+          { name: "offset", type: nodeBufferNumberProviderType, optional: true },
+          { name: "length", type: nodeBufferNumberProviderType, optional: true },
+          { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+        ],
+        returnType: nodeBufferNumberProviderType,
       }],
     },
   ];

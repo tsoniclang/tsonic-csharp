@@ -13,8 +13,10 @@ export {
   nodeUrlPathToFileUrlSignatureId,
   nodeUrlUrlCanParseMemberId,
   nodeUrlUrlCanParseSignatureId,
+  nodeUrlUrlCanParseUrlSignatureId,
   nodeUrlUrlConstructorMemberId,
   nodeUrlUrlConstructorSignatureId,
+  nodeUrlUrlConstructorUrlSignatureId,
   nodeUrlUrlExportName,
   nodeUrlUrlHrefMemberId,
 } from "./url/identities.js";
