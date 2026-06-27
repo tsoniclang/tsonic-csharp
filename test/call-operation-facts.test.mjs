@@ -11,6 +11,9 @@ import {
 import {
   KindIdentifier,
 } from "../dist/backend/planner/source-ast.js";
+import {
+  targetMemberAsSourceSelectedSignature,
+} from "../dist/source/csharp-source-semantics/selected-target-source-signature.js";
 
 test("call emission requires finalized C# target member operation facts", () => {
   const call = { Kind: 1 };
@@ -141,6 +144,48 @@ test("call emission rejects operation facts that change target parameter passing
   assert.equal(operation, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /parameter-passing/);
+});
+
+test("call emission rejects operation facts that hide mismatched first-argument receiver types", () => {
+  const call = { Kind: 1 };
+  const selectedTargetMember = extensionMember();
+  const sourceSelectedMember = targetMemberAsSourceSelectedSignature({
+    ...selectedTargetMember,
+    declaringType: selectedTargetMember.parameters[0].type,
+  });
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selectedTargetMember.id,
+        operationKind: "method",
+        memberName: "Overlaps",
+        static: true,
+        resultType: { kind: "source-primitive", name: "bool" },
+        selectedMember: {
+          ...selectedTargetMember,
+          declaringType: selectedTargetMember.parameters[0].type,
+          parameters: [
+            {
+              ...selectedTargetMember.parameters[0],
+              type: { kind: "target-named", id: "Example.OtherSpan`1", typeArguments: [{ kind: "source-primitive", name: "int32" }] },
+            },
+            ...selectedTargetMember.parameters.slice(1),
+          ],
+        },
+      },
+    }),
+    call,
+    { member: sourceSelectedMember },
+    diagnostics,
+    "C# call emission",
+  );
+
+  assert.equal(operation, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /mismatched selected member/);
 });
 
 test("call emission rejects operation facts with mismatched target operation kind", () => {
@@ -419,6 +464,9 @@ function fakeInput(options = {}) {
 
 function fakeArgumentInput(options = {}) {
   return {
+    ast: {
+      kindName: (node) => String(node?.Kind),
+    },
     facts: {
       getArgumentPassingFact: (subject) =>
         subject === options.argumentPassingSubject ? options.argumentPassing : undefined,

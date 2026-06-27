@@ -34,6 +34,9 @@ export function targetMembersHaveCompatibleSourceSelectedSignature(expected: Tar
   ) {
     return false;
   }
+  if (!firstArgumentReceiverMatchesDeclaringType(expected, actual)) {
+    return false;
+  }
   for (let index = 0; index < expected.parameters.length; index += 1) {
     const expectedParameter = expected.parameters[index];
     const actualParameter = actualAsSource.parameters[index];
@@ -50,6 +53,17 @@ export function targetMembersHaveCompatibleSourceSelectedSignature(expected: Tar
     }
   }
   return true;
+}
+
+function firstArgumentReceiverMatchesDeclaringType(expected: TargetMember, actual: TargetMember): boolean {
+  if (actual.receiverPassing !== "first-argument") {
+    return true;
+  }
+  const actualReceiverParameter = actual.parameters[0];
+  if (actualReceiverParameter === undefined || expected.declaringType === undefined) {
+    return false;
+  }
+  return targetTypeRefEquals(actualReceiverParameter.type, expected.declaringType);
 }
 
 function optionalTargetTypeEquals(
