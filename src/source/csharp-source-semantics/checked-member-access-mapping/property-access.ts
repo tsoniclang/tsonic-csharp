@@ -110,17 +110,16 @@ export function mapCsharpCheckedPropertyAccess(
       rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName);
   }
   const selected = selectCheckedPropertyTargetMember(binding, request, context);
+  const unsupportedSelectedMember = findUnsupportedProviderTargetMember(binding, selected.selectedDeclaration);
+  if (unsupportedSelectedMember !== undefined && unsupportedSelectedMember.memberKind !== "event") {
+    return rejectTargetPropertyUnsupported(extensionId, unsupportedSelectedMember, binding.id);
+  }
   const member = selected.member;
   if (member === undefined) {
-    const unsupportedMember = findUnsupportedProviderTargetMember(binding, selected.selectedDeclaration);
-    if (unsupportedMember !== undefined) {
-      return rejectTargetPropertyUnsupported(extensionId, unsupportedMember, binding.id);
-    }
     return rejectTargetPropertyNotFound(extensionId, request.propertyName, binding.id);
   }
   if (member.kind === "event") {
-    const unsupportedMember = findUnsupportedProviderTargetMember(binding, selected.selectedDeclaration);
-    return rejectTargetEventUnsupported(extensionId, member, binding.id, unsupportedMember);
+    return rejectTargetEventUnsupported(extensionId, member, binding.id, unsupportedSelectedMember);
   }
   if (member.kind === "method" && propertyAccessIsCallCallee(request.expression, context)) {
     return acceptObservation<CheckedOperationMappingResult>({

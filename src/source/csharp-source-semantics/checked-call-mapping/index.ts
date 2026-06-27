@@ -20,7 +20,6 @@ import {
   csharpTargetId,
 } from "../identity.js";
 import {
-  csharpTargetArrayCreationOperation,
   csharpTargetOperationFromMember,
   recordCsharpTargetOperation,
 } from "../operations.js";
@@ -72,7 +71,6 @@ import {
   targetMemberMissEvidence,
 } from "./target-call-selection.js";
 import {
-  getNativeArrayCreateElementType,
   mapDotnetNativeArrayCreateCall,
 } from "./native-array-create.js";
 
@@ -190,30 +188,23 @@ export function mapCsharpCheckedCall(
   if (member.static === true && request.calleeReceiver !== undefined && !providerStaticContainerReceiver && member.receiverPassing !== "first-argument") {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_EXTENSION_RECEIVER_NOT_PROVEN", 9100115, `C# provider selected static target member '${member.id}' for receiver call '${request.calleePropertyName ?? "<anonymous>"}', but target metadata did not prove first-argument receiver passing.`));
   }
+  if (isDotnetNativeArrayCreateMemberId(member.id)) {
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_NATIVE_ARRAY_CREATE_SELECTED_DECLARATION_NOT_PROVEN",
+      9100155,
+      "C# native array creation requires the exact selected provider declaration to be mapped by the native array creation path before generic call mapping.",
+    ));
+  }
   const declaringTargetType = member.kind === "constructor" ? constructorDeclaringTargetType ?? member.declaringType : host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
     host.getTargetTypeRefForSubject(request.calleeReceiver, context) ??
     host.getTargetTypeRefForSubject(request.call, context);
   if (member.kind === "constructor" && declaringTargetType === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_CONSTRUCTOR_RESULT_TYPE_NOT_PROVEN", 9100135, `C# provider selected constructor '${member.id}', but no provider target type fact proved the constructed target type.`));
   }
-  const nativeArrayElementType = isDotnetNativeArrayCreateMemberId(member.id)
-    ? getNativeArrayCreateElementType(request, context, host)
-    : undefined;
-  if (isDotnetNativeArrayCreateMemberId(member.id) && nativeArrayElementType === undefined) {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_CREATE_ELEMENT_TYPE_NOT_PROVEN", 9100134, "C# native array creation requires an explicit or contextual TSTS-proven element target type."));
-  }
-  const selectedSignature = nativeArrayElementType === undefined
-    ? { member }
-    : { member, targetTypeArguments: [nativeArrayElementType] };
-  const csharpMember = instantiateSelectedTargetMember(selectedSignature, host, { declaringTargetType });
+  const csharpMember = instantiateSelectedTargetMember({ member }, host, { declaringTargetType });
   if (csharpMember === undefined || !targetMemberIsClosed(csharpMember)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_RENDERABLE", 9100104, `C# provider selected '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`));
-  }
-  if (nativeArrayElementType !== undefined) {
-    recordCsharpTargetOperation(context, request.call, csharpTargetArrayCreationOperation(csharpMember.id, nativeArrayElementType, csharpMember), [{ message: "C# native array creation operation finalized from checked TSTS provider declaration and explicit target array facts." }]);
-    return acceptObservation<CheckedCallMappingResult>({
-      selectedSignature: { member: csharpMember, targetTypeArguments: [nativeArrayElementType] },
-    }, [{ message: "C# native array creation selected from checked TSTS provider declaration." }]);
   }
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target call operation finalized from checked TSTS selection and provider target identity." }]);
   return acceptObservation<CheckedCallMappingResult>({

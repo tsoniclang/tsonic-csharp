@@ -48,7 +48,7 @@ export function mapDotnetNativeArrayCreateCall(
   if (targetBinding === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_CREATE_TARGET_FACT_NOT_PROVEN", 9100135, "C# native array creation requires finalized provider target binding facts for the explicit .NET Array source contract."));
   }
-  const member = targetBinding.members?.find((candidate) => isDotnetNativeArrayCreateMemberId(candidate.id));
+  const member = targetBinding.members?.find((candidate) => candidate.id === selectedMemberId);
   if (member === undefined) {
     return rejectObservation(csharpProviderDiagnostic(
       extensionId,

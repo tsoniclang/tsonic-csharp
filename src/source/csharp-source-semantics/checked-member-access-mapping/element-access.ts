@@ -75,12 +75,12 @@ export function mapCsharpCheckedElementAccess(
   }
   const declaringTargetType = getDeclaringTargetType(request, context, host);
   const selected = selectCheckedElementTargetMember(binding, request, context, host, declaringTargetType);
+  const unsupportedSelectedMember = findUnsupportedProviderTargetMember(binding, selected.selectedDeclaration);
+  if (unsupportedSelectedMember !== undefined) {
+    return rejectTargetIndexerUnsupported(extensionId, unsupportedSelectedMember, binding.id);
+  }
   const member = selected.member;
   if (member === undefined) {
-    const unsupportedMember = findUnsupportedProviderTargetMember(binding, selected.selectedDeclaration);
-    if (unsupportedMember !== undefined) {
-      return rejectTargetIndexerUnsupported(extensionId, unsupportedMember, binding.id);
-    }
     return rejectTargetIndexerNotFound(extensionId, binding.id);
   }
   if (member.kind !== "indexer") {
