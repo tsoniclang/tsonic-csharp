@@ -4,11 +4,11 @@ import type {
   TargetMember,
 } from "@tsonic/tsts";
 import {
-  booleanTargetMembersForSelectedIdentity,
+  booleanTargetMemberIdentityIndex,
 } from "../../booleans.js";
 import {
   isCsharpNumberTargetType,
-  numberTargetMembersForSelectedIdentity,
+  numberTargetMemberIdentityIndex,
 } from "../../numbers.js";
 import {
   type ObjectRecordDictionaryOperation,
@@ -19,9 +19,11 @@ import type {
 } from "../../source-library.js";
 import {
   type JsSurfaceSourceIdentitySelector,
+  type JsSurfaceSelectedSourceIdentity,
+  jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import {
-  stringTargetMembersForSelectedIdentity,
+  stringTargetMemberIdentityIndex,
 } from "../../strings.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
@@ -31,9 +33,18 @@ import {
   getSourceLibraryCallReceiverTargetTypes,
   isStringKeyedRecordDictionaryTargetType,
 } from "../helpers.js";
-const stringToStringIdentity = { key: "String.toString" } as const;
-const booleanToStringIdentity = { key: "Boolean.toString" } as const;
-const numberToStringIdentity = { key: "Number.toString" } as const;
+type ObjectPrimitiveReceiverKind = "string" | "boolean" | "number";
+
+const objectPrimitiveReceiverToStringRows = [
+  { receiver: "string", selectedIdentity: { key: "String.toString" }, membersBySourceIdentity: stringTargetMemberIdentityIndex },
+  { receiver: "boolean", selectedIdentity: { key: "Boolean.toString" }, membersBySourceIdentity: booleanTargetMemberIdentityIndex },
+  { receiver: "number", selectedIdentity: { key: "Number.toString" }, membersBySourceIdentity: numberTargetMemberIdentityIndex },
+] as const satisfies readonly {
+  readonly receiver: ObjectPrimitiveReceiverKind;
+  readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
+  readonly membersBySourceIdentity: ReadonlyMap<JsSurfaceSelectedSourceIdentity["key"], readonly TargetMember[]>;
+}[];
+
 export const objectRecordDictionaryCallRows = [
   { identity: { ids: ["Object.keys"] }, operation: "keys" },
   { identity: { ids: ["Object.values"] }, operation: "values" },
@@ -49,11 +60,11 @@ export function getObjectPrimitiveReceiverCallMembers(
   host: CsharpJsSurfaceHost,
 ): readonly TargetMember[] {
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
-  return receiverTypes.some((receiverType) => host.isCsharpStringType(receiverType))
-      ? stringTargetMembersForSelectedIdentity(stringToStringIdentity)
-    : receiverTypes.some((receiverType) => receiverType?.kind === "source-primitive" && receiverType.name === "bool")
-      ? booleanTargetMembersForSelectedIdentity(booleanToStringIdentity)
-      : numberOrNoObjectPrimitiveReceiverMembers(receiverTypes);
+  const row = objectPrimitiveReceiverToStringRows.find((candidate) =>
+    receiverTypes.some((receiverType) => objectPrimitiveReceiverMatches(candidate.receiver, receiverType, host)));
+  return row === undefined
+    ? []
+    : jsSurfaceTargetMembersForSelectedSourceIdentity(row.membersBySourceIdentity, row.selectedIdentity);
 }
 
 export function getObjectRecordDictionaryCallMembers(
@@ -70,10 +81,17 @@ export function getObjectRecordDictionaryCallMembers(
     : objectRecordDictionaryTargetMembersForOperation(operation, dictionaryType);
 }
 
-function numberOrNoObjectPrimitiveReceiverMembers(
-  receiverTypes: ReturnType<typeof getSourceLibraryCallReceiverTargetTypes>,
-): readonly TargetMember[] {
-  return receiverTypes.some((receiverType) => isCsharpNumberTargetType(receiverType))
-    ? numberTargetMembersForSelectedIdentity(numberToStringIdentity)
-    : [];
+function objectPrimitiveReceiverMatches(
+  receiver: ObjectPrimitiveReceiverKind,
+  receiverType: ReturnType<typeof getSourceLibraryCallReceiverTargetTypes>[number],
+  host: CsharpJsSurfaceHost,
+): boolean {
+  switch (receiver) {
+    case "string":
+      return host.isCsharpStringType(receiverType);
+    case "boolean":
+      return receiverType?.kind === "source-primitive" && receiverType.name === "bool";
+    case "number":
+      return isCsharpNumberTargetType(receiverType);
+  }
 }
