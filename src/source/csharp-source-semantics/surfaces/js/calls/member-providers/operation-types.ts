@@ -102,6 +102,9 @@ export type JsSurfaceSemanticExceptionSelection =
     readonly kind: "date-call-construct";
   }
   | {
+    readonly kind: "boolean-call-construct";
+  }
+  | {
     readonly kind: "object-primitive-receiver-to-string";
   };
 

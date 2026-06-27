@@ -12,6 +12,7 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
+  jsSurfaceTargetMemberFromMetadata,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMemberMetadataIdentityIndex,
 } from "./target-member-metadata.js";
@@ -22,7 +23,13 @@ import type {
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringType = csharpStringTargetType();
 const booleanOpsType = csharpTargetNamedType("Tsonic.CSharp.Js.BooleanOps", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "BooleanOps"));
+const globalsType = csharpTargetNamedType("Tsonic.CSharp.Js.Globals", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Globals"));
+const objectType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const booleanReceiverParameter = targetParameter("value", boolType);
+const booleanConversionParameter = targetParameter("value", objectType, {
+  optional: true,
+  csharpAcceptsClosedSourceArgument: true,
+});
 const booleanMetadataEvidence = {
   capabilityId: "surface.js.boolean-methods",
   requiredFacts: [
@@ -60,6 +67,33 @@ const booleanTargetMemberMetadata = [
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const booleanTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Boolean", booleanTargetMemberMetadata);
 
+const booleanConstructorMetadataEvidence = {
+  capabilityId: "surface.js.boolean-methods",
+  requiredFacts: [
+    "selected BooleanConstructor call signature identity",
+    "call-vs-construct expression shape",
+    "closed target facts for provided conversion argument",
+    "Tsonic.CSharp.Js.Globals.Boolean runtime metadata row",
+  ],
+  semanticEquivalence: "Selected Boolean(value) source call preserves ECMAScript Boolean conversion semantics through Tsonic.CSharp.Js.Globals.Boolean; new Boolean(value) is intentionally not selected without a closed wrapper-object carrier.",
+} as const;
+
+const booleanConstructorCallTargetMemberMetadata = [
+  {
+    id: "Tsonic.CSharp.Js.Globals.Boolean(System.Object)",
+    sourceName: "constructor",
+    targetName: "Boolean",
+    kind: "method",
+    parameters: [booleanConversionParameter],
+    returnType: boolType,
+    declaringType: globalsType,
+    static: true,
+    ...booleanConstructorMetadataEvidence,
+  },
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+
+const booleanConstructorCallTargetMembers = booleanConstructorCallTargetMemberMetadata.map(jsSurfaceTargetMemberFromMetadata);
+
 export function isCsharpBooleanTargetType(type: unknown): boolean {
   return (type as { readonly kind?: unknown; readonly name?: unknown } | undefined)?.kind === "source-primitive" &&
     (type as { readonly name?: unknown }).name === "bool";
@@ -69,4 +103,13 @@ export function booleanTargetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
 ): readonly TargetMember[] {
   return jsSurfaceTargetMembersForSelectedSourceIdentity(booleanTargetMemberIdentityIndex, selectedIdentity);
+}
+
+export function booleanConstructorTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  mode: "call" | "new",
+): readonly TargetMember[] {
+  return mode === "call" && selectedIdentity.key === "Boolean.constructor"
+    ? booleanConstructorCallTargetMembers
+    : [];
 }

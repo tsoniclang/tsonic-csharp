@@ -398,6 +398,71 @@ test("JS surface maps Boolean.valueOf from selected declaration and closed bool 
   assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
 });
 
+test("JS surface maps Boolean call conversion from selected declaration and closed argument facts", () => {
+  const call = { Kind: "KindCallExpression" };
+  const argument = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [argument, boolType()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("BooleanConstructor", ""), {
+    arguments: [argument],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Globals.Boolean(System.Object)");
+  assert.equal(result.value.selectedSignature.member.targetName, "Boolean");
+  assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
+  assert.equal(facts.get(call, csharpTargetOperationFactKey)?.operationKind, "method");
+});
+
+test("JS surface maps zero-argument Boolean call conversion from selected declaration", () => {
+  const call = { Kind: "KindCallExpression" };
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("BooleanConstructor", "")), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Globals.Boolean(System.Object)");
+  assert.equal(result.value.selectedSignature.member.parameters[0].optional, true);
+});
+
+test("JS surface rejects Boolean call conversion without closed argument facts", () => {
+  const call = { Kind: "KindCallExpression" };
+  const argument = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("BooleanConstructor", ""), {
+    arguments: [argument],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.match(result.diagnostic.message, /Boolean\.constructor/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface rejects new Boolean until an explicit wrapper carrier exists", () => {
+  const construct = { Kind: "KindNewExpression" };
+  const argument = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [argument, boolType()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(construct, sourceLibraryMemberDeclaration("BooleanConstructor", ""), {
+    arguments: [argument],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Boolean\.constructor/);
+  assert.equal(facts.get(construct, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps Object.toString to BooleanOps for closed bool primitive receivers", () => {
   const call = {};
   const receiver = {};

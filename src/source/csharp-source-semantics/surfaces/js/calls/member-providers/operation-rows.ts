@@ -84,6 +84,9 @@ const numberStaticCallIdentityPolicy = {
     "Number.isSafeInteger",
   ],
 } as const satisfies JsSurfaceSourceIdentitySelector;
+const booleanConstructorIdentityPolicy = {
+  ids: ["Boolean.constructor"],
+} as const satisfies JsSurfaceSourceIdentitySelector;
 const regexpConstructorIdentityPolicy = {
   ids: ["RegExp.constructor"],
 } as const satisfies JsSurfaceSourceIdentitySelector;
@@ -121,6 +124,20 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   {
     ...operationRowFromMetadataIndex({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex, { capabilityId: "surface.js.number-methods", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "receiver", target: "number" },
+  },
+  {
+    identity: booleanConstructorIdentityPolicy,
+    policyKind: "semantic-exception",
+    semanticException: {
+      reason: "Boolean(value) converts to a primitive boolean while new Boolean(value) requires an explicit wrapper-object carrier that the selected C# JS surface does not expose yet.",
+      requiredFacts: [
+        "selected BooleanConstructor source declaration/signature identity",
+        "call expression construct-vs-call shape",
+        "closed conversion argument target facts",
+      ],
+      capabilityId: "surface.js.boolean-methods",
+    },
+    targetProviders: [semanticExceptionProvider({ kind: "boolean-call-construct" })],
   },
   {
     ...operationRowFromMetadataIndex({ prefixes: ["Boolean."] }, booleanTargetMemberIdentityIndex, { capabilityId: "surface.js.boolean-methods", requiredFacts: selectedSignatureProviderFacts }),

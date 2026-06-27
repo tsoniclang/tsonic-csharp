@@ -5,6 +5,9 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  booleanConstructorTargetMembersForSelectedIdentity,
+} from "../../booleans.js";
+import {
   getCsharpArrayLikeElementType,
   getCsharpJsArrayCarrierElementType,
 } from "../../arrays.js";
@@ -194,6 +197,11 @@ function targetMembersFromSemanticException(
         request.selectedIdentity,
         isNewExpression(request.request.call, request.context) ? "new" : "call",
       );
+    case "boolean-call-construct":
+      return booleanConstructorTargetMembersForSelectedIdentity(
+        request.selectedIdentity,
+        isNewExpression(request.request.call, request.context) ? "new" : "call",
+      );
     case "object-primitive-receiver-to-string":
       return getObjectPrimitiveReceiverCallMembers(request.request, request.context, request.host);
   }
@@ -206,6 +214,8 @@ function semanticExceptionHasCallableMember(
   switch (selection.kind) {
     case "date-call-construct":
       return dateTargetMembersForSelectedIdentity(request.selectedIdentity, "call").some(jsSurfaceTargetMemberIsCallable);
+    case "boolean-call-construct":
+      return booleanConstructorTargetMembersForSelectedIdentity(request.selectedIdentity, "call").some(jsSurfaceTargetMemberIsCallable);
     case "object-primitive-receiver-to-string":
       return false;
   }
