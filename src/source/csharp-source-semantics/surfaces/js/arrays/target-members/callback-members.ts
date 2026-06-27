@@ -23,7 +23,7 @@ export function arrayCallbackHelpers(
   memberReturnType: TargetTypeRef,
   arrayType: TargetTypeRef,
   declaringType: TargetTypeRef,
-  options: { readonly compareCallback?: boolean; readonly mutable?: boolean; readonly typeParameters?: readonly TargetTypeParameter[]; readonly idBase?: string } = {},
+  options: { readonly idBase: string; readonly compareCallback?: boolean; readonly mutable?: boolean; readonly typeParameters?: readonly TargetTypeParameter[] },
 ): readonly JsSurfaceTargetMemberMetadata[] {
   const intType = csharpSourcePrimitiveTargetType("int32");
   const callbackShapes: readonly TargetTypeRef[] = options.compareCallback === true
@@ -39,9 +39,8 @@ export function arrayCallbackHelpers(
         csharpDelegateTargetType("System.Func", [itemType, intType], callbackReturnType),
         csharpDelegateTargetType("System.Func", [itemType, intType, arrayType], callbackReturnType),
       ];
-  const idBase = options.idBase ?? sourceName;
   return callbackShapes.map((callback, index) => arrayHelperMethod(sourceName, targetName, [
     targetParameter("array", arrayType),
     targetParameter("callback", callback),
-  ], memberReturnType, declaringType, { idSuffix: `${idBase}:${index + 1}`, typeParameters: options.typeParameters }));
+  ], memberReturnType, declaringType, { idSuffix: `${options.idBase}:${index + 1}`, typeParameters: options.typeParameters }));
 }

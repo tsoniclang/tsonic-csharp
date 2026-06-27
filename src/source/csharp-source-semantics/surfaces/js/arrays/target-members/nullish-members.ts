@@ -19,6 +19,7 @@ import {
 
 export function arrayNullishElementHelpers(
   sourceName: string,
+  idBase: string,
   valueTargetName: string,
   referenceTargetName: string,
   parameters: readonly TargetParameter[],
@@ -28,11 +29,12 @@ export function arrayNullishElementHelpers(
   const selection = getNullishElementHelperSelection(itemType, valueTargetName, referenceTargetName);
   return selection === undefined
     ? []
-    : [arrayHelperMethod(sourceName, selection.targetName, parameters, csharpNullableTargetType(itemType), declaringType, { idSuffix: `${sourceName}:${selection.kind}` })];
+    : [arrayHelperMethod(sourceName, selection.targetName, parameters, csharpNullableTargetType(itemType), declaringType, { idSuffix: `${idBase}:${selection.kind}` })];
 }
 
 export function arrayNullishElementCallbackHelpers(
   sourceName: string,
+  idBase: string,
   valueTargetName: string,
   referenceTargetName: string,
   delegateKind: "System.Func",
@@ -44,23 +46,24 @@ export function arrayNullishElementCallbackHelpers(
   const selection = getNullishElementHelperSelection(itemType, valueTargetName, referenceTargetName);
   return selection === undefined
     ? []
-    : arrayCallbackHelpers(sourceName, selection.targetName, delegateKind, itemType, callbackReturnType, csharpNullableTargetType(itemType), arrayType, declaringType, { idBase: `${sourceName}:${selection.kind}` });
+    : arrayCallbackHelpers(sourceName, selection.targetName, delegateKind, itemType, callbackReturnType, csharpNullableTargetType(itemType), arrayType, declaringType, { idBase: `${idBase}:${selection.kind}` });
 }
 
 export function arrayAtHelpers(
   sourceName: string,
+  idBase: string,
   arrayType: TargetTypeRef,
   itemType: TargetTypeRef,
   intType: TargetTypeRef,
   declaringType: TargetTypeRef,
 ): readonly JsSurfaceTargetMemberMetadata[] {
   if (isCsharpValueTypeTargetType(itemType)) {
-    return [arrayHelperMethod(sourceName, "atValue", [targetParameter("array", arrayType), targetParameter("index", intType)], csharpNullableTargetType(itemType), declaringType, { idSuffix: `${sourceName}:value` })];
+    return [arrayHelperMethod(sourceName, "atValue", [targetParameter("array", arrayType), targetParameter("index", intType)], csharpNullableTargetType(itemType), declaringType, { idSuffix: `${idBase}:value` })];
   }
   if (itemType.kind === "type-parameter") {
     return [];
   }
-  return [arrayHelperMethod(sourceName, "atReference", [targetParameter("array", arrayType), targetParameter("index", intType)], csharpNullableTargetType(itemType), declaringType, { idSuffix: `${sourceName}:reference` })];
+  return [arrayHelperMethod(sourceName, "atReference", [targetParameter("array", arrayType), targetParameter("index", intType)], csharpNullableTargetType(itemType), declaringType, { idSuffix: `${idBase}:reference` })];
 }
 
 function getNullishElementHelperSelection(

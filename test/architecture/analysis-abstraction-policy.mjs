@@ -320,6 +320,13 @@ export const analysisAbstractionRules = Object.freeze([
       "Target member names and ids must be declared by provider/runtime metadata rows, not synthesized from source member names or identities.",
   },
   {
+    id: "js-array-target-id-source-name-default",
+    filePattern: /(?:^|\/)surfaces\/js\/arrays\/target-members\/[^/]+\.ts$/,
+    pattern: /\b(?:idSuffix\s*=\s*sourceName|options\.(?:idSuffix|idBase)\s*\?\?\s*sourceName|idSuffix\s*:\s*`\$\{\s*sourceName\s*\}|idBase\s*:\s*`\$\{\s*sourceName\s*\})/g,
+    replacement:
+      "Array provider/runtime target operation ids must be explicit metadata fields; builders must not default ids from source member names.",
+  },
+  {
     id: "provider-row-target-member-from-created-source-member",
     filePattern: /(?:^|\/)surfaces\/js\/(?:calls|properties)\/member-providers\/[^/]+\.ts$/,
     pattern: /\b[A-Za-z0-9]+(?:Property)?TargetMembers?ForSourceMember\s*\(\s*createSourceLibraryMember\s*\(/g,

@@ -249,6 +249,37 @@ test("architecture validator rejects target-member synthesis from source names",
   );
 });
 
+test("architecture validator rejects array target ids defaulted from source names", () => {
+  assertFindings(
+    "src/source/csharp-source-semantics/surfaces/js/arrays/target-members/builders.ts",
+    `
+      export function arrayStaticMethod(sourceName, idSuffix = sourceName) {}
+      return { id: \`Tsonic.CSharp.Js.Array.\${options.idSuffix ?? sourceName}\` };
+      return { id: \`Tsonic.CSharp.Js.Array.\${options.idBase ?? sourceName}:1\` };
+      arrayHelperMethod(sourceName, targetName, [], result, owner, { idSuffix: \`\${sourceName}:value\` });
+      arrayCallbackHelpers(sourceName, targetName, kind, item, result, member, array, owner, { idBase: \`\${sourceName}:value\` });
+    `,
+    [
+      "js-array-target-id-source-name-default",
+      "js-array-target-id-source-name-default",
+      "js-array-target-id-source-name-default",
+      "js-array-target-id-source-name-default",
+      "js-array-target-id-source-name-default",
+    ],
+  );
+
+  assert.deepEqual(
+    findingIds(
+      "src/source/csharp-source-semantics/surfaces/js/arrays/target-members/metadata.ts",
+      `
+        arrayHelperMethod("push", "push", [], result, owner, { idSuffix: "push" });
+        arrayCallbackHelpers("map", "map", kind, item, result, member, array, owner, { idBase: "map" });
+      `,
+    ),
+    [],
+  );
+});
+
 test("architecture validator rejects source-member provider hooks", () => {
   assertFindings(
     "src/source/csharp-source-semantics/surfaces/js/calls/member-providers/source-call-mapping.ts",

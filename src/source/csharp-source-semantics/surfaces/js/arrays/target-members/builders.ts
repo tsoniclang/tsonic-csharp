@@ -13,7 +13,7 @@ export function arrayStaticMethod(
   parameters: readonly TargetParameter[],
   returnType: TargetTypeRef,
   declaringType: TargetTypeRef,
-  idSuffix = sourceName,
+  idSuffix: string,
 ): JsSurfaceTargetMemberMetadata {
   const owner = declaringType.kind === "target-named" ? declaringType.id.replace(/`.*$/, "") : "Tsonic.CSharp.Js.Array";
   return {
@@ -50,10 +50,10 @@ export function arrayHelperMethod(
   parameters: readonly TargetParameter[],
   returnType: TargetTypeRef,
   declaringType: TargetTypeRef,
-  options: { readonly idSuffix?: string; readonly typeParameters?: readonly TargetTypeParameter[] } = {},
+  options: { readonly idSuffix: string; readonly typeParameters?: readonly TargetTypeParameter[] },
 ): JsSurfaceTargetMemberMetadata {
   return {
-    id: `Tsonic.CSharp.Js.Array.${options.idSuffix ?? sourceName}`,
+    id: `Tsonic.CSharp.Js.Array.${options.idSuffix}`,
     sourceName,
     targetName,
     kind: "method",
