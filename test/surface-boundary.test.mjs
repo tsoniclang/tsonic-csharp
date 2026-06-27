@@ -416,6 +416,57 @@ test("JS surface maps Object.toString to BooleanOps for closed bool primitive re
   assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
 });
 
+test("JS surface maps Object.toString to String.toString for closed string primitive receivers", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, stringType()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Object", "toString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "System.String.ToString");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
+});
+
+test("JS surface maps Object.toString to Number.toString for closed number primitive receivers", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, float64Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Object", "toString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toString");
+  assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
+});
+
+test("JS surface rejects Object.toString without closed primitive receiver facts", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Object", "toString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Object\.toString/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface rejects Boolean methods without closed bool receiver facts", () => {
   const call = {};
   const receiver = {};
