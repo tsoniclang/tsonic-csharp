@@ -43,7 +43,7 @@ export function recordCsharpRuntimeCarrierFact(
   const syntaxCarrier = getRuntimeCarrierFromTypeSyntax(lifecycleContext, node, host);
   if (syntaxCarrier !== undefined) {
     lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, { carrier: syntaxCarrier }, [
-      { message: "C# runtime carrier recorded from source type syntax before semantic type fallback." },
+      { message: "C# runtime carrier recorded from source type syntax before semantic type carrier resolution." },
     ]);
     return;
   }
