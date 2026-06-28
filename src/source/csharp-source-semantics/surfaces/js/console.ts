@@ -10,6 +10,7 @@ import type {
 } from "./target-member-metadata.js";
 import {
   jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentity,
 } from "./target-member-metadata.js";
 
 const consoleTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.console", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "console"));
@@ -106,4 +107,6 @@ const consoleTargetMemberMetadata = [
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.profileEnd", sourceName: "profileEnd", targetName: "profileEnd", parameters: [optionalStringParameter("label")] }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 
-export const consoleTargetMembersBySourceIdentity = jsSurfaceTargetMemberMetadataIdentityIndex("Console", consoleTargetMemberMetadata);
+export const consoleTargetMembersBySourceIdentity = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("Console", consoleTargetMemberMetadata),
+);

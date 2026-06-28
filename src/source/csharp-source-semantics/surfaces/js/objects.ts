@@ -19,6 +19,7 @@ import type {
 import {
   jsSurfaceTargetMemberFromMetadata,
   jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentity,
 } from "./target-member-metadata.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
@@ -208,7 +209,9 @@ const objectTargetMemberMetadata = [
     returnType: csharpSourcePrimitiveTargetType("bool"),
   }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const objectTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Object", objectTargetMemberMetadata);
+export const objectTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("Object", objectTargetMemberMetadata),
+);
 
 const objectRecordDictionaryOperationRows = {
   keys: {

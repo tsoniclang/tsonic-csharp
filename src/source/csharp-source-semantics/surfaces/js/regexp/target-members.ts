@@ -14,6 +14,7 @@ import type {
 } from "../target-member-metadata.js";
 import {
   jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentity,
 } from "../target-member-metadata.js";
 import {
   csharpJsRegExpTargetType,
@@ -90,7 +91,9 @@ const regExpTargetMemberMetadata = [
     semanticEquivalence: "Selected Tsonic.CSharp.Js.RegExp.toString runtime member preserves ECMAScript RegExp source/flags stringification for closed RegExp carriers.",
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const regExpTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpTargetMemberMetadata);
+export const regExpTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("RegExp", regExpTargetMemberMetadata),
+);
 
 const regExpPropertyTargetMemberMetadata = [
   ...[
@@ -109,7 +112,9 @@ const regExpPropertyTargetMemberMetadata = [
   ].map(regExpPropertyMetadata),
   regExpPropertyMetadata({ id: "Tsonic.CSharp.Js.RegExp.lastIndex", sourceName: "lastIndex", targetName: "lastIndex", returnType: csharpSourcePrimitiveTargetType("int32") }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const regExpPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpPropertyTargetMemberMetadata);
+export const regExpPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("RegExp", regExpPropertyTargetMemberMetadata),
+);
 
 function regExpPropertyMetadata(row: RegExpPropertyMetadataRow): JsSurfaceTargetMemberMetadata {
   return {

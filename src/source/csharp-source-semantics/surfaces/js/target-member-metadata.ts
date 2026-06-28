@@ -18,6 +18,7 @@ import {
 
 export interface JsSurfaceTargetMemberMetadata {
   readonly id: string;
+  readonly identity?: JsSurfaceSourceIdentitySelector | readonly JsSurfaceSourceIdentitySelector[];
   readonly sourceName: string;
   readonly targetName: string;
   readonly kind: "constructor" | "method" | "property";
@@ -31,6 +32,9 @@ export interface JsSurfaceTargetMemberMetadata {
   readonly requiredFacts?: readonly string[];
   readonly semanticEquivalence?: string;
 }
+
+export type JsSurfaceTargetMemberMetadataWithIdentity =
+  JsSurfaceTargetMemberMetadata & { readonly identity: JsSurfaceSourceIdentitySelector | readonly JsSurfaceSourceIdentitySelector[] };
 
 export interface JsSurfaceSelectedSourceIdentity {
   readonly key: SourceLibraryMemberKey;
@@ -79,20 +83,11 @@ export function jsSurfaceSelectMetadataRowForSourceIdentity<T>(
 }
 
 export function jsSurfaceTargetMemberMetadataIdentityIndex(
-  declaringName: SourceLibraryDeclaringKey,
-  metadata: readonly JsSurfaceTargetMemberMetadata[],
-): ReadonlyMap<SourceLibraryMemberKey, readonly CsharpTargetMember[]> {
-  return jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames([declaringName], metadata);
-}
-
-export function jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(
-  declaringNames: readonly SourceLibraryDeclaringKey[],
-  metadata: readonly JsSurfaceTargetMemberMetadata[],
+  metadata: readonly JsSurfaceTargetMemberMetadataWithIdentity[],
 ): ReadonlyMap<SourceLibraryMemberKey, readonly CsharpTargetMember[]> {
   const index = new Map<SourceLibraryMemberKey, CsharpTargetMember[]>();
   for (const record of metadata) {
-    for (const declaringName of declaringNames) {
-      const identity = jsSurfaceSourceMemberKey(declaringName, record.sourceName);
+    for (const identity of exactSourceIdentityKeys(record.identity)) {
       const existing = index.get(identity);
       const member = targetMemberFromMetadata(record);
       if (existing === undefined) {
@@ -103,6 +98,26 @@ export function jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(
     }
   }
   return index;
+}
+
+export function jsSurfaceTargetMemberMetadataWithSourceIdentity(
+  declaringName: SourceLibraryDeclaringKey,
+  metadata: readonly JsSurfaceTargetMemberMetadata[],
+): readonly JsSurfaceTargetMemberMetadataWithIdentity[] {
+  return metadata.map((record) => ({
+    ...record,
+    identity: jsSurfaceSourceMemberIdentity(declaringName, record.sourceName),
+  }));
+}
+
+export function jsSurfaceTargetMemberMetadataWithSourceIdentities(
+  declaringNames: readonly SourceLibraryDeclaringKey[],
+  metadata: readonly JsSurfaceTargetMemberMetadata[],
+): readonly JsSurfaceTargetMemberMetadataWithIdentity[] {
+  return metadata.map((record) => ({
+    ...record,
+    identity: declaringNames.map((declaringName) => jsSurfaceSourceMemberIdentity(declaringName, record.sourceName)),
+  }));
 }
 
 export function jsSurfaceTargetMembersForSelectedSourceIdentity(
@@ -154,9 +169,30 @@ function sourceIdentityIdsAreArray(
   return Array.isArray(ids);
 }
 
-function jsSurfaceSourceMemberKey(
+function exactSourceIdentityKeys(
+  selectors: JsSurfaceSourceIdentitySelector | readonly JsSurfaceSourceIdentitySelector[],
+): readonly SourceLibraryMemberKey[] {
+  const keys: SourceLibraryMemberKey[] = [];
+  const selectorList = sourceIdentitySelectorsAreArray(selectors) ? selectors : [selectors];
+  for (const selector of selectorList) {
+    if (selector.prefixes !== undefined) {
+      throw new Error("JS surface target member metadata identity index requires exact source identity ids, not prefixes");
+    }
+    if (selector.ids === undefined) {
+      throw new Error("JS surface target member metadata identity index requires source identity ids");
+    }
+    if (sourceIdentityIdsAreArray(selector.ids)) {
+      keys.push(...selector.ids);
+    } else {
+      keys.push(...selector.ids);
+    }
+  }
+  return keys;
+}
+
+function jsSurfaceSourceMemberIdentity(
   declaringName: SourceLibraryDeclaringKey,
   sourceName: string,
-): SourceLibraryMemberKey {
-  return `${declaringName}.${sourceName}`;
+): JsSurfaceSourceIdentitySelector {
+  return { ids: [`${declaringName}.${sourceName}`] };
 }

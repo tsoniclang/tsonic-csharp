@@ -35,6 +35,7 @@ import {
   jsSurfaceSelectedSourceIdentityForMember,
   jsSurfaceSourceIdentityMatchesSelector,
   jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentity,
 } from "./target-member-metadata.js";
 import {
   csharpJsObjectCarrierTargetType,
@@ -250,7 +251,9 @@ const jsonTargetMemberMetadata = [
     },
   }),
 ] satisfies readonly JsonTargetMemberMetadata[];
-export const jsonTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("JSON", jsonTargetMemberMetadata);
+export const jsonTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("JSON", jsonTargetMemberMetadata),
+);
 
 function isCheckedJsonParseCall(
   call: Node,

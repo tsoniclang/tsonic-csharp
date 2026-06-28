@@ -3,6 +3,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentity,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import type {
@@ -18,7 +19,9 @@ import {
   dateTargetMemberMetadata,
 } from "./methods.js";
 
-const dateTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Date", dateTargetMemberMetadata);
+const dateTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("Date", dateTargetMemberMetadata),
+);
 
 export function dateTargetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
