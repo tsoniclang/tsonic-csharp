@@ -47,7 +47,7 @@ export function mapRuntimeCarrier(
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
-  if (subjectIsSourceCoreStructDeclarationPayload(request.sourceTypeReference, context)) {
+  if (subjectIsSourceCoreStructDeclarationPayload(request.type, context)) {
     return deferObservation;
   }
   const existingCarrier = getExistingRuntimeCarrier(request, context);
@@ -68,11 +68,8 @@ export function mapRuntimeCarrier(
       carrier: csharpAnyRuntimeCarrier(),
     }, [{ message: "C# opaque any runtime carrier recorded from explicit TypeScript any boundary; dynamic behavior requires separate finalized target facts." }]);
   }
-  const primitive = (request.sourceTypeReference === undefined ? undefined : context.factResolver.resolve(request.sourceTypeReference, sourcePrimitiveFactKey)) ??
-    (request.sourceTypeSymbol === undefined ? undefined : context.factResolver.resolve(request.sourceTypeSymbol, sourcePrimitiveFactKey));
-  const syntaxCarrier = request.sourceTypeReference === undefined
-    ? undefined
-    : host.getTargetTypeRefForSubject(request.sourceTypeReference, context, { allowRuntimeCarrier: false, allowSemanticTypeQuery: false });
+  const primitive = context.factResolver.resolve(request.type, sourcePrimitiveFactKey);
+  const syntaxCarrier = host.getTargetTypeRefForSubject(request.type, context, { allowRuntimeCarrier: false, allowSemanticTypeQuery: false });
   const typeSyntaxCarrier = syntaxCarrier ??
     getTypeSyntaxCarrierFromFinalizedTypeFacts(request, context, host);
   if (typeSyntaxCarrier !== undefined) {
@@ -100,8 +97,7 @@ export function mapRuntimeCarrier(
     if (isCallableTypeWithoutCarrierEvidence(request, context)) {
       return deferObservation;
     }
-    const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(request.sourceTypeReference, context) ??
-      host.getRecordedCsharpObjectShapeFactForSubject(request.type, context);
+    const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(request.type, context);
     if (objectShape !== undefined) {
       recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, objectShape);
       return acceptObservation<RuntimeCarrierFactResult>({

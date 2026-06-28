@@ -1,6 +1,6 @@
 import type {
-  TargetMember,
-} from "@tsonic/tsts";
+  CsharpTargetMember,
+} from "../../target-types.js";
 import {
   nodejsExportDeclarationIdentity,
   nodejsExportSignatureDeclarationIdentity,
@@ -16,7 +16,7 @@ interface NodejsExportSignatureMetadataRow extends NodejsExportMetadataRow {
 }
 
 interface NodejsTargetMemberMetadataRow {
-  readonly member: TargetMember;
+  readonly member: CsharpTargetMember;
 }
 
 export function nodejsProviderExportDeclarationMetadataIndex<TRow extends NodejsExportMetadataRow>(
@@ -40,14 +40,14 @@ export function nodejsProviderExportSignatureDeclarationMetadataIndex<TRow exten
 export function nodejsProviderExportDeclarationTargetMemberIndex<TRow extends NodejsExportMetadataRow & NodejsTargetMemberMetadataRow>(
   moduleSpecifier: string,
   rows: readonly TRow[],
-): ReadonlyMap<string, TargetMember> {
+): ReadonlyMap<string, CsharpTargetMember> {
   return targetMemberIndex(nodejsProviderExportDeclarationMetadataIndex(moduleSpecifier, rows));
 }
 
 export function nodejsProviderExportSignatureDeclarationTargetMemberIndex<TRow extends NodejsExportSignatureMetadataRow & NodejsTargetMemberMetadataRow>(
   moduleSpecifier: string,
   rows: readonly TRow[],
-): ReadonlyMap<string, TargetMember> {
+): ReadonlyMap<string, CsharpTargetMember> {
   return targetMemberIndex(nodejsProviderExportSignatureDeclarationMetadataIndex(moduleSpecifier, rows));
 }
 
@@ -75,25 +75,25 @@ export function getNodejsProviderExportSignatureDeclarationMetadata<TRow>(
 }
 
 export function getNodejsProviderExportDeclarationTargetMember(
-  index: ReadonlyMap<string, TargetMember>,
+  index: ReadonlyMap<string, CsharpTargetMember>,
   moduleSpecifier: string,
   exportName: string | undefined,
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   return getNodejsProviderExportDeclarationMetadata(index, moduleSpecifier, exportName);
 }
 
 export function getNodejsProviderExportSignatureDeclarationTargetMember(
-  index: ReadonlyMap<string, TargetMember>,
+  index: ReadonlyMap<string, CsharpTargetMember>,
   moduleSpecifier: string,
   exportName: string | undefined,
   signatureId: string | undefined,
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   return getNodejsProviderExportSignatureDeclarationMetadata(index, moduleSpecifier, exportName, signatureId);
 }
 
 function targetMemberIndex<TRow extends NodejsTargetMemberMetadataRow>(
   metadataIndex: ReadonlyMap<string, TRow>,
-): ReadonlyMap<string, TargetMember> {
+): ReadonlyMap<string, CsharpTargetMember> {
   return new Map([...metadataIndex.entries()].map(([key, row]) => [key, row.member] as const));
 }
 

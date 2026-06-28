@@ -68,15 +68,15 @@ function mergeTargetBindingFacts(
   }
   const existingDotnet = existing as DotnetTargetBindingFact;
   const candidateDotnet = candidate as DotnetTargetBindingFact;
-  const members = mergeByKey(existing.members, candidate.members, (member) => member.id);
-  const attributes = mergeByKey(existing.attributes, candidate.attributes, (attribute) => attribute.id);
+  const members = mergeByKey(existingDotnet.members, candidateDotnet.members, (member) => member.id);
+  const attributes = mergeByKey(existingDotnet.attributes, candidateDotnet.attributes, (attribute) => attribute.id);
   const unsupportedAttributes = mergeByKey(
-    existing.unsupportedAttributes,
-    candidate.unsupportedAttributes,
+    existingDotnet.unsupportedAttributes,
+    candidateDotnet.unsupportedAttributes,
     (attribute) => attribute.id,
   );
-  const typeParameters = mergeByKey(existing.typeParameters, candidate.typeParameters, (parameter) => parameter.name);
-  const implementedContracts = mergeByStableShape(existing.implementedContracts, candidate.implementedContracts);
+  const typeParameters = mergeByKey(existingDotnet.typeParameters, candidateDotnet.typeParameters, (parameter) => parameter.name);
+  const implementedContracts = mergeByStableShape(existingDotnet.implementedContracts, candidateDotnet.implementedContracts);
   const unsupportedImplementedContracts = mergeByKey(
     existingDotnet.unsupportedImplementedContracts,
     candidateDotnet.unsupportedImplementedContracts,
@@ -88,8 +88,8 @@ function mergeTargetBindingFacts(
     (member) => member.targetId,
   );
   const conversionOperators = mergeByKey(
-    existing.conversionOperators,
-    candidate.conversionOperators,
+    existingDotnet.conversionOperators,
+    candidateDotnet.conversionOperators,
     (operator) => operator.id,
   );
   return {

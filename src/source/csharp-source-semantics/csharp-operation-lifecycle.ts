@@ -5,7 +5,6 @@ import {
 import type {
   ExtensionObservationContext,
   Node,
-  SelectedTargetSignatureFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -19,6 +18,9 @@ import {
 import {
   csharpTargetOperationFromMember,
 } from "./operations.js";
+import {
+  csharpTargetMemberFact,
+} from "./target-types.js";
 import {
   instantiateSelectedTargetMember,
 } from "./selected-target-member-instantiation.js";
@@ -69,11 +71,12 @@ function walkSelectedCallOperationFacts(
   if (selectedSignature === undefined) {
     return;
   }
-  if (selectedSignature.member.receiverPassing === "first-argument") {
+  const selectedMember = csharpTargetMemberFact(selectedSignature.member);
+  if (selectedMember === undefined || selectedMember.receiverPassing === "first-argument") {
     return;
   }
-  const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, selectedSignature);
-  const member = instantiateSelectedTargetMember(selectedSignature, host, { declaringTargetType });
+  const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, selectedMember);
+  const member = instantiateSelectedTargetMember({ member: selectedMember }, host, { declaringTargetType });
   if (member === undefined || !targetMemberIsClosed(member)) {
     return;
   }
@@ -88,9 +91,11 @@ function walkSelectedCallOperationFacts(
 function getSelectedCallDeclaringTargetType(
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   node: Node,
-  selectedSignature: SelectedTargetSignatureFact,
+  member: ReturnType<typeof csharpTargetMemberFact>,
 ): TargetTypeRef | undefined {
-  const member = selectedSignature.member;
+  if (member === undefined) {
+    return undefined;
+  }
   if (member.kind === "constructor" || member.static === true) {
     return member.declaringType;
   }

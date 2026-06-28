@@ -1,9 +1,11 @@
 import type {
-  TargetConversionOperatorFact,
-  TargetMember,
-  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetConversionOperatorFact,
+  CsharpTargetMember,
+  CsharpTargetParameter,
+} from "../../../source/csharp-source-semantics/target-types.js";
 import type {
   DotnetConversionOperatorDeclaration,
   DotnetMemberDeclaration,
@@ -22,9 +24,9 @@ import {
   dotnetTypeRefToTargetTypeRef,
 } from "./type-ref.js";
 
-export type DotnetTargetParameter = TargetParameter;
+export type DotnetTargetParameter = CsharpTargetParameter;
 
-export type DotnetTargetMember = TargetMember & {
+export type DotnetTargetMember = CsharpTargetMember & {
   readonly typeParameters?: readonly DotnetTargetTypeParameter[];
 };
 
@@ -64,7 +66,7 @@ export function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, dec
 export function dotnetConversionOperatorToTargetConversionOperator(
   declaration: DotnetConversionOperatorDeclaration,
   declaringType: TargetTypeRef,
-): TargetConversionOperatorFact {
+): CsharpTargetConversionOperatorFact {
   return {
     id: declaration.id,
     conversionKind: declaration.conversionKind,

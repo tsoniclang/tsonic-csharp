@@ -38,7 +38,7 @@ export function deriveCsharpObjectShapeMembersForSemanticType(
   if (compiler === undefined) {
     return undefined;
   }
-  const properties = compiler.types.getProperties(type, { sourceFile })
+  const properties = compiler.typeShape.getProperties(type, { sourceFile })
     .filter((property): property is Symbol => property !== undefined);
   if (properties.length === 0) {
     return undefined;
@@ -61,8 +61,8 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   if (sourceName.length === 0 || context.compiler === undefined) {
     return undefined;
   }
-  const propertyType = context.compiler.types.getPropertyType(ownerType, sourceName, { sourceFile });
-  const signatures = context.compiler.types.getCallSignatures(propertyType, { sourceFile });
+  const propertyType = context.compiler.typeShape.getPropertyType(ownerType, sourceName, { sourceFile });
+  const signatures = context.compiler.typeShape.getCallSignatures(propertyType, { sourceFile });
   const memberKind = callableMemberMode === "callable-property-as-method" &&
     signatures.length > 0 &&
     isMethodLikeObjectShapeProperty(property, context)
@@ -153,7 +153,7 @@ function getFunctionTargetTypeRefFromSemanticSignature(
   if (parameterTypes.some((parameter) => parameter === undefined)) {
     return undefined;
   }
-  const returnType = host.getTargetTypeRefForType(compiler.types.getReturnTypeOfSignature(signature as Parameters<typeof compiler.types.getReturnTypeOfSignature>[0], { sourceFile }), context);
+  const returnType = host.getTargetTypeRefForType(compiler.typeShape.getReturnTypeOfSignature(signature as Parameters<typeof compiler.typeShape.getReturnTypeOfSignature>[0], { sourceFile }), context);
   return returnType === undefined || isVoidTargetType(returnType)
     ? csharpDelegateTargetType("System.Action", parameterTypes as readonly TargetTypeRef[])
     : csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);

@@ -61,7 +61,7 @@ export function resolveTargetTypeRefForTypeCore(
   if (type === undefined) {
     return undefined;
   }
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined) {
     return resolveNonPrimitiveRuntimeCarrier(type, context, options, host, resolveTargetTypeArgumentsForType);
   }
@@ -146,7 +146,7 @@ function getHomogeneousPrimitiveUnionTargetTypeRef(
   type: Type,
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined || !types.isUnion(type)) {
     return undefined;
   }

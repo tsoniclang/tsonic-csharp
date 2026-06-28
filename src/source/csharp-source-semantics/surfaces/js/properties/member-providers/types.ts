@@ -20,6 +20,7 @@ export interface JsSurfacePropertyRow {
   readonly precheck?: JsSurfacePropertyPrecheck;
   readonly receiverFacts?: JsSurfacePropertyReceiverFacts;
   readonly targetProviders?: readonly JsSurfacePropertyTargetProvider[];
+  readonly deferredResultType?: TargetTypeRef;
   readonly capabilityId?: string;
   readonly requiredFacts?: readonly string[];
 }

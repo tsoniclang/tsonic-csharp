@@ -1,8 +1,10 @@
 import type {
-  TargetMember,
-  TargetParameter,
   TargetTypeParameter,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+  CsharpTargetParameter,
+} from "../../csharp-source-semantics/target-types.js";
 import {
   targetConstraintArrayEquals,
 } from "./constraints.js";
@@ -10,7 +12,7 @@ import {
   targetTypeRefEquals,
 } from "./target-type-ref.js";
 
-export function targetMemberEquals(left: TargetMember | undefined, right: TargetMember | undefined): boolean {
+export function targetMemberEquals(left: CsharpTargetMember | undefined, right: CsharpTargetMember | undefined): boolean {
   if (left === right) {
     return true;
   }
@@ -30,7 +32,7 @@ export function targetMemberEquals(left: TargetMember | undefined, right: Target
     && targetTypeParameterArrayEquals(left.typeParameters, right.typeParameters);
 }
 
-function targetParameterArrayEquals(left: readonly TargetParameter[] | undefined, right: readonly TargetParameter[] | undefined): boolean {
+function targetParameterArrayEquals(left: readonly CsharpTargetParameter[] | undefined, right: readonly CsharpTargetParameter[] | undefined): boolean {
   if (left === right) {
     return true;
   }
@@ -49,7 +51,7 @@ function targetParameterArrayEquals(left: readonly TargetParameter[] | undefined
   });
 }
 
-function targetOwnedParameterMetadataEquals(left: TargetParameter, right: TargetParameter): boolean {
+function targetOwnedParameterMetadataEquals(left: CsharpTargetParameter, right: CsharpTargetParameter): boolean {
   return simpleMetadataEquals(
     (left as { readonly defaultValue?: unknown }).defaultValue,
     (right as { readonly defaultValue?: unknown }).defaultValue,

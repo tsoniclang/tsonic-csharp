@@ -1,7 +1,9 @@
 import type {
   ProviderSymbolIdentity,
-  TargetMember,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import {
   nodeAssertCallTargetMembers,
   nodeAssertModuleSpecifier,
@@ -76,7 +78,7 @@ import type {
 export interface NodejsTargetMemberMetadataRecord {
   readonly declarationIdentities: readonly NodejsProviderDeclarationIdentity[];
   readonly symbolIdentities: readonly ProviderSymbolIdentity[];
-  readonly member: TargetMember;
+  readonly member: CsharpTargetMember;
 }
 
 export interface NodejsUnsupportedTargetMetadataRecord {

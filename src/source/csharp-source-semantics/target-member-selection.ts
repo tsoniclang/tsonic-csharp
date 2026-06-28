@@ -4,8 +4,15 @@ import type {
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
-  TargetMember,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetBindingFact,
+  CsharpTargetMember,
+} from "./target-types.js";
+import {
+  csharpTargetBindingFact,
+  csharpTargetMemberFacts,
+} from "./target-types.js";
 import {
   selectExactTargetMember,
   selectTargetMember,
@@ -17,6 +24,9 @@ import type {
 import type {
   TargetTypeRefResolver,
 } from "./target-type-ref-resolution.js";
+import {
+  getCsharpCheckedCallRequestContext,
+} from "./checked-call-request-context.js";
 import {
   targetTypeRefEquals,
 } from "./target-ref-utils.js";
@@ -42,16 +52,18 @@ export function findTargetMemberForCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
+  const csharpBinding = csharpTargetBindingFact(binding);
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
   if (declaration?.signatureId !== undefined) {
-    const selectedMember = getTargetMemberById(binding, declaration.signatureId);
+    const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
     const exactMember = selectedMember === undefined
       ? undefined
       : selectProviderSelectedTargetMember(
           selectedMember,
           {
             arguments: request.arguments,
-            receiver: request.calleeReceiver,
+            receiver: requestContext.calleeReceiver,
             sourceSelectedSignature: request.sourceSelectedSignature,
           },
           context,
@@ -64,10 +76,10 @@ export function findTargetMemberForCall(
     return selectedMember === undefined
       ? undefined
       : selectTargetMember(
-          getTargetMemberCandidatesForSelectedMember(binding.members ?? [], selectedMember),
+          getTargetMemberCandidatesForSelectedMember(csharpBinding?.members ?? [], selectedMember),
           {
             arguments: request.arguments,
-            receiver: request.calleeReceiver,
+            receiver: requestContext.calleeReceiver,
             sourceSelectedSignature: request.sourceSelectedSignature,
           },
           context,
@@ -75,13 +87,13 @@ export function findTargetMemberForCall(
           options,
         );
   }
-  const candidates = getTargetMemberCandidates(binding, declaration);
+  const candidates = getTargetMemberCandidates(csharpBinding, declaration);
   if (candidates.length === 1) {
     return selectExactTargetMember(
       candidates[0]!,
       {
         arguments: request.arguments,
-        receiver: request.calleeReceiver,
+        receiver: requestContext.calleeReceiver,
         sourceSelectedSignature: request.sourceSelectedSignature,
       },
       options,
@@ -93,7 +105,7 @@ export function findTargetMemberForCall(
         candidates,
         {
           arguments: request.arguments,
-          receiver: request.calleeReceiver,
+          receiver: requestContext.calleeReceiver,
           sourceSelectedSignature: request.sourceSelectedSignature,
         },
         context,
@@ -109,9 +121,10 @@ export function findTargetMemberForElementAccess(
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
+  const csharpBinding = csharpTargetBindingFact(binding);
   if (declaration?.signatureId !== undefined) {
-    const selectedMember = getTargetMemberById(binding, declaration.signatureId);
+    const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
     const exactMember = selectedMember === undefined
       ? undefined
       : selectProviderSelectedTargetMember(
@@ -127,9 +140,9 @@ export function findTargetMemberForElementAccess(
       return exactMember;
     }
     return selectedMember === undefined
-      ? selectSingleProviderIndexer(binding, request, options)
+      ? selectSingleProviderIndexer(csharpBinding, request, options)
       : selectTargetMember(
-          getTargetMemberCandidatesForSelectedMember(binding.members ?? [], selectedMember),
+          getTargetMemberCandidatesForSelectedMember(csharpBinding?.members ?? [], selectedMember),
           {
             arguments: [request.argument],
           },
@@ -139,9 +152,9 @@ export function findTargetMemberForElementAccess(
         );
   }
   if (declaration === undefined) {
-    return selectSingleProviderIndexer(binding, request, options);
+    return selectSingleProviderIndexer(csharpBinding, request, options);
   }
-  const candidates = getTargetMemberCandidates(binding, declaration);
+  const candidates = getTargetMemberCandidates(csharpBinding, declaration);
   if (candidates.length === 1) {
     return selectExactTargetMember(
       candidates[0]!,
@@ -152,7 +165,7 @@ export function findTargetMemberForElementAccess(
     );
   }
   if (declaration?.memberId === undefined) {
-    return selectSingleProviderIndexer(binding, request, options);
+    return selectSingleProviderIndexer(csharpBinding, request, options);
   }
   const selected = selectTargetMember(
     candidates,
@@ -165,16 +178,16 @@ export function findTargetMemberForElementAccess(
   );
   return selected
     ?? (candidates.length === 0
-      ? selectSingleProviderIndexer(binding, request, options)
+      ? selectSingleProviderIndexer(csharpBinding, request, options)
       : undefined);
 }
 
 function selectSingleProviderIndexer(
-  binding: TargetBindingFact,
+  binding: CsharpTargetBindingFact | undefined,
   request: CheckedElementAccessMappingRequest,
   options: TargetMemberSelectionOptions,
-): TargetMember | undefined {
-  const indexerCandidates = (binding.members ?? []).filter((member) => member.kind === "indexer");
+): CsharpTargetMember | undefined {
+  const indexerCandidates = (binding?.members ?? []).filter((member) => member.kind === "indexer");
   return indexerCandidates.length === 1
     ? selectExactTargetMember(
         indexerCandidates[0]!,
@@ -189,8 +202,8 @@ function selectSingleProviderIndexer(
 export function findTargetMember(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
-): TargetMember | undefined {
-  const members = binding.members ?? [];
+): CsharpTargetMember | undefined {
+  const members = csharpTargetMemberFacts(binding.members);
   if (declaration?.signatureId !== undefined) {
     return members.find((member) => member.id === declaration.signatureId);
   }
@@ -204,7 +217,7 @@ export function findTargetMember(
   return undefined;
 }
 
-function createProviderSelectedMemberGroup(memberId: string, candidates: readonly TargetMember[]): TargetMember | undefined {
+function createProviderSelectedMemberGroup(memberId: string, candidates: readonly CsharpTargetMember[]): CsharpTargetMember | undefined {
   const first = candidates[0];
   if (first === undefined) {
     return undefined;
@@ -225,7 +238,7 @@ function createProviderSelectedMemberGroup(memberId: string, candidates: readonl
   };
 }
 
-function hasSameTargetMemberGroupOperation(left: TargetMember, right: TargetMember): boolean {
+function hasSameTargetMemberGroupOperation(left: CsharpTargetMember, right: CsharpTargetMember): boolean {
   return left.kind === right.kind &&
     left.sourceName === right.sourceName &&
     left.targetName === right.targetName &&
@@ -235,7 +248,7 @@ function hasSameTargetMemberGroupOperation(left: TargetMember, right: TargetMemb
     optionalTargetTypeRefEquals(left.declaringType, right.declaringType);
 }
 
-function optionalTargetTypeRefEquals(left: TargetMember["declaringType"], right: TargetMember["declaringType"]): boolean {
+function optionalTargetTypeRefEquals(left: CsharpTargetMember["declaringType"], right: CsharpTargetMember["declaringType"]): boolean {
   if (left === undefined || right === undefined) {
     return left === right;
   }
@@ -243,9 +256,9 @@ function optionalTargetTypeRefEquals(left: TargetMember["declaringType"], right:
 }
 
 function getTargetMemberCandidates(
-  binding: TargetBindingFact,
+  binding: CsharpTargetBindingFact | undefined,
   declaration: ProviderVirtualDeclarationFact | undefined,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   if (declaration?.signatureId !== undefined) {
     const signatureMember = getTargetMemberById(binding, declaration.signatureId);
     return signatureMember === undefined ? [] : [signatureMember];
@@ -257,10 +270,10 @@ function getTargetMemberCandidates(
 }
 
 function getTargetMemberCandidatesForMemberId(
-  binding: TargetBindingFact,
+  binding: CsharpTargetBindingFact | undefined,
   memberId: string,
-): readonly TargetMember[] {
-  const members = binding.members ?? [];
+): readonly CsharpTargetMember[] {
+  const members = binding?.members ?? [];
   const selectedMember = members.find((member) => member.id === memberId);
   if (selectedMember !== undefined) {
     return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
@@ -269,16 +282,16 @@ function getTargetMemberCandidatesForMemberId(
 }
 
 function getTargetMemberById(
-  binding: TargetBindingFact,
+  binding: CsharpTargetBindingFact | undefined,
   memberId: string,
-): TargetMember | undefined {
-  return (binding.members ?? []).find((member) => member.id === memberId);
+): CsharpTargetMember | undefined {
+  return binding?.members?.find((member) => member.id === memberId);
 }
 
 function getTargetMemberCandidatesForSelectedMember(
-  members: readonly TargetMember[],
-  selectedMember: TargetMember,
-): readonly TargetMember[] {
+  members: readonly CsharpTargetMember[],
+  selectedMember: CsharpTargetMember,
+): readonly CsharpTargetMember[] {
   if (selectedMember.overloadGroup === undefined) {
     return [selectedMember];
   }

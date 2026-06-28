@@ -47,7 +47,7 @@ export function getCallableExpressionTargetTypeRef(
     return undefined;
   }
   const options = { allowRuntimeCarrier: false, sourceFile };
-  const signature = compiler.types.getCallSignatures(type, { sourceFile })[0];
+  const signature = compiler.typeShape.getCallSignatures(type, { sourceFile })[0];
   if (signature === undefined) {
     return undefined;
   }
@@ -75,7 +75,7 @@ export function getCallableExpressionTargetTypeRef(
     : host.getTargetTypeRefForSubject(returnTypeNode, context, options);
   const checkedReturnType = explicitReturnType ??
     host.getTargetTypeRefForType(
-      compiler.types.getReturnTypeOfSignature(signature, { sourceFile }),
+      compiler.typeShape.getReturnTypeOfSignature(signature, { sourceFile }),
       context,
       options,
     );

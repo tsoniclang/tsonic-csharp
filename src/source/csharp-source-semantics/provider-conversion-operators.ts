@@ -1,6 +1,5 @@
 import type {
   TargetBindingFact,
-  TargetConversionOperatorFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -12,6 +11,9 @@ import {
 } from "./operations.js";
 import {
   type CsharpTargetNamedTypeRef,
+  type CsharpTargetBindingFact,
+  type CsharpTargetConversionOperatorFact,
+  csharpTargetBindingFact,
   substituteTargetTypeParameters,
 } from "./target-types.js";
 import {
@@ -31,7 +33,7 @@ export type CsharpProviderConversionOperatorResult =
       readonly kind: "matched";
       readonly operation: NonNullable<ReturnType<typeof targetOperation>>;
       readonly csharpOperation: CsharpTargetOperationFact;
-      readonly operator: TargetConversionOperatorFact;
+      readonly operator: CsharpTargetConversionOperatorFact;
     };
 
 export function requiresCsharpProviderConversionEvidence(
@@ -86,7 +88,7 @@ function providerConversionCandidates(
   source: TargetTypeRef,
   target: TargetTypeRef,
   host: CsharpProviderConversionOperatorHost,
-): readonly TargetConversionOperatorFact[] {
+): readonly CsharpTargetConversionOperatorFact[] {
   return providerCandidateBindings(source, target, host)
     .flatMap(({ binding, typeArguments }) => (binding.conversionOperators ?? [])
       .map((operator) => substituteConversionOperatorTypes(operator, binding, typeArguments))
@@ -97,7 +99,7 @@ function providerCandidateBindings(
   source: TargetTypeRef,
   target: TargetTypeRef,
   host: CsharpProviderConversionOperatorHost,
-): readonly { readonly binding: TargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] }[] {
+): readonly { readonly binding: CsharpTargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] }[] {
   return uniqueBindingCandidates([
     providerBindingForType(source, host),
     providerBindingForType(target, host),
@@ -107,11 +109,11 @@ function providerCandidateBindings(
 function providerBindingForType(
   type: TargetTypeRef | undefined,
   host: CsharpProviderConversionOperatorHost,
-): { readonly binding: TargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] } | undefined {
+): { readonly binding: CsharpTargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] } | undefined {
   if (type?.kind !== "target-named") {
     return undefined;
   }
-  const binding = host.getCsharpTargetBindingByTargetId(type.id);
+  const binding = csharpTargetBindingFact(host.getCsharpTargetBindingByTargetId(type.id));
   return binding === undefined
     ? undefined
     : {
@@ -121,9 +123,9 @@ function providerBindingForType(
 }
 
 function uniqueBindingCandidates(
-  candidates: readonly ({ readonly binding: TargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] } | undefined)[],
-): readonly { readonly binding: TargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] }[] {
-  const byKey = new Map<string, { readonly binding: TargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] }>();
+  candidates: readonly ({ readonly binding: CsharpTargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] } | undefined)[],
+): readonly { readonly binding: CsharpTargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] }[] {
+  const byKey = new Map<string, { readonly binding: CsharpTargetBindingFact; readonly typeArguments: readonly TargetTypeRef[] }>();
   for (const candidate of candidates) {
     if (candidate === undefined) {
       continue;
@@ -134,10 +136,10 @@ function uniqueBindingCandidates(
 }
 
 function substituteConversionOperatorTypes(
-  operator: TargetConversionOperatorFact,
-  binding: TargetBindingFact,
+  operator: CsharpTargetConversionOperatorFact,
+  binding: CsharpTargetBindingFact,
   typeArguments: readonly TargetTypeRef[],
-): TargetConversionOperatorFact {
+): CsharpTargetConversionOperatorFact {
   const substitutions = new Map<string, TargetTypeRef>();
   for (let index = 0; index < (binding.typeParameters ?? []).length; index += 1) {
     const parameter = binding.typeParameters?.[index];
@@ -158,7 +160,7 @@ function substituteConversionOperatorTypes(
 }
 
 function isConversionOperatorForTypes(
-  operator: TargetConversionOperatorFact,
+  operator: CsharpTargetConversionOperatorFact,
   source: TargetTypeRef,
   target: TargetTypeRef,
 ): boolean {
@@ -167,7 +169,7 @@ function isConversionOperatorForTypes(
 }
 
 function isAllowedConversionOperator(
-  operator: TargetConversionOperatorFact,
+  operator: CsharpTargetConversionOperatorFact,
   mode: CsharpProviderConversionOperatorMode,
 ): boolean {
   if (operator.conversionKind === "implicit") {

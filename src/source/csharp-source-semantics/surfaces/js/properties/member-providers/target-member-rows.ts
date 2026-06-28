@@ -113,7 +113,7 @@ const setSizeReceiverFacts = {
 } as const satisfies JsSurfacePropertyReceiverFacts;
 
 const arrayLengthReceiverMembers: readonly JsSurfaceReceiverPropertyMember[] = [
-  receiverPropertyMember({ kind: "target-array" }, arrayLengthTargetMember("length")),
+  receiverPropertyMember({ kind: "target-array" }, arrayLengthTargetMember("Length")),
   receiverPropertyMember({ kind: "target-id", id: csharpJsArrayCarrierId }, arrayLengthTargetMember("length")),
   receiverPropertyMember({ kind: "target-feature", feature: "read-only-indexable" }, arrayLengthTargetMember("Count")),
 ];
@@ -131,7 +131,9 @@ export const jsSurfacePropertyRows: readonly JsSurfacePropertyRow[] = [
   propertyRowFromMetadataIndex({ ids: ["String.length"] }, stringPropertyTargetMemberIdentityIndex, stringReceiverFacts, "surface.js.string-methods"),
   propertyRowFromCollectionMetadata({ ids: mapSizePropertyIdentities }, mapSizeReceiverFacts),
   propertyRowFromCollectionMetadata({ ids: setSizePropertyIdentities }, setSizeReceiverFacts),
-  propertyRowFromReceiverMetadata({ ids: arrayLengthPropertyIdentities }, arrayLengthReceiverMembers, arrayLengthReceiverFacts),
+  propertyRowFromReceiverMetadata({ ids: arrayLengthPropertyIdentities }, arrayLengthReceiverMembers, arrayLengthReceiverFacts, {
+    deferredResultType: int32PropertyReturnType,
+  }),
 ];
 
 function propertyRowFromMetadataIndex(
@@ -164,11 +166,13 @@ function propertyRowFromReceiverMetadata(
   identity: JsSurfaceSourceIdentitySelector,
   members: readonly JsSurfaceReceiverPropertyMember[],
   receiverFacts: JsSurfacePropertyReceiverFacts,
+  options: { readonly deferredResultType?: TargetMember["returnType"] } = {},
 ): JsSurfacePropertyRow {
   return {
     identity,
     receiverFacts,
     targetProviders: [receiverMemberProvider(members)],
+    ...(options.deferredResultType !== undefined ? { deferredResultType: options.deferredResultType } : {}),
   };
 }
 

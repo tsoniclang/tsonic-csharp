@@ -11,7 +11,6 @@
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"],
   "references": [
-    { "path": "../tsonic/packages/tsts" },
     { "path": "../tsonic/packages/source-core" },
     { "path": "../tsonic/packages/target-api" }
   ]

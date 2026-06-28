@@ -5,9 +5,9 @@ import {
   getNodejsCallTargetMemberFromMetadata,
 } from "./metadata-index.js";
 import type {
-  TargetMember,
-} from "@tsonic/tsts";
+  CsharpTargetMember,
+} from "../../../target-types.js";
 
-export function getNodejsCallTargetMember(declaration: NodejsProviderDeclarationIdentity): TargetMember | undefined {
+export function getNodejsCallTargetMember(declaration: NodejsProviderDeclarationIdentity): CsharpTargetMember | undefined {
   return getNodejsCallTargetMemberFromMetadata(declaration);
 }

@@ -942,6 +942,74 @@ test("selected JS surface preserves explicit source primitive Map and Set type a
   assert.equal(carriers[1].typeArguments[0].name, "int32");
 });
 
+test("selected JS surface finalizes Map and Set size properties from checked receiver type identity", () => {
+  const session = createCsharpSession(`
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function collectionSizes(): int32 {
+      const counts = new Map<string, int32>();
+      const ids = new Set<int32>();
+      return counts.size + ids.size;
+    }
+  `, { selectedSurfaces: [{ id: "js" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const sizeAccesses = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .filter((node) => session.ast.text(session.ast.name(node)) === "size");
+  const operationIds = sizeAccesses.map((node) =>
+    extensionHost.facts.get(node, csharpTargetOperationFactKey)?.operationId);
+  const selectedOperationIds = sizeAccesses.map((node) =>
+    extensionHost.facts.get(node, targetOperationFactKey)?.operationId);
+
+  assert.deepEqual(operationIds, [
+    "Tsonic.CSharp.Js.Map.size",
+    "Tsonic.CSharp.Js.Set.size",
+  ]);
+  assert.deepEqual(selectedOperationIds, operationIds);
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});
+
+test("selected JS surface finalizes Map and Set iterable-constructor size and Array.from length chains", () => {
+  const session = createCsharpSession(`
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function collectionSizes(seed: int32): int32 {
+      const source = new Map<string, int32>();
+      source.set("alpha", 1);
+      const copy = new Map<string, int32>(source.entries());
+      copy.set("beta", seed);
+      const values = Array.from(copy.values());
+      const ids = new Set<int32>();
+      ids.add(seed);
+      const idCopy = new Set<int32>(ids.values());
+      return copy.size + values.length + idCopy.size;
+    }
+  `, { selectedSurfaces: [{ id: "js" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const selectedMemberIds = collectFactValues(sourceFile, session, extensionHost, selectedTargetSignatureFactKey)
+    .map((fact) => fact.member.id);
+  const carrierIds = collectFactValues(sourceFile, session, extensionHost, runtimeCarrierFactKey)
+    .map((fact) => fact.carrier.id ?? fact.carrier.kind);
+  const sizeOperationIds = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .filter((node) => ["size", "length"].includes(session.ast.text(session.ast.name(node))))
+    .map((node) => extensionHost.facts.get(node, csharpTargetOperationFactKey)?.operationId);
+  const selectedOperationIds = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .filter((node) => ["size", "length"].includes(session.ast.text(session.ast.name(node))))
+    .map((node) => extensionHost.facts.get(node, targetOperationFactKey)?.operationId);
+
+  const evidence = JSON.stringify({ selectedMemberIds, carrierIds, sizeOperationIds, selectedOperationIds });
+  assert.ok(sizeOperationIds.includes("Tsonic.CSharp.Js.Map.size"), evidence);
+  assert.ok(sizeOperationIds.includes("Tsonic.CSharp.Js.Set.size"), evidence);
+  assert.ok(sizeOperationIds.includes("tsonic.csharp.js.Array.length"), evidence);
+  assert.deepEqual(selectedOperationIds, sizeOperationIds, evidence);
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});
+
 test("JS surface maps Array.at and Array.map from selected declarations and closed callback facts", () => {
   const atCall = {};
   const mapCall = {};

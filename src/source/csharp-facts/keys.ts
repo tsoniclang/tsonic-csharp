@@ -13,6 +13,7 @@ import {
 import type {
   CsharpArrayBoundaryFact,
   CsharpArrayCarrierFact,
+  CsharpAttributeApplicationFact,
   CsharpObjectShapeFact,
   CsharpObservedTargetAssignabilityFact,
   CsharpRegularExpressionLiteralFact,
@@ -36,6 +37,20 @@ export const csharpTargetNameFactKey = defineExtensionFactKey<CsharpTargetNameFa
   extensionId: "tsonic.csharp",
   name: "targetName",
   equals: (left, right) => left.name === right.name,
+});
+
+export const csharpAttributeApplicationFactKey = defineExtensionFactKey<CsharpAttributeApplicationFact>({
+  extensionId: "tsonic.csharp",
+  name: "attributeApplication",
+  equals: (left, right) =>
+    left.target === right.target
+    && left.attributeName === right.attributeName
+    && (left.arguments ?? []).length === (right.arguments ?? []).length
+    && (left.arguments ?? []).every((argument, index) => argument === (right.arguments ?? [])[index])
+    && left.applicationTarget === right.applicationTarget
+    && left.applicationPlacement === right.applicationPlacement
+    && left.applicationParameterName === right.applicationParameterName
+    && left.applicationTargetSpecifier === right.applicationTargetSpecifier,
 });
 
 export const csharpTargetTypeParameterConstraintFactKey = defineExtensionFactKey<CsharpTargetTypeParameterConstraintFact>({

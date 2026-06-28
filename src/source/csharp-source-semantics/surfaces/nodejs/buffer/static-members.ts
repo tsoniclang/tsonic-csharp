@@ -1,6 +1,6 @@
 import type {
-  TargetMember,
-} from "@tsonic/tsts";
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import {
   targetParameter,
 } from "../../js/source-library.js";
@@ -43,7 +43,7 @@ import {
   nodeBufferStringTargetType,
 } from "./helpers.js";
 
-export function getNodeBufferFromStringTargetMember(): TargetMember {
+export function getNodeBufferFromStringTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferFromStringTargetMemberId,
     sourceName: nodeBufferFromExportName,
@@ -59,7 +59,7 @@ export function getNodeBufferFromStringTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferFromNumberArrayTargetMember(): TargetMember {
+export function getNodeBufferFromNumberArrayTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferFromNumberArrayTargetMemberId,
     sourceName: nodeBufferFromExportName,
@@ -72,7 +72,7 @@ export function getNodeBufferFromNumberArrayTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferFromBufferTargetMember(): TargetMember {
+export function getNodeBufferFromBufferTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferFromBufferTargetMemberId,
     sourceName: nodeBufferFromExportName,
@@ -85,7 +85,7 @@ export function getNodeBufferFromBufferTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferAllocTargetMember(): TargetMember {
+export function getNodeBufferAllocTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferAllocTargetMemberId,
     sourceName: nodeBufferAllocExportName,
@@ -98,7 +98,7 @@ export function getNodeBufferAllocTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferAllocUnsafeTargetMember(): TargetMember {
+export function getNodeBufferAllocUnsafeTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferAllocUnsafeTargetMemberId,
     sourceName: nodeBufferAllocUnsafeExportName,
@@ -111,7 +111,7 @@ export function getNodeBufferAllocUnsafeTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferAllocUnsafeSlowTargetMember(): TargetMember {
+export function getNodeBufferAllocUnsafeSlowTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferAllocUnsafeSlowTargetMemberId,
     sourceName: nodeBufferAllocUnsafeSlowExportName,
@@ -124,7 +124,7 @@ export function getNodeBufferAllocUnsafeSlowTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferByteLengthTargetMember(): TargetMember {
+export function getNodeBufferByteLengthTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferByteLengthTargetMemberId,
     sourceName: nodeBufferByteLengthExportName,
@@ -140,7 +140,7 @@ export function getNodeBufferByteLengthTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferCompareTargetMember(): TargetMember {
+export function getNodeBufferCompareTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferCompareTargetMemberId,
     sourceName: nodeBufferCompareExportName,
@@ -156,7 +156,7 @@ export function getNodeBufferCompareTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferConcatTargetMember(): TargetMember {
+export function getNodeBufferConcatTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferConcatTargetMemberId,
     sourceName: nodeBufferConcatExportName,
@@ -172,7 +172,7 @@ export function getNodeBufferConcatTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferIsEncodingTargetMember(): TargetMember {
+export function getNodeBufferIsEncodingTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferIsEncodingTargetMemberId,
     sourceName: nodeBufferIsEncodingExportName,
@@ -185,7 +185,7 @@ export function getNodeBufferIsEncodingTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferOfTargetMember(): TargetMember {
+export function getNodeBufferOfTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferOfTargetMemberId,
     sourceName: nodeBufferOfExportName,
@@ -198,7 +198,7 @@ export function getNodeBufferOfTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferAtobTargetMember(): TargetMember {
+export function getNodeBufferAtobTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferAtobTargetMemberId,
     sourceName: nodeBufferAtobExportName,
@@ -211,7 +211,7 @@ export function getNodeBufferAtobTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferBtoaTargetMember(): TargetMember {
+export function getNodeBufferBtoaTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferBtoaTargetMemberId,
     sourceName: nodeBufferBtoaExportName,
@@ -224,7 +224,7 @@ export function getNodeBufferBtoaTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferIsAsciiTargetMember(): TargetMember {
+export function getNodeBufferIsAsciiTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferIsAsciiTargetMemberId,
     sourceName: nodeBufferIsAsciiExportName,
@@ -237,7 +237,7 @@ export function getNodeBufferIsAsciiTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferIsUtf8TargetMember(): TargetMember {
+export function getNodeBufferIsUtf8TargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferIsUtf8TargetMemberId,
     sourceName: nodeBufferIsUtf8ExportName,

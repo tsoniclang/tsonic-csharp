@@ -1,7 +1,9 @@
 import type {
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../../target-types.js";
 import {
   jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
@@ -20,7 +22,7 @@ export function arrayTargetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   receiverElementType?: TargetTypeRef,
   receiverDeclaringType?: TargetTypeRef,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   return filterArrayTargetMembersForReceiverDeclaringType(jsSurfaceTargetMembersForSelectedSourceIdentity(
     jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(["Array", "ReadonlyArray"], arrayTargetMemberMetadata(receiverElementType)),
     selectedIdentity,
@@ -28,9 +30,9 @@ export function arrayTargetMembersForSelectedIdentity(
 }
 
 function filterArrayTargetMembersForReceiverDeclaringType(
-  members: readonly TargetMember[],
+  members: readonly CsharpTargetMember[],
   receiverDeclaringType: TargetTypeRef | undefined,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   if (receiverDeclaringType === undefined) {
     return members;
   }

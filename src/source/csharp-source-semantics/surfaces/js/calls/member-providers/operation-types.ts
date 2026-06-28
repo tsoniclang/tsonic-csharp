@@ -1,8 +1,11 @@
 import type {
   CheckedCallMappingRequest,
   ExtensionObservationContext,
-  TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../../target-types.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMemberKey,
@@ -63,7 +66,7 @@ export type JsSurfaceArgumentTargetCondition =
 export type JsSurfaceOperationTargetProvider =
   | {
     readonly kind: "metadata-index";
-    readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
+    readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly CsharpTargetMember[]>;
   }
   | {
     readonly kind: "selected-metadata";
@@ -132,8 +135,10 @@ export interface JsSurfaceCallTargetProviderRequest {
 
 export interface JsSurfaceCallCallableProviderRequest {
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
+  readonly contextualDeclaringType?: TargetTypeRef;
+  readonly contextualResultType?: TargetTypeRef;
 }
 
-export function jsSurfaceTargetMemberIsCallable(member: TargetMember): boolean {
+export function jsSurfaceTargetMemberIsCallable(member: CsharpTargetMember): boolean {
   return member.kind !== "property";
 }

@@ -1,16 +1,16 @@
 import type {
-  TargetMember,
-} from "@tsonic/tsts";
+  CsharpTargetMember,
+} from "../../../target-types.js";
 
 export interface NodejsModuleCallTargetMember {
   readonly exportName: string;
   readonly signatureId: string;
-  readonly member: TargetMember;
+  readonly member: CsharpTargetMember;
 }
 
 export interface NodejsModulePropertyTargetMember {
   readonly exportName: string;
-  readonly member: TargetMember;
+  readonly member: CsharpTargetMember;
 }
 
 export interface NodejsClassCallTargetMember {
@@ -18,14 +18,14 @@ export interface NodejsClassCallTargetMember {
   readonly memberName: string;
   readonly memberId: string;
   readonly signatureId: string;
-  readonly member: TargetMember;
+  readonly member: CsharpTargetMember;
 }
 
 export interface NodejsClassPropertyTargetMember {
   readonly exportName: string;
   readonly memberName: string;
   readonly memberId: string;
-  readonly member: TargetMember;
+  readonly member: CsharpTargetMember;
 }
 
 export interface NodejsUnsupportedTargetIdentity {

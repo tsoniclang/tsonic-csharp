@@ -114,7 +114,6 @@ function recordCsharpJsArrayElementAccessFact(
   const request = {
     expression: node,
     receiver,
-    receiverType,
     argument,
     target: csharpTargetId,
   } satisfies CheckedElementAccessMappingRequest;

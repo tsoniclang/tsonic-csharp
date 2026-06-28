@@ -1,9 +1,11 @@
 import type {
-  TargetMember,
   TargetParameter,
   TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../target-types.js";
 import type {
   SourceLibraryDeclaringKey,
   SourceLibraryMember,
@@ -23,7 +25,7 @@ export interface JsSurfaceTargetMemberMetadata {
   readonly returnType: TargetTypeRef;
   readonly declaringType?: TargetTypeRef;
   readonly static?: boolean;
-  readonly receiverPassing?: TargetMember["receiverPassing"];
+  readonly receiverPassing?: CsharpTargetMember["receiverPassing"];
   readonly typeParameters?: readonly TargetTypeParameter[];
   readonly capabilityId?: string;
   readonly requiredFacts?: readonly string[];
@@ -79,15 +81,15 @@ export function jsSurfaceSelectMetadataRowForSourceIdentity<T>(
 export function jsSurfaceTargetMemberMetadataIdentityIndex(
   declaringName: SourceLibraryDeclaringKey,
   metadata: readonly JsSurfaceTargetMemberMetadata[],
-): ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]> {
+): ReadonlyMap<SourceLibraryMemberKey, readonly CsharpTargetMember[]> {
   return jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames([declaringName], metadata);
 }
 
 export function jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(
   declaringNames: readonly SourceLibraryDeclaringKey[],
   metadata: readonly JsSurfaceTargetMemberMetadata[],
-): ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]> {
-  const index = new Map<SourceLibraryMemberKey, TargetMember[]>();
+): ReadonlyMap<SourceLibraryMemberKey, readonly CsharpTargetMember[]> {
+  const index = new Map<SourceLibraryMemberKey, CsharpTargetMember[]>();
   for (const record of metadata) {
     for (const declaringName of declaringNames) {
       const identity = jsSurfaceSourceMemberKey(declaringName, record.sourceName);
@@ -104,13 +106,13 @@ export function jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(
 }
 
 export function jsSurfaceTargetMembersForSelectedSourceIdentity(
-  index: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+  index: ReadonlyMap<SourceLibraryMemberKey, readonly CsharpTargetMember[]>,
   identity: JsSurfaceSelectedSourceIdentity,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   return index.get(identity.key) ?? [];
 }
 
-export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberMetadata): TargetMember {
+export function jsSurfaceTargetMemberFromMetadata(record: JsSurfaceTargetMemberMetadata): CsharpTargetMember {
   return {
     id: record.id,
     sourceName: record.sourceName,

@@ -44,22 +44,22 @@ export function dotnetProviderRefToTypeDeclaration(
   baseType: Extract<ProviderTypeExpression, { readonly kind: "provider-ref" }>,
   context: DotnetDeclarationContext,
 ): DotnetTypeDeclaration | undefined {
-  if (baseType.moduleSpecifier === undefined || baseType.moduleSpecifier === context.moduleSpecifier) {
-    const local = context.typesBySourceName.get(baseType.name);
+  if (baseType.moduleSpecifier === context.moduleSpecifier) {
+    const local = context.typesBySourceName.get(baseType.exportName);
     if (local !== undefined || context.sourceModuleSpecifier === context.moduleSpecifier) {
       return local;
     }
-    const sourceModule = getDotnetModuleBySpecifier(context.sourceModuleSpecifier, context, [baseType.name]);
+    const sourceModule = getDotnetModuleBySpecifier(context.sourceModuleSpecifier, context, [baseType.exportName]);
     return sourceModule?.exports.find((declaration): declaration is DotnetTypeDeclaration =>
-      declaration.kind === "type" && declaration.sourceName === baseType.name
+      declaration.kind === "type" && declaration.sourceName === baseType.exportName
     );
   }
-  const module = getDotnetModuleBySpecifier(baseType.moduleSpecifier, context, [baseType.name]);
+  const module = getDotnetModuleBySpecifier(baseType.moduleSpecifier, context, [baseType.exportName]);
   if (module === undefined) {
     return undefined;
   }
   return module.exports.find((declaration): declaration is DotnetTypeDeclaration =>
-    declaration.kind === "type" && declaration.sourceName === baseType.name
+    declaration.kind === "type" && declaration.sourceName === baseType.exportName
   );
 }
 

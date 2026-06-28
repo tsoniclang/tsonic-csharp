@@ -33,13 +33,16 @@ export function createCsharpLifecycleObservationContext<
   lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
   observation: TObservation,
 ): ExtensionObservationContext<TObservation> {
+  if (lifecycleContext.compiler === undefined) {
+    throw new Error("C# lifecycle observation context requires a finalized TSTS compiler query context.");
+  }
   return {
     observation,
     extensionId: csharpTargetSemanticsExtensionId,
+    compiler: lifecycleContext.compiler,
     host: lifecycleContext.host,
     facts: lifecycleContext.host.facts,
     factResolver: lifecycleContext.host.factResolver,
     diagnostics: lifecycleContext.host.diagnostics,
-    ...(lifecycleContext.compiler !== undefined ? { compiler: lifecycleContext.compiler } : {}),
   };
 }

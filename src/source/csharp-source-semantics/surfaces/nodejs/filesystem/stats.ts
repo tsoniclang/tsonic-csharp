@@ -1,8 +1,10 @@
 import type {
   ProviderExportDeclaration,
   ProviderTypeExpression,
-  TargetMember,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import type {
   NodejsClassCallTargetMember,
   NodejsClassPropertyTargetMember,
@@ -63,7 +65,7 @@ interface NodeFsStatsPropertyTargetMetadataRow {
   readonly memberName: string;
   readonly memberId: string;
   readonly providerType: ProviderTypeExpression;
-  readonly member: TargetMember;
+  readonly member: CsharpTargetMember;
 }
 
 interface NodeFsStatsCallTargetMetadataRow {
@@ -71,7 +73,7 @@ interface NodeFsStatsCallTargetMetadataRow {
   readonly memberId: string;
   readonly signatureId: string;
   readonly providerReturnType: ProviderTypeExpression;
-  readonly member: TargetMember;
+  readonly member: CsharpTargetMember;
 }
 
 const nodeFsStatsPropertyTargetMetadataRows = [

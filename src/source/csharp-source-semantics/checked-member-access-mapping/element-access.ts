@@ -22,6 +22,9 @@ import {
   findTargetBinding,
 } from "../provider-bindings.js";
 import {
+  getCsharpCheckedElementAccessRequestContext,
+} from "../checked-member-access-request-context.js";
+import {
   findUnsupportedProviderTargetMember,
 } from "../provider-unsupported-members.js";
 import {
@@ -58,9 +61,13 @@ export function mapCsharpCheckedElementAccess(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
   const binding = findTargetBinding(context, [
-    request.receiverTypeSymbol,
-    request.receiverType,
+    requestContext.receiverTypeSymbol,
+    requestContext.receiverType,
+    requestContext.receiverAliasedSymbol,
+    requestContext.receiverResolvedSymbol,
+    requestContext.receiverSymbol,
     request.receiver,
   ]);
   if (binding === undefined) {
@@ -73,7 +80,7 @@ export function mapCsharpCheckedElementAccess(
   if (binding.id === dotnetNativeArrayTypeId) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
   }
-  const declaringTargetType = getDeclaringTargetType(request, context, host);
+  const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver, receiverType: requestContext.receiverType }, context, host);
   const selected = selectCheckedElementTargetMember(binding, request, context, host, declaringTargetType);
   const unsupportedSelectedMember = findUnsupportedProviderTargetMember(binding, selected.selectedDeclaration);
   if (unsupportedSelectedMember !== undefined) {

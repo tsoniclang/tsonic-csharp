@@ -1,7 +1,6 @@
 import type {
   ProviderExportDeclaration,
   ProviderTypeExpression,
-  TargetBindingFact,
   TargetMember,
 } from "@tsonic/tsts";
 import {
@@ -13,9 +12,6 @@ import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
   targetParameter,
-} from "../js/source-library.js";
-import type {
-  CsharpTargetNamedTypeRef,
 } from "../js/source-library.js";
 import {
   getNodejsProviderExportDeclarationTargetMember,
@@ -51,8 +47,8 @@ const voidTargetType = csharpVoidTargetType();
 const processTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.process", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "process"));
 const processEnvTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.ProcessEnv", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "ProcessEnv"));
 const processVersionsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.ProcessVersions", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "ProcessVersions"));
-const processEnvProviderType = { kind: "provider-ref", name: "ProcessEnv" } satisfies ProviderTypeExpression;
-const processVersionsProviderType = { kind: "provider-ref", name: "ProcessVersions" } satisfies ProviderTypeExpression;
+const processEnvProviderType = { kind: "provider-ref", moduleSpecifier: "node:process", exportName: "ProcessEnv" } satisfies ProviderTypeExpression;
+const processVersionsProviderType = { kind: "provider-ref", moduleSpecifier: "node:process", exportName: "ProcessVersions" } satisfies ProviderTypeExpression;
 const stringOrUndefinedProviderType = { kind: "union", types: [stringProviderType, undefinedProviderType] } satisfies ProviderTypeExpression;
 const stringOrNumberProviderType = { kind: "union", types: [stringProviderType, numberProviderType] } satisfies ProviderTypeExpression;
 
@@ -271,12 +267,6 @@ function nodeProcessEnvExportDeclaration(): ProviderExportDeclaration {
       id: processEnvTargetType.id,
       displayName: "Tsonic.CSharp.Node.ProcessEnv",
     },
-    targetBinding: processClassTargetBinding({
-      sourceName: nodeProcessProcessEnvExportName,
-      targetType: processEnvTargetType,
-      kind: "interface",
-      members: nodeProcessEnvClassPropertyTargetMembers(),
-    }),
     members: [{
       id: "Tsonic.CSharp.Node.ProcessEnv.Item(System.String)",
       name: "Item",
@@ -300,12 +290,6 @@ function nodeProcessVersionsExportDeclaration(): ProviderExportDeclaration {
       id: processVersionsTargetType.id,
       displayName: "Tsonic.CSharp.Node.ProcessVersions",
     },
-    targetBinding: processClassTargetBinding({
-      sourceName: nodeProcessProcessVersionsExportName,
-      targetType: processVersionsTargetType,
-      kind: "interface",
-      members: nodeProcessVersionsClassPropertyTargetMembers(),
-    }),
     members: nodeProcessVersionsClassPropertyTargetMembers()
       .map((member) => ({
         id: member.memberId,
@@ -314,22 +298,6 @@ function nodeProcessVersionsExportDeclaration(): ProviderExportDeclaration {
         readonly: true,
         type: stringProviderType,
       })),
-  };
-}
-
-function processClassTargetBinding(row: {
-  readonly sourceName: string;
-  readonly targetType: CsharpTargetNamedTypeRef;
-  readonly kind: TargetBindingFact["kind"];
-  readonly members: readonly NodejsClassPropertyTargetMember[];
-}): TargetBindingFact {
-  return {
-    id: row.targetType.id,
-    sourceName: row.sourceName,
-    targetName: row.targetType.id,
-    target: "csharp",
-    kind: row.kind,
-    members: row.members.map((member) => member.member),
   };
 }
 

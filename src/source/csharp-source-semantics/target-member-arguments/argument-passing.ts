@@ -18,7 +18,9 @@ export function getEffectiveArgumentForTargetParameter(
   if (parameter.passingMode === "by-value") {
     return passing === undefined
       ? { subject: argument }
-      : undefined;
+      : passing.mode === "by-value"
+        ? { subject: passing.targetExpression ?? argument, passing }
+        : undefined;
   }
   if (passing === undefined || !argumentPassingModeMatchesTargetParameter(parameter.passingMode, passing.mode)) {
     return undefined;

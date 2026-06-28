@@ -26,6 +26,7 @@ import {
 } from "./target-types.js";
 import {
   invalidCsharpType,
+  predefined,
 } from "./csharp-type-primitives.js";
 import {
   csharpTargetOperationFactKey,
@@ -33,6 +34,10 @@ import {
 import {
   asNodeSubject,
 } from "../../source/fact-subjects.js";
+import {
+  getNodeField,
+  getNodeList,
+} from "../../source/csharp-source-semantics/ast-utils.js";
 
 export function getCsharpTypeFromSelectedTargetCall(
   node: Node,
@@ -121,6 +126,10 @@ export function getCsharpTypeForUnionTypeNode(
       return contextual;
     }
   }
+  const nullableSyntax = getCsharpTypeFromNullableUnionSyntax(node, sourceFile, input);
+  if (nullableSyntax !== undefined) {
+    return nullableSyntax;
+  }
   const runtimeCarrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
   if (runtimeCarrier !== undefined) {
     const carrier = csharpTypeFromTargetTypeRef(runtimeCarrier);
@@ -137,6 +146,68 @@ export function getCsharpTypeForUnionTypeNode(
   }
   diagnostics?.push(unsupportedNodeDiagnostic(node, "Union type annotations require finalized TSTS/provider storage facts before C# emission."));
   return invalidCsharpType("union type");
+}
+
+function getCsharpTypeFromNullableUnionSyntax(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const unionTypes = getUnionTypeConstituents(node, input);
+  if (unionTypes.length < 2) {
+    return undefined;
+  }
+  const nonNullish = unionTypes.filter((item) => !isNullishTypeSyntax(item, input));
+  if (nonNullish.length !== 1 || nonNullish.length === unionTypes.length) {
+    return undefined;
+  }
+  const inner = getCsharpTypeFromUnionConstituentSyntax(nonNullish[0]!, sourceFile, input);
+  return inner === undefined || inner.kind === "InvalidType"
+    ? undefined
+    : { kind: "NullableType", inner };
+}
+
+function getUnionTypeConstituents(node: Node, input: TargetCompileInput): readonly Node[] {
+  const direct = [
+    ...getNodeList(getNodeField(node, "Types")),
+    ...getNodeList(getNodeField(node, "types")),
+  ];
+  return direct.length === 0
+    ? input.ast.children(node).map(asNodeSubject).filter((child): child is Node => child !== undefined)
+    : direct;
+}
+
+function isNullishTypeSyntax(node: Node, input: TargetCompileInput): boolean {
+  const kind = input.ast.kindName(node);
+  if (kind === "KindNullKeyword" || kind === "KindUndefinedKeyword") {
+    return true;
+  }
+  if (kind !== "KindTypeReference") {
+    return false;
+  }
+  const typeName = asNodeSubject(getNodeField(node, "TypeName") ?? getNodeField(node, "typeName"));
+  return typeName !== undefined && input.ast.text(typeName) === "undefined";
+}
+
+function getCsharpTypeFromUnionConstituentSyntax(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): CsharpTypeNode | undefined {
+  const sourcePrimitive = getCsharpTypeFromSourcePrimitiveTypeReference(node, sourceFile, input);
+  if (sourcePrimitive !== undefined) {
+    return sourcePrimitive;
+  }
+  switch (input.ast.kindName(node)) {
+    case "KindStringKeyword":
+      return predefined("string");
+    case "KindNumberKeyword":
+      return predefined("double");
+    case "KindBooleanKeyword":
+      return predefined("bool");
+    default:
+      return undefined;
+  }
 }
 
 export function getCsharpTypeFromRuntimeCarrier(subject: Node, input: TargetCompileInput): CsharpTypeNode | undefined {
@@ -156,7 +227,7 @@ export function getCsharpTypeFromSourcePrimitiveTypeReference(
   if (input.ast.kindName(subject) !== "KindTypeReference") {
     return undefined;
   }
-  const typeName = asNodeSubject(Object.getOwnPropertyDescriptor(subject, "TypeName")?.value);
+  const typeName = asNodeSubject(getNodeField(subject, "TypeName") ?? getNodeField(subject, "typeName"));
   const sourcePrimitive = [
     getSourcePrimitiveTypeRef(typeName, input),
     getSourcePrimitiveTypeRef(

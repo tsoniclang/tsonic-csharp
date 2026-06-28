@@ -23,6 +23,7 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
+  getNodeList,
   visitAstReaderNodes,
 } from "../../ast-utils.js";
 import {
@@ -192,7 +193,7 @@ function isCheckedSourceLibraryArrayConstruction(
 }
 
 function getTypeArguments(type: Type, context: ExtensionObservationContext): readonly Type[] {
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined || !types.isTypeReference(type)) {
     return [];
   }
@@ -208,7 +209,7 @@ function getCsharpJsArrayRuntimeCarrierForSyntaxNode(
   if (ast === undefined || !ast.is.IsNewExpression(node)) {
     return undefined;
   }
-  const typeArguments = ast.typeArguments(node).map((argument) =>
+  const typeArguments = getExplicitTypeArgumentNodes(node).map((argument) =>
     argument === undefined
       ? undefined
       : resolveTargetTypeRefFromKeywordTypeSyntax(ast, argument) ??
@@ -222,4 +223,15 @@ function getCsharpJsArrayRuntimeCarrierForSyntaxNode(
     return undefined;
   }
   return csharpJsArrayCarrierTargetType(typeArguments[0]!);
+}
+
+function getExplicitTypeArgumentNodes(node: Node): readonly Node[] {
+  const direct = getNodeList(getNodeField(node, "TypeArguments"));
+  if (direct.length > 0) {
+    return direct;
+  }
+  const expression = asNodeSubject(getNodeField(node, "Expression"));
+  return expression === undefined
+    ? []
+    : getNodeList(getNodeField(expression, "TypeArguments"));
 }

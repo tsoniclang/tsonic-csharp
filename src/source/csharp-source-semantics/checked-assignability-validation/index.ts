@@ -9,7 +9,7 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
-  PostCheckAssignabilityObservationRequest,
+  PostCheckAssignabilityValidationRequest,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -52,10 +52,10 @@ import {
 } from "./typed-boundary.js";
 
 export function observeCsharpPostCheckAssignability(
-  request: PostCheckAssignabilityObservationRequest,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  request: PostCheckAssignabilityValidationRequest,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
-): ExtensionObservation<undefined> {
+): ExtensionObservation<boolean> {
   void host;
   if (request.targetPlatform !== undefined && request.targetPlatform !== csharpTargetId) {
     return deferObservation;
@@ -68,7 +68,7 @@ export function observeCsharpPostCheckAssignability(
     ...(request.errorNode !== undefined ? { errorNode: request.errorNode } : {}),
     ...(request.expression !== undefined ? { expression: request.expression } : {}),
   }, [{ message: "C# target assignability observation recorded after TSTS accepted the TypeScript relation; target validation is deferred until semantic finalization." }]);
-  return acceptObservation(undefined, [{ message: "C# post-check target assignability observed without querying or changing the TSTS assignability relation." }]);
+  return acceptObservation(true, [{ message: "C# post-check target assignability observed without querying or changing the TSTS assignability relation." }]);
 }
 
 export function validateCsharpObservedAssignabilityFactsBeforeFinalization(
@@ -80,14 +80,14 @@ export function validateCsharpObservedAssignabilityFactsBeforeFinalization(
     return;
   }
   const context = {
-    observation: ExtensionObservationPoint.observePostCheckAssignability,
+    observation: ExtensionObservationPoint.validatePostCheckAssignability,
     extensionId: lifecycleContext.extensionId,
     host: lifecycleContext.host,
     facts: lifecycleContext.host.facts,
     factResolver: lifecycleContext.host.factResolver,
     diagnostics: lifecycleContext.host.diagnostics,
     compiler,
-  } satisfies ExtensionObservationContext<"target.observePostCheckAssignability">;
+  } satisfies ExtensionObservationContext<"target.validatePostCheckAssignability">;
   for (const sourceFile of compiler.getSourceFiles()) {
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
@@ -98,7 +98,7 @@ export function validateCsharpObservedAssignabilityFactsBeforeFinalization(
 
 function validateObservedAssignabilityFactsForNode(
   node: Node | undefined,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
 ): void {
   if (node === undefined) {
@@ -143,7 +143,7 @@ function validateObservedAssignabilityFactsForNode(
 
 function resolveObservedAssignabilitySource(
   fact: CsharpObservedTargetAssignabilityFact,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
   const source = host.getTargetTypeRefForSubject(fact.source, context, {
@@ -162,7 +162,7 @@ function resolveObservedAssignabilitySource(
 
 function resolveObservedAssignabilityTarget(
   fact: CsharpObservedTargetAssignabilityFact,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
   const target = host.getTargetTypeRefForSubject(fact.target, context, {
@@ -181,7 +181,7 @@ function resolveObservedAssignabilityTarget(
 
 function getObservedAssignabilityEvidence(
   fact: CsharpObservedTargetAssignabilityFact,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
 ): readonly ExtensionEvidence[] {

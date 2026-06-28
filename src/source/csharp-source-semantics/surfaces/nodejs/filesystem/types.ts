@@ -30,12 +30,12 @@ export const dateProviderType = {
   target: "csharp",
   id: "Tsonic.CSharp.Js.Date",
   displayName: "Date",
-  sourceShape: { kind: "provider-ref", name: "Date" },
+  sourceShape: { kind: "provider-ref", moduleSpecifier: "global:js", exportName: "Date" },
 } satisfies ProviderTypeExpression;
 export const bufferProviderType = {
   kind: "provider-ref",
   moduleSpecifier: nodeBufferModuleSpecifier,
-  name: nodeBufferExportName,
+  exportName: nodeBufferExportName,
 } satisfies ProviderTypeExpression;
 export const stringTargetType = csharpStringTargetType();
 export const boolTargetType = csharpSourcePrimitiveTargetType("bool");
@@ -46,7 +46,7 @@ export const voidTargetType = csharpVoidTargetType();
 export const dateTargetType = csharpJsDateTargetType();
 export const bufferTargetType = nodeBufferTargetType;
 export const fsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.fs", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "fs"));
-export const statsProviderType = { kind: "provider-ref", name: "Stats" } satisfies ProviderTypeExpression;
+export const statsProviderType = { kind: "provider-ref", moduleSpecifier: "node:fs", exportName: "Stats" } satisfies ProviderTypeExpression;
 export const statsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.Stats", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "Stats"));
 
 export interface NodeFsProviderParameter {

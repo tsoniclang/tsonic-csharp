@@ -19,7 +19,7 @@ export function isAnyRuntimeCarrierType(
   type: Type | undefined,
   context: ExtensionObservationContext,
 ): boolean {
-  return type !== undefined && context.compiler?.types.isAny(type) === true;
+  return type !== undefined && context.compiler?.typeShape.isAny(type) === true;
 }
 
 export function getTypeSyntaxCarrierFromFinalizedTypeFacts(
@@ -28,7 +28,7 @@ export function getTypeSyntaxCarrierFromFinalizedTypeFacts(
   host: CsharpRuntimeCarrierSemanticsHost,
 ): RuntimeCarrierFactResult["carrier"] | undefined {
   const ast = context.compiler?.ast;
-  const node = asNodeSubject(request.sourceTypeReference);
+  const node = asNodeSubject(request.type);
   return ast !== undefined && node !== undefined && isTypeSyntaxNode(ast, node)
     ? host.getTargetTypeRefForSubject(node, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false })
     : undefined;
@@ -42,5 +42,5 @@ export function isCallableTypeWithoutCarrierEvidence(
   const type = asType(request.type);
   return compiler !== undefined &&
     type !== undefined &&
-    compiler.types.getCallSignatures(type).length > 0;
+    compiler.typeShape.getCallSignatures(type).length > 0;
 }

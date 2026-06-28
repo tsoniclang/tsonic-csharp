@@ -37,6 +37,9 @@ import {
   getSourceLibraryCallReceiverTargetTypes,
 } from "../helpers.js";
 import {
+  getCsharpCheckedCallRequestContext,
+} from "../../../../checked-call-request-context.js";
+import {
   isSupportedJsonValueTargetType,
   isSupportedObjectHelperSourceTargetType,
 } from "../closed-facts/target-type-support.js";
@@ -155,10 +158,11 @@ function receiverMatchesTargetCondition(
     case "boolean":
       return isCsharpBooleanTargetType(receiverType);
     case "regexp":
+      const requestContext = getCsharpCheckedCallRequestContext(request, context);
       return isCsharpJsRegExpRuntimeCarrier(receiverType) ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(request.calleeReceiver, context) !== undefined ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(request.calleeReceiverSymbol, context) !== undefined ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(request.calleeReceiverResolvedSymbol, context) !== undefined;
+        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiver, context) !== undefined ||
+        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiverSymbol, context) !== undefined ||
+        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiverResolvedSymbol, context) !== undefined;
     case "date":
       return isCsharpJsDateRuntimeCarrier(receiverType);
     case "js-object":

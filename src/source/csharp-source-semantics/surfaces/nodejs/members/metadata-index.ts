@@ -1,6 +1,6 @@
 import type {
-  TargetMember,
-} from "@tsonic/tsts";
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import {
   nodejsProviderDeclarationIdentityKey,
 } from "../identity.js";
@@ -21,7 +21,7 @@ import type {
 
 export function getNodejsCallTargetMemberFromMetadata(
   declaration: NodejsProviderDeclarationIdentity,
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   if (declaration.signatureId === undefined) {
     return undefined;
   }
@@ -30,7 +30,7 @@ export function getNodejsCallTargetMemberFromMetadata(
 
 export function getNodejsPropertyTargetMemberFromMetadata(
   declaration: NodejsProviderDeclarationIdentity,
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   return getNodejsTargetMemberFromMetadata(declaration);
 }
 
@@ -49,12 +49,12 @@ export function getNodejsUnsupportedTargetIdentityFromMetadata(
   }));
 }
 
-function getNodejsTargetMemberFromMetadata(declaration: NodejsProviderDeclarationIdentity): TargetMember | undefined {
+function getNodejsTargetMemberFromMetadata(declaration: NodejsProviderDeclarationIdentity): CsharpTargetMember | undefined {
   const canonicalDeclaration = canonicalNodejsDeclarationIdentity(declaration);
   return nodejsTargetMemberByDeclarationIdentity.get(nodejsProviderDeclarationIdentityKey(canonicalDeclaration));
 }
 
-const nodejsTargetMemberByDeclarationIdentity = new Map<string, TargetMember>(
+const nodejsTargetMemberByDeclarationIdentity = new Map<string, CsharpTargetMember>(
   nodejsTargetMemberMetadataRecords().flatMap((record) =>
     record.declarationIdentities.map((identity) => [
       nodejsProviderDeclarationIdentityKey(identity),

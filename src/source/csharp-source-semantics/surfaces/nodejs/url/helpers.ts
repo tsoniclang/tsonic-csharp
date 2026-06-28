@@ -18,10 +18,11 @@ export const numberProviderType = { kind: "number" } satisfies ProviderTypeExpre
 export const voidProviderType = { kind: "void" } satisfies ProviderTypeExpression;
 export const objectProviderType = { kind: "object" } satisfies ProviderTypeExpression;
 export const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
-export const urlProviderType = { kind: "provider-ref", name: "URL" } satisfies ProviderTypeExpression;
+export const nodeUrlModuleSpecifier = "node:url";
+export const urlProviderType = { kind: "provider-ref", moduleSpecifier: nodeUrlModuleSpecifier, exportName: "URL" } satisfies ProviderTypeExpression;
 export const nullableUrlProviderType = { kind: "union", types: [urlProviderType, { kind: "literal", value: null }] } satisfies ProviderTypeExpression;
-export const urlSearchParamsProviderType = { kind: "provider-ref", name: "URLSearchParams" } satisfies ProviderTypeExpression;
-export const bufferProviderType = { kind: "provider-ref", moduleSpecifier: "node:buffer", name: "Buffer" } satisfies ProviderTypeExpression;
+export const urlSearchParamsProviderType = { kind: "provider-ref", moduleSpecifier: nodeUrlModuleSpecifier, exportName: "URLSearchParams" } satisfies ProviderTypeExpression;
+export const bufferProviderType = { kind: "provider-ref", moduleSpecifier: "node:buffer", exportName: "Buffer" } satisfies ProviderTypeExpression;
 
 export const stringTargetType = csharpStringTargetType();
 export const boolTargetType = csharpSourcePrimitiveTargetType("bool");

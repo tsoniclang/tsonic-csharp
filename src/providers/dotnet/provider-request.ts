@@ -1,6 +1,12 @@
 import type {
   ProviderModuleContext,
 } from "@tsonic/tsts";
+import type {
+  DotnetProviderResolutionContext,
+} from "./provider-slices.js";
+import {
+  dotnetProviderResolutionContext,
+} from "./provider-slices.js";
 import {
   parseDotnetProviderDependencyModuleSpecifier,
   parseDotnetModuleSpecifier,
@@ -35,21 +41,17 @@ export function dotnetProviderModuleRequest(
 export function dotnetProviderModuleContext(
   context: ProviderModuleContext,
   module: DotnetProviderModuleRequest,
-): ProviderModuleContext {
+): DotnetProviderResolutionContext | undefined {
   if (module.requestedExports === undefined) {
-    return context;
+    return dotnetProviderResolutionContext(context);
   }
-  return {
-    ...context,
-    requestedExports: module.requestedExports,
-    broadImport: false,
-  };
+  return dotnetProviderResolutionContext({ requestedExports: module.requestedExports });
 }
 
 export function providerVirtualDeclarationFileName(
   providerId: string,
   specifier: string,
-  context: Pick<ProviderModuleContext, "broadImport" | "requestedExports">,
+  context: DotnetProviderResolutionContext,
 ): string {
   const sliceKey = context.broadImport === true
     ? "broad"

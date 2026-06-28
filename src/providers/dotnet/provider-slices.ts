@@ -5,14 +5,32 @@ import type {
   DotnetModuleModel,
 } from "./model.js";
 
-export type DotnetProviderResolutionContext = Pick<ProviderModuleContext, "broadImport" | "requestedExports">;
+export interface DotnetProviderResolutionContext {
+  readonly broadImport?: true;
+  readonly requestedExports?: readonly string[];
+}
 
-export function dotnetProviderResolutionContext(context: DotnetProviderResolutionContext): DotnetProviderResolutionContext | undefined {
+export function dotnetProviderResolutionContext(context: ProviderModuleContext | DotnetProviderResolutionContext): DotnetProviderResolutionContext | undefined {
+  if (isProviderModuleContext(context)) {
+    const slice = context.importSlice;
+    if (slice === undefined) {
+      return undefined;
+    }
+    if (slice.broadImport === true || slice.kind === "bare" || slice.kind === "namespace" || slice.kind === "mixed" || slice.kind === "reexport" || slice.kind === "dynamic" || slice.kind === "synthetic" || slice.kind === "unknown") {
+      return { broadImport: true };
+    }
+    const requestedExports = sortedNonEmpty(slice.requestedExports?.map((request) => request.exportedName));
+    return requestedExports === undefined ? undefined : { requestedExports };
+  }
   if (context.broadImport === true) {
     return { broadImport: true as const };
   }
   const requestedExports = sortedNonEmpty(context.requestedExports);
   return requestedExports === undefined ? undefined : { requestedExports };
+}
+
+function isProviderModuleContext(context: ProviderModuleContext | DotnetProviderResolutionContext): context is ProviderModuleContext {
+  return "importSlice" in context;
 }
 
 export function missingDotnetRequestedExports(

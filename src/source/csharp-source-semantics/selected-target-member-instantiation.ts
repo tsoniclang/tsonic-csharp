@@ -1,8 +1,9 @@
 import type {
-  SelectedTargetSignatureFact,
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "./target-types.js";
 import {
   enrichCsharpTargetMember,
 } from "./target-enrichment.js";
@@ -11,10 +12,10 @@ import type {
 } from "./target-enrichment.js";
 
 export function instantiateSelectedTargetMember(
-  selectedSignature: SelectedTargetSignatureFact,
+  selectedSignature: { readonly member: CsharpTargetMember; readonly targetTypeArguments?: readonly TargetTypeRef[] },
   host: CsharpTargetEnrichmentHost,
   options: { readonly declaringTargetType?: TargetTypeRef } = {},
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   if (!selectedTargetTypeArgumentListMatchesMember(selectedSignature)) {
     return undefined;
   }
@@ -24,7 +25,7 @@ export function instantiateSelectedTargetMember(
   });
 }
 
-function selectedTargetTypeArgumentListMatchesMember(selectedSignature: SelectedTargetSignatureFact): boolean {
+function selectedTargetTypeArgumentListMatchesMember(selectedSignature: { readonly member: CsharpTargetMember; readonly targetTypeArguments?: readonly TargetTypeRef[] }): boolean {
   if (selectedSignature.targetTypeArguments === undefined) {
     return true;
   }

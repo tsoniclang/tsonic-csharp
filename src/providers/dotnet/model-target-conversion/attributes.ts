@@ -1,9 +1,9 @@
 import type {
-  TargetAttributeArgument,
-  TargetAttributeFact,
-  TargetAttributeValue,
-  TargetUnsupportedAttributeFact,
-} from "@tsonic/tsts";
+  CsharpTargetAttributeArgument,
+  CsharpTargetAttributeFact,
+  CsharpTargetAttributeValue,
+  CsharpTargetUnsupportedAttributeFact,
+} from "../../../source/csharp-source-semantics/target-types.js";
 import type {
   DotnetAttributeArgument,
   DotnetAttributeDeclaration,
@@ -14,7 +14,7 @@ import {
   dotnetTypeRefToTargetTypeRef,
 } from "./type-ref.js";
 
-export function dotnetAttributeToTargetAttribute(attribute: DotnetAttributeDeclaration): TargetAttributeFact {
+export function dotnetAttributeToTargetAttribute(attribute: DotnetAttributeDeclaration): CsharpTargetAttributeFact {
   return {
     id: attribute.id,
     target: attribute.target,
@@ -27,7 +27,7 @@ export function dotnetAttributeToTargetAttribute(attribute: DotnetAttributeDecla
   };
 }
 
-export function dotnetUnsupportedAttributeToTargetUnsupportedAttribute(attribute: DotnetUnsupportedAttributeDeclaration): TargetUnsupportedAttributeFact {
+export function dotnetUnsupportedAttributeToTargetUnsupportedAttribute(attribute: DotnetUnsupportedAttributeDeclaration): CsharpTargetUnsupportedAttributeFact {
   return {
     id: attribute.id,
     target: attribute.target,
@@ -38,7 +38,7 @@ export function dotnetUnsupportedAttributeToTargetUnsupportedAttribute(attribute
   };
 }
 
-function dotnetAttributeArgumentToTargetAttributeArgument(argument: DotnetAttributeArgument): TargetAttributeArgument {
+function dotnetAttributeArgumentToTargetAttributeArgument(argument: DotnetAttributeArgument): CsharpTargetAttributeArgument {
   switch (argument.kind) {
     case "constructor":
       return { kind: "constructor", value: dotnetAttributeValueToTargetAttributeValue(argument.value) };
@@ -52,7 +52,7 @@ function dotnetAttributeArgumentToTargetAttributeArgument(argument: DotnetAttrib
   }
 }
 
-function dotnetAttributeValueToTargetAttributeValue(value: DotnetAttributeValue): TargetAttributeValue {
+function dotnetAttributeValueToTargetAttributeValue(value: DotnetAttributeValue): CsharpTargetAttributeValue {
   switch (value.kind) {
     case "null":
     case "string":

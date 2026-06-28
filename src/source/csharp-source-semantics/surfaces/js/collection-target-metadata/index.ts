@@ -15,7 +15,6 @@ import {
 } from "./member-builders.js";
 import {
   createCsharpJsCollectionTargetType,
-  createOpenCsharpJsCollectionTargetType,
   getCsharpJsCollectionIterableElementType as getPolicyIterableElementType,
 } from "./target-types.js";
 import {
@@ -72,6 +71,16 @@ export function collectionTargetMembersForSelectedIdentity(
     }).map(jsSurfaceTargetMemberFromMetadata);
 }
 
+export function collectionTargetTypeForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  typeArguments: readonly TargetTypeRef[],
+): TargetTypeRef | undefined {
+  const policy = collectionPolicyForSelectedSourceIdentity(selectedIdentity);
+  return policy === undefined
+    ? undefined
+    : createCsharpJsCollectionTargetType(policy, typeArguments);
+}
+
 function closedCollectionTypeForPolicy(
   policy: NonNullable<ReturnType<typeof collectionPolicyForSelectedSourceIdentity>>,
   receiverType: TargetTypeRef | undefined,
@@ -83,5 +92,5 @@ function closedCollectionTypeForPolicy(
   if (collectionPolicyForTargetType(receiverType) === policy) {
     return receiverType;
   }
-  return createOpenCsharpJsCollectionTargetType(policy);
+  return undefined;
 }

@@ -1,9 +1,14 @@
 import type {
   CheckedCallMappingRequest,
   ExtensionObservationContext,
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../../target-types.js";
+import {
+  asNodeSubject,
+} from "../../../../ast-utils.js";
 import {
   booleanConstructorTargetMembersForSelectedIdentity,
 } from "../../booleans.js";
@@ -17,6 +22,9 @@ import {
 import {
   dateTargetMembersForSelectedIdentity,
 } from "../../date/index.js";
+import {
+  collectionTargetTypeForSelectedIdentity,
+} from "../../collections.js";
 import {
   jsonRecordDictionaryStringifyTargetMembers,
 } from "../../json.js";
@@ -63,7 +71,7 @@ import {
 
 export function operationRowFromMetadataIndex(
   identity: JsSurfaceSourceIdentitySelector,
-  membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+  membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly CsharpTargetMember[]>,
   evidence: Pick<JsSurfaceOperationRow, "capabilityId" | "requiredFacts"> = {},
 ): JsSurfaceOperationRow {
   return {
@@ -75,7 +83,7 @@ export function operationRowFromMetadataIndex(
 }
 
 export function metadataIndexProvider(
-  membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>,
+  membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly CsharpTargetMember[]>,
 ): JsSurfaceOperationTargetProvider {
   return {
     kind: "metadata-index",
@@ -113,7 +121,7 @@ export function semanticExceptionProvider(
 export function targetMembersFromOperationTargetProvider(
   provider: JsSurfaceOperationTargetProvider,
   request: JsSurfaceCallTargetProviderRequest,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
@@ -134,7 +142,10 @@ export function operationTargetProviderHasCallableMember(
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable);
     case "selected-metadata":
-      return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity).some(jsSurfaceTargetMemberIsCallable);
+      return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, {
+        contextualDeclaringType: request.contextualDeclaringType,
+        contextualResultType: request.contextualResultType,
+      }).some(jsSurfaceTargetMemberIsCallable);
     case "runtime-helper":
       return false;
     case "semantic-exception":
@@ -145,7 +156,7 @@ export function operationTargetProviderHasCallableMember(
 function targetMembersFromSelectedMetadata(
   selection: JsSurfaceSelectedMetadataSelection,
   request: JsSurfaceCallTargetProviderRequest,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   switch (selection.kind) {
     case "closed-sequence": {
       const contextualElementType = sequenceElementTypeFromClosedFacts(request, selection);
@@ -161,16 +172,46 @@ function targetMembersFromSelectedMetadata(
       return jsSurfaceSelectedTargetMembersForSelectedIdentity(request.selectedIdentity, {
         contextualDeclaringType: getSourceLibraryCallReceiverTargetTypes(request.request, request.context, request.host)[0],
         contextualResultType: selection.useResultCarrier
-          ? getSourceLibraryCallResultTargetType(request.request, request.context, request.host)
+          ? getSourceLibraryCallResultTargetType(request.request, request.context, request.host) ??
+            getExplicitCollectionConstructorResultType(request)
           : undefined,
       });
   }
 }
 
+function getExplicitCollectionConstructorResultType(
+  request: JsSurfaceCallTargetProviderRequest,
+): TargetTypeRef | undefined {
+  const ast = request.context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  const callNode = asNodeSubject(request.request.call);
+  if (callNode === undefined) {
+    return undefined;
+  }
+  const typeArguments = ast.typeArguments(callNode)
+    .map((argument) => argument === undefined
+      ? undefined
+      : request.host.getTargetTypeRefForSubject(argument, request.context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: true,
+        sourceFile: ast.getSourceFile(argument),
+      })
+    );
+  if (typeArguments.length === 0 || typeArguments.some((argument) => argument === undefined)) {
+    return undefined;
+  }
+  return collectionTargetTypeForSelectedIdentity(
+    request.selectedIdentity,
+    typeArguments as readonly TargetTypeRef[],
+  );
+}
+
 function targetMembersFromRuntimeHelperSelection(
   selection: JsSurfaceRuntimeHelperSelection,
   request: JsSurfaceCallTargetProviderRequest,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   switch (selection.kind) {
     case "record-dictionary":
       return getObjectRecordDictionaryCallMembers(selection.operation, request.request, request.context, request.host);
@@ -181,7 +222,7 @@ function targetMembersFromRuntimeHelperSelection(
 
 function getJsonRecordDictionaryStringifyCallMembers(
   request: JsSurfaceCallTargetProviderRequest,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request.request, request.context, request.host)
     .find((argumentType): argumentType is CsharpRecordDictionaryTargetTypeRef =>
       argumentType !== undefined && isStringKeyedRecordDictionaryTargetType(argumentType, request.host));
@@ -193,7 +234,7 @@ function getJsonRecordDictionaryStringifyCallMembers(
 function targetMembersFromSemanticException(
   selection: JsSurfaceSemanticExceptionSelection,
   request: JsSurfaceCallTargetProviderRequest,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   switch (selection.kind) {
     case "date-call-construct":
       return dateTargetMembersForSelectedIdentity(

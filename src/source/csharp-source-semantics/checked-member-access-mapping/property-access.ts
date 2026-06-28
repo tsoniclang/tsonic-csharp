@@ -25,6 +25,9 @@ import {
   findTargetBinding,
 } from "../provider-bindings.js";
 import {
+  getCsharpCheckedPropertyAccessRequestContext,
+} from "../checked-member-access-request-context.js";
+import {
   findUnsupportedProviderTargetMember,
 } from "../provider-unsupported-members.js";
 import {
@@ -88,15 +91,18 @@ export function mapCsharpCheckedPropertyAccess(
       operation: targetOperation("source-semantics.attribute-builder.member", "property", "__tsonic_erased_source_marker"),
     }, [{ message: "C# attribute builder member access was checked by TSTS and marked for fact-driven erasure." }]);
   }
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const binding = findTargetBinding(context, [
-    request.sourceSelectedContainerSymbol,
-    request.sourceSelectedDeclarationContainer,
-    request.sourceSelectedDeclaration,
-    request.receiverTypeSymbol,
-    request.receiverType,
-    request.receiverAliasedSymbol,
-    request.receiverResolvedSymbol,
-    request.receiverSymbol,
+    requestContext.sourceSelectedSymbol,
+    requestContext.sourceSelectedContainerSymbol,
+    requestContext.sourceSelectedDeclarationContainer,
+    requestContext.sourceSelectedDeclaration,
+    requestContext.receiverTypeSymbol,
+    requestContext.receiverType,
+    requestContext.receiverAliasedSymbol,
+    requestContext.receiverResolvedSymbol,
+    requestContext.receiverSymbol,
+    request.receiver,
   ]);
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
@@ -126,7 +132,7 @@ export function mapCsharpCheckedPropertyAccess(
       operation: targetOperationFromMember(member),
     }, [{ message: "C# provider method-group property access accepted from checked TSTS call callee; call emission uses the finalized selected call fact." }]);
   }
-  const declaringTargetType = getDeclaringTargetType(request, context, host);
+  const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver, receiverType: requestContext.receiverType }, context, host);
   const csharpMember = instantiateClosedSelectedTargetMember(member, host, declaringTargetType);
   if (csharpMember === undefined) {
     return rejectTargetPropertyNotRenderable(extensionId, member.id);

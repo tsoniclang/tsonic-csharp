@@ -94,7 +94,7 @@ export function resolveSourceLibraryMemberIdentity(
 
 export function isBundledStandardLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
   const ast = context.compiler?.ast;
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (ast === undefined || types === undefined) {
     return false;
   }

@@ -11,7 +11,6 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
-  SourceFile,
 } from "@tsonic/tsts";
 import {
   csharpTargetIterationFactKey,
@@ -61,14 +60,13 @@ export function recordCsharpJsSurfaceIterationFactsBeforeFinalization(
       continue;
     }
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      recordCsharpJsSurfaceIterationFact(node, sourceFile, context, host);
+      recordCsharpJsSurfaceIterationFact(node, context, host);
     });
   }
 }
 
 function recordCsharpJsSurfaceIterationFact(
   node: Node,
-  sourceFile: SourceFile,
   context: ExtensionObservationContext<"operation.mapCheckedIteration">,
   host: CsharpJsSurfaceHost,
 ): void {
@@ -88,11 +86,9 @@ function recordCsharpJsSurfaceIterationFact(
   if (expression === undefined) {
     return;
   }
-  const sourceExpressionType = compiler.checker.getTypeAtLocation(expression, { sourceFile });
   const mapped = mapCsharpJsSurfaceCheckedIteration({
     statement: node,
     expression,
-    ...(sourceExpressionType !== undefined ? { sourceExpressionType } : {}),
     kind,
     target: host.targetId,
   }, context, host);
@@ -110,9 +106,14 @@ export function mapCsharpJsSurfaceCheckedIteration(
     return deferObservation;
   }
   const seededExpressionCarrier = context.factResolver.resolve(request.expression, runtimeCarrierFactKey)?.carrier;
+  const expressionNode = asNodeSubject(request.expression);
+  const sourceFile = expressionNode === undefined ? undefined : context.compiler?.ast.getSourceFile(expressionNode);
+  const sourceExpressionType = expressionNode === undefined || context.compiler === undefined
+    ? undefined
+    : context.compiler.checker.getTypeAtLocation(expressionNode, { sourceFile });
   const expressionType = seededExpressionCarrier ??
     host.getTargetTypeRefForSubject(request.expression, context, csharpJsCheckedTypeQuery) ??
-    host.getTargetTypeRefForSubject(request.sourceExpressionType, context, csharpJsCheckedTypeQuery);
+    host.getTargetTypeRefForSubject(sourceExpressionType, context, csharpJsCheckedTypeQuery);
   if (request.kind === "for-of") {
     if (host.isCsharpStringType(expressionType)) {
       const fact = {

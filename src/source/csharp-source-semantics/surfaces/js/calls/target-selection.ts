@@ -6,6 +6,9 @@ import type {
 import type {
   CsharpJsSurfaceHost,
 } from "../source-library.js";
+import {
+  getCsharpCheckedCallRequestContext,
+} from "../../../checked-call-request-context.js";
 
 export function selectSourceLibraryCallMember(
   candidates: readonly TargetMember[],
@@ -13,9 +16,10 @@ export function selectSourceLibraryCallMember(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const selected = host.selectTargetMember(candidates, {
     arguments: request.arguments,
-    receiver: request.calleeReceiver,
+    receiver: requestContext.calleeReceiver,
     sourceSelectedSignature: request.sourceSelectedSignature,
   }, context);
   return selected !== undefined && request.sourceSelectedSignature !== undefined ? selected : undefined;

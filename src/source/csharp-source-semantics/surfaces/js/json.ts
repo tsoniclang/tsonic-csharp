@@ -113,7 +113,7 @@ export function mapCsharpJsJsonRuntimeCarrier(
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
-  const call = asNodeSubject(request.sourceTypeReference);
+  const call = asNodeSubject(request.type);
   if (call === undefined || context.compiler?.ast.is.IsCallExpression(call) !== true) {
     return deferObservation;
   }

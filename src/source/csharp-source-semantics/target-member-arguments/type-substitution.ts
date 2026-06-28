@@ -1,9 +1,9 @@
 import type {
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetNamedTypeRef,
+  CsharpTargetMember,
 } from "../target-types.js";
 import {
   targetTypeRefEquals,
@@ -46,9 +46,9 @@ export function bindTargetTypeParameter(
 }
 
 export function substituteTargetMemberTypeParameters(
-  member: TargetMember,
+  member: CsharpTargetMember,
   typeParameterBindings: ReadonlyMap<string, TargetTypeRef>,
-): TargetMember {
+): CsharpTargetMember {
   if (typeParameterBindings.size === 0) {
     return member;
   }

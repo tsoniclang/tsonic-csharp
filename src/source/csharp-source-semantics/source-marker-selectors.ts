@@ -20,17 +20,7 @@ export function isAttributeSelectorApplicationTarget(
   if (expression === undefined) {
     return false;
   }
-  for (
-    let current = asNodeSubject(getNodeField(expression, "Parent"));
-    current !== undefined;
-    current = asNodeSubject(getNodeField(current, "Parent"))
-  ) {
-    const attribute = context.facts.get(current, attributeFactKey);
-    if (attribute?.applicationTarget === expression) {
-      return true;
-    }
-  }
-  return false;
+  return isAttributeSelectorBodyExpression(expression, context);
 }
 
 export function isAttributeSelectorBodyExpression(

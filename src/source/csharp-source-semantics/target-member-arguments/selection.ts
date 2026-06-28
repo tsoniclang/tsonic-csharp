@@ -1,9 +1,11 @@
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
-  TargetMember,
-  TargetParameter,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+  CsharpTargetParameter,
+} from "../target-types.js";
 import {
   getEffectiveArgumentForTargetParameter,
 } from "./argument-passing.js";
@@ -30,12 +32,12 @@ import type {
 } from "./types.js";
 
 export function selectTargetMember(
-  candidates: readonly TargetMember[],
+  candidates: readonly CsharpTargetMember[],
   request: TargetMemberSelectionRequest,
   context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   const matching = candidates.flatMap((member) => {
     const match = targetMemberMatch(member, request, context, resolveTargetTypeRef, options);
     return match === undefined ? [] : [match];
@@ -46,10 +48,10 @@ export function selectTargetMember(
 }
 
 export function selectExactTargetMember(
-  member: TargetMember,
+  member: CsharpTargetMember,
   request: TargetMemberSelectionRequest,
   options: TargetMemberSelectionOptions = {},
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
   if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
     return undefined;
@@ -61,12 +63,12 @@ export function selectExactTargetMember(
 }
 
 export function selectProviderSelectedTargetMember(
-  member: TargetMember,
+  member: CsharpTargetMember,
   request: TargetMemberSelectionRequest,
   context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
   if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
     return undefined;
@@ -98,12 +100,12 @@ export function selectProviderSelectedTargetMember(
 }
 
 function targetMemberMatch(
-  member: TargetMember,
+  member: CsharpTargetMember,
   request: TargetMemberSelectionRequest,
   context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions,
-): { readonly member: TargetMember; readonly score: number } | undefined {
+): { readonly member: CsharpTargetMember; readonly score: number } | undefined {
   const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
   if (arguments_ === undefined) {
     return undefined;
@@ -150,17 +152,17 @@ function targetMemberMatch(
   };
 }
 
-function targetParameterAcceptsCheckedSourceArgument(parameter: TargetParameter): boolean {
-  return (parameter as TargetParameter & { readonly csharpAcceptsCheckedSourceArgument?: true }).csharpAcceptsCheckedSourceArgument === true;
+function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetParameter): boolean {
+  return parameter.csharpAcceptsCheckedSourceArgument === true;
 }
 
-function targetParameterAcceptsClosedSourceArgument(parameter: TargetParameter): boolean {
-  return (parameter as TargetParameter & { readonly csharpAcceptsClosedSourceArgument?: true }).csharpAcceptsClosedSourceArgument === true ||
+function targetParameterAcceptsClosedSourceArgument(parameter: CsharpTargetParameter): boolean {
+  return parameter.csharpAcceptsClosedSourceArgument === true ||
     targetParameterAcceptsCheckedSourceArgument(parameter);
 }
 
 function getTargetArgumentSubjectsForMember(
-  member: TargetMember,
+  member: CsharpTargetMember,
   request: TargetMemberSelectionRequest,
   options: TargetMemberSelectionOptions = {},
 ): readonly ExtensionFactSubject[] | undefined {
@@ -176,7 +178,7 @@ function getTargetArgumentSubjectsForMember(
     : [receiver, ...request.arguments];
 }
 
-function getExpectedTargetTypeForArgument(parameter: TargetParameter) {
+function getExpectedTargetTypeForArgument(parameter: CsharpTargetParameter) {
   return parameter.paramsArray === true && parameter.type.kind === "array"
     ? parameter.type.element
     : parameter.type;

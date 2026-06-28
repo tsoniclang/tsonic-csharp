@@ -33,12 +33,12 @@ export function getNonNullishRuntimeUnionCarrier(
 ): RuntimeCarrierFactResult["carrier"] | undefined {
   const compiler = context.compiler;
   const type = asType(request.type);
-  if (compiler === undefined || type === undefined || !compiler.types.isUnion(type)) {
+  if (compiler === undefined || type === undefined || !compiler.typeShape.isUnion(type)) {
     return undefined;
   }
-  const members = compiler.types.getUnionOrIntersectionTypes(type)
+  const members = compiler.typeShape.getUnionOrIntersectionTypes(type)
     .filter((member): member is Type => member !== undefined);
-  const nonNullishMembers = members.filter((member) => !compiler.types.isNullish(member));
+  const nonNullishMembers = members.filter((member) => !compiler.typeShape.isNullish(member));
   if (nonNullishMembers.length < 2 || nonNullishMembers.length !== members.length) {
     return undefined;
   }
@@ -59,12 +59,12 @@ export function getCommonNonNullishUnionRuntimeCarrier(
 ): CommonUnionRuntimeCarrier | undefined {
   const compiler = context.compiler;
   const type = asType(request.type);
-  if (compiler === undefined || type === undefined || !compiler.types.isUnion(type)) {
+  if (compiler === undefined || type === undefined || !compiler.typeShape.isUnion(type)) {
     return undefined;
   }
-  const members = compiler.types.getUnionOrIntersectionTypes(type)
+  const members = compiler.typeShape.getUnionOrIntersectionTypes(type)
     .filter((member): member is Type => member !== undefined);
-  const nonNullishMembers = members.filter((member) => !compiler.types.isNullish(member));
+  const nonNullishMembers = members.filter((member) => !compiler.typeShape.isNullish(member));
   if (nonNullishMembers.length < 2 || nonNullishMembers.length !== members.length) {
     return undefined;
   }

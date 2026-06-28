@@ -16,6 +16,9 @@ import {
 import {
   tsonicCoreLangModule,
 } from "@tsonic/source-core";
+import {
+  getCsharpCheckedCallRequestContext,
+} from "./checked-call-request-context.js";
 
 export function isErasedSourceSemanticsCall(declaration: ProviderVirtualDeclarationFact | undefined): declaration is ProviderVirtualDeclarationFact {
   if (declaration === undefined) {
@@ -51,10 +54,11 @@ export function getCheckedAttributeBuilderFact(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): AttributeFact | undefined {
-  const receiverFact = request.calleeReceiver === undefined
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
+  const receiverFact = requestContext.calleeReceiver === undefined
     ? undefined
-    : context.factResolver.resolve(request.calleeReceiver, attributeFactKey) ??
-      context.facts.get(request.calleeReceiver, attributeFactKey);
+    : context.factResolver.resolve(requestContext.calleeReceiver, attributeFactKey) ??
+      context.facts.get(requestContext.calleeReceiver, attributeFactKey);
   return context.factResolver.resolve(request.call, attributeFactKey) ??
     context.facts.get(request.call, attributeFactKey) ??
     receiverFact;

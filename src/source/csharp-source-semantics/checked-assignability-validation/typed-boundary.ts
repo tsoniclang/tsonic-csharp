@@ -28,7 +28,7 @@ import {
 
 export function diagnoseAnyTypedBoundaryForNode(
   node: Node,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
 ): boolean {
   const compiler = context.compiler;
   if (compiler === undefined) {
@@ -66,7 +66,7 @@ export function diagnoseAnyTypedBoundaryForNode(
 
 function appendAnyBoundaryDiagnostic(
   node: Node,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
 ): boolean {

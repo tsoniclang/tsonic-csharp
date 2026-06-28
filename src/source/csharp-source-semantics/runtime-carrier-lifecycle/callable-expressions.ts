@@ -55,7 +55,6 @@ export function getCallableExpressionRuntimeCarrierTargetTypeRef(
   }
   const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
     type,
-    sourceTypeReference: node,
     target: csharpTargetId,
   }, host);
   return result.kind === "accept" ? result.value.carrier : undefined;

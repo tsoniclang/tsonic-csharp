@@ -1,6 +1,6 @@
 import type {
-  TargetMember,
-} from "@tsonic/tsts";
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import {
   targetParameter,
 } from "../../js/source-library.js";
@@ -30,7 +30,7 @@ import {
   nodeBufferToStringEndTargetType,
 } from "./helpers.js";
 
-export function getNodeBufferLengthTargetMember(): TargetMember {
+export function getNodeBufferLengthTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferLengthTargetMemberId,
     sourceName: "length",
@@ -42,7 +42,7 @@ export function getNodeBufferLengthTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferEqualsTargetMember(): TargetMember {
+export function getNodeBufferEqualsTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferEqualsTargetMemberId,
     sourceName: nodeBufferEqualsExportName,
@@ -54,7 +54,7 @@ export function getNodeBufferEqualsTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferCompareInstanceTargetMember(): TargetMember {
+export function getNodeBufferCompareInstanceTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferCompareInstanceTargetMemberId,
     sourceName: nodeBufferCompareInstanceExportName,
@@ -66,7 +66,7 @@ export function getNodeBufferCompareInstanceTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferCopyTargetMember(): TargetMember {
+export function getNodeBufferCopyTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferCopyTargetMemberId,
     sourceName: nodeBufferCopyExportName,
@@ -83,7 +83,7 @@ export function getNodeBufferCopyTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferSliceTargetMember(): TargetMember {
+export function getNodeBufferSliceTargetMember(): CsharpTargetMember {
   return nodeBufferRangeTargetMember({
     targetMemberId: nodeBufferSliceTargetMemberId,
     sourceName: nodeBufferSliceExportName,
@@ -91,7 +91,7 @@ export function getNodeBufferSliceTargetMember(): TargetMember {
   });
 }
 
-export function getNodeBufferSubarrayTargetMember(): TargetMember {
+export function getNodeBufferSubarrayTargetMember(): CsharpTargetMember {
   return nodeBufferRangeTargetMember({
     targetMemberId: nodeBufferSubarrayTargetMemberId,
     sourceName: nodeBufferSubarrayExportName,
@@ -99,7 +99,7 @@ export function getNodeBufferSubarrayTargetMember(): TargetMember {
   });
 }
 
-export function getNodeBufferToStringTargetMember(): TargetMember {
+export function getNodeBufferToStringTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferToStringTargetMemberId,
     sourceName: nodeBufferToStringExportName,
@@ -115,7 +115,7 @@ export function getNodeBufferToStringTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferWriteTargetMember(): TargetMember {
+export function getNodeBufferWriteTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferWriteTargetMemberId,
     sourceName: nodeBufferWriteExportName,
@@ -136,7 +136,7 @@ function nodeBufferRangeTargetMember(row: {
   readonly targetMemberId: string;
   readonly sourceName: string;
   readonly targetName: string;
-}): TargetMember {
+}): CsharpTargetMember {
   return {
     id: row.targetMemberId,
     sourceName: row.sourceName,

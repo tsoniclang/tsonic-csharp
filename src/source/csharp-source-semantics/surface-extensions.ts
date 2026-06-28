@@ -122,9 +122,6 @@ export function createCsharpJsSurfaceOperationsProvider(hosts: Pick<CsharpExtens
   const mapper = createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, hosts.operationsProviderHost));
   return {
     identity,
-    resolveRuntimeCarrier(request, context) {
-      return mapper.mapRuntimeCarrier(request, context);
-    },
     mapCheckedCall(request, context) {
       return mapper.mapCheckedCall(request, context);
     },
@@ -186,10 +183,10 @@ export function recordCsharpJsSurfaceOperationFactsBeforeFinalization(
   options: { readonly diagnostics?: "append" | "suppress" } = {},
 ): void {
   const jsSurfaceHost = createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, hosts.operationsProviderHost);
+  recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost, options);
   recordCsharpSourceLibraryPropertyFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayElementAccessFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpJsArrayMutationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
-  recordCsharpSourceLibraryCallFactsBeforeFinalization(lifecycleContext, jsSurfaceHost, options);
   recordCsharpJsSurfaceIterationFactsBeforeFinalization(lifecycleContext, jsSurfaceHost);
   recordCsharpRecordDictionaryElementAccessFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
 }

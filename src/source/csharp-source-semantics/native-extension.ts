@@ -64,6 +64,9 @@ import {
   recordCsharpSourceDeclarationFactsBeforeFinalization,
 } from "./source-declaration-facts.js";
 import {
+  recordCsharpAttributeApplicationFactsBeforeFinalization,
+} from "./attribute-application-facts.js";
+import {
   recordCsharpAssertionConversionFactsBeforeFinalization,
 } from "./source-assertion-conversions.js";
 import {
@@ -105,6 +108,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
         recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
+        recordCsharpAttributeApplicationFactsBeforeFinalization(lifecycleContext);
         if (jsSurfaceSelected) {
           recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts);
         }

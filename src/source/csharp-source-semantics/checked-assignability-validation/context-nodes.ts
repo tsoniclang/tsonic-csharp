@@ -19,7 +19,7 @@ import {
 
 export function resolveObservedAssignabilitySourceNode(
   fact: CsharpObservedTargetAssignabilityFact,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
 ): Node | undefined {
   const ast = context.compiler?.ast;
   const expression = asNode(fact.expression ?? fact.errorNode);
@@ -41,7 +41,7 @@ export function resolveObservedAssignabilitySourceNode(
 
 export function resolveObservedAssignabilityTargetNode(
   fact: CsharpObservedTargetAssignabilityFact,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
 ): Node | undefined {
   const ast = context.compiler?.ast;
   const expression = asNode(fact.expression ?? fact.errorNode);
@@ -63,7 +63,7 @@ export function resolveObservedAssignabilityTargetNode(
 
 export function getObservedAssignabilitySourceFile(
   fact: CsharpObservedTargetAssignabilityFact,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
 ): SourceFile | undefined {
   const ast = context.compiler?.ast;
   const node = asNode(fact.expression ?? fact.errorNode) ??
@@ -85,7 +85,7 @@ export function canUseObservedContextSubject(subject: unknown): boolean {
 
 export function isInferredLocalAssignmentObservation(
   fact: CsharpObservedTargetAssignabilityFact,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
 ): boolean {
   if (fact.relation !== "assignment") {
     return false;
@@ -107,7 +107,7 @@ export function isInferredLocalAssignmentObservation(
 
 export function getEnclosingReturnTypeNode(
   returnStatement: Node,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
 ): Node | undefined {
   const ast = context.compiler?.ast;
   if (ast === undefined) {
@@ -132,7 +132,7 @@ export function getEnclosingReturnTypeNode(
 
 export function getEnclosingReturnTargetCarrier(
   returnStatement: Node,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
 ): TargetTypeRef | undefined {
   const ast = context.compiler?.ast;
   if (ast === undefined) {
@@ -157,7 +157,7 @@ export function getEnclosingReturnTargetCarrier(
 
 function getObservedAssignabilityContextTargetNode(
   expression: Node,
-  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
 ): Node | undefined {
   const ast = context.compiler?.ast;
   if (ast === undefined) {

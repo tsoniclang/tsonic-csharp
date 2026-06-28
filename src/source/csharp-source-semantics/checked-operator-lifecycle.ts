@@ -12,6 +12,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
+  getNodeField,
   visitAstReaderNodes,
 } from "./ast-utils.js";
 import {
@@ -19,10 +20,12 @@ import {
   getPrefixUnaryOperatorText,
 } from "./operator-syntax.js";
 import {
+  csharpTargetTypeofRuntimeOperation,
   csharpTargetTokenOperatorOperation,
   targetOperation,
 } from "./operations.js";
 import {
+  CsharpTargetOperationFact,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
 import {
@@ -44,6 +47,9 @@ import {
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "./runtime-carriers.js";
+import {
+  getTypeofRuntimeKind,
+} from "./typeof-operators.js";
 import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
@@ -107,10 +113,14 @@ function getCsharpCheckedOperatorFactsFromSyntax(
   node: Node,
   context: ExtensionObservationContext,
   host: CsharpCheckedOperatorLifecycleHost,
-): { readonly operation: CheckedOperationMappingResult["operation"]; readonly csharpOperation: ReturnType<typeof csharpTargetTokenOperatorOperation> } | undefined {
+): { readonly operation: CheckedOperationMappingResult["operation"]; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
   const ast = context.compiler?.ast;
   if (ast === undefined) {
     return undefined;
+  }
+  const typeofRuntimeFacts = getCsharpTypeofRuntimeFactsFromSyntax(node, context, host);
+  if (typeofRuntimeFacts !== undefined) {
+    return typeofRuntimeFacts;
   }
   const binaryExpression = ast.is.IsBinaryExpression(node)
     ? ast.as.AsBinaryExpression(node)
@@ -176,6 +186,34 @@ function getCsharpCheckedOperatorFactsFromSyntax(
       { resultType },
     ),
     csharpOperation: csharpTargetTokenOperatorOperation(operationId, targetOperator, resultType),
+  };
+}
+
+function getCsharpTypeofRuntimeFactsFromSyntax(
+  node: Node,
+  context: ExtensionObservationContext,
+  host: CsharpCheckedOperatorLifecycleHost,
+): { readonly operation: CheckedOperationMappingResult["operation"]; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined || !ast.is.IsTypeOfExpression(node)) {
+    return undefined;
+  }
+  const operand = asNodeSubject(getNodeField(node, "Expression"));
+  const operandType = getTargetTypeRefForCheckedOperand(
+    operand,
+    ast.getSourceFile(node),
+    context,
+    { allowRuntimeCarrier: false },
+    host,
+  );
+  const runtimeKind = getTypeofRuntimeKind(operandType, { allowNullableUnwrap: false });
+  if (runtimeKind === undefined) {
+    return undefined;
+  }
+  const operationId = `tsonic.csharp.typeof.${runtimeKind}`;
+  return {
+    operation: targetOperation(operationId, "operator", "typeof"),
+    csharpOperation: csharpTargetTypeofRuntimeOperation(operationId, runtimeKind),
   };
 }
 

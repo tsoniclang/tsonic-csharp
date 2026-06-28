@@ -1,7 +1,12 @@
 import type {
   CheckedCallMappingRequest,
   ExtensionObservationContext,
-  TargetMember,
+} from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../../target-types.js";
+import type {
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   CsharpJsSurfaceHost,
@@ -32,7 +37,7 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   const row = sourceCallMetadataRowForSourceMember(sourceMember);
   return row === undefined || row.policyKind === "unsupported"
     ? []
@@ -47,12 +52,17 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
 
 export function csharpJsSourceLibraryMemberHasCallableProvider(
   sourceMember: SourceLibraryMember,
+  options: {
+    readonly contextualDeclaringType?: TargetTypeRef;
+    readonly contextualResultType?: TargetTypeRef;
+  } = {},
 ): boolean {
   const row = sourceCallMetadataRowForSourceMember(sourceMember);
   return row === undefined
     ? false
     : operationRowHasCallableProvider(row, {
       selectedIdentity: jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+      ...options,
     });
 }
 
@@ -84,7 +94,7 @@ function callMembersFromOperationRow(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   const providerRequest = { selectedIdentity, request, context, host } satisfies JsSurfaceCallTargetProviderRequest;
   return (row.targetProviders ?? []).flatMap((provider) => targetMembersFromProvider(provider, providerRequest));
 }
@@ -110,7 +120,7 @@ function operationRowHasCallableProvider(
 function targetMembersFromProvider(
   provider: JsSurfaceOperationTargetProvider,
   request: JsSurfaceCallTargetProviderRequest,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   return targetMembersFromOperationTargetProvider(provider, request);
 }
 

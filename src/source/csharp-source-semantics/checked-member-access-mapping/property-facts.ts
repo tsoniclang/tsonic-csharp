@@ -19,6 +19,9 @@ import {
   visitAstReaderNodes,
 } from "../ast-utils.js";
 import {
+  getCsharpCheckedPropertyAccessRequestContext,
+} from "../checked-member-access-request-context.js";
+import {
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
   sourceOwnedPropertyOperation,
@@ -38,14 +41,15 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
   context: CheckedPropertyAccessContext,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   if (isNamespaceImportReceiver(request.receiver, context)) {
     return undefined;
   }
   const objectShape = host.getCsharpObjectShapeFactForSubject(request.receiver, context) ??
-    host.getCsharpObjectShapeFactForSubject(request.receiverType, context) ??
-    host.getCsharpObjectShapeFactForSubject(request.receiverSymbol, context) ??
-    host.getCsharpObjectShapeFactForSubject(request.receiverResolvedSymbol, context) ??
-    host.getCsharpObjectShapeFactForSubject(request.receiverAliasedSymbol, context);
+    host.getCsharpObjectShapeFactForSubject(requestContext.receiverType, context) ??
+    host.getCsharpObjectShapeFactForSubject(requestContext.receiverSymbol, context) ??
+    host.getCsharpObjectShapeFactForSubject(requestContext.receiverResolvedSymbol, context) ??
+    host.getCsharpObjectShapeFactForSubject(requestContext.receiverAliasedSymbol, context);
   if (objectShape === undefined) {
     return undefined;
   }
@@ -78,12 +82,13 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  const selectedDeclaration = asNodeSubject(requestContext.sourceSelectedDeclaration);
   const compiler = context.compiler;
   if (selectedDeclaration === undefined || compiler === undefined) {
     return undefined;
   }
-  if (selectedDeclarationIsAmbientOrExternal(request.sourceSelectedDeclaration, context)) {
+  if (selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)) {
     return undefined;
   }
   return acceptObservation<CheckedOperationMappingResult>({
@@ -96,10 +101,11 @@ export function mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(
   context: CheckedPropertyAccessContext,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  if (selectedDeclarationIsAmbientOrExternal(request.sourceSelectedDeclaration, context)) {
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  if (selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)) {
     return undefined;
   }
-  const receiverType = getSourceReceiverTargetType(request.receiverType, request.receiver, context, host);
+  const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }

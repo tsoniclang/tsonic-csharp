@@ -57,7 +57,23 @@ function materializeCollectionParameter(
   parameter: CsharpJsCollectionParameterShape,
 ) {
   const type = resolveCollectionTypeExpression(input, parameter.type);
-  return type === undefined ? undefined : targetParameter(parameter.name, type);
+  return type === undefined
+    ? undefined
+    : targetParameter(
+        parameter.name,
+        type,
+        csharpCollectionParameterRequiresClosedSourceArgument(type)
+          ? { csharpAcceptsClosedSourceArgument: true }
+          : {},
+      );
+}
+
+function csharpCollectionParameterRequiresClosedSourceArgument(type: TargetTypeRef): boolean {
+  return !(
+    type.kind === "target-named" &&
+    typeof (type as { readonly csharpDelegateSignature?: unknown }).csharpDelegateSignature === "object" &&
+    (type as { readonly csharpDelegateSignature?: unknown }).csharpDelegateSignature !== null
+  );
 }
 
 export function resolveCollectionTypeExpression(

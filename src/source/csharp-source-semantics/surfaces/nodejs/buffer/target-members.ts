@@ -1,6 +1,6 @@
 import type {
-  TargetMember,
-} from "@tsonic/tsts";
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import type {
   NodejsClassCallTargetMember,
   NodejsClassPropertyTargetMember,
@@ -142,7 +142,7 @@ function nodeBufferClassCallTargetMember(
   memberName: string,
   memberId: string,
   signatureId: string,
-  member: TargetMember,
+  member: CsharpTargetMember,
 ): NodejsClassCallTargetMember {
   return {
     exportName: nodeBufferExportName,

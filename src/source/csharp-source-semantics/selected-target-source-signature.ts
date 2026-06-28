@@ -1,12 +1,14 @@
 import type {
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   targetTypeRefEquals,
 } from "./target-ref-utils.js";
+import type {
+  CsharpTargetMember,
+} from "./target-types.js";
 
-export function targetMemberAsSourceSelectedSignature(member: TargetMember): TargetMember {
+export function targetMemberAsSourceSelectedSignature(member: CsharpTargetMember): CsharpTargetMember {
   if (member.receiverPassing !== "first-argument") {
     return member;
   }
@@ -18,7 +20,7 @@ export function targetMemberAsSourceSelectedSignature(member: TargetMember): Tar
   };
 }
 
-export function targetMembersHaveCompatibleSourceSelectedSignature(expected: TargetMember, actual: TargetMember): boolean {
+export function targetMembersHaveCompatibleSourceSelectedSignature(expected: CsharpTargetMember, actual: CsharpTargetMember): boolean {
   if (expected.id !== actual.id) {
     return false;
   }
@@ -56,7 +58,7 @@ export function targetMembersHaveCompatibleSourceSelectedSignature(expected: Tar
   return true;
 }
 
-function firstArgumentReceiverMatchesDeclaringType(expected: TargetMember, actual: TargetMember): boolean {
+function firstArgumentReceiverMatchesDeclaringType(expected: CsharpTargetMember, actual: CsharpTargetMember): boolean {
   if (actual.receiverPassing !== "first-argument") {
     return true;
   }

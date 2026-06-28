@@ -39,7 +39,7 @@ const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
 const bufferProviderType = {
   kind: "provider-ref",
   moduleSpecifier: nodeBufferModuleSpecifier,
-  name: nodeBufferExportName,
+  exportName: nodeBufferExportName,
 } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
 const intTargetType = csharpSourcePrimitiveTargetType("int32");
@@ -50,8 +50,8 @@ const hmacTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.Hmac", undefine
 
 const nodeCryptoHashExportName = "Hash";
 const nodeCryptoHmacExportName = "Hmac";
-const hashProviderType = { kind: "provider-ref", name: nodeCryptoHashExportName } satisfies ProviderTypeExpression;
-const hmacProviderType = { kind: "provider-ref", name: nodeCryptoHmacExportName } satisfies ProviderTypeExpression;
+const hashProviderType = { kind: "provider-ref", moduleSpecifier: "node:crypto", exportName: nodeCryptoHashExportName } satisfies ProviderTypeExpression;
+const hmacProviderType = { kind: "provider-ref", moduleSpecifier: "node:crypto", exportName: nodeCryptoHmacExportName } satisfies ProviderTypeExpression;
 
 type NodeCryptoCallTargetMember = NodejsModuleCallTargetMetadata;
 type NodeCryptoClassCallTargetMember = NodejsClassCallTargetMetadata;

@@ -1,9 +1,15 @@
 import type {
   Node,
   SelectedTargetSignatureFact,
-  TargetMember,
   TargetOperationFact,
+  TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../source/csharp-source-semantics/target-types.js";
+import {
+  csharpTargetMemberFact,
+} from "../../source/csharp-source-semantics/target-types.js";
 import type {
   TargetCompileInput,
   TargetDiagnostic,
@@ -120,9 +126,14 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member facts: generic selected member '${selectedSignature.member.id}', C# selected member '${operation.selectedMember.id}'.`));
     return undefined;
   }
-  const mismatch = targetMembersHaveCompatibleSourceSelectedSignature(selectedSignature.member, operation.selectedMember)
+  const selectedMember = csharpTargetMemberFact(selectedSignature.member);
+  if (selectedMember === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a C# selected target member fact for '${selectedSignature.member.id}'.`));
+    return undefined;
+  }
+  const mismatch = targetMembersHaveCompatibleSourceSelectedSignature(selectedMember, operation.selectedMember)
     ? undefined
-    : getSelectedMemberEmissionFactMismatch(selectedSignature.member, operation.selectedMember) ?? "signature-shape";
+    : getSelectedMemberEmissionFactMismatch(selectedMember, operation.selectedMember) ?? "signature-shape";
   if (mismatch !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member ${mismatch} facts for '${selectedSignature.member.id}'.`));
     return undefined;
@@ -157,7 +168,7 @@ export function getRequiredCsharpTargetOperationForSelectedSignature(
   return operation;
 }
 
-function getSelectedMemberEmissionFactMismatch(expected: TargetMember, actual: TargetMember): string | undefined {
+function getSelectedMemberEmissionFactMismatch(expected: CsharpTargetMember, actual: CsharpTargetMember): string | undefined {
   if (actual.kind !== expected.kind) {
     return "kind";
   }
@@ -210,7 +221,7 @@ function getSelectedMemberEmissionFactMismatch(expected: TargetMember, actual: T
   return undefined;
 }
 
-function optionalTargetTypeRefEquals(left: TargetMember["returnType"], right: TargetMember["returnType"]): boolean {
+function optionalTargetTypeRefEquals(left: TargetTypeRef | undefined, right: TargetTypeRef | undefined): boolean {
   if (left === undefined || right === undefined) {
     return left === right;
   }

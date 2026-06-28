@@ -1,8 +1,10 @@
 import type {
-  TargetMember,
-  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+  CsharpTargetParameter,
+} from "../../../target-types.js";
 import type {
   TargetSourceAccessKind,
   TargetSourceUseRecord,
@@ -137,7 +139,7 @@ function structuralPropertyReceiverCandidates(
 function propertyTargetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   receiverType: TargetTypeRef,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   const member = getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(selectedIdentity, receiverType);
   return member === undefined ? [] : [member];
 }
@@ -145,11 +147,11 @@ function propertyTargetMembersForSelectedIdentity(
 function targetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   elementType: TargetTypeRef,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   return jsSurfaceSelectedTargetMembersForSelectedIdentity(selectedIdentity, { contextualElementType: elementType });
 }
 
-function targetMemberReceiverType(member: TargetMember): TargetTypeRef | undefined {
+function targetMemberReceiverType(member: CsharpTargetMember): TargetTypeRef | undefined {
   if (member.receiverPassing === "first-argument") {
     return member.parameters[0]?.type;
   }
@@ -157,9 +159,9 @@ function targetMemberReceiverType(member: TargetMember): TargetTypeRef | undefin
 }
 
 function targetParameterForArgumentIndex(
-  parameters: readonly TargetParameter[],
+  parameters: readonly CsharpTargetParameter[],
   argumentIndex: number,
-): TargetParameter | undefined {
+): CsharpTargetParameter | undefined {
   const parameter = parameters[argumentIndex];
   if (parameter !== undefined) {
     return parameter;

@@ -46,6 +46,7 @@ import {
   targetMemberIsClosed,
 } from "../target-ref-utils.js";
 import {
+  csharpTargetMemberFact,
   getCsharpTypeofRuntimeKindForTargetType,
 } from "../target-types.js";
 import {
@@ -76,6 +77,12 @@ import {
 import {
   mapDotnetNativeArrayCreateCall,
 } from "./native-array-create.js";
+import {
+  getCsharpCheckedCallRequestContext,
+} from "../checked-call-request-context.js";
+import {
+  asNodeSubject,
+} from "../ast-utils.js";
 
 export function mapCsharpCheckedCall(
   request: CheckedCallMappingRequest,
@@ -86,6 +93,7 @@ export function mapCsharpCheckedCall(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const attributeFact = getCheckedAttributeBuilderFact(request, context);
   const virtualDeclaration = getSelectedCallProviderVirtualDeclaration(request, context);
   const sourceMarkerCall = mapCsharpSourceMarkerCall(request, context, extensionId, virtualDeclaration, attributeFact);
@@ -103,15 +111,17 @@ export function mapCsharpCheckedCall(
   }
   const existingSelectedSignature = context.facts.get(request.call, selectedTargetSignatureFactKey);
   if (existingSelectedSignature !== undefined) {
+    const existingSelectedMember = csharpTargetMemberFact(existingSelectedSignature.member);
     if (
+      existingSelectedMember !== undefined &&
       context.facts.get(request.call, csharpTargetOperationFactKey) === undefined &&
-      targetMemberIsClosed(existingSelectedSignature.member) &&
-      existingSelectedSignature.member.receiverPassing !== "first-argument"
+      targetMemberIsClosed(existingSelectedMember) &&
+      existingSelectedMember.receiverPassing !== "first-argument"
     ) {
       recordCsharpTargetOperation(
         context,
         request.call,
-        csharpTargetOperationFromMember(existingSelectedSignature.member),
+        csharpTargetOperationFromMember(existingSelectedMember),
         [{ message: "C# target call operation reused from the existing finalized TSTS selected target signature for this checked call." }],
       );
     }
@@ -121,17 +131,18 @@ export function mapCsharpCheckedCall(
   }
   const binding = findTargetBinding(context, [
     request.sourceSelectedDeclaration,
-    request.sourceSelectedContainerSymbol,
-    request.sourceSelectedDeclarationContainer,
-    request.calleeAliasedSymbol,
-    request.calleeResolvedSymbol,
-    request.calleeSymbol,
+    requestContext.sourceSelectedContainerSymbol,
+    requestContext.sourceSelectedDeclarationContainer,
+    requestContext.calleeAliasedSymbol,
+    requestContext.calleeResolvedSymbol,
+    requestContext.calleeSymbol,
+    request.sourceCalleeSymbol,
     request.callee,
-    request.calleeReceiverTypeSymbol,
-    request.calleeReceiverType,
-    request.calleeReceiverAliasedSymbol,
-    request.calleeReceiverResolvedSymbol,
-    request.calleeReceiverSymbol,
+    requestContext.calleeReceiverTypeSymbol,
+    requestContext.calleeReceiverType,
+    requestContext.calleeReceiverAliasedSymbol,
+    requestContext.calleeReceiverResolvedSymbol,
+    requestContext.calleeReceiverSymbol,
   ]);
   const nativeArrayCreate = mapDotnetNativeArrayCreateCall(request, context, extensionId, host, virtualDeclaration);
   if (nativeArrayCreate !== undefined) {
@@ -142,6 +153,10 @@ export function mapCsharpCheckedCall(
     if (unsupportedNativeReceiverCall !== undefined) {
       return unsupportedNativeReceiverCall;
     }
+    const unsupportedExternalCall = rejectUnmappedExternalCall(request, context, extensionId);
+    if (unsupportedExternalCall !== undefined) {
+      return unsupportedExternalCall;
+    }
     return deferObservation;
   }
   const targetBinding = binding.target === csharpTargetId
@@ -151,12 +166,12 @@ export function mapCsharpCheckedCall(
   if (getVirtualDeclarationSignatureId(virtualDeclaration) !== undefined && unsupportedSelectedMember !== undefined) {
     return rejectUnsupportedTargetMember(extensionId, targetBinding.id, unsupportedSelectedMember);
   }
-  const constructorDeclaringTargetType = request.calleePropertyName === undefined && targetBinding.members?.some((candidate) => candidate.kind === "constructor") === true
+  const constructorDeclaringTargetType = requestContext.calleePropertyName === undefined && targetBinding.members?.some((candidate) => candidate.kind === "constructor") === true
     ? getConstructorDeclaringTargetType(targetBinding, request, context, host)
     : undefined;
   const receiverDeclaringTargetType = constructorDeclaringTargetType === undefined
-    ? host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
-      host.getTargetTypeRefForSubject(request.calleeReceiver, context)
+    ? host.getTargetTypeRefForSubject(requestContext.calleeReceiverType, context) ??
+      host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context)
     : constructorDeclaringTargetType;
   const providerStaticContainerReceiver = isProviderStaticContainerReceiver(request, context, targetBinding);
   const selectionOptions: TargetMemberSelectionOptions = {
@@ -182,15 +197,15 @@ export function mapCsharpCheckedCall(
       extensionId,
       "CSHARP_TARGET_MEMBER_NOT_FOUND",
       9100100,
-      `C# provider could not map checked call '${request.calleePropertyName ?? "<anonymous>"}' on target '${targetBinding.id}'.`,
-      targetMemberMissEvidence(targetBinding, virtualDeclaration, request, selectionOptions),
+      `C# provider could not map checked call '${requestContext.calleePropertyName ?? "<anonymous>"}' on target '${targetBinding.id}'.`,
+      targetMemberMissEvidence(targetBinding, virtualDeclaration, request, context, selectionOptions),
     ));
   }
   if (member.kind !== "method" && member.kind !== "constructor") {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_CALLABLE", 9100101, `C# provider mapped checked call '${request.calleePropertyName ?? "<anonymous>"}' to non-callable target member '${member.id}'.`));
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_CALLABLE", 9100101, `C# provider mapped checked call '${requestContext.calleePropertyName ?? "<anonymous>"}' to non-callable target member '${member.id}'.`));
   }
-  if (member.static === true && request.calleeReceiver !== undefined && !providerStaticContainerReceiver && member.receiverPassing !== "first-argument") {
-    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_EXTENSION_RECEIVER_NOT_PROVEN", 9100115, `C# provider selected static target member '${member.id}' for receiver call '${request.calleePropertyName ?? "<anonymous>"}', but target metadata did not prove first-argument receiver passing.`));
+  if (member.static === true && requestContext.calleeReceiver !== undefined && !providerStaticContainerReceiver && member.receiverPassing !== "first-argument") {
+    return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_EXTENSION_RECEIVER_NOT_PROVEN", 9100115, `C# provider selected static target member '${member.id}' for receiver call '${requestContext.calleePropertyName ?? "<anonymous>"}', but target metadata did not prove first-argument receiver passing.`));
   }
   if (isDotnetNativeArrayCreateMemberId(member.id)) {
     return rejectObservation(csharpProviderDiagnostic(
@@ -200,8 +215,8 @@ export function mapCsharpCheckedCall(
       "C# native array creation requires the exact selected provider declaration to be mapped by the native array creation path before generic call mapping.",
     ));
   }
-  const declaringTargetType = member.kind === "constructor" ? constructorDeclaringTargetType ?? member.declaringType : host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
-    host.getTargetTypeRefForSubject(request.calleeReceiver, context) ??
+  const declaringTargetType = member.kind === "constructor" ? constructorDeclaringTargetType ?? member.declaringType : host.getTargetTypeRefForSubject(requestContext.calleeReceiverType, context) ??
+    host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context) ??
     host.getTargetTypeRefForSubject(request.call, context);
   if (member.kind === "constructor" && declaringTargetType === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_CONSTRUCTOR_RESULT_TYPE_NOT_PROVEN", 9100135, `C# provider selected constructor '${member.id}', but no provider target type fact proved the constructed target type.`));
@@ -216,19 +231,52 @@ export function mapCsharpCheckedCall(
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
 }
 
+function rejectUnmappedExternalCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  extensionId: string,
+): ExtensionObservation<CheckedCallMappingResult> | undefined {
+  const compiler = context.compiler;
+  const declaration = asNodeSubject(request.sourceSelectedDeclaration);
+  if (compiler === undefined || declaration === undefined) {
+    return undefined;
+  }
+  const declarationSourceFile = compiler.ast.getSourceFile(declaration);
+  if (declarationSourceFile?.IsDeclarationFile !== true) {
+    return undefined;
+  }
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
+  return rejectObservation(csharpProviderDiagnostic(
+    extensionId,
+    "CSHARP_EXTERNAL_CALL_NOT_MAPPED",
+    9100161,
+    `C# target requires selected target facts for external TypeScript declaration call '${requestContext.calleePropertyName ?? "<anonymous>"}'.`,
+    [
+      {
+        message: "Missing selected target mapping",
+        details: {
+          sourceDeclarationFile: compiler.ast.getFileName(declarationSourceFile),
+          calleePropertyName: requestContext.calleePropertyName,
+        },
+      },
+    ],
+  ));
+}
+
 function rejectUnsupportedNativeReceiverCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const sourceName = request.calleePropertyName;
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
+  const sourceName = requestContext.calleePropertyName;
   if (sourceName === undefined) {
     return undefined;
   }
   const receiverType = unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.calleeReceiverType, context) ??
-      host.getTargetTypeRefForSubject(request.calleeReceiver, context),
+    host.getTargetTypeRefForSubject(requestContext.calleeReceiverType, context) ??
+      host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context),
   );
   if (receiverType?.kind === "array" || (receiverType?.kind === "target-named" && receiverType.id === dotnetNativeArrayTypeId)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED", 9100136, `C# native array source contract has no target-backed property '${sourceName}'.`));

@@ -42,8 +42,6 @@ export function recordCsharpRuntimeCarrierFact(
   const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, node);
   const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
     type,
-    sourceTypeReference: node,
-    ...(symbol !== undefined ? { sourceTypeSymbol: symbol } : {}),
     target: targetId,
   }, host);
   if (result.kind !== "accept") {

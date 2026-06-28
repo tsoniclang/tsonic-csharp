@@ -35,6 +35,17 @@ interface MathPropertyMetadataRow {
   readonly targetName: string;
 }
 
+function mathParameter(
+  name: string,
+  type: ReturnType<typeof csharpSourcePrimitiveTargetType>,
+  options: Parameters<typeof targetParameter>[2] = {},
+): ReturnType<typeof targetParameter> {
+  return targetParameter(name, type, {
+    ...options,
+    csharpAcceptsCheckedSourceArgument: true,
+  });
+}
+
 function mathMethodMetadata(row: MathMethodMetadataRow): JsSurfaceTargetMemberMetadata {
   return {
     id: row.id,
@@ -93,20 +104,20 @@ const unaryDoubleMethodRows = [
 ] as const;
 
 const mathTargetMemberMetadata = [
-  ...unaryDoubleMethodRows.map((row) => mathMethodMetadata({ ...row, parameters: [targetParameter("value", doubleType)] })),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.atan2", sourceName: "atan2", targetName: "atan2", parameters: [targetParameter("y", doubleType), targetParameter("x", doubleType)] }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.pow", sourceName: "pow", targetName: "pow", parameters: [targetParameter("value0", doubleType), targetParameter("value1", doubleType)] }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.hypot", sourceName: "hypot", targetName: "hypot", parameters: [targetParameter("values", doubleType, { paramsArray: true })] }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.max", sourceName: "max", targetName: "max", parameters: [targetParameter("values", doubleType, { paramsArray: true })] }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.min", sourceName: "min", targetName: "min", parameters: [targetParameter("values", doubleType, { paramsArray: true })] }),
+  ...unaryDoubleMethodRows.map((row) => mathMethodMetadata({ ...row, parameters: [mathParameter("value", doubleType)] })),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.atan2", sourceName: "atan2", targetName: "atan2", parameters: [mathParameter("y", doubleType), mathParameter("x", doubleType)] }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.pow", sourceName: "pow", targetName: "pow", parameters: [mathParameter("value0", doubleType), mathParameter("value1", doubleType)] }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.hypot", sourceName: "hypot", targetName: "hypot", parameters: [mathParameter("values", doubleType, { paramsArray: true })] }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.max", sourceName: "max", targetName: "max", parameters: [mathParameter("values", doubleType, { paramsArray: true })] }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.min", sourceName: "min", targetName: "min", parameters: [mathParameter("values", doubleType, { paramsArray: true })] }),
   mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.random", sourceName: "random", targetName: "random", parameters: [] }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.ceil", sourceName: "ceil", targetName: "ceil", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.floor", sourceName: "floor", targetName: "floor", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.round", sourceName: "round", targetName: "round", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.trunc", sourceName: "trunc", targetName: "trunc", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.sign", sourceName: "sign", targetName: "sign", parameters: [targetParameter("value", doubleType)], returnType: doubleType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.imul", sourceName: "imul", targetName: "imul", parameters: [targetParameter("left", intType), targetParameter("right", intType)], returnType: intType }),
-  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.clz32", sourceName: "clz32", targetName: "clz32", parameters: [targetParameter("value", intType)], returnType: intType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.ceil", sourceName: "ceil", targetName: "ceil", parameters: [mathParameter("value", doubleType)], returnType: doubleType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.floor", sourceName: "floor", targetName: "floor", parameters: [mathParameter("value", doubleType)], returnType: doubleType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.round", sourceName: "round", targetName: "round", parameters: [mathParameter("value", doubleType)], returnType: doubleType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.trunc", sourceName: "trunc", targetName: "trunc", parameters: [mathParameter("value", doubleType)], returnType: doubleType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.sign", sourceName: "sign", targetName: "sign", parameters: [mathParameter("value", doubleType)], returnType: doubleType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.imul", sourceName: "imul", targetName: "imul", parameters: [mathParameter("left", intType), mathParameter("right", intType)], returnType: intType }),
+  mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.clz32", sourceName: "clz32", targetName: "clz32", parameters: [mathParameter("value", intType)], returnType: intType }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const mathTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Math", mathTargetMemberMetadata);
 
