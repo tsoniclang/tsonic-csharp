@@ -182,23 +182,7 @@ function targetMembersFromSelectedMetadata(
 function getExplicitCollectionConstructorResultType(
   request: JsSurfaceCallTargetProviderRequest,
 ): TargetTypeRef | undefined {
-  const ast = request.context.compiler?.ast;
-  if (ast === undefined) {
-    return undefined;
-  }
-  const callNode = asNodeSubject(request.request.call);
-  if (callNode === undefined) {
-    return undefined;
-  }
-  const typeArguments = ast.typeArguments(callNode)
-    .map((argument) => argument === undefined
-      ? undefined
-      : request.host.getTargetTypeRefForSubject(argument, request.context, {
-        allowRuntimeCarrier: true,
-        allowSemanticTypeQuery: true,
-        sourceFile: ast.getSourceFile(argument),
-      })
-    );
+  const typeArguments = getExplicitCallTypeArguments(request);
   if (typeArguments.length === 0 || typeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
@@ -280,10 +264,11 @@ function sequenceElementTypeFromClosedFacts(
 ): TargetTypeRef | undefined {
   const { request, context, host } = providerRequest;
   const resultElementType = getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host));
+  const explicitElementType = getExplicitCallTypeArguments(providerRequest)[0];
   if (options.requireResultElementType && resultElementType === undefined) {
-    return undefined;
+    return explicitElementType;
   }
-  return resultElementType ?? arrayElementTypeFromClosedFacts(request, context, host);
+  return resultElementType ?? explicitElementType ?? arrayElementTypeFromClosedFacts(request, context, host);
 }
 
 function arrayElementTypeFromClosedFacts(
@@ -294,4 +279,26 @@ function arrayElementTypeFromClosedFacts(
   return getCsharpJsArrayCarrierElementType(getSourceLibraryCallResultTargetType(request, context, host)) ??
     getSourceLibraryCallReceiverElementType(request, context, host) ??
     getSourceLibraryCallArgumentTargetTypes(request, context, host).map(getCsharpArrayLikeElementType).find((element) => element !== undefined);
+}
+
+function getExplicitCallTypeArguments(
+  request: JsSurfaceCallTargetProviderRequest,
+): readonly (TargetTypeRef | undefined)[] {
+  const ast = request.context.compiler?.ast;
+  if (ast === undefined || typeof ast.typeArguments !== "function") {
+    return [];
+  }
+  const callNode = asNodeSubject(request.request.call);
+  if (callNode === undefined) {
+    return [];
+  }
+  return ast.typeArguments(callNode)
+    .map((argument) => argument === undefined
+      ? undefined
+      : request.host.getTargetTypeRefForSubject(argument, request.context, {
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: true,
+        sourceFile: ast.getSourceFile(argument),
+      })
+    );
 }

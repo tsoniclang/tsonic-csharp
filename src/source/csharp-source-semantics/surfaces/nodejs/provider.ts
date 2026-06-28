@@ -85,7 +85,6 @@ export function createCsharpNodejsSurfaceBindingProvider(): TargetBindingProvide
         moduleSpecifier: specifier,
         virtualFileName: csharpNodejsVirtualDeclarationFileName(specifier),
         providerModuleId: canonicalSpecifier,
-        packageName: "node",
         evidence: [{ message: "C# NodeJS surface provider supplied virtual module." }],
       };
     },

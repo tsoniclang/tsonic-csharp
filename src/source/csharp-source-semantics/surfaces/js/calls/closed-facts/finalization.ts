@@ -54,7 +54,11 @@ export function csharpJsSourceLibraryCallCanWaitForFinalizedFacts(
   if (sourceLibraryMemberMatches(sourceMember, arrayConstructorIdentityPolicy)) {
     return phase === "checking" || (phase === undefined && compilerContextCanRunLifecycleFinalization(context));
   }
-  if (phase === "finalization" || !sourceLibraryMemberMatches(sourceMember, jsonStringifySourceMemberPolicy)) {
+  if (
+    phase === "finalization" ||
+    !compilerContextCanRunLifecycleFinalization(context) ||
+    !sourceLibraryMemberMatches(sourceMember, jsonStringifySourceMemberPolicy)
+  ) {
     return false;
   }
   const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);

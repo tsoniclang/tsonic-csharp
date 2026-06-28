@@ -123,7 +123,10 @@ const unsupportedObjectShapeMutationIdentityPolicy = {
 } as const satisfies JsSurfaceSourceIdentitySelector;
 
 export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
-  operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex, { capabilityId: "surface.js.math", requiredFacts: selectedSignatureProviderFacts }),
+  {
+    ...operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex, { capabilityId: "surface.js.math", requiredFacts: selectedSignatureProviderFacts }),
+    closedFacts: { kind: "known-argument-targets" },
+  },
   operationRowFromMetadataIndex(stringStaticCallIdentityPolicy, stringTargetMemberIdentityIndex, { capabilityId: "surface.js.string-methods", requiredFacts: selectedSignatureProviderFacts }),
   {
     identity: unsupportedStringExactSemanticsIdentityPolicy,

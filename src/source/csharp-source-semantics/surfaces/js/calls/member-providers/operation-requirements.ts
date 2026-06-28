@@ -53,7 +53,11 @@ import type {
 
 export type JsSurfaceClosedFactsStatus =
   | { readonly kind: "satisfied" }
-  | { readonly kind: "missing" }
+  | {
+    readonly kind: "missing";
+    readonly reason: "receiver" | "argument";
+    readonly argumentIndex?: number;
+  }
   | { readonly kind: "conflict" };
 
 export function operationRowClosedFactsStatus(
@@ -87,12 +91,12 @@ function closedFactsRequirementStatus(
           hasMissing = true;
         }
       }
-      return hasMissing ? { kind: "missing" } : { kind: "satisfied" };
+      return hasMissing ? { kind: "missing", reason: "receiver" } : { kind: "satisfied" };
     }
     case "receiver": {
       const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
       if (receiverTypes.length === 0) {
-        return { kind: "missing" };
+        return { kind: "missing", reason: "receiver" };
       }
       return receiverTypes.some((receiverType) => receiverMatchesTargetCondition(receiverType, requirement.target, selectedIdentity, request, context, host))
         ? { kind: "satisfied" }
@@ -100,10 +104,13 @@ function closedFactsRequirementStatus(
     }
     case "arguments":
       return argumentConditionsStatus(requirement.conditions, request, context, host);
-    case "known-argument-targets":
-      return getSourceLibraryCallArgumentTargetTypes(request, context, host).every((argumentType) => argumentType !== undefined)
+    case "known-argument-targets": {
+      const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
+      const missingIndex = argumentTypes.findIndex((argumentType) => argumentType === undefined);
+      return missingIndex < 0
         ? { kind: "satisfied" }
-        : { kind: "missing" };
+        : { kind: "missing", reason: "argument", argumentIndex: missingIndex };
+    }
   }
 }
 
@@ -114,12 +121,12 @@ function argumentConditionsStatus(
   host: CsharpJsSurfaceHost,
 ): JsSurfaceClosedFactsStatus {
   const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
-  let hasMissing = false;
+  let missingArgumentIndex: number | undefined;
   for (const condition of conditions) {
     if ("index" in condition) {
       const argumentType = argumentTypes[condition.index];
       if (argumentType === undefined) {
-        hasMissing = true;
+        missingArgumentIndex ??= condition.index;
         continue;
       }
       if (!argumentMatchesTargetCondition(argumentType, condition.target, host)) {
@@ -127,17 +134,22 @@ function argumentConditionsStatus(
       }
       continue;
     }
+    let currentIndex = condition.fromIndex;
     for (const argumentType of argumentTypes.slice(condition.fromIndex)) {
       if (argumentType === undefined) {
-        hasMissing = true;
+        missingArgumentIndex ??= currentIndex;
+        currentIndex += 1;
         continue;
       }
       if (!argumentMatchesTargetCondition(argumentType, condition.target, host)) {
         return { kind: "conflict" };
       }
+      currentIndex += 1;
     }
   }
-  return hasMissing ? { kind: "missing" } : { kind: "satisfied" };
+  return missingArgumentIndex === undefined
+    ? { kind: "satisfied" }
+    : { kind: "missing", reason: "argument", argumentIndex: missingArgumentIndex };
 }
 
 function receiverMatchesTargetCondition(
