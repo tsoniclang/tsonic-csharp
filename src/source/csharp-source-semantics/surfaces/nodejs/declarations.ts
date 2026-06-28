@@ -90,6 +90,7 @@ function getProviderSignatureDeclaration(
   if (subject === undefined) {
     return undefined;
   }
-  const declaration = context.compiler.checker.getSignatureDeclaration(subject as Signature);
+  const compiler = (context as { readonly compiler?: ExtensionObservationContext["compiler"] }).compiler;
+  const declaration = compiler?.checker.getSignatureDeclaration(subject as Signature);
   return getProviderExportDeclaration(context, declaration);
 }
