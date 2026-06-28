@@ -7,7 +7,6 @@ import {
 import type {
   CheckedOperationMappingResult,
   CheckedPropertyAccessMappingRequest,
-  ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
@@ -19,8 +18,6 @@ import type {
   SourceLibraryMember,
 } from "./source-library.js";
 import {
-  asType,
-  createSourceLibraryMember,
   csharpTargetOperationFromMember,
   csharpJsCheckedTypeQuery,
   resolveSourceLibraryMemberIdentity,
@@ -65,9 +62,6 @@ import type {
 import {
   jsSurfaceSelectedSourceIdentityForMember,
 } from "./target-member-metadata.js";
-import {
-  getSourceStandardLibraryDeclaringNameForType,
-} from "../../source-type-classification.js";
 
 export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -76,9 +70,8 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const sourceMember = resolveSourceLibraryMemberIdentity(requestContext.sourceSelectedDeclaration, context) ??
-    resolveSourceLibraryMemberIdentity(request.sourceSelectedSymbol, context) ??
-    sourceLibraryMemberFromCheckedReceiverType(requestContext.receiverType, request.propertyName, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(request.sourceSelectedSymbol, context) ??
+    resolveSourceLibraryMemberIdentity(requestContext.sourceSelectedDeclaration, context);
   return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host, options);
 }
 
@@ -132,10 +125,8 @@ function recordCsharpSourceLibraryPropertyFact(
     compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
     safeGetResolvedSymbol(node, sourceFile, context);
   const declaration = firstSymbolDeclaration(propertySymbol, context);
-  const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
   const propertyName = compiler.ast.text(name);
-  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context) ??
-    sourceLibraryMemberFromCheckedReceiverType(receiverType, propertyName, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
   if (sourceMember === undefined) {
     return;
   }
@@ -193,24 +184,6 @@ function isCallCalleePropertyAccess(
 
 function firstSymbolDeclaration(symbol: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getSymbolAtLocation"]>, context: ExtensionObservationContext): Node | undefined {
   return context.compiler?.checker.getSymbolDeclarations(symbol)[0];
-}
-
-function sourceLibraryMemberFromCheckedReceiverType(
-  receiverType: ExtensionFactSubject | undefined,
-  propertyName: string | undefined,
-  context: ExtensionObservationContext,
-): SourceLibraryMember | undefined {
-  if (receiverType === undefined || propertyName === undefined || propertyName === "") {
-    return undefined;
-  }
-  const type = asType(receiverType);
-  if (type === undefined) {
-    return undefined;
-  }
-  const declaringName = getSourceStandardLibraryDeclaringNameForType(type, context);
-  return declaringName === undefined
-    ? undefined
-    : createSourceLibraryMember(declaringName, propertyName);
 }
 
 function mapCsharpSourceLibraryPropertyOperation(

@@ -149,7 +149,12 @@ function getFunctionTargetTypeRefFromSemanticSignature(
     return undefined;
   }
   const parameterTypes = compiler.checker.getSignatureParameters(signature as Parameters<typeof compiler.checker.getSignatureParameters>[0])
-    .map((parameter) => host.getTargetTypeRefForType(compiler.checker.getTypeOfSymbol(parameter, { sourceFile }), context));
+    .map((parameter) => {
+      const parameterType = safeGetTypeOfSymbol(parameter, context, sourceFile);
+      return parameterType === undefined
+        ? undefined
+        : host.getTargetTypeRefForType(parameterType, context);
+    });
   if (parameterTypes.some((parameter) => parameter === undefined)) {
     return undefined;
   }
@@ -157,4 +162,16 @@ function getFunctionTargetTypeRefFromSemanticSignature(
   return returnType === undefined || isVoidTargetType(returnType)
     ? csharpDelegateTargetType("System.Action", parameterTypes as readonly TargetTypeRef[])
     : csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);
+}
+
+function safeGetTypeOfSymbol(
+  symbol: Parameters<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeOfSymbol"]>[0],
+  context: ExtensionObservationContext,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): Type | undefined {
+  try {
+    return context.compiler?.checker.getTypeOfSymbol(symbol, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }

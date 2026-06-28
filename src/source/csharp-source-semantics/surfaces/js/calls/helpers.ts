@@ -72,8 +72,7 @@ export function isNewExpression(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): boolean {
   const node = asNodeSubject(subject as ExtensionFactSubject | undefined);
-  return context.compiler?.ast.is?.IsNewExpression(node) === true ||
-    (subject as { readonly Kind?: unknown }).Kind === "KindNewExpression";
+  return context.compiler?.ast.is?.IsNewExpression(node) === true;
 }
 
 export function getSourceLibraryCallReceiverElementType(

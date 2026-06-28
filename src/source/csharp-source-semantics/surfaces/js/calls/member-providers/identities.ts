@@ -1,11 +1,9 @@
 import type {
-  SourceLibraryMember,
   SourceLibraryMemberIdentityPolicy,
   SourceLibraryMemberKey,
 } from "../../source-library.js";
 import {
   sourceLibraryMemberIdSet,
-  sourceLibraryMemberMatches,
 } from "../../source-library.js";
 
 export const collectionIdentityPolicy = {
@@ -101,12 +99,3 @@ export const objectRecordDictionaryIdentityPolicy = {
     "Object.entries",
   ]),
 } satisfies SourceLibraryMemberIdentityPolicy;
-
-export function csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember: SourceLibraryMember | undefined): boolean {
-  return sourceMember !== undefined &&
-    sourceLibraryMemberMatches(sourceMember, arrayConstructorIdentityPolicy);
-}
-
-export function csharpJsSourceLibraryMemberIsCollection(sourceMember: SourceLibraryMember | undefined): boolean {
-  return sourceMember !== undefined && sourceLibraryMemberMatches(sourceMember, collectionIdentityPolicy);
-}

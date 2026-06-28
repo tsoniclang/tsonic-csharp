@@ -6,6 +6,7 @@ import type {
   CheckedPropertyAccessMappingRequest,
   ExtensionFactSubject,
   ExtensionObservationContext,
+  Signature,
 } from "@tsonic/tsts";
 import {
   isCsharpNodejsProviderDeclaration,
@@ -27,7 +28,8 @@ export function getNodejsCheckedCallDeclaration(
   if (request.sourceSelectedSignature === undefined) {
     return undefined;
   }
-  return getProviderExportDeclaration(context, request.sourceSelectedSignature) ??
+  return getProviderSignatureDeclaration(context, request.sourceSelectedSignature) ??
+    getProviderExportDeclaration(context, request.sourceSelectedSignature) ??
     getProviderExportDeclaration(context, request.sourceSelectedDeclaration);
 }
 
@@ -79,4 +81,16 @@ function getProviderExportDeclaration(
   return declaration === undefined || !isCsharpNodejsProviderDeclaration(declaration)
     ? undefined
     : declaration;
+}
+
+function getProviderSignatureDeclaration(
+  context: ExtensionObservationContext,
+  subject: ExtensionFactSubject | undefined,
+): NodejsProviderDeclarationIdentity | undefined {
+  if (subject === undefined) {
+    return undefined;
+  }
+  const compiler = (context as { readonly compiler?: ExtensionObservationContext["compiler"] }).compiler;
+  const declaration = compiler?.checker.getSignatureDeclaration(subject as Signature);
+  return getProviderExportDeclaration(context, declaration);
 }

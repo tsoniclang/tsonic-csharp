@@ -28,13 +28,13 @@ import type {
 } from "../source-library.js";
 import {
   resolveSourceLibraryMemberIdentity,
-  sourceLibraryMemberMatches,
 } from "../source-library.js";
 import {
-  collectionConstructorIdentityPolicy,
-  csharpJsSourceLibraryMemberIsArrayConstructor,
-  csharpJsSourceLibraryMemberIsCollection,
+  getCsharpJsSourceLibraryOperationRow,
 } from "./member-providers/index.js";
+import type {
+  JsSurfaceLifecycleRuntimeCarrierFact,
+} from "./member-providers/operation-types.js";
 import {
   getCsharpJsArrayRuntimeCarrierForNode,
 } from "../array-carriers.js";
@@ -147,11 +147,10 @@ function recordCsharpSourceLibraryCallFact(
   if (sourceMember === undefined) {
     return "pending";
   }
-  recordArrayConstructorRuntimeCarrierFact(node, sourceFile, sourceMember, context, host);
   const calleeReceiver = compiler.ast.is.IsPropertyAccessExpression(callee)
     ? asNodeSubject(getNodeField(callee, "Expression"))
     : undefined;
-  recordCollectionRuntimeCarrierFactsForSelectedCall(node, calleeReceiver, sourceFile, sourceMember, context, host, phase);
+  recordLifecycleRuntimeCarrierFactsForSelectedCall(node, calleeReceiver, sourceFile, sourceMember, context, host, phase);
   const mapped = mapCsharpSourceLibraryCheckedCall({
     call: node,
     callee,
@@ -234,7 +233,7 @@ function setRuntimeCarrierFactIfMissing(
   return true;
 }
 
-function recordCollectionRuntimeCarrierFactsForSelectedCall(
+function recordLifecycleRuntimeCarrierFactsForSelectedCall(
   node: Node,
   calleeReceiver: Node | undefined,
   sourceFile: SourceFile,
@@ -243,42 +242,61 @@ function recordCollectionRuntimeCarrierFactsForSelectedCall(
   host: CsharpJsSurfaceHost,
   phase: "checking" | "finalization",
 ): void {
-  if (!sourceMemberIsCollection(sourceMember)) {
-    return;
-  }
-  if (sourceLibraryMemberMatches(sourceMember, collectionConstructorIdentityPolicy)) {
-    recordCsharpJsCollectionRuntimeCarrierFactForNode(node, sourceFile, context, host);
-    return;
-  }
-  if (calleeReceiver !== undefined) {
-    recordCsharpJsCollectionRuntimeCarrierFactForNode(calleeReceiver, sourceFile, context, host, {
-      allowSemanticFallback: phase === "finalization",
-    });
+  for (const carrierFact of getCsharpJsSourceLibraryOperationRow(sourceMember)?.lifecycleRuntimeCarrierFacts ?? []) {
+    recordLifecycleRuntimeCarrierFact(carrierFact, node, calleeReceiver, sourceFile, context, host, phase);
   }
 }
 
-function sourceMemberIsCollection(
-  sourceMember: NonNullable<ReturnType<typeof resolveSourceLibraryMemberIdentity>>,
-): boolean {
-  return csharpJsSourceLibraryMemberIsCollection(sourceMember);
-}
-
-function recordArrayConstructorRuntimeCarrierFact(
+function recordLifecycleRuntimeCarrierFact(
+  carrierFact: JsSurfaceLifecycleRuntimeCarrierFact,
   node: Node,
+  calleeReceiver: Node | undefined,
   sourceFile: SourceFile,
-  sourceMember: NonNullable<ReturnType<typeof resolveSourceLibraryMemberIdentity>>,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+  phase: "checking" | "finalization",
+): void {
+  if (carrierFact.subject === "call-result") {
+    recordLifecycleRuntimeCarrierFactForSubject(carrierFact.carrier, node, sourceFile, context, host);
+    return;
+  }
+  if (calleeReceiver === undefined) {
+    return;
+  }
+  recordLifecycleRuntimeCarrierFactForSubject(carrierFact.carrier, calleeReceiver, sourceFile, context, host, {
+    allowCheckedTypeDerivation: carrierFact.checkedTypeDerivation === "finalization" && phase === "finalization",
+  });
+}
+
+function recordLifecycleRuntimeCarrierFactForSubject(
+  carrier: JsSurfaceLifecycleRuntimeCarrierFact["carrier"],
+  subject: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+  options: { readonly allowCheckedTypeDerivation?: boolean } = {},
+): void {
+  switch (carrier) {
+    case "array":
+      recordArrayLifecycleRuntimeCarrierFact(subject, sourceFile, context, host);
+      return;
+    case "collection":
+      recordCsharpJsCollectionRuntimeCarrierFactForNode(subject, sourceFile, context, host, options);
+      return;
+  }
+}
+
+function recordArrayLifecycleRuntimeCarrierFact(
+  subject: Node,
+  sourceFile: SourceFile,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): void {
-  if (
-    !csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember) ||
-    context.host.facts.get(node, runtimeCarrierFactKey) !== undefined
-  ) {
+  if (context.host.facts.get(subject, runtimeCarrierFactKey) !== undefined) {
     return;
   }
-  const carrier = getCsharpJsArrayRuntimeCarrierForNode(node, sourceFile, context, host);
-  if (carrier === undefined) {
-    return;
+  const carrier = getCsharpJsArrayRuntimeCarrierForNode(subject, sourceFile, context, host);
+  if (carrier !== undefined) {
+    context.host.facts.set(subject, runtimeCarrierFactKey, { carrier }, [{ message: "C# JS surface Array runtime carrier recorded from selected operation lifecycle metadata and checked TypeScript type facts." }]);
   }
-  context.host.facts.set(node, runtimeCarrierFactKey, { carrier }, [{ message: "C# JS surface Array constructor runtime carrier recorded from checked TypeScript Array construction type facts." }]);
 }

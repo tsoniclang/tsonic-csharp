@@ -38,10 +38,6 @@ export function Node_Expression(node: Node | undefined): Node | undefined {
   return nodeField(node, "Expression");
 }
 
-export function Node_Symbol(node: Node | undefined): object | undefined {
-  return (node as { readonly Symbol?: object } | undefined)?.Symbol;
-}
-
 export function SourceFile_FileName(sourceFile: SourceFile): string {
   const fileName = (sourceFile as { readonly FileName?: unknown }).FileName;
   return typeof fileName === "function" ? String(fileName()) : String(fileName ?? "");

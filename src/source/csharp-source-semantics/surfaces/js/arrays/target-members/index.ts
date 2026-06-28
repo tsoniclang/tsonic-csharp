@@ -5,7 +5,8 @@ import type {
   CsharpTargetMember,
 } from "../../../../target-types.js";
 import {
-  jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames,
+  jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentities,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import type {
@@ -24,7 +25,9 @@ export function arrayTargetMembersForSelectedIdentity(
   receiverDeclaringType?: TargetTypeRef,
 ): readonly CsharpTargetMember[] {
   return filterArrayTargetMembersForReceiverDeclaringType(jsSurfaceTargetMembersForSelectedSourceIdentity(
-    jsSurfaceTargetMemberMetadataIdentityIndexForDeclaringNames(["Array", "ReadonlyArray"], arrayTargetMemberMetadata(receiverElementType)),
+    jsSurfaceTargetMemberMetadataIdentityIndex(
+      jsSurfaceTargetMemberMetadataWithSourceIdentities(["Array", "ReadonlyArray"], arrayTargetMemberMetadata(receiverElementType)),
+    ),
     selectedIdentity,
   ), receiverDeclaringType);
 }

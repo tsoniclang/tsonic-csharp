@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
 import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
-import { csharpArrayBoundaryFactKey, csharpTargetIterationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpArrayBoundaryFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import {
   createCsharpJsSurfaceExtension,
   createCsharpNodejsSurfaceExtension,
@@ -39,8 +39,9 @@ test("Array.length is rejected without the JS surface", () => {
 
 test("JS surface maps Array.length only from the selected standard-library declaration", () => {
   const expression = {};
-  const receiver = {};
+  const receiver = fakeNodeSubject({});
   const receiverType = {};
+  receiver.SemanticType = receiverType;
   const facts = new TestFactStore();
   facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
@@ -49,7 +50,36 @@ test("JS surface maps Array.length only from the selected standard-library decla
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.operation.operationId, "tsonic.csharp.js.Array.length");
-  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface maps property access from sourceSelectedSymbol before declaration fallback", () => {
+  const expression = {};
+  const receiver = fakeNodeSubject({});
+  const receiverType = {};
+  receiver.SemanticType = receiverType;
+  const sourceSelectedSymbol = {
+    ...sourceLibraryMemberDeclaration("String", "length"),
+    declarations: [arrayLengthDeclaration()],
+  };
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, stringType()],
+    [receiverType, stringType()],
+  ])));
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    receiverType,
+    propertyName: "not-the-selected-name",
+    sourceSelectedSymbol,
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "System.String.Length");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "System.String.Length");
 });
 
 test("native provider defers unowned JS calls and rejects unmapped JS property operations", () => {
@@ -96,7 +126,7 @@ test("JS surface defers Array.length without selected declaration and finalized 
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-test("JS surface defers selected Array.length until finalized array receiver facts exist", () => {
+test("JS surface returns deferred Array.length operation before finalized array receiver facts exist", () => {
   const expression = {};
   const receiverType = {};
   const facts = new TestFactStore();
@@ -104,7 +134,8 @@ test("JS surface defers selected Array.length until finalized array receiver fac
 
   const result = provider.mapCheckedPropertyAccess(arrayLengthRequest(expression, receiverType, arrayLengthDeclaration()), fakeContext(facts));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "tsonic.csharp.js.Array.length");
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
@@ -112,8 +143,9 @@ test("JS surface attributes array element diagnostics to the selected surface op
   const expression = {};
   const receiver = {};
   const receiverType = {};
-  const index = {};
+  const index = fakeNodeSubject({});
   const facts = new TestFactStore();
+  facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
   const targetTypes = new Map([
     [receiverType, int32ReadOnlyListType()],
     [index, stringType()],
@@ -136,9 +168,10 @@ test("JS surface attributes array element diagnostics to the selected surface op
 
 test("JS surface attributes string element diagnostics to the selected surface operation provider", () => {
   const expression = {};
-  const receiver = {};
+  const receiver = fakeNodeSubject({});
   const receiverType = {};
-  const index = {};
+  receiver.SemanticType = receiverType;
+  const index = fakeNodeSubject({});
   const facts = new TestFactStore();
   const targetTypes = new Map([
     [receiverType, stringType()],
@@ -162,8 +195,8 @@ test("JS surface attributes string element diagnostics to the selected surface o
 
 test("JS surface maps array element access from finalized receiver carrier facts", () => {
   const expression = {};
-  const receiver = {};
-  const index = {};
+  const receiver = fakeNodeSubject({});
+  const index = fakeNodeSubject({});
   const facts = new TestFactStore();
   facts.set(receiver, runtimeCarrierFactKey, { carrier: int32ReadOnlyListType() });
   const targetTypes = new Map([
@@ -185,8 +218,8 @@ test("JS surface maps array element access from finalized receiver carrier facts
 
 test("JS surface defers element access without selected receiver facts", () => {
   const expression = {};
-  const receiver = {};
-  const index = {};
+  const receiver = fakeNodeSubject({});
+  const index = fakeNodeSubject({});
   const facts = new TestFactStore();
   const targetTypes = new Map([
     [index, int32Type()],
@@ -881,10 +914,10 @@ test("JS surface rejects Map and Set instance calls without closed carrier facts
   }), fakeContext(facts));
 
   assert.equal(mapSetResult.kind, "reject");
-  assert.equal(mapSetResult.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.equal(mapSetResult.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(mapSetResult.diagnostic.message, /Map\.set/);
   assert.equal(setAddResult.kind, "reject");
-  assert.equal(setAddResult.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.equal(setAddResult.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(setAddResult.diagnostic.message, /Set\.add/);
 });
 
@@ -1325,7 +1358,7 @@ test("JS surface rejects Object operations without closed Object carrier facts",
   }), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
   assert.match(result.diagnostic.message, /Object\.keys/);
 });
 
@@ -1412,7 +1445,7 @@ test("JS surface defers JSON.stringify without closed JSON value carrier facts u
     arguments: [value],
   }), fakeContext(facts));
 
-  assert.equal(result.kind, "defer");
+  assert.equal(result.kind, "reject");
 });
 
 test("JS surface rejects JSON.stringify when the argument carrier fact is mutated away from TsValue", () => {
@@ -1498,6 +1531,29 @@ test("selected JS surface finalizes Array length construction to JSArray carrier
   assert.equal(extensionHost.facts.get(construct, selectedTargetSignatureFactKey)?.member.id, "Tsonic.CSharp.Js.JSArray..ctor(System.Double)");
   assert.equal(extensionHost.facts.get(construct, selectedTargetSignatureFactKey)?.member.returnType.typeArguments[0].name, "int32");
   assert.equal(extensionHost.facts.get(construct, csharpTargetOperationFactKey)?.operationKind, "constructor");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});
+
+test("selected JS surface finalizes Array length assignment as value-producing setLength operation", () => {
+  const session = createCsharpSession(`
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function reset(values: int32[], size: int32): int32 {
+      return values.length = size;
+    }
+  `, { selectedSurfaces: [{ id: "js" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const assignment = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  const operation = extensionHost.facts.get(assignment, csharpTargetMutationOperationFactKey);
+
+  assert.ok(assignment);
+  assert.equal(operation?.operationId, "tsonic.csharp.js.array.setLength");
+  assert.equal(operation?.operationKind, "method");
+  assert.equal(operation?.memberName, "setLength");
+  assert.equal(operation?.resultType?.name, "int32");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
 
@@ -1964,7 +2020,7 @@ test("JS surface rejects Object.assign without closed JSObject target facts", ()
   }), fakeContext(facts));
 
   assert.equal(callResult.kind, "reject");
-  assert.equal(callResult.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.equal(callResult.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
   assert.match(callResult.diagnostic.message, /Object\.assign/);
 });
 
@@ -2287,7 +2343,9 @@ test("JS surface defers foreign JS calls and foreign JS property operations with
 
 test("JS surface maps Record element access through provider-owned Dictionary indexer facts", () => {
   const expression = {};
+  const receiver = fakeNodeSubject({});
   const receiverType = {};
+  receiver.SemanticType = receiverType;
   const key = {};
   const facts = new TestFactStore();
   const dictionaryType = recordDictionaryType(stringType(), int32Type());
@@ -2300,8 +2358,7 @@ test("JS surface maps Record element access through provider-owned Dictionary in
   const result = provider.mapCheckedElementAccess({
     target: "csharp",
     expression,
-    receiver: {},
-    receiverType,
+    receiver,
     argument: key,
   }, fakeContext(facts));
 
@@ -2314,8 +2371,9 @@ test("JS surface maps Record element access through provider-owned Dictionary in
 
 test("JS surface maps string for-of to string-code-point iteration facts", () => {
   const statement = {};
-  const expression = {};
+  const expression = fakeNodeSubject({});
   const expressionType = {};
+  expression.SemanticType = expressionType;
   const facts = new TestFactStore();
   const targetTypes = new Map([
     [expressionType, stringType()],
@@ -2372,8 +2430,9 @@ test("JS surface maps object-shape for-in to finalized object-shape key facts", 
 
 test("JS surface maps Record for-in through provider-owned Dictionary key facts", () => {
   const statement = {};
-  const expression = {};
+  const expression = fakeNodeSubject({});
   const expressionType = {};
+  expression.SemanticType = expressionType;
   const facts = new TestFactStore();
   const dictionaryType = recordDictionaryType(stringType(), int32Type());
   const targetTypes = new Map([
@@ -2432,8 +2491,9 @@ test("JS surface iteration defers unsupported target selection without recording
 
 test("JS surface rejects Record for-in without string-key enumeration facts", () => {
   const statement = {};
-  const expression = {};
+  const expression = fakeNodeSubject({});
   const expressionType = {};
+  expression.SemanticType = expressionType;
   const facts = new TestFactStore();
   const dictionaryType = recordDictionaryType(int32Type(), int32Type());
   const targetTypes = new Map([
@@ -2865,7 +2925,7 @@ test("NodeJS surface exposes URL as a provider-owned virtual module", () => {
   assert.equal(href?.kind, "property");
   assert.equal(canParse?.static, true);
   assert.equal(searchParams?.type?.kind, "provider-ref");
-  assert.equal(searchParams?.type?.name, "URLSearchParams");
+  assert.equal(searchParams?.type?.exportName, "URLSearchParams");
   assert.equal(pathToFileURL?.signatures?.[0]?.id, "node:url.pathToFileURL(System.String)");
   assert.equal(format?.signatures?.[0]?.id, "node:url.format(Tsonic.CSharp.Node.URL)");
 
@@ -3075,7 +3135,7 @@ test("NodeJS surface maps Buffer instance properties from selected provider memb
     target: "csharp",
     expression,
     receiver: {},
-    sourceSelectedPropertySymbol: selectedPropertySymbol,
+    sourceSelectedSymbol: selectedPropertySymbol,
     propertyName: "not-the-selected-name",
   }, fakeContext(facts));
 
@@ -3113,7 +3173,7 @@ test("NodeJS surface exposes process.env as provider-owned closed environment ca
   const env = model.exports.find((entry) => entry.name === "env");
   assert.equal(env?.kind, "value");
   assert.equal(env?.type.kind, "provider-ref");
-  assert.equal(env?.type.name, "ProcessEnv");
+  assert.equal(env?.type.exportName, "ProcessEnv");
 
   const envIdentity = bindingProvider.getTargetIdentity({
     moduleSpecifier: "process",
@@ -3233,7 +3293,7 @@ test("NodeJS surface rejects selected provider members absent from the explicit 
   const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedSignature), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
   assert.match(result.diagnostic.message, /member 'isBuffer'/);
   assert.match(result.diagnostic.message, /node:buffer\.Buffer\.isBuffer/);
 });
@@ -3292,7 +3352,7 @@ test("NodeJS surface maps namespace property access from selected provider prope
     target: "csharp",
     expression,
     receiver: {},
-    sourceSelectedPropertySymbol: selectedPropertySymbol,
+    sourceSelectedSymbol: selectedPropertySymbol,
     propertyName: "platform",
   }, fakeContext(facts));
 
@@ -3339,14 +3399,18 @@ test("NodeJS surface defers namespace properties from container facts and proper
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-function arrayLengthRequest(expression, receiverType, sourceSelectedDeclaration, options = {}) {
+function arrayLengthRequest(expression, receiverType, sourceSelectedSymbol, options = {}) {
+  const receiver = fakeNodeSubject(options.receiver ?? {});
+  if (receiverType !== undefined) {
+    receiver.SemanticType = receiverType;
+  }
   return {
     target: "csharp",
     expression,
-    receiver: options.receiver ?? {},
+    receiver,
     receiverType,
     propertyName: "length",
-    ...(sourceSelectedDeclaration !== undefined ? { sourceSelectedDeclaration } : {}),
+    ...(sourceSelectedSymbol !== undefined ? { sourceSelectedSymbol } : {}),
   };
 }
 
@@ -3399,10 +3463,11 @@ function fakeNamespaceImportContext(facts, sourceFile) {
     },
     compiler: {
       ast: {
-        is: {
+        is: fakeAstIs({
           IsIdentifier: (node) => node?.Kind === "Identifier",
           IsImportDeclaration: (node) => node?.Kind === "ImportDeclaration",
-        },
+        }),
+        kindName: (node) => typeof node?.Kind === "string" ? node.Kind : "",
         as: {
           AsImportDeclaration: (node) => node?.Kind === "ImportDeclaration" ? node : undefined,
           AsImportClause: (node) => node?.Kind === "ImportClause" ? node : undefined,
@@ -3422,19 +3487,40 @@ function fakeNamespaceImportContext(facts, sourceFile) {
         name: (node) => node?.Name,
         text: (node) => node?.Text ?? "",
       },
+      checker: {
+        getSignatureDeclaration: (signature) => signature?.declaration,
+        getSymbolDeclarations: () => [],
+        getTypeAtLocation: () => undefined,
+        getTypeSymbol: () => undefined,
+        getSymbolAtLocation: () => undefined,
+        getResolvedSymbolOrNil: () => undefined,
+        getResolvedSymbol: () => undefined,
+        getAliasedSymbol: () => undefined,
+      },
     },
   };
 }
 
-function sourceLibraryPropertyRequest(expression, sourceSelectedDeclaration, propertyName, options = {}) {
+function sourceLibraryPropertyRequest(expression, sourceSelectedSymbol, propertyName, options = {}) {
+  const receiver = fakeNodeSubject(options.receiver ?? {});
+  if (options.receiverType !== undefined) {
+    receiver.SemanticType = options.receiverType;
+  }
   return {
     target: "csharp",
     expression,
-    receiver: {},
+    receiver,
     receiverType: options.receiverType ?? {},
     propertyName,
-    sourceSelectedDeclaration,
+    sourceSelectedSymbol,
   };
+}
+
+function fakeNodeSubject(subject, kind = "Identifier") {
+  if (subject !== undefined && subject !== null && typeof subject === "object" && subject.Kind === undefined) {
+    subject.Kind = kind;
+  }
+  return subject;
 }
 
 function fakeHost(receiverType, targetTypes = new Map(), targetBinding, objectShapeFacts = new Map()) {
@@ -3460,14 +3546,60 @@ function fakeContext(facts) {
     },
     compiler: {
       ast: {
+        is: fakeAstIs({
+          IsIdentifier: (node) => node?.Kind === "Identifier",
+          IsPrivateIdentifier: (node) => node?.Kind === "PrivateIdentifier",
+          IsQualifiedName: (node) => node?.Kind === "QualifiedName",
+          IsPropertyAccessExpression: (node) => node?.Kind === "PropertyAccessExpression",
+          IsVariableDeclaration: (node) => node?.Kind === "VariableDeclaration",
+          IsParameterDeclaration: (node) => node?.Kind === "ParameterDeclaration",
+          IsBindingElement: (node) => node?.Kind === "BindingElement",
+          IsFunctionDeclaration: (node) => node?.Kind === "FunctionDeclaration",
+          IsClassDeclaration: (node) => node?.Kind === "ClassDeclaration",
+          IsMethodDeclaration: (node) => node?.Kind === "MethodDeclaration",
+          IsPropertyDeclaration: (node) => node?.Kind === "PropertyDeclaration",
+          IsTypeReferenceNode: (node) => node?.Kind === "TypeReferenceNode",
+          IsTypeParameterDeclaration: (node) => node?.Kind === "TypeParameterDeclaration",
+          IsTypeAliasDeclaration: (node) => node?.Kind === "TypeAliasDeclaration",
+          IsInterfaceDeclaration: (node) => node?.Kind === "InterfaceDeclaration",
+          IsImportTypeNode: (node) => node?.Kind === "ImportTypeNode",
+        }),
+        kindName: (node) => typeof node?.Kind === "string" ? node.Kind : "",
         getSourceFile: (node) => node?.SourceFile,
         getFileName: (sourceFile) => sourceFile?.FileName ?? "",
         parent: (node) => node?.Parent,
         name: (node) => node?.Name,
         text: (node) => node?.Text ?? "",
       },
+      checker: {
+        getSignatureDeclaration: (signature) => signature?.declaration,
+        getSymbolDeclarations: (symbol) =>
+          symbol?.declarations ??
+          (symbol?.declaration !== undefined
+            ? [symbol.declaration]
+            : symbol?.Kind !== undefined
+            ? [symbol]
+            : []),
+        getTypeAtLocation: (node) => node?.SemanticType,
+        getTypeSymbol: () => undefined,
+        getSymbolAtLocation: () => undefined,
+        getResolvedSymbolOrNil: () => undefined,
+        getResolvedSymbol: () => undefined,
+        getAliasedSymbol: () => undefined,
+      },
     },
   };
+}
+
+function fakeAstIs(overrides = {}) {
+  return new Proxy(overrides, {
+    get(target, property) {
+      if (property in target) {
+        return target[property];
+      }
+      return () => false;
+    },
+  });
 }
 
 function createCsharpSession(sourceText, options = {}) {
@@ -3548,25 +3680,39 @@ function collectAllNodes(node, ast, result = []) {
 }
 
 function jsCallRequest(call, sourceSelectedDeclaration, options = {}) {
+  const callee = fakeCallCallee(options);
   return {
     target: "csharp",
-    call,
-    callee: {},
-    arguments: options.arguments ?? [],
+    call: fakeNodeSubject(call, call?.Kind ?? "CallExpression"),
+    callee,
+    arguments: (options.arguments ?? []).map((argument) => fakeNodeSubject(argument)),
     sourceSelectedDeclaration,
-    ...(options.calleeReceiver !== undefined ? { calleeReceiver: options.calleeReceiver } : {}),
     sourceSelectedSignature: options.sourceSelectedSignature ?? selectedSourceLibrarySignature(sourceSelectedDeclaration),
   };
 }
 
 function jsCallRequestWithoutSignature(call, sourceSelectedDeclaration, options = {}) {
+  const callee = fakeCallCallee(options);
   return {
     target: "csharp",
-    call,
-    callee: {},
-    arguments: options.arguments ?? [],
+    call: fakeNodeSubject(call, call?.Kind ?? "CallExpression"),
+    callee,
+    arguments: (options.arguments ?? []).map((argument) => fakeNodeSubject(argument)),
     sourceSelectedDeclaration,
-    ...(options.calleeReceiver !== undefined ? { calleeReceiver: options.calleeReceiver } : {}),
+  };
+}
+
+function fakeCallCallee(options = {}) {
+  if (options.callee !== undefined) {
+    return fakeNodeSubject(options.callee, options.callee.Kind ?? "Identifier");
+  }
+  if (options.calleeReceiver === undefined) {
+    return fakeNodeSubject({}, "Identifier");
+  }
+  return {
+    Kind: "PropertyAccessExpression",
+    Expression: fakeNodeSubject(options.calleeReceiver),
+    Name: { Kind: "Identifier", Text: "member" },
   };
 }
 
@@ -3594,14 +3740,14 @@ function nodejsCallRequestWithoutSignature(call, sourceSelectedDeclaration) {
   };
 }
 
-function nodejsPropertyRequest(expression, sourceSelectedDeclaration) {
+function nodejsPropertyRequest(expression, sourceSelectedSymbol) {
   return {
     target: "csharp",
     expression,
     receiver: {},
     receiverType: {},
     propertyName: "platform",
-    sourceSelectedDeclaration,
+    sourceSelectedSymbol,
   };
 }
 

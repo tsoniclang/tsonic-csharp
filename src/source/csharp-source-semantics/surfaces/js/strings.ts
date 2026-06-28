@@ -34,6 +34,7 @@ import type {
 import {
   jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentity,
 } from "./target-member-metadata.js";
 import type {
   JsSurfaceSelectedSourceIdentity,
@@ -213,7 +214,9 @@ const stringTargetMemberMetadata = [
     { id: "Tsonic.CSharp.Js.String.valueOf", sourceName: "valueOf", targetName: "valueOf" },
   ].map((row) => stringReceiverHelperMemberMetadata({ ...row, parameters: [stringReceiverParameter], returnType: stringType })),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const stringTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("String", stringTargetMemberMetadata);
+export const stringTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("String", stringTargetMemberMetadata),
+);
 
 const stringPropertyTargetMemberMetadata = [
   {
@@ -228,7 +231,9 @@ const stringPropertyTargetMemberMetadata = [
     semanticEquivalence: "System.String.Length is selected only for closed string carriers and preserves ECMAScript String length code-unit semantics.",
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const stringPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("String", stringPropertyTargetMemberMetadata);
+export const stringPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("String", stringPropertyTargetMemberMetadata),
+);
 
 function stringHelperMemberMetadata(row: StringHelperMetadataRow): JsSurfaceTargetMemberMetadata {
   return {

@@ -142,7 +142,12 @@ export function getCallableTargetTypeRefForSemanticType(
   }
   const signature = signatures[0]!;
   const parameters = checker.getSignatureParameters(signature);
-  const parameterTypes = parameters.map((parameter) => resolver.resolveType(checker.getTypeOfSymbol(parameter), context, options, host));
+  const parameterTypes = parameters.map((parameter) => {
+    const parameterType = safeGetTypeOfSymbol(parameter, context);
+    return parameterType === undefined
+      ? undefined
+      : resolver.resolveType(parameterType, context, options, host);
+  });
   if (parameterTypes.some((parameter) => parameter === undefined)) {
     return undefined;
   }
@@ -154,6 +159,17 @@ export function getCallableTargetTypeRefForSemanticType(
     return csharpDelegateTargetType("System.Action", parameterTypes as readonly TargetTypeRef[]);
   }
   return csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);
+}
+
+function safeGetTypeOfSymbol(
+  symbol: Parameters<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeOfSymbol"]>[0],
+  context: ExtensionObservationContext,
+): Type | undefined {
+  try {
+    return context.compiler?.checker.getTypeOfSymbol(symbol);
+  } catch {
+    return undefined;
+  }
 }
 
 export function getNullableUnionTargetTypeRef(

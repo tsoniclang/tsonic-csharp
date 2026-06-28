@@ -1,5 +1,6 @@
 import type {
   ProviderExportDeclaration,
+  ProviderParameterDeclaration,
   ProviderTypeExpression,
   TargetMember,
 } from "@tsonic/tsts";
@@ -38,6 +39,7 @@ const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
 const voidProviderType = { kind: "void" } satisfies ProviderTypeExpression;
 const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
+const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
 const undefinedProviderType = { kind: "void" } satisfies ProviderTypeExpression;
 const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const stringTargetType = csharpStringTargetType();
@@ -91,6 +93,7 @@ export function nodeProcessExports(): readonly ProviderExportDeclaration[] {
       kind: "value" as const,
       type: providerType,
     })),
+    ...nodeProcessUnsupportedExportDeclarations(),
   ];
 }
 
@@ -168,7 +171,12 @@ export function nodeProcessPropertyTargetMembers(): readonly NodeProcessProperty
 }
 
 export function nodeProcessUnsupportedTargetIdentities(): readonly NodeProcessUnsupportedTargetIdentity[] {
-  return [];
+  return nodeProcessUnsupportedExports.map(({ exportName, signatureId, targetIdentityId, displayName }) => ({
+    exportName,
+    ...(signatureId !== undefined ? { signatureId } : {}),
+    targetIdentityId,
+    displayName,
+  }));
 }
 
 export function nodeProcessClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
@@ -301,6 +309,34 @@ function nodeProcessVersionsExportDeclaration(): ProviderExportDeclaration {
   };
 }
 
+function nodeProcessUnsupportedExportDeclarations(): readonly ProviderExportDeclaration[] {
+  return nodeProcessUnsupportedExports.map((entry) => entry.signatureId === undefined
+    ? {
+        id: `node:process.${entry.exportName}`,
+        name: entry.exportName,
+        kind: "value" as const,
+        type: entry.providerType,
+      }
+    : {
+        id: `node:process.${entry.exportName}`,
+        name: entry.exportName,
+        kind: "function" as const,
+        signatures: [{
+          id: entry.signatureId,
+          parameters: entry.providerParameters ?? [],
+          returnType: entry.providerType,
+        }],
+      });
+}
+
+function unknownRestParameter(name: string): ProviderParameterDeclaration {
+  return {
+    name,
+    type: { kind: "array", elementType: unknownProviderType },
+    rest: true,
+  };
+}
+
 function processCall(row: NodeProcessCallTargetMetadataRow): NodeProcessCallTargetMember {
   return nodejsModuleCallTargetMetadata({
     ...row,
@@ -320,3 +356,64 @@ const nodeProcessCallTargetMemberByProviderDeclarationIdentity =
 
 const nodeProcessPropertyTargetMemberByProviderDeclarationIdentity =
   nodejsProviderExportDeclarationTargetMemberIndex(nodeProcessModuleSpecifier, nodeProcessPropertyTargetMembers());
+
+const nodeProcessUnsupportedExports = [
+  {
+    exportName: "stdin",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.stdin",
+    displayName: "unsupported NodeJS process.stdin",
+    providerType: unknownProviderType,
+  },
+  {
+    exportName: "stdout",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.stdout",
+    displayName: "unsupported NodeJS process.stdout",
+    providerType: unknownProviderType,
+  },
+  {
+    exportName: "stderr",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.stderr",
+    displayName: "unsupported NodeJS process.stderr",
+    providerType: unknownProviderType,
+  },
+  {
+    exportName: "memoryUsage",
+    signatureId: "node:process.memoryUsage()",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.memoryUsage()",
+    displayName: "unsupported NodeJS process.memoryUsage",
+    providerType: unknownProviderType,
+  },
+  {
+    exportName: "hrtime",
+    signatureId: "node:process.hrtime(System.Int32[])",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.hrtime(System.Int32[])",
+    displayName: "unsupported NodeJS process.hrtime",
+    providerParameters: [{ name: "time", type: { kind: "array", elementType: numberProviderType }, optional: true }],
+    providerType: { kind: "array", elementType: numberProviderType },
+  },
+  {
+    exportName: "nextTick",
+    signatureId: "node:process.nextTick(Function,System.Object[])",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.nextTick(Function,System.Object[])",
+    displayName: "unsupported NodeJS process.nextTick",
+    providerParameters: [
+      { name: "callback", type: { kind: "function", parameters: [], returnType: voidProviderType } },
+      unknownRestParameter("args"),
+    ],
+    providerType: voidProviderType,
+  },
+  {
+    exportName: "uptime",
+    signatureId: "node:process.uptime()",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.uptime()",
+    displayName: "unsupported NodeJS process.uptime",
+    providerType: numberProviderType,
+  },
+] satisfies readonly {
+  readonly exportName: string;
+  readonly signatureId?: string;
+  readonly targetIdentityId: string;
+  readonly displayName: string;
+  readonly providerParameters?: readonly ProviderParameterDeclaration[];
+  readonly providerType: ProviderTypeExpression;
+}[];

@@ -16,6 +16,7 @@ import {
   jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMemberFromMetadata,
   jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentity,
 } from "./target-member-metadata.js";
 import type {
   JsSurfaceSelectedSourceIdentity,
@@ -29,6 +30,16 @@ const numberType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const numberValueParameter = targetParameter("value", numberType);
+const numberOptionalDigitsParameter = targetParameter("digits", intType, { optional: true });
+const numberOptionalPrecisionParameter = targetParameter("precision", intType, { optional: true });
+const numberOptionalLocaleParameter = targetParameter("locales", objectType, {
+  optional: true,
+  csharpAcceptsClosedSourceArgument: true,
+});
+const numberOptionalFormatOptionsParameter = targetParameter("options", objectType, {
+  optional: true,
+  csharpAcceptsClosedSourceArgument: true,
+});
 const numberConversionParameter = targetParameter("value", objectType, {
   optional: true,
   csharpAcceptsClosedSourceArgument: true,
@@ -69,9 +80,15 @@ const numberTargetMemberMetadata = [
     { id: "Tsonic.CSharp.Js.Number.isSafeInteger", sourceName: "isSafeInteger", targetName: "isSafeInteger" },
   ].map((row) => numberMethodMetadata({ ...row, parameters: [numberValueParameter], returnType: boolType })),
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toString", sourceName: "toString", targetName: "toString", parameters: [numberValueParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toExponential", sourceName: "toExponential", targetName: "toExponential", parameters: [numberValueParameter, numberOptionalDigitsParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toFixed", sourceName: "toFixed", targetName: "toFixed", parameters: [numberValueParameter, numberOptionalDigitsParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toPrecision", sourceName: "toPrecision", targetName: "toPrecision", parameters: [numberValueParameter, numberOptionalPrecisionParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toLocaleString", sourceName: "toLocaleString", targetName: "toLocaleString", parameters: [numberValueParameter, numberOptionalLocaleParameter, numberOptionalFormatOptionsParameter], returnType: stringType, receiverPassing: "first-argument" }),
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.valueOf", sourceName: "valueOf", targetName: "valueOf", parameters: [numberValueParameter], returnType: numberType, receiverPassing: "first-argument" }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const numberTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberTargetMemberMetadata);
+export const numberTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("Number", numberTargetMemberMetadata),
+);
 const numberPropertyTargetMemberMetadata = [
   { id: "Tsonic.CSharp.Js.Number.MAX_VALUE", sourceName: "MAX_VALUE", targetName: "MAX_VALUE" },
   { id: "Tsonic.CSharp.Js.Number.MIN_VALUE", sourceName: "MIN_VALUE", targetName: "MIN_VALUE" },
@@ -82,7 +99,9 @@ const numberPropertyTargetMemberMetadata = [
   { id: "Tsonic.CSharp.Js.Number.NaN", sourceName: "NaN", targetName: "NaN" },
   { id: "Tsonic.CSharp.Js.Number.EPSILON", sourceName: "EPSILON", targetName: "EPSILON" },
 ].map(numberPropertyMetadata) satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const numberPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberPropertyTargetMemberMetadata);
+export const numberPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("Number", numberPropertyTargetMemberMetadata),
+);
 
 const numberConstructorCallTargetMemberMetadata = [
   numberMethodMetadata({

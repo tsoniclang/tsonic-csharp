@@ -14,22 +14,26 @@ import {
   nodeBufferClassPropertyTargetMembers,
   nodeBufferModuleCallTargetMembers,
   nodeBufferModuleSpecifier,
+  nodeBufferUnsupportedTargetIdentities,
 } from "../buffer.js";
 import {
   nodeCryptoClassCallTargetMembers,
   nodeCryptoCallTargetMembers,
   nodeCryptoModuleSpecifier,
+  nodeCryptoUnsupportedTargetIdentities,
 } from "../crypto.js";
 import {
   nodeFsCallTargetMembers,
   nodeFsClassCallTargetMembers,
   nodeFsClassPropertyTargetMembers,
   nodeFsModuleSpecifier,
+  nodeFsUnsupportedTargetIdentities,
 } from "../filesystem/index.js";
 import {
   nodeOsCallTargetMembers,
   nodeOsModuleSpecifier,
   nodeOsPropertyTargetMembers,
+  nodeOsUnsupportedTargetIdentities,
 } from "../os.js";
 import {
   nodePathCallTargetMembers,
@@ -117,6 +121,10 @@ export function nodejsTargetMemberMetadataRecords(): readonly NodejsTargetMember
 export function nodejsUnsupportedTargetMetadataRecords(): readonly NodejsUnsupportedTargetMetadataRecord[] {
   return [
     ...unsupportedRecords(nodeAssertModuleSpecifier, nodeAssertUnsupportedTargetIdentities()),
+    ...unsupportedRecords(nodeBufferModuleSpecifier, nodeBufferUnsupportedTargetIdentities()),
+    ...unsupportedRecords(nodeCryptoModuleSpecifier, nodeCryptoUnsupportedTargetIdentities()),
+    ...unsupportedRecords(nodeFsModuleSpecifier, nodeFsUnsupportedTargetIdentities()),
+    ...unsupportedRecords(nodeOsModuleSpecifier, nodeOsUnsupportedTargetIdentities()),
     ...unsupportedRecords(nodeUtilModuleSpecifier, nodeUtilUnsupportedTargetIdentities()),
     ...unsupportedRecords(nodeProcessModuleSpecifier, nodeProcessUnsupportedTargetIdentities()),
     ...unsupportedRecords(nodeUrlModuleSpecifier, nodeUrlUnsupportedTargetIdentities()),

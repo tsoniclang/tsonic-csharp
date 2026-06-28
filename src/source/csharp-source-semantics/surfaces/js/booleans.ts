@@ -15,6 +15,7 @@ import {
   jsSurfaceTargetMemberFromMetadata,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentity,
 } from "./target-member-metadata.js";
 import type {
   JsSurfaceSelectedSourceIdentity,
@@ -65,7 +66,9 @@ const booleanTargetMemberMetadata = [
     ...booleanMetadataEvidence,
   },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const booleanTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Boolean", booleanTargetMemberMetadata);
+export const booleanTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("Boolean", booleanTargetMemberMetadata),
+);
 
 const booleanConstructorMetadataEvidence = {
   capabilityId: "surface.js.boolean-methods",

@@ -119,7 +119,10 @@ export function getTargetTypeRefFromDeclarationAnnotation(
   for (const declaration of declarations) {
     const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
     if (typeNode !== undefined && typeNode !== node) {
-      const result = resolveSubject(typeNode, context, options, host);
+      const result = resolveSubject(typeNode, context, {
+        ...options,
+        sourceFile: options.sourceFile ?? ast.getSourceFile(typeNode),
+      }, host);
       if (result !== undefined) {
         return result;
       }

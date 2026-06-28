@@ -3,29 +3,6 @@ import type {
   ExtensionObservationContext,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import {
-  getCsharpArrayLikeElementType,
-} from "../../arrays.js";
-import {
-  isCsharpBooleanTargetType,
-} from "../../booleans.js";
-import {
-  collectionPolicyForSelectedSourceIdentity,
-  collectionPolicyForTargetType,
-} from "../../collection-target-metadata/definitions.js";
-import {
-  isCsharpJsDateRuntimeCarrier,
-} from "../../date/index.js";
-import {
-  isCsharpNumberTargetType,
-} from "../../numbers.js";
-import {
-  isCsharpJsObjectCarrierTargetType,
-} from "../../objects.js";
-import {
-  getCsharpJsRegExpRuntimeCarrierForSubject,
-  isCsharpJsRegExpRuntimeCarrier,
-} from "../../regexp/index.js";
 import type {
   CsharpJsSurfaceHost,
 } from "../../source-library.js";
@@ -36,13 +13,6 @@ import {
   getSourceLibraryCallArgumentTargetTypes,
   getSourceLibraryCallReceiverTargetTypes,
 } from "../helpers.js";
-import {
-  getCsharpCheckedCallRequestContext,
-} from "../../../../checked-call-request-context.js";
-import {
-  isSupportedJsonValueTargetType,
-  isSupportedObjectHelperSourceTargetType,
-} from "../closed-facts/target-type-support.js";
 import type {
   JsSurfaceArgumentCondition,
   JsSurfaceArgumentTargetCondition,
@@ -50,10 +20,18 @@ import type {
   JsSurfaceOperationRow,
   JsSurfaceReceiverTargetCondition,
 } from "./operation-types.js";
+import {
+  jsSurfaceArgumentMatchesTargetFeature,
+  jsSurfaceReceiverMatchesTargetFeature,
+} from "./target-features.js";
 
 export type JsSurfaceClosedFactsStatus =
   | { readonly kind: "satisfied" }
-  | { readonly kind: "missing" }
+  | {
+    readonly kind: "missing";
+    readonly reason: "receiver" | "argument";
+    readonly argumentIndex?: number;
+  }
   | { readonly kind: "conflict" };
 
 export function operationRowClosedFactsStatus(
@@ -87,12 +65,12 @@ function closedFactsRequirementStatus(
           hasMissing = true;
         }
       }
-      return hasMissing ? { kind: "missing" } : { kind: "satisfied" };
+      return hasMissing ? { kind: "missing", reason: "receiver" } : { kind: "satisfied" };
     }
     case "receiver": {
       const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
       if (receiverTypes.length === 0) {
-        return { kind: "missing" };
+        return { kind: "missing", reason: "receiver" };
       }
       return receiverTypes.some((receiverType) => receiverMatchesTargetCondition(receiverType, requirement.target, selectedIdentity, request, context, host))
         ? { kind: "satisfied" }
@@ -100,10 +78,13 @@ function closedFactsRequirementStatus(
     }
     case "arguments":
       return argumentConditionsStatus(requirement.conditions, request, context, host);
-    case "known-argument-targets":
-      return getSourceLibraryCallArgumentTargetTypes(request, context, host).every((argumentType) => argumentType !== undefined)
+    case "known-argument-targets": {
+      const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
+      const missingIndex = argumentTypes.findIndex((argumentType) => argumentType === undefined);
+      return missingIndex < 0
         ? { kind: "satisfied" }
-        : { kind: "missing" };
+        : { kind: "missing", reason: "argument", argumentIndex: missingIndex };
+    }
   }
 }
 
@@ -114,12 +95,12 @@ function argumentConditionsStatus(
   host: CsharpJsSurfaceHost,
 ): JsSurfaceClosedFactsStatus {
   const argumentTypes = getSourceLibraryCallArgumentTargetTypes(request, context, host);
-  let hasMissing = false;
+  let missingArgumentIndex: number | undefined;
   for (const condition of conditions) {
     if ("index" in condition) {
       const argumentType = argumentTypes[condition.index];
       if (argumentType === undefined) {
-        hasMissing = true;
+        missingArgumentIndex ??= condition.index;
         continue;
       }
       if (!argumentMatchesTargetCondition(argumentType, condition.target, host)) {
@@ -127,17 +108,22 @@ function argumentConditionsStatus(
       }
       continue;
     }
+    let currentIndex = condition.fromIndex;
     for (const argumentType of argumentTypes.slice(condition.fromIndex)) {
       if (argumentType === undefined) {
-        hasMissing = true;
+        missingArgumentIndex ??= currentIndex;
+        currentIndex += 1;
         continue;
       }
       if (!argumentMatchesTargetCondition(argumentType, condition.target, host)) {
         return { kind: "conflict" };
       }
+      currentIndex += 1;
     }
   }
-  return hasMissing ? { kind: "missing" } : { kind: "satisfied" };
+  return missingArgumentIndex === undefined
+    ? { kind: "satisfied" }
+    : { kind: "missing", reason: "argument", argumentIndex: missingArgumentIndex };
 }
 
 function receiverMatchesTargetCondition(
@@ -148,30 +134,13 @@ function receiverMatchesTargetCondition(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  switch (condition) {
-    case "array-like":
-      return getCsharpArrayLikeElementType(receiverType) !== undefined;
-    case "string":
-      return host.isCsharpStringType(receiverType);
-    case "number":
-      return isCsharpNumberTargetType(receiverType);
-    case "boolean":
-      return isCsharpBooleanTargetType(receiverType);
-    case "regexp":
-      const requestContext = getCsharpCheckedCallRequestContext(request, context);
-      return isCsharpJsRegExpRuntimeCarrier(receiverType) ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiver, context) !== undefined ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiverSymbol, context) !== undefined ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiverResolvedSymbol, context) !== undefined;
-    case "date":
-      return isCsharpJsDateRuntimeCarrier(receiverType);
-    case "js-object":
-      return isCsharpJsObjectCarrierTargetType(receiverType);
-    case "selected-collection-carrier": {
-      const policy = collectionPolicyForSelectedSourceIdentity(selectedIdentity);
-      return policy !== undefined && collectionPolicyForTargetType(receiverType) === policy;
-    }
-  }
+  return jsSurfaceReceiverMatchesTargetFeature(condition, {
+    receiverType,
+    selectedIdentity,
+    request,
+    context,
+    host,
+  }) === true;
 }
 
 function argumentMatchesTargetCondition(
@@ -179,14 +148,8 @@ function argumentMatchesTargetCondition(
   condition: JsSurfaceArgumentTargetCondition,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  switch (condition) {
-    case "string":
-      return host.isCsharpStringType(argumentType);
-    case "json-value":
-      return isSupportedJsonValueTargetType(argumentType, host);
-    case "object-helper":
-      return isSupportedObjectHelperSourceTargetType(argumentType, host);
-    case "js-object":
-      return isCsharpJsObjectCarrierTargetType(argumentType);
-  }
+  return jsSurfaceArgumentMatchesTargetFeature(condition, {
+    argumentType,
+    host,
+  });
 }

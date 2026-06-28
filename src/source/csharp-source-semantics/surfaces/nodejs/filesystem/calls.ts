@@ -1,5 +1,7 @@
 import type {
   ProviderExportDeclaration,
+  ProviderParameterDeclaration,
+  ProviderTypeExpression,
   TargetMember,
 } from "@tsonic/tsts";
 import {
@@ -39,6 +41,9 @@ import {
   voidProviderType,
   voidTargetType,
 } from "./types.js";
+import type {
+  NodejsUnsupportedTargetIdentity,
+} from "../members/types.js";
 import type {
   NodeFsCallTargetMember,
 } from "./types.js";
@@ -83,6 +88,15 @@ export function nodeFsCallExportDeclarations(): readonly ProviderExportDeclarati
     })),
     ...nodeFsUnsupportedCallDeclarations(),
   ];
+}
+
+export function nodeFsUnsupportedTargetIdentities(): readonly NodejsUnsupportedTargetIdentity[] {
+  return nodeFsUnsupportedCalls.map(({ exportName, signatureId, targetIdentityId, displayName }) => ({
+    exportName,
+    signatureId,
+    targetIdentityId,
+    displayName,
+  }));
 }
 
 export function nodeFsCallTargetMembers(): readonly NodeFsCallTargetMember[] {
@@ -231,21 +245,39 @@ export function nodeFsCallTargetMembers(): readonly NodeFsCallTargetMember[] {
 }
 
 function nodeFsUnsupportedCallDeclarations(): readonly ProviderExportDeclaration[] {
-  return [
-    {
-      id: "node:fs.watchFile",
-      name: "watchFile",
-      kind: "function",
-      signatures: [{
-        id: "node:fs.watchFile(System.String,Function)",
-        parameters: [
-          { name: "filename", type: stringProviderType },
-          { name: "listener", type: { kind: "function", parameters: [], returnType: voidProviderType } },
-        ],
-        returnType: voidProviderType,
-      }],
-    },
-  ];
+  return nodeFsUnsupportedCalls.map((entry) => ({
+    id: `node:fs.${entry.exportName}`,
+    name: entry.exportName,
+    kind: "function",
+    signatures: [{
+      id: entry.signatureId,
+      parameters: entry.parameters,
+      returnType: entry.returnType,
+    }],
+  }));
+}
+
+const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
+const optionalUnknownProviderType = { kind: "union", types: [unknownProviderType, { kind: "void" }] } satisfies ProviderTypeExpression;
+const callbackProviderType = {
+  kind: "function",
+  parameters: [{ name: "args", type: { kind: "array", elementType: unknownProviderType }, rest: true }],
+  returnType: voidProviderType,
+} satisfies ProviderTypeExpression;
+
+function callbackParameter(name: string): ProviderParameterDeclaration {
+  return {
+    name,
+    type: callbackProviderType,
+  };
+}
+
+function unknownParameter(name: string, optional = false): ProviderParameterDeclaration {
+  return {
+    name,
+    type: optional ? optionalUnknownProviderType : unknownProviderType,
+    ...(optional ? { optional: true } : {}),
+  };
 }
 
 function fsCall(row: NodeFsCallTargetMetadataRow): NodeFsCallTargetMember {
@@ -257,3 +289,72 @@ function fsCall(row: NodeFsCallTargetMetadataRow): NodeFsCallTargetMember {
 
 const nodeFsCallTargetMemberByProviderDeclarationIdentity =
   nodejsProviderExportSignatureDeclarationTargetMemberIndex(nodeFsModuleSpecifier, nodeFsCallTargetMembers());
+
+const nodeFsUnsupportedCalls = [
+  {
+    exportName: "readFile",
+    signatureId: "node:fs.readFile(System.String,System.Object,Function)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.fs.readFile(System.String,System.Object,Function)",
+    displayName: "unsupported NodeJS fs.readFile",
+    parameters: [
+      { name: "path", type: stringProviderType },
+      unknownParameter("options", true),
+      callbackParameter("callback"),
+    ],
+    returnType: voidProviderType,
+  },
+  {
+    exportName: "writeFile",
+    signatureId: "node:fs.writeFile(System.String,System.Object,System.Object,Function)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.fs.writeFile(System.String,System.Object,System.Object,Function)",
+    displayName: "unsupported NodeJS fs.writeFile",
+    parameters: [
+      { name: "file", type: stringProviderType },
+      unknownParameter("data"),
+      unknownParameter("options", true),
+      callbackParameter("callback"),
+    ],
+    returnType: voidProviderType,
+  },
+  {
+    exportName: "watch",
+    signatureId: "node:fs.watch(System.String,System.Object,Function)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.fs.watch(System.String,System.Object,Function)",
+    displayName: "unsupported NodeJS fs.watch",
+    parameters: [
+      { name: "filename", type: stringProviderType },
+      unknownParameter("options", true),
+      callbackParameter("listener"),
+    ],
+    returnType: unknownProviderType,
+  },
+  {
+    exportName: "watchFile",
+    signatureId: "node:fs.watchFile(System.String,Function)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.fs.watchFile(System.String,Function)",
+    displayName: "unsupported NodeJS fs.watchFile",
+    parameters: [
+      { name: "filename", type: stringProviderType },
+      callbackParameter("listener"),
+    ],
+    returnType: voidProviderType,
+  },
+  {
+    exportName: "createReadStream",
+    signatureId: "node:fs.createReadStream(System.String,System.Object)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.fs.createReadStream(System.String,System.Object)",
+    displayName: "unsupported NodeJS fs.createReadStream",
+    parameters: [
+      { name: "path", type: stringProviderType },
+      unknownParameter("options", true),
+    ],
+    returnType: unknownProviderType,
+  },
+] satisfies readonly {
+  readonly exportName: string;
+  readonly signatureId: string;
+  readonly targetIdentityId: string;
+  readonly displayName: string;
+  readonly parameters: readonly ProviderParameterDeclaration[];
+  readonly returnType: ProviderTypeExpression;
+}[];

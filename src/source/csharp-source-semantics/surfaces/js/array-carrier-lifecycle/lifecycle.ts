@@ -27,19 +27,20 @@ export function recordCsharpJsArrayCarrierFactsBeforeFinalization(
   if (compiler === undefined) {
     return;
   }
+  const userSourceFiles = compiler.getSourceFiles().filter(
+    (sourceFile): sourceFile is NonNullable<typeof sourceFile> =>
+      sourceFile !== undefined && sourceFile.IsDeclarationFile !== true,
+  );
   const analysisContext = {
     ...lifecycleContext,
     analysis: lifecycleContext.analysis ?? createLazyTargetSourceAnalysis(
       compiler.ast,
       compiler.checker,
-      compiler.getSourceFiles().filter((sourceFile): sourceFile is NonNullable<typeof sourceFile> => sourceFile !== undefined),
+      userSourceFiles,
     ),
   };
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
-      continue;
-    }
+  for (const sourceFile of userSourceFiles) {
     for (const parameter of collectArrayParameters(sourceFile, analysisContext, host)) {
       recordArrayParameterFacts(parameter, analysisContext, context);
     }

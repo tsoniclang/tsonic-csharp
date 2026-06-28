@@ -4,6 +4,7 @@ import {
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
+  ProviderVirtualDeclarationFact,
   TargetBindingFact,
 } from "@tsonic/tsts";
 
@@ -28,4 +29,16 @@ export function resolveTargetBinding(
     return undefined;
   }
   return context.factResolver.resolve(subject, targetBindingFactKey);
+}
+
+export function findTargetBindingFromVirtualDeclaration(
+  declaration: ProviderVirtualDeclarationFact | undefined,
+  lookupByTargetId: (targetId: string) => TargetBindingFact | undefined,
+  lookupByMetadataName?: (metadataName: string) => TargetBindingFact | undefined,
+): TargetBindingFact | undefined {
+  const targetIdentity = declaration?.targetIdentity;
+  if (targetIdentity?.kind !== "target-named") {
+    return undefined;
+  }
+  return lookupByTargetId(targetIdentity.id) ?? lookupByMetadataName?.(targetIdentity.id);
 }

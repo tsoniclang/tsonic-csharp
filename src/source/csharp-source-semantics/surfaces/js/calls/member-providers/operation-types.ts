@@ -23,6 +23,7 @@ export interface JsSurfaceOperationRow {
   readonly policyKind: JsSurfaceOperationPolicyKind;
   readonly closedFacts?: JsSurfaceClosedFactsRequirement;
   readonly targetProviders?: readonly JsSurfaceOperationTargetProvider[];
+  readonly lifecycleRuntimeCarrierFacts?: readonly JsSurfaceLifecycleRuntimeCarrierFact[];
   readonly semanticException?: JsSurfaceOperationSemanticException;
   readonly unsupported?: JsSurfaceUnsupportedOperation;
   readonly callableWithoutContext?: boolean;
@@ -37,6 +38,17 @@ export type JsSurfaceOperationPolicyKind =
   | "semantic-exception"
   | "unsupported";
 
+export type JsSurfaceLifecycleRuntimeCarrierFact =
+  | {
+    readonly subject: "call-result";
+    readonly carrier: "array" | "collection";
+  }
+  | {
+    readonly subject: "callee-receiver";
+    readonly carrier: "collection";
+    readonly checkedTypeDerivation?: "finalization";
+  };
+
 export type JsSurfaceClosedFactsRequirement =
   | { readonly kind: "all"; readonly requirements: readonly JsSurfaceClosedFactsRequirement[] }
   | { readonly kind: "receiver"; readonly target: JsSurfaceReceiverTargetCondition }
@@ -44,6 +56,20 @@ export type JsSurfaceClosedFactsRequirement =
   | { readonly kind: "known-argument-targets" };
 
 export type JsSurfaceReceiverTargetCondition =
+  JsSurfaceTargetFeatureCondition;
+
+export type JsSurfaceArgumentCondition =
+  | { readonly index: number; readonly target: JsSurfaceArgumentTargetCondition }
+  | { readonly fromIndex: number; readonly target: JsSurfaceArgumentTargetCondition };
+
+export type JsSurfaceArgumentTargetCondition =
+  JsSurfaceTargetFeatureCondition;
+
+export interface JsSurfaceTargetFeatureCondition {
+  readonly feature: JsSurfaceTargetFeature;
+}
+
+export type JsSurfaceTargetFeature =
   | "array-like"
   | "string"
   | "number"
@@ -51,17 +77,22 @@ export type JsSurfaceReceiverTargetCondition =
   | "regexp"
   | "date"
   | "js-object"
-  | "selected-collection-carrier";
-
-export type JsSurfaceArgumentCondition =
-  | { readonly index: number; readonly target: JsSurfaceArgumentTargetCondition }
-  | { readonly fromIndex: number; readonly target: JsSurfaceArgumentTargetCondition };
-
-export type JsSurfaceArgumentTargetCondition =
-  | "string"
+  | "selected-collection-carrier"
   | "json-value"
-  | "object-helper"
-  | "js-object";
+  | "object-helper";
+
+export const jsSurfaceTargetFeatures = {
+  arrayLike: { feature: "array-like" },
+  string: { feature: "string" },
+  number: { feature: "number" },
+  boolean: { feature: "boolean" },
+  regexp: { feature: "regexp" },
+  date: { feature: "date" },
+  jsObject: { feature: "js-object" },
+  selectedCollectionCarrier: { feature: "selected-collection-carrier" },
+  jsonValue: { feature: "json-value" },
+  objectHelper: { feature: "object-helper" },
+} as const satisfies Record<string, JsSurfaceTargetFeatureCondition>;
 
 export type JsSurfaceOperationTargetProvider =
   | {

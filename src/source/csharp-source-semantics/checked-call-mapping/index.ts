@@ -28,6 +28,7 @@ import {
   isDotnetNativeArrayCreateMemberId,
 } from "../../../providers/dotnet/native-array.js";
 import {
+  findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
 } from "../provider-bindings.js";
 import {
@@ -36,6 +37,9 @@ import {
 import {
   targetMemberAsSourceSelectedSignature,
 } from "../selected-target-source-signature.js";
+import {
+  csharpSourceOwnedSelectedSignatureFact,
+} from "../source-owned-selected-signature.js";
 import type {
   TargetMemberSelectionOptions,
 } from "../target-member-arguments/index.js";
@@ -82,6 +86,7 @@ import {
 } from "../checked-call-request-context.js";
 import {
   asNodeSubject,
+  isDeclarationOrVirtualSourceFile,
 } from "../ast-utils.js";
 
 export function mapCsharpCheckedCall(
@@ -143,7 +148,11 @@ export function mapCsharpCheckedCall(
     requestContext.calleeReceiverAliasedSymbol,
     requestContext.calleeReceiverResolvedSymbol,
     requestContext.calleeReceiverSymbol,
-  ]);
+  ]) ?? findTargetBindingFromVirtualDeclaration(
+    virtualDeclaration,
+    host.getCsharpTargetBindingByTargetId,
+    host.getCsharpTargetBindingByMetadataName,
+  );
   const nativeArrayCreate = mapDotnetNativeArrayCreateCall(request, context, extensionId, host, virtualDeclaration);
   if (nativeArrayCreate !== undefined) {
     return nativeArrayCreate;
@@ -156,6 +165,10 @@ export function mapCsharpCheckedCall(
     const unsupportedExternalCall = rejectUnmappedExternalCall(request, context, extensionId);
     if (unsupportedExternalCall !== undefined) {
       return unsupportedExternalCall;
+    }
+    const sourceOwnedCall = acceptSourceOwnedCheckedCall(request, context, host);
+    if (sourceOwnedCall !== undefined) {
+      return sourceOwnedCall;
     }
     return deferObservation;
   }
@@ -229,6 +242,30 @@ export function mapCsharpCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: targetMemberAsSourceSelectedSignature(csharpMember) },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function acceptSourceOwnedCheckedCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): ExtensionObservation<CheckedCallMappingResult> | undefined {
+  const compiler = context.compiler;
+  const declaration = asNodeSubject(request.sourceSelectedDeclaration);
+  if (compiler === undefined || declaration === undefined) {
+    return undefined;
+  }
+  const declarationSourceFile = compiler.ast.getSourceFile(declaration);
+  if (declarationSourceFile === undefined || isDeclarationOrVirtualSourceFile(declarationSourceFile, compiler.ast)) {
+    return undefined;
+  }
+  const returnType = host.getTargetTypeRefForSubject(request.call, context);
+  return acceptObservation<CheckedCallMappingResult>({
+    selectedSignature: csharpSourceOwnedSelectedSignatureFact({
+      ...(request.sourceSelectedSignature === undefined ? {} : { sourceSignature: request.sourceSelectedSignature }),
+      sourceDeclaration: declaration,
+      ...(returnType === undefined ? {} : { returnType }),
+    }),
+  }, [{ message: "C# target observed a TSTS-selected project source call; backend emission remains source-owned and target facts are not inferred from source spelling." }]);
 }
 
 function rejectUnmappedExternalCall(

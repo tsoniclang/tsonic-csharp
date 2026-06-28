@@ -117,9 +117,27 @@ export function resolveTargetTypeRefForSubjectCore(
         resolveTargetTypeRefForType,
       ),
   );
-  const preferredFact = getPreferredTargetTypeRefForSubject(directFact, referenceFact);
+  const declarationType = getTargetTypeRefFromDeclarationAnnotation(
+    subject,
+    context,
+    options,
+    host,
+    (declarationSubject, declarationContext, declarationOptions) =>
+      resolveTargetTypeRefForSubjectCore(
+        declarationSubject,
+        declarationContext,
+        declarationOptions,
+        host,
+        recursiveTargetTypeResolver,
+        resolveTargetTypeRefForType,
+      ),
+  );
+  const preferredFact = getPreferredTargetTypeRefForSubject(directFact, referenceFact, declarationType);
   if (preferredFact !== undefined) {
     return preferredFact;
+  }
+  if (directFact === undefined && referenceFact === undefined && declarationType !== undefined) {
+    return declarationType;
   }
   if (referenceFact !== undefined) {
     return referenceFact;
@@ -170,24 +188,6 @@ export function resolveTargetTypeRefForSubjectCore(
       );
   if (callableExpressionTarget !== undefined) {
     return callableExpressionTarget;
-  }
-  const declarationType = getTargetTypeRefFromDeclarationAnnotation(
-    subject,
-    context,
-    options,
-    host,
-    (declarationSubject, declarationContext, declarationOptions) =>
-      resolveTargetTypeRefForSubjectCore(
-        declarationSubject,
-        declarationContext,
-        declarationOptions,
-        host,
-        recursiveTargetTypeResolver,
-        resolveTargetTypeRefForType,
-      ),
-  );
-  if (declarationType !== undefined) {
-    return declarationType;
   }
   const type = node === undefined || checker === undefined || options.allowSemanticTypeQuery === false
     ? undefined

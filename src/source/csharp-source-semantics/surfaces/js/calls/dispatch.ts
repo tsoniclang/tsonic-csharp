@@ -16,7 +16,6 @@ import {
 } from "./declaration-identity.js";
 import {
   csharpJsSourceLibraryCallCanWaitForFinalizedFacts,
-  csharpJsSourceLibraryCallMayNeedFinalFacts,
 } from "./closed-facts/index.js";
 import {
   rejectUnmappedCsharpJsSourceLibraryCall,
@@ -84,32 +83,35 @@ export function mapCsharpSourceLibraryCheckedCall(
   const candidates = getSourceLibraryCallMembers(sourceMember, request, context, host);
   if (candidates.length === 0) {
     if (canWaitForFinalizedFacts) {
-      return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
+      return undefined;
     }
     return rejectUnmappedCsharpJsSourceLibraryCall(sourceMember, host);
   }
   const selectedMember = selectSourceLibraryCallMember(candidates, request, context, host);
-  const callMayNeedFinalFacts = csharpJsSourceLibraryCallMayNeedFinalFacts(sourceMember, options.phase);
   const closedFactsStatus = operationRow === undefined
     ? { kind: "satisfied" } as const
     : operationRowClosedFactsStatus(operationRow, { key: sourceLibraryMemberIdentity(sourceMember) }, request, context, host);
   if (closedFactsStatus.kind !== "satisfied") {
-    if (closedFactsStatus.kind === "missing" && (canWaitForFinalizedFacts || callMayNeedFinalFacts)) {
-      return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
+    if (canWaitForFinalizedFacts) {
+      return undefined;
     }
-    return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
+    return closedFactsStatus.kind === "missing" &&
+      closedFactsStatus.reason === "argument" &&
+      closedFactsStatus.argumentIndex !== undefined
+      ? rejectSourceLibraryCallWithoutClosedArgumentFacts(sourceMember, host, closedFactsStatus.argumentIndex)
+      : rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
   }
   if (selectedMember === undefined && request.sourceSelectedSignature === undefined) {
-    if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
-      return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
+    if (canWaitForFinalizedFacts) {
+      return undefined;
     }
     return rejectSourceLibraryCallMissingSelectedSignature(sourceMember, host);
   }
   const member = selectedMember;
   if (member === undefined) {
     if (targetMemberSelectionRequiresReceiverFacts(candidates, request, context, host)) {
-      if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
-        return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
+      if (canWaitForFinalizedFacts) {
+        return undefined;
       }
       return rejectSourceLibraryCallWithoutClosedFacts(sourceMember, host);
     }
@@ -117,16 +119,8 @@ export function mapCsharpSourceLibraryCheckedCall(
     if (missingArgumentFactIndex !== undefined) {
       return rejectSourceLibraryCallWithoutClosedArgumentFacts(sourceMember, host, missingArgumentFactIndex);
     }
-    if (canWaitForFinalizedFacts || callMayNeedFinalFacts) {
-      return rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host, {
-        candidates: candidates.map((candidate) => ({
-          id: candidate.id,
-          parameters: candidate.parameters.map((parameter) => parameter.type),
-          returnType: candidate.returnType,
-          receiverPassing: candidate.receiverPassing,
-        })),
-        argumentTypes: getSourceLibraryCallArgumentTargetTypes(request, context, host),
-      });
+    if (canWaitForFinalizedFacts) {
+      return undefined;
     }
     return rejectSourceLibraryCallWithoutUniqueTargetMember(sourceMember, host, {
       candidates: candidates.map((candidate) => ({

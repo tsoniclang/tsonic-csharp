@@ -22,6 +22,9 @@ import {
   csharpTargetMemberFact,
 } from "./target-types.js";
 import {
+  isCsharpSourceOwnedSelectedSignature,
+} from "./source-owned-selected-signature.js";
+import {
   instantiateSelectedTargetMember,
 } from "./selected-target-member-instantiation.js";
 import {
@@ -71,12 +74,18 @@ function walkSelectedCallOperationFacts(
   if (selectedSignature === undefined) {
     return;
   }
+  if (isCsharpSourceOwnedSelectedSignature(selectedSignature)) {
+    return;
+  }
   const selectedMember = csharpTargetMemberFact(selectedSignature.member);
   if (selectedMember === undefined || selectedMember.receiverPassing === "first-argument") {
     return;
   }
   const declaringTargetType = getSelectedCallDeclaringTargetType(lifecycleContext, node, selectedMember);
-  const member = instantiateSelectedTargetMember({ member: selectedMember }, host, { declaringTargetType });
+  const member = instantiateSelectedTargetMember({
+    member: selectedMember,
+    ...(selectedSignature.targetTypeArguments === undefined ? {} : { targetTypeArguments: selectedSignature.targetTypeArguments }),
+  }, host, { declaringTargetType });
   if (member === undefined || !targetMemberIsClosed(member)) {
     return;
   }

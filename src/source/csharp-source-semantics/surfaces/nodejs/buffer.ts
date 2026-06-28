@@ -53,3 +53,6 @@ export {
   nodeBufferClassPropertyTargetMembers,
   nodeBufferModuleCallTargetMembers,
 } from "./buffer/target-members.js";
+export {
+  nodeBufferUnsupportedTargetIdentities,
+} from "./buffer/unsupported.js";

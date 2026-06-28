@@ -33,6 +33,7 @@ export {
   getNodeFsCallTargetMember,
   getNodeFsExistsSyncTargetMember,
   nodeFsCallTargetMembers,
+  nodeFsUnsupportedTargetIdentities,
 } from "./calls.js";
 export {
   nodeFsClassCallTargetMembers,

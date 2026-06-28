@@ -9,6 +9,7 @@ import type {
 } from "./target-member-metadata.js";
 import {
   jsSurfaceTargetMemberMetadataIdentityIndex,
+  jsSurfaceTargetMemberMetadataWithSourceIdentity,
 } from "./target-member-metadata.js";
 
 const mathTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.Math", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Math"));
@@ -119,7 +120,9 @@ const mathTargetMemberMetadata = [
   mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.imul", sourceName: "imul", targetName: "imul", parameters: [mathParameter("left", intType), mathParameter("right", intType)], returnType: intType }),
   mathMethodMetadata({ id: "Tsonic.CSharp.Js.Math.clz32", sourceName: "clz32", targetName: "clz32", parameters: [mathParameter("value", intType)], returnType: intType }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const mathTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Math", mathTargetMemberMetadata);
+export const mathTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("Math", mathTargetMemberMetadata),
+);
 
 const mathPropertyTargetMemberMetadata = [
   { id: "Tsonic.CSharp.Js.Math.E", sourceName: "E", targetName: "E" },
@@ -131,4 +134,6 @@ const mathPropertyTargetMemberMetadata = [
   { id: "Tsonic.CSharp.Js.Math.SQRT1_2", sourceName: "SQRT1_2", targetName: "SQRT1_2" },
   { id: "Tsonic.CSharp.Js.Math.SQRT2", sourceName: "SQRT2", targetName: "SQRT2" },
 ].map(mathPropertyMetadata) satisfies readonly JsSurfaceTargetMemberMetadata[];
-export const mathPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Math", mathPropertyTargetMemberMetadata);
+export const mathPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex(
+  jsSurfaceTargetMemberMetadataWithSourceIdentity("Math", mathPropertyTargetMemberMetadata),
+);

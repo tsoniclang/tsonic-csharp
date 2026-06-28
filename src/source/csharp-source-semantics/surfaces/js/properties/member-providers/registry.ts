@@ -7,7 +7,6 @@ import {
 } from "../../../../target-types.js";
 import type {
   CsharpJsSurfaceHost,
-  SourceLibraryMember,
 } from "../../source-library.js";
 import {
   getCsharpArrayLikeElementType,
@@ -20,7 +19,6 @@ import {
 } from "../../collection-target-metadata/index.js";
 import {
   jsSurfaceSelectMetadataRowForSourceIdentity,
-  jsSurfaceSelectedSourceIdentityForMember,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
 import type {
@@ -40,16 +38,6 @@ import type {
   JsSurfaceReceiverPropertyMember,
   JsSurfaceReceiverPropertySelector,
 } from "./types.js";
-
-export function getCsharpJsSourceLibraryPropertyMember(
-  sourceMember: SourceLibraryMember,
-  receiverType: TargetTypeRef | undefined,
-): TargetMember | undefined {
-  return getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(
-    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
-    receiverType,
-  );
-}
 
 export function getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,

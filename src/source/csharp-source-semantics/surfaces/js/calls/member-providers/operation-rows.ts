@@ -41,6 +41,9 @@ import {
 import type {
   JsSurfaceOperationRow,
 } from "./operation-types.js";
+import {
+  jsSurfaceTargetFeatures,
+} from "./operation-types.js";
 import type {
   JsSurfaceSourceIdentitySelector,
 } from "../../target-member-metadata.js";
@@ -101,9 +104,32 @@ const dateStaticCallIdentityPolicy = {
     "Date.UTC",
   ],
 } as const satisfies JsSurfaceSourceIdentitySelector;
+const unsupportedObjectShapeMutationIdentityPolicy = {
+  ids: [
+    "Object.create",
+    "Object.defineProperties",
+    "Object.defineProperty",
+    "Object.freeze",
+    "Object.fromEntries",
+    "Object.getOwnPropertyDescriptor",
+    "Object.getOwnPropertyDescriptors",
+    "Object.getOwnPropertyNames",
+    "Object.getOwnPropertySymbols",
+    "Object.getPrototypeOf",
+    "Object.isExtensible",
+    "Object.isFrozen",
+    "Object.isSealed",
+    "Object.preventExtensions",
+    "Object.seal",
+    "Object.setPrototypeOf",
+  ],
+} as const satisfies JsSurfaceSourceIdentitySelector;
 
 export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
-  operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex, { capabilityId: "surface.js.math", requiredFacts: selectedSignatureProviderFacts }),
+  {
+    ...operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex, { capabilityId: "surface.js.math", requiredFacts: selectedSignatureProviderFacts }),
+    closedFacts: { kind: "known-argument-targets" },
+  },
   operationRowFromMetadataIndex(stringStaticCallIdentityPolicy, stringTargetMemberIdentityIndex, { capabilityId: "surface.js.string-methods", requiredFacts: selectedSignatureProviderFacts }),
   {
     identity: unsupportedStringExactSemanticsIdentityPolicy,
@@ -121,7 +147,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   },
   {
     ...operationRowFromMetadataIndex({ prefixes: ["String."] }, stringTargetMemberIdentityIndex, { capabilityId: "surface.js.string-methods", requiredFacts: selectedSignatureProviderFacts }),
-    closedFacts: { kind: "receiver", target: "string" },
+    closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.string },
   },
   operationRowFromMetadataIndex(numberStaticCallIdentityPolicy, numberTargetMemberIdentityIndex, { capabilityId: "surface.js.number-methods", requiredFacts: selectedSignatureProviderFacts }),
   {
@@ -140,7 +166,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   },
   {
     ...operationRowFromMetadataIndex({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex, { capabilityId: "surface.js.number-methods", requiredFacts: selectedSignatureProviderFacts }),
-    closedFacts: { kind: "receiver", target: "number" },
+    closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.number },
   },
   {
     identity: booleanConstructorIdentityPolicy,
@@ -158,12 +184,12 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   },
   {
     ...operationRowFromMetadataIndex({ prefixes: ["Boolean."] }, booleanTargetMemberIdentityIndex, { capabilityId: "surface.js.boolean-methods", requiredFacts: selectedSignatureProviderFacts }),
-    closedFacts: { kind: "receiver", target: "boolean" },
+    closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.boolean },
   },
   operationRowFromMetadataIndex(regexpConstructorIdentityPolicy, regExpTargetMemberIdentityIndex, { capabilityId: "surface.js.math-json-regexp", requiredFacts: selectedSignatureProviderFacts }),
   {
     ...operationRowFromMetadataIndex({ prefixes: ["RegExp."] }, regExpTargetMemberIdentityIndex, { capabilityId: "surface.js.math-json-regexp", requiredFacts: selectedSignatureProviderFacts }),
-    closedFacts: { kind: "receiver", target: "regexp" },
+    closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.regexp },
   },
   {
     identity: dateStaticCallIdentityPolicy,
@@ -177,7 +203,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   {
     identity: { prefixes: ["Date."] },
     policyKind: "semantic-exception",
-    closedFacts: { kind: "receiver", target: "date" },
+    closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.date },
     semanticException: {
       reason: "Date instance source operations require a closed Date runtime carrier before target emission.",
       requiredFacts: ["selected source declaration/signature identity", "closed Date receiver carrier"],
@@ -188,7 +214,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   {
     identity: { ids: ["JSON.stringify"] },
     policyKind: "runtime-helper",
-    closedFacts: { kind: "arguments", conditions: [{ index: 0, target: "json-value" }] },
+    closedFacts: { kind: "arguments", conditions: [{ index: 0, target: jsSurfaceTargetFeatures.jsonValue }] },
     capabilityId: "surface.js.math-json-regexp",
     requiredFacts: selectedSignatureProviderFacts,
     targetProviders: [
@@ -210,7 +236,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     identity: row.identity,
     policyKind: "runtime-helper",
     closedFacts: { kind: "arguments", conditions: [
-      { index: 0, target: "object-helper" },
+      { index: 0, target: jsSurfaceTargetFeatures.objectHelper },
     ] },
     capabilityId: "surface.js.object-runtime",
     requiredFacts: ["selected source declaration/signature identity", "closed object-helper argument carrier", "Tsonic.CSharp.Js.Object runtime helper metadata row"],
@@ -219,29 +245,45 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
       runtimeHelperProvider({ kind: "record-dictionary", operation: row.operation }),
     ],
   })),
+  operationRowFromMetadataIndex({ ids: ["Object.is"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
+  {
+    identity: unsupportedObjectShapeMutationIdentityPolicy,
+    policyKind: "unsupported",
+    unsupported: {
+      reason: "Object descriptor, prototype, extensibility, and fromEntries operations require closed object-shape/prototype mutation facts and runtime carrier metadata before C# emission.",
+      requiredFacts: [
+        "selected Object source declaration/signature identity",
+        "closed object-shape or JSObject carrier facts",
+        "descriptor/prototype/extensibility runtime metadata",
+        "generated shape metadata proving enumerable property behavior",
+      ],
+      capabilityId: "surface.js.object-runtime",
+    },
+  },
   {
     ...operationRowFromMetadataIndex({ ids: ["Object.hasOwn"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "arguments", conditions: [
-      { index: 0, target: "object-helper" },
-      { index: 1, target: "string" },
+      { index: 0, target: jsSurfaceTargetFeatures.objectHelper },
+      { index: 1, target: jsSurfaceTargetFeatures.string },
     ] },
   },
   {
     ...operationRowFromMetadataIndex({ ids: ["Object.assign"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "arguments", conditions: [
-      { index: 0, target: "js-object" },
-      { fromIndex: 1, target: "object-helper" },
+      { index: 0, target: jsSurfaceTargetFeatures.jsObject },
+      { fromIndex: 1, target: jsSurfaceTargetFeatures.objectHelper },
     ] },
   },
   {
     ...operationRowFromMetadataIndex({ ids: ["Object.hasOwnProperty"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
-    closedFacts: { kind: "receiver", target: "js-object" },
+    closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.jsObject },
   },
   operationRowFromMetadataIndex({ prefixes: ["Object."] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
   {
     identity: arrayConstructorIdentityPolicy,
     policyKind: "carrier-member",
     callableWithoutContext: true,
+    lifecycleRuntimeCarrierFacts: [{ subject: "call-result", carrier: "array" }],
     targetProviders: [selectedMetadataProvider({ kind: "closed-sequence", requireResultElementType: true })],
   },
   {
@@ -253,7 +295,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     identity: arrayConcatIdentityPolicy,
     policyKind: "carrier-member",
     closedFacts: { kind: "all", requirements: [
-      { kind: "receiver", target: "array-like" },
+      { kind: "receiver", target: jsSurfaceTargetFeatures.arrayLike },
       { kind: "known-argument-targets" },
     ] },
     targetProviders: [selectedMetadataProvider({ kind: "closed-sequence", requireResultElementType: false })],
@@ -261,18 +303,20 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   {
     identity: { prefixes: ["Array.", "ReadonlyArray."] },
     policyKind: "carrier-member",
-    closedFacts: { kind: "receiver", target: "array-like" },
+    closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.arrayLike },
     targetProviders: [selectedMetadataProvider({ kind: "closed-sequence", requireResultElementType: false })],
   },
   {
     identity: collectionConstructorIdentityPolicy,
     policyKind: "carrier-member",
+    lifecycleRuntimeCarrierFacts: [{ subject: "call-result", carrier: "collection" }],
     targetProviders: [selectedMetadataProvider({ kind: "closed-keyed-collection", useResultCarrier: true })],
   },
   {
     identity: collectionIdentityPolicy,
     policyKind: "carrier-member",
-    closedFacts: { kind: "receiver", target: "selected-collection-carrier" },
+    closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.selectedCollectionCarrier },
+    lifecycleRuntimeCarrierFacts: [{ subject: "callee-receiver", carrier: "collection", checkedTypeDerivation: "finalization" }],
     targetProviders: [selectedMetadataProvider({ kind: "closed-keyed-collection", useResultCarrier: false })],
   },
   {
