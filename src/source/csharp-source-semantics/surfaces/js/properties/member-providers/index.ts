@@ -8,6 +8,5 @@ export {
   csharpJsSourceLibraryPropertyPrecheck,
   csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection,
   csharpJsSourceLibraryPropertyRequiresSeededReceiverFacts,
-  getCsharpJsSourceLibraryPropertyMember,
   getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity,
 } from "./registry.js";
