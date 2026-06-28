@@ -216,14 +216,14 @@ function collectAllNodes(node, ast, result = []) {
   return result;
 }
 
-function nodejsPropertyRequest(expression, sourceSelectedDeclaration) {
+function nodejsPropertyRequest(expression, sourceSelectedSymbol) {
   return {
     target: "csharp",
     expression,
     receiver: {},
     receiverType: {},
     propertyName: "mtime",
-    sourceSelectedSymbol: sourceSelectedDeclaration,
+    sourceSelectedSymbol,
   };
 }
 

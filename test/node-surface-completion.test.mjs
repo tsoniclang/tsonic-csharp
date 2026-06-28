@@ -281,14 +281,14 @@ function nodejsCallRequestWithoutSignature(call, sourceSelectedDeclaration) {
   };
 }
 
-function nodejsPropertyRequest(expression, sourceSelectedDeclaration) {
+function nodejsPropertyRequest(expression, sourceSelectedSymbol) {
   return {
     target: "csharp",
     expression,
     receiver: {},
     receiverType: {},
     propertyName: "selectedByProviderIdentity",
-    sourceSelectedSymbol: sourceSelectedDeclaration,
+    sourceSelectedSymbol,
   };
 }
 

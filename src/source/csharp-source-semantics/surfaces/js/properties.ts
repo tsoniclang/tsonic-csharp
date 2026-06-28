@@ -76,8 +76,8 @@ export function mapCsharpDirectSourceLibraryCheckedPropertyAccess(
   options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const sourceMember = resolveSourceLibraryMemberIdentity(requestContext.sourceSelectedDeclaration, context) ??
-    resolveSourceLibraryMemberIdentity(request.sourceSelectedSymbol, context) ??
+  const sourceMember = resolveSourceLibraryMemberIdentity(request.sourceSelectedSymbol, context) ??
+    resolveSourceLibraryMemberIdentity(requestContext.sourceSelectedDeclaration, context) ??
     sourceLibraryMemberFromCheckedReceiverType(requestContext.receiverType, request.propertyName, context);
   return mapCsharpSourceLibraryPropertyOperation(request, context, sourceMember, host, options);
 }

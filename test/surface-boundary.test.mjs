@@ -53,6 +53,35 @@ test("JS surface maps Array.length only from the selected standard-library decla
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
+test("JS surface maps property access from sourceSelectedSymbol before declaration fallback", () => {
+  const expression = {};
+  const receiver = fakeNodeSubject({});
+  const receiverType = {};
+  receiver.SemanticType = receiverType;
+  const sourceSelectedSymbol = {
+    ...sourceLibraryMemberDeclaration("String", "length"),
+    declarations: [arrayLengthDeclaration()],
+  };
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, stringType()],
+    [receiverType, stringType()],
+  ])));
+
+  const result = provider.mapCheckedPropertyAccess({
+    target: "csharp",
+    expression,
+    receiver,
+    receiverType,
+    propertyName: "not-the-selected-name",
+    sourceSelectedSymbol,
+  }, fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.operation.operationId, "System.String.Length");
+  assert.equal(facts.get(expression, csharpTargetOperationFactKey)?.operationId, "System.String.Length");
+});
+
 test("native provider defers unowned JS calls and rejects unmapped JS property operations", () => {
   const facts = new TestFactStore();
   const provider = createCsharpNativeOperationsProvider(fakeHost(undefined));
@@ -3370,7 +3399,7 @@ test("NodeJS surface defers namespace properties from container facts and proper
   assert.equal(facts.get(expression, csharpTargetOperationFactKey), undefined);
 });
 
-function arrayLengthRequest(expression, receiverType, sourceSelectedDeclaration, options = {}) {
+function arrayLengthRequest(expression, receiverType, sourceSelectedSymbol, options = {}) {
   const receiver = fakeNodeSubject(options.receiver ?? {});
   if (receiverType !== undefined) {
     receiver.SemanticType = receiverType;
@@ -3381,7 +3410,7 @@ function arrayLengthRequest(expression, receiverType, sourceSelectedDeclaration,
     receiver,
     receiverType,
     propertyName: "length",
-    ...(sourceSelectedDeclaration !== undefined ? { sourceSelectedSymbol: sourceSelectedDeclaration } : {}),
+    ...(sourceSelectedSymbol !== undefined ? { sourceSelectedSymbol } : {}),
   };
 }
 
@@ -3472,7 +3501,7 @@ function fakeNamespaceImportContext(facts, sourceFile) {
   };
 }
 
-function sourceLibraryPropertyRequest(expression, sourceSelectedDeclaration, propertyName, options = {}) {
+function sourceLibraryPropertyRequest(expression, sourceSelectedSymbol, propertyName, options = {}) {
   const receiver = fakeNodeSubject(options.receiver ?? {});
   if (options.receiverType !== undefined) {
     receiver.SemanticType = options.receiverType;
@@ -3483,7 +3512,7 @@ function sourceLibraryPropertyRequest(expression, sourceSelectedDeclaration, pro
     receiver,
     receiverType: options.receiverType ?? {},
     propertyName,
-    sourceSelectedSymbol: sourceSelectedDeclaration,
+    sourceSelectedSymbol,
   };
 }
 
@@ -3711,14 +3740,14 @@ function nodejsCallRequestWithoutSignature(call, sourceSelectedDeclaration) {
   };
 }
 
-function nodejsPropertyRequest(expression, sourceSelectedDeclaration) {
+function nodejsPropertyRequest(expression, sourceSelectedSymbol) {
   return {
     target: "csharp",
     expression,
     receiver: {},
     receiverType: {},
     propertyName: "platform",
-    sourceSelectedSymbol: sourceSelectedDeclaration,
+    sourceSelectedSymbol,
   };
 }
 
