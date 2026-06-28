@@ -7,7 +7,6 @@ import {
   booleanTargetMemberIdentityIndex,
 } from "../../booleans.js";
 import {
-  isCsharpNumberTargetType,
   numberTargetMemberIdentityIndex,
 } from "../../numbers.js";
 import {
@@ -33,14 +32,22 @@ import {
   getSourceLibraryCallReceiverTargetTypes,
   isStringKeyedRecordDictionaryTargetType,
 } from "../helpers.js";
-type ObjectPrimitiveReceiverKind = "string" | "boolean" | "number";
+import type {
+  JsSurfaceTargetFeatureCondition,
+} from "./operation-types.js";
+import {
+  jsSurfaceTargetFeatures,
+} from "./operation-types.js";
+import {
+  jsSurfaceReceiverMatchesTargetFeature,
+} from "./target-features.js";
 
 const objectPrimitiveReceiverToStringRows = [
-  { receiver: "string", selectedIdentity: { key: "String.toString" }, membersBySourceIdentity: stringTargetMemberIdentityIndex },
-  { receiver: "boolean", selectedIdentity: { key: "Boolean.toString" }, membersBySourceIdentity: booleanTargetMemberIdentityIndex },
-  { receiver: "number", selectedIdentity: { key: "Number.toString" }, membersBySourceIdentity: numberTargetMemberIdentityIndex },
+  { receiverFeature: jsSurfaceTargetFeatures.string, selectedIdentity: { key: "String.toString" }, membersBySourceIdentity: stringTargetMemberIdentityIndex },
+  { receiverFeature: jsSurfaceTargetFeatures.boolean, selectedIdentity: { key: "Boolean.toString" }, membersBySourceIdentity: booleanTargetMemberIdentityIndex },
+  { receiverFeature: jsSurfaceTargetFeatures.number, selectedIdentity: { key: "Number.toString" }, membersBySourceIdentity: numberTargetMemberIdentityIndex },
 ] as const satisfies readonly {
-  readonly receiver: ObjectPrimitiveReceiverKind;
+  readonly receiverFeature: JsSurfaceTargetFeatureCondition;
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
   readonly membersBySourceIdentity: ReadonlyMap<JsSurfaceSelectedSourceIdentity["key"], readonly TargetMember[]>;
 }[];
@@ -61,7 +68,12 @@ export function getObjectPrimitiveReceiverCallMembers(
 ): readonly TargetMember[] {
   const receiverTypes = getSourceLibraryCallReceiverTargetTypes(request, context, host);
   const row = objectPrimitiveReceiverToStringRows.find((candidate) =>
-    receiverTypes.some((receiverType) => objectPrimitiveReceiverMatches(candidate.receiver, receiverType, host)));
+    receiverTypes.some((receiverType) => jsSurfaceReceiverMatchesTargetFeature(candidate.receiverFeature, {
+      receiverType,
+      request,
+      context,
+      host,
+    })));
   return row === undefined
     ? []
     : jsSurfaceTargetMembersForSelectedSourceIdentity(row.membersBySourceIdentity, row.selectedIdentity);
@@ -79,19 +91,4 @@ export function getObjectRecordDictionaryCallMembers(
   return dictionaryType === undefined
     ? []
     : objectRecordDictionaryTargetMembersForOperation(operation, dictionaryType);
-}
-
-function objectPrimitiveReceiverMatches(
-  receiver: ObjectPrimitiveReceiverKind,
-  receiverType: ReturnType<typeof getSourceLibraryCallReceiverTargetTypes>[number],
-  host: CsharpJsSurfaceHost,
-): boolean {
-  switch (receiver) {
-    case "string":
-      return host.isCsharpStringType(receiverType);
-    case "boolean":
-      return receiverType?.kind === "source-primitive" && receiverType.name === "bool";
-    case "number":
-      return isCsharpNumberTargetType(receiverType);
-  }
 }

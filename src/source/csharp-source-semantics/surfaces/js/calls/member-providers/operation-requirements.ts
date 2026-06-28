@@ -3,29 +3,6 @@ import type {
   ExtensionObservationContext,
   TargetTypeRef,
 } from "@tsonic/tsts";
-import {
-  getCsharpArrayLikeElementType,
-} from "../../arrays.js";
-import {
-  isCsharpBooleanTargetType,
-} from "../../booleans.js";
-import {
-  collectionPolicyForSelectedSourceIdentity,
-  collectionPolicyForTargetType,
-} from "../../collection-target-metadata/definitions.js";
-import {
-  isCsharpJsDateRuntimeCarrier,
-} from "../../date/index.js";
-import {
-  isCsharpNumberTargetType,
-} from "../../numbers.js";
-import {
-  isCsharpJsObjectCarrierTargetType,
-} from "../../objects.js";
-import {
-  getCsharpJsRegExpRuntimeCarrierForSubject,
-  isCsharpJsRegExpRuntimeCarrier,
-} from "../../regexp/index.js";
 import type {
   CsharpJsSurfaceHost,
 } from "../../source-library.js";
@@ -36,21 +13,17 @@ import {
   getSourceLibraryCallArgumentTargetTypes,
   getSourceLibraryCallReceiverTargetTypes,
 } from "../helpers.js";
-import {
-  getCsharpCheckedCallRequestContext,
-} from "../../../../checked-call-request-context.js";
-import {
-  isSupportedJsonValueTargetType,
-  isSupportedObjectHelperSourceTargetType,
-} from "../closed-facts/target-type-support.js";
 import type {
   JsSurfaceArgumentCondition,
   JsSurfaceArgumentTargetCondition,
   JsSurfaceClosedFactsRequirement,
   JsSurfaceOperationRow,
   JsSurfaceReceiverTargetCondition,
-  JsSurfaceTargetFeature,
 } from "./operation-types.js";
+import {
+  jsSurfaceArgumentMatchesTargetFeature,
+  jsSurfaceReceiverMatchesTargetFeature,
+} from "./target-features.js";
 
 export type JsSurfaceClosedFactsStatus =
   | { readonly kind: "satisfied" }
@@ -161,7 +134,7 @@ function receiverMatchesTargetCondition(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  return targetFeaturePredicates[condition.feature].receiver?.({
+  return jsSurfaceReceiverMatchesTargetFeature(condition, {
     receiverType,
     selectedIdentity,
     request,
@@ -175,70 +148,8 @@ function argumentMatchesTargetCondition(
   condition: JsSurfaceArgumentTargetCondition,
   host: CsharpJsSurfaceHost,
 ): boolean {
-  return targetFeaturePredicates[condition.feature].argument?.({
+  return jsSurfaceArgumentMatchesTargetFeature(condition, {
     argumentType,
     host,
-  }) === true;
+  });
 }
-
-interface ReceiverFeaturePredicateRequest {
-  readonly receiverType: TargetTypeRef | undefined;
-  readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
-  readonly request: CheckedCallMappingRequest;
-  readonly context: ExtensionObservationContext<"operation.mapCheckedCall">;
-  readonly host: CsharpJsSurfaceHost;
-}
-
-interface ArgumentFeaturePredicateRequest {
-  readonly argumentType: TargetTypeRef | undefined;
-  readonly host: CsharpJsSurfaceHost;
-}
-
-interface TargetFeaturePredicate {
-  readonly receiver?: (request: ReceiverFeaturePredicateRequest) => boolean;
-  readonly argument?: (request: ArgumentFeaturePredicateRequest) => boolean;
-}
-
-const targetFeaturePredicates: Record<JsSurfaceTargetFeature, TargetFeaturePredicate> = {
-  "array-like": {
-    receiver: ({ receiverType }) => getCsharpArrayLikeElementType(receiverType) !== undefined,
-  },
-  string: {
-    receiver: ({ receiverType, host }) => host.isCsharpStringType(receiverType),
-    argument: ({ argumentType, host }) => host.isCsharpStringType(argumentType),
-  },
-  number: {
-    receiver: ({ receiverType }) => isCsharpNumberTargetType(receiverType),
-  },
-  boolean: {
-    receiver: ({ receiverType }) => isCsharpBooleanTargetType(receiverType),
-  },
-  regexp: {
-    receiver: ({ receiverType, request, context }) => {
-      const requestContext = getCsharpCheckedCallRequestContext(request, context);
-      return isCsharpJsRegExpRuntimeCarrier(receiverType) ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiver, context) !== undefined ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiverSymbol, context) !== undefined ||
-        getCsharpJsRegExpRuntimeCarrierForSubject(requestContext.calleeReceiverResolvedSymbol, context) !== undefined;
-    },
-  },
-  date: {
-    receiver: ({ receiverType }) => isCsharpJsDateRuntimeCarrier(receiverType),
-  },
-  "js-object": {
-    receiver: ({ receiverType }) => isCsharpJsObjectCarrierTargetType(receiverType),
-    argument: ({ argumentType }) => isCsharpJsObjectCarrierTargetType(argumentType),
-  },
-  "selected-collection-carrier": {
-    receiver: ({ receiverType, selectedIdentity }) => {
-      const policy = collectionPolicyForSelectedSourceIdentity(selectedIdentity);
-      return policy !== undefined && collectionPolicyForTargetType(receiverType) === policy;
-    },
-  },
-  "json-value": {
-    argument: ({ argumentType, host }) => isSupportedJsonValueTargetType(argumentType, host),
-  },
-  "object-helper": {
-    argument: ({ argumentType, host }) => isSupportedObjectHelperSourceTargetType(argumentType, host),
-  },
-};
