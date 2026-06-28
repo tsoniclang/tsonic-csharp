@@ -1,7 +1,6 @@
 export {
   arrayConstructorIdentityPolicy,
   collectionIdentityPolicy,
-  csharpJsSourceLibraryMemberIsArrayConstructor,
 } from "./identities.js";
 export {
   csharpJsSourceLibraryMemberHasCallableProvider,

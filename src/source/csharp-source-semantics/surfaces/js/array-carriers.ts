@@ -11,11 +11,9 @@ import type {
 import {
   acceptObservation,
   deferObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
   asType,
-  resolveSourceLibraryMemberIdentity,
 } from "./source-library.js";
 import type {
   CsharpJsSurfaceHost,
@@ -24,14 +22,7 @@ import {
   asNodeSubject,
   getNodeField,
   getNodeList,
-  visitAstReaderNodes,
 } from "../../ast-utils.js";
-import {
-  createRuntimeCarrierLifecycleObservationContext,
-} from "../../runtime-carriers.js";
-import {
-  getSymbolForDeclarationLookup,
-} from "../../symbol-utils.js";
 import {
   getCsharpCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
@@ -46,9 +37,6 @@ import {
 import {
   getCsharpJsIterableElementType,
 } from "./collections.js";
-import {
-  csharpJsSourceLibraryMemberIsArrayConstructor,
-} from "./calls/member-providers/index.js";
 import {
   isSourceStandardLibraryArrayLikeType,
 } from "../../source-type-classification.js";
@@ -123,73 +111,6 @@ export function getCsharpJsArrayRuntimeCarrierForNode(
   const semanticType = context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
   return getCsharpJsArrayRuntimeCarrierForSyntaxNode(node, context, host) ??
     getCsharpJsArrayRuntimeCarrierForType(semanticType, context, host);
-}
-
-export function recordCsharpJsArrayConstructorRuntimeCarrierFactsBeforeFinalization(
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-  host: CsharpJsSurfaceHost,
-): void {
-  const compiler = lifecycleContext.compiler;
-  if (compiler === undefined) {
-    return;
-  }
-  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  for (const sourceFile of compiler.getSourceFiles()) {
-    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
-      continue;
-    }
-    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
-      if (compiler.ast.is.IsNewExpression(node) !== true || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
-        return;
-      }
-      if (!isCheckedSourceLibraryArrayConstruction(node, sourceFile, context)) {
-        return;
-      }
-      const carrier = getCsharpJsArrayRuntimeCarrierForNode(node, sourceFile, context, host);
-      if (carrier === undefined) {
-        return;
-      }
-      const fact = { carrier };
-      const evidence = [{ message: "C# JS surface Array constructor runtime carrier recorded from checked TypeScript Array construction type facts." }];
-      lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
-      recordArrayConstructorInitializerRuntimeCarrierFacts(node, sourceFile, fact, evidence, lifecycleContext);
-    });
-  }
-}
-
-function recordArrayConstructorInitializerRuntimeCarrierFacts(
-  node: Node,
-  sourceFile: SourceFile,
-  fact: { readonly carrier: TargetTypeRef },
-  evidence: readonly { readonly message: string }[],
-  lifecycleContext: { readonly host: ExtensionObservationContext["host"]; readonly compiler?: ExtensionObservationContext["compiler"] },
-): void {
-  const compiler = lifecycleContext.compiler;
-  const parent = compiler?.ast.parent(node);
-  if (compiler === undefined || parent === undefined || compiler.ast.kindName(parent) !== "KindVariableDeclaration" || asNodeSubject(getNodeField(parent, "Initializer")) !== node) {
-    return;
-  }
-  lifecycleContext.host.facts.set(parent, runtimeCarrierFactKey, fact, evidence);
-  const name = asNodeSubject(getNodeField(parent, "name"));
-  if (name === undefined) {
-    return;
-  }
-  lifecycleContext.host.facts.set(name, runtimeCarrierFactKey, fact, evidence);
-  const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
-  if (symbol !== undefined) {
-    lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
-  }
-}
-
-function isCheckedSourceLibraryArrayConstruction(
-  node: Node,
-  sourceFile: SourceFile,
-  context: ExtensionObservationContext,
-): boolean {
-  const signature = context.compiler?.checker.getResolvedSignature(node, { sourceFile });
-  const declaration = asNodeSubject(signature === undefined ? undefined : context.compiler?.checker.getSignatureDeclaration(signature));
-  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
-  return csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember);
 }
 
 function getTypeArguments(type: Type, context: ExtensionObservationContext): readonly Type[] {
