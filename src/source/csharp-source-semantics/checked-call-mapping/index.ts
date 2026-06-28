@@ -86,6 +86,7 @@ import {
 } from "../checked-call-request-context.js";
 import {
   asNodeSubject,
+  isDeclarationOrVirtualSourceFile,
 } from "../ast-utils.js";
 
 export function mapCsharpCheckedCall(
@@ -254,7 +255,7 @@ function acceptSourceOwnedCheckedCall(
     return undefined;
   }
   const declarationSourceFile = compiler.ast.getSourceFile(declaration);
-  if (declarationSourceFile === undefined || declarationSourceFile.IsDeclarationFile === true) {
+  if (declarationSourceFile === undefined || isDeclarationOrVirtualSourceFile(declarationSourceFile, compiler.ast)) {
     return undefined;
   }
   const returnType = host.getTargetTypeRefForSubject(request.call, context);
