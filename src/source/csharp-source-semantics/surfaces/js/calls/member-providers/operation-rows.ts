@@ -316,7 +316,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     identity: collectionIdentityPolicy,
     policyKind: "carrier-member",
     closedFacts: { kind: "receiver", target: jsSurfaceTargetFeatures.selectedCollectionCarrier },
-    lifecycleRuntimeCarrierFacts: [{ subject: "callee-receiver", carrier: "collection", allowSemanticFallback: "finalization" }],
+    lifecycleRuntimeCarrierFacts: [{ subject: "callee-receiver", carrier: "collection", checkedTypeDerivation: "finalization" }],
     targetProviders: [selectedMetadataProvider({ kind: "closed-keyed-collection", useResultCarrier: false })],
   },
   {

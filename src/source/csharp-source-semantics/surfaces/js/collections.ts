@@ -90,7 +90,7 @@ export function recordCsharpJsCollectionRuntimeCarrierFactForNode(
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
-  options: { readonly allowSemanticFallback?: boolean } = {},
+  options: { readonly allowCheckedTypeDerivation?: boolean } = {},
 ): void {
   const carrier = getCsharpJsCollectionRuntimeCarrierForNode(node, sourceFile, context, host, options);
   if (carrier !== undefined) {
@@ -103,7 +103,7 @@ function getCsharpJsCollectionRuntimeCarrierForNode(
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
-  options: { readonly allowSemanticFallback?: boolean } = {},
+  options: { readonly allowCheckedTypeDerivation?: boolean } = {},
 ): TargetTypeRef | undefined {
   const existingCarrier = getExistingClosedCollectionCarrierForNode(node, sourceFile, context, host);
   if (existingCarrier !== undefined) {
@@ -114,7 +114,7 @@ function getCsharpJsCollectionRuntimeCarrierForNode(
   if (syntaxCarrier !== undefined) {
     return syntaxCarrier;
   }
-  return options.allowSemanticFallback === false
+  return options.allowCheckedTypeDerivation === false
     ? undefined
     : getCsharpJsCollectionRuntimeCarrierForType(type, context, host, sourceFile);
 }

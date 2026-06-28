@@ -264,7 +264,7 @@ function recordLifecycleRuntimeCarrierFact(
     return;
   }
   recordLifecycleRuntimeCarrierFactForSubject(carrierFact.carrier, calleeReceiver, sourceFile, context, host, {
-    allowSemanticFallback: carrierFact.allowSemanticFallback === "finalization" && phase === "finalization",
+    allowCheckedTypeDerivation: carrierFact.checkedTypeDerivation === "finalization" && phase === "finalization",
   });
 }
 
@@ -274,7 +274,7 @@ function recordLifecycleRuntimeCarrierFactForSubject(
   sourceFile: SourceFile,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
-  options: { readonly allowSemanticFallback?: boolean } = {},
+  options: { readonly allowCheckedTypeDerivation?: boolean } = {},
 ): void {
   switch (carrier) {
     case "array":

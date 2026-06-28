@@ -46,7 +46,7 @@ export type JsSurfaceLifecycleRuntimeCarrierFact =
   | {
     readonly subject: "callee-receiver";
     readonly carrier: "collection";
-    readonly allowSemanticFallback?: "finalization";
+    readonly checkedTypeDerivation?: "finalization";
   };
 
 export type JsSurfaceClosedFactsRequirement =
