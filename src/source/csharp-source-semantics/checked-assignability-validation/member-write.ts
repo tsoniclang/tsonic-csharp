@@ -23,7 +23,7 @@ import {
 
 export function validateObservedAssignmentTargetFact(
   fact: CsharpObservedTargetAssignabilityFact,
-  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
 ): void {
   if (fact.relation !== "assignment") {
     return;
@@ -56,7 +56,7 @@ export function validateObservedAssignmentTargetFact(
 
 function getAssignmentTarget(
   expression: Node | undefined,
-  context: ExtensionObservationContext<"target.validatePostCheckAssignability">,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
 ): Node | undefined {
   if (expression === undefined) {
     return undefined;

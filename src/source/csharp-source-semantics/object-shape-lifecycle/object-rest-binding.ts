@@ -137,9 +137,10 @@ function recordCsharpObjectRestBindingFact(
     if (type !== undefined) {
       lifecycleContext.host.facts.set(type, csharpObjectShapeFactKey, restShape, evidence);
       lifecycleContext.host.facts.set(type, runtimeCarrierFactKey, runtimeCarrier, evidence);
-      if (type.symbol !== undefined) {
-        lifecycleContext.host.facts.set(type.symbol, csharpObjectShapeFactKey, restShape, evidence);
-        lifecycleContext.host.facts.set(type.symbol, runtimeCarrierFactKey, runtimeCarrier, evidence);
+      const typeSymbol = compiler.checker.getTypeSymbol(type);
+      if (typeSymbol !== undefined) {
+        lifecycleContext.host.facts.set(typeSymbol, csharpObjectShapeFactKey, restShape, evidence);
+        lifecycleContext.host.facts.set(typeSymbol, runtimeCarrierFactKey, runtimeCarrier, evidence);
       }
     }
   }

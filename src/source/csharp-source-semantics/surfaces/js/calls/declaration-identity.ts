@@ -1,6 +1,8 @@
 import type {
   ExtensionFactSubject,
+  ExtensionObservationContext,
   Node,
+  Signature,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -8,8 +10,14 @@ import {
   getPropertyAccessName,
 } from "../../../ast-utils.js";
 
-export function getSignatureDeclaration(signature: ExtensionFactSubject | undefined): Node | undefined {
-  return asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
+export function getSignatureDeclaration(
+  signature: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): Node | undefined {
+  const checker = context.compiler?.checker;
+  return signature === undefined || checker === undefined
+    ? undefined
+    : asNodeSubject(checker.getSignatureDeclaration(signature as Signature));
 }
 
 export {

@@ -701,6 +701,10 @@ function fakeInput(options = {}) {
       getAttributeFact: () => undefined,
     },
     analysis: {
+      getSymbolName: () => undefined,
+      getSymbolDeclarations: () => [],
+      getTypeSymbol: () => undefined,
+      getTypeAliasSymbol: () => undefined,
       getProjectSourceReferenceForNode: () => undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,

@@ -57,7 +57,7 @@ export function mapCsharpSourceLibraryCheckedCall(
   host: CsharpJsSurfaceHost,
   options: { readonly phase?: "checking" | "finalization" } = {},
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature);
+  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
   const sourceMember = resolveSourceLibraryMemberIdentity(signatureDeclaration ?? request.sourceSelectedDeclaration, context);
   if (sourceMember === undefined) {
     return undefined;

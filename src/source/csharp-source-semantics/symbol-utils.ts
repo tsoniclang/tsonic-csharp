@@ -3,6 +3,7 @@ import type {
   ExtensionObservationContext,
   Node,
   Symbol,
+  TypeCheckerQueries,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -28,7 +29,7 @@ export function getDeclarationTypeNode(
   }
   const sourceFile = ast.getSourceFile(node);
   const symbol = getSymbolForDeclarationLookup(ast, checker, node, sourceFile);
-  for (const declaration of getSymbolDeclarations(symbol)) {
+  for (const declaration of getSymbolDeclarations(symbol, checker)) {
     const type = asNodeSubject(getNodeField(declaration, "Type"));
     if (type !== undefined) {
       return type;
@@ -113,12 +114,14 @@ export function getAliasedSymbolIfAvailable(
   }
 }
 
-export function getSymbolDeclarations(symbol: ExtensionFactSubject | undefined): readonly Node[] {
-  const symbolWithDeclarations = symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined;
-  if (symbolWithDeclarations?.Declarations !== undefined) {
-    return symbolWithDeclarations.Declarations;
+export function getSymbolDeclarations(
+  symbol: ExtensionFactSubject | undefined,
+  checker: Pick<TypeCheckerQueries, "getSymbolDeclarations"> | undefined,
+): readonly Node[] {
+  if (symbol === undefined || checker === undefined) {
+    return [];
   }
-  return symbolWithDeclarations?.ValueDeclaration === undefined ? [] : [symbolWithDeclarations.ValueDeclaration];
+  return checker.getSymbolDeclarations(symbol as Symbol).filter((declaration): declaration is Node => declaration !== undefined);
 }
 
 function isSymbolLookupNode(

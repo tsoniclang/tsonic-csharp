@@ -146,7 +146,7 @@ function isProjectSourceModuleStaticValuePropertyAccess(
   }
   const receiverSymbol = compiler.checker.getSymbolAtLocation(receiver, { sourceFile }) ??
     compiler.checker.getResolvedSymbolOrNil(receiver, { sourceFile });
-  return (receiverSymbol?.Declarations ?? []).some((declaration) => {
+  return compiler.checker.getSymbolDeclarations(receiverSymbol).some((declaration) => {
     if (declaration === undefined) {
       return false;
     }

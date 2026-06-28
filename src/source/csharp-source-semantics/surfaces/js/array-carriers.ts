@@ -187,7 +187,7 @@ function isCheckedSourceLibraryArrayConstruction(
   context: ExtensionObservationContext,
 ): boolean {
   const signature = context.compiler?.checker.getResolvedSignature(node, { sourceFile });
-  const declaration = asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
+  const declaration = asNodeSubject(signature === undefined ? undefined : context.compiler?.checker.getSignatureDeclaration(signature));
   const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
   return csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember);
 }

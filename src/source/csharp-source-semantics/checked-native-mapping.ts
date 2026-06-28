@@ -48,6 +48,7 @@ import {
 } from "./operations.js";
 import {
   asTargetParameter,
+  asType,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "./target-ref-utils.js";
@@ -145,9 +146,10 @@ function contextualTypeIsProviderVirtualDeclaration(
   request: ContextualTargetTypeRequest,
   context: ExtensionObservationContext<"type.recordContextualTargetType">,
 ): boolean {
-  const symbol = typeof request.context === "object" && request.context !== null
-    ? (request.context as { readonly symbol?: object }).symbol
-    : undefined;
+  const type = asType(request.context);
+  const symbol = type === undefined
+    ? undefined
+    : context.compiler?.checker.getTypeSymbol(type);
   return context.facts.get(request.context, providerVirtualDeclarationFactKey) !== undefined ||
     context.facts.get(symbol, providerVirtualDeclarationFactKey) !== undefined;
 }

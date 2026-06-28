@@ -106,29 +106,29 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         nodejsSurface: nodejsSurfaceSelected,
       }));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
-        recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext);
-        recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
-        recordCsharpAttributeApplicationFactsBeforeFinalization(lifecycleContext);
+        runBeforeFinalizedStage("target-name-facts", () => recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext));
+        runBeforeFinalizedStage("source-declaration-facts", () => recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
+        runBeforeFinalizedStage("attribute-application-facts", () => recordCsharpAttributeApplicationFactsBeforeFinalization(lifecycleContext));
         if (jsSurfaceSelected) {
-          recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts);
+          runBeforeFinalizedStage("js-surface-seed-facts", () => recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts));
         }
-        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
-        recordCsharpAssertionConversionFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
-        recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
-        recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost);
-        recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
-        recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
-        recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost);
-        recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost);
-        recordCsharpNativeArrayFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
+        runBeforeFinalizedStage("runtime-carrier-facts-initial", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
+        runBeforeFinalizedStage("assertion-conversion-facts", () => recordCsharpAssertionConversionFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
+        runBeforeFinalizedStage("object-shape-facts", () => recordCsharpObjectShapeFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
+        runBeforeFinalizedStage("type-parameter-constraint-facts", () => recordCsharpTypeParameterConstraintFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
+        runBeforeFinalizedStage("runtime-carrier-facts-after-shapes", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
+        runBeforeFinalizedStage("object-rest-binding-facts", () => recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
+        runBeforeFinalizedStage("object-shape-property-access-facts", () => recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
+        runBeforeFinalizedStage("checked-operator-facts", () => recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost));
+        runBeforeFinalizedStage("native-array-facts", () => recordCsharpNativeArrayFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         if (jsSurfaceSelected) {
-          recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "suppress" });
-          recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost);
-          recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "append" });
+          runBeforeFinalizedStage("js-surface-operation-facts-suppress", () => recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "suppress" }));
+          runBeforeFinalizedStage("runtime-carrier-facts-after-js-surface", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
+          runBeforeFinalizedStage("js-surface-operation-facts-append", () => recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "append" }));
         }
-        recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
-        diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode);
-        validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost);
+        runBeforeFinalizedStage("selected-call-operation-facts", () => recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
+        runBeforeFinalizedStage("opaque-any-diagnostics", () => diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
+        runBeforeFinalizedStage("observed-assignability-validation", () => validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
       });
       extensionContext.factResolver.register(runtimeCarrierFactKey, (subject, resolverContext) => {
         if (asType(subject) !== undefined) {
@@ -146,4 +146,18 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       });
     },
   };
+}
+
+function runBeforeFinalizedStage(stage: string, action: () => void): void {
+  try {
+    action();
+  } catch (error) {
+    const wrapped = new Error(`C# semantics.beforeFinalized stage '${stage}' failed.`);
+    (wrapped as { cause?: unknown }).cause = error;
+    Object.assign(wrapped, {
+      stage,
+      diagnosticMessage: wrapped.message,
+    });
+    throw wrapped;
+  }
 }

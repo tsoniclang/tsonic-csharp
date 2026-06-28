@@ -10,6 +10,7 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
+  Symbol,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -140,8 +141,8 @@ function declarationSubjectsForInitializerLookup(
   const referenceSymbol = node === undefined ? undefined : symbolForInitializerDeclarationLookup(node, context);
   return uniqueNodes([
     ...direct,
-    ...symbolDeclarationNodes(subject),
-    ...symbolDeclarationNodes(referenceSymbol),
+    ...symbolDeclarationNodes(subject, context),
+    ...symbolDeclarationNodes(referenceSymbol, context),
   ]);
 }
 
@@ -183,43 +184,14 @@ function isInitializerDeclarationSymbolLookupNode(
     ast.is.IsPropertyDeclaration(node);
 }
 
-function symbolDeclarationNodes(subject: ExtensionFactSubject | undefined): readonly Node[] {
-  const symbol = subject as {
-    readonly Declarations?: unknown;
-    readonly declarations?: unknown;
-    readonly ValueDeclaration?: unknown;
-    readonly valueDeclaration?: unknown;
-  } | undefined;
-  const declarations = [
-    ...nodeArray(symbol?.Declarations),
-    ...nodeArray(symbol?.declarations),
-  ];
-  if (declarations.length > 0) {
-    return declarations;
-  }
-  const valueDeclaration = asNodeSubject(symbol?.ValueDeclaration) ??
-    asNodeSubject(symbol?.valueDeclaration);
-  return valueDeclaration === undefined ? [] : [valueDeclaration];
-}
-
-function nodeArray(value: unknown): readonly Node[] {
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => nodeArray(item));
-  }
-  const nodes = (value as { readonly Nodes?: unknown } | undefined)?.Nodes;
-  if (Array.isArray(nodes)) {
-    return nodes.flatMap((item) => nodeArray(item));
-  }
-  const data = (value as { readonly data?: unknown } | undefined)?.data;
-  if (Array.isArray(data)) {
-    return data.flatMap((item) => nodeArray(item));
-  }
-  const dataNode = asNodeSubject(data);
-  if (dataNode !== undefined) {
-    return [dataNode];
-  }
-  const single = asNodeSubject(value);
-  return single === undefined ? [] : [single];
+function symbolDeclarationNodes(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): readonly Node[] {
+  return subject === undefined
+    ? []
+    : (context.compiler?.checker.getSymbolDeclarations(subject as Symbol) ?? [])
+        .filter((declaration): declaration is Node => declaration !== undefined);
 }
 
 function uniqueNodes(nodes: readonly Node[]): readonly Node[] {

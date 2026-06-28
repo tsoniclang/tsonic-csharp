@@ -136,8 +136,8 @@ function recordCsharpSourceLibraryCallFact(
   if (callee === undefined) {
     return "pending";
   }
-  const sourceSelectedSignature = compiler.checker.getResolvedSignature(node, { sourceFile }) as ExtensionFactSubject | undefined;
-  const sourceSelectedDeclaration = getSignatureDeclaration(sourceSelectedSignature);
+  const sourceSelectedSignature = getResolvedCallSignature(node, sourceFile, context);
+  const sourceSelectedDeclaration = getSignatureDeclaration(sourceSelectedSignature, context);
   const sourceReturnType = compiler.ast.is.IsNewExpression(node)
     ? compiler.checker.getTypeAtLocation(node, { sourceFile }) as ExtensionFactSubject | undefined
     : sourceSelectedSignature === undefined
@@ -180,6 +180,18 @@ function recordCsharpSourceLibraryCallFact(
   }
   recordSelectedSourceLibraryCallReturnCarrierFact(node, sourceFile, mapped.value.selectedSignature.member.returnType, context);
   return "accepted";
+}
+
+function getResolvedCallSignature(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): ExtensionFactSubject | undefined {
+  try {
+    return context.compiler?.checker.getResolvedSignature(node, { sourceFile }) as ExtensionFactSubject | undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function recordSelectedSourceLibraryCallReturnCarrierFact(

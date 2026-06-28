@@ -1,7 +1,6 @@
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
-  Node,
   Type,
 } from "@tsonic/tsts";
 import {
@@ -10,6 +9,9 @@ import {
 import {
   asNodeSubject,
 } from "../fact-subjects.js";
+import {
+  getSymbolDeclarations,
+} from "./symbol-utils.js";
 
 export interface SourceLibraryMember {
   readonly id: SourceLibraryMemberKey;
@@ -93,15 +95,18 @@ export function resolveSourceLibraryMemberIdentity(
 }
 
 export function isBundledStandardLibraryType(type: Type, context: ExtensionObservationContext, name: SourceLibraryTypeName): boolean {
-  const ast = context.compiler?.ast;
-  const types = context.compiler?.typeShape;
-  if (ast === undefined || types === undefined) {
+  const compiler = context.compiler;
+  const ast = compiler?.ast;
+  const types = compiler?.typeShape;
+  const checker = compiler?.checker;
+  if (ast === undefined || types === undefined || checker === undefined) {
     return false;
   }
   const target = types.isTypeReference(type) ? types.getTypeReferenceTarget(type) : type;
-  const declarations = (target?.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    [];
+  const declarations = [
+    ...getSymbolDeclarations(checker.getTypeSymbol(target), checker),
+    ...getSymbolDeclarations(checker.getTypeSymbol(type), checker),
+  ];
   return declarations.some((declaration) =>
     getSourceLibraryDeclarationName(declaration, context) === name);
 }

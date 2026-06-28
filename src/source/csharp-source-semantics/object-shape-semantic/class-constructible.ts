@@ -15,11 +15,12 @@ export function isClassObjectInitializerConstructible(
   type: Type,
   context: ExtensionObservationContext,
 ): boolean {
-  const ast = context.compiler?.ast;
-  if (ast === undefined) {
+  const compiler = context.compiler;
+  const ast = compiler?.ast;
+  if (compiler === undefined || ast === undefined) {
     return false;
   }
-  const classDeclarations = getSymbolDeclarations(type.symbol)
+  const classDeclarations = getSymbolDeclarations(compiler.checker.getTypeSymbol(type), compiler.checker)
     .filter((declaration) => ast.kindName(declaration) === "KindClassDeclaration");
   if (classDeclarations.length === 0) {
     return false;

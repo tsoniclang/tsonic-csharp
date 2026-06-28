@@ -51,14 +51,14 @@ export function getReferencedRuntimeCarrierTargetTypeRef(
 }
 
 function getRuntimeCarrierTargetTypeRefForSymbolOrDeclaration(
-  lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"] },
+  lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"]; readonly compiler?: RuntimeCarrierLifecycleFactsContext["compiler"] },
   symbol: Symbol | undefined,
 ): TargetTypeRef | undefined {
   const direct = lifecycleContext.host.facts.get(symbol, runtimeCarrierFactKey)?.carrier;
   if (direct !== undefined) {
     return direct;
   }
-  for (const declaration of getSymbolDeclarations(symbol)) {
+  for (const declaration of getSymbolDeclarations(symbol, lifecycleContext.compiler?.checker)) {
     const declarationFact = lifecycleContext.host.facts.get(declaration, runtimeCarrierFactKey)?.carrier;
     if (declarationFact !== undefined) {
       return declarationFact;

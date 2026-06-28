@@ -171,18 +171,11 @@ function isProviderVirtualDeclarationIdentifier(
     if (input.facts.getTargetBindingFact(symbol) !== undefined) {
       return true;
     }
-    const declarations = getSymbolDeclarations(symbol);
+    const declarations = input.analysis.getSymbolDeclarations(symbol);
     return declarations.some((declaration) =>
       input.facts.getFact(declaration, providerVirtualDeclarationFactKey) !== undefined ||
       isProviderVirtualSourceFile(input, input.ast.getSourceFile(declaration)));
   });
-}
-
-function getSymbolDeclarations(symbol: unknown): readonly Node[] {
-  return (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
-    ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined
-      ? []
-      : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
 }
 
 function isModuleStaticValueDeclaration(declaration: Node, input: TargetCompileInput): boolean {

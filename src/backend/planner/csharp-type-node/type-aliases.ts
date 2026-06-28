@@ -37,8 +37,7 @@ export function getCsharpTypeFromTypeAliasReferenceNode(
   const declarations = [
     input.analysis.getSymbolAtLocation(typeName, { sourceFile }),
     input.analysis.getResolvedSymbol(typeName, { sourceFile }),
-  ].flatMap((symbol) => symbol?.Declarations ?? [])
-    .filter((declaration): declaration is Node => declaration !== undefined);
+  ].flatMap((symbol) => input.analysis.getSymbolDeclarations(symbol));
   for (const declaration of declarations) {
     if (input.ast.kindName(declaration) !== KindTypeAliasDeclaration) {
       continue;

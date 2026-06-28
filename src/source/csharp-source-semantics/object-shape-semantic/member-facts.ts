@@ -93,7 +93,7 @@ function getExplicitMethodTargetTypeRef(
   if (ast === undefined) {
     return undefined;
   }
-  for (const declaration of getSymbolDeclarations(property)) {
+  for (const declaration of getSymbolDeclarations(property, context.compiler?.checker)) {
     const kind = ast.kindName(declaration);
     if (kind !== "KindMethodSignature" && kind !== "KindMethodDeclaration") {
       continue;
@@ -111,7 +111,7 @@ function getExplicitPropertyTargetTypeRef(
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
 ): TargetTypeRef | undefined {
-  for (const declaration of getSymbolDeclarations(property)) {
+  for (const declaration of getSymbolDeclarations(property, context.compiler?.checker)) {
     const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
     if (typeNode === undefined) {
       continue;
@@ -132,7 +132,7 @@ function isMethodLikeObjectShapeProperty(
   if (ast === undefined) {
     return false;
   }
-  return getSymbolDeclarations(property).some((declaration) => {
+  return getSymbolDeclarations(property, context.compiler?.checker).some((declaration) => {
     const kind = ast.kindName(declaration);
     return kind === "KindMethodSignature" || kind === "KindMethodDeclaration";
   });
@@ -148,7 +148,7 @@ function getFunctionTargetTypeRefFromSemanticSignature(
   if (compiler === undefined || signature === undefined) {
     return undefined;
   }
-  const parameterTypes = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
+  const parameterTypes = compiler.checker.getSignatureParameters(signature as Parameters<typeof compiler.checker.getSignatureParameters>[0])
     .map((parameter) => host.getTargetTypeRefForType(compiler.checker.getTypeOfSymbol(parameter, { sourceFile }), context));
   if (parameterTypes.some((parameter) => parameter === undefined)) {
     return undefined;

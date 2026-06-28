@@ -83,7 +83,7 @@ export function getTargetTypeRefForType(
   return type === undefined
     ? undefined
     : getTargetTypeRefFromSemanticTypeFacts(input, type) ??
-      getTargetTypeRefFromSemanticTypeFacts(input, type.symbol);
+      getTargetTypeRefFromSemanticTypeFacts(input, input.analysis.getTypeSymbol(type));
 }
 
 function getTargetTypeRefFromSemanticTypeFacts(

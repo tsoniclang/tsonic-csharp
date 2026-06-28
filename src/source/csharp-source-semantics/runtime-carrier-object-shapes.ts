@@ -42,7 +42,10 @@ export function recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(
   if (sourceDeclaredStruct) {
     return;
   }
-  const typeSymbol = asType(request.type)?.symbol;
+  const requestType = asType(request.type);
+  const typeSymbol = requestType === undefined
+    ? undefined
+    : context.compiler?.checker.getTypeSymbol(requestType);
   if (typeSymbol !== undefined) {
     context.facts.set(typeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
   }

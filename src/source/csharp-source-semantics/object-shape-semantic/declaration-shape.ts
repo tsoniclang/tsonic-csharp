@@ -26,11 +26,12 @@ export function getSemanticTypeDeclarationShape(
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
 ): CsharpSemanticTypeDeclarationShape | undefined {
-  const ast = context.compiler?.ast;
-  if (ast === undefined) {
+  const compiler = context.compiler;
+  const ast = compiler?.ast;
+  if (compiler === undefined || ast === undefined) {
     return undefined;
   }
-  const declarations = getSymbolDeclarations(type.symbol);
+  const declarations = getSymbolDeclarations(compiler.checker.getTypeSymbol(type), compiler.checker);
   for (const declaration of declarations) {
     const kind = ast.kindName(declaration);
     if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {

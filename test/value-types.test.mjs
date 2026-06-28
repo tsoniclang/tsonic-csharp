@@ -159,6 +159,10 @@ function fakeInput(sourceFile, options = {}) {
       getFact: () => undefined,
     },
     analysis: {
+      getSymbolName: () => undefined,
+      getSymbolDeclarations: () => [],
+      getTypeSymbol: () => undefined,
+      getTypeAliasSymbol: () => undefined,
       getProjectSourceReferenceForNode: () => undefined,
       getProjectSourceDeclarationForNode: () => undefined,
       getSymbolAtLocation: () => undefined,

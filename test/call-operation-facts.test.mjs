@@ -587,6 +587,10 @@ function fakeSelectedInput() {
       kindName: (node) => String(node?.Kind),
     },
     analysis: {
+      getSymbolName: () => undefined,
+      getSymbolDeclarations: () => [],
+      getTypeSymbol: () => undefined,
+      getTypeAliasSymbol: () => undefined,
       getProjectSourceReferenceForNode: () => undefined,
       getTargetBindingForReference: () => undefined,
     },

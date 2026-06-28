@@ -42,11 +42,12 @@ function getSemanticTypeParameterSubstitutions(
   if (ownerTargetType?.kind !== "target-named" || ownerTargetType.typeArguments === undefined) {
     return new Map();
   }
-  const ast = context.compiler?.ast;
-  if (ast === undefined) {
+  const compiler = context.compiler;
+  const ast = compiler?.ast;
+  if (compiler === undefined || ast === undefined) {
     return new Map();
   }
-  const names = getSymbolDeclarations(ownerType.symbol)
+  const names = getSymbolDeclarations(compiler.checker.getTypeSymbol(ownerType), compiler.checker)
     .flatMap((declaration) => getNodeList(getNodeField(declaration, "TypeParameters")))
     .map(getNodeNameText)
     .filter((name) => name.length > 0);

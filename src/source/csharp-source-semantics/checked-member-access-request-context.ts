@@ -4,6 +4,7 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
+  Type,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -70,7 +71,9 @@ function getCsharpCheckedMemberAccessRequestContext(
   const receiverResolvedSymbol = getResolvedSymbol(compiler, receiver, receiverSourceFile);
   const receiverAliasedSymbol = getAliasedSymbolIfAvailable(compiler.checker, receiverResolvedSymbol ?? receiverSymbol, receiverSourceFile);
   const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile: receiverSourceFile });
-  const receiverTypeSymbol = getTypeSymbol(receiverType);
+  const receiverTypeSymbol = receiverType === undefined
+    ? undefined
+    : compiler.checker.getTypeSymbol(receiverType as Type);
   return {
     ...(receiverSymbol !== undefined ? { receiverSymbol } : {}),
     ...(receiverResolvedSymbol !== undefined ? { receiverResolvedSymbol } : {}),
@@ -87,7 +90,7 @@ function selectedMemberContext(
   context: ExtensionObservationContext,
 ): CsharpCheckedSelectedMemberContext {
   const compiler = context.compiler;
-  const sourceSelectedDeclaration = getSymbolDeclarations(selectedSymbol)[0];
+  const sourceSelectedDeclaration = getSymbolDeclarations(selectedSymbol, compiler?.checker)[0];
   const sourceSelectedDeclarationContainer = getNodeParent(sourceSelectedDeclaration);
   const sourceSelectedContainerSymbol = compiler === undefined || sourceSelectedDeclarationContainer === undefined
     ? undefined
@@ -114,13 +117,4 @@ function getResolvedSymbol(
   } catch {
     return undefined;
   }
-}
-
-function getTypeSymbol(type: ExtensionFactSubject | undefined): ExtensionFactSubject | undefined {
-  if (type === undefined) {
-    return undefined;
-  }
-  const symbol = (type as { readonly Symbol?: unknown; readonly symbol?: unknown }).Symbol ??
-    (type as { readonly symbol?: unknown }).symbol;
-  return symbol !== undefined && symbol !== null && typeof symbol === "object" ? symbol : undefined;
 }

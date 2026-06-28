@@ -55,28 +55,48 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
     nodes: collectRuntimeCarrierNodes(compiler.ast, sourceFile),
   }));
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    recordRuntimeCarrierTypeSyntaxFacts(lifecycleContext, sourceFile, nodes, targetId, host);
+    runRuntimeCarrierStage(lifecycleContext, "type-syntax-facts", sourceFile, () => recordRuntimeCarrierTypeSyntaxFacts(lifecycleContext, sourceFile, nodes, targetId, host));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    propagateRuntimeCarrierDeclarationFacts(lifecycleContext, sourceFile, nodes, host);
+    runRuntimeCarrierStage(lifecycleContext, "declaration-facts", sourceFile, () => propagateRuntimeCarrierDeclarationFacts(lifecycleContext, sourceFile, nodes, host));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    propagateRuntimeCarrierObjectBindingFacts(lifecycleContext, sourceFile, nodes, host);
+    runRuntimeCarrierStage(lifecycleContext, "object-binding-facts", sourceFile, () => propagateRuntimeCarrierObjectBindingFacts(lifecycleContext, sourceFile, nodes, host));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    propagateRuntimeCarrierReferencedFacts(lifecycleContext, sourceFile, nodes);
+    runRuntimeCarrierStage(lifecycleContext, "referenced-facts", sourceFile, () => propagateRuntimeCarrierReferencedFacts(lifecycleContext, sourceFile, nodes));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    propagateRuntimeCarrierInitializerFacts(lifecycleContext, sourceFile, nodes);
+    runRuntimeCarrierStage(lifecycleContext, "initializer-facts", sourceFile, () => propagateRuntimeCarrierInitializerFacts(lifecycleContext, sourceFile, nodes));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    recordRuntimeCarrierSyntaxFacts(lifecycleContext, sourceFile, nodes, host);
+    runRuntimeCarrierStage(lifecycleContext, "syntax-facts", sourceFile, () => recordRuntimeCarrierSyntaxFacts(lifecycleContext, sourceFile, nodes, host));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    propagateRuntimeCarrierExpectedFacts(lifecycleContext, sourceFile, nodes, host);
+    runRuntimeCarrierStage(lifecycleContext, "expected-facts", sourceFile, () => propagateRuntimeCarrierExpectedFacts(lifecycleContext, sourceFile, nodes, host));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    recordDeclarationReturnRuntimeCarrierFacts(lifecycleContext, sourceFile, nodes, host);
+    runRuntimeCarrierStage(lifecycleContext, "declaration-return-facts", sourceFile, () => recordDeclarationReturnRuntimeCarrierFacts(lifecycleContext, sourceFile, nodes, host));
+  }
+}
+
+function runRuntimeCarrierStage(
+  lifecycleContext: CsharpLifecycleObservationContext,
+  stage: string,
+  sourceFile: SourceFile,
+  action: () => void,
+): void {
+  try {
+    action();
+  } catch (error) {
+    const wrapped = new Error(`C# runtime-carrier finalization stage '${stage}' failed.`);
+    (wrapped as { cause?: unknown }).cause = error;
+    Object.assign(wrapped, {
+      stage: `runtime-carrier.${stage}`,
+      sourceFile: lifecycleContext.compiler?.ast.getFileName(sourceFile),
+      diagnosticMessage: wrapped.message,
+    });
+    throw wrapped;
   }
 }
 
@@ -126,8 +146,13 @@ function recordRuntimeCarrierSyntaxFacts(
   nodes: readonly Node[],
   host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
+  const compiler = lifecycleContext.compiler;
   for (const node of [...nodes].reverse()) {
-    recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, sourceFile, node, host);
+    try {
+      recordCsharpRuntimeCarrierSyntaxFact(lifecycleContext, sourceFile, node, host);
+    } catch (error) {
+      throwRuntimeCarrierNodeStageError("syntax-facts", sourceFile, node, compiler, error);
+    }
   }
 }
 
@@ -139,6 +164,24 @@ function propagateRuntimeCarrierInitializerFacts(
   for (const node of [...nodes].reverse()) {
     propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
   }
+}
+
+function throwRuntimeCarrierNodeStageError(
+  stage: string,
+  sourceFile: SourceFile,
+  node: Node,
+  compiler: CsharpLifecycleObservationContext["compiler"],
+  error: unknown,
+): never {
+  const wrapped = new Error(`C# runtime-carrier finalization stage '${stage}' failed for ${compiler?.ast.kindName(node) ?? "unknown node"}.`);
+  (wrapped as { cause?: unknown }).cause = error;
+  Object.assign(wrapped, {
+    stage: `runtime-carrier.${stage}`,
+    nodeKind: compiler?.ast.kindName(node),
+    sourceFile: compiler?.ast.getFileName(sourceFile),
+    diagnosticMessage: wrapped.message,
+  });
+  throw wrapped;
 }
 
 function propagateRuntimeCarrierReferencedFacts(

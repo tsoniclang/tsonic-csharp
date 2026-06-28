@@ -131,7 +131,7 @@ function recordCsharpSourceLibraryPropertyFact(
     safeGetResolvedSymbol(name, sourceFile, context) ??
     compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
     safeGetResolvedSymbol(node, sourceFile, context);
-  const declaration = firstSymbolDeclaration(propertySymbol);
+  const declaration = firstSymbolDeclaration(propertySymbol, context);
   const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
   const propertyName = compiler.ast.text(name);
   const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context) ??
@@ -191,9 +191,8 @@ function isCallCalleePropertyAccess(
     asNodeSubject(getNodeField(parent, "Expression")) === node;
 }
 
-function firstSymbolDeclaration(symbol: unknown): Node | undefined {
-  return ((symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ??
-    (symbol as { readonly declarations?: readonly Node[] } | undefined)?.declarations)?.[0];
+function firstSymbolDeclaration(symbol: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getSymbolAtLocation"]>, context: ExtensionObservationContext): Node | undefined {
+  return context.compiler?.checker.getSymbolDeclarations(symbol)[0];
 }
 
 function sourceLibraryMemberFromCheckedReceiverType(

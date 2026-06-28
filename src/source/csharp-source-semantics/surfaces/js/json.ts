@@ -263,7 +263,7 @@ function isCheckedJsonParseCall(
     return false;
   }
   const signature = compiler.checker.getResolvedSignature(call, { sourceFile });
-  const declaration = getSignatureDeclaration(signature);
+  const declaration = asNodeSubject(signature === undefined ? undefined : compiler.checker.getSignatureDeclaration(signature));
   const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
   if (
     sourceMember === undefined ||
@@ -282,7 +282,3 @@ function isCheckedJsonParseCall(
 const jsonParseIdentityPolicy = {
   ids: ["JSON.parse"],
 } satisfies JsSurfaceSourceIdentitySelector;
-
-function getSignatureDeclaration(signature: unknown): Node | undefined {
-  return asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
-}

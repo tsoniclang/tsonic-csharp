@@ -1,8 +1,6 @@
 import type {
   ExtensionObservationContext,
-  Node,
   SourceFile,
-  Symbol,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -143,7 +141,7 @@ export function getCallableTargetTypeRefForSemanticType(
     return undefined;
   }
   const signature = signatures[0]!;
-  const parameters = (signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [];
+  const parameters = checker.getSignatureParameters(signature);
   const parameterTypes = parameters.map((parameter) => resolver.resolveType(checker.getTypeOfSymbol(parameter), context, options, host));
   if (parameterTypes.some((parameter) => parameter === undefined)) {
     return undefined;
@@ -271,11 +269,12 @@ export function typeShapeOptions(options: TargetTypeRefResolutionOptions): { rea
 }
 
 export function getTypeParameterName(type: Type, context: ExtensionObservationContext): string | undefined {
-  const ast = context.compiler?.ast;
-  const declarations = (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ?? [];
-  if (ast === undefined) {
+  const compiler = context.compiler;
+  const ast = compiler?.ast;
+  if (compiler === undefined || ast === undefined) {
     return undefined;
   }
+  const declarations = compiler.checker.getSymbolDeclarations(compiler.checker.getTypeSymbol(type));
   for (const declaration of declarations) {
     if (ast.is.IsTypeParameterDeclaration(declaration)) {
       const name = ast.text(ast.name(declaration));

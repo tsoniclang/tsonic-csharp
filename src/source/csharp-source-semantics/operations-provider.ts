@@ -159,7 +159,7 @@ export function createCsharpTargetOperationsProvider(
     mapCheckedOperator(request, context) {
       return mapCsharpCheckedOperator(request, context, host);
     },
-    validatePostCheckAssignability(request, context) {
+    observePostCheckAssignability(request, context) {
       return observeCsharpPostCheckAssignability(request, context, host);
     },
     validateTargetConstraint(request, context) {

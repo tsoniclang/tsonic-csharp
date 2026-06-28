@@ -3,6 +3,7 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
+  Type,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -58,7 +59,9 @@ export function getCsharpCheckedCallRequestContext(
   const calleeReceiverType = calleeReceiver === undefined
     ? undefined
     : compiler.checker.getTypeAtLocation(calleeReceiver as Node, { sourceFile: receiverSourceFile });
-  const calleeReceiverTypeSymbol = getTypeSymbol(calleeReceiverType);
+  const calleeReceiverTypeSymbol = calleeReceiverType === undefined
+    ? undefined
+    : compiler.checker.getTypeSymbol(calleeReceiverType as Type);
   const sourceSelectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration);
   const sourceSelectedDeclarationContainer = getNodeParent(sourceSelectedDeclaration);
   const sourceSelectedContainerSymbol = sourceSelectedDeclarationContainer === undefined
@@ -90,13 +93,4 @@ function getResolvedSymbol(
   } catch {
     return undefined;
   }
-}
-
-function getTypeSymbol(type: ExtensionFactSubject | undefined): ExtensionFactSubject | undefined {
-  if (type === undefined) {
-    return undefined;
-  }
-  const symbol = (type as { readonly Symbol?: unknown; readonly symbol?: unknown }).Symbol ??
-    (type as { readonly symbol?: unknown }).symbol;
-  return symbol !== undefined && symbol !== null && typeof symbol === "object" ? symbol : undefined;
 }

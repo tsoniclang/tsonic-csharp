@@ -385,6 +385,10 @@ function fakeInput(options = {}) {
       getAttributeFact: () => undefined,
     },
     analysis: {
+      getSymbolName: () => undefined,
+      getSymbolDeclarations: () => [],
+      getTypeSymbol: () => undefined,
+      getTypeAliasSymbol: () => undefined,
       getSymbolAtLocation: (node) => options.symbolsByNode?.get(node) ?? options.symbolAtLocation,
       getTypeAtLocation: () => options.typeAtLocation,
       getResolvedSymbol: () => undefined,
