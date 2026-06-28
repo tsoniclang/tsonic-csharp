@@ -11,6 +11,9 @@ import {
 import {
   nodeBufferStaticMemberDeclarations,
 } from "./static-members.js";
+import {
+  nodeBufferUnsupportedClassMemberDeclarations,
+} from "../unsupported.js";
 
 export function nodeBufferClassExport(): ProviderExportDeclaration {
   return {
@@ -25,6 +28,7 @@ export function nodeBufferClassExport(): ProviderExportDeclaration {
     members: [
       ...nodeBufferStaticMemberDeclarations(),
       ...nodeBufferInstanceMemberDeclarations(),
+      ...nodeBufferUnsupportedClassMemberDeclarations(),
     ],
   };
 }

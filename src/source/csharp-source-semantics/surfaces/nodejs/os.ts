@@ -1,5 +1,6 @@
 import type {
   ProviderExportDeclaration,
+  ProviderParameterDeclaration,
   ProviderTypeExpression,
   TargetMember,
 } from "@tsonic/tsts";
@@ -20,6 +21,9 @@ import {
   nodejsModulePropertyTargetMetadata,
 } from "./members/target-member-metadata.js";
 import type {
+  NodejsUnsupportedTargetIdentity,
+} from "./members/types.js";
+import type {
   NodejsModuleCallTargetMetadata,
   NodejsModuleCallTargetMetadataRow,
   NodejsModulePropertyTargetMetadata,
@@ -28,6 +32,8 @@ import type {
 
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
+const voidProviderType = { kind: "void" } satisfies ProviderTypeExpression;
+const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
 const intTargetType = csharpSourcePrimitiveTargetType("int32");
 const longTargetType = csharpSourcePrimitiveTargetType("int64");
@@ -64,6 +70,7 @@ export function nodeOsExports(): readonly ProviderExportDeclaration[] {
       kind: "value" as const,
       type: providerType,
     })),
+    ...nodeOsUnsupportedExportDeclarations(),
   ];
 }
 
@@ -139,6 +146,35 @@ export function nodeOsPropertyTargetMembers(): readonly {
   ];
 }
 
+export function nodeOsUnsupportedTargetIdentities(): readonly NodejsUnsupportedTargetIdentity[] {
+  return nodeOsUnsupportedExports.map(({ exportName, signatureId, targetIdentityId, displayName }) => ({
+    exportName,
+    ...(signatureId !== undefined ? { signatureId } : {}),
+    targetIdentityId,
+    displayName,
+  }));
+}
+
+function nodeOsUnsupportedExportDeclarations(): readonly ProviderExportDeclaration[] {
+  return nodeOsUnsupportedExports.map((entry) => entry.signatureId === undefined
+    ? {
+        id: `node:os.${entry.exportName}`,
+        name: entry.exportName,
+        kind: "value" as const,
+        type: entry.providerType,
+      }
+    : {
+        id: `node:os.${entry.exportName}`,
+        name: entry.exportName,
+        kind: "function" as const,
+        signatures: [{
+          id: entry.signatureId,
+          parameters: entry.providerParameters ?? [],
+          returnType: entry.providerType,
+        }],
+      });
+}
+
 function osCall(row: NodeOsCallTargetMetadataRow): NodeOsCallTargetMember {
   return nodejsModuleCallTargetMetadata({
     ...row,
@@ -160,3 +196,60 @@ const nodeOsCallTargetMemberByProviderDeclarationIdentity =
 
 const nodeOsPropertyTargetMemberByProviderDeclarationIdentity =
   nodejsProviderExportDeclarationTargetMemberIndex(nodeOsModuleSpecifier, nodeOsPropertyTargetMembers());
+
+const nodeOsUnsupportedExports = [
+  {
+    exportName: "constants",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.os.constants",
+    displayName: "unsupported NodeJS os.constants",
+    providerType: unknownProviderType,
+  },
+  {
+    exportName: "cpus",
+    signatureId: "node:os.cpus()",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.os.cpus()",
+    displayName: "unsupported NodeJS os.cpus",
+    providerType: { kind: "array", elementType: unknownProviderType },
+  },
+  {
+    exportName: "networkInterfaces",
+    signatureId: "node:os.networkInterfaces()",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.os.networkInterfaces()",
+    displayName: "unsupported NodeJS os.networkInterfaces",
+    providerType: unknownProviderType,
+  },
+  {
+    exportName: "userInfo",
+    signatureId: "node:os.userInfo(System.Object)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.os.userInfo(System.Object)",
+    displayName: "unsupported NodeJS os.userInfo",
+    providerParameters: [{ name: "options", type: unknownProviderType, optional: true }],
+    providerType: unknownProviderType,
+  },
+  {
+    exportName: "getPriority",
+    signatureId: "node:os.getPriority(System.Int32)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.os.getPriority(System.Int32)",
+    displayName: "unsupported NodeJS os.getPriority",
+    providerParameters: [{ name: "pid", type: numberProviderType, optional: true }],
+    providerType: numberProviderType,
+  },
+  {
+    exportName: "setPriority",
+    signatureId: "node:os.setPriority(System.Int32,System.Int32)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.os.setPriority(System.Int32,System.Int32)",
+    displayName: "unsupported NodeJS os.setPriority",
+    providerParameters: [
+      { name: "pid", type: numberProviderType },
+      { name: "priority", type: numberProviderType },
+    ],
+    providerType: voidProviderType,
+  },
+] satisfies readonly {
+  readonly exportName: string;
+  readonly signatureId?: string;
+  readonly targetIdentityId: string;
+  readonly displayName: string;
+  readonly providerParameters?: readonly ProviderParameterDeclaration[];
+  readonly providerType: ProviderTypeExpression;
+}[];

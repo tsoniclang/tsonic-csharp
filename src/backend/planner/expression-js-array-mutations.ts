@@ -7,7 +7,6 @@ import {
   KindBinaryExpression,
   KindDeleteExpression,
   KindElementAccessExpression,
-  KindExpressionStatement,
   KindPropertyAccessExpression,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
@@ -106,10 +105,6 @@ export function tryPlanJsArrayLengthMutationExpression(
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface Array.length mutation requires the finalized JSArray.setLength operation fact."));
     return undefined;
   }
-  if (!isExpressionStatementExpression(node, input)) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface Array.length assignment currently requires expression-statement position because TypeScript assignment value semantics require a finalized sequence-expression fact."));
-    return undefined;
-  }
   if (left === undefined || right === undefined || !HasSourceKind(input.ast, left, KindPropertyAccessExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# JS surface Array.length mutation requires finalized property receiver and length expressions."));
     return undefined;
@@ -151,14 +146,4 @@ function isSelectedJsArrayLengthProperty(
     csharpJsArrayLengthPropertyOperationIds.has(selected.operationId) &&
     csharpOperation?.kind === "member" &&
     csharpOperation.operationKind === "property";
-}
-
-function isExpressionStatementExpression(
-  node: Node,
-  input: TargetCompileInput,
-): boolean {
-  const parent = input.ast.parent(node);
-  return parent !== undefined &&
-    HasSourceKind(input.ast, parent, KindExpressionStatement) &&
-    (parent as { readonly Expression?: Node }).Expression === node;
 }

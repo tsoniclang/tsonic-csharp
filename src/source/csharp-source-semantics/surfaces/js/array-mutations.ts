@@ -14,7 +14,6 @@ import type {
 import {
   csharpSourcePrimitiveTargetType,
   csharpTargetMemberOperation,
-  csharpVoidTargetType,
   recordCsharpTargetMutationOperation,
 } from "./source-library.js";
 import {
@@ -34,9 +33,6 @@ import {
 import {
   csharpTargetOperationFactKey,
 } from "../../../csharp-facts.js";
-import {
-  targetTypeRefKey,
-} from "../../target-ref-utils.js";
 
 export const csharpJsArrayDeleteAtOperationId = "tsonic.csharp.js.array.deleteAt";
 export const csharpJsArraySetLengthOperationId = "tsonic.csharp.js.array.setLength";
@@ -82,24 +78,18 @@ function recordDeleteElementFact(
   }
   const operand = asNodeSubject(getNodeField(node, "Expression"));
   if (operand === undefined || !compiler.ast.is.IsElementAccessExpression(operand)) {
-    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_DELETE_REQUIRES_ELEMENT_ACCESS", 9100140, "C# JS surface delete emission currently requires a checked array element access target."));
     return;
   }
   const receiver = asNodeSubject(getNodeField(operand, "Expression"));
   const argument = asNodeSubject(getNodeField(operand, "ArgumentExpression"));
   if (receiver === undefined || argument === undefined) {
-    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_DELETE_REQUIRES_ELEMENT_ACCESS", 9100140, "C# JS surface delete emission requires finalized receiver and index expressions."));
     return;
   }
   const receiverCarrier = getJsArrayCarrierForReceiver(receiver, sourceFile, context, host);
   if (!isCsharpJsArrayCarrierTargetType(receiverCarrier)) {
-    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_DELETE_REQUIRES_JSARRAY", 9100141, "C# JS surface delete on arrays requires a finalized closed JSArray carrier; dense List<T> and CLR T[] cannot model holes.", [
-      { message: `Resolved receiver carrier: ${receiverCarrier === undefined ? "missing" : targetTypeRefKey(receiverCarrier)}.` },
-    ]));
     return;
   }
   if (!hasIntegralIndex(argument, context, host)) {
-    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100111, "C# JS surface array delete requires an integral provider-backed index type."));
     return;
   }
   const resultType = csharpSourcePrimitiveTargetType("bool");
@@ -131,23 +121,18 @@ function recordLengthMutationFact(
   }
   const receiver = asNodeSubject(getNodeField(left, "Expression"));
   if (receiver === undefined) {
-    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_LENGTH_SET_REQUIRES_RECEIVER", 9100142, "C# JS surface Array.length mutation requires a finalized receiver expression."));
     return;
   }
   const receiverCarrier = getJsArrayCarrierForReceiver(receiver, sourceFile, context, host);
   if (!isCsharpJsArrayCarrierTargetType(receiverCarrier)) {
-    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_LENGTH_SET_REQUIRES_JSARRAY", 9100143, "C# JS surface Array.length mutation requires a finalized closed JSArray carrier; dense List<T> and CLR T[] cannot model length growth, truncation, and holes.", [
-      { message: `Resolved receiver carrier: ${receiverCarrier === undefined ? "missing" : targetTypeRefKey(receiverCarrier)}.` },
-    ]));
     return;
   }
   if (!hasIntegralIndex(right, context, host)) {
-    context.diagnostics.append(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_JS_ARRAY_LENGTH_SET_REQUIRES_INTEGER", 9100144, "C# JS surface Array.length mutation requires an integral provider-backed length expression."));
     return;
   }
   const operation = csharpTargetMemberOperation(csharpJsArraySetLengthOperationId, "method", "setLength", {
     declaringType: receiverCarrier,
-    resultType: csharpVoidTargetType(),
+    resultType: csharpSourcePrimitiveTargetType("int32"),
     argumentProjection: [{ kind: "source-argument", index: 0 }],
   });
   recordCsharpTargetMutationOperation(context, node, operation, [{ message: "C# JS surface Array.length mutation operation recorded from checked TypeScript assignment and finalized JSArray carrier." }]);
@@ -187,8 +172,8 @@ function hasIntegralIndex(
   const semanticType = sourceFile === undefined
     ? undefined
     : context.compiler?.checker.getTypeAtLocation(node, { sourceFile });
-  const indexType = host.getTargetTypeRefForSubject(node, context, { allowSemanticTypeQuery: true }) ??
-    host.getTargetTypeRefForSubject(semanticType, context, { allowSemanticTypeQuery: true });
+  const indexType = host.getTargetTypeRefForSubject(node, context, { allowSemanticTypeQuery: true, sourceFile }) ??
+    host.getTargetTypeRefForSubject(semanticType, context, { allowSemanticTypeQuery: true, sourceFile });
   return host.isIntegralTargetTypeRef(indexType) ||
     host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), node, context);
 }

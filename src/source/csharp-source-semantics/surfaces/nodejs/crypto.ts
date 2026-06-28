@@ -27,6 +27,9 @@ import {
   nodejsModuleCallTargetMetadata,
 } from "./members/target-member-metadata.js";
 import type {
+  NodejsUnsupportedTargetIdentity,
+} from "./members/types.js";
+import type {
   NodejsClassCallTargetMetadata,
   NodejsClassCallTargetMetadataRow,
   NodejsModuleCallTargetMetadata,
@@ -36,6 +39,7 @@ import type {
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
 const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
+const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
 const bufferProviderType = {
   kind: "provider-ref",
   moduleSpecifier: nodeBufferModuleSpecifier,
@@ -70,6 +74,7 @@ export function nodeCryptoExports(): readonly ProviderExportDeclaration[] {
   return [
     nodeCryptoHashExportDeclaration(),
     nodeCryptoHmacExportDeclaration(),
+    ...nodeCryptoUnsupportedFunctionDeclarations(),
     ...[...membersByExportName.entries()].map(([exportName, members]) => ({
       id: `node:crypto.${exportName}`,
       name: exportName,
@@ -229,6 +234,15 @@ function cryptoClassExportDeclaration(
   };
 }
 
+export function nodeCryptoUnsupportedTargetIdentities(): readonly NodejsUnsupportedTargetIdentity[] {
+  return nodeCryptoUnsupportedCalls.map(({ exportName, signatureId, targetIdentityId, displayName }) => ({
+    exportName,
+    signatureId,
+    targetIdentityId,
+    displayName,
+  }));
+}
+
 function providerMembersForCryptoClassCalls(
   members: readonly NodeCryptoClassCallTargetMember[],
 ): readonly ProviderMemberDeclaration[] {
@@ -262,9 +276,107 @@ function cryptoCall(row: NodeCryptoCallTargetMetadataRow): NodeCryptoCallTargetM
   });
 }
 
+function nodeCryptoUnsupportedFunctionDeclarations(): readonly ProviderExportDeclaration[] {
+  return nodeCryptoUnsupportedCalls.map((entry) => ({
+    id: `node:crypto.${entry.exportName}`,
+    name: entry.exportName,
+    kind: "function",
+    signatures: [{
+      id: entry.signatureId,
+      parameters: entry.providerParameters,
+      returnType: entry.providerReturnType,
+    }],
+  }));
+}
+
+function optionalUnknownParameter(name: string): ProviderParameterDeclaration {
+  return {
+    name,
+    type: unknownProviderType,
+    optional: true,
+  };
+}
+
 function cryptoClassCall(row: NodeCryptoClassCallTargetMetadataRow): NodeCryptoClassCallTargetMember {
   return nodejsClassCallTargetMetadata(row);
 }
 
 const nodeCryptoCallTargetMemberByProviderDeclarationIdentity =
   nodejsProviderExportSignatureDeclarationTargetMemberIndex(nodeCryptoModuleSpecifier, nodeCryptoCallTargetMembers());
+
+const nodeCryptoUnsupportedCalls = [
+  {
+    exportName: "createCipheriv",
+    signatureId: "node:crypto.createCipheriv(System.String,System.Object,System.Object)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.crypto.createCipheriv(System.String,System.Object,System.Object)",
+    displayName: "unsupported NodeJS crypto.createCipheriv",
+    providerParameters: [
+      { name: "algorithm", type: stringProviderType },
+      { name: "key", type: unknownProviderType },
+      { name: "iv", type: unknownProviderType },
+    ],
+    providerReturnType: unknownProviderType,
+  },
+  {
+    exportName: "createDecipheriv",
+    signatureId: "node:crypto.createDecipheriv(System.String,System.Object,System.Object)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.crypto.createDecipheriv(System.String,System.Object,System.Object)",
+    displayName: "unsupported NodeJS crypto.createDecipheriv",
+    providerParameters: [
+      { name: "algorithm", type: stringProviderType },
+      { name: "key", type: unknownProviderType },
+      { name: "iv", type: unknownProviderType },
+    ],
+    providerReturnType: unknownProviderType,
+  },
+  {
+    exportName: "scryptSync",
+    signatureId: "node:crypto.scryptSync(System.Object,System.Object,System.Int32,System.Object)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.crypto.scryptSync(System.Object,System.Object,System.Int32,System.Object)",
+    displayName: "unsupported NodeJS crypto.scryptSync",
+    providerParameters: [
+      { name: "password", type: unknownProviderType },
+      { name: "salt", type: unknownProviderType },
+      { name: "keylen", type: numberProviderType },
+      optionalUnknownParameter("options"),
+    ],
+    providerReturnType: bufferProviderType,
+  },
+  {
+    exportName: "pbkdf2Sync",
+    signatureId: "node:crypto.pbkdf2Sync(System.Object,System.Object,System.Int32,System.Int32,System.String)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.crypto.pbkdf2Sync(System.Object,System.Object,System.Int32,System.Int32,System.String)",
+    displayName: "unsupported NodeJS crypto.pbkdf2Sync",
+    providerParameters: [
+      { name: "password", type: unknownProviderType },
+      { name: "salt", type: unknownProviderType },
+      { name: "iterations", type: numberProviderType },
+      { name: "keylen", type: numberProviderType },
+      { name: "digest", type: stringProviderType },
+    ],
+    providerReturnType: bufferProviderType,
+  },
+  {
+    exportName: "createSign",
+    signatureId: "node:crypto.createSign(System.String)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.crypto.createSign(System.String)",
+    displayName: "unsupported NodeJS crypto.createSign",
+    providerParameters: [{ name: "algorithm", type: stringProviderType }],
+    providerReturnType: unknownProviderType,
+  },
+  {
+    exportName: "createVerify",
+    signatureId: "node:crypto.createVerify(System.String)",
+    targetIdentityId: "unsupported:Tsonic.CSharp.Node.crypto.createVerify(System.String)",
+    displayName: "unsupported NodeJS crypto.createVerify",
+    providerParameters: [{ name: "algorithm", type: stringProviderType }],
+    providerReturnType: unknownProviderType,
+  },
+] satisfies readonly {
+  readonly exportName: string;
+  readonly signatureId: string;
+  readonly targetIdentityId: string;
+  readonly displayName: string;
+  readonly providerParameters: readonly ProviderParameterDeclaration[];
+  readonly providerReturnType: ProviderTypeExpression;
+}[];

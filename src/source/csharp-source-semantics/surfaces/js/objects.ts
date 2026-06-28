@@ -28,6 +28,9 @@ const objectRuntimeTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.Object",
 const jsObjectCarrierType = csharpTargetNamedType("Tsonic.CSharp.Js.JSObject", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JSObject"));
 const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const objectMemberTypeParameter = { kind: "type-parameter" as const, name: "T" };
+const objectClosedValueParameter = targetParameter("value", objectTargetType, {
+  csharpAcceptsClosedSourceArgument: true,
+});
 const objectCapabilityId = "surface.js.object-runtime";
 const objectRequiredFacts = [
   "selected source declaration/signature identity",
@@ -145,6 +148,18 @@ const objectTargetMemberMetadata = [
   objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.entries:jsobject", sourceName: "entries", targetName: "entries", valueType: jsObjectCarrierType, returnElementType: { kind: "tuple", elements: [csharpStringTargetType(), objectTargetType] } }),
   objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.entries:jsarray", sourceName: "entries", targetName: "entries", valueType: csharpJsArrayCarrierTargetType(objectMemberTypeParameter), returnElementType: { kind: "tuple", elements: [csharpStringTargetType(), objectMemberTypeParameter] } }),
   objectHelperMethod({ id: "Tsonic.CSharp.Js.Object.entries:string", sourceName: "entries", targetName: "entries", valueType: csharpStringTargetType(), returnElementType: { kind: "tuple", elements: [csharpStringTargetType(), csharpStringTargetType()] } }),
+  objectRuntimeMethod({
+    id: "Tsonic.CSharp.Js.Object.is",
+    sourceName: "is",
+    targetName: "@is",
+    parameters: [
+      objectClosedValueParameter,
+      targetParameter("other", objectTargetType, {
+        csharpAcceptsClosedSourceArgument: true,
+      }),
+    ],
+    returnType: csharpSourcePrimitiveTargetType("bool"),
+  }),
   objectRuntimeMethod({
     id: "Tsonic.CSharp.Js.Object.assign",
     sourceName: "assign",

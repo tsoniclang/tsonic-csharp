@@ -40,6 +40,7 @@ export const objectCallCanWaitForFinalizedFactsPolicy = {
     "Object.entries",
     "Object.hasOwn",
     "Object.assign",
+    "Object.is",
     "Object.toString",
   ]),
 } satisfies SourceLibraryMemberIdentityPolicy;

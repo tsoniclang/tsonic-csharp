@@ -102,6 +102,8 @@ const consoleTargetMemberMetadata = [
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.timeStamp", sourceName: "timeStamp", targetName: "timeStamp", parameters: [optionalStringParameter("label")] }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.count", sourceName: "count", targetName: "count", parameters: [optionalStringParameter("label")] }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.countReset", sourceName: "countReset", targetName: "countReset", parameters: [optionalStringParameter("label")] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.profile", sourceName: "profile", targetName: "profile", parameters: [optionalStringParameter("label")] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.profileEnd", sourceName: "profileEnd", targetName: "profileEnd", parameters: [optionalStringParameter("label")] }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 
 export const consoleTargetMembersBySourceIdentity = jsSurfaceTargetMemberMetadataIdentityIndex("Console", consoleTargetMemberMetadata);

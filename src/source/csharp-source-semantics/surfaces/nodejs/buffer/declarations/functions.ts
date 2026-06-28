@@ -16,6 +16,9 @@ import {
   nodeBufferProviderType,
   nodeBufferStringProviderType,
 } from "../provider-types.js";
+import {
+  nodeBufferUnsupportedFunctionExports,
+} from "../unsupported.js";
 
 export function nodeBufferFunctionExports(): readonly ProviderExportDeclaration[] {
   return [
@@ -59,5 +62,6 @@ export function nodeBufferFunctionExports(): readonly ProviderExportDeclaration[
         returnType: nodeBufferBoolProviderType,
       }],
     },
+    ...nodeBufferUnsupportedFunctionExports(),
   ];
 }

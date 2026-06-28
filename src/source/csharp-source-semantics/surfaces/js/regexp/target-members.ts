@@ -77,6 +77,18 @@ const regExpTargetMemberMetadata = [
     requiredFacts: regExpRequiredFacts,
     semanticEquivalence: "Selected Tsonic.CSharp.Js.RegExp.test runtime member preserves ECMAScript RegExp.test boolean match semantics for closed string arguments.",
   },
+  {
+    id: "Tsonic.CSharp.Js.RegExp.toString",
+    sourceName: "toString",
+    targetName: "toString",
+    kind: "method",
+    parameters: [],
+    returnType: regExpStringType,
+    declaringType: regExpType,
+    capabilityId: regExpCapabilityId,
+    requiredFacts: regExpRequiredFacts,
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.RegExp.toString runtime member preserves ECMAScript RegExp source/flags stringification for closed RegExp carriers.",
+  },
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const regExpTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("RegExp", regExpTargetMemberMetadata);
 

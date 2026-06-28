@@ -101,6 +101,26 @@ const dateStaticCallIdentityPolicy = {
     "Date.UTC",
   ],
 } as const satisfies JsSurfaceSourceIdentitySelector;
+const unsupportedObjectShapeMutationIdentityPolicy = {
+  ids: [
+    "Object.create",
+    "Object.defineProperties",
+    "Object.defineProperty",
+    "Object.freeze",
+    "Object.fromEntries",
+    "Object.getOwnPropertyDescriptor",
+    "Object.getOwnPropertyDescriptors",
+    "Object.getOwnPropertyNames",
+    "Object.getOwnPropertySymbols",
+    "Object.getPrototypeOf",
+    "Object.isExtensible",
+    "Object.isFrozen",
+    "Object.isSealed",
+    "Object.preventExtensions",
+    "Object.seal",
+    "Object.setPrototypeOf",
+  ],
+} as const satisfies JsSurfaceSourceIdentitySelector;
 
 export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   operationRowFromMetadataIndex({ prefixes: ["Math."] }, mathTargetMemberIdentityIndex, { capabilityId: "surface.js.math", requiredFacts: selectedSignatureProviderFacts }),
@@ -219,6 +239,21 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
       runtimeHelperProvider({ kind: "record-dictionary", operation: row.operation }),
     ],
   })),
+  operationRowFromMetadataIndex({ ids: ["Object.is"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
+  {
+    identity: unsupportedObjectShapeMutationIdentityPolicy,
+    policyKind: "unsupported",
+    unsupported: {
+      reason: "Object descriptor, prototype, extensibility, and fromEntries operations require closed object-shape/prototype mutation facts and runtime carrier metadata before C# emission.",
+      requiredFacts: [
+        "selected Object source declaration/signature identity",
+        "closed object-shape or JSObject carrier facts",
+        "descriptor/prototype/extensibility runtime metadata",
+        "generated shape metadata proving enumerable property behavior",
+      ],
+      capabilityId: "surface.js.object-runtime",
+    },
+  },
   {
     ...operationRowFromMetadataIndex({ ids: ["Object.hasOwn"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "arguments", conditions: [

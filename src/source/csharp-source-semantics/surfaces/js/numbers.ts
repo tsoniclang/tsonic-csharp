@@ -29,6 +29,16 @@ const numberType = csharpSourcePrimitiveTargetType("float64");
 const intType = csharpSourcePrimitiveTargetType("int32");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const numberValueParameter = targetParameter("value", numberType);
+const numberOptionalDigitsParameter = targetParameter("digits", intType, { optional: true });
+const numberOptionalPrecisionParameter = targetParameter("precision", intType, { optional: true });
+const numberOptionalLocaleParameter = targetParameter("locales", objectType, {
+  optional: true,
+  csharpAcceptsClosedSourceArgument: true,
+});
+const numberOptionalFormatOptionsParameter = targetParameter("options", objectType, {
+  optional: true,
+  csharpAcceptsClosedSourceArgument: true,
+});
 const numberConversionParameter = targetParameter("value", objectType, {
   optional: true,
   csharpAcceptsClosedSourceArgument: true,
@@ -69,6 +79,10 @@ const numberTargetMemberMetadata = [
     { id: "Tsonic.CSharp.Js.Number.isSafeInteger", sourceName: "isSafeInteger", targetName: "isSafeInteger" },
   ].map((row) => numberMethodMetadata({ ...row, parameters: [numberValueParameter], returnType: boolType })),
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toString", sourceName: "toString", targetName: "toString", parameters: [numberValueParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toExponential", sourceName: "toExponential", targetName: "toExponential", parameters: [numberValueParameter, numberOptionalDigitsParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toFixed", sourceName: "toFixed", targetName: "toFixed", parameters: [numberValueParameter, numberOptionalDigitsParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toPrecision", sourceName: "toPrecision", targetName: "toPrecision", parameters: [numberValueParameter, numberOptionalPrecisionParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toLocaleString", sourceName: "toLocaleString", targetName: "toLocaleString", parameters: [numberValueParameter, numberOptionalLocaleParameter, numberOptionalFormatOptionsParameter], returnType: stringType, receiverPassing: "first-argument" }),
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.valueOf", sourceName: "valueOf", targetName: "valueOf", parameters: [numberValueParameter], returnType: numberType, receiverPassing: "first-argument" }),
 ] satisfies readonly JsSurfaceTargetMemberMetadata[];
 export const numberTargetMemberIdentityIndex = jsSurfaceTargetMemberMetadataIdentityIndex("Number", numberTargetMemberMetadata);
