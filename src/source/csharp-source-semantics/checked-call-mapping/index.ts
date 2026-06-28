@@ -37,6 +37,9 @@ import {
 import {
   targetMemberAsSourceSelectedSignature,
 } from "../selected-target-source-signature.js";
+import {
+  csharpSourceOwnedSelectedSignatureFact,
+} from "../source-owned-selected-signature.js";
 import type {
   TargetMemberSelectionOptions,
 } from "../target-member-arguments/index.js";
@@ -162,6 +165,10 @@ export function mapCsharpCheckedCall(
     if (unsupportedExternalCall !== undefined) {
       return unsupportedExternalCall;
     }
+    const sourceOwnedCall = acceptSourceOwnedCheckedCall(request, context, host);
+    if (sourceOwnedCall !== undefined) {
+      return sourceOwnedCall;
+    }
     return deferObservation;
   }
   const targetBinding = binding.target === csharpTargetId
@@ -234,6 +241,30 @@ export function mapCsharpCheckedCall(
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: { member: targetMemberAsSourceSelectedSignature(csharpMember) },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function acceptSourceOwnedCheckedCall(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): ExtensionObservation<CheckedCallMappingResult> | undefined {
+  const compiler = context.compiler;
+  const declaration = asNodeSubject(request.sourceSelectedDeclaration);
+  if (compiler === undefined || declaration === undefined) {
+    return undefined;
+  }
+  const declarationSourceFile = compiler.ast.getSourceFile(declaration);
+  if (declarationSourceFile === undefined || declarationSourceFile.IsDeclarationFile === true) {
+    return undefined;
+  }
+  const returnType = host.getTargetTypeRefForSubject(request.call, context);
+  return acceptObservation<CheckedCallMappingResult>({
+    selectedSignature: csharpSourceOwnedSelectedSignatureFact({
+      ...(request.sourceSelectedSignature === undefined ? {} : { sourceSignature: request.sourceSelectedSignature }),
+      sourceDeclaration: declaration,
+      ...(returnType === undefined ? {} : { returnType }),
+    }),
+  }, [{ message: "C# target observed a TSTS-selected project source call; backend emission remains source-owned and target facts are not inferred from source spelling." }]);
 }
 
 function rejectUnmappedExternalCall(

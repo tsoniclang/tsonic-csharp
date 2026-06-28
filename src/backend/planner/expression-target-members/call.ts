@@ -38,6 +38,9 @@ import {
   planSourceOwnedCallArguments,
   planSourceOwnedCallCallee,
 } from "./source-owned-call.js";
+import {
+  isCsharpSourceOwnedSelectedSignature,
+} from "../../../source/csharp-source-semantics/source-owned-selected-signature.js";
 
 export function planCallExpression(
   node: Node,
@@ -58,7 +61,7 @@ export function planCallExpression(
   }
   const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
-  if (selectedTargetCall !== undefined) {
+  if (selectedTargetCall !== undefined && !isCsharpSourceOwnedSelectedSignature(selectedTargetCall)) {
     const targetOperation = getRequiredCsharpTargetOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");
     if (targetOperation?.kind === "array-creation") {
       return planNativeArrayCreationCall(node, expression, targetOperation, selectedTargetCall, sourceFile, input, diagnostics, planCallArgument);
