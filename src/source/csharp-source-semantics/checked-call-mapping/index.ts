@@ -28,6 +28,7 @@ import {
   isDotnetNativeArrayCreateMemberId,
 } from "../../../providers/dotnet/native-array.js";
 import {
+  findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
 } from "../provider-bindings.js";
 import {
@@ -143,7 +144,11 @@ export function mapCsharpCheckedCall(
     requestContext.calleeReceiverAliasedSymbol,
     requestContext.calleeReceiverResolvedSymbol,
     requestContext.calleeReceiverSymbol,
-  ]);
+  ]) ?? findTargetBindingFromVirtualDeclaration(
+    virtualDeclaration,
+    host.getCsharpTargetBindingByTargetId,
+    host.getCsharpTargetBindingByMetadataName,
+  );
   const nativeArrayCreate = mapDotnetNativeArrayCreateCall(request, context, extensionId, host, virtualDeclaration);
   if (nativeArrayCreate !== undefined) {
     return nativeArrayCreate;

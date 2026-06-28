@@ -22,6 +22,7 @@ import {
   targetOperationFromMember,
 } from "../operations.js";
 import {
+  findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
 } from "../provider-bindings.js";
 import {
@@ -53,6 +54,7 @@ import {
 import {
   getDeclaringTargetType,
   instantiateClosedSelectedTargetMember,
+  resolveProviderVirtualDeclaration,
   selectCheckedPropertyTargetMember,
 } from "./selected-member.js";
 import {
@@ -92,6 +94,10 @@ export function mapCsharpCheckedPropertyAccess(
     }, [{ message: "C# attribute builder member access was checked by TSTS and marked for fact-driven erasure." }]);
   }
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
+    requestContext.sourceSelectedSymbol,
+    requestContext.sourceSelectedDeclaration,
+  ]);
   const binding = findTargetBinding(context, [
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedContainerSymbol,
@@ -103,7 +109,11 @@ export function mapCsharpCheckedPropertyAccess(
     requestContext.receiverResolvedSymbol,
     requestContext.receiverSymbol,
     request.receiver,
-  ]);
+  ]) ?? findTargetBindingFromVirtualDeclaration(
+    selectedDeclaration,
+    host.getCsharpTargetBindingByTargetId,
+    host.getCsharpTargetBindingByMetadataName,
+  );
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
       mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ??

@@ -1,7 +1,6 @@
 import {
   AsClassDeclaration,
   KindConstructor,
-  Node_Symbol,
   SourceKind,
   isAstNode,
 } from "../source-ast.js";
@@ -74,8 +73,7 @@ export function attributeFactForNodeOrSymbol(
   subject: Node,
   input: TargetCompileInput,
 ): CsharpAttributeApplicationFact | undefined {
-  return input.facts.getFact(subject, csharpAttributeApplicationFactKey) ??
-    input.facts.getFact(Node_Symbol(subject), csharpAttributeApplicationFactKey);
+  return input.facts.getFact(subject, csharpAttributeApplicationFactKey);
 }
 
 function findConstructorDeclaration(

@@ -1143,6 +1143,44 @@ test("C# provider includes virtual declaration signature id as candidate evidenc
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
+test("C# provider resolves selected calls from virtual target identity host bindings", () => {
+  const selectedDeclaration = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+  };
+  const provider = getNativeSemanticProvider({ bindings: [binding] });
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    arguments: [argument],
+  }, fakeObservationContext({
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target.m"),
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : result.kind);
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
 test("C# provider maps calls from the exact selected signature identity before declaration identity", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -1272,7 +1310,7 @@ test("C# provider selects provider constructors from a selected provider type id
     target: "csharp",
     call: { Kind: "KindNewExpression" },
     callee: {},
-    sourceSelectedContainerSymbol: containerSymbol,
+    sourceCalleeSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -1730,9 +1768,8 @@ test("C# provider maps calls from TSTS-selected callee symbol virtual declaratio
     target: "csharp",
     call: {},
     callee: {},
-    calleeSymbol,
+    sourceCalleeSymbol: calleeSymbol,
     calleePropertyName: "m",
-    calleeReceiverSymbol: containerSymbol,
     arguments: [argument],
   }, fakeObservationContext({
     targetBindingSubject: containerSymbol,
@@ -1954,12 +1991,12 @@ test("C# provider rejects same-spelling call members without selected provider i
 });
 
 test("C# provider rejects provider-owned receiver calls without selected member identity", () => {
-  const receiver = {};
   const receiverType = {
     kind: "target-named",
     id: "Example.Exception",
     csharpRender: { kind: "named", namespace: ["Example"], name: "Exception" },
   };
+  const receiver = { Kind: "KindIdentifier", Text: "exception", ...receiverType };
   const binding = {
     id: "Example.Exception",
     sourceName: "Exception",
@@ -1985,10 +2022,8 @@ test("C# provider rejects provider-owned receiver calls without selected member 
   const result = provider.mapCheckedCall({
     target: "csharp",
     call: {},
-    callee: {},
-    calleeReceiver: receiver,
-    calleeReceiverType: receiverType,
-    calleePropertyName: "toString",
+    callee: propertyAccessCallee(receiver, "toString"),
+    sourceCalleeSymbol: receiverType,
     arguments: [],
   }, fakeObservationContext({
     targetBindingSubject: receiverType,
@@ -2025,7 +2060,7 @@ test("C# provider maps property access from selected provider member identity in
     target: "csharp",
     expression,
     receiver,
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "m",
   }, fakeObservationContext({
@@ -2060,7 +2095,7 @@ test("C# provider maps field access from selected provider member identity", () 
     target: "csharp",
     expression,
     receiver,
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "m",
   }, fakeObservationContext({
@@ -2096,7 +2131,7 @@ test("C# provider rejects same-spelling property members without selected member
     target: "csharp",
     expression,
     receiver,
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "m",
   }, fakeObservationContext({
@@ -2133,7 +2168,7 @@ test("C# provider reports selected unsupported property identities with provider
     target: "csharp",
     expression: {},
     receiver: {},
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "unrelated",
   }, fakeObservationContext({
@@ -2177,7 +2212,7 @@ test("C# provider rejects events even when target facts exist until event source
     target: "csharp",
     expression: {},
     receiver: {},
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "changed",
   }, fakeObservationContext({
@@ -2333,7 +2368,7 @@ test("C# provider reports selected unsupported indexer identities with provider 
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     argument,
   }, fakeObservationContext({
     targetBindingSubject: receiverType,
@@ -2383,7 +2418,7 @@ test("C# provider does not infer unsupported identity from metadata-name-only ma
     target: "csharp",
     expression: {},
     receiver: {},
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     propertyName: "pointerProperty",
   }, fakeObservationContext({
@@ -2421,7 +2456,7 @@ test("C# provider honors exact selected indexer signature identity over sibling 
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     argument,
   }, fakeObservationContext({
     targetBindingSubject: receiverType,
@@ -2466,7 +2501,7 @@ test("C# provider maps selected string indexers from provider signature identity
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     argument,
   }, fakeObservationContext({
     targetBindingSubject: receiverType,
@@ -2512,7 +2547,7 @@ test("C# provider maps selected byref indexers from source marker target express
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     argument: outCall,
   }, fakeObservationContext({
     targetBindingSubject: receiverType,
@@ -2572,7 +2607,7 @@ test("C# provider rejects selected byref indexers without source marker facts", 
     expression: {},
     receiver: {},
     receiverType,
-    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedSymbol: selectedDeclaration,
     argument,
   }, fakeObservationContext({
     targetBindingSubject: receiverType,
@@ -2720,16 +2755,14 @@ test("C# provider maps extension receiver calls from selected provider signature
   const selectedDeclaration = {};
   const containerSymbol = {};
   const call = {};
-  const receiver = csharpStringType();
+  const receiver = { Kind: "KindIdentifier", Text: "text", ...csharpStringType() };
   const start = { kind: "source-primitive", name: "int32" };
   const recordedFacts = [];
 
   const result = provider.mapCheckedCall({
     target: "csharp",
     call,
-    callee: {},
-    calleeReceiver: receiver,
-    calleePropertyName: "asSpan",
+    callee: propertyAccessCallee(receiver, "asSpan"),
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     arguments: [start],
@@ -2781,15 +2814,13 @@ test("C# provider maps LINQ ExtensionMethods receiver calls from selected signat
   const containerSymbol = {};
   const call = {};
   const int32 = { kind: "source-primitive", name: "int32" };
-  const receiver = { kind: "array", element: int32 };
+  const receiver = { Kind: "KindIdentifier", Text: "values", kind: "array", element: int32 };
   const recordedFacts = [];
 
   const result = provider.mapCheckedCall({
     target: "csharp",
     call,
-    callee: {},
-    calleeReceiver: receiver,
-    calleePropertyName: "average",
+    callee: propertyAccessCallee(receiver, "average"),
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     arguments: [],
@@ -2844,7 +2875,7 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
   const call = {};
   const outCall = {};
   const int32 = { kind: "source-primitive", name: "int32" };
-  const receiver = spanType(int32);
+  const receiver = { Kind: "KindIdentifier", Text: "span", ...spanType(int32) };
   const other = readOnlySpanType(int32);
   const offset = int32;
   const recordedFacts = [];
@@ -2852,9 +2883,7 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
   const result = provider.mapCheckedCall({
     target: "csharp",
     call,
-    callee: {},
-    calleeReceiver: receiver,
-    calleePropertyName: "overlaps",
+    callee: propertyAccessCallee(receiver, "overlaps"),
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     arguments: [other, outCall],
@@ -2877,7 +2906,7 @@ test("C# provider maps overlap-style extension overloads with receiver and out p
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.MemoryExtensions.Overlaps(Example.Span`1<T>,Example.ReadOnlySpan`1<T>,System.Int32)");
   assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
-  assert.equal(result.value.selectedSignature.member.parameters[2].passingMode, "byref-writeonly-must-init");
+  assert.equal(result.value.selectedSignature.member.parameters[1]?.passingMode, "byref-writeonly-must-init");
 
   const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
   assert.equal(operation?.selectedMember?.receiverPassing, "first-argument");
@@ -2888,7 +2917,7 @@ test("C# provider rejects receiver calls when static target metadata omits recei
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
-  const receiver = {};
+  const receiver = { Kind: "KindIdentifier", Text: "value" };
   const binding = {
     id: "Example.Extensions",
     sourceName: "Extensions",
@@ -2912,9 +2941,7 @@ test("C# provider rejects receiver calls when static target metadata omits recei
   const result = provider.mapCheckedCall({
     target: "csharp",
     call: {},
-    callee: {},
-    calleeReceiver: receiver,
-    calleePropertyName: "current",
+    callee: propertyAccessCallee(receiver, "current"),
     sourceSelectedDeclaration: selectedDeclaration,
     sourceSelectedContainerSymbol: containerSymbol,
     arguments: [],
@@ -3304,7 +3331,7 @@ function coreLangMarker(exportName) {
   };
 }
 
-function virtualMember(memberId, memberName = "m") {
+function virtualMember(memberId, memberName = "m", targetId = targetIdFromMemberId(memberId)) {
   return {
     providerId: "test",
     providerVersion: "0",
@@ -3313,7 +3340,24 @@ function virtualMember(memberId, memberName = "m") {
     virtualFileName: "tsts-provider://test",
     memberName,
     memberId,
+    targetIdentity: { kind: "target-named", id: targetId },
   };
+}
+
+function propertyAccessCallee(receiver, name) {
+  return {
+    Kind: "KindPropertyAccessExpression",
+    Expression: receiver,
+    name: { Kind: "KindIdentifier", Text: name },
+  };
+}
+
+function targetIdFromMemberId(memberId) {
+  if (memberId.includes("..ctor")) {
+    return memberId.slice(0, memberId.indexOf("..ctor"));
+  }
+  const lastDot = memberId.lastIndexOf(".");
+  return lastDot < 0 ? memberId : memberId.slice(0, lastDot);
 }
 
 function fakeObservationContext(options) {
@@ -3328,6 +3372,9 @@ function fakeObservationContext(options) {
         }
         if (subject === options.virtualDeclarationSubject && key === providerVirtualDeclarationFactKey) {
           return options.virtualDeclaration;
+        }
+        if (subject === options.virtualDeclarationSubject && key === targetBindingFactKey && options.targetBinding !== undefined) {
+          return options.targetBinding;
         }
         if (subject === options.attributeSubject && key === attributeFactKey) {
           return options.attribute;
@@ -3364,6 +3411,9 @@ function fakeObservationContext(options) {
         if (subject === options.virtualDeclarationSubject && key === providerVirtualDeclarationFactKey) {
           return options.virtualDeclaration;
         }
+        if (subject === options.virtualDeclarationSubject && key === targetBindingFactKey && options.targetBinding !== undefined) {
+          return options.targetBinding;
+        }
         if (subject === options.attributeSubject && key === attributeFactKey) {
           return options.attribute;
         }
@@ -3395,11 +3445,53 @@ function fakeObservationContext(options) {
     compiler: {
       ast: {
         kindName: (node) => node === undefined ? "Undefined" : node.Kind === 1 ? "KindNumericLiteral" : String(node.Kind),
+        getSourceFile: () => undefined,
+        parent: (node) => node?.Parent,
+        name: (node) => node?.name ?? node?.Name,
         text: (node) => node?.Text ?? "",
         typeArguments: () => [],
         is: {
+          IsIdentifier: (node) => node?.Kind === "KindIdentifier",
+          IsPrivateIdentifier: () => false,
+          IsQualifiedName: () => false,
+          IsPropertyAccessExpression: (node) => node?.Kind === "KindPropertyAccessExpression",
+          IsVariableDeclaration: () => false,
+          IsParameterDeclaration: () => false,
+          IsBindingElement: () => false,
+          IsFunctionDeclaration: () => false,
+          IsClassDeclaration: () => false,
+          IsMethodDeclaration: () => false,
+          IsPropertyDeclaration: () => false,
+          IsKeywordTypeNode: () => false,
+          IsTypeReferenceNode: () => false,
+          IsUnionTypeNode: () => false,
+          IsIntersectionTypeNode: () => false,
+          IsConditionalTypeNode: () => false,
+          IsInferTypeNode: () => false,
+          IsArrayTypeNode: () => false,
+          IsIndexedAccessTypeNode: () => false,
+          IsLiteralTypeNode: () => false,
+          IsThisTypeNode: () => false,
+          IsMappedTypeNode: () => false,
+          IsTupleTypeNode: () => false,
+          IsOptionalTypeNode: () => false,
+          IsRestTypeNode: () => false,
+          IsParenthesizedTypeNode: () => false,
+          IsFunctionTypeNode: () => false,
+          IsConstructorTypeNode: () => false,
+          IsTemplateLiteralTypeNode: () => false,
+          IsImportTypeNode: () => false,
           IsStringLiteral: () => false,
         },
+      },
+      checker: {
+        getSymbolAtLocation: (node) => options.symbolsByNode?.get(node),
+        getResolvedSymbol: (node) => options.resolvedSymbolsByNode?.get(node),
+        getResolvedSymbolOrNil: (node) => options.resolvedSymbolsByNode?.get(node),
+        getAliasedSymbol: () => undefined,
+        getTypeAtLocation: (node) => options.typesByNode?.get(node) ?? (node !== undefined && typeof node === "object" && typeof node.kind === "string" ? node : undefined),
+        getTypeSymbol: (type) => options.typeSymbolsByType?.get(type),
+        getSymbolDeclarations: (symbol) => options.declarationsBySymbol?.get(symbol) ?? [],
       },
     },
   };

@@ -93,7 +93,7 @@ export function selectCheckedElementTargetMember(
   };
 }
 
-function resolveProviderVirtualDeclaration(
+export function resolveProviderVirtualDeclaration(
   context: ExtensionObservationContext,
   subjects: readonly (ExtensionFactSubject | undefined)[],
 ): ProviderVirtualDeclarationFact | undefined {

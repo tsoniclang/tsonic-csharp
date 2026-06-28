@@ -19,6 +19,7 @@ import {
   targetOperationFromMember,
 } from "../operations.js";
 import {
+  findTargetBindingFromVirtualDeclaration,
   findTargetBinding,
 } from "../provider-bindings.js";
 import {
@@ -39,6 +40,7 @@ import {
 import {
   getDeclaringTargetType,
   instantiateClosedSelectedTargetMember,
+  resolveProviderVirtualDeclaration,
   selectCheckedElementTargetMember,
 } from "./selected-member.js";
 import {
@@ -62,14 +64,24 @@ export function mapCsharpCheckedElementAccess(
     return deferObservation;
   }
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
+  const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
+    requestContext.sourceSelectedSymbol,
+    requestContext.sourceSelectedDeclaration,
+  ]);
   const binding = findTargetBinding(context, [
+    requestContext.sourceSelectedSymbol,
+    requestContext.sourceSelectedDeclaration,
     requestContext.receiverTypeSymbol,
     requestContext.receiverType,
     requestContext.receiverAliasedSymbol,
     requestContext.receiverResolvedSymbol,
     requestContext.receiverSymbol,
     request.receiver,
-  ]);
+  ]) ?? findTargetBindingFromVirtualDeclaration(
+    selectedDeclaration,
+    host.getCsharpTargetBindingByTargetId,
+    host.getCsharpTargetBindingByMetadataName,
+  );
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ??
       mapCsharpSourceArrayCheckedElementAccess(request, context, extensionId, host) ??

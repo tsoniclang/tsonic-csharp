@@ -118,6 +118,11 @@ function validateCsharpTargetConstraintForType(
         `C# target generic constraint '${constraint.kind}' is not a supported C# constraint kind.`,
         constraintEvidence(source, constraint),
       );
+    default:
+      return invalidConstraint(
+        `C# target generic constraint '${(constraint as { readonly kind?: unknown }).kind ?? "<unknown>"}' is not supported by the C# target provider because it is not a recognized target-neutral constraint shape.`,
+        constraintEvidence(source, constraint),
+      );
   }
 }
 
