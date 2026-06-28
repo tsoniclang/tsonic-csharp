@@ -547,7 +547,7 @@ test("JS surface rejects Boolean methods without closed bool receiver facts", ()
   }), fakeContext(facts));
 
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
   assert.match(result.diagnostic.message, /Boolean\.toString/);
   assert.match(result.diagnostic.message, /receiver lacks finalized target runtime facts/);
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
