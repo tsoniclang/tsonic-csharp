@@ -37,7 +37,7 @@ test("NodeJS fs Stats Date declarations expose JS Date source type", () => {
   assert.equal(mtime.type.kind, "target-named");
   assert.equal(mtime.type.id, "Tsonic.CSharp.Js.Date");
   assert.equal(mtime.type.sourceShape.kind, "provider-ref");
-  assert.equal(mtime.type.sourceShape.name, "Date");
+  assert.equal(mtime.type.sourceShape.exportName, "Date");
   assert.equal(mtimeMs.type.kind, "number");
 });
 
@@ -223,7 +223,7 @@ function nodejsPropertyRequest(expression, sourceSelectedDeclaration) {
     receiver: {},
     receiverType: {},
     propertyName: "mtime",
-    sourceSelectedDeclaration,
+    sourceSelectedSymbol: sourceSelectedDeclaration,
   };
 }
 
