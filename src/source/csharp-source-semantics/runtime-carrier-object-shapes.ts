@@ -23,8 +23,7 @@ export function recordMatchingCsharpObjectShapeFactOnRuntimeCarrierSubjects(
   carrier: TargetTypeRef,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
-  const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(request.sourceTypeReference, context) ??
-    host.getRecordedCsharpObjectShapeFactForSubject(request.type, context);
+  const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(request.type, context);
   if (objectShape === undefined || !targetTypeRefEquals(objectShape.targetType, carrier)) {
     return;
   }
@@ -40,16 +39,13 @@ export function recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(
   if (!sourceDeclaredStruct) {
     context.facts.set(request.type, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to runtime carrier type." }]);
   }
-  if (request.sourceTypeReference !== undefined) {
-    context.facts.set(request.sourceTypeReference, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type reference." }]);
-  }
   if (sourceDeclaredStruct) {
     return;
   }
-  if (request.sourceTypeSymbol !== undefined) {
-    context.facts.set(request.sourceTypeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
-  }
-  const typeSymbol = asType(request.type)?.symbol;
+  const requestType = asType(request.type);
+  const typeSymbol = requestType === undefined
+    ? undefined
+    : context.compiler?.checker.getTypeSymbol(requestType);
   if (typeSymbol !== undefined) {
     context.facts.set(typeSymbol, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to source type symbol." }]);
   }

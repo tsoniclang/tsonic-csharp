@@ -76,14 +76,15 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
   const symbol = checker.getSymbolAtLocation(typeName, { sourceFile });
   const aliasedSymbol = getAliasedSymbolIfAvailable(checker, symbol, sourceFile);
   const type = asType(checker.getTypeFromTypeNode(node, { sourceFile }));
-  const typeAliasSymbol = (type as { readonly aliasSymbol?: ExtensionFactSubject } | undefined)?.aliasSymbol;
+  const typeAliasSymbol = type === undefined ? undefined : context.compiler?.checker.getTypeAliasSymbol(type);
+  const typeSymbol = type === undefined ? undefined : context.compiler?.checker.getTypeSymbol(type);
   const candidateSubjects: readonly (ExtensionFactSubject | undefined)[] = [
     node,
     typeName,
     symbol,
     aliasedSymbol,
     typeAliasSymbol,
-    type?.symbol,
+    typeSymbol,
   ];
   for (const candidate of candidateSubjects) {
     if (candidate === undefined) {
@@ -97,7 +98,7 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
   const binding = resolveTargetBindingFact(context, node) ??
     resolveTargetBindingFact(context, typeName) ??
     resolveTargetBindingFact(context, type) ??
-    resolveTargetBindingFact(context, type?.symbol);
+    resolveTargetBindingFact(context, typeSymbol);
   if (binding !== undefined) {
     const typeArguments = ast.typeArguments(node).map((argument) => resolver.resolveSubject(argument, context, options, host));
     if (typeArguments.some((argument) => argument === undefined)) {
@@ -158,7 +159,7 @@ function isRecordDeclarationSubject(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): boolean {
-  return getSymbolDeclarations(subject).some((declaration) =>
+  return getSymbolDeclarations(subject, context.compiler?.checker).some((declaration) =>
     getSourceLibraryDeclarationName(declaration, context) === "Record");
 }
 
@@ -206,7 +207,7 @@ function getTargetTypeRefFromSourceDeclarationReference(
     return undefined;
   }
   for (const subject of subjects) {
-    for (const declaration of getSymbolDeclarations(subject)) {
+    for (const declaration of getSymbolDeclarations(subject, context.compiler?.checker)) {
       const kind = ast.kindName(declaration);
       if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
         continue;
@@ -233,7 +234,7 @@ function getTargetTypeRefFromTypeAliasDeclarations(
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   for (const subject of subjects) {
-    const declarations = getSymbolDeclarations(subject);
+    const declarations = getSymbolDeclarations(subject, context.compiler?.checker);
     for (const declaration of declarations) {
       const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
       if (typeNode === undefined || typeNode === currentNode) {

@@ -42,8 +42,6 @@ export function recordCsharpRuntimeCarrierFact(
   const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, node);
   const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
     type,
-    sourceTypeReference: node,
-    ...(symbol !== undefined ? { sourceTypeSymbol: symbol } : {}),
     target: targetId,
   }, host);
   if (result.kind !== "accept") {
@@ -66,11 +64,12 @@ export function recordCsharpRuntimeCarrierFact(
   if (symbol !== undefined && !isObjectLiteralGeneratedShapeCarrier(compiler.ast, node, fact.carrier)) {
     lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
   }
+  const typeSymbol = compiler.checker.getTypeSymbol(type);
   if (
-    type.symbol !== undefined &&
+    typeSymbol !== undefined &&
     runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(fact.carrier) &&
     !isObjectLiteralGeneratedShapeCarrier(compiler.ast, node, fact.carrier)
   ) {
-    lifecycleContext.host.facts.set(type.symbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
+    lifecycleContext.host.facts.set(typeSymbol, runtimeCarrierFactKey, fact, result.evidence ?? []);
   }
 }

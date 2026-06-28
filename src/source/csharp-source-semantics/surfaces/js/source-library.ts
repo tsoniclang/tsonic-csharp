@@ -1,5 +1,6 @@
 import type {
   ExtensionDiagnostic,
+  ExtensionEvidence,
   ExtensionFactSubject,
   ExtensionObservationContext,
   SourceFile,
@@ -107,6 +108,7 @@ export interface CsharpJsSurfaceHost {
     extensionCode: string,
     numericCode: number,
     message: string,
+    evidence?: readonly ExtensionEvidence[],
   ) => ExtensionDiagnostic;
 }
 

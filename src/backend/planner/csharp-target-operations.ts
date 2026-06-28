@@ -1,9 +1,15 @@
 import type {
   Node,
   SelectedTargetSignatureFact,
-  TargetMember,
   TargetOperationFact,
+  TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../source/csharp-source-semantics/target-types.js";
+import {
+  csharpTargetMemberFact,
+} from "../../source/csharp-source-semantics/target-types.js";
 import type {
   TargetCompileInput,
   TargetDiagnostic,
@@ -25,6 +31,13 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  targetMembersHaveCompatibleSourceSelectedSignature,
+  targetMemberAsSourceSelectedSignature,
+} from "../../source/csharp-source-semantics/selected-target-source-signature.js";
+import {
+  targetTypeRefEquals,
+} from "../../source/csharp-source-semantics/target-ref-utils.js";
 
 export function getRequiredCsharpTargetOperation(
   input: TargetCompileInput,
@@ -113,7 +126,14 @@ export function getRequiredCsharpTargetMemberOperationForSelectedSignature(
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member facts: generic selected member '${selectedSignature.member.id}', C# selected member '${operation.selectedMember.id}'.`));
     return undefined;
   }
-  const mismatch = getSelectedMemberEmissionFactMismatch(selectedSignature.member, operation.selectedMember);
+  const selectedMember = csharpTargetMemberFact(selectedSignature.member);
+  if (selectedMember === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} requires a C# selected target member fact for '${selectedSignature.member.id}'.`));
+    return undefined;
+  }
+  const mismatch = targetMembersHaveCompatibleSourceSelectedSignature(selectedMember, operation.selectedMember)
+    ? undefined
+    : getSelectedMemberEmissionFactMismatch(selectedMember, operation.selectedMember) ?? "signature-shape";
   if (mismatch !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(subject, `${purpose} received mismatched selected member ${mismatch} facts for '${selectedSignature.member.id}'.`));
     return undefined;
@@ -148,7 +168,7 @@ export function getRequiredCsharpTargetOperationForSelectedSignature(
   return operation;
 }
 
-function getSelectedMemberEmissionFactMismatch(expected: TargetMember, actual: TargetMember): string | undefined {
+function getSelectedMemberEmissionFactMismatch(expected: CsharpTargetMember, actual: CsharpTargetMember): string | undefined {
   if (actual.kind !== expected.kind) {
     return "kind";
   }
@@ -161,14 +181,34 @@ function getSelectedMemberEmissionFactMismatch(expected: TargetMember, actual: T
   if (actual.receiverPassing !== expected.receiverPassing) {
     return "receiver-passing";
   }
-  if (actual.parameters.length !== expected.parameters.length) {
+  if (!optionalTargetTypeRefEquals(actual.returnType, expected.returnType)) {
+    return "return-type";
+  }
+  if (!optionalTargetTypeRefEquals(actual.declaringType, expected.declaringType)) {
+    return "declaring-type";
+  }
+  if (actual.receiverPassing === "first-argument") {
+    const actualReceiver = actual.parameters[0];
+    if (
+      actualReceiver === undefined ||
+      expected.declaringType === undefined ||
+      !targetTypeRefEquals(actualReceiver.type, expected.declaringType)
+    ) {
+      return "receiver-type";
+    }
+  }
+  const actualAsSource = targetMemberAsSourceSelectedSignature(actual);
+  if (actualAsSource.parameters.length !== expected.parameters.length) {
     return "parameter-list";
   }
   for (let index = 0; index < expected.parameters.length; index += 1) {
     const expectedParameter = expected.parameters[index];
-    const actualParameter = actual.parameters[index];
+    const actualParameter = actualAsSource.parameters[index];
     if (expectedParameter === undefined || actualParameter === undefined) {
       return "parameter-list";
+    }
+    if (!targetTypeRefEquals(actualParameter.type, expectedParameter.type)) {
+      return "parameter-type";
     }
     if (
       actualParameter.passingMode !== expectedParameter.passingMode ||
@@ -179,4 +219,11 @@ function getSelectedMemberEmissionFactMismatch(expected: TargetMember, actual: T
     }
   }
   return undefined;
+}
+
+function optionalTargetTypeRefEquals(left: TargetTypeRef | undefined, right: TargetTypeRef | undefined): boolean {
+  if (left === undefined || right === undefined) {
+    return left === right;
+  }
+  return targetTypeRefEquals(left, right);
 }

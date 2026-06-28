@@ -696,6 +696,10 @@ function fakeInput(options = {}) {
       getFunctionPointerFact: () => undefined,
     },
     analysis: {
+      getSymbolName: () => undefined,
+      getSymbolDeclarations: () => [],
+      getTypeSymbol: () => undefined,
+      getTypeAliasSymbol: () => undefined,
       getProjectSourceReferenceForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,

@@ -146,12 +146,13 @@ function getRecordedCsharpObjectShapeFactForReference(
   const type = compiler.ast.kindName(node) === "KindTypeReference"
     ? compiler.checker.getTypeFromTypeNode(node, { sourceFile })
     : undefined;
-  const typeAliasSymbol = (type as { readonly aliasSymbol?: ExtensionFactSubject } | undefined)?.aliasSymbol;
+  const typeAliasSymbol = type === undefined ? undefined : compiler.checker.getTypeAliasSymbol(type);
+  const typeSymbol = type === undefined ? undefined : compiler.checker.getTypeSymbol(type);
   const symbol = type === undefined
     ? getSymbolForDeclarationLookup(compiler.ast, compiler.checker, referenceName, sourceFile)
     : undefined;
   const aliasedSymbol = type === undefined ? getAliasedSymbolIfAvailable(compiler.checker, symbol, sourceFile) : undefined;
-  for (const candidate of [node, referenceName, typeAliasSymbol, type, type?.symbol, symbol, aliasedSymbol]) {
+  for (const candidate of [node, referenceName, typeAliasSymbol, type, typeSymbol, symbol, aliasedSymbol]) {
     const fact = context.facts.get(candidate, csharpObjectShapeFactKey);
     if (fact !== undefined) {
       return fact;
@@ -170,8 +171,9 @@ function getRecordedCsharpObjectShapeFactForSemanticType(
     return undefined;
   }
   const type = getSemanticTypeForObjectShapeLookup(node, context);
+  const typeSymbol = type === undefined ? undefined : compiler.checker.getTypeSymbol(type);
   return context.facts.get(type, csharpObjectShapeFactKey) ??
-    context.facts.get(type?.symbol, csharpObjectShapeFactKey);
+    context.facts.get(typeSymbol, csharpObjectShapeFactKey);
 }
 
 export function subjectHasSourceDeclaredStructRuntimeCarrier(
@@ -195,8 +197,9 @@ export function subjectHasSourceDeclaredStructRuntimeCarrier(
     return false;
   }
   const type = getSemanticTypeForObjectShapeLookup(node, context);
+  const typeSymbol = type === undefined ? undefined : compiler.checker.getTypeSymbol(type);
   return isSourceDeclaredStructRuntimeCarrier(context.facts.get(type, runtimeCarrierFactKey)?.carrier) ||
-    isSourceDeclaredStructRuntimeCarrier(context.facts.get(type?.symbol, runtimeCarrierFactKey)?.carrier);
+    isSourceDeclaredStructRuntimeCarrier(context.facts.get(typeSymbol, runtimeCarrierFactKey)?.carrier);
 }
 
 function subjectReferencesSourceCoreStructMarkerDeclaration(

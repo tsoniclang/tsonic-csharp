@@ -1,8 +1,10 @@
 import type {
-  TargetMember,
-  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+  CsharpTargetParameter,
+} from "../../../target-types.js";
 import type {
   TargetSourceAccessKind,
   TargetSourceUseRecord,
@@ -137,7 +139,7 @@ function structuralPropertyReceiverCandidates(
 function propertyTargetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   receiverType: TargetTypeRef,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   const member = getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(selectedIdentity, receiverType);
   return member === undefined ? [] : [member];
 }
@@ -145,11 +147,11 @@ function propertyTargetMembersForSelectedIdentity(
 function targetMembersForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   elementType: TargetTypeRef,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   return jsSurfaceSelectedTargetMembersForSelectedIdentity(selectedIdentity, { contextualElementType: elementType });
 }
 
-function targetMemberReceiverType(member: TargetMember): TargetTypeRef | undefined {
+function targetMemberReceiverType(member: CsharpTargetMember): TargetTypeRef | undefined {
   if (member.receiverPassing === "first-argument") {
     return member.parameters[0]?.type;
   }
@@ -157,9 +159,9 @@ function targetMemberReceiverType(member: TargetMember): TargetTypeRef | undefin
 }
 
 function targetParameterForArgumentIndex(
-  parameters: readonly TargetParameter[],
+  parameters: readonly CsharpTargetParameter[],
   argumentIndex: number,
-): TargetParameter | undefined {
+): CsharpTargetParameter | undefined {
   const parameter = parameters[argumentIndex];
   if (parameter !== undefined) {
     return parameter;
@@ -180,7 +182,8 @@ function carrierRequirementsForTargetTypes(
       requirements.push(requirement);
     }
   }
-  return requirements;
+  const selected = selectLeastPermissiveCarrierRequirement(requirements);
+  return selected === undefined ? [] : [selected];
 }
 
 function carrierRequirementForTargetType(
@@ -198,4 +201,30 @@ function carrierRequirementForTargetType(
   return getCsharpCollectionElementTargetType(targetType) === undefined
     ? undefined
     : "sequential-read";
+}
+
+function selectLeastPermissiveCarrierRequirement(
+  requirements: readonly CsharpArrayCarrierRequirement[],
+): CsharpArrayCarrierRequirement | undefined {
+  let selected: CsharpArrayCarrierRequirement | undefined;
+  for (const requirement of requirements) {
+    if (selected === undefined || carrierRequirementRank(requirement) < carrierRequirementRank(selected)) {
+      selected = requirement;
+    }
+  }
+  return selected;
+}
+
+function carrierRequirementRank(requirement: CsharpArrayCarrierRequirement): number {
+  switch (requirement) {
+    case "sequential-read":
+      return 1;
+    case "index-read":
+    case "length-read":
+      return 2;
+    case "dense-mutation":
+      return 3;
+    case "full-js":
+      return 4;
+  }
 }

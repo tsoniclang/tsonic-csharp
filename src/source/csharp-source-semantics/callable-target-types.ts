@@ -3,7 +3,6 @@ import type {
   ExtensionObservationContext,
   Node,
   SourceFile,
-  Symbol,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
@@ -47,11 +46,11 @@ export function getCallableExpressionTargetTypeRef(
     return undefined;
   }
   const options = { allowRuntimeCarrier: false, sourceFile };
-  const signature = compiler.types.getCallSignatures(type, { sourceFile })[0];
+  const signature = compiler.typeShape.getCallSignatures(type, { sourceFile })[0];
   if (signature === undefined) {
     return undefined;
   }
-  const semanticParameters = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
+  const semanticParameters = compiler.checker.getSignatureParameters(signature)
     .map((parameter) => host.getTargetTypeRefForType(
       compiler.checker.getTypeOfSymbol(parameter, { sourceFile }),
       context,
@@ -75,7 +74,7 @@ export function getCallableExpressionTargetTypeRef(
     : host.getTargetTypeRefForSubject(returnTypeNode, context, options);
   const checkedReturnType = explicitReturnType ??
     host.getTargetTypeRefForType(
-      compiler.types.getReturnTypeOfSignature(signature, { sourceFile }),
+      compiler.typeShape.getReturnTypeOfSignature(signature, { sourceFile }),
       context,
       options,
     );

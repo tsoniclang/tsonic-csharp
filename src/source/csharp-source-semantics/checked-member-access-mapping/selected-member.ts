@@ -8,12 +8,21 @@ import type {
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
-  TargetMember,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
+  CsharpTargetMember,
+} from "../target-types.js";
+import {
+  csharpTargetBindingFact,
+} from "../target-types.js";
+import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
+import {
+  getCsharpCheckedElementAccessRequestContext,
+  getCsharpCheckedPropertyAccessRequestContext,
+} from "../checked-member-access-request-context.js";
 import {
   instantiateSelectedTargetMember,
 } from "../selected-target-member-instantiation.js";
@@ -36,7 +45,7 @@ interface MemberAccessReceiverRequest {
 
 export interface SelectedTargetMemberIdentity {
   readonly selectedDeclaration: ProviderVirtualDeclarationFact | undefined;
-  readonly member: TargetMember | undefined;
+  readonly member: CsharpTargetMember | undefined;
 }
 
 export function selectCheckedPropertyTargetMember(
@@ -44,13 +53,14 @@ export function selectCheckedPropertyTargetMember(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
 ): SelectedTargetMemberIdentity {
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
-    request.sourceSelectedPropertySymbol,
-    request.sourceSelectedDeclaration,
+    requestContext.sourceSelectedSymbol,
+    requestContext.sourceSelectedDeclaration,
   ]);
   return {
     selectedDeclaration,
-    member: findTargetMember(binding, selectedDeclaration),
+    member: findTargetMember(csharpTargetBindingFact(binding) ?? binding, selectedDeclaration),
   };
 }
 
@@ -61,11 +71,15 @@ export function selectCheckedElementTargetMember(
   host: CsharpOperationsProviderHost,
   declaringTargetType: TargetTypeRef | undefined,
 ): SelectedTargetMemberIdentity {
-  const selectedDeclaration = resolveProviderVirtualDeclaration(context, [request.sourceSelectedDeclaration]);
+  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
+  const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
+    requestContext.sourceSelectedSymbol,
+    requestContext.sourceSelectedDeclaration,
+  ]);
   return {
     selectedDeclaration,
     member: findTargetMemberForElementAccess(
-      binding,
+      csharpTargetBindingFact(binding) ?? binding,
       selectedDeclaration,
       request,
       context,
@@ -105,12 +119,12 @@ export function getDeclaringTargetType(
 }
 
 export function instantiateClosedSelectedTargetMember(
-  member: TargetMember,
+  member: CsharpTargetMember,
   host: CsharpOperationsProviderHost,
   declaringTargetType: TargetTypeRef | undefined,
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   const csharpMember = instantiateSelectedTargetMember({ member }, host, { declaringTargetType });
   return csharpMember === undefined || !targetMemberIsClosed(csharpMember)
     ? undefined
-    : csharpMember;
+    : csharpMember as CsharpTargetMember;
 }

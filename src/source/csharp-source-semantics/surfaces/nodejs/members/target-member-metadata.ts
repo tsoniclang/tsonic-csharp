@@ -1,10 +1,12 @@
 import type {
   ProviderParameterDeclaration,
   ProviderTypeExpression,
-  TargetMember,
   TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import type {
   NodejsClassCallTargetMember,
   NodejsClassPropertyTargetMember,
@@ -197,13 +199,13 @@ function nodejsTargetMember(row: {
   readonly targetMemberId: string;
   readonly sourceName: string;
   readonly targetName: string;
-  readonly kind: TargetMember["kind"];
+  readonly kind: CsharpTargetMember["kind"];
   readonly targetParameters: readonly TargetParameter[];
   readonly targetReturnType: TargetTypeRef;
   readonly declaringType: TargetTypeRef;
   readonly static?: true;
   readonly readonly?: true;
-}): TargetMember {
+}): CsharpTargetMember {
   return {
     id: row.targetMemberId,
     sourceName: row.sourceName,

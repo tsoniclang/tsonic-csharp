@@ -25,6 +25,10 @@ import {
   findTargetBinding,
 } from "../provider-bindings.js";
 import {
+  getCsharpCheckedElementAccessRequestContext,
+  getCsharpCheckedPropertyAccessRequestContext,
+} from "../checked-member-access-request-context.js";
+import {
   csharpSourcePrimitiveTargetType,
 } from "../target-types.js";
 import {
@@ -65,7 +69,8 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = getNativeArrayReceiverType(request.receiverType, request.receiver, context, host);
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  const receiverType = getNativeArrayReceiverType(requestContext.receiverType, request.receiver, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
@@ -77,21 +82,22 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
     }, [{ message: "C# array property access reused finalized provider/surface target operation facts." }]);
   }
   const binding = findTargetBinding(context, [
-    request.sourceSelectedContainerSymbol,
-    request.sourceSelectedDeclarationContainer,
-    request.sourceSelectedDeclaration,
-    request.receiverTypeSymbol,
-    request.receiverType,
-    request.receiverAliasedSymbol,
-    request.receiverResolvedSymbol,
-    request.receiverSymbol,
+    requestContext.sourceSelectedSymbol,
+    requestContext.sourceSelectedContainerSymbol,
+    requestContext.sourceSelectedDeclarationContainer,
+    requestContext.sourceSelectedDeclaration,
+    requestContext.receiverTypeSymbol,
+    requestContext.receiverType,
+    requestContext.receiverAliasedSymbol,
+    requestContext.receiverResolvedSymbol,
+    requestContext.receiverSymbol,
   ]);
   if (binding?.id !== dotnetNativeArrayTypeId) {
     return rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName, true);
   }
   const selectedDeclarationFact = resolveProviderVirtualDeclaration(context, [
-    request.sourceSelectedPropertySymbol,
-    request.sourceSelectedDeclaration,
+    requestContext.sourceSelectedSymbol,
+    requestContext.sourceSelectedDeclaration,
   ]);
   const member = findTargetMember(binding, selectedDeclarationFact);
   if (member?.id !== dotnetNativeArrayLengthMemberId) {
@@ -112,19 +118,23 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = getNativeArrayReceiverType(request.receiverType, request.receiver, context, host);
+  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
+  const receiverType = getNativeArrayReceiverType(requestContext.receiverType, request.receiver, context, host);
   if (receiverType?.kind !== "array") {
     return undefined;
   }
   const binding = findTargetBinding(context, [
-    request.receiverTypeSymbol,
-    request.receiverType,
+    requestContext.receiverTypeSymbol,
+    requestContext.receiverType,
     request.receiver,
   ]);
   if (binding?.id !== dotnetNativeArrayTypeId) {
     return undefined;
   }
-  const virtualDeclaration = resolveProviderVirtualDeclaration(context, [request.sourceSelectedDeclaration]);
+  const virtualDeclaration = resolveProviderVirtualDeclaration(context, [
+    requestContext.sourceSelectedSymbol,
+    requestContext.sourceSelectedDeclaration,
+  ]);
   const member = findTargetMemberForElementAccess(
     binding,
     virtualDeclaration,
@@ -173,8 +183,9 @@ export function mapCsharpSourceArrayCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
   const receiverType = asNativeArrayTargetType(unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.receiverType, context, { allowRuntimeCarrier: true }) ??
+    host.getTargetTypeRefForSubject(requestContext.receiverType, context, { allowRuntimeCarrier: true }) ??
       host.getTargetTypeRefForSubject(request.receiver, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }),
   ));
   if (receiverType?.kind !== "array") {
@@ -200,7 +211,8 @@ export function mapCsharpSourceTupleCheckedElementAccess(
   context: CheckedElementAccessContext,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  const receiverType = getSourceReceiverTargetType(request.receiverType, request.receiver, context, host);
+  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
+  const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);
   if (receiverType?.kind !== "tuple") {
     return undefined;
   }
@@ -214,10 +226,11 @@ export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   context: CheckedElementAccessContext,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
-  if (selectedDeclarationIsAmbientOrExternal(request.sourceSelectedDeclaration, context)) {
+  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
+  if (selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)) {
     return undefined;
   }
-  const receiverType = getSourceReceiverTargetType(request.receiverType, request.receiver, context, host);
+  const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }

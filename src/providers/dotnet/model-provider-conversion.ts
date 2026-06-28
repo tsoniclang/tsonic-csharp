@@ -39,8 +39,8 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
       }
       return {
         kind: "provider-ref",
-        name: type.name,
-        ...(type.moduleSpecifier !== undefined ? { moduleSpecifier: type.moduleSpecifier } : {}),
+        moduleSpecifier: type.moduleSpecifier,
+        exportName: type.exportName,
         ...(typeArguments.length > 0 ? { typeArguments } : {}),
       };
     }

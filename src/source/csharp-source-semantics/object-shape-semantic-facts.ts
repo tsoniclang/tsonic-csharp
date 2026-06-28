@@ -61,15 +61,15 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
   const semanticType = asType(subject) ??
     getSemanticTypeForObjectShapeSubject(node, context, sourceFile);
   if (semanticType === undefined ||
-    compiler.types.isAny(semanticType) ||
-    compiler.types.isUnknown(semanticType) ||
-    compiler.types.isStringLike(semanticType) ||
-    compiler.types.isNumberLike(semanticType) ||
-    compiler.types.isBooleanLike(semanticType) ||
-    compiler.types.isBigIntLike(semanticType) ||
-    compiler.types.isTuple(semanticType) ||
+    compiler.typeShape.isAny(semanticType) ||
+    compiler.typeShape.isUnknown(semanticType) ||
+    compiler.typeShape.isStringLike(semanticType) ||
+    compiler.typeShape.isNumberLike(semanticType) ||
+    compiler.typeShape.isBooleanLike(semanticType) ||
+    compiler.typeShape.isBigIntLike(semanticType) ||
+    (compiler.typeShape.isTypeReference(semanticType) && compiler.typeShape.isTuple(semanticType)) ||
     sourceStandardLibraryTypeIsObjectShapeExcluded(semanticType, context) ||
-    compiler.types.isUnion(semanticType)) {
+    compiler.typeShape.isUnion(semanticType)) {
     return undefined;
   }
   const contextualTargetType = asType(node === undefined ? undefined : context.facts.get(node, contextualTargetTypeFactKey)?.type);

@@ -24,3 +24,8 @@ export {
 export {
   nodePathClassPropertyTargetMembers,
 } from "./path/parsed-path.js";
+export {
+  nodePathPathModuleClassCallTargetMembers,
+  nodePathPathModuleExportDeclaration,
+  nodePathPathModulePropertyTargetMembers,
+} from "./path/path-module.js";

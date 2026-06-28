@@ -1,10 +1,14 @@
 import type {
-  TargetMember,
-} from "@tsonic/tsts";
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import {
   targetParameter,
 } from "../../js/source-library.js";
 import {
+  nodeBufferCompareInstanceExportName,
+  nodeBufferCompareInstanceTargetMemberId,
+  nodeBufferCopyExportName,
+  nodeBufferCopyTargetMemberId,
   nodeBufferEqualsExportName,
   nodeBufferEqualsTargetMemberId,
   nodeBufferLengthTargetMemberId,
@@ -15,6 +19,8 @@ import {
   nodeBufferTargetType,
   nodeBufferToStringExportName,
   nodeBufferToStringTargetMemberId,
+  nodeBufferWriteExportName,
+  nodeBufferWriteTargetMemberId,
 } from "./identities.js";
 import {
   nodeBufferBoolTargetType,
@@ -24,7 +30,7 @@ import {
   nodeBufferToStringEndTargetType,
 } from "./helpers.js";
 
-export function getNodeBufferLengthTargetMember(): TargetMember {
+export function getNodeBufferLengthTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferLengthTargetMemberId,
     sourceName: "length",
@@ -36,7 +42,7 @@ export function getNodeBufferLengthTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferEqualsTargetMember(): TargetMember {
+export function getNodeBufferEqualsTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferEqualsTargetMemberId,
     sourceName: nodeBufferEqualsExportName,
@@ -48,7 +54,36 @@ export function getNodeBufferEqualsTargetMember(): TargetMember {
   };
 }
 
-export function getNodeBufferSliceTargetMember(): TargetMember {
+export function getNodeBufferCompareInstanceTargetMember(): CsharpTargetMember {
+  return {
+    id: nodeBufferCompareInstanceTargetMemberId,
+    sourceName: nodeBufferCompareInstanceExportName,
+    targetName: "compare",
+    kind: "method",
+    parameters: [targetParameter("target", nodeBufferTargetType)],
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
+export function getNodeBufferCopyTargetMember(): CsharpTargetMember {
+  return {
+    id: nodeBufferCopyTargetMemberId,
+    sourceName: nodeBufferCopyExportName,
+    targetName: "copy",
+    kind: "method",
+    parameters: [
+      targetParameter("target", nodeBufferTargetType),
+      targetParameter("targetStart", nodeBufferIntTargetType, { optional: true }),
+      targetParameter("sourceStart", nodeBufferNullableIntTargetType(), { optional: true }),
+      targetParameter("sourceEnd", nodeBufferNullableIntTargetType(), { optional: true }),
+    ],
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
+export function getNodeBufferSliceTargetMember(): CsharpTargetMember {
   return nodeBufferRangeTargetMember({
     targetMemberId: nodeBufferSliceTargetMemberId,
     sourceName: nodeBufferSliceExportName,
@@ -56,7 +91,7 @@ export function getNodeBufferSliceTargetMember(): TargetMember {
   });
 }
 
-export function getNodeBufferSubarrayTargetMember(): TargetMember {
+export function getNodeBufferSubarrayTargetMember(): CsharpTargetMember {
   return nodeBufferRangeTargetMember({
     targetMemberId: nodeBufferSubarrayTargetMemberId,
     sourceName: nodeBufferSubarrayExportName,
@@ -64,7 +99,7 @@ export function getNodeBufferSubarrayTargetMember(): TargetMember {
   });
 }
 
-export function getNodeBufferToStringTargetMember(): TargetMember {
+export function getNodeBufferToStringTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferToStringTargetMemberId,
     sourceName: nodeBufferToStringExportName,
@@ -80,11 +115,28 @@ export function getNodeBufferToStringTargetMember(): TargetMember {
   };
 }
 
+export function getNodeBufferWriteTargetMember(): CsharpTargetMember {
+  return {
+    id: nodeBufferWriteTargetMemberId,
+    sourceName: nodeBufferWriteExportName,
+    targetName: "write",
+    kind: "method",
+    parameters: [
+      targetParameter("str", nodeBufferStringTargetType),
+      targetParameter("offset", nodeBufferIntTargetType, { optional: true }),
+      targetParameter("length", nodeBufferNullableIntTargetType(), { optional: true }),
+      targetParameter("encoding", nodeBufferStringTargetType, { optional: true }),
+    ],
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
 function nodeBufferRangeTargetMember(row: {
   readonly targetMemberId: string;
   readonly sourceName: string;
   readonly targetName: string;
-}): TargetMember {
+}): CsharpTargetMember {
   return {
     id: row.targetMemberId,
     sourceName: row.sourceName,

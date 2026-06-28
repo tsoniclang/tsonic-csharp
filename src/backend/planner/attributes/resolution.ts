@@ -5,8 +5,14 @@ import {
   SourceKind,
   isAstNode,
 } from "../source-ast.js";
-import type { AttributeFact, Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
+import {
+  csharpAttributeApplicationFactKey,
+} from "../../../source/csharp-facts.js";
+import type {
+  CsharpAttributeApplicationFact,
+} from "../../../source/csharp-facts.js";
 
 export interface AttributeApplicationResolution {
   readonly applicationTarget?: Node;
@@ -16,7 +22,7 @@ export interface AttributeApplicationResolution {
 }
 
 export function resolveAttributeApplication(
-  attribute: AttributeFact,
+  attribute: CsharpAttributeApplicationFact,
   contextSourceFile: SourceFile,
   input: TargetCompileInput,
 ): AttributeApplicationResolution {
@@ -59,16 +65,17 @@ export function attributeSubjectDescription(
 }
 
 export function directAttributeFactAppliesToSubject(
-  attribute: AttributeFact | undefined,
-): attribute is AttributeFact {
-  return attribute !== undefined && attribute.applicationTarget === undefined;
+  attribute: CsharpAttributeApplicationFact | undefined,
+): attribute is CsharpAttributeApplicationFact {
+  return attribute !== undefined;
 }
 
 export function attributeFactForNodeOrSymbol(
   subject: Node,
   input: TargetCompileInput,
-): AttributeFact | undefined {
-  return input.facts.getAttributeFact(subject) ?? input.facts.getAttributeFact(Node_Symbol(subject));
+): CsharpAttributeApplicationFact | undefined {
+  return input.facts.getFact(subject, csharpAttributeApplicationFactKey) ??
+    input.facts.getFact(Node_Symbol(subject), csharpAttributeApplicationFactKey);
 }
 
 function findConstructorDeclaration(

@@ -57,20 +57,18 @@ export function getCheckedExpressionRuntimeCarrierTargetTypeRef(
     if (type === undefined) {
       return undefined;
     }
-    if (compiler.types.isAny(type)) {
+    if (compiler.typeShape.isAny(type)) {
       const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
         type,
-        sourceTypeReference: node,
         target: csharpTargetId,
       }, host);
       return result.kind === "accept" ? result.value.carrier : undefined;
     }
-    if (!compiler.types.isUnion(type)) {
+    if (!compiler.typeShape.isUnion(type)) {
       return undefined;
     }
     const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
       type,
-      sourceTypeReference: node,
       target: csharpTargetId,
     }, host);
     return result.kind === "accept" ? result.value.carrier : undefined;

@@ -38,7 +38,7 @@ export function deriveCsharpObjectShapeMembersForSemanticType(
   if (compiler === undefined) {
     return undefined;
   }
-  const properties = compiler.types.getProperties(type, { sourceFile })
+  const properties = compiler.typeShape.getProperties(type, { sourceFile })
     .filter((property): property is Symbol => property !== undefined);
   if (properties.length === 0) {
     return undefined;
@@ -61,8 +61,8 @@ function deriveCsharpObjectShapeMemberFactForSemanticProperty(
   if (sourceName.length === 0 || context.compiler === undefined) {
     return undefined;
   }
-  const propertyType = context.compiler.types.getPropertyType(ownerType, sourceName, { sourceFile });
-  const signatures = context.compiler.types.getCallSignatures(propertyType, { sourceFile });
+  const propertyType = context.compiler.typeShape.getPropertyType(ownerType, sourceName, { sourceFile });
+  const signatures = context.compiler.typeShape.getCallSignatures(propertyType, { sourceFile });
   const memberKind = callableMemberMode === "callable-property-as-method" &&
     signatures.length > 0 &&
     isMethodLikeObjectShapeProperty(property, context)
@@ -93,7 +93,7 @@ function getExplicitMethodTargetTypeRef(
   if (ast === undefined) {
     return undefined;
   }
-  for (const declaration of getSymbolDeclarations(property)) {
+  for (const declaration of getSymbolDeclarations(property, context.compiler?.checker)) {
     const kind = ast.kindName(declaration);
     if (kind !== "KindMethodSignature" && kind !== "KindMethodDeclaration") {
       continue;
@@ -111,7 +111,7 @@ function getExplicitPropertyTargetTypeRef(
   context: ExtensionObservationContext,
   host: CsharpObjectShapeSemanticsHost,
 ): TargetTypeRef | undefined {
-  for (const declaration of getSymbolDeclarations(property)) {
+  for (const declaration of getSymbolDeclarations(property, context.compiler?.checker)) {
     const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
     if (typeNode === undefined) {
       continue;
@@ -132,7 +132,7 @@ function isMethodLikeObjectShapeProperty(
   if (ast === undefined) {
     return false;
   }
-  return getSymbolDeclarations(property).some((declaration) => {
+  return getSymbolDeclarations(property, context.compiler?.checker).some((declaration) => {
     const kind = ast.kindName(declaration);
     return kind === "KindMethodSignature" || kind === "KindMethodDeclaration";
   });
@@ -148,12 +148,12 @@ function getFunctionTargetTypeRefFromSemanticSignature(
   if (compiler === undefined || signature === undefined) {
     return undefined;
   }
-  const parameterTypes = ((signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [])
+  const parameterTypes = compiler.checker.getSignatureParameters(signature as Parameters<typeof compiler.checker.getSignatureParameters>[0])
     .map((parameter) => host.getTargetTypeRefForType(compiler.checker.getTypeOfSymbol(parameter, { sourceFile }), context));
   if (parameterTypes.some((parameter) => parameter === undefined)) {
     return undefined;
   }
-  const returnType = host.getTargetTypeRefForType(compiler.types.getReturnTypeOfSignature(signature as Parameters<typeof compiler.types.getReturnTypeOfSignature>[0], { sourceFile }), context);
+  const returnType = host.getTargetTypeRefForType(compiler.typeShape.getReturnTypeOfSignature(signature as Parameters<typeof compiler.typeShape.getReturnTypeOfSignature>[0], { sourceFile }), context);
   return returnType === undefined || isVoidTargetType(returnType)
     ? csharpDelegateTargetType("System.Action", parameterTypes as readonly TargetTypeRef[])
     : csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);

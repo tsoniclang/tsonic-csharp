@@ -16,9 +16,6 @@ import type {
 import {
   asNodeSubject,
 } from "../../source/fact-subjects.js";
-import {
-  getSymbolDeclarations,
-} from "../../source/csharp-source-semantics/symbol-utils.js";
 
 export function getArrayBoundaryCoreCarrierForExpression(
   input: TargetCompileInput,
@@ -56,7 +53,7 @@ function arrayBoundaryFactSubjects(
   appendSubject(subjects, directSymbol);
   appendSubject(subjects, resolvedSymbol);
   for (const symbol of [directSymbol, resolvedSymbol]) {
-    for (const declaration of getSymbolDeclarations(symbol)) {
+    for (const declaration of input.analysis.getSymbolDeclarations(symbol)) {
       appendDeclarationSubjects(subjects, declaration);
     }
   }

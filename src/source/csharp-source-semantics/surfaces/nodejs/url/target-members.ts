@@ -23,8 +23,10 @@ import {
   nodeUrlPathToFileUrlSignatureId,
   nodeUrlUrlCanParseMemberId,
   nodeUrlUrlCanParseSignatureId,
+  nodeUrlUrlCanParseUrlSignatureId,
   nodeUrlUrlConstructorMemberId,
   nodeUrlUrlConstructorSignatureId,
+  nodeUrlUrlConstructorUrlSignatureId,
   nodeUrlUrlExportName,
   nodeUrlUrlHrefMemberId,
 } from "./identities.js";
@@ -38,6 +40,7 @@ import {
   nodeUrlOptionalStringParameter,
   nodeUrlStringParameter,
   nodeUrlUrlParameter,
+  objectTargetType,
   stringProviderType,
   stringTargetType,
   urlModuleTargetType,
@@ -61,6 +64,9 @@ export function nodeUrlCallTargetMembers(): readonly NodeUrlCallTargetMember[] {
     ], targetReturnType: stringTargetType }),
     urlModuleCall({ exportName: "domainToUnicode", signatureId: "node:url.domainToUnicode(System.String)", targetMemberId: "Tsonic.CSharp.Node.url.domainToUnicode(System.String)", sourceName: "domainToUnicode", targetName: "domainToUnicode", providerParameters: [nodeUrlStringParameter("domain")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("domain", stringTargetType),
+    ], targetReturnType: stringTargetType }),
+    urlModuleCall({ exportName: "format", signatureId: "node:url.format(Tsonic.CSharp.Node.URL)", targetMemberId: "Tsonic.CSharp.Node.url.format(System.Object)", sourceName: "format", targetName: "format", providerParameters: [nodeUrlUrlParameter("urlObject")], providerReturnType: stringProviderType, targetParameters: [
+      targetParameter("urlObject", objectTargetType, { csharpAcceptsClosedSourceArgument: true }),
     ], targetReturnType: stringTargetType }),
     urlModuleCall({ exportName: "parse", signatureId: "node:url.parse(System.String)", targetMemberId: "Tsonic.CSharp.Node.url.parse(System.String)", sourceName: "parse", targetName: "parse", providerParameters: [nodeUrlStringParameter("input")], providerReturnType: nullableUrlProviderType, targetParameters: [
       targetParameter("input", stringTargetType),
@@ -93,13 +99,25 @@ export function nodeUrlClassCallTargetMembers(): readonly NodeUrlClassCallTarget
       targetParameter("input", stringTargetType),
       targetParameter("base", stringTargetType, { optional: true }),
     ]),
+    urlClassConstructorWithIdentity(nodeUrlUrlConstructorUrlSignatureId, "Tsonic.CSharp.Node.URL..ctor(System.String,Tsonic.CSharp.Node.URL)", [nodeUrlStringParameter("input"), nodeUrlUrlParameter("base")], [
+      targetParameter("input", stringTargetType),
+      targetParameter("base", urlTargetType),
+    ]),
     urlClassMethod({ exportName: nodeUrlUrlExportName, memberName: "canParse", memberId: nodeUrlUrlCanParseMemberId, signatureId: nodeUrlUrlCanParseSignatureId, targetMemberId: "Tsonic.CSharp.Node.URL.canParse(System.String,System.String)", sourceName: "canParse", targetName: "canParse", memberKind: "method", providerParameters: [nodeUrlStringParameter("input"), nodeUrlOptionalStringParameter("base")], providerReturnType: boolProviderType, targetParameters: [
       targetParameter("input", stringTargetType),
       targetParameter("base", stringTargetType, { optional: true }),
     ], targetReturnType: boolTargetType, static: true }),
+    urlClassMethod({ exportName: nodeUrlUrlExportName, memberName: "canParse", memberId: nodeUrlUrlCanParseMemberId, signatureId: nodeUrlUrlCanParseUrlSignatureId, targetMemberId: "Tsonic.CSharp.Node.URL.canParse(System.String,Tsonic.CSharp.Node.URL)", sourceName: "canParse", targetName: "canParse", memberKind: "method", providerParameters: [nodeUrlStringParameter("input"), nodeUrlUrlParameter("base")], providerReturnType: boolProviderType, targetParameters: [
+      targetParameter("input", stringTargetType),
+      targetParameter("base", urlTargetType),
+    ], targetReturnType: boolTargetType, static: true }),
     urlClassMethod({ exportName: nodeUrlUrlExportName, memberName: "parse", memberId: "node:url.URL.parse", signatureId: "node:url.URL.parse(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.URL.parse(System.String,System.String)", sourceName: "parse", targetName: "parse", memberKind: "method", providerParameters: [nodeUrlStringParameter("input"), nodeUrlOptionalStringParameter("base")], providerReturnType: nullableUrlProviderType, targetParameters: [
       targetParameter("input", stringTargetType),
       targetParameter("base", stringTargetType, { optional: true }),
+    ], targetReturnType: nullableUrlTargetType, static: true }),
+    urlClassMethod({ exportName: nodeUrlUrlExportName, memberName: "parse", memberId: "node:url.URL.parse", signatureId: "node:url.URL.parse(System.String,Tsonic.CSharp.Node.URL)", targetMemberId: "Tsonic.CSharp.Node.URL.parse(System.String,Tsonic.CSharp.Node.URL)", sourceName: "parse", targetName: "parse", memberKind: "method", providerParameters: [nodeUrlStringParameter("input"), nodeUrlUrlParameter("base")], providerReturnType: nullableUrlProviderType, targetParameters: [
+      targetParameter("input", stringTargetType),
+      targetParameter("base", urlTargetType),
     ], targetReturnType: nullableUrlTargetType, static: true }),
     urlClassMethod({ exportName: nodeUrlUrlExportName, memberName: "toString", memberId: "node:url.URL.toString", signatureId: "node:url.URL.toString()", targetMemberId: "Tsonic.CSharp.Node.URL.ToString()", sourceName: "toString", targetName: "ToString", memberKind: "method", providerParameters: [], providerReturnType: stringProviderType, targetParameters: [], targetReturnType: stringTargetType }),
     urlClassMethod({ exportName: nodeUrlUrlExportName, memberName: "toJSON", memberId: "node:url.URL.toJSON", signatureId: "node:url.URL.toJSON()", targetMemberId: "Tsonic.CSharp.Node.URL.toJSON()", sourceName: "toJSON", targetName: "toJSON", memberKind: "method", providerParameters: [], providerReturnType: stringProviderType, targetParameters: [], targetReturnType: stringTargetType }),
@@ -133,12 +151,26 @@ function urlClassConstructor(
   providerParameters: readonly ProviderParameterDeclaration[],
   targetParameters: readonly TargetParameter[],
 ): NodeUrlClassCallTargetMember {
+  return urlClassConstructorWithIdentity(
+    nodeUrlUrlConstructorSignatureId,
+    "Tsonic.CSharp.Node.URL..ctor(System.String,System.String)",
+    providerParameters,
+    targetParameters,
+  );
+}
+
+function urlClassConstructorWithIdentity(
+  signatureId: string,
+  targetMemberId: string,
+  providerParameters: readonly ProviderParameterDeclaration[],
+  targetParameters: readonly TargetParameter[],
+): NodeUrlClassCallTargetMember {
   return nodejsClassCallTargetMetadata({
     exportName: nodeUrlUrlExportName,
     memberName: "constructor",
     memberId: nodeUrlUrlConstructorMemberId,
-    signatureId: nodeUrlUrlConstructorSignatureId,
-    targetMemberId: "Tsonic.CSharp.Node.URL..ctor(System.String,System.String)",
+    signatureId,
+    targetMemberId,
     sourceName: "constructor",
     targetName: "URL",
     memberKind: "constructor",

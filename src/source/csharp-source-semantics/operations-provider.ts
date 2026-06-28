@@ -1,6 +1,8 @@
 import {
   TstsProviderContractVersion,
   deferObservation,
+  runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedCallMappingRequest,
@@ -67,6 +69,10 @@ import {
   resolveSourceLibraryMemberIdentity,
 } from "./source-library.js";
 import {
+  getCsharpCheckedElementAccessRequestContext,
+  getCsharpCheckedPropertyAccessRequestContext,
+} from "./checked-member-access-request-context.js";
+import {
   isSourceStandardLibraryArrayLikeType,
 } from "./source-type-classification.js";
 import {
@@ -121,15 +127,6 @@ export function createCsharpTargetOperationsProvider(
     : undefined;
   return {
     identity,
-    resolveRuntimeCarrier(request, context) {
-      if (request.target !== undefined && request.target !== csharpTargetId) {
-        return deferObservation;
-      }
-      return useObservationOrWhenDeferred(
-        jsSurface?.mapRuntimeCarrier(request, context) ?? deferObservation,
-        () => host.mapRuntimeCarrier(request, context),
-      );
-    },
     mapCheckedCall(request, context) {
       const nodejsObservation = nodejsSurface?.mapCheckedCall(request, context) ?? deferObservation;
       if (nodejsObservation.kind !== "defer") {
@@ -213,7 +210,14 @@ export function createCsharpJsSurfaceHost(
       context: ExtensionObservationContext,
       options: Pick<TargetMemberSelectionOptions, "declaringTargetType" | "declaringTypeParameters"> = {},
     ) =>
-      selectTargetMember(candidates, request, context, host.getTargetTypeRefForSubject, {
+      selectTargetMember(candidates, request, context, (subject, resolutionContext, resolutionOptions) =>
+        subject === undefined
+          ? undefined
+          : resolutionContext.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+            resolutionContext.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier ??
+            resolutionContext.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+            resolutionContext.facts.get(subject, runtimeCarrierFactKey)?.carrier ??
+            host.getTargetTypeRefForSubject(subject, resolutionContext, resolutionOptions), {
         getBaseTargetTypeRef: host.getBaseTargetTypeRef,
         ...options,
       }),
@@ -233,14 +237,17 @@ function jsSurfaceOwnsCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): boolean {
-  return resolveSourceLibraryMemberIdentity(request.sourceSelectedDeclaration, context) !== undefined;
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  return resolveSourceLibraryMemberIdentity(request.sourceSelectedSymbol, context) !== undefined ||
+    resolveSourceLibraryMemberIdentity(requestContext.sourceSelectedDeclaration, context) !== undefined;
 }
 
 function jsSurfaceOwnsCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
 ): boolean {
-  const receiverType = asSemanticType(request.receiverType);
+  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
+  const receiverType = asSemanticType(requestContext.receiverType);
   return receiverType !== undefined && isSourceStandardLibraryArrayLikeType(receiverType, context);
 }
 

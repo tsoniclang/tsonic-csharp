@@ -110,11 +110,10 @@ function recordCsharpJsArrayElementAccessFact(
     return;
   }
   const receiverType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
-  const receiverCarrier = getFinalizedArrayElementReceiverCarrier(receiver, receiverType, context, host);
+  const receiverCarrier = getFinalizedArrayElementReceiverCarrier(receiver, context, host);
   const request = {
     expression: node,
     receiver,
-    receiverType,
     argument,
     target: csharpTargetId,
   } satisfies CheckedElementAccessMappingRequest;
@@ -149,18 +148,12 @@ function recordCsharpJsArrayElementAccessFact(
 
 function getFinalizedArrayElementReceiverCarrier(
   receiver: Node,
-  receiverType: Type | undefined,
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
   return host.unwrapNullableTargetType(
     context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
-      (receiverType === undefined ? undefined : context.factResolver.resolve(receiverType, runtimeCarrierFactKey)?.carrier) ??
       host.getTargetTypeRefForSubject(receiver, context, {
-        allowRuntimeCarrier: true,
-        allowSemanticTypeQuery: false,
-      }) ??
-      host.getTargetTypeRefForSubject(receiverType, context, {
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,
       }),

@@ -173,8 +173,6 @@ function isMatchingConversionOperatorFact(
   csharpOperation: Extract<CsharpTargetOperationFact, { readonly kind: "conversion-operator" }>,
   conversion: TargetConversion,
 ): boolean {
-  return conversion.sourceType !== undefined &&
-    conversion.convertedType !== undefined &&
-    targetTypeRefEquals(csharpOperation.sourceType, conversion.sourceType) &&
+  return conversion.convertedType !== undefined &&
     targetTypeRefEquals(csharpOperation.targetType, conversion.convertedType);
 }

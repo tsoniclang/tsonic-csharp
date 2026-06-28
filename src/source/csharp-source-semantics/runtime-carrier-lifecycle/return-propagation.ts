@@ -80,13 +80,13 @@ function getDeclarationReturnType(
   const resolvedSymbolType = resolvedSymbol === undefined
     ? undefined
     : compiler.checker.getTypeOfSymbol(resolvedSymbol, { sourceFile });
-  const signature = compiler.types.getCallSignatures(declarationType, { sourceFile })[0] ??
-    compiler.types.getCallSignatures(nameType, { sourceFile })[0] ??
-    compiler.types.getCallSignatures(symbolType, { sourceFile })[0] ??
-    compiler.types.getCallSignatures(resolvedSymbolType, { sourceFile })[0];
+  const signature = compiler.typeShape.getCallSignatures(declarationType, { sourceFile })[0] ??
+    compiler.typeShape.getCallSignatures(nameType, { sourceFile })[0] ??
+    compiler.typeShape.getCallSignatures(symbolType, { sourceFile })[0] ??
+    compiler.typeShape.getCallSignatures(resolvedSymbolType, { sourceFile })[0];
   return signature === undefined
     ? undefined
-    : compiler.types.getReturnTypeOfSignature(signature, { sourceFile });
+    : compiler.typeShape.getReturnTypeOfSignature(signature, { sourceFile });
 }
 
 function isSourceReturnCarrierDeclaration(

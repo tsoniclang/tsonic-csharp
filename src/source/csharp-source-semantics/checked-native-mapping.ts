@@ -3,6 +3,7 @@ import {
   argumentPassingFactKey,
   contextualTargetTypeFactKey,
   deferObservation,
+  providerVirtualDeclarationFactKey,
   rejectObservation,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
@@ -47,6 +48,7 @@ import {
 } from "./operations.js";
 import {
   asTargetParameter,
+  asType,
   targetTypeRefEquals,
   targetTypeRefKey,
 } from "./target-ref-utils.js";
@@ -55,6 +57,9 @@ import {
 } from "./target-member-selection.js";
 import type { TargetTypeRefResolutionOptions } from "./target-member-selection.js";
 import type { CsharpOperationsProviderHost } from "./operations-provider.js";
+import {
+  asNodeSubject,
+} from "./ast-utils.js";
 import {
   isAttributeSelectorCallbackExpression,
 } from "./source-marker-selectors.js";
@@ -70,8 +75,13 @@ export function mapCsharpNativeCheckedIteration(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
+  const expressionNode = asNodeSubject(request.expression);
+  const expressionSourceFile = expressionNode === undefined ? undefined : context.compiler?.ast.getSourceFile(expressionNode);
+  const sourceExpressionType = expressionNode === undefined || context.compiler === undefined
+    ? undefined
+    : context.compiler.checker.getTypeAtLocation(expressionNode, { sourceFile: expressionSourceFile });
   const expressionType = host.getTargetTypeRefForSubject(request.expression, context, expressionEvidenceQuery) ??
-    host.getTargetTypeRefForSubject(request.sourceExpressionType, context, noRuntimeCarrierQuery);
+    host.getTargetTypeRefForSubject(sourceExpressionType, context, noRuntimeCarrierQuery);
   if (request.kind === "for-of") {
     const elementType = getCsharpCollectionElementTargetType(expressionType);
     if (elementType !== undefined) {
@@ -115,6 +125,11 @@ export function mapCsharpContextualTargetType(
   if (isAttributeSelectorCallbackExpression(request.expression, context)) {
     return deferObservation;
   }
+  if (contextualTypeIsProviderVirtualDeclaration(request, context)) {
+    return acceptObservation<ContextualTargetTypeResult>({
+      type: request.context,
+    }, [{ message: "C# acknowledged provider virtual contextual type without re-entering target type resolution during TSTS contextual checking." }]);
+  }
   const targetType = host.getTargetTypeRefForSubject(request.context, context);
   if (targetType === undefined) {
     return acceptObservation<ContextualTargetTypeResult>({
@@ -125,6 +140,18 @@ export function mapCsharpContextualTargetType(
     type: request.context,
     targetType,
   }, [{ message: "C# contextual target type recorded from checked TSTS contextual type and deterministic C# target type." }]);
+}
+
+function contextualTypeIsProviderVirtualDeclaration(
+  request: ContextualTargetTypeRequest,
+  context: ExtensionObservationContext<"type.recordContextualTargetType">,
+): boolean {
+  const type = asType(request.context);
+  const symbol = type === undefined
+    ? undefined
+    : context.compiler?.checker.getTypeSymbol(type);
+  return context.facts.get(request.context, providerVirtualDeclarationFactKey) !== undefined ||
+    context.facts.get(symbol, providerVirtualDeclarationFactKey) !== undefined;
 }
 
 export function mapCsharpCheckedConversion(
@@ -143,26 +170,22 @@ export function mapCsharpCheckedConversion(
   const selectedSignatureReturn = context.facts.get(request.source, selectedTargetSignatureFactKey)?.member.returnType;
   if (selectedSignatureReturn !== undefined && targetTypeRefEquals(selectedSignatureReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
-      ...(source !== undefined ? { sourceType: source } : {}),
       convertedType: target,
     }, [{ message: "C# selected target operation already returns the selected target type." }]);
   }
   const csharpOperationReturn = context.facts.get(request.source, csharpTargetOperationFactKey)?.resultType;
   if (csharpOperationReturn !== undefined && targetTypeRefEquals(csharpOperationReturn, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
-      ...(source !== undefined ? { sourceType: source } : {}),
       convertedType: target,
     }, [{ message: "C# finalized target operation already returns the selected target type." }]);
   }
   if (source !== undefined && targetTypeRefEquals(source, target)) {
     return acceptObservation<CheckedConversionMappingResult>({
-      sourceType: source,
       convertedType: target,
     }, [{ message: "C# argument already has the selected target type." }]);
   }
   if (isLiteralRepresentableAsTargetType(target, request.source, context)) {
     return acceptObservation<CheckedConversionMappingResult>({
-      ...(source !== undefined ? { sourceType: source } : {}),
       convertedType: target,
     }, [{ message: "C# literal argument is statically representable as the selected target type." }]);
   }
@@ -197,7 +220,6 @@ export function mapCsharpCheckedConversion(
     });
   }
   return acceptObservation<CheckedConversionMappingResult>({
-    ...(source !== undefined ? { sourceType: source } : {}),
     convertedType: target,
     ...(operation !== undefined ? { operation: operation.operation } : {}),
   }, [{ message: "C# target conversion recorded from checked call argument and selected target parameter." }]);

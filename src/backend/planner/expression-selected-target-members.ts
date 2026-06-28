@@ -10,10 +10,12 @@ import {
 import type {
   Node,
   SourceFile,
-  TargetMember,
-  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+  CsharpTargetParameter,
+} from "../../source/csharp-source-semantics/target-types.js";
 import type {
   TargetCompileInput,
   TargetDiagnostic,
@@ -50,7 +52,7 @@ import type {
 export function planSelectedTargetCallArguments(
   callee: Node | undefined,
   expression: { readonly Arguments?: { readonly Nodes?: readonly (Node | undefined)[] } } | undefined,
-  member: TargetMember,
+  member: CsharpTargetMember,
   argumentArrayLiteralElementTypes: readonly (TargetTypeRef | undefined)[] | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
@@ -62,9 +64,10 @@ export function planSelectedTargetCallArguments(
   const argumentsList: CsharpArgument[] = [];
   for (const [index, argument] of (expression?.Arguments?.Nodes ?? []).filter((candidate): candidate is Node => candidate !== undefined).entries()) {
     const parameter = getTargetParameterForArgument(member.parameters, index + parameterOffset);
-    const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
-    const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(argument, targetType, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
-    const planned = planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, targetType);
+    const parameterTargetType = parameter?.type;
+    const renderTargetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
+    const expectedType = renderTargetType === undefined ? undefined : getExpectedArgumentRenderType(argument, renderTargetType, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
+    const planned = planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, parameterTargetType);
     if (planned === undefined) {
       return undefined;
     }
@@ -156,7 +159,7 @@ function planSelectedStaticTargetCallee(
 
 function planSelectedTargetReceiverArgument(
   callee: Node | undefined,
-  member: TargetMember,
+  member: CsharpTargetMember,
   argumentArrayLiteralElementTypes: readonly (TargetTypeRef | undefined)[] | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
@@ -189,12 +192,13 @@ function planSelectedTargetReceiverArgument(
     return undefined;
   }
   const parameter = member.parameters[0];
-  const targetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
-  const expectedType = targetType === undefined ? undefined : getExpectedArgumentRenderType(receiver, targetType, input, argumentArrayLiteralElementTypes?.[0]);
-  return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType, undefined, targetType);
+  const parameterTargetType = parameter?.type;
+  const renderTargetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
+  const expectedType = renderTargetType === undefined ? undefined : getExpectedArgumentRenderType(receiver, renderTargetType, input, argumentArrayLiteralElementTypes?.[0]);
+  return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType, undefined, parameterTargetType);
 }
 
-function getTargetParameterForArgument(parameters: readonly TargetParameter[], index: number): TargetParameter | undefined {
+function getTargetParameterForArgument(parameters: readonly CsharpTargetParameter[], index: number): CsharpTargetParameter | undefined {
   const parameter = parameters[index];
   if (parameter !== undefined) {
     return parameter;
@@ -203,7 +207,7 @@ function getTargetParameterForArgument(parameters: readonly TargetParameter[], i
   return last?.paramsArray === true ? last : undefined;
 }
 
-function getTargetParameterRenderType(parameter: TargetParameter): TargetTypeRef {
+function getTargetParameterRenderType(parameter: CsharpTargetParameter): TargetTypeRef {
   return parameter.paramsArray === true && parameter.type.kind === "array"
     ? parameter.type.element
     : parameter.type;
@@ -211,7 +215,7 @@ function getTargetParameterRenderType(parameter: TargetParameter): TargetTypeRef
 
 function isProviderStaticContainerReceiver(
   receiver: Node,
-  member: TargetMember,
+  member: CsharpTargetMember,
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): boolean {

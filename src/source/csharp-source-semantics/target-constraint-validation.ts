@@ -96,13 +96,17 @@ function validateCsharpTargetConstraintForType(
           ? validConstraint("C# target generic constraint proved a notnull target argument.", source, constraint)
           : invalidConstraint(`C# target generic constraint requires a non-null target argument, but no finalized provider fact proves '${targetTypeRefKey(source)}' is non-null.`, constraintEvidence(source, constraint));
       }
+      if (constraint.target === csharpTargetId && constraint.name === "unsupported-constraint") {
+        const unsupported = unsupportedConstraintValue(constraint.value);
+        return invalidConstraint(
+          unsupported === undefined
+            ? "C# target generic constraint is unsupported by the C# target provider."
+            : `C# target generic constraint '${unsupported.targetId}' is not supported by the C# target provider: ${unsupported.reason}`,
+          constraintEvidence(source, constraint),
+        );
+      }
       return invalidConstraint(
         `C# target-specific generic constraint '${constraint.target}:${constraint.name}' is not supported by the C# target provider.`,
-        constraintEvidence(source, constraint),
-      );
-    case "unsupported":
-      return invalidConstraint(
-        `C# target generic constraint '${constraint.id}' is not supported by the C# target provider: ${constraint.reason}`,
         constraintEvidence(source, constraint),
       );
     case "copy":
@@ -115,6 +119,14 @@ function validateCsharpTargetConstraintForType(
         constraintEvidence(source, constraint),
       );
   }
+}
+
+function unsupportedConstraintValue(value: unknown): { readonly targetId: string; readonly reason: string } | undefined {
+  return typeof value === "object" && value !== null &&
+    "targetId" in value && typeof (value as { readonly targetId?: unknown }).targetId === "string" &&
+    "reason" in value && typeof (value as { readonly reason?: unknown }).reason === "string"
+    ? { targetId: (value as { readonly targetId: string }).targetId, reason: (value as { readonly reason: string }).reason }
+    : undefined;
 }
 
 function isCsharpValueType(type: TargetTypeRef, host: CsharpOperationsProviderHost): boolean {

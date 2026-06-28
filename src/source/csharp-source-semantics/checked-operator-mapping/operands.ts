@@ -70,8 +70,10 @@ export function getCheckedOperatorOperandTargetTypeRefs(
   operandQuery: TargetTypeRefResolutionOptions,
   host: CsharpOperationsProviderHost,
 ): { readonly left: TargetTypeRef | undefined; readonly right: TargetTypeRef | undefined } {
-  let left = getCheckedOperatorOperandTargetTypeRef(request.leftType, request.left, sourceFile, context, operandQuery, host);
-  let right = getCheckedOperatorOperandTargetTypeRef(request.rightType, request.right, sourceFile, context, operandQuery, host);
+  const leftType = getCheckedOperandType(request.left, sourceFile, context);
+  const rightType = getCheckedOperandType(request.right, sourceFile, context);
+  let left = getCheckedOperatorOperandTargetTypeRef(leftType, request.left, sourceFile, context, operandQuery, host);
+  let right = getCheckedOperatorOperandTargetTypeRef(rightType, request.right, sourceFile, context, operandQuery, host);
   if (request.right === undefined && left === undefined) {
     left = context.factResolver.resolve(request.expression, runtimeCarrierFactKey)?.carrier;
   }
@@ -84,6 +86,17 @@ export function getCheckedOperatorOperandTargetTypeRefs(
       getNullishTargetTypeRefForKnownOperatorOperand(right, request.left, sourceFile, context);
   }
   return { left, right };
+}
+
+function getCheckedOperandType(
+  subject: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+): ExtensionFactSubject | undefined {
+  const node = asNodeSubject(subject);
+  return node === undefined || context.compiler === undefined
+    ? undefined
+    : context.compiler.checker.getTypeAtLocation(node, { sourceFile });
 }
 
 export function getBitwiseLiteralOperandTargetTypeRefs(

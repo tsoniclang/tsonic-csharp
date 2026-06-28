@@ -13,9 +13,12 @@ import {
   SourceKind,
   isAstNode,
 } from "../source-ast.js";
-import type { AttributeFact, Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpArgument, CsharpAttribute, CsharpAttributeTargetSpecifier } from "../../roslyn/syntax.js";
+import type {
+  CsharpAttributeApplicationFact,
+} from "../../../source/csharp-facts.js";
 import { expressionToCsharpType } from "../csharp-types.js";
 import { planExpression } from "../expressions.js";
 import {
@@ -59,7 +62,7 @@ export function isErasedAttributeExpressionStatement(
 }
 
 function planAttribute(
-  attribute: AttributeFact,
+  attribute: CsharpAttributeApplicationFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -79,7 +82,7 @@ function planAttribute(
 }
 
 function planAttributeArguments(
-  attribute: AttributeFact,
+  attribute: CsharpAttributeApplicationFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -100,7 +103,7 @@ function planAttributeArguments(
 }
 
 function planAttributeTargetSpecifier(
-  attribute: AttributeFact,
+  attribute: CsharpAttributeApplicationFact,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],

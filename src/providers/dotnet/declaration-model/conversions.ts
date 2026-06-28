@@ -1,7 +1,7 @@
 import type {
   ProviderExportDeclaration,
+  ProviderHeritageDeclaration,
   ProviderMemberDeclaration,
-  ProviderTypeExpression,
   TargetIdentity,
 } from "@tsonic/tsts";
 import type {
@@ -11,7 +11,7 @@ import type {
 } from "../model.js";
 import { tryDotnetTypeRefToProviderType } from "../model.js";
 
-export function tryDotnetBaseTypeToProviderHeritage(baseType: DotnetTypeRef | undefined): ProviderTypeExpression | undefined {
+export function tryDotnetBaseTypeToProviderHeritage(baseType: DotnetTypeRef | undefined): ProviderHeritageDeclaration | undefined {
   if (baseType === undefined) {
     return undefined;
   }
@@ -21,7 +21,7 @@ export function tryDotnetBaseTypeToProviderHeritage(baseType: DotnetTypeRef | un
   if (providerType?.kind !== "provider-ref") {
     return undefined;
   }
-  return providerType;
+  return { kind: "extends", type: providerType };
 }
 
 export function dotnetTypeKindToProviderKind(kind: DotnetTypeDeclaration["typeKind"]): ProviderExportDeclaration["kind"] {

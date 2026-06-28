@@ -8,12 +8,16 @@ import {
   nodePathParsedPathExportDeclaration,
 } from "./parsed-path.js";
 import {
+  nodePathPathModuleExportDeclaration,
+} from "./path-module.js";
+import {
   nodePathPropertyTargetMembers,
 } from "./properties.js";
 
 export function nodePathExports(): readonly ProviderExportDeclaration[] {
   return [
     nodePathParsedPathExportDeclaration(),
+    nodePathPathModuleExportDeclaration(),
     ...nodePathCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
       id: `node:path.${exportName}`,
       name: exportName,

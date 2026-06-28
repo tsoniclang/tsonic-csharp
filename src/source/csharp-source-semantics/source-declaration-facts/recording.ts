@@ -61,10 +61,11 @@ export function recordSourceDeclarationTarget(
       if (objectShape !== undefined) {
         lifecycleContext.host.facts.set(type, csharpObjectShapeFactKey, objectShape, evidence);
       }
-      if (type.symbol !== undefined) {
-        lifecycleContext.host.facts.set(type.symbol, runtimeCarrierFactKey, fact, evidence);
+      const typeSymbol = compiler.checker.getTypeSymbol(type);
+      if (typeSymbol !== undefined) {
+        lifecycleContext.host.facts.set(typeSymbol, runtimeCarrierFactKey, fact, evidence);
         if (objectShape !== undefined) {
-          lifecycleContext.host.facts.set(type.symbol, csharpObjectShapeFactKey, objectShape, evidence);
+          lifecycleContext.host.facts.set(typeSymbol, csharpObjectShapeFactKey, objectShape, evidence);
         }
       }
     }

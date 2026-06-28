@@ -1,11 +1,11 @@
 import type {
-  TargetParameter,
-} from "@tsonic/tsts";
+  CsharpTargetParameter,
+} from "../target-types.js";
 import {
   targetParameterPassingModeIsValid,
 } from "./argument-passing.js";
 
-export function targetArityMatches(parameters: readonly TargetParameter[], argumentCount: number): boolean {
+export function targetArityMatches(parameters: readonly CsharpTargetParameter[], argumentCount: number): boolean {
   if (!targetParameterListShapeIsValid(parameters)) {
     return false;
   }
@@ -16,7 +16,7 @@ export function targetArityMatches(parameters: readonly TargetParameter[], argum
     omittedTargetArgumentsAreRenderable(parameters, argumentCount);
 }
 
-export function targetMemberArityPenalty(parameters: readonly TargetParameter[], argumentCount: number): number {
+export function targetMemberArityPenalty(parameters: readonly CsharpTargetParameter[], argumentCount: number): number {
   let penalty = 0;
   const paramsArrayIndex = parameters.findIndex((parameter) => parameter.paramsArray === true);
   if (paramsArrayIndex >= 0 && argumentCount >= paramsArrayIndex) {
@@ -34,7 +34,7 @@ export function targetMemberArityPenalty(parameters: readonly TargetParameter[],
   return penalty;
 }
 
-export function getParameterForArgument(parameters: readonly TargetParameter[], index: number): TargetParameter | undefined {
+export function getParameterForArgument(parameters: readonly CsharpTargetParameter[], index: number): CsharpTargetParameter | undefined {
   const parameter = parameters[index];
   if (parameter !== undefined) {
     return parameter;
@@ -43,7 +43,7 @@ export function getParameterForArgument(parameters: readonly TargetParameter[], 
   return last?.paramsArray === true ? last : undefined;
 }
 
-function targetParameterListShapeIsValid(parameters: readonly TargetParameter[]): boolean {
+function targetParameterListShapeIsValid(parameters: readonly CsharpTargetParameter[]): boolean {
   let optionalTailStarted = false;
   let paramsArrayIndex: number | undefined;
   for (let index = 0; index < parameters.length; index += 1) {
@@ -75,7 +75,7 @@ function targetParameterListShapeIsValid(parameters: readonly TargetParameter[])
   return true;
 }
 
-function omittedTargetArgumentsAreRenderable(parameters: readonly TargetParameter[], argumentCount: number): boolean {
+function omittedTargetArgumentsAreRenderable(parameters: readonly CsharpTargetParameter[], argumentCount: number): boolean {
   for (let index = argumentCount; index < parameters.length; index += 1) {
     const parameter = parameters[index];
     if (parameter === undefined) {
@@ -92,11 +92,11 @@ function omittedTargetArgumentsAreRenderable(parameters: readonly TargetParamete
   return true;
 }
 
-function hasSupportedTargetDefaultValue(parameter: TargetParameter): boolean {
+function hasSupportedTargetDefaultValue(parameter: CsharpTargetParameter): boolean {
   return parameter.unsupportedDefaultValue === undefined &&
     (parameter.defaultValue !== undefined || targetParameterIsOmittableWithoutDefault(parameter));
 }
 
-function targetParameterIsOmittableWithoutDefault(parameter: TargetParameter): boolean {
-  return (parameter as TargetParameter & { readonly csharpOmittableOptionalArgument?: true }).csharpOmittableOptionalArgument === true;
+function targetParameterIsOmittableWithoutDefault(parameter: CsharpTargetParameter): boolean {
+  return parameter.csharpOmittableOptionalArgument === true;
 }

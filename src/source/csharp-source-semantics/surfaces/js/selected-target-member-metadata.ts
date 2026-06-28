@@ -120,7 +120,7 @@ function selectedTargetMembersFromProvider(
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
     case "closed-sequence-metadata":
-      return arrayTargetMembersForSelectedIdentity(request.selectedIdentity, request.contextualElementType);
+      return arrayTargetMembersForSelectedIdentity(request.selectedIdentity, request.contextualElementType, request.contextualDeclaringType);
     case "closed-keyed-collection-metadata":
       return collectionTargetMembersForSelectedIdentity(request.selectedIdentity, request.contextualDeclaringType, request.contextualResultType);
   }

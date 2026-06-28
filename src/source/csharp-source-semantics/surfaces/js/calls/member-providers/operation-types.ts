@@ -1,8 +1,11 @@
 import type {
   CheckedCallMappingRequest,
   ExtensionObservationContext,
-  TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../../target-types.js";
 import type {
   CsharpJsSurfaceHost,
   SourceLibraryMemberKey,
@@ -18,9 +21,13 @@ import type {
 export interface JsSurfaceOperationRow {
   readonly identity: JsSurfaceSourceIdentitySelector;
   readonly policyKind: JsSurfaceOperationPolicyKind;
+  readonly closedFacts?: JsSurfaceClosedFactsRequirement;
   readonly targetProviders?: readonly JsSurfaceOperationTargetProvider[];
   readonly semanticException?: JsSurfaceOperationSemanticException;
+  readonly unsupported?: JsSurfaceUnsupportedOperation;
   readonly callableWithoutContext?: boolean;
+  readonly capabilityId?: string;
+  readonly requiredFacts?: readonly string[];
 }
 
 export type JsSurfaceOperationPolicyKind =
@@ -30,10 +37,36 @@ export type JsSurfaceOperationPolicyKind =
   | "semantic-exception"
   | "unsupported";
 
+export type JsSurfaceClosedFactsRequirement =
+  | { readonly kind: "all"; readonly requirements: readonly JsSurfaceClosedFactsRequirement[] }
+  | { readonly kind: "receiver"; readonly target: JsSurfaceReceiverTargetCondition }
+  | { readonly kind: "arguments"; readonly conditions: readonly JsSurfaceArgumentCondition[] }
+  | { readonly kind: "known-argument-targets" };
+
+export type JsSurfaceReceiverTargetCondition =
+  | "array-like"
+  | "string"
+  | "number"
+  | "boolean"
+  | "regexp"
+  | "date"
+  | "js-object"
+  | "selected-collection-carrier";
+
+export type JsSurfaceArgumentCondition =
+  | { readonly index: number; readonly target: JsSurfaceArgumentTargetCondition }
+  | { readonly fromIndex: number; readonly target: JsSurfaceArgumentTargetCondition };
+
+export type JsSurfaceArgumentTargetCondition =
+  | "string"
+  | "json-value"
+  | "object-helper"
+  | "js-object";
+
 export type JsSurfaceOperationTargetProvider =
   | {
     readonly kind: "metadata-index";
-    readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
+    readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly CsharpTargetMember[]>;
   }
   | {
     readonly kind: "selected-metadata";
@@ -62,11 +95,20 @@ export type JsSurfaceRuntimeHelperSelection =
   | {
     readonly kind: "record-dictionary";
     readonly operation: ObjectRecordDictionaryOperation;
+  }
+  | {
+    readonly kind: "record-dictionary-json-stringify";
   };
 
 export type JsSurfaceSemanticExceptionSelection =
   | {
     readonly kind: "date-call-construct";
+  }
+  | {
+    readonly kind: "boolean-call-construct";
+  }
+  | {
+    readonly kind: "number-call-construct";
   }
   | {
     readonly kind: "object-primitive-receiver-to-string";
@@ -75,6 +117,13 @@ export type JsSurfaceSemanticExceptionSelection =
 export interface JsSurfaceOperationSemanticException {
   readonly reason: string;
   readonly requiredFacts: readonly string[];
+  readonly capabilityId?: string;
+}
+
+export interface JsSurfaceUnsupportedOperation {
+  readonly reason: string;
+  readonly requiredFacts: readonly string[];
+  readonly capabilityId: string;
 }
 
 export interface JsSurfaceCallTargetProviderRequest {
@@ -86,8 +135,10 @@ export interface JsSurfaceCallTargetProviderRequest {
 
 export interface JsSurfaceCallCallableProviderRequest {
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
+  readonly contextualDeclaringType?: TargetTypeRef;
+  readonly contextualResultType?: TargetTypeRef;
 }
 
-export function jsSurfaceTargetMemberIsCallable(member: TargetMember): boolean {
+export function jsSurfaceTargetMemberIsCallable(member: CsharpTargetMember): boolean {
   return member.kind !== "property";
 }

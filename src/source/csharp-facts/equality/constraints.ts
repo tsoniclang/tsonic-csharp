@@ -75,13 +75,7 @@ function targetConstraintEquals(left: TargetConstraint | undefined, right: Targe
       return right.kind === "target-specific"
         && left.target === right.target
         && left.name === right.name
-        && Object.is(left.value, right.value);
-    case "unsupported":
-      return right.kind === "unsupported"
-        && left.target === right.target
-        && left.id === right.id
-        && left.reason === right.reason
-        && Object.is(left.value, right.value);
+        && targetSpecificValueEquals(left.value, right.value);
     case "value-type":
     case "reference-type":
     case "constructible":
@@ -92,4 +86,24 @@ function targetConstraintEquals(left: TargetConstraint | undefined, right: Targe
     case "sized":
       return true;
   }
+}
+
+function targetSpecificValueEquals(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+  if (!isRecord(left) || !isRecord(right)) {
+    return false;
+  }
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key, index) => {
+      const rightKey = rightKeys[index];
+      return key === rightKey && targetSpecificValueEquals(left[key], right[rightKey]);
+    });
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

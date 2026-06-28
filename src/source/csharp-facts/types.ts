@@ -2,10 +2,12 @@ import type {
   ExtensionEvidence,
   ExtensionFactSubject,
   TargetConstraint,
-  TargetMember,
   TargetOperationFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../csharp-source-semantics/target-types.js";
 
 export type CsharpTypeofRuntimeKind = "string" | "number" | "boolean" | "bigint";
 
@@ -40,6 +42,16 @@ export interface CsharpObjectShapeFact {
 
 export interface CsharpTargetNameFact {
   readonly name: string;
+}
+
+export interface CsharpAttributeApplicationFact {
+  readonly target: ExtensionFactSubject;
+  readonly attributeName: string;
+  readonly arguments?: readonly ExtensionFactSubject[];
+  readonly applicationTarget: ExtensionFactSubject;
+  readonly applicationPlacement?: "declaration" | "constructor";
+  readonly applicationParameterName?: string;
+  readonly applicationTargetSpecifier?: string;
 }
 
 export type CsharpTypeParameterConstraint =
@@ -169,7 +181,7 @@ export interface CsharpTargetMemberOperationFact {
   readonly resultType?: TargetTypeRef;
   readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
   readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];
-  readonly selectedMember?: TargetMember;
+  readonly selectedMember?: CsharpTargetMember;
 }
 
 export interface CsharpTargetArrayCreationOperationFact {
@@ -178,7 +190,7 @@ export interface CsharpTargetArrayCreationOperationFact {
   readonly elementType: TargetTypeRef;
   readonly resultType: TargetTypeRef;
   readonly lengthArgumentIndex: number;
-  readonly selectedMember: TargetMember;
+  readonly selectedMember: CsharpTargetMember;
 }
 
 export type CsharpTargetOperationArgument =

@@ -76,6 +76,27 @@ export function csharpJsSourceLibraryPropertyRequiresFinalCarrierSelection(selec
   return propertyRowForSelectedIdentity(selectedIdentity)?.receiverFacts?.finalCarrierSelection === true;
 }
 
+export function csharpJsSourceLibraryPropertyDeferredResultType(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+): TargetTypeRef | undefined {
+  return propertyRowForSelectedIdentity(selectedIdentity)?.deferredResultType;
+}
+
+export function csharpJsSourceLibraryPropertyDeferredOperation(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+): { readonly operationId: string; readonly targetOperation: string } | undefined {
+  const row = propertyRowForSelectedIdentity(selectedIdentity);
+  if (row?.deferredResultType === undefined) {
+    return undefined;
+  }
+  const members = propertyDeclaredMembersFromRow(row, selectedIdentity);
+  const operationIds = uniqueValues(members.map((member) => member.id));
+  const targetOperations = uniqueValues(members.map((member) => member.sourceName));
+  return operationIds.length === 1 && targetOperations.length === 1
+    ? { operationId: operationIds[0]!, targetOperation: targetOperations[0]! }
+    : undefined;
+}
+
 export function csharpJsSourceLibraryPropertyReceiverHasClosedFacts(
   receiverType: TargetTypeRef | undefined,
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
@@ -117,6 +138,13 @@ function propertyMembersFromRow(
   return (row.targetProviders ?? []).flatMap((provider) => targetMembersFromProvider(provider, request));
 }
 
+function propertyDeclaredMembersFromRow(
+  row: JsSurfacePropertyRow,
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+): readonly TargetMember[] {
+  return (row.targetProviders ?? []).flatMap((provider) => targetMembersDeclaredByProvider(provider, selectedIdentity));
+}
+
 function targetMembersFromProvider(
   provider: JsSurfacePropertyTargetProvider,
   request: JsSurfacePropertyTargetProviderRequest,
@@ -128,6 +156,20 @@ function targetMembersFromProvider(
       return collectionTargetMembersForSelectedIdentity(request.selectedIdentity, request.receiverType, undefined);
     case "receiver-member":
       return targetMembersFromReceiverMetadata(provider.members, request.receiverType);
+  }
+}
+
+function targetMembersDeclaredByProvider(
+  provider: JsSurfacePropertyTargetProvider,
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+): readonly TargetMember[] {
+  switch (provider.kind) {
+    case "metadata-index":
+      return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity);
+    case "collection-metadata":
+      return [];
+    case "receiver-member":
+      return provider.members.map((member) => member.member);
   }
 }
 
@@ -196,4 +238,8 @@ function hostReceiverPredicateIsSatisfied(
 
 function targetTypeIdMatches(receiverType: TargetTypeRef | undefined, id: string): boolean {
   return receiverType?.kind === "target-named" && receiverType.id === id;
+}
+
+function uniqueValues(values: readonly string[]): readonly string[] {
+  return Array.from(new Set(values));
 }

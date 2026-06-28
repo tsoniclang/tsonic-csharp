@@ -107,7 +107,7 @@ export function planPropertyAccessExpression(
     };
   }
   if (!sourceOwnedPropertyOperation && targetOperation !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
+    diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access '${sourceName}' expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
     return undefined;
   }
   const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);

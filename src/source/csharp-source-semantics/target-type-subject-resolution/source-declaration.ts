@@ -29,7 +29,7 @@ export function getSourceDeclarationTargetTypeRef(
     return undefined;
   }
   const symbol = getSymbolForDeclarationLookup(ast, checker, node, ast.getSourceFile(node));
-  for (const declaration of getSymbolDeclarations(symbol)) {
+  for (const declaration of getSymbolDeclarations(symbol, checker)) {
     const kind = ast.kindName(declaration);
     if (kind !== "KindClassDeclaration" && kind !== "KindInterfaceDeclaration" && kind !== "KindEnumDeclaration") {
       continue;

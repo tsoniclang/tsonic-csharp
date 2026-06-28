@@ -1,21 +1,23 @@
 import type {
-  TargetMember,
-  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+  CsharpTargetParameter,
+} from "./definitions.js";
 
 export function targetMethod(
   id: string,
   sourceName: string,
   targetName: string,
-  parameters: readonly TargetParameter[],
+  parameters: readonly CsharpTargetParameter[],
   returnType: TargetTypeRef,
   options: {
     readonly declaringType?: TargetTypeRef;
     readonly static?: boolean;
-    readonly receiverPassing?: TargetMember["receiverPassing"];
+    readonly receiverPassing?: CsharpTargetMember["receiverPassing"];
   } = {},
-): TargetMember {
+): CsharpTargetMember {
   return {
     id,
     sourceName,
@@ -38,7 +40,7 @@ export function targetProperty(
     readonly declaringType?: TargetTypeRef;
     readonly static?: boolean;
   } = {},
-): TargetMember {
+): CsharpTargetMember {
   return {
     id,
     sourceName,
@@ -61,7 +63,7 @@ export function targetParameter(
     readonly csharpAcceptsClosedSourceArgument?: boolean;
     readonly csharpOmittableOptionalArgument?: boolean;
   } = {},
-): TargetParameter {
+): CsharpTargetParameter {
   const parameterType = options.paramsArray === true && type.kind !== "array"
     ? { kind: "array" as const, element: type }
     : type;

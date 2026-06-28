@@ -24,11 +24,19 @@ import {
   getSymbolForDeclarationLookup,
 } from "../../symbol-utils.js";
 import {
+  asNodeSubject,
+  getNodeField,
+  getNodeList,
+} from "../../ast-utils.js";
+import {
   resolveTargetTypeRefFromKeywordTypeSyntax,
 } from "../../target-type-keywords.js";
 import {
   createCsharpJsCollectionTargetTypeForSourceType,
 } from "./collection-target-metadata/index.js";
+import {
+  collectionPolicyForTargetType,
+} from "./collection-target-metadata/definitions.js";
 import {
   targetTypeRefIsClosed,
 } from "../../target-ref-utils.js";
@@ -37,6 +45,7 @@ export {
   csharpJsMapTargetType,
   csharpJsSetTargetType,
   collectionTargetMembersForSelectedIdentity,
+  collectionTargetTypeForSelectedIdentity,
   getCsharpJsIterableElementType,
   isCsharpJsMapTargetType,
   isCsharpJsSetTargetType,
@@ -81,8 +90,9 @@ export function recordCsharpJsCollectionRuntimeCarrierFactForNode(
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
+  options: { readonly allowSemanticFallback?: boolean } = {},
 ): void {
-  const carrier = getCsharpJsCollectionRuntimeCarrierForNode(node, sourceFile, context, host);
+  const carrier = getCsharpJsCollectionRuntimeCarrierForNode(node, sourceFile, context, host, options);
   if (carrier !== undefined) {
     recordCollectionRuntimeCarrierFact(node, carrier, sourceFile, context);
   }
@@ -93,10 +103,36 @@ function getCsharpJsCollectionRuntimeCarrierForNode(
   sourceFile: SourceFile,
   context: ExtensionObservationContext,
   host: CsharpJsSurfaceHost,
+  options: { readonly allowSemanticFallback?: boolean } = {},
 ): TargetTypeRef | undefined {
+  const existingCarrier = getExistingClosedCollectionCarrierForNode(node, sourceFile, context, host);
+  if (existingCarrier !== undefined) {
+    return existingCarrier;
+  }
   const type = checkedTypeAtLocation(node, sourceFile, context);
-  return getCsharpJsCollectionRuntimeCarrierForSyntaxNode(node, type, context, host) ??
-    getCsharpJsCollectionRuntimeCarrierForType(type, context, host, sourceFile);
+  const syntaxCarrier = getCsharpJsCollectionRuntimeCarrierForSyntaxNode(node, type, context, host);
+  if (syntaxCarrier !== undefined) {
+    return syntaxCarrier;
+  }
+  return options.allowSemanticFallback === false
+    ? undefined
+    : getCsharpJsCollectionRuntimeCarrierForType(type, context, host, sourceFile);
+}
+
+function getExistingClosedCollectionCarrierForNode(
+  node: Node,
+  sourceFile: SourceFile,
+  context: ExtensionObservationContext,
+  host: CsharpJsSurfaceHost,
+): TargetTypeRef | undefined {
+  const carrier = host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(node, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: false,
+    sourceFile,
+  }));
+  return carrier !== undefined && targetTypeRefIsClosed(carrier) && collectionPolicyForTargetType(carrier) !== undefined
+    ? carrier
+    : undefined;
 }
 
 function getCsharpJsCollectionRuntimeCarrierForSyntaxNode(
@@ -112,7 +148,7 @@ function getCsharpJsCollectionRuntimeCarrierForSyntaxNode(
   if (!ast.is.IsNewExpression(node) && !ast.is.IsTypeReferenceNode(node)) {
     return undefined;
   }
-  const typeArguments = ast.typeArguments(node)
+  const typeArguments = getExplicitTypeArgumentNodes(node, context)
     .map((argument) => argument === undefined
       ? undefined
       : resolveTargetTypeRefFromKeywordTypeSyntax(ast, argument) ??
@@ -178,10 +214,30 @@ function completeTargetTypeArguments(
 }
 
 function getTypeArguments(type: Type, context: ExtensionObservationContext, sourceFile?: SourceFile): readonly Type[] {
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined || !types.isTypeReference(type)) {
     return [];
   }
   return types.getTypeArguments(type, sourceFile === undefined ? undefined : { sourceFile })
     .filter((argument): argument is Type => argument !== undefined);
+}
+
+function getExplicitTypeArgumentNodes(
+  node: Node,
+  context: ExtensionObservationContext,
+): readonly Node[] {
+  const astTypeArguments = context.compiler?.ast.typeArguments(node)
+    .filter((argument): argument is Node => argument !== undefined) ?? [];
+  if (astTypeArguments.length > 0) {
+    return astTypeArguments;
+  }
+  const direct = getNodeList(getNodeField(node, "TypeArguments"));
+  if (direct.length > 0) {
+    return direct;
+  }
+  const ast = context.compiler?.ast;
+  const expression = asNodeSubject(getNodeField(node, "Expression"));
+  return ast !== undefined && expression !== undefined
+    ? getNodeList(getNodeField(expression, "TypeArguments"))
+    : [];
 }

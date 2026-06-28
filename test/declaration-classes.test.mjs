@@ -253,6 +253,10 @@ function fakeInput(sourceFile, options = {}) {
       getSelectedTargetElementAccess: () => undefined,
     },
     analysis: {
+      getSymbolName: () => undefined,
+      getSymbolDeclarations: () => [],
+      getTypeSymbol: () => undefined,
+      getTypeAliasSymbol: () => undefined,
       getProjectSourceReferenceForNode: () => undefined,
       getProjectSourceDeclarationForNode: () => undefined,
       getProjectSourceMethodDispatch: () => undefined,

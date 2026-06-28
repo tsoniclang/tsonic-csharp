@@ -57,10 +57,13 @@ export function dotnetTypeParameterToTargetTypeParameter(parameter: DotnetTypePa
 
 function dotnetUnsupportedConstraintToTargetConstraint(constraint: DotnetUnsupportedConstraintDeclaration): TargetConstraint {
   return {
-    kind: "unsupported",
+    kind: "target-specific",
     target: "csharp",
-    id: constraint.targetId,
-    reason: constraint.reason,
-    value: constraint.metadataName,
+    name: "unsupported-constraint",
+    value: {
+      targetId: constraint.targetId,
+      metadataName: constraint.metadataName,
+      reason: constraint.reason,
+    },
   };
 }

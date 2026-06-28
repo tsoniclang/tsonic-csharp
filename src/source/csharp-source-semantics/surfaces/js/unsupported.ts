@@ -4,6 +4,7 @@ import {
 import type {
   CheckedCallMappingResult,
   CheckedOperationMappingResult,
+  ExtensionEvidence,
   ExtensionObservation,
 } from "@tsonic/tsts";
 import type {
@@ -11,6 +12,9 @@ import type {
   SourceLibraryMember,
   SourceLibraryMemberIdentityPolicy,
 } from "./source-library.js";
+import type {
+  JsSurfaceUnsupportedOperation,
+} from "./calls/member-providers/operation-types.js";
 import {
   sourceLibraryMemberIdentity,
   sourceLibraryMemberMatches,
@@ -23,15 +27,20 @@ const unsupportedSourceLibraryMemberIdentityPolicy = {
 export function rejectUnsupportedCsharpJsSourceLibraryCall(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
+  unsupportedOperation?: JsSurfaceUnsupportedOperation,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  if (!sourceLibraryMemberMatches(sourceMember, unsupportedSourceLibraryMemberIdentityPolicy)) {
+  if (
+    unsupportedOperation === undefined &&
+    !sourceLibraryMemberMatches(sourceMember, unsupportedSourceLibraryMemberIdentityPolicy)
+  ) {
     return undefined;
   }
   return rejectObservation(host.csharpProviderDiagnostic(
     host.extensionId,
-    "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED",
+    "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED",
     9100130,
-    `C# JS surface has no closed operation facts for checked TypeScript standard-library call '${sourceLibraryMemberIdentity(sourceMember)}'.`,
+    `C# JS surface hard-rejected selected TypeScript standard-library call '${sourceLibraryMemberIdentity(sourceMember)}': ${unsupportedOperation?.reason ?? "no closed operation facts exist for the selected JS surface operation."}`,
+    unsupportedSurfaceOperationEvidence(sourceMember, unsupportedOperation),
   ));
 }
 
@@ -44,6 +53,15 @@ export function rejectUnmappedCsharpJsSourceLibraryCall(
     "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED",
     9100131,
     `C# JS surface has no target mapping for checked TypeScript standard-library call '${sourceLibraryMemberIdentity(sourceMember)}'.`,
+    unsupportedSurfaceOperationEvidence(sourceMember, {
+      reason: "The selected JS surface call did not produce a unique target operation from finalized provider/runtime facts.",
+      requiredFacts: [
+        "selected JS source declaration/signature identity",
+        "surface target operation metadata",
+        "finalized receiver/argument carrier facts",
+      ],
+      capabilityId: "diagnostic.unsupported-selected-surface-operation",
+    }),
   ));
 }
 
@@ -59,6 +77,7 @@ export function rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(
     "CSHARP_JS_SURFACE_OPERATION_UNIMPLEMENTED",
     9100130,
     `C# JS surface has no closed operation facts for checked TypeScript standard-library property '${sourceLibraryMemberIdentity(sourceMember)}'.`,
+    unsupportedSurfaceOperationEvidence(sourceMember, undefined),
   ));
 }
 
@@ -71,5 +90,34 @@ export function rejectUnmappedCsharpJsSourceLibraryPropertyAccess(
     "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED",
     9100131,
     `C# JS surface has no target mapping for checked TypeScript standard-library property '${sourceLibraryMemberIdentity(sourceMember)}'.`,
+    unsupportedSurfaceOperationEvidence(sourceMember, {
+      reason: "The selected JS surface property did not produce a closed target operation from finalized provider/runtime facts.",
+      requiredFacts: [
+        "selected JS source declaration identity",
+        "surface property target metadata",
+        "finalized receiver carrier facts",
+      ],
+      capabilityId: "diagnostic.unsupported-selected-surface-operation",
+    }),
   ));
+}
+
+function unsupportedSurfaceOperationEvidence(
+  sourceMember: SourceLibraryMember,
+  unsupportedOperation: JsSurfaceUnsupportedOperation | undefined,
+): readonly ExtensionEvidence[] {
+  return [
+    {
+      message: "Selected JS surface operation evidence",
+      details: {
+        sourceIdentity: sourceLibraryMemberIdentity(sourceMember),
+        reason: unsupportedOperation?.reason ?? "selected JS surface operation has no closed operation facts",
+        requiredFacts: unsupportedOperation?.requiredFacts ?? [
+          "selected JS source declaration identity",
+          "surface target operation metadata",
+        ],
+        capabilityId: unsupportedOperation?.capabilityId ?? "diagnostic.unsupported-selected-surface-operation",
+      },
+    },
+  ];
 }

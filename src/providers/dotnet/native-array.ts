@@ -21,8 +21,8 @@ const nativeArrayType = {
 } satisfies DotnetTypeRef;
 const nativeArraySourceType = {
   kind: "provider-ref",
-  name: "Array",
   moduleSpecifier: systemModuleSpecifier,
+  exportName: "Array",
   typeArguments: [typeParameter],
 } satisfies DotnetTypeRef;
 const dotnetNativeArrayProviderExportNames = new Set(["Array"]);

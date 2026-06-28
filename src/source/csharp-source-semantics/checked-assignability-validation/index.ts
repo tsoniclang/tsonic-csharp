@@ -55,7 +55,7 @@ export function observeCsharpPostCheckAssignability(
   request: PostCheckAssignabilityObservationRequest,
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
-): ExtensionObservation<undefined> {
+): ExtensionObservation<void> {
   void host;
   if (request.targetPlatform !== undefined && request.targetPlatform !== csharpTargetId) {
     return deferObservation;

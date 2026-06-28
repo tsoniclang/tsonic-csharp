@@ -14,13 +14,12 @@ import {
   nodeBufferByteLengthExportName,
   nodeBufferByteLengthMemberId,
   nodeBufferByteLengthSignatureId,
-  nodeBufferCompareExportName,
-  nodeBufferCompareMemberId,
-  nodeBufferCompareSignatureId,
   nodeBufferConcatExportName,
   nodeBufferConcatMemberId,
   nodeBufferConcatSignatureId,
   nodeBufferFromExportName,
+  nodeBufferFromBufferSignatureId,
+  nodeBufferFromNumberArraySignatureId,
   nodeBufferFromStringMemberId,
   nodeBufferFromStringSignatureId,
   nodeBufferIsEncodingExportName,
@@ -51,6 +50,18 @@ export function nodeBufferStaticMemberDeclarations(): ProviderClassMembers {
         parameters: [
           { name: "value", type: nodeBufferStringProviderType },
           { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+        ],
+        returnType: nodeBufferProviderType,
+      }, {
+        id: nodeBufferFromNumberArraySignatureId,
+        parameters: [
+          { name: "array", type: { kind: "array", elementType: nodeBufferNumberProviderType } },
+        ],
+        returnType: nodeBufferProviderType,
+      }, {
+        id: nodeBufferFromBufferSignatureId,
+        parameters: [
+          { name: "buffer", type: nodeBufferProviderType },
         ],
         returnType: nodeBufferProviderType,
       }],
@@ -98,20 +109,6 @@ export function nodeBufferStaticMemberDeclarations(): ProviderClassMembers {
         parameters: [
           { name: "value", type: nodeBufferStringProviderType },
           { name: "encoding", type: nodeBufferStringProviderType, optional: true },
-        ],
-        returnType: nodeBufferNumberProviderType,
-      }],
-    },
-    {
-      id: nodeBufferCompareMemberId,
-      name: nodeBufferCompareExportName,
-      kind: "method",
-      static: true,
-      signatures: [{
-        id: nodeBufferCompareSignatureId,
-        parameters: [
-          { name: "buf1", type: nodeBufferProviderType },
-          { name: "buf2", type: nodeBufferProviderType },
         ],
         returnType: nodeBufferNumberProviderType,
       }],

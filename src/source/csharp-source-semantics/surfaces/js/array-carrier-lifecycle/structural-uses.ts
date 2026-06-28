@@ -55,6 +55,9 @@ function carrierRequirementsForArrayStructuralUse(
   if (use.operation === "spread") {
     return ["sequential-read"];
   }
+  if (use.operation === "destructure") {
+    return ["index-read", "length-read"];
+  }
   if (use.operation === "argument") {
     return carrierRequirementsForStructuralCallArgumentUse(use, elementType, lifecycleContext);
   }

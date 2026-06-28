@@ -201,8 +201,6 @@ function csharpTypeParameterConstraintKey(constraint: CsharpTypeParameterConstra
       return `lifetime:${constraint.name}`;
     case "target-specific":
       return `target-specific:${constraint.target}:${constraint.name}`;
-    case "unsupported":
-      return `unsupported:${constraint.target}:${constraint.id}`;
     case "value-type":
     case "reference-type":
     case "constructible":

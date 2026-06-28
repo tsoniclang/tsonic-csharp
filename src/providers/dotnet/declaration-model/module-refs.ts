@@ -28,7 +28,7 @@ export function qualifyProviderExportModuleRefs(
   return {
     ...declaration,
     ...(declaration.type === undefined ? {} : { type: qualifyProviderTypeModuleRefs(declaration.type, moduleSpecifier, context) }),
-    ...(declaration.extends === undefined ? {} : { extends: declaration.extends.map((heritage) => qualifyProviderTypeModuleRefs(heritage, moduleSpecifier, context)) }),
+    ...(declaration.heritage === undefined ? {} : { heritage: declaration.heritage.map((heritage) => ({ ...heritage, type: qualifyProviderTypeModuleRefs(heritage.type, moduleSpecifier, context) })) }),
     ...(declaration.signatures === undefined ? {} : { signatures: declaration.signatures.map((signature) => qualifyProviderSignatureModuleRefs(signature, moduleSpecifier, context)) }),
     ...(declaration.members === undefined ? {} : { members: declaration.members.map((member) => qualifyProviderMemberModuleRefs(member, moduleSpecifier, context)) }),
   };
@@ -65,18 +65,19 @@ function qualifyProviderTypeModuleRefs(
   switch (type.kind) {
     case "provider-ref":
       {
-        const declaredModuleSpecifier = type.moduleSpecifier ??
-          (dotnetModuleExportsSourceName(moduleSpecifier, type.name, context)
+        const declaredModuleSpecifier = dotnetModuleExportsSourceName(type.moduleSpecifier, type.exportName, context)
+          ? type.moduleSpecifier
+          : dotnetModuleExportsSourceName(moduleSpecifier, type.exportName, context)
             ? moduleSpecifier
-            : dotnetModuleExportsSourceName(context.sourceModuleSpecifier, type.name, context)
+            : dotnetModuleExportsSourceName(context.sourceModuleSpecifier, type.exportName, context)
               ? context.sourceModuleSpecifier
-              : undefined);
+              : type.moduleSpecifier;
         const renderedModuleSpecifier = declaredModuleSpecifier === undefined || declaredModuleSpecifier === context.moduleSpecifier
           ? declaredModuleSpecifier
-          : context.dependencyModuleSpecifier?.(declaredModuleSpecifier, type.name) ?? declaredModuleSpecifier;
+          : context.dependencyModuleSpecifier?.(declaredModuleSpecifier, type.exportName) ?? declaredModuleSpecifier;
         return {
           ...type,
-          ...(renderedModuleSpecifier !== undefined ? { moduleSpecifier: renderedModuleSpecifier } : {}),
+          moduleSpecifier: renderedModuleSpecifier,
           ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, declaredModuleSpecifier ?? moduleSpecifier, context)) }),
         };
       }

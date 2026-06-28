@@ -77,6 +77,16 @@ export function getSourceStandardLibraryDeclaringNameForType(
   type: Type,
   context: ExtensionObservationContext,
 ): SourceLibraryDeclaringKey | undefined {
+  const types = context.compiler?.typeShape;
+  if (types?.isStringLike(type) === true) {
+    return "String";
+  }
+  if (types?.isNumberLike(type) === true) {
+    return "Number";
+  }
+  if (types?.isBooleanLike(type) === true) {
+    return "Boolean";
+  }
   const name = classifySourceStandardLibraryType(type, context)?.name;
   return name === undefined || name === "Record" ? undefined : name;
 }

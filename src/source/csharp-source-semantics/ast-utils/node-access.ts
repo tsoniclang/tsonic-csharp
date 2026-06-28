@@ -1,4 +1,5 @@
 import type {
+  AstReader,
   Node,
 } from "@tsonic/tsts";
 import {
@@ -17,6 +18,19 @@ export function getNodeField(node: Node | undefined, field: string): unknown {
     return undefined;
   }
   return Object.getOwnPropertyDescriptor(node, field)?.value;
+}
+
+export function getNodeParent(node: Node | undefined): Node | undefined {
+  return asNodeSubject(getNodeField(node, "Parent"));
+}
+
+export function getPropertyAccessName(node: Node, ast: AstReader): string | undefined {
+  if (!ast.is.IsPropertyAccessExpression(node)) {
+    return undefined;
+  }
+  const name = asNodeSubject(getNodeField(node, "name"));
+  const text = name === undefined ? "" : ast.text(name);
+  return text.length === 0 ? undefined : text;
 }
 
 export function getNodeNameText(node: Node): string {

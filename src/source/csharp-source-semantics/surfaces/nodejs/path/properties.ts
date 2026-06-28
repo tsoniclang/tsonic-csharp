@@ -16,6 +16,8 @@ import {
 } from "./identity.js";
 import {
   nodePathTargetType,
+  pathModuleProviderType,
+  pathModuleTargetType,
   stringProviderType,
   stringTargetType,
 } from "./types.js";
@@ -37,6 +39,8 @@ export function nodePathPropertyTargetMembers(): readonly NodePathPropertyTarget
   return [
     pathProperty({ exportName: "sep", targetMemberId: "Tsonic.CSharp.Node.path.sep", sourceName: "sep", targetName: "sep", providerType: stringProviderType, targetReturnType: stringTargetType }),
     pathProperty({ exportName: "delimiter", targetMemberId: "Tsonic.CSharp.Node.path.delimiter", sourceName: "delimiter", targetName: "delimiter", providerType: stringProviderType, targetReturnType: stringTargetType }),
+    pathProperty({ exportName: "posix", targetMemberId: "Tsonic.CSharp.Node.path.posix", sourceName: "posix", targetName: "posix", providerType: pathModuleProviderType, targetReturnType: pathModuleTargetType }),
+    pathProperty({ exportName: "win32", targetMemberId: "Tsonic.CSharp.Node.path.win32", sourceName: "win32", targetName: "win32", providerType: pathModuleProviderType, targetReturnType: pathModuleTargetType }),
   ];
 }
 

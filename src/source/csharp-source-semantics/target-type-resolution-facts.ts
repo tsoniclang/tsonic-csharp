@@ -48,7 +48,7 @@ export function getCatchVariableTargetTypeRef(
     return undefined;
   }
   const symbol = checker.getSymbolAtLocation(node) ?? checker.getResolvedSymbol(node);
-  const declarations = getSymbolDeclarations(symbol);
+  const declarations = getSymbolDeclarations(symbol, checker);
   return declarations.some((declaration) => {
       const parent = asNodeSubject(getNodeField(declaration, "Parent"));
       return parent !== undefined && ast.is.IsCatchClause(parent);
@@ -90,7 +90,9 @@ export function getProviderVirtualDeclarationTargetTypeRefFromDeclarations(
   type: Type,
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
-  for (const declaration of getSymbolDeclarations(type.symbol)) {
+  const checker = context.compiler?.checker;
+  const typeSymbol = checker?.getTypeSymbol(type);
+  for (const declaration of getSymbolDeclarations(typeSymbol, checker)) {
     const target = getProviderVirtualDeclarationTargetTypeRef(declaration, context);
     if (target !== undefined) {
       return target;
@@ -113,7 +115,7 @@ export function getTargetTypeRefFromDeclarationAnnotation(
     return undefined;
   }
   const symbol = getSymbolForDeclarationLookup(ast, checker, node, ast.getSourceFile(node));
-  const declarations = getSymbolDeclarations(symbol);
+  const declarations = getSymbolDeclarations(symbol, checker);
   for (const declaration of declarations) {
     const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
     if (typeNode !== undefined && typeNode !== node) {

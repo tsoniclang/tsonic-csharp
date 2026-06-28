@@ -11,6 +11,9 @@ import {
   csharpObjectShapeFactKey,
 } from "../../csharp-facts.js";
 import {
+  isSemanticTypeQueryableValueExpressionNode,
+} from "../ast-utils.js";
+import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../runtime-carrier-context.js";
 import {
@@ -19,6 +22,7 @@ import {
 } from "../runtime-carrier-lifecycle-resolution.js";
 import {
   getRuntimeCarrierSubjectSymbol,
+  isRuntimeCarrierTypeSyntaxNode,
 } from "../runtime-carrier-subjects.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
@@ -73,6 +77,9 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
       return;
     }
   }
+  if (!isRuntimeCarrierSyntaxFactCandidate(compiler.ast, node)) {
+    return;
+  }
   const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
     getClosedSyntaxRuntimeCarrier(lifecycleContext, node, host) ??
     getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, host) ??
@@ -110,4 +117,16 @@ function isObjectShapeRuntimeCarrierSyntaxNode(
 ): boolean {
   return ast.is.IsObjectLiteralExpression(node) ||
     ast.is.IsTypeLiteralNode(node);
+}
+
+function isRuntimeCarrierSyntaxFactCandidate(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  if (isRuntimeCarrierTypeSyntaxNode(ast, node)) {
+    return false;
+  }
+  return ast.is.IsRegularExpressionLiteral(node) ||
+    ast.is.IsNewExpression(node) ||
+    isSemanticTypeQueryableValueExpressionNode(ast, node);
 }

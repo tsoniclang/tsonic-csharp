@@ -104,6 +104,10 @@ function fakeInput(options) {
       },
     },
     analysis: {
+      getSymbolName: () => undefined,
+      getSymbolDeclarations: () => [],
+      getTypeSymbol: () => undefined,
+      getTypeAliasSymbol: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
     },

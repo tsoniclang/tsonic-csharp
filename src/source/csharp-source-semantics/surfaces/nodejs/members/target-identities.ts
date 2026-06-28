@@ -1,8 +1,10 @@
 import type {
   ProviderSymbolIdentity,
   TargetIdentity,
-  TargetMember,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import {
   csharpTargetId,
 } from "../../../identity.js";
@@ -49,7 +51,7 @@ export function getNodejsTargetIdentity(symbol: ProviderSymbolIdentity): TargetI
       };
 }
 
-const nodejsTargetMemberBySymbolIdentity = new Map<string, TargetMember>(
+const nodejsTargetMemberBySymbolIdentity = new Map<string, CsharpTargetMember>(
   nodejsTargetMemberMetadataRecords().flatMap((record) =>
     record.symbolIdentities.map((identity) => [
       nodejsProviderSymbolIdentityKey(identity),

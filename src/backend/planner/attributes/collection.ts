@@ -1,5 +1,11 @@
-import type { AttributeFact, Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
+import {
+  csharpAttributeApplicationFactKey,
+} from "../../../source/csharp-facts.js";
+import type {
+  CsharpAttributeApplicationFact,
+} from "../../../source/csharp-facts.js";
 import {
   attributeFactForNodeOrSymbol,
   directAttributeFactAppliesToSubject,
@@ -10,11 +16,11 @@ export function collectAttributeFactsForSubject(
   subject: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): readonly AttributeFact[] {
+): readonly CsharpAttributeApplicationFact[] {
   if (subject === undefined) {
     return [];
   }
-  const facts: AttributeFact[] = [];
+  const facts: CsharpAttributeApplicationFact[] = [];
   const direct = attributeFactForNodeOrSymbol(subject, input);
   if (directAttributeFactAppliesToSubject(direct)) {
     facts.push(direct);
@@ -27,8 +33,8 @@ export function collectAttributeFactsForSubject(
   return facts;
 }
 
-export function collectAttributeApplicationFacts(input: TargetCompileInput): readonly AttributeFact[] {
-  const facts: AttributeFact[] = [];
+export function collectAttributeApplicationFacts(input: TargetCompileInput): readonly CsharpAttributeApplicationFact[] {
+  const facts: CsharpAttributeApplicationFact[] = [];
   for (const sourceFile of input.sourceFiles) {
     facts.push(...collectAttributeApplicationFactsForSourceFile(sourceFile, input));
   }
@@ -38,11 +44,11 @@ export function collectAttributeApplicationFacts(input: TargetCompileInput): rea
 export function collectAttributeApplicationFactsForSourceFile(
   sourceFile: SourceFile,
   input: TargetCompileInput,
-): readonly AttributeFact[] {
-  const facts: AttributeFact[] = [];
+): readonly CsharpAttributeApplicationFact[] {
+  const facts: CsharpAttributeApplicationFact[] = [];
   visitSourceNode(input, sourceFile, (node) => {
-    const fact = input.facts.getAttributeFact(node);
-    if (fact?.applicationTarget !== undefined) {
+    const fact = input.facts.getFact(node, csharpAttributeApplicationFactKey);
+    if (fact !== undefined) {
       facts.push(fact);
     }
   });
@@ -50,7 +56,7 @@ export function collectAttributeApplicationFactsForSourceFile(
 }
 
 function attributeApplicationTargetsSubject(
-  attribute: AttributeFact,
+  attribute: CsharpAttributeApplicationFact,
   subject: Node,
   contextSourceFile: SourceFile,
   input: TargetCompileInput,

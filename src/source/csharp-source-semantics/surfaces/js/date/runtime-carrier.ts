@@ -75,13 +75,14 @@ export function recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(
       if (compiler.ast.is.IsTypeReferenceNode(node) && isCheckedSourceLibraryDateTypeReference(node, sourceFile, context)) {
         const typeName = asNodeSubject(getNodeField(node, "TypeName"));
         const type = compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+        const typeSymbol = type === undefined ? undefined : compiler.checker.getTypeSymbol(type);
         recordDateRuntimeCarrierFacts(lifecycleContext, [
           node,
           typeName,
           typeName === undefined ? undefined : compiler.checker.getSymbolAtLocation(typeName, { sourceFile }),
           typeName === undefined ? undefined : compiler.checker.getResolvedSymbol(typeName, { sourceFile }),
           type,
-          type?.symbol,
+          typeSymbol,
         ], "C# JS surface Date runtime carrier recorded from checked TypeScript Date type reference.");
         return;
       }
@@ -135,6 +136,6 @@ function isCheckedSourceLibraryDateConstruction(
   }
   const symbol = compiler.checker.getSymbolAtLocation(expression, { sourceFile }) ??
     compiler.checker.getResolvedSymbol(expression, { sourceFile });
-  return getSymbolDeclarations(symbol).some((declaration) =>
+  return getSymbolDeclarations(symbol, context.compiler?.checker).some((declaration) =>
     getSourceLibraryDeclarationName(declaration, context) === "Date");
 }

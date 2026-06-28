@@ -4,7 +4,6 @@ import type {
 } from "@tsonic/tsts";
 import type { DotnetTypeDeclaration } from "../model.js";
 import {
-  dotnetExportToTargetBinding,
   dotnetTypeParameterToProviderTypeParameter,
   tryDotnetTypeRefToProviderType,
 } from "../model.js";
@@ -32,7 +31,7 @@ export function dotnetTypeToProviderExport(
 ): ProviderExportDeclaration {
   const kind = dotnetTypeKindToProviderKind(declaration.typeKind);
   const members = dotnetTypeSourceMembers(declaration, context);
-  const baseType = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
+  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
   const sourceType = declaration.sourceShape === undefined
     ? undefined
     : tryDotnetTypeRefToProviderType(declaration.sourceShape);
@@ -41,10 +40,9 @@ export function dotnetTypeToProviderExport(
     name: declaration.sourceName,
     kind,
     targetIdentity: dotnetTargetIdentity(declaration.targetId, declaration.displayName ?? declaration.sourceName),
-    targetBinding: dotnetExportToTargetBinding(declaration),
     ...(sourceType !== undefined ? { type: sourceType } : {}),
     ...(declaration.typeParameters !== undefined ? { typeParameters: declaration.typeParameters.map(dotnetTypeParameterToProviderTypeParameter) } : {}),
-    ...(baseType !== undefined ? { extends: [baseType] } : {}),
+    ...(baseHeritage !== undefined ? { heritage: [baseHeritage] } : {}),
     ...(kind !== "type" && members !== undefined && members.length > 0 ? { members } : {}),
   };
 }
@@ -70,7 +68,8 @@ function dotnetBaseSourceMembers(
   declaration: DotnetTypeDeclaration,
   context: DotnetDeclarationContext,
 ): readonly ProviderMemberDeclaration[] {
-  const baseType = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
+  const baseHeritage = tryDotnetBaseTypeToProviderHeritage(declaration.baseType);
+  const baseType = baseHeritage?.type;
   if (baseType?.kind !== "provider-ref") {
     return [];
   }
@@ -81,7 +80,7 @@ function dotnetBaseSourceMembers(
   const baseMembers = (dotnetTypeSourceMembers(baseDeclaration, context) ?? [])
     .filter((member) => member.static !== true);
   const baseModuleSpecifier = baseType.moduleSpecifier;
-  const inheritedMembers = baseModuleSpecifier === undefined || baseModuleSpecifier === context.moduleSpecifier
+  const inheritedMembers = baseModuleSpecifier === context.moduleSpecifier
     ? baseMembers
     : baseMembers.map((member) => qualifyProviderMemberModuleRefs(member, baseModuleSpecifier, context));
   const substitutions = getBaseTypeParameterSubstitutions(baseDeclaration, baseType);

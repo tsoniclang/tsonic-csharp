@@ -2,7 +2,6 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
-  Symbol,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -36,8 +35,9 @@ export function getSourceCoreStructMarkerDeclarationFromSubject(
   if (kind === "KindTypeReference") {
     try {
       const type = compiler.checker.getTypeFromTypeNode(node, { sourceFile: compiler.ast.getSourceFile(node) });
-      const aliasSymbol = (type as { readonly aliasSymbol?: Symbol | undefined } | undefined)?.aliasSymbol;
-      return getSourceCoreStructMarkerDeclarationFromSymbol(aliasSymbol ?? type?.symbol, context);
+      const aliasSymbol = compiler.checker.getTypeAliasSymbol(type);
+      const typeSymbol = compiler.checker.getTypeSymbol(type);
+      return getSourceCoreStructMarkerDeclarationFromSymbol(aliasSymbol ?? typeSymbol, context);
     } catch {
       return undefined;
     }
@@ -64,7 +64,7 @@ export function getSourceCoreStructMarkerDeclarationFromSymbol(
   if (compiler === undefined) {
     return undefined;
   }
-  for (const declaration of getSymbolDeclarations(symbol)) {
+  for (const declaration of getSymbolDeclarations(symbol, compiler.checker)) {
     const kind = compiler.ast.kindName(declaration);
     if (kind === "KindObjectLiteralExpression" && subjectIsSourceCoreStructDeclarationPayload(declaration, context)) {
       const markerDeclaration = getSourceCoreStructMarkerDeclarationFromPayload(declaration, context);

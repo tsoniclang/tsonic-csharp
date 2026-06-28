@@ -1,14 +1,15 @@
 import type {
   ExtensionObservationContext,
-  Node,
   SourceFile,
-  Symbol,
   TargetTypeRef,
   Type,
 } from "@tsonic/tsts";
 import {
+  csharpBigIntegerTargetType,
   csharpNullableTargetType,
   csharpDelegateTargetType,
+  csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
   csharpTaskTargetType,
   csharpVoidTargetType,
 } from "./target-types.js";
@@ -40,9 +41,9 @@ export function getSourceArrayTargetTypeRef(
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   const shapeOptions = typeShapeOptions(options);
-  if (types === undefined || types.isTuple(type) || !types.isArrayLike(type, shapeOptions)) {
+  if (types === undefined || isTupleType(type, types) || !types.isArrayLike(type, shapeOptions)) {
     return undefined;
   }
   const sourceArrayType = classifySourceStandardLibraryType(type, context)?.category === "array";
@@ -61,8 +62,11 @@ function getTypeArgumentsForArrayShape(
   context: ExtensionObservationContext,
   options: TargetTypeRefResolutionOptions,
 ): readonly Type[] {
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined) {
+    return [];
+  }
+  if (!types.isTypeReference(type)) {
     return [];
   }
   const direct = types.getTypeArguments(type, typeShapeOptions(options)).filter((candidate): candidate is Type => candidate !== undefined);
@@ -102,7 +106,7 @@ export function getSourceRecordTargetTypeRef(
   if (!isSourceStandardLibraryRecordType(type, context)) {
     return undefined;
   }
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined || !types.isTypeReference(type)) {
     return undefined;
   }
@@ -125,7 +129,7 @@ export function getCallableTargetTypeRefForSemanticType(
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   const checker = context.compiler?.checker;
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (checker === undefined || types === undefined) {
     return undefined;
   }
@@ -137,7 +141,7 @@ export function getCallableTargetTypeRefForSemanticType(
     return undefined;
   }
   const signature = signatures[0]!;
-  const parameters = (signature as { readonly parameters?: readonly Symbol[] }).parameters ?? [];
+  const parameters = checker.getSignatureParameters(signature);
   const parameterTypes = parameters.map((parameter) => resolver.resolveType(checker.getTypeOfSymbol(parameter), context, options, host));
   if (parameterTypes.some((parameter) => parameter === undefined)) {
     return undefined;
@@ -159,19 +163,44 @@ export function getNullableUnionTargetTypeRef(
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined) {
     return undefined;
   }
   const unionTypes = types.getUnionOrIntersectionTypes(type);
-  const nonNullish = unionTypes.filter((candidate) => !types.isNullish(candidate));
-  if (nonNullish.length !== 1 || nonNullish.length === unionTypes.length) {
+  const nonNullish = unionTypes.filter((candidate): candidate is Type => candidate !== undefined && !types.isNullish(candidate));
+  if (nonNullish.length === 0 || nonNullish.length === unionTypes.length) {
     return undefined;
   }
-  const inner = resolver.resolveType(nonNullish[0], context, options, host);
+  const inner = nonNullish.length === 1
+    ? resolver.resolveType(nonNullish[0], context, options, host)
+    : getHomogeneousPrimitiveUnionInnerTargetType(nonNullish, context);
   return inner === undefined
     ? undefined
     : csharpNullableTargetType(inner);
+}
+
+function getHomogeneousPrimitiveUnionInnerTargetType(
+  typesToClassify: readonly Type[],
+  context: ExtensionObservationContext,
+): TargetTypeRef | undefined {
+  const types = context.compiler?.typeShape;
+  if (types === undefined) {
+    return undefined;
+  }
+  if (typesToClassify.every((member) => types.isStringLike(member))) {
+    return csharpStringTargetType();
+  }
+  if (typesToClassify.every((member) => types.isBooleanLike(member))) {
+    return csharpSourcePrimitiveTargetType("bool");
+  }
+  if (typesToClassify.every((member) => types.isNumberLike(member))) {
+    return csharpSourcePrimitiveTargetType("float64");
+  }
+  if (typesToClassify.every((member) => types.isBigIntLike(member))) {
+    return csharpBigIntegerTargetType();
+  }
+  return undefined;
 }
 
 export function getTupleTargetTypeRef(
@@ -181,8 +210,8 @@ export function getTupleTargetTypeRef(
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
-  const types = context.compiler?.types;
-  if (types === undefined || !types.isTuple(type)) {
+  const types = context.compiler?.typeShape;
+  if (types === undefined || !isTupleType(type, types)) {
     return undefined;
   }
   const elements = types.getTupleElementTypes(type, typeShapeOptions(options))
@@ -192,12 +221,19 @@ export function getTupleTargetTypeRef(
     : { kind: "tuple", elements: elements as readonly TargetTypeRef[] };
 }
 
+function isTupleType(
+  type: Type,
+  types: NonNullable<ExtensionObservationContext["compiler"]>["typeShape"],
+): boolean {
+  return types.isTypeReference(type) && types.isTuple(type);
+}
+
 export function getFirstTypeArgument(
   type: Type,
   context: ExtensionObservationContext,
   options: TargetTypeRefResolutionOptions = {},
 ): Type | undefined {
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined) {
     return undefined;
   }
@@ -217,7 +253,7 @@ export function resolveTargetTypeArgumentsForTypeWithResolver(
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
 ): readonly TargetTypeRef[] | undefined {
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined || !types.isTypeReference(type)) {
     return [];
   }
@@ -233,11 +269,12 @@ export function typeShapeOptions(options: TargetTypeRefResolutionOptions): { rea
 }
 
 export function getTypeParameterName(type: Type, context: ExtensionObservationContext): string | undefined {
-  const ast = context.compiler?.ast;
-  const declarations = (type.symbol as { readonly Declarations?: readonly Node[] } | undefined)?.Declarations ?? [];
-  if (ast === undefined) {
+  const compiler = context.compiler;
+  const ast = compiler?.ast;
+  if (compiler === undefined || ast === undefined) {
     return undefined;
   }
+  const declarations = compiler.checker.getSymbolDeclarations(compiler.checker.getTypeSymbol(type));
   for (const declaration of declarations) {
     if (ast.is.IsTypeParameterDeclaration(declaration)) {
       const name = ast.text(ast.name(declaration));

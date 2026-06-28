@@ -61,10 +61,11 @@ export function resolveTargetTypeRefForTypeCore(
   if (type === undefined) {
     return undefined;
   }
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined) {
     return resolveNonPrimitiveRuntimeCarrier(type, context, options, host, resolveTargetTypeArgumentsForType);
   }
+  const typeSymbol = context.compiler?.checker.getTypeSymbol(type);
   const sourceArray = getSourceArrayTargetTypeRef(type, context, options, host, recursiveTargetTypeResolver);
   if (sourceArray !== undefined) {
     return sourceArray;
@@ -81,7 +82,7 @@ export function resolveTargetTypeRefForTypeCore(
   if (typeParameterName !== undefined) {
     return { kind: "type-parameter", name: typeParameterName };
   }
-  const binding = resolveTargetBinding(type.symbol, context);
+  const binding = resolveTargetBinding(typeSymbol, context);
   if (binding !== undefined) {
     const targetTypeArguments = resolveTargetTypeArgumentsForType(type, context, options, host);
     if (targetTypeArguments === undefined || !targetTypeArgumentArityMatches(binding.typeParameters?.length ?? 0, targetTypeArguments.length)) {
@@ -89,7 +90,7 @@ export function resolveTargetTypeRefForTypeCore(
     }
     return getCsharpTargetTypeFromBinding(binding, targetTypeArguments, host);
   }
-  const providerVirtualTarget = getProviderVirtualDeclarationTargetTypeRef(type.symbol, context) ??
+  const providerVirtualTarget = getProviderVirtualDeclarationTargetTypeRef(typeSymbol, context) ??
     getProviderVirtualDeclarationTargetTypeRefFromDeclarations(type, context);
   if (providerVirtualTarget !== undefined) {
     const targetTypeArguments = resolveTargetTypeArgumentsForType(type, context, options, host);
@@ -146,7 +147,7 @@ function getHomogeneousPrimitiveUnionTargetTypeRef(
   type: Type,
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
-  const types = context.compiler?.types;
+  const types = context.compiler?.typeShape;
   if (types === undefined || !types.isUnion(type)) {
     return undefined;
   }
@@ -184,7 +185,8 @@ function resolveNonPrimitiveRuntimeCarrier(
   if (direct !== undefined && !targetTypeRefContainsSourcePrimitive(direct)) {
     return direct;
   }
-  const symbolCarrier = resolveRuntimeCarrier(type.symbol, context);
+  const typeSymbol = context.compiler?.checker.getTypeSymbol(type);
+  const symbolCarrier = resolveRuntimeCarrier(typeSymbol, context);
   if (symbolCarrier === undefined || targetTypeRefContainsSourcePrimitive(symbolCarrier)) {
     return undefined;
   }

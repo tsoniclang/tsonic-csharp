@@ -140,11 +140,12 @@ function instantiateSemanticTargetNamedType(
 
 
 export function getCsharpTypeParameterName(type: Type, input: TargetCompileInput): string | undefined {
-  const name = type.symbol?.Name;
+  const symbol = input.analysis.getTypeSymbol(type);
+  const name = input.analysis.getSymbolName(symbol);
   if (name === undefined || tryCsharpIdentifier(name) !== name) {
     return undefined;
   }
-  return type.symbol?.Declarations?.some((declaration) => input.ast.is.IsTypeParameterDeclaration(declaration)) === true
+  return input.analysis.getSymbolDeclarations(symbol).some((declaration) => input.ast.is.IsTypeParameterDeclaration(declaration))
     ? name
     : undefined;
 }

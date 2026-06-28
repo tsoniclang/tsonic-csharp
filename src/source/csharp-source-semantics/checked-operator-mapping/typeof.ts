@@ -44,7 +44,11 @@ export function mapCsharpTypeofOperator(
   if (request.operator !== "typeof") {
     return undefined;
   }
-  const operandType = host.getTargetTypeRefForSubject(request.leftType, context, noRuntimeCarrierQuery) ??
+  const sourceFile = asNodeSubject(request.left) === undefined ? undefined : context.compiler?.ast.getSourceFile(asNodeSubject(request.left)!);
+  const checkedOperandType = asNodeSubject(request.left) === undefined || context.compiler === undefined
+    ? undefined
+    : context.compiler.checker.getTypeAtLocation(asNodeSubject(request.left)!, { sourceFile });
+  const operandType = host.getTargetTypeRefForSubject(checkedOperandType, context, noRuntimeCarrierQuery) ??
     host.getTargetTypeRefForSubject(request.left, context, noRuntimeCarrierQuery);
   const runtimeKind = getTypeofRuntimeKind(operandType, { allowNullableUnwrap: false });
   if (runtimeKind === undefined) {

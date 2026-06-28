@@ -1,11 +1,15 @@
 import type {
   TargetBindingFact,
-  TargetMember,
-  TargetParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetNamedTypeRef,
+  CsharpTargetBindingFact,
+  CsharpTargetMember,
+  CsharpTargetParameter,
+} from "../target-types.js";
+import {
+  csharpTargetBindingFact,
 } from "../target-types.js";
 import type {
   CsharpTargetEnrichmentHost,
@@ -14,22 +18,22 @@ import {
   enrichCsharpTargetTypeRef,
 } from "./type-ref.js";
 
-const targetBindingMembersByIdCache = new WeakMap<TargetBindingFact, ReadonlyMap<string, TargetMember>>();
+const targetBindingMembersByIdCache = new WeakMap<TargetBindingFact, ReadonlyMap<string, CsharpTargetMember>>();
 
 export function enrichCsharpTargetMember(
-  member: TargetMember,
+  member: CsharpTargetMember,
   host: CsharpTargetEnrichmentHost,
   options: {
     readonly declaringTargetType?: TargetTypeRef;
     readonly methodTargetTypeArguments?: readonly TargetTypeRef[];
   } = {},
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   const binding = member.declaringType?.kind === "target-named"
     ? host.getCsharpTargetBindingByTargetId(member.declaringType.id)
     : undefined;
-  const bindingMember = getTargetBindingMemberById(binding, member.id);
+  const bindingMember = getTargetBindingMemberById(csharpTargetBindingFact(binding), member.id);
   const selectedMember = bindingMember ?? member;
-  const typeArgumentMap = createTargetTypeArgumentMap(selectedMember, binding, options);
+  const typeArgumentMap = createTargetTypeArgumentMap(selectedMember, csharpTargetBindingFact(binding), options);
   const substitutedMember = substituteTargetMemberTypeParameters(selectedMember, typeArgumentMap);
   const effectiveDeclaringType = substitutedMember.declaringType ?? options.declaringTargetType;
   const declaringType = enrichCsharpTargetTypeRef(effectiveDeclaringType, host);
@@ -51,9 +55,9 @@ export function enrichCsharpTargetMember(
 }
 
 function getTargetBindingMemberById(
-  binding: TargetBindingFact | undefined,
+  binding: ReturnType<typeof csharpTargetBindingFact>,
   memberId: string,
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   if (binding?.members === undefined) {
     return undefined;
   }
@@ -67,8 +71,8 @@ function getTargetBindingMemberById(
 }
 
 function createTargetTypeArgumentMap(
-  member: TargetMember,
-  binding: TargetBindingFact | undefined,
+  member: CsharpTargetMember,
+  binding: CsharpTargetBindingFact | undefined,
   options: {
     readonly declaringTargetType?: TargetTypeRef;
     readonly methodTargetTypeArguments?: readonly TargetTypeRef[];
@@ -97,7 +101,7 @@ function createTargetTypeArgumentMap(
 }
 
 function getMatchingDeclaringTargetTypeArguments(
-  member: TargetMember,
+  member: CsharpTargetMember,
   declaringTargetType: TargetTypeRef | undefined,
 ): readonly TargetTypeRef[] | undefined {
   const memberDeclaringType = member.declaringType;
@@ -108,9 +112,9 @@ function getMatchingDeclaringTargetTypeArguments(
 }
 
 function enrichCsharpTargetParameters(
-  parameters: readonly TargetParameter[],
+  parameters: readonly CsharpTargetParameter[],
   host: CsharpTargetEnrichmentHost,
-): readonly TargetParameter[] | undefined {
+): readonly CsharpTargetParameter[] | undefined {
   const enriched = parameters.map((parameter) => {
     const type = enrichCsharpTargetTypeRef(parameter.type, host);
     return type === undefined
@@ -122,13 +126,13 @@ function enrichCsharpTargetParameters(
   });
   return enriched.some((parameter) => parameter === undefined)
     ? undefined
-    : enriched as readonly TargetParameter[];
+    : enriched as readonly CsharpTargetParameter[];
 }
 
 function substituteTargetMemberTypeParameters(
-  member: TargetMember,
+  member: CsharpTargetMember,
   typeArgumentMap: ReadonlyMap<string, TargetTypeRef>,
-): TargetMember {
+): CsharpTargetMember {
   if (typeArgumentMap.size === 0) {
     return member;
   }

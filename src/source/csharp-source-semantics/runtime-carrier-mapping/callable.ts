@@ -22,7 +22,7 @@ export function getCallableRuntimeCarrier(
   host: CsharpRuntimeCarrierSemanticsHost,
 ): RuntimeCarrierFactResult["carrier"] | undefined {
   const compiler = context.compiler;
-  const node = asNodeSubject(request.sourceTypeReference);
+  const node = asNodeSubject(request.type);
   const type = asType(request.type);
   if (compiler === undefined || node === undefined || type === undefined) {
     return undefined;

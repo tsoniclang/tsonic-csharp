@@ -30,8 +30,9 @@ export function getCsharpObjectShapeFactForNode(
   const semanticType = IsTypeSyntaxNode(input.ast, node)
     ? input.analysis.getTypeFromTypeNode(node, { sourceFile })
     : input.analysis.getTypeAtLocation(node, { sourceFile });
+  const semanticTypeSymbol = input.analysis.getTypeSymbol(semanticType);
   return input.facts.getFact(semanticType, csharpObjectShapeFactKey) ??
-    input.facts.getFact(semanticType?.symbol, csharpObjectShapeFactKey);
+    input.facts.getFact(semanticTypeSymbol, csharpObjectShapeFactKey);
 }
 
 function getCsharpObjectShapeFactForDeclarationAnnotation(
@@ -40,8 +41,7 @@ function getCsharpObjectShapeFactForDeclarationAnnotation(
   input: TargetCompileInput,
 ): CsharpObjectShapeFact | undefined {
   const symbol = input.analysis.getSymbolAtLocation(node, { sourceFile });
-  const declarations = (symbol as { readonly Declarations?: readonly Node[]; readonly ValueDeclaration?: Node } | undefined)?.Declarations ??
-    ((symbol as { readonly ValueDeclaration?: Node } | undefined)?.ValueDeclaration === undefined ? [] : [(symbol as { readonly ValueDeclaration?: Node }).ValueDeclaration!]);
+  const declarations = input.analysis.getSymbolDeclarations(symbol);
   for (const declaration of declarations) {
     const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
     const fact = input.facts.getFact(typeNode, csharpObjectShapeFactKey);

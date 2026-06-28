@@ -42,8 +42,8 @@ export function mapCsharpJsRegExpRuntimeCarrier(
   request: RuntimeCarrierFactRequest,
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
-  recordCsharpJsRegExpLiteralFact(request.sourceTypeReference, context);
-  const carrier = getCsharpJsRegExpRuntimeCarrierForSubject(request.sourceTypeReference, context) ??
+  recordCsharpJsRegExpLiteralFact(request.type, context);
+  const carrier = getCsharpJsRegExpRuntimeCarrierForSubject(request.type, context) ??
     getCsharpJsRegExpRuntimeCarrierForType(asType(request.type), context);
   return carrier === undefined
     ? deferObservation

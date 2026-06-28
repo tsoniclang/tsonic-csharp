@@ -1,7 +1,12 @@
 import type {
   CheckedCallMappingRequest,
   ExtensionObservationContext,
-  TargetMember,
+} from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../../target-types.js";
+import type {
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   CsharpJsSurfaceHost,
@@ -24,6 +29,7 @@ import type {
   JsSurfaceCallTargetProviderRequest,
   JsSurfaceOperationRow,
   JsSurfaceOperationTargetProvider,
+  JsSurfaceUnsupportedOperation,
 } from "./operation-types.js";
 
 export function getCsharpJsSourceLibraryCallMembersFromProviders(
@@ -31,7 +37,7 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   const row = sourceCallMetadataRowForSourceMember(sourceMember);
   return row === undefined || row.policyKind === "unsupported"
     ? []
@@ -46,13 +52,33 @@ export function getCsharpJsSourceLibraryCallMembersFromProviders(
 
 export function csharpJsSourceLibraryMemberHasCallableProvider(
   sourceMember: SourceLibraryMember,
+  options: {
+    readonly contextualDeclaringType?: TargetTypeRef;
+    readonly contextualResultType?: TargetTypeRef;
+  } = {},
 ): boolean {
   const row = sourceCallMetadataRowForSourceMember(sourceMember);
   return row === undefined
     ? false
     : operationRowHasCallableProvider(row, {
       selectedIdentity: jsSurfaceSelectedSourceIdentityForMember(sourceMember),
+      ...options,
     });
+}
+
+export function getCsharpJsSourceLibraryUnsupportedOperation(
+  sourceMember: SourceLibraryMember,
+): JsSurfaceUnsupportedOperation | undefined {
+  const row = sourceCallMetadataRowForSourceMember(sourceMember);
+  return row?.policyKind === "unsupported"
+    ? row.unsupported ?? defaultUnsupportedOperation
+    : undefined;
+}
+
+export function getCsharpJsSourceLibraryOperationRow(
+  sourceMember: SourceLibraryMember,
+): JsSurfaceOperationRow | undefined {
+  return sourceCallMetadataRowForSourceMember(sourceMember);
 }
 
 function sourceCallMetadataRowForSourceMember(sourceMember: SourceLibraryMember): JsSurfaceOperationRow | undefined {
@@ -68,7 +94,7 @@ function callMembersFromOperationRow(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   const providerRequest = { selectedIdentity, request, context, host } satisfies JsSurfaceCallTargetProviderRequest;
   return (row.targetProviders ?? []).flatMap((provider) => targetMembersFromProvider(provider, providerRequest));
 }
@@ -94,7 +120,7 @@ function operationRowHasCallableProvider(
 function targetMembersFromProvider(
   provider: JsSurfaceOperationTargetProvider,
   request: JsSurfaceCallTargetProviderRequest,
-): readonly TargetMember[] {
+): readonly CsharpTargetMember[] {
   return targetMembersFromOperationTargetProvider(provider, request);
 }
 
@@ -104,3 +130,13 @@ function providerHasCallableMember(
 ): boolean {
   return operationTargetProviderHasCallableMember(provider, request);
 }
+
+const defaultUnsupportedOperation = {
+  reason: "The selected JS surface operation has no closed provider/runtime target operation metadata.",
+  requiredFacts: [
+    "selected JS source declaration/signature identity",
+    "surface target operation metadata",
+    "surface runtime artifact metadata",
+  ],
+  capabilityId: "diagnostic.unsupported-selected-surface-operation",
+} satisfies JsSurfaceUnsupportedOperation;

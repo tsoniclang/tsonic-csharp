@@ -41,9 +41,11 @@ import {
   providerVirtualDeclarationFileName,
 } from "./provider-request.js";
 import {
-  dotnetProviderResolutionContext,
   missingDotnetRequestedExports,
   sliceDotnetModuleExports,
+} from "./provider-slices.js";
+import type {
+  DotnetProviderResolutionContext,
 } from "./provider-slices.js";
 
 export interface DotnetTypeDataProvider {
@@ -84,6 +86,7 @@ export interface DotnetBindingProviderOptions {
 }
 
 export function createDotnetTargetBindingProvider(options: DotnetBindingProviderOptions): TargetBindingProvider {
+  const resolutionContextsByVirtualFile = new Map<string, DotnetProviderResolutionContext>();
   const identity: ProviderIdentity = {
     id: options.provider.identity.id,
     version: options.provider.identity.version,
@@ -99,33 +102,32 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (module === undefined) {
         return { kind: "unowned" };
       }
-      return mapDotnetOwnership(identity.id, options.provider.ownsModule(module.moduleSpecifier, providerContext(dotnetProviderModuleContext(context, module), options)));
+      return mapDotnetOwnership(identity.id, options.provider.ownsModule(module.moduleSpecifier, providerContext(dotnetProviderModuleContext(context, module) ?? { broadImport: true }, options, context.containingFile)));
     },
     resolveModule(specifier: string, context: ProviderModuleContext): ProviderModuleResolution | ExtensionDiagnostic {
       const module = dotnetProviderModuleRequest(specifier, identity.id, context);
       if (module === undefined) {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${specifier}'.`);
       }
-      const moduleContext = dotnetProviderModuleContext(context, module);
-      const ownership = options.provider.ownsModule(module.moduleSpecifier, providerContext(moduleContext, options));
+      const resolutionContext = dotnetProviderModuleContext(context, module);
+      if (resolutionContext === undefined) {
+        return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, specifier);
+      }
+      const ownership = options.provider.ownsModule(module.moduleSpecifier, providerContext(resolutionContext, options, context.containingFile));
       if (ownership.kind === "rejected") {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, ownership.diagnostic);
       }
       if (ownership.kind !== "owned") {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_UNOWNED", 9200002, `.NET provider does not own '${specifier}'.`);
       }
-      const resolutionContext = dotnetProviderResolutionContext(moduleContext);
-      if (resolutionContext === undefined) {
-        return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, specifier);
-      }
+      const virtualFileName = providerVirtualDeclarationFileName(identity.id, specifier, resolutionContext);
+      resolutionContextsByVirtualFile.set(virtualFileName, resolutionContext);
       return {
         kind: "virtual",
         moduleSpecifier: specifier,
-        virtualFileName: providerVirtualDeclarationFileName(identity.id, specifier, resolutionContext),
+        virtualFileName,
         providerModuleId: module.moduleSpecifier,
         ...(module.internal === true ? {} : { packageName: dotnetPackageName }),
-        ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
-        ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
       };
     },
@@ -136,11 +138,11 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (module === undefined) {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
       }
-      const resolutionContext = dotnetProviderResolutionContext(dotnetProviderModuleContext(resolution, module));
+      const resolutionContext = resolutionContextsByVirtualFile.get(resolution.virtualFileName);
       if (resolutionContext === undefined) {
         return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, resolution.moduleSpecifier);
       }
-      const result = options.provider.getModule(module.moduleSpecifier, providerContext(resolutionContext, options));
+      const result = options.provider.getModule(module.moduleSpecifier, providerContext(resolutionContext, options, resolution.virtualFileName));
       if (isDotnetProviderDiagnostic(result)) {
         return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, result);
       }
@@ -165,7 +167,7 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
             : moduleSpecifier;
         },
         resolveModule(specifier, requestedExports) {
-          const dependencyResolutionContext = dotnetProviderResolutionContext({ requestedExports });
+          const dependencyResolutionContext = dotnetProviderModuleContext({ containingFile: resolution.virtualFileName }, { moduleSpecifier: specifier, requestedExports });
           if (dependencyResolutionContext === undefined) {
             return undefined;
           }
@@ -189,11 +191,12 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
 }
 
 function providerContext(
-  context: ProviderModuleContext,
+  context: DotnetProviderResolutionContext,
   options: DotnetBindingProviderOptions,
+  containingFile?: string,
 ): DotnetProviderModuleContext {
   return {
-    ...(context.containingFile !== undefined ? { containingFile: context.containingFile } : {}),
+    ...(containingFile !== undefined ? { containingFile } : {}),
     ...(context.broadImport === true ? { broadImport: true as const } : {}),
     ...(context.requestedExports !== undefined ? { requestedExports: context.requestedExports } : {}),
     ...(options.targetFramework !== undefined ? { targetFramework: options.targetFramework } : {}),

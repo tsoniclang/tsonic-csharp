@@ -21,6 +21,9 @@ import {
 import {
   targetTypeRefIsClosed,
 } from "./target-ref-utils.js";
+import {
+  csharpTargetMemberFact,
+} from "./target-types.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "./runtime-carrier-types.js";
@@ -36,7 +39,6 @@ export function getObservedRuntimeCarrierSyntaxTargetTypeRef(
   }
   const result = resolveCsharpRuntimeCarrierFromLifecycle(lifecycleContext, {
     type: node,
-    sourceTypeReference: node,
     target: csharpTargetId,
   }, host);
   return result.kind === "accept" ? result.value.carrier : undefined;
@@ -64,7 +66,8 @@ export function getRuntimeCarrierSyntaxTargetTypeRef(
     return undefined;
   }
   const selected = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey);
-  const declaringType = selected?.member.returnType ?? selected?.member.declaringType;
+  const member = selected?.member === undefined ? undefined : csharpTargetMemberFact(selected.member);
+  const declaringType = member?.returnType ?? member?.declaringType;
   if (declaringType?.kind !== "target-named") {
     return undefined;
   }

@@ -17,9 +17,19 @@ export function getPrefixUnaryOperatorText(
   node: Node,
 ): string | undefined {
   const operator = getNodeField(node, "Operator");
-  return typeof operator === "number"
-    ? getOperatorTextFromKindName(ast.kindNameFromKind(operator))
-    : undefined;
+  if (typeof operator !== "number") {
+    return undefined;
+  }
+  const text = ast.text(node).trim();
+  return text.startsWith("-")
+    ? "-"
+    : text.startsWith("+")
+      ? "+"
+      : text.startsWith("!")
+        ? "!"
+        : text.startsWith("~")
+          ? "~"
+          : undefined;
 }
 
 function getOperatorTextFromKindName(kind: string): string | undefined {

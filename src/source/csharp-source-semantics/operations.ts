@@ -15,6 +15,9 @@ import {
   getCsharpArrayLiteralElementTargetType,
 } from "./target-types.js";
 import type {
+  CsharpTargetMember,
+} from "./target-types.js";
+import type {
   CsharpTargetOperationArgument,
   CsharpTargetConversionOperatorOperationFact,
   CsharpTargetMemberOperationFact,
@@ -49,7 +52,7 @@ export function targetOperationFromMember(member: TargetMember): CheckedOperatio
   };
 }
 
-export function csharpTargetOperationFromMember(member: TargetMember): CsharpTargetMemberOperationFact {
+export function csharpTargetOperationFromMember(member: CsharpTargetMember): CsharpTargetMemberOperationFact {
   const resultType = member.kind === "constructor"
     ? member.declaringType
     : member.returnType;
@@ -77,7 +80,7 @@ export function csharpTargetMemberOperation(
     readonly resultType?: TargetTypeRef;
     readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
     readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];
-    readonly selectedMember?: TargetMember;
+    readonly selectedMember?: CsharpTargetMember;
   } = {},
 ): CsharpTargetMemberOperationFact {
   return {
@@ -97,7 +100,7 @@ export function csharpTargetMemberOperation(
 export function csharpTargetArrayCreationOperation(
   operationId: string,
   elementType: TargetTypeRef,
-  selectedMember: TargetMember,
+  selectedMember: CsharpTargetMember,
 ): CsharpTargetOperationFact {
   return {
     kind: "array-creation",
@@ -109,7 +112,7 @@ export function csharpTargetArrayCreationOperation(
   };
 }
 
-function getArgumentArrayLiteralElementTypes(member: TargetMember): readonly (TargetTypeRef | undefined)[] | undefined {
+function getArgumentArrayLiteralElementTypes(member: CsharpTargetMember): readonly (TargetTypeRef | undefined)[] | undefined {
   const elementTypes = member.parameters.map((parameter) => getCsharpArrayLiteralElementTargetType(parameter.type));
   return elementTypes.some((elementType) => elementType !== undefined)
     ? elementTypes

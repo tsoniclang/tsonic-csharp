@@ -11,15 +11,25 @@ import type {
 import {
   getCsharpArrayLikeElementType,
 } from "../arrays.js";
+import {
+  getCsharpJsArrayRuntimeCarrierForType,
+} from "../array-carriers.js";
+import {
+  getCsharpJsCollectionRuntimeCarrierForType,
+} from "../collections.js";
 import type {
   CsharpJsSurfaceHost,
 } from "../source-library.js";
 import {
+  asType,
   csharpJsCheckedTypeQuery,
 } from "../source-library.js";
 import {
   asNodeSubject,
 } from "../../../ast-utils.js";
+import {
+  getCsharpCheckedCallRequestContext,
+} from "../../../checked-call-request-context.js";
 import {
   isCsharpRecordDictionaryTargetType,
 } from "../../../dictionaries.js";
@@ -81,13 +91,14 @@ export function getSourceLibraryCallReceiverTargetTypes(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): readonly TargetTypeRef[] {
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const candidates = [
-    request.calleeReceiver,
-    request.calleeReceiverSymbol,
-    request.calleeReceiverResolvedSymbol,
-    request.calleeReceiverAliasedSymbol,
-    request.calleeReceiverType,
-    request.calleeReceiverTypeSymbol,
+    requestContext.calleeReceiver,
+    requestContext.calleeReceiverSymbol,
+    requestContext.calleeReceiverResolvedSymbol,
+    requestContext.calleeReceiverAliasedSymbol,
+    requestContext.calleeReceiverType,
+    requestContext.calleeReceiverTypeSymbol,
   ];
   const result: TargetTypeRef[] = [];
   for (const candidate of candidates) {
@@ -111,6 +122,8 @@ export function getSourceLibraryCallArgumentTargetTypes(
     return isNestedCall
       ? host.unwrapNullableTargetType(
           context.factResolver.resolve(argument, selectedTargetSignatureFactKey)?.member.returnType ??
+            context.factResolver.resolve(argument, runtimeCarrierFactKey)?.carrier ??
+            context.facts.get(argument, selectedTargetSignatureFactKey)?.member.returnType ??
             context.facts.get(argument, runtimeCarrierFactKey)?.carrier,
         )
       : host.unwrapNullableTargetType(host.getTargetTypeRefForSubject(argument, context, {
@@ -126,11 +139,19 @@ export function getSourceLibraryCallResultTargetType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
+  const sourceReturnType = asType(request.sourceReturnType);
   return host.unwrapNullableTargetType(
     context.factResolver.resolve(request.call, selectedTargetSignatureFactKey)?.member.returnType ??
       context.factResolver.resolve(request.call, runtimeCarrierFactKey)?.carrier ??
       context.facts.get(request.call, selectedTargetSignatureFactKey)?.member.returnType ??
       context.facts.get(request.call, runtimeCarrierFactKey)?.carrier ??
+      getCsharpJsCollectionRuntimeCarrierForType(sourceReturnType, context, host) ??
+      getCsharpJsArrayRuntimeCarrierForType(sourceReturnType, context, host) ??
+      host.getTargetTypeRefForSubject(request.sourceReturnType, context, {
+        ...csharpJsCheckedTypeQuery,
+        allowRuntimeCarrier: true,
+        allowSemanticTypeQuery: true,
+      }) ??
       host.getTargetTypeRefForSubject(request.call, context, {
         ...csharpJsCheckedTypeQuery,
         allowRuntimeCarrier: true,

@@ -186,7 +186,7 @@ function getFinalizedTupleElementIndex(
   if (input.types === undefined) {
     return undefined;
   }
-  const literalValue = input.types.getLiteralValue(input.analysis.getTypeAtLocation(argumentNode, { sourceFile }));
+  const literalValue = input.types.getConstantValue(argumentNode, { sourceFile });
   return typeof literalValue === "number"
     ? getNonNegativeSafeIntegerIndex(literalValue)
     : undefined;

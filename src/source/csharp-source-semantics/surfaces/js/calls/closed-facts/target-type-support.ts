@@ -29,7 +29,8 @@ export function isSupportedJsonValueTargetType(
       (type.kind === "source-primitive" && type.name === "bool") ||
       isCsharpJsObjectCarrierTargetType(type) ||
       isCsharpJsArrayCarrierTargetType(type) ||
-      isCsharpJsJsonValueTargetType(type)
+      isCsharpJsJsonValueTargetType(type) ||
+      isStringKeyedRecordDictionaryTargetType(type, host)
     );
 }
 

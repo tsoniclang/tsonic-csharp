@@ -16,6 +16,9 @@ import {
   recordCsharpTargetOperation,
   sourceLibraryMemberIdentity,
 } from "../source-library.js";
+import {
+  targetMemberAsSourceSelectedSignature,
+} from "../../../selected-target-source-signature.js";
 
 export function acceptSourceLibraryCheckedCall(
   request: CheckedCallMappingRequest,
@@ -25,6 +28,6 @@ export function acceptSourceLibraryCheckedCall(
 ): ExtensionObservation<CheckedCallMappingResult> {
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(member), [{ message: `C# JS surface target call operation recorded from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
   return acceptObservation<CheckedCallMappingResult>({
-    selectedSignature: { member },
+    selectedSignature: { member: targetMemberAsSourceSelectedSignature(member) },
   }, [{ message: `C# JS surface target call selected from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
 }

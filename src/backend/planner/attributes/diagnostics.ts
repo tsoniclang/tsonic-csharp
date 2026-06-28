@@ -1,9 +1,11 @@
-import type { AttributeFact } from "@tsonic/tsts";
 import type { TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpAttribute } from "../../roslyn/syntax.js";
+import type {
+  CsharpAttributeApplicationFact,
+} from "../../../source/csharp-facts.js";
 
 export function unsupportedAttributeTarget(
-  attribute: AttributeFact,
+  attribute: CsharpAttributeApplicationFact,
   diagnostics: TargetDiagnostic[],
 ): CsharpAttribute["type"] {
   diagnostics.push({
@@ -16,7 +18,7 @@ export function unsupportedAttributeTarget(
 }
 
 export function unsupportedAttributeArgument(
-  attribute: AttributeFact,
+  attribute: CsharpAttributeApplicationFact,
   diagnostics: TargetDiagnostic[],
 ): void {
   diagnostics.push({
@@ -28,7 +30,7 @@ export function unsupportedAttributeArgument(
 }
 
 export function attributeApplicationDiagnostic(
-  attribute: AttributeFact,
+  attribute: CsharpAttributeApplicationFact,
   message: string,
 ): TargetDiagnostic {
   return {

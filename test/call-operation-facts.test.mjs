@@ -11,6 +11,9 @@ import {
 import {
   KindIdentifier,
 } from "../dist/backend/planner/source-ast.js";
+import {
+  targetMemberAsSourceSelectedSignature,
+} from "../dist/source/csharp-source-semantics/selected-target-source-signature.js";
 
 test("call emission requires finalized C# target member operation facts", () => {
   const call = { Kind: 1 };
@@ -81,6 +84,102 @@ test("call emission accepts finalized C# member operation facts with substituted
   assert.deepEqual(operation.resultType, selected.returnType);
 });
 
+test("call emission rejects operation facts that drift selected return types", () => {
+  const call = { Kind: 1 };
+  const selected = closedIdentityMember(csharpStringType());
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "method",
+        memberName: "Identity",
+        resultType: { kind: "source-primitive", name: "int32" },
+        selectedMember: {
+          ...selected,
+          returnType: { kind: "source-primitive", name: "int32" },
+        },
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# call emission",
+  );
+
+  assert.equal(operation, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /return-type/);
+});
+
+test("call emission rejects operation facts that drift selected declaring types", () => {
+  const call = { Kind: 1 };
+  const selected = {
+    ...closedIdentityMember(csharpStringType()),
+    declaringType: { kind: "target-named", id: "Example.Box" },
+  };
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "method",
+        memberName: "Identity",
+        resultType: selected.returnType,
+        selectedMember: {
+          ...selected,
+          declaringType: { kind: "target-named", id: "Example.OtherBox" },
+        },
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# call emission",
+  );
+
+  assert.equal(operation, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /declaring-type/);
+});
+
+test("call emission rejects operation facts that drift selected parameter types", () => {
+  const call = { Kind: 1 };
+  const selected = closedIdentityMember(csharpStringType());
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "method",
+        memberName: "Identity",
+        resultType: selected.returnType,
+        selectedMember: {
+          ...selected,
+          parameters: [{
+            ...selected.parameters[0],
+            type: { kind: "source-primitive", name: "int32" },
+          }],
+        },
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# call emission",
+  );
+
+  assert.equal(operation, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /parameter-type/);
+});
+
 test("call emission rejects operation facts that drop extension receiver passing", () => {
   const call = { Kind: 1 };
   const selected = extensionMember();
@@ -112,28 +211,33 @@ test("call emission rejects operation facts that drop extension receiver passing
 
 test("call emission rejects operation facts that change target parameter passing", () => {
   const call = { Kind: 1 };
-  const selected = extensionMember();
+  const selectedTargetMember = extensionMember();
+  const sourceSelectedMember = targetMemberAsSourceSelectedSignature({
+    ...selectedTargetMember,
+    declaringType: selectedTargetMember.parameters[0].type,
+  });
   const diagnostics = [];
   const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
     fakeInput({
       subject: call,
       operation: {
         kind: "member",
-        operationId: selected.id,
+        operationId: selectedTargetMember.id,
         operationKind: "method",
         memberName: "Overlaps",
         static: true,
         resultType: { kind: "source-primitive", name: "bool" },
         selectedMember: {
-          ...selected,
-          parameters: selected.parameters.map((parameter, index) =>
+          ...selectedTargetMember,
+          declaringType: selectedTargetMember.parameters[0].type,
+          parameters: selectedTargetMember.parameters.map((parameter, index) =>
             index === 2 ? { ...parameter, passingMode: "by-value" } : parameter
           ),
         },
       },
     }),
     call,
-    { member: selected },
+    { member: sourceSelectedMember },
     diagnostics,
     "C# call emission",
   );
@@ -141,6 +245,48 @@ test("call emission rejects operation facts that change target parameter passing
   assert.equal(operation, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /parameter-passing/);
+});
+
+test("call emission rejects operation facts that hide mismatched first-argument receiver types", () => {
+  const call = { Kind: 1 };
+  const selectedTargetMember = extensionMember();
+  const sourceSelectedMember = targetMemberAsSourceSelectedSignature({
+    ...selectedTargetMember,
+    declaringType: selectedTargetMember.parameters[0].type,
+  });
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selectedTargetMember.id,
+        operationKind: "method",
+        memberName: "Overlaps",
+        static: true,
+        resultType: { kind: "source-primitive", name: "bool" },
+        selectedMember: {
+          ...selectedTargetMember,
+          declaringType: selectedTargetMember.parameters[0].type,
+          parameters: [
+            {
+              ...selectedTargetMember.parameters[0],
+              type: { kind: "target-named", id: "Example.OtherSpan`1", typeArguments: [{ kind: "source-primitive", name: "int32" }] },
+            },
+            ...selectedTargetMember.parameters.slice(1),
+          ],
+        },
+      },
+    }),
+    call,
+    { member: sourceSelectedMember },
+    diagnostics,
+    "C# call emission",
+  );
+
+  assert.equal(operation, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /mismatched selected member/);
 });
 
 test("call emission rejects operation facts with mismatched target operation kind", () => {
@@ -375,6 +521,10 @@ function closedIdentityMember(type) {
   };
 }
 
+function csharpStringType() {
+  return { kind: "target-named", id: "System.String" };
+}
+
 function extensionMember() {
   const int32 = { kind: "source-primitive", name: "int32" };
   return {
@@ -419,6 +569,9 @@ function fakeInput(options = {}) {
 
 function fakeArgumentInput(options = {}) {
   return {
+    ast: {
+      kindName: (node) => String(node?.Kind),
+    },
     facts: {
       getArgumentPassingFact: (subject) =>
         subject === options.argumentPassingSubject ? options.argumentPassing : undefined,
@@ -434,6 +587,10 @@ function fakeSelectedInput() {
       kindName: (node) => String(node?.Kind),
     },
     analysis: {
+      getSymbolName: () => undefined,
+      getSymbolDeclarations: () => [],
+      getTypeSymbol: () => undefined,
+      getTypeAliasSymbol: () => undefined,
       getProjectSourceReferenceForNode: () => undefined,
       getTargetBindingForReference: () => undefined,
     },

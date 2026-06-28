@@ -1,8 +1,10 @@
 import type {
   ExtensionFactSubject,
-  TargetTypeParameter,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetTypeParameter,
+} from "../target-types.js";
 import type {
   TargetTypeRefResolver,
 } from "../target-type-ref-resolution.js";
@@ -16,7 +18,7 @@ export interface TargetMemberSelectionRequest {
 export interface TargetMemberSelectionOptions {
   readonly getBaseTargetTypeRef?: (type: TargetTypeRef) => TargetTypeRef | undefined;
   readonly declaringTargetType?: TargetTypeRef;
-  readonly declaringTypeParameters?: readonly TargetTypeParameter[];
+  readonly declaringTypeParameters?: readonly CsharpTargetTypeParameter[];
   readonly firstArgumentReceiver?: ExtensionFactSubject | false;
 }
 

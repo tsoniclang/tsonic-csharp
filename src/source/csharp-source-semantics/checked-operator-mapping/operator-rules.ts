@@ -110,7 +110,7 @@ function isNullishExpressionOperand(
   try {
     const checkedSourceFile = sourceFile ?? compiler.ast.getSourceFile(node);
     const type = compiler.checker.getTypeAtLocation(node, { sourceFile: checkedSourceFile });
-    return type === undefined ? false : compiler.types.isNullish(type);
+    return type === undefined ? false : compiler.typeShape.isNullish(type);
   } catch {
     return false;
   }

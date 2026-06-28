@@ -9,8 +9,10 @@ import type {
   ExtensionObservationContext,
   ProviderVirtualDeclarationFact,
   TargetBindingFact,
-  TargetMember,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../target-types.js";
 import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
@@ -34,6 +36,9 @@ import {
 import {
   getCsharpTargetTypeFromBinding,
 } from "../target-enrichment.js";
+import {
+  getCsharpCheckedCallRequestContext,
+} from "../checked-call-request-context.js";
 import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
@@ -63,7 +68,7 @@ export function findCsharpTargetMemberForCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
   options: TargetMemberSelectionOptions,
-): TargetMember | undefined {
+): CsharpTargetMember | undefined {
   const selectedMember = findTargetMemberForCall(
     binding,
     declaration,
@@ -93,16 +98,18 @@ export function targetMemberMissEvidence(
   binding: TargetBindingFact,
   declaration: ProviderVirtualDeclarationFact | undefined,
   request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
   options: TargetMemberSelectionOptions,
 ): readonly ExtensionEvidence[] {
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
   return [
     {
       message: "C# provider target binding was resolved, but no target member matched the checked TSTS call observation.",
       details: {
         bindingId: binding.id,
-        calleePropertyName: request.calleePropertyName,
+        calleePropertyName: requestContext.calleePropertyName,
         argumentCount: request.arguments.length,
-        hasReceiver: request.calleeReceiver !== undefined,
+        hasReceiver: requestContext.calleeReceiver !== undefined,
         selectedMemberId: declaration?.memberId,
         selectedSignatureId: declaration?.signatureId,
         selectedExportName: declaration?.exportName,
@@ -144,11 +151,12 @@ export function isProviderStaticContainerReceiver(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   targetBinding: TargetBindingFact,
 ): boolean {
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const receiverBinding = findTargetBinding(context, [
-    request.calleeReceiver,
-    request.calleeReceiverAliasedSymbol,
-    request.calleeReceiverResolvedSymbol,
-    request.calleeReceiverSymbol,
+    requestContext.calleeReceiver,
+    requestContext.calleeReceiverAliasedSymbol,
+    requestContext.calleeReceiverResolvedSymbol,
+    requestContext.calleeReceiverSymbol,
   ]);
   return receiverBinding?.target === targetBinding.target && receiverBinding.id === targetBinding.id;
 }
@@ -160,15 +168,16 @@ function findConstructorTargetMemberForProviderType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
   options: TargetMemberSelectionOptions,
-): TargetMember | undefined {
-  if (declaration?.memberId !== undefined || declaration?.signatureId !== undefined || request.calleePropertyName !== undefined) {
+): CsharpTargetMember | undefined {
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
+  if (declaration?.memberId !== undefined || declaration?.signatureId !== undefined || requestContext.calleePropertyName !== undefined) {
     return undefined;
   }
   return selectTargetMember(
     (binding.members ?? []).filter((candidate) => candidate.kind === "constructor"),
     {
       arguments: request.arguments,
-      receiver: request.calleeReceiver,
+      receiver: requestContext.calleeReceiver,
     },
     context,
     host.getTargetTypeRefForSubject,

@@ -148,7 +148,12 @@ function getPrefixUnaryOperatorKindName(
 ): string | undefined {
   const operator = getNodeField(node, "Operator");
   if (typeof operator === "number") {
-    return ast.kindNameFromKind(operator);
+    const text = ast.text(node).trim();
+    return text.startsWith("-")
+      ? "KindMinusToken"
+      : text.startsWith("+")
+        ? "KindPlusToken"
+        : undefined;
   }
   if (typeof operator === "string") {
     return operator;

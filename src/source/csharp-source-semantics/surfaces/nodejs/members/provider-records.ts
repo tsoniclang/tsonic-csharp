@@ -1,7 +1,9 @@
 import type {
   ProviderSymbolIdentity,
-  TargetMember,
 } from "@tsonic/tsts";
+import type {
+  CsharpTargetMember,
+} from "../../../target-types.js";
 import {
   nodeAssertCallTargetMembers,
   nodeAssertModuleSpecifier,
@@ -14,6 +16,7 @@ import {
   nodeBufferModuleSpecifier,
 } from "../buffer.js";
 import {
+  nodeCryptoClassCallTargetMembers,
   nodeCryptoCallTargetMembers,
   nodeCryptoModuleSpecifier,
 } from "../crypto.js";
@@ -32,6 +35,8 @@ import {
   nodePathCallTargetMembers,
   nodePathClassPropertyTargetMembers,
   nodePathModuleSpecifier,
+  nodePathPathModuleClassCallTargetMembers,
+  nodePathPathModulePropertyTargetMembers,
   nodePathPropertyTargetMembers,
 } from "../path.js";
 import {
@@ -73,7 +78,7 @@ import type {
 export interface NodejsTargetMemberMetadataRecord {
   readonly declarationIdentities: readonly NodejsProviderDeclarationIdentity[];
   readonly symbolIdentities: readonly ProviderSymbolIdentity[];
-  readonly member: TargetMember;
+  readonly member: CsharpTargetMember;
 }
 
 export interface NodejsUnsupportedTargetMetadataRecord {
@@ -89,11 +94,14 @@ export function nodejsTargetMemberMetadataRecords(): readonly NodejsTargetMember
     ...moduleCallRecords(nodeAssertModuleSpecifier, nodeAssertCallTargetMembers()),
     ...moduleCallRecords(nodePathModuleSpecifier, nodePathCallTargetMembers()),
     ...modulePropertyRecords(nodePathModuleSpecifier, nodePathPropertyTargetMembers()),
+    ...classCallRecords(nodePathModuleSpecifier, nodePathPathModuleClassCallTargetMembers()),
+    ...classPropertyRecords(nodePathModuleSpecifier, nodePathPathModulePropertyTargetMembers()),
     ...classPropertyRecords(nodePathModuleSpecifier, nodePathClassPropertyTargetMembers()),
     ...moduleCallRecords(nodeFsModuleSpecifier, nodeFsCallTargetMembers()),
     ...classCallRecords(nodeFsModuleSpecifier, nodeFsClassCallTargetMembers()),
     ...classPropertyRecords(nodeFsModuleSpecifier, nodeFsClassPropertyTargetMembers()),
     ...moduleCallRecords(nodeCryptoModuleSpecifier, nodeCryptoCallTargetMembers()),
+    ...classCallRecords(nodeCryptoModuleSpecifier, nodeCryptoClassCallTargetMembers()),
     ...moduleCallRecords(nodeOsModuleSpecifier, nodeOsCallTargetMembers()),
     ...modulePropertyRecords(nodeOsModuleSpecifier, nodeOsPropertyTargetMembers()),
     ...moduleCallRecords(nodeProcessModuleSpecifier, nodeProcessCallTargetMembers()),

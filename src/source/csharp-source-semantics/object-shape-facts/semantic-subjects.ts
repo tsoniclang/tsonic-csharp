@@ -43,8 +43,9 @@ export function getSemanticSubjects(
   const type = getTypeSubject(subject, context, node, sourceFile);
   if (type !== undefined) {
     subjects.push(type);
-    if (type.symbol !== undefined) {
-      subjects.push(type.symbol);
+    const typeSymbol = compiler.checker.getTypeSymbol(type);
+    if (typeSymbol !== undefined) {
+      subjects.push(typeSymbol);
     }
   }
   return subjects;

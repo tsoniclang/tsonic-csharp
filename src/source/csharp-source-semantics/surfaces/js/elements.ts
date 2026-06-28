@@ -20,15 +20,19 @@ import type {
 import {
   mapCsharpJsStringElementAccess,
 } from "./strings.js";
+import {
+  getCsharpCheckedElementAccessRequestContext,
+} from "../../checked-member-access-request-context.js";
 
 export function mapCsharpSourceLibraryCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
   const receiverCarrier = getFinalizedReceiverCarrier(request, context, host);
   const semanticReceiverType = host.unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(request.receiverType, context, { allowRuntimeCarrier: false }) ??
+    host.getTargetTypeRefForSubject(requestContext.receiverType, context, { allowRuntimeCarrier: false }) ??
       host.getTargetTypeRefForSubject(request.receiver, context, { allowRuntimeCarrier: false }),
   );
   return mapCsharpJsArrayElementAccess(request, context, receiverCarrier, host) ??
@@ -43,12 +47,7 @@ function getFinalizedReceiverCarrier(
 ): TargetTypeRef | undefined {
   return host.unwrapNullableTargetType(
     context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
-      (request.receiverType === undefined ? undefined : context.factResolver.resolve(request.receiverType, runtimeCarrierFactKey)?.carrier) ??
       host.getTargetTypeRefForSubject(request.receiver, context, {
-        allowRuntimeCarrier: true,
-        allowSemanticTypeQuery: false,
-      }) ??
-      host.getTargetTypeRefForSubject(request.receiverType, context, {
         allowRuntimeCarrier: true,
         allowSemanticTypeQuery: false,
       }),

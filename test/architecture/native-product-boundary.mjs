@@ -58,6 +58,30 @@ export const nativeProductBoundaryCodeRules = Object.freeze([
     text: "code",
   },
   {
+    id: "runtime-reflection-namespace",
+    pattern: /\bSystem\s*\.\s*Reflection\b/g,
+    replacement: "Runtime reflection is not language semantics; product paths must consume finalized provider facts.",
+    text: "code",
+  },
+  {
+    id: "runtime-reflection-member-discovery",
+    pattern: /\.(?:GetProperty|GetProperties|GetMethod|GetMethods)\s*\(/g,
+    replacement: "Do not discover target members at runtime; providers must supply closed target metadata before emission.",
+    text: "code",
+  },
+  {
+    id: "runtime-reflection-invocation",
+    pattern: /\b(?:MethodInfo\s*\.\s*Invoke|Activator\s*\.\s*CreateInstance|Assembly\s*\.\s*Load)\s*\(/g,
+    replacement: "Do not invoke or load runtime members as language semantics; emit deterministic diagnostics when facts are missing.",
+    text: "code",
+  },
+  {
+    id: "csharp-dynamic-semantics",
+    pattern: /:\s*dynamic\b|\bdynamic\s+[A-Za-z_$][\w$]*\s*(?:=|;|,)/g,
+    replacement: "C# dynamic is not a runtime semantics fallback; use explicit closed compat-runtime carrier facts or diagnose.",
+    text: "code",
+  },
+  {
     id: "triple-slash-reference",
     pattern: /^\s*\/\/\/\s*<reference\b/gm,
     replacement: "Use explicit ESM imports or package configuration instead of triple-slash references.",

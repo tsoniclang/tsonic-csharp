@@ -31,6 +31,7 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
+  jsSurfaceTargetMemberFromMetadata,
   jsSurfaceSelectedSourceIdentityForMember,
   jsSurfaceSourceIdentityMatchesSelector,
   jsSurfaceTargetMemberMetadataIdentityIndex,
@@ -47,6 +48,9 @@ import {
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../runtime-carriers.js";
+import type {
+  CsharpRecordDictionaryTargetTypeRef,
+} from "../../dictionaries.js";
 
 const jsonRuntimeType = csharpTargetNamedType("Tsonic.CSharp.Js.JSON", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "JSON"));
 const jsonValueTargetType = csharpTargetNamedType("Tsonic.CSharp.Js.TsValue", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"));
@@ -61,6 +65,8 @@ const jsonArrayElementType: TargetTypeRef = {
 interface JsonSemanticExceptionMetadata {
   readonly reason: string;
   readonly provenance: string;
+  readonly capabilityId: string;
+  readonly requiredFacts: readonly string[];
 }
 
 type JsonTargetMemberMetadata = JsSurfaceTargetMemberMetadata & {
@@ -84,12 +90,30 @@ export function isCsharpJsJsonValueTargetType(type: TargetTypeRef | undefined): 
   return type?.kind === "target-named" && type.id === jsonValueTargetType.id;
 }
 
+export function jsonRecordDictionaryStringifyTargetMembers(
+  dictionaryType: CsharpRecordDictionaryTargetTypeRef,
+): readonly ReturnType<typeof jsSurfaceTargetMemberFromMetadata>[] {
+  return [jsonStaticMethodMetadata({
+    id: "Tsonic.CSharp.Js.JSON.stringify:dictionary",
+    sourceName: "stringify",
+    targetName: "stringify",
+    parameters: [targetParameter("value", dictionaryType)],
+    returnType: stringTargetType,
+    semanticException: {
+      reason: "JSON.stringify accepts closed string-keyed Record dictionary carriers through the JSON runtime shim.",
+      provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized string-keyed Record dictionary carrier facts.",
+      capabilityId: "surface.js.math-json-regexp",
+      requiredFacts: ["selected JSON.stringify source signature", "closed string-keyed Record dictionary argument carrier", "JSON.stringify dictionary runtime metadata row"],
+    },
+  })].map(jsSurfaceTargetMemberFromMetadata);
+}
+
 export function mapCsharpJsJsonRuntimeCarrier(
   request: RuntimeCarrierFactRequest,
   context: ExtensionObservationContext<"type.resolveRuntimeCarrier">,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<RuntimeCarrierFactResult> {
-  const call = asNodeSubject(request.sourceTypeReference);
+  const call = asNodeSubject(request.type);
   if (call === undefined || context.compiler?.ast.is.IsCallExpression(call) !== true) {
     return deferObservation;
   }
@@ -140,6 +164,13 @@ function jsonStaticMethodMetadata(row: JsonStaticMethodMetadataRow): JsonTargetM
     returnType: row.returnType,
     declaringType: jsonRuntimeType,
     static: true,
+    capabilityId: "surface.js.math-json-regexp",
+    requiredFacts: [
+      "selected source declaration/signature identity",
+      "closed JSON argument target facts",
+      "Tsonic.CSharp.Js.JSON runtime metadata row",
+    ],
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.JSON runtime member preserves ECMAScript JSON operation semantics for closed JSON carriers.",
     ...(row.semanticException === undefined ? {} : { semanticException: row.semanticException }),
   };
 }
@@ -154,6 +185,8 @@ const jsonTargetMemberMetadata = [
     semanticException: {
       reason: "JSON.parse returns the closed TsValue runtime carrier instead of System.Object.",
       provenance: "TypeScript standard-library JSON.parse declaration selected with a provider-proven string argument.",
+      capabilityId: "surface.js.math-json-regexp",
+      requiredFacts: ["selected JSON.parse source signature", "closed string argument carrier", "closed TsValue result carrier metadata"],
     },
   }),
   jsonStaticMethodMetadata({
@@ -186,6 +219,8 @@ const jsonTargetMemberMetadata = [
     semanticException: {
       reason: "JSON.stringify accepts the closed JSObject carrier through the JSON runtime shim.",
       provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized JSObject carrier facts.",
+      capabilityId: "surface.js.math-json-regexp",
+      requiredFacts: ["selected JSON.stringify source signature", "closed JSObject argument carrier", "JSON.stringify object runtime metadata row"],
     },
   }),
   jsonStaticMethodMetadata({
@@ -197,6 +232,8 @@ const jsonTargetMemberMetadata = [
     semanticException: {
       reason: "JSON.stringify accepts the closed JSArray carrier through the JSON runtime shim.",
       provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized JSArray carrier facts.",
+      capabilityId: "surface.js.math-json-regexp",
+      requiredFacts: ["selected JSON.stringify source signature", "closed JSArray argument carrier", "JSON.stringify array runtime metadata row"],
     },
   }),
   jsonStaticMethodMetadata({
@@ -208,6 +245,8 @@ const jsonTargetMemberMetadata = [
     semanticException: {
       reason: "JSON.stringify preserves the closed TsValue carrier produced by JSON.parse.",
       provenance: "Selected TypeScript standard-library JSON.stringify overload with finalized TsValue carrier facts.",
+      capabilityId: "surface.js.math-json-regexp",
+      requiredFacts: ["selected JSON.stringify source signature", "closed TsValue argument carrier", "JSON.stringify TsValue runtime metadata row"],
     },
   }),
 ] satisfies readonly JsonTargetMemberMetadata[];
@@ -224,7 +263,7 @@ function isCheckedJsonParseCall(
     return false;
   }
   const signature = compiler.checker.getResolvedSignature(call, { sourceFile });
-  const declaration = getSignatureDeclaration(signature);
+  const declaration = asNodeSubject(signature === undefined ? undefined : compiler.checker.getSignatureDeclaration(signature));
   const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
   if (
     sourceMember === undefined ||
@@ -243,7 +282,3 @@ function isCheckedJsonParseCall(
 const jsonParseIdentityPolicy = {
   ids: ["JSON.parse"],
 } satisfies JsSurfaceSourceIdentitySelector;
-
-function getSignatureDeclaration(signature: unknown): Node | undefined {
-  return asNodeSubject((signature as { readonly declaration?: unknown } | undefined)?.declaration);
-}
