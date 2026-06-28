@@ -106,7 +106,3 @@ export function csharpJsSourceLibraryMemberIsArrayConstructor(sourceMember: Sour
   return sourceMember !== undefined &&
     sourceLibraryMemberMatches(sourceMember, arrayConstructorIdentityPolicy);
 }
-
-export function csharpJsSourceLibraryMemberIsCollection(sourceMember: SourceLibraryMember | undefined): boolean {
-  return sourceMember !== undefined && sourceLibraryMemberMatches(sourceMember, collectionIdentityPolicy);
-}
