@@ -602,20 +602,56 @@ test("JS surface rejects Boolean methods for non-boolean closed receivers", () =
 
 test("JS surface maps Number.toString from selected declaration and closed number receiver facts", () => {
   const call = {};
+  const radixCall = {};
   const receiver = {};
+  const primitiveReceiver = {};
+  const radix = {};
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
     [receiver, float64Type()],
+    [primitiveReceiver, int32Type()],
+    [radix, int32Type()],
   ])));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "toString"), {
     calleeReceiver: receiver,
+  }), fakeContext(facts));
+  const radixResult = provider.mapCheckedCall(jsCallRequest(radixCall, sourceLibraryMemberDeclaration("Number", "toString"), {
+    calleeReceiver: primitiveReceiver,
+    arguments: [radix],
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toString");
   assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
   assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
+  assert.equal(radixResult.kind, "accept");
+  assert.equal(radixResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toString:int32-radix");
+  assert.equal(radixResult.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(radixResult.value.selectedSignature.member.parameters.length, 1);
+  assert.equal(radixResult.value.selectedSignature.member.parameters[0].type.name, "int32");
+  assert.equal(radixResult.value.selectedSignature.member.returnType.id, "System.String");
+});
+
+test("JS surface rejects Number.toString(radix) without a closed integral receiver fact", () => {
+  const call = {};
+  const receiver = {};
+  const radix = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, float64Type()],
+    [radix, int32Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "toString"), {
+    calleeReceiver: receiver,
+    arguments: [radix],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /Number\.toString/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
 
 test("JS surface maps Number.valueOf from selected declaration and closed number receiver facts", () => {

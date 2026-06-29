@@ -17,19 +17,44 @@ export function getPrefixUnaryOperatorText(
   node: Node,
 ): string | undefined {
   const operator = getNodeField(node, "Operator");
-  if (typeof operator !== "number") {
-    return undefined;
+  if (typeof operator === "string") {
+    return getOperatorTextFromKindName(operator);
   }
-  const text = ast.text(node).trim();
-  return text.startsWith("-")
-    ? "-"
-    : text.startsWith("+")
-      ? "+"
-      : text.startsWith("!")
-        ? "!"
-        : text.startsWith("~")
-          ? "~"
-          : undefined;
+  if (typeof operator !== "number") {
+    const token = asNodeSubject(getNodeField(node, "OperatorToken"));
+    return token === undefined ? undefined : getOperatorTextFromKindName(ast.kindName(token));
+  }
+  const operand = asNodeSubject(getNodeField(node, "Operand"));
+  const sourceFile = ast.getSourceFile(node);
+  const sourceText = ast.getSourceText(sourceFile);
+  const start = ast.pos(node);
+  const end = operand === undefined ? ast.end(node) : ast.pos(operand);
+  const prefixText = start < 0 || end < start
+    ? ""
+    : sourceText.slice(start, end).trimStart();
+  return getPrefixOperatorTextFromSource(prefixText);
+}
+
+function getPrefixOperatorTextFromSource(text: string): string | undefined {
+  if (text.startsWith("++")) {
+    return "++";
+  }
+  if (text.startsWith("--")) {
+    return "--";
+  }
+  if (text.startsWith("+")) {
+    return "+";
+  }
+  if (text.startsWith("-")) {
+    return "-";
+  }
+  if (text.startsWith("!")) {
+    return "!";
+  }
+  if (text.startsWith("~")) {
+    return "~";
+  }
+  return undefined;
 }
 
 function getOperatorTextFromKindName(kind: string): string | undefined {

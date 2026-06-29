@@ -40,6 +40,7 @@ const numberOptionalFormatOptionsParameter = targetParameter("options", objectTy
   optional: true,
   csharpAcceptsClosedSourceArgument: true,
 });
+const numberRadixParameter = targetParameter("radix", intType);
 const numberConversionParameter = targetParameter("value", objectType, {
   optional: true,
   csharpAcceptsClosedSourceArgument: true,
@@ -80,6 +81,15 @@ const numberTargetMemberMetadata = [
     { id: "Tsonic.CSharp.Js.Number.isSafeInteger", sourceName: "isSafeInteger", targetName: "isSafeInteger" },
   ].map((row) => numberMethodMetadata({ ...row, parameters: [numberValueParameter], returnType: boolType })),
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toString", sourceName: "toString", targetName: "toString", parameters: [numberValueParameter], returnType: stringType, receiverPassing: "first-argument" }),
+  numberMethodMetadata({
+    id: "Tsonic.CSharp.Js.Number.toString:int32-radix",
+    sourceName: "toString",
+    targetName: "toString",
+    parameters: [targetParameter("value", intType), numberRadixParameter],
+    returnType: stringType,
+    receiverPassing: "first-argument",
+    semanticEquivalence: "Selected Tsonic.CSharp.Js.Number.toString(int32, radix) preserves ECMAScript integral Number.prototype.toString(radix) semantics for closed int32 carriers; float64 radix formatting remains rejected until fractional radix semantics are implemented.",
+  }),
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toExponential", sourceName: "toExponential", targetName: "toExponential", parameters: [numberValueParameter, numberOptionalDigitsParameter], returnType: stringType, receiverPassing: "first-argument" }),
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toFixed", sourceName: "toFixed", targetName: "toFixed", parameters: [numberValueParameter, numberOptionalDigitsParameter], returnType: stringType, receiverPassing: "first-argument" }),
   numberMethodMetadata({ id: "Tsonic.CSharp.Js.Number.toPrecision", sourceName: "toPrecision", targetName: "toPrecision", parameters: [numberValueParameter, numberOptionalPrecisionParameter], returnType: stringType, receiverPassing: "first-argument" }),
