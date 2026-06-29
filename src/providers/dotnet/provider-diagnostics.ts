@@ -61,7 +61,15 @@ export function dotnetProviderRequestedExportMissingDiagnostic(
 export function dotnetProviderRequestedExportUnsupportedDiagnostic(
   extensionId: string,
   specifier: string,
-  unsupportedExports: readonly Readonly<{ readonly sourceName: string; readonly reason: string }>[],
+  unsupportedExports: readonly Readonly<{
+    readonly kind?: string;
+    readonly sourceName: string;
+    readonly reason: string;
+    readonly targetId?: string;
+    readonly targetIds?: readonly string[];
+    readonly metadataName?: string;
+    readonly metadataNames?: readonly string[];
+  }>[],
 ): ExtensionDiagnostic {
   return dotnetExtensionDiagnostic(
     extensionId,
@@ -70,7 +78,12 @@ export function dotnetProviderRequestedExportUnsupportedDiagnostic(
     `.NET provider module '${specifier}' rejected requested export(s): ${unsupportedExports.map((entry) => entry.sourceName).join(", ")}.`,
     unsupportedExports.map((entry) => ({
       specifier,
+      ...(entry.kind !== undefined ? { kind: entry.kind } : {}),
       sourceName: entry.sourceName,
+      ...(entry.targetId !== undefined ? { targetId: entry.targetId } : {}),
+      ...(entry.targetIds !== undefined ? { targetIds: entry.targetIds } : {}),
+      ...(entry.metadataName !== undefined ? { metadataName: entry.metadataName } : {}),
+      ...(entry.metadataNames !== undefined ? { metadataNames: entry.metadataNames } : {}),
       reason: entry.reason,
     })),
   );

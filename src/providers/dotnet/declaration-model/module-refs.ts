@@ -6,104 +6,91 @@ import type {
   ProviderTypeExpression,
 } from "@tsonic/tsts";
 import type { DotnetDeclarationContext } from "./context.js";
-import { dotnetModuleExportsSourceName } from "./context.js";
 
 export function qualifyProviderMemberModuleRefs(
   member: ProviderMemberDeclaration,
-  moduleSpecifier: string,
   context: DotnetDeclarationContext,
 ): ProviderMemberDeclaration {
   return {
     ...member,
-    ...(member.type === undefined ? {} : { type: qualifyProviderTypeModuleRefs(member.type, moduleSpecifier, context) }),
-    ...(member.signatures === undefined ? {} : { signatures: member.signatures.map((signature) => qualifyProviderSignatureModuleRefs(signature, moduleSpecifier, context)) }),
+    ...(member.type === undefined ? {} : { type: qualifyProviderTypeModuleRefs(member.type, context) }),
+    ...(member.signatures === undefined ? {} : { signatures: member.signatures.map((signature) => qualifyProviderSignatureModuleRefs(signature, context)) }),
   };
 }
 
 export function qualifyProviderExportModuleRefs(
   declaration: ProviderExportDeclaration,
-  moduleSpecifier: string,
   context: DotnetDeclarationContext,
 ): ProviderExportDeclaration {
   return {
     ...declaration,
-    ...(declaration.type === undefined ? {} : { type: qualifyProviderTypeModuleRefs(declaration.type, moduleSpecifier, context) }),
-    ...(declaration.heritage === undefined ? {} : { heritage: declaration.heritage.map((heritage) => ({ ...heritage, type: qualifyProviderTypeModuleRefs(heritage.type, moduleSpecifier, context) })) }),
-    ...(declaration.signatures === undefined ? {} : { signatures: declaration.signatures.map((signature) => qualifyProviderSignatureModuleRefs(signature, moduleSpecifier, context)) }),
-    ...(declaration.members === undefined ? {} : { members: declaration.members.map((member) => qualifyProviderMemberModuleRefs(member, moduleSpecifier, context)) }),
+    ...(declaration.type === undefined ? {} : { type: qualifyProviderTypeModuleRefs(declaration.type, context) }),
+    ...(declaration.heritage === undefined ? {} : { heritage: declaration.heritage.map((heritage) => ({ ...heritage, type: qualifyProviderTypeModuleRefs(heritage.type, context) })) }),
+    ...(declaration.signatures === undefined ? {} : { signatures: declaration.signatures.map((signature) => qualifyProviderSignatureModuleRefs(signature, context)) }),
+    ...(declaration.members === undefined ? {} : { members: declaration.members.map((member) => qualifyProviderMemberModuleRefs(member, context)) }),
   };
 }
 
 function qualifyProviderSignatureModuleRefs(
   signature: ProviderSignatureDeclaration,
-  moduleSpecifier: string,
   context: DotnetDeclarationContext,
 ): ProviderSignatureDeclaration {
   return {
     ...signature,
-    parameters: signature.parameters.map((parameter) => qualifyProviderParameterModuleRefs(parameter, moduleSpecifier, context)),
-    ...(signature.returnType === undefined ? {} : { returnType: qualifyProviderTypeModuleRefs(signature.returnType, moduleSpecifier, context) }),
+    parameters: signature.parameters.map((parameter) => qualifyProviderParameterModuleRefs(parameter, context)),
+    ...(signature.returnType === undefined ? {} : { returnType: qualifyProviderTypeModuleRefs(signature.returnType, context) }),
   };
 }
 
 function qualifyProviderParameterModuleRefs(
   parameter: ProviderParameterDeclaration,
-  moduleSpecifier: string,
   context: DotnetDeclarationContext,
 ): ProviderParameterDeclaration {
   return {
     ...parameter,
-    type: qualifyProviderTypeModuleRefs(parameter.type, moduleSpecifier, context),
+    type: qualifyProviderTypeModuleRefs(parameter.type, context),
   };
 }
 
 function qualifyProviderTypeModuleRefs(
   type: ProviderTypeExpression,
-  moduleSpecifier: string,
   context: DotnetDeclarationContext,
 ): ProviderTypeExpression {
   switch (type.kind) {
     case "provider-ref":
       {
-        const declaredModuleSpecifier = dotnetModuleExportsSourceName(type.moduleSpecifier, type.exportName, context)
+        const renderedModuleSpecifier = type.moduleSpecifier === context.moduleSpecifier
           ? type.moduleSpecifier
-          : dotnetModuleExportsSourceName(moduleSpecifier, type.exportName, context)
-            ? moduleSpecifier
-            : dotnetModuleExportsSourceName(context.sourceModuleSpecifier, type.exportName, context)
-              ? context.sourceModuleSpecifier
-              : type.moduleSpecifier;
-        const renderedModuleSpecifier = declaredModuleSpecifier === context.moduleSpecifier
-          ? declaredModuleSpecifier
-          : context.dependencyModuleSpecifier?.(declaredModuleSpecifier, type.exportName) ?? declaredModuleSpecifier;
+          : context.dependencyModuleSpecifier?.(type.moduleSpecifier, type.exportName) ?? type.moduleSpecifier;
         return {
           ...type,
           moduleSpecifier: renderedModuleSpecifier,
-          ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, declaredModuleSpecifier ?? moduleSpecifier, context)) }),
+          ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, context)) }),
         };
       }
     case "target-named":
       return {
         ...type,
-        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, moduleSpecifier, context)) }),
-        ...(type.sourceShape === undefined ? {} : { sourceShape: qualifyProviderTypeModuleRefs(type.sourceShape, moduleSpecifier, context) }),
+        ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => qualifyProviderTypeModuleRefs(argument, context)) }),
+        ...(type.sourceShape === undefined ? {} : { sourceShape: qualifyProviderTypeModuleRefs(type.sourceShape, context) }),
       };
     case "array":
-      return { ...type, elementType: qualifyProviderTypeModuleRefs(type.elementType, moduleSpecifier, context) };
+      return { ...type, elementType: qualifyProviderTypeModuleRefs(type.elementType, context) };
     case "tuple":
-      return { ...type, elementTypes: type.elementTypes.map((elementType) => qualifyProviderTypeModuleRefs(elementType, moduleSpecifier, context)) };
+      return { ...type, elementTypes: type.elementTypes.map((elementType) => qualifyProviderTypeModuleRefs(elementType, context)) };
     case "union":
     case "intersection":
-      return { ...type, types: type.types.map((nestedType) => qualifyProviderTypeModuleRefs(nestedType, moduleSpecifier, context)) };
+      return { ...type, types: type.types.map((nestedType) => qualifyProviderTypeModuleRefs(nestedType, context)) };
     case "function":
       return {
         ...type,
-        parameters: type.parameters.map((parameter) => qualifyProviderParameterModuleRefs(parameter, moduleSpecifier, context)),
-        returnType: qualifyProviderTypeModuleRefs(type.returnType, moduleSpecifier, context),
+        parameters: type.parameters.map((parameter) => qualifyProviderParameterModuleRefs(parameter, context)),
+        returnType: qualifyProviderTypeModuleRefs(type.returnType, context),
       };
     case "opaque":
       return type.sourceShape === undefined
         ? type
-        : { ...type, sourceShape: qualifyProviderTypeModuleRefs(type.sourceShape, moduleSpecifier, context) };
+        : { ...type, sourceShape: qualifyProviderTypeModuleRefs(type.sourceShape, context) };
     default:
       return type;
   }
