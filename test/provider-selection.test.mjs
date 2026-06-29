@@ -1797,7 +1797,7 @@ test("C# provider maps calls from TSTS-selected callee symbol virtual declaratio
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
-test("C# provider may refine an exact source signature inside the same provider overload group", () => {
+test("C# provider rejects exact selected provider signature mismatches instead of refining to a sibling overload", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1845,8 +1845,8 @@ test("C# provider may refine an exact source signature inside the same provider 
     },
   }));
 
-  assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
 });
 
 test("C# provider accepts literal arguments for exact selected target signatures", () => {
@@ -1941,7 +1941,7 @@ test("C# provider does not search target members outside the selected provider o
     },
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 

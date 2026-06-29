@@ -57,26 +57,10 @@ export function findTargetMemberForCall(
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
-    const exactMember = selectedMember === undefined
+    return selectedMember === undefined
       ? undefined
       : selectProviderSelectedTargetMember(
           selectedMember,
-          {
-            arguments: request.arguments,
-            receiver: requestContext.calleeReceiver,
-            sourceSelectedSignature: request.sourceSelectedSignature,
-          },
-          context,
-          resolveTargetTypeRef,
-          options,
-        );
-    if (exactMember !== undefined) {
-      return exactMember;
-    }
-    return selectedMember === undefined
-      ? undefined
-      : selectTargetMember(
-          getTargetMemberCandidatesForSelectedMember(csharpBinding?.members ?? [], selectedMember),
           {
             arguments: request.arguments,
             receiver: requestContext.calleeReceiver,
@@ -125,24 +109,10 @@ export function findTargetMemberForElementAccess(
   const csharpBinding = csharpTargetBindingFact(binding);
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
-    const exactMember = selectedMember === undefined
+    return selectedMember === undefined
       ? undefined
       : selectProviderSelectedTargetMember(
           selectedMember,
-          {
-            arguments: [request.argument],
-          },
-          context,
-          resolveTargetTypeRef,
-          options,
-        );
-    if (exactMember !== undefined) {
-      return exactMember;
-    }
-    return selectedMember === undefined
-      ? selectSingleProviderIndexer(csharpBinding, request, options)
-      : selectTargetMember(
-          getTargetMemberCandidatesForSelectedMember(csharpBinding?.members ?? [], selectedMember),
           {
             arguments: [request.argument],
           },
