@@ -90,4 +90,6 @@ export {
   dotnetTypeRefToTargetTypeRef,
   isDotnetNativeArrayCreateMemberId,
   parseDotnetModuleSpecifier,
+  validateDotnetModuleModelContract,
+  validateDotnetProviderDeclarationModelContract,
 } from "./providers/dotnet/index.js";

@@ -58,6 +58,24 @@ export function dotnetProviderRequestedExportMissingDiagnostic(
   );
 }
 
+export function dotnetProviderRequestedExportUnsupportedDiagnostic(
+  extensionId: string,
+  specifier: string,
+  unsupportedExports: readonly Readonly<{ readonly sourceName: string; readonly reason: string }>[],
+): ExtensionDiagnostic {
+  return dotnetExtensionDiagnostic(
+    extensionId,
+    "DOTNET_PROVIDER_REQUESTED_EXPORT_UNSUPPORTED",
+    9200007,
+    `.NET provider module '${specifier}' rejected requested export(s): ${unsupportedExports.map((entry) => entry.sourceName).join(", ")}.`,
+    unsupportedExports.map((entry) => ({
+      specifier,
+      sourceName: entry.sourceName,
+      reason: entry.reason,
+    })),
+  );
+}
+
 export function dotnetProviderDeclarationModelInvalidDiagnostic(
   extensionId: string,
   specifier: string,

@@ -14,10 +14,32 @@ export function getBaseTypeParameterSubstitutions(
   const substitutions = new Map<string, ProviderTypeExpression>();
   const typeParameters = baseDeclaration.typeParameters ?? [];
   const typeArguments = baseType.typeArguments ?? [];
+  if (typeParameters.length !== typeArguments.length) {
+    throw new DotnetGenericSubstitutionError(
+      `Provider base type '${baseType.moduleSpecifier}#${baseType.exportName}' has ${typeArguments.length} type argument(s), but target declaration '${baseDeclaration.metadataName}' requires ${typeParameters.length}.`,
+      {
+        baseModuleSpecifier: baseType.moduleSpecifier,
+        baseExportName: baseType.exportName,
+        baseMetadataName: baseDeclaration.metadataName,
+        expectedTypeArgumentCount: typeParameters.length,
+        actualTypeArgumentCount: typeArguments.length,
+      },
+    );
+  }
   for (let index = 0; index < typeParameters.length && index < typeArguments.length; index++) {
     substitutions.set(typeParameters[index]!.name, typeArguments[index]!);
   }
   return substitutions;
+}
+
+export class DotnetGenericSubstitutionError extends Error {
+  readonly evidence: Readonly<Record<string, unknown>>;
+
+  constructor(message: string, evidence: Readonly<Record<string, unknown>>) {
+    super(message);
+    this.name = "DotnetGenericSubstitutionError";
+    this.evidence = evidence;
+  }
 }
 
 export function substituteProviderMember(

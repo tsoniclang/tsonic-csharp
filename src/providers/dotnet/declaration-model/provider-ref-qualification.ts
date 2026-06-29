@@ -1,9 +1,6 @@
 import type {
   DotnetModuleModel,
 } from "../model.js";
-import {
-  dotnetModuleSpecifierForMetadataName,
-} from "../module-lookup.js";
 
 export class DotnetProviderRefQualificationError extends Error {
   readonly evidence: Readonly<Record<string, unknown>>;
@@ -17,14 +14,11 @@ export class DotnetProviderRefQualificationError extends Error {
 
 interface QualificationState {
   readonly moduleSpecifier: string;
-  readonly exportNames: ReadonlySet<string>;
-  readonly inferredModuleSpecifier?: string;
 }
 
 export function qualifyDotnetModuleProviderRefs(module: DotnetModuleModel): DotnetModuleModel {
   const state: QualificationState = {
     moduleSpecifier: module.moduleSpecifier,
-    exportNames: new Set(module.exports.map((declaration) => declaration.sourceName)),
   };
   return qualifyValue(module, state, "$") as DotnetModuleModel;
 }
@@ -40,25 +34,11 @@ function qualifyValue(value: unknown, state: QualificationState, path: string): 
   if (record.kind === "provider-ref") {
     return qualifyProviderRef(record, state, path);
   }
-  const nestedState = namedTypeState(record, state);
   const result: Record<string, unknown> = {};
   for (const [key, nested] of Object.entries(record)) {
-    result[key] = qualifyValue(nested, nestedState, `${path}.${key}`);
+    result[key] = qualifyValue(nested, state, `${path}.${key}`);
   }
   return result;
-}
-
-function namedTypeState(
-  record: Readonly<Record<string, unknown>>,
-  state: QualificationState,
-): QualificationState {
-  if (record.kind !== "named" || typeof record.metadataName !== "string") {
-    return state;
-  }
-  const inferredModuleSpecifier = dotnetModuleSpecifierForMetadataName(record.metadataName);
-  return inferredModuleSpecifier === undefined
-    ? state
-    : { ...state, inferredModuleSpecifier };
 }
 
 function qualifyProviderRef(
@@ -66,7 +46,7 @@ function qualifyProviderRef(
   state: QualificationState,
   path: string,
 ): Readonly<Record<string, unknown>> {
-  const exportName = providerRefString(record.exportName) ?? providerRefString(record.name);
+  const exportName = providerRefString(record.exportName);
   if (exportName === undefined) {
     throw new DotnetProviderRefQualificationError(
       "Invalid .NET provider-ref: missing exportName.",
@@ -77,9 +57,7 @@ function qualifyProviderRef(
       },
     );
   }
-  const moduleSpecifier = providerRefString(record.moduleSpecifier)
-    ?? state.inferredModuleSpecifier
-    ?? (state.exportNames.has(exportName) ? state.moduleSpecifier : undefined);
+  const moduleSpecifier = providerRefString(record.moduleSpecifier);
   if (moduleSpecifier === undefined) {
     throw new DotnetProviderRefQualificationError(
       `Invalid .NET provider-ref '${exportName}': missing moduleSpecifier.`,

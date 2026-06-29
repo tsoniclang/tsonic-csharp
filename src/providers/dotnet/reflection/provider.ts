@@ -10,6 +10,9 @@ import {
   parseDotnetModuleSpecifier,
 } from "../module-specifier.js";
 import {
+  validateDotnetModuleModelContract,
+} from "../model-contract.js";
+import {
   augmentDotnetModuleWithNativeArray,
 } from "../native-array.js";
 import type {
@@ -131,6 +134,11 @@ export function createDotnetReflectionTypeDataProvider(
         telemetry.memoryCacheHit();
         return brokerDiagnostic;
       }
+      const contractDiagnostic = validateLoadedModuleContract(memoryKey, cacheRequest, brokerModule);
+      if (contractDiagnostic !== undefined) {
+        telemetry.memoryCacheHit();
+        return contractDiagnostic;
+      }
       rememberModule(memoryKey, brokerModule);
       telemetry.memoryCacheHit();
       return brokerModule;
@@ -168,6 +176,10 @@ export function createDotnetReflectionTypeDataProvider(
         providerBroker?.writeDiagnostic(cacheRequest, cachedDiagnostic);
         return cachedDiagnostic;
       }
+      const contractDiagnostic = validateLoadedModuleContract(memoryKey, cacheRequest, module);
+      if (contractDiagnostic !== undefined) {
+        return contractDiagnostic;
+      }
       rememberModule(memoryKey, module);
       providerBroker?.writeModule(cacheRequest, module);
       telemetry.modelBytes(JSON.stringify(cached).length);
@@ -204,7 +216,6 @@ export function createDotnetReflectionTypeDataProvider(
     }
     try {
       const rawModule = JSON.parse(result.stdout) as DotnetModuleModel;
-      persistentCache?.writeModule(cacheRequest, rawModule);
       telemetry.modelBytes(result.stdout.length);
       const module = augmentDotnetModuleWithNativeArray(rawModule, context);
       const moduleDiagnostic = validateModuleSatisfiesRequest(module, cacheRequest);
@@ -213,6 +224,11 @@ export function createDotnetReflectionTypeDataProvider(
         providerBroker?.writeDiagnostic(cacheRequest, moduleDiagnostic);
         return moduleDiagnostic;
       }
+      const contractDiagnostic = validateLoadedModuleContract(memoryKey, cacheRequest, module);
+      if (contractDiagnostic !== undefined) {
+        return contractDiagnostic;
+      }
+      persistentCache?.writeModule(cacheRequest, rawModule);
       rememberModule(memoryKey, module);
       providerBroker?.writeModule(cacheRequest, module);
       return module;
@@ -300,5 +316,19 @@ export function createDotnetReflectionTypeDataProvider(
   function rememberModule(memoryKey: string, module: DotnetModuleModel): void {
     modules.set(memoryKey, module);
     targetBindingIndex.rememberModule(module);
+  }
+
+  function validateLoadedModuleContract(
+    memoryKey: string,
+    cacheRequest: DotnetProviderCacheRequest,
+    module: DotnetModuleModel,
+  ): DotnetProviderDiagnostic | undefined {
+    const contractDiagnostic = validateDotnetModuleModelContract(module);
+    if (contractDiagnostic === undefined) {
+      return undefined;
+    }
+    diagnostics.set(memoryKey, contractDiagnostic);
+    providerBroker?.writeDiagnostic(cacheRequest, contractDiagnostic);
+    return contractDiagnostic;
   }
 }

@@ -41,6 +41,10 @@ export type {
   DotnetTypeDataProvider,
 } from "./provider.js";
 export { createDotnetTargetBindingProvider } from "./provider.js";
+export {
+  validateDotnetModuleModelContract,
+  validateDotnetProviderDeclarationModelContract,
+} from "./model-contract.js";
 export type {
   DotnetReflectionTypeDataProvider,
   DotnetReflectionTypeDataProviderOptions,

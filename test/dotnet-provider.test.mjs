@@ -578,7 +578,11 @@ test(".NET provider declaration model projects inherited source members determin
     targetId: testTargetId("ProviderModelFixtures.Derived"),
     metadataName: "ProviderModelFixtures.Derived",
     baseType: namedDotnetTypeRef("ProviderModelFixtures.Base", {
-      sourceShape: { kind: "provider-ref", name: "Base" },
+      sourceShape: {
+        kind: "provider-ref",
+        moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+        exportName: "Base",
+      },
     }),
     members: [
       methodMember("ProviderModelFixtures.Derived", "ownOnly", "OwnOnly", []),
@@ -642,7 +646,8 @@ test(".NET provider declaration model substitutes inherited generic type argumen
       typeArguments: [int32],
       sourceShape: {
         kind: "provider-ref",
-        name: "GenericBase",
+        moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+        exportName: "GenericBase",
         typeArguments: [int32],
       },
     }),
@@ -762,7 +767,6 @@ test(".NET provider source type conversion fails closed for every unsupported ta
   }), undefined);
   assert.equal(tryDotnetTypeRefToProviderType({
     kind: "provider-ref",
-    name: "Box",
     moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
     exportName: "Box",
     typeArguments: [pointerType],
@@ -1615,8 +1619,8 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
     ?.parameters.find((parameter) => parameter.name === "encoding");
   assert.deepEqual(encodingParameter?.type.sourceShape, {
     kind: "provider-ref",
-    name: "Encoding",
     moduleSpecifier: "@tsonic/dotnet/System.Text.js",
+    exportName: "Encoding",
   });
 
   const declarationModel = dotnetModuleToProviderDeclarationModel(ioModule);
@@ -1639,7 +1643,8 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
   const rawMemoryStream = ioModule.exports.find((declaration) => declaration.sourceName === "MemoryStream");
   assert.deepEqual(rawMemoryStream?.baseType?.sourceShape, {
     kind: "provider-ref",
-    name: "Stream",
+    moduleSpecifier: "@tsonic/dotnet/System.IO.js",
+    exportName: "Stream",
   });
   const sourceMemoryStream = declarationModel.exports.find((declaration) => declaration.name === "MemoryStream");
   assert.deepEqual(sourceMemoryStream?.heritage, [{
@@ -1657,8 +1662,8 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
   assert.ok(rawTaskCanceled);
   assert.deepEqual(rawTaskCanceled.baseType?.sourceShape, {
     kind: "provider-ref",
-    name: "OperationCanceledException",
     moduleSpecifier: "@tsonic/dotnet/System.js",
+    exportName: "OperationCanceledException",
   });
   const tasksDeclarationModel = dotnetModuleToProviderDeclarationModel(tasksModule);
   const sourceTaskCanceled = tasksDeclarationModel.exports.find((declaration) => declaration.name === "TaskCanceledException");
