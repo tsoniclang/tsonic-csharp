@@ -6,6 +6,7 @@ import type {
   DotnetModuleModel,
   DotnetTypeDeclaration,
 } from "../model.js";
+import { qualifyDotnetModuleProviderRefs } from "./provider-ref-qualification.js";
 
 export interface DotnetProviderDeclarationModelOptions {
   readonly providerModuleId?: string;
@@ -75,14 +76,16 @@ export function getDotnetModuleBySpecifier(
   }
   const resolved = context.resolveModule?.(moduleSpecifier, requestedExports);
   if (resolved !== undefined) {
+    const qualified = qualifyDotnetModuleProviderRefs(resolved);
     const modules = context.modulesBySpecifier.get(moduleSpecifier);
     if (modules === undefined) {
-      context.modulesBySpecifier.set(moduleSpecifier, [resolved]);
+      context.modulesBySpecifier.set(moduleSpecifier, [qualified]);
     } else {
-      modules.push(resolved);
+      modules.push(qualified);
     }
+    return qualified;
   }
-  return resolved;
+  return undefined;
 }
 
 export function dotnetModuleExportsSourceName(

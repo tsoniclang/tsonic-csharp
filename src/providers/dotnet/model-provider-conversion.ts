@@ -33,14 +33,19 @@ export function tryDotnetTypeRefToProviderType(type: DotnetTypeRef): ProviderTyp
     case "type-parameter":
       return { kind: "type-parameter", name: type.name };
     case "provider-ref": {
+      const moduleSpecifier = providerRefString(type.moduleSpecifier);
+      const exportName = providerRefString(type.exportName);
+      if (moduleSpecifier === undefined || exportName === undefined) {
+        return undefined;
+      }
       const typeArguments = mapDotnetProviderTypes(type.typeArguments);
       if (typeArguments === undefined) {
         return undefined;
       }
       return {
         kind: "provider-ref",
-        moduleSpecifier: type.moduleSpecifier,
-        exportName: type.exportName,
+        moduleSpecifier,
+        exportName,
         ...(typeArguments.length > 0 ? { typeArguments } : {}),
       };
     }
@@ -155,4 +160,8 @@ function mapDotnetProviderTypes(types: readonly DotnetTypeRef[] | undefined): re
   return mapped.some((type) => type === undefined)
     ? undefined
     : mapped as readonly ProviderTypeExpression[];
+}
+
+function providerRefString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }

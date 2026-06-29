@@ -85,7 +85,7 @@ function deriveAttributeApplicationFact(
     return undefined;
   }
   return {
-    target: attribute.target,
+    attributeType: attribute.target,
     attributeName: attribute.attributeName,
     ...(attribute.arguments === undefined ? {} : { arguments: attribute.arguments }),
     applicationTarget: state.applicationTarget,
@@ -129,10 +129,16 @@ function deriveAttributeApplicationState(
       };
     }
     case "constructor":
-      return {
-        applicationTarget: attribute.target,
-        applicationPlacement: "constructor",
-      };
+      {
+        const previous = deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
+        if (previous === undefined) {
+          return undefined;
+        }
+        return {
+          ...previous,
+          applicationPlacement: "constructor",
+        };
+      }
     case "parameter": {
       const previous = deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
       const parameterName = stringArgument(lifecycleContext, expression, 0);
@@ -179,6 +185,9 @@ function stringArgument(
   const argument = callArgument(call, index);
   if (argument === undefined) {
     return undefined;
+  }
+  if (lifecycleContext.compiler.ast.kindName(argument) === "KindStringLiteral") {
+    return lifecycleContext.compiler.ast.text(argument);
   }
   const sourceFile = lifecycleContext.compiler.ast.getSourceFile(argument);
   const value = lifecycleContext.compiler.typeShape.getConstantValue(argument, { sourceFile });

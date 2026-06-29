@@ -30,6 +30,7 @@ import {
 } from "./module-specifier.js";
 import {
   dotnetExtensionDiagnostic,
+  dotnetProviderDeclarationModelInvalidDiagnostic,
   dotnetProviderDiagnosticToExtensionDiagnostic,
   dotnetProviderRequestedExportMissingDiagnostic,
   dotnetProviderRequestSliceRequiredDiagnostic,
@@ -127,6 +128,8 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
         moduleSpecifier: specifier,
         virtualFileName,
         providerModuleId: module.moduleSpecifier,
+        ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
+        ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
         ...(module.internal === true ? {} : { packageName: dotnetPackageName }),
         evidence: [{ message: ".NET native pass-through provider supplied virtual module." }],
       };
@@ -159,28 +162,37 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
         ...sliceDotnetModuleExports(augmentedModule, resolutionContext),
         moduleSpecifier: resolution.moduleSpecifier,
       };
-      const model = dotnetModuleToProviderDeclarationModel(resolvedModule, {
-        providerModuleId: resolution.providerModuleId,
-        dependencyModuleSpecifier(moduleSpecifier, sourceName) {
-          return parseDotnetProviderDependencyModuleSpecifier(moduleSpecifier) === undefined
-            ? createDotnetProviderDependencyModuleSpecifier(identity.id, moduleSpecifier, [sourceName])
-            : moduleSpecifier;
-        },
-        resolveModule(specifier, requestedExports) {
-          const dependencyResolutionContext = dotnetProviderModuleContext({ containingFile: resolution.virtualFileName }, { moduleSpecifier: specifier, requestedExports });
-          if (dependencyResolutionContext === undefined) {
-            return undefined;
-          }
-          const resolved = options.provider.getModule(specifier, providerContext(dependencyResolutionContext, options));
-          if (isDotnetProviderDiagnostic(resolved)) {
-            return undefined;
-          }
-          const augmentedDependencyModule = augmentDotnetModuleWithNativeArray(resolved, dependencyResolutionContext);
-          return missingDotnetRequestedExports(augmentedDependencyModule, dependencyResolutionContext).length > 0
-            ? undefined
-            : sliceDotnetModuleExports(augmentedDependencyModule, dependencyResolutionContext);
-        },
-      });
+      const model = (() => {
+        try {
+          return dotnetModuleToProviderDeclarationModel(resolvedModule, {
+            providerModuleId: resolution.providerModuleId,
+            dependencyModuleSpecifier(moduleSpecifier, sourceName) {
+              return parseDotnetProviderDependencyModuleSpecifier(moduleSpecifier) === undefined
+                ? createDotnetProviderDependencyModuleSpecifier(identity.id, moduleSpecifier, [sourceName])
+                : moduleSpecifier;
+            },
+            resolveModule(specifier, requestedExports) {
+              const dependencyResolutionContext = dotnetProviderModuleContext({ containingFile: resolution.virtualFileName }, { moduleSpecifier: specifier, requestedExports });
+              if (dependencyResolutionContext === undefined) {
+                return undefined;
+              }
+              const resolved = options.provider.getModule(specifier, providerContext(dependencyResolutionContext, options));
+              if (isDotnetProviderDiagnostic(resolved)) {
+                return undefined;
+              }
+              const augmentedDependencyModule = augmentDotnetModuleWithNativeArray(resolved, dependencyResolutionContext);
+              return missingDotnetRequestedExports(augmentedDependencyModule, dependencyResolutionContext).length > 0
+                ? undefined
+                : sliceDotnetModuleExports(augmentedDependencyModule, dependencyResolutionContext);
+            },
+          });
+        } catch (error) {
+          return dotnetProviderDeclarationModelInvalidDiagnostic(identity.id, resolution.moduleSpecifier, error);
+        }
+      })();
+      if ("extensionId" in model) {
+        return model;
+      }
       options.provider.recordVirtualDeclarationModel?.(model, performance.now() - startedAt);
       return model;
     },

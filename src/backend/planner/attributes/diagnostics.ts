@@ -12,7 +12,7 @@ export function unsupportedAttributeTarget(
     code: "CSHARP_UNSUPPORTED_ATTRIBUTE_FACT",
     category: "error",
     source: "tsonic-csharp",
-    message: `C# attribute target '${attribute.attributeName}' must carry an AST type or value subject from finalized TSTS facts.`,
+    message: `C# attribute type '${attribute.attributeName}' must carry an AST type or value subject from finalized TSTS facts.`,
   });
   return { kind: "InvalidType", reason: "unsupported attribute target" };
 }

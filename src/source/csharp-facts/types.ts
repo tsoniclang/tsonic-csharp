@@ -45,7 +45,7 @@ export interface CsharpTargetNameFact {
 }
 
 export interface CsharpAttributeApplicationFact {
-  readonly target: ExtensionFactSubject;
+  readonly attributeType: ExtensionFactSubject;
   readonly attributeName: string;
   readonly arguments?: readonly ExtensionFactSubject[];
   readonly applicationTarget: ExtensionFactSubject;

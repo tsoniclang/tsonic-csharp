@@ -57,3 +57,21 @@ export function dotnetProviderRequestedExportMissingDiagnostic(
     [{ specifier, missingExports }],
   );
 }
+
+export function dotnetProviderDeclarationModelInvalidDiagnostic(
+  extensionId: string,
+  specifier: string,
+  error: unknown,
+): ExtensionDiagnostic {
+  const message = error instanceof Error ? error.message : String(error);
+  const evidence = error instanceof Error && "evidence" in error && typeof error.evidence === "object"
+    ? [error.evidence as Readonly<Record<string, unknown>>]
+    : [{ specifier, message }];
+  return dotnetExtensionDiagnostic(
+    extensionId,
+    "DOTNET_PROVIDER_DECLARATION_MODEL_INVALID",
+    9200006,
+    `.NET provider produced an invalid declaration model for '${specifier}': ${message}`,
+    evidence,
+  );
+}

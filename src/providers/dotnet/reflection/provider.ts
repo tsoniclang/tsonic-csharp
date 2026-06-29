@@ -31,7 +31,7 @@ import type {
 import {
   dotnetModuleSpecifierForMetadataName,
   dotnetModuleSpecifierForTargetId,
-} from "./module-lookup.js";
+} from "../module-lookup.js";
 import {
   dotnetProviderGlobalTelemetry,
 } from "./telemetry.js";

@@ -43,7 +43,7 @@ export const csharpAttributeApplicationFactKey = defineExtensionFactKey<CsharpAt
   extensionId: "tsonic.csharp",
   name: "attributeApplication",
   equals: (left, right) =>
-    left.target === right.target
+    left.attributeType === right.attributeType
     && left.attributeName === right.attributeName
     && (left.arguments ?? []).length === (right.arguments ?? []).length
     && (left.arguments ?? []).every((argument, index) => argument === (right.arguments ?? [])[index])
