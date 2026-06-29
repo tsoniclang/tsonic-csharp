@@ -654,6 +654,25 @@ test("JS surface rejects Number.toString(radix) without a closed integral receiv
   assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
 
+test("JS surface hard-rejects selected Number locale formatting until Intl facts exist", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, float64Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "toLocaleString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Number\.toLocaleString/);
+  assert.match(result.diagnostic.message, /Intl\.NumberFormat-compatible locale and options semantics/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
 test("JS surface maps Number.valueOf from selected declaration and closed number receiver facts", () => {
   const call = {};
   const receiver = {};

@@ -7,17 +7,13 @@ function createCsharpJsSurfaceOperationsProvider(host) {
   return createProductCsharpJsSurfaceOperationsProvider({ operationsProviderHost: host });
 }
 
-test("JS surface maps Number formatting methods from selected identity and closed receiver facts", () => {
+test("JS surface maps exact Number formatting methods from selected identity and closed receiver facts", () => {
   const receiver = {};
   const digits = {};
-  const locale = {};
-  const options = {};
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(new Map([
     [receiver, float64Type()],
     [digits, int32Type()],
-    [locale, stringType()],
-    [options, jsObjectType()],
   ])));
 
   const fixedResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Number", "toFixed"), {
@@ -27,18 +23,34 @@ test("JS surface maps Number formatting methods from selected identity and close
   const precisionResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Number", "toPrecision"), {
     calleeReceiver: receiver,
   }), fakeContext(facts));
-  const localeResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Number", "toLocaleString"), {
-    arguments: [locale, options],
-    calleeReceiver: receiver,
-  }), fakeContext(facts));
 
   assert.equal(fixedResult.kind, "accept");
   assert.equal(fixedResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toFixed");
   assert.equal(fixedResult.value.selectedSignature.member.receiverPassing, "first-argument");
   assert.equal(precisionResult.kind, "accept");
   assert.equal(precisionResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toPrecision");
-  assert.equal(localeResult.kind, "accept");
-  assert.equal(localeResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toLocaleString");
+});
+
+test("JS surface rejects Number locale formatting without Intl facts", () => {
+  const receiver = {};
+  const locale = {};
+  const options = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(new Map([
+    [receiver, float64Type()],
+    [locale, stringType()],
+    [options, jsObjectType()],
+  ])));
+
+  const localeResult = provider.mapCheckedCall(jsCallRequest({}, sourceLibraryMemberDeclaration("Number", "toLocaleString"), {
+    arguments: [locale, options],
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(localeResult.kind, "reject");
+  assert.equal(localeResult.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(localeResult.diagnostic.message, /Number\.toLocaleString/);
+  assert.match(localeResult.diagnostic.message, /Intl\.NumberFormat-compatible locale and options semantics/);
 });
 
 test("JS surface rejects Number formatting methods without required closed facts", () => {

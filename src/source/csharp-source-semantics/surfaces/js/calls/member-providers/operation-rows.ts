@@ -93,6 +93,9 @@ const numberStaticCallIdentityPolicy = {
 const numberConstructorIdentityPolicy = {
   ids: ["Number.constructor"],
 } as const satisfies JsSurfaceSourceIdentitySelector;
+const unsupportedNumberLocaleFormattingIdentityPolicy = {
+  ids: ["Number.toLocaleString"],
+} as const satisfies JsSurfaceSourceIdentitySelector;
 const booleanConstructorIdentityPolicy = {
   ids: ["Boolean.constructor"],
 } as const satisfies JsSurfaceSourceIdentitySelector;
@@ -180,6 +183,20 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
       capabilityId: "surface.js.number-methods",
     },
     targetProviders: [semanticExceptionProvider({ kind: "number-call-construct" })],
+  },
+  {
+    identity: unsupportedNumberLocaleFormattingIdentityPolicy,
+    policyKind: "unsupported",
+    unsupported: {
+      reason: "Number.prototype.toLocaleString requires closed Intl.NumberFormat-compatible locale and options semantics before C# emission.",
+      requiredFacts: [
+        "selected Number.toLocaleString source declaration/signature identity",
+        "closed Intl locale carrier facts",
+        "closed Intl.NumberFormat options carrier facts",
+        "runtime helper metadata proving ECMAScript locale formatting semantics",
+      ],
+      capabilityId: "surface.js.number-methods",
+    },
   },
   {
     ...operationRowFromMetadataIndex({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex, { capabilityId: "surface.js.number-methods", requiredFacts: selectedSignatureProviderFacts }),
