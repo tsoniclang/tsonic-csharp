@@ -32,8 +32,10 @@ import { requireCsharpIdentifier } from "./identifiers.js";
 import { planLocalDeclaration } from "./locals.js";
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { planStringCodePointForOfStatement } from "./statement-string-iteration.js";
-import { targetTypeRefFromFactSubject } from "./statement-iteration-facts.js";
-import { csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
+import {
+  getRequiredCsharpTargetIterationFact,
+  targetTypeRefFromFactSubject,
+} from "./statement-iteration-facts.js";
 import type { CsharpTargetIterationFact } from "../../source/csharp-facts.js";
 
 export { planForInStatement } from "./statement-for-in.js";
@@ -55,10 +57,15 @@ export function planForOfStatement(
   state: DestructuringPlannerState,
   planNestedStatementBody: NestedStatementPlanner,
 ): readonly CsharpStatement[] {
-  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey);
+  const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
+  const selectedIteration = getRequiredCsharpTargetIterationFact(
+    input,
+    statementNode,
+    diagnosticNode,
+    diagnostics,
+    "C# for-of emission",
+  );
   if (selectedIteration === undefined) {
-    const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "C# for-of emission requires finalized TSTS/provider iteration facts."));
     return [];
   }
   const binding = planForOfBinding(statement.Initializer, selectedIteration, sourceFile, input, diagnostics, state);

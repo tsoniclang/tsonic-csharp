@@ -49,7 +49,33 @@ export function getTargetTypeRefForNode(
     getTargetTypeRefFromDirectFacts(input, sourceNode) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(sourceNode, { sourceFile })) ??
+    getTargetTypeRefFromSymbolDeclarations(input, sourceNode, sourceFile) ??
     probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
+}
+
+function getTargetTypeRefFromSymbolDeclarations(
+  input: TargetCompileInput,
+  sourceNode: Node,
+  sourceFile: SourceFile,
+): TargetTypeRef | undefined {
+  const symbols = [
+    input.analysis.getSymbolAtLocation(sourceNode, { sourceFile }),
+    input.analysis.getResolvedSymbol(sourceNode, { sourceFile }),
+  ];
+  for (const symbol of symbols) {
+    for (const declaration of input.analysis.getSymbolDeclarations(symbol)) {
+      const declarationFact = getTargetTypeRefFromDirectFacts(input, declaration);
+      if (declarationFact !== undefined) {
+        return declarationFact;
+      }
+      const declarationName = asNodeSubject(getNodeField(declaration, "name"));
+      const declarationNameFact = getTargetTypeRefFromDirectFacts(input, declarationName);
+      if (declarationNameFact !== undefined) {
+        return declarationNameFact;
+      }
+    }
+  }
+  return undefined;
 }
 
 function getTargetTypeRefFromTypeReferenceName(

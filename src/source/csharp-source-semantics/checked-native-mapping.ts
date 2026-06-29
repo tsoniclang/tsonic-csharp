@@ -21,10 +21,8 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpTargetConversionOperationFactKey,
-  csharpTargetIterationFactKey,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
-import type { CsharpTargetIterationFact } from "../csharp-facts.js";
 import {
   csharpTargetId,
 } from "./identity.js";
@@ -44,8 +42,8 @@ import {
   requiresCsharpProviderConversionEvidence,
 } from "./provider-conversion-operators.js";
 import {
-  targetOperation,
-} from "./operations.js";
+  mapCsharpIterationOperationRows,
+} from "./operation-selection/iteration.js";
 import {
   asTargetParameter,
   asType,
@@ -85,16 +83,14 @@ export function mapCsharpNativeCheckedIteration(
   if (request.kind === "for-of") {
     const elementType = getCsharpCollectionElementTargetType(expressionType);
     if (elementType !== undefined) {
-      const fact = {
-        operationId: "tsonic.csharp.array.foreach",
+      return mapCsharpIterationOperationRows(request, context, csharpTargetId, [{
+        sourceIterationKind: "for-of",
+        operationId: "tsonic.csharp.collection.foreach",
         iterationKind: "sync",
-        lowering: { kind: "foreach" },
+        lowering: { kind: "foreach" as const },
         elementType,
-      } satisfies CsharpTargetIterationFact;
-      context.facts.set(request.statement, csharpTargetIterationFactKey, fact, [{ message: "C# array for-of maps to foreach." }]);
-      return acceptObservation<CheckedOperationMappingResult>({
-        operation: targetOperation(fact.operationId, "iteration", fact.lowering.kind),
-      }, [{ message: "C# array iteration fact recorded after TSTS accepted for-of." }]);
+        evidence: [{ message: "C# provider/native metadata selected sync value iteration after TSTS accepted for-of." }],
+      }]);
     }
     return deferObservation;
   }

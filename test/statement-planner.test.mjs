@@ -400,7 +400,7 @@ test("for-in fails closed when finalized iteration facts are absent", () => {
 
   assert.deepEqual(output, []);
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /For-in requires finalized TSTS\/provider enumeration facts before C# emission/);
+  assert.match(diagnostics[0].message, /for-in emission requires finalized TSTS\/provider iteration facts before C# emission/);
 });
 
 test("for-in rejects provider facts with the wrong iteration kind or lowering", () => {
