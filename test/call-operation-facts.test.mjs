@@ -247,6 +247,67 @@ test("call emission rejects operation facts that change target parameter passing
   assert.match(diagnostics[0].message, /parameter-passing/);
 });
 
+test("call emission accepts finalized callable Invoke facts with default and params parameters", () => {
+  const call = { Kind: 1 };
+  const selected = callableInvokeMember();
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "method",
+        memberName: "Invoke",
+        resultType: selected.returnType,
+        selectedMember: selected,
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# callable emission",
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(operation?.selectedMember?.parameters[1]?.defaultValue.value, "proved");
+  assert.equal(operation?.selectedMember?.parameters[2]?.paramsArray, true);
+});
+
+test("call emission rejects operation facts that drift selected parameter default facts", () => {
+  const call = { Kind: 1 };
+  const selected = callableInvokeMember();
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "method",
+        memberName: "Invoke",
+        resultType: selected.returnType,
+        selectedMember: {
+          ...selected,
+          parameters: selected.parameters.map((parameter, index) =>
+            index === 1
+              ? { ...parameter, defaultValue: { kind: "string", value: "mutated" } }
+              : parameter
+          ),
+        },
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# callable emission",
+  );
+
+  assert.equal(operation, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /parameter-default/);
+});
+
 test("call emission rejects operation facts that hide mismatched first-argument receiver types", () => {
   const call = { Kind: 1 };
   const selectedTargetMember = extensionMember();
@@ -553,6 +614,38 @@ function extensionMember() {
     ],
     returnType: { kind: "source-primitive", name: "bool" },
     overloadGroup: "Example.MemoryExtensions.Overlaps",
+  };
+}
+
+function callableInvokeMember() {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  return {
+    id: "Example.Callback.Invoke(System.String,System.String,System.Int32[])",
+    sourceName: "invoke",
+    targetName: "Invoke",
+    kind: "method",
+    parameters: [
+      {
+        name: "value",
+        type: csharpStringType(),
+        passingMode: "by-value",
+      },
+      {
+        name: "label",
+        type: csharpStringType(),
+        passingMode: "by-value",
+        optional: true,
+        defaultValue: { kind: "string", value: "proved" },
+      },
+      {
+        name: "items",
+        type: { kind: "array", element: int32 },
+        passingMode: "by-value",
+        paramsArray: true,
+      },
+    ],
+    returnType: int32,
+    overloadGroup: "Example.Callback.Invoke",
   };
 }
 
