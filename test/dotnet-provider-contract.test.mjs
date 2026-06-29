@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -344,6 +345,64 @@ test(".NET target binding provider reports unsupported requested exports with pr
   assert.match(JSON.stringify(model.evidence), /pointer parameter/u);
   assert.match(JSON.stringify(model.evidence), /ProviderUnsupportedFixtures\.PointerDelegate/u);
   assert.match(JSON.stringify(model.evidence), new RegExp(escapeRegExp(testTargetId("ProviderUnsupportedFixtures.PointerDelegate")), "u"));
+});
+
+test(".NET provider unsupported diagnostics preserve attribute and default-value omission facts", () => {
+  const provider = createDotnetReflectionTypeDataProvider({
+    disablePersistentCache: true,
+    references: [
+      buildAttributeFixture(),
+      buildUnsupportedDefaultParameterFixture(),
+    ],
+  });
+
+  const attributeModule = provider.getModule("@tsonic/dotnet/ProviderAttributeFixtures.js", {});
+  assert.equal("exports" in attributeModule, true, JSON.stringify(attributeModule));
+  assert.equal(validateDotnetModuleModelContract(attributeModule), undefined);
+  const unsupportedAttributeTarget = rawType(attributeModule, "UnsupportedAttributeTarget");
+  const unsupportedAttribute = unsupportedAttributeTarget.unsupportedAttributes?.find((attribute) =>
+    /Type attribute value 'System\.Int32\*' cannot be represented/u.test(attribute.reason)
+  );
+  assert.ok(unsupportedAttribute);
+  assert.equal(unsupportedAttribute.target, "type");
+  const attributeBinding = provider.findTargetBindingByTargetId(unsupportedAttributeTarget.targetId);
+  assert.ok(attributeBinding);
+  assert.ok(attributeBinding.unsupportedAttributes?.some((attribute) =>
+    attribute.id === unsupportedAttribute.id &&
+    attribute.reason === unsupportedAttribute.reason
+  ));
+
+  const defaultModule = provider.getModule("@tsonic/dotnet/ProviderUnsupportedDefaultFixtures.js", {});
+  assert.equal("exports" in defaultModule, true, JSON.stringify(defaultModule));
+  assert.equal(validateDotnetModuleModelContract(defaultModule), undefined);
+  const unsupportedDefaultSource = rawType(defaultModule, "UnsupportedDefaultParameterSource");
+  const rawSignature = rawMethod(
+    unsupportedDefaultSource,
+    "unsupportedDateTimeDefault",
+    "ProviderUnsupportedDefaultFixtures.UnsupportedDefaultParameterSource.UnsupportedDateTimeDefault(System.DateTime)",
+  ).signatures[0];
+  const rawParameter = rawSignature.parameters[0];
+  assert.equal(rawParameter.optional, true);
+  assert.equal(rawParameter.defaultValue, undefined);
+  assert.equal(rawParameter.unsupportedDefaultValue.kind, "unsupported-default-value");
+  assert.equal(rawParameter.unsupportedDefaultValue.parameterName, "value");
+  assert.match(rawParameter.unsupportedDefaultValue.reason, /System\.DateTime/u);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(defaultModule);
+  assert.equal(validateDotnetProviderDeclarationModelContract(sourceModel), undefined);
+  const sourceDefaultType = sourceModel.exports.find((declaration) => declaration.name === "UnsupportedDefaultParameterSource");
+  const sourceSignature = sourceDefaultType?.members?.find((member) => member.name === "unsupportedDateTimeDefault")?.signatures?.[0];
+  assert.ok(sourceSignature);
+  assert.equal(sourceSignature.parameters[0].optional, true);
+  assert.equal("defaultValue" in sourceSignature.parameters[0], false);
+  assert.equal("unsupportedDefaultValue" in sourceSignature.parameters[0], false);
+
+  const defaultBinding = provider.findTargetBindingByTargetId(unsupportedDefaultSource.targetId);
+  assert.ok(defaultBinding);
+  const targetSignature = defaultBinding.members
+    ?.find((member) => idHasShape(member.id, "ProviderUnsupportedDefaultFixtures.UnsupportedDefaultParameterSource.UnsupportedDateTimeDefault(System.DateTime)"));
+  assert.ok(targetSignature);
+  assert.deepEqual(targetSignature.parameters[0].unsupportedDefaultValue, rawParameter.unsupportedDefaultValue);
 });
 
 test(".NET synthetic native array target binding is discoverable by provider target id", () => {
@@ -809,5 +868,57 @@ function buildUnsupportedMemberFixture() {
     intermediateDirectory,
     outputAssemblyName: "UnsupportedMembersProviderFixture.dll",
     projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/unsupported-members"),
+  });
+}
+
+function buildAttributeFixture() {
+  const project = join(repoRoot, "test/fixtures/dotnet-provider/attributes/AttributeProviderFixture.csproj");
+  const outputDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/bin");
+  const intermediateDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/attributes/obj/");
+  return buildDotnetFixture({
+    project,
+    outputDirectory,
+    intermediateDirectory,
+    outputAssemblyName: "AttributeProviderFixture.dll",
+    projectDirectory: join(repoRoot, "test/fixtures/dotnet-provider/attributes"),
+  });
+}
+
+function buildUnsupportedDefaultParameterFixture() {
+  const fixtureDirectory = join(repoRoot, ".temp/dotnet-provider-fixtures/unsupported-default-params");
+  const project = join(fixtureDirectory, "UnsupportedDefaultParameterProviderFixture.csproj");
+  const source = join(fixtureDirectory, "UnsupportedDefaultParameterSource.cs");
+  const outputDirectory = join(fixtureDirectory, "bin");
+  const intermediateDirectory = join(fixtureDirectory, "obj/");
+  mkdirSync(fixtureDirectory, { recursive: true });
+  writeFileSync(project, `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>
+`);
+  writeFileSync(source, `using System;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+namespace ProviderUnsupportedDefaultFixtures;
+
+public sealed class UnsupportedDefaultParameterSource
+{
+    public void UnsupportedDateTimeDefault(
+        [Optional, DateTimeConstant(638000000000000000L)] DateTime value)
+    {
+    }
+}
+`);
+  return buildDotnetFixture({
+    project,
+    outputDirectory,
+    intermediateDirectory,
+    outputAssemblyName: "UnsupportedDefaultParameterProviderFixture.dll",
+    projectDirectory: fixtureDirectory,
   });
 }
