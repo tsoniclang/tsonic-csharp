@@ -67,7 +67,7 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
     runRuntimeCarrierStage(lifecycleContext, "referenced-facts", sourceFile, () => propagateRuntimeCarrierReferencedFacts(lifecycleContext, sourceFile, nodes));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    runRuntimeCarrierStage(lifecycleContext, "initializer-facts", sourceFile, () => propagateRuntimeCarrierInitializerFacts(lifecycleContext, sourceFile, nodes));
+    runRuntimeCarrierStage(lifecycleContext, "initializer-facts", sourceFile, () => propagateRuntimeCarrierInitializerFacts(lifecycleContext, sourceFile, nodes, host));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
     runRuntimeCarrierStage(lifecycleContext, "syntax-facts", sourceFile, () => recordRuntimeCarrierSyntaxFacts(lifecycleContext, sourceFile, nodes, host));
@@ -160,9 +160,10 @@ function propagateRuntimeCarrierInitializerFacts(
   lifecycleContext: CsharpLifecycleObservationContext,
   sourceFile: SourceFile,
   nodes: readonly Node[],
+  host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
   for (const node of [...nodes].reverse()) {
-    propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node);
+    propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node, host);
   }
 }
 

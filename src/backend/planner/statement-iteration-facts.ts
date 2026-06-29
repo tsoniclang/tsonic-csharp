@@ -3,6 +3,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
+  TargetCompileInput,
   TargetDiagnostic,
 } from "@tsonic/target-api";
 import type {
@@ -10,6 +11,9 @@ import type {
 } from "../roslyn/syntax.js";
 import type {
   CsharpTargetIterationFact,
+} from "../../source/csharp-facts.js";
+import {
+  csharpTargetIterationFactKey,
 } from "../../source/csharp-facts.js";
 import {
   asTargetTypeRef,
@@ -23,6 +27,21 @@ import {
 
 export function targetTypeRefFromFactSubject(subject: CsharpTargetIterationFact["elementType"]): TargetTypeRef | undefined {
   return asTargetTypeRef(subject);
+}
+
+export function getRequiredCsharpTargetIterationFact(
+  input: TargetCompileInput,
+  statementNode: Node,
+  diagnosticNode: Node,
+  diagnostics: TargetDiagnostic[],
+  purpose: string,
+): CsharpTargetIterationFact | undefined {
+  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey);
+  if (selectedIteration === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, `${purpose} requires finalized TSTS/provider iteration facts before C# emission.`));
+    return undefined;
+  }
+  return selectedIteration;
 }
 
 export function csharpTypeFromIterationElementFact(

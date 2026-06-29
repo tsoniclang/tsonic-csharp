@@ -12,7 +12,14 @@ import {
 import {
   getRuntimeCarrierSubjectSymbol,
 } from "../runtime-carrier-subjects.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "../runtime-carrier-context.js";
 import type {
+  CsharpRuntimeCarrierSemanticsHost,
+} from "../runtime-carrier-types.js";
+import type {
+  RuntimeCarrierFact,
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
 import {
@@ -23,6 +30,7 @@ export function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
   lifecycleContext: RuntimeCarrierLifecycleFactsContext,
   sourceFile: SourceFile,
   node: Node,
+  host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined || compiler.ast.kindName(node) !== "KindVariableDeclaration") {
@@ -30,7 +38,8 @@ export function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
   }
   const initializer = asNodeSubject(getNodeField(node, "Initializer"));
   const name = asNodeSubject(getNodeField(node, "name"));
-  const initializerFact = lifecycleContext.host.facts.get(initializer, runtimeCarrierFactKey);
+  const initializerFact = lifecycleContext.host.facts.get(initializer, runtimeCarrierFactKey) ??
+    getInitializerCarrierFromCheckedType(lifecycleContext, sourceFile, initializer, host);
   if (initializerFact === undefined) {
     return;
   }
@@ -41,4 +50,29 @@ export function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
     const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
     setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, symbol, initializerFact, message);
   }
+}
+
+function getInitializerCarrierFromCheckedType(
+  lifecycleContext: RuntimeCarrierLifecycleFactsContext,
+  sourceFile: SourceFile,
+  initializer: Node | undefined,
+  host: CsharpRuntimeCarrierSemanticsHost,
+): RuntimeCarrierFact | undefined {
+  if (initializer === undefined) {
+    return undefined;
+  }
+  const compiler = lifecycleContext.compiler;
+  const type = compiler?.checker.getTypeAtLocation(initializer, { sourceFile });
+  const carrier = host.getTargetTypeRefForType(
+    type,
+    createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
+    {
+      allowRuntimeCarrier: false,
+      sourceFile,
+    },
+  );
+  if (carrier === undefined) {
+    return undefined;
+  }
+  return { carrier };
 }

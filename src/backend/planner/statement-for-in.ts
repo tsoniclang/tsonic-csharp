@@ -13,10 +13,12 @@ import {
 } from "./bindings.js";
 import type { DestructuringPlannerState } from "./bindings.js";
 import { planExpression } from "./expressions.js";
-import { csharpTargetIterationFactKey } from "../../source/csharp-facts.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
+import {
+  getRequiredCsharpTargetIterationFact,
+} from "./statement-iteration-facts.js";
 import {
   getCsharpTypeForForInCollection,
   getForInKeyType,
@@ -43,10 +45,15 @@ export function planForInStatement(
   if (binding === undefined) {
     return [];
   }
-  const selectedIteration = input.facts.getFact(statementNode, csharpTargetIterationFactKey);
+  const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
+  const selectedIteration = getRequiredCsharpTargetIterationFact(
+    input,
+    statementNode,
+    diagnosticNode,
+    diagnostics,
+    "C# for-in emission",
+  );
   if (selectedIteration === undefined) {
-    const diagnosticNode = statement.Expression ?? statement.Initializer ?? statementNode;
-    diagnostics.push(unsupportedNodeDiagnostic(diagnosticNode, "For-in requires finalized TSTS/provider enumeration facts before C# emission."));
     return [];
   }
   if (selectedIteration.iterationKind === "property-key" && selectedIteration.lowering.kind === "object-shape-keys") {
