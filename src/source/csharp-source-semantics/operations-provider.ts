@@ -41,6 +41,18 @@ import {
   createCsharpJsSurfaceMappers,
 } from "./surfaces/js/index.js";
 import {
+  recordCsharpJsArrayCarrierFactsBeforeFinalization,
+} from "./surfaces/js/array-carrier-lifecycle.js";
+import {
+  recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization,
+} from "./surfaces/js/date/index.js";
+import {
+  recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization,
+} from "./surfaces/js/json.js";
+import {
+  recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization,
+} from "./surfaces/js/regexp/index.js";
+import {
   createCsharpNodejsSurfaceMappers,
 } from "./surfaces/nodejs/index.js";
 import {
@@ -125,6 +137,15 @@ export function createCsharpTargetOperationsProvider(
   const nodejsSurface = options.nodejsSurface === true
     ? createCsharpNodejsSurfaceMappers(csharpNodejsSurfaceExtensionId)
     : undefined;
+  const surfaceAwareHost: CsharpOperationsProviderHost = {
+    ...host,
+    mapRuntimeCarrier(request, context) {
+      const jsObservation = jsSurface?.mapRuntimeCarrier(request, context) ?? deferObservation;
+      return jsObservation.kind === "defer"
+        ? host.mapRuntimeCarrier(request, context)
+        : jsObservation;
+    },
+  };
   return {
     identity,
     mapCheckedCall(request, context) {
@@ -132,13 +153,20 @@ export function createCsharpTargetOperationsProvider(
       if (nodejsObservation.kind !== "defer") {
         return nodejsObservation;
       }
+      if (jsSurface !== undefined) {
+        ensureCsharpJsSurfaceSeedFacts(context, createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, surfaceAwareHost));
+      }
       const jsObservation = jsSurface?.mapCheckedCall(request, context) ?? deferObservation;
-      if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedCall(request, context))) {
+      const jsOwnsCall = jsSurface !== undefined && jsSurfaceOwnsCheckedCall(request, context);
+      if (jsObservation.kind !== "defer" || jsOwnsCall) {
         return jsObservation;
       }
-      return mapCsharpCheckedCall(request, context, identity.id, host);
+      return mapCsharpCheckedCall(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedPropertyAccess(request, context) {
+      if (jsSurface !== undefined) {
+        ensureCsharpJsSurfaceSeedFacts(context, createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, surfaceAwareHost));
+      }
       const nodejsObservation = nodejsSurface?.mapCheckedPropertyAccess(request, context) ?? deferObservation;
       if (nodejsObservation.kind !== "defer") {
         return nodejsObservation;
@@ -147,40 +175,64 @@ export function createCsharpTargetOperationsProvider(
       if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedPropertyAccess(request, context))) {
         return jsObservation;
       }
-      return mapCsharpCheckedPropertyAccess(request, context, identity.id, host);
+      return mapCsharpCheckedPropertyAccess(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedElementAccess(request, context) {
+      if (jsSurface !== undefined) {
+        ensureCsharpJsSurfaceSeedFacts(context, createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, surfaceAwareHost));
+      }
       const jsObservation = jsSurface?.mapCheckedElementAccess(request, context) ?? deferObservation;
       if (jsObservation.kind !== "defer" || (jsSurface !== undefined && jsSurfaceOwnsCheckedElementAccess(request, context))) {
         return jsObservation;
       }
-      return mapCsharpCheckedElementAccess(request, context, identity.id, host);
+      return mapCsharpCheckedElementAccess(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedOperator(request, context) {
-      return mapCsharpCheckedOperator(request, context, host);
+      return mapCsharpCheckedOperator(request, context, surfaceAwareHost);
     },
     observePostCheckAssignability(request, context) {
-      return observeCsharpPostCheckAssignability(request, context, host);
+      return observeCsharpPostCheckAssignability(request, context, surfaceAwareHost);
     },
     validateTargetConstraint(request, context) {
-      return validateCsharpTargetConstraint(request, context, host);
+      return validateCsharpTargetConstraint(request, context, surfaceAwareHost);
     },
     mapCheckedIteration(request, context) {
       return useObservationOrWhenDeferred(
         jsSurface?.mapCheckedIteration(request, context) ?? deferObservation,
-        () => mapCsharpNativeCheckedIteration(request, context, host),
+        () => mapCsharpNativeCheckedIteration(request, context, surfaceAwareHost),
       );
     },
     recordContextualTargetType(request, context) {
-      return mapCsharpContextualTargetType(request, context, host);
+      return mapCsharpContextualTargetType(request, context, surfaceAwareHost);
     },
     mapCheckedConversion(request, context) {
-      return mapCsharpCheckedConversion(request, context, host);
+      return mapCsharpCheckedConversion(request, context, surfaceAwareHost);
     },
     resolveParameterPassing(request, context) {
       return mapCsharpParameterPassing(request, context);
     },
   };
+}
+
+const jsSurfaceSeededFactHosts = new WeakSet<object>();
+
+function ensureCsharpJsSurfaceSeedFacts(
+  context: ExtensionObservationContext,
+  host: ReturnType<typeof createCsharpJsSurfaceHost>,
+): void {
+  const factHost = context.host;
+  if (factHost === undefined || context.compiler === undefined || jsSurfaceSeededFactHosts.has(factHost)) {
+    return;
+  }
+  jsSurfaceSeededFactHosts.add(factHost);
+  const lifecycleContext = {
+    host: factHost,
+    compiler: context.compiler,
+  };
+  recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
+  recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
+  recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(lifecycleContext, host);
+  recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, host);
 }
 
 export function createCsharpJsSurfaceHost(

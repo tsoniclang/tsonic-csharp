@@ -40,6 +40,7 @@ export function isSupportedObjectHelperSourceTargetType(
 ): boolean {
   return type !== undefined &&
     (
+      type.kind === "array" ||
       isCsharpJsObjectCarrierTargetType(type) ||
       isCsharpJsArrayCarrierTargetType(type) ||
       type.kind === "source-primitive" ||

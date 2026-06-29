@@ -12,7 +12,6 @@ import type {
 import {
   acceptObservation,
   deferObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -37,6 +36,9 @@ import {
 import {
   csharpJsDateTargetType,
 } from "./target-type.js";
+import {
+  setRuntimeCarrierFactIfUnresolved,
+} from "../../../runtime-carrier-lifecycle/fact-writes.js";
 
 export function mapCsharpJsDateRuntimeCarrier(
   request: RuntimeCarrierFactRequest,
@@ -54,9 +56,26 @@ export function getCsharpJsDateRuntimeCarrierForType(
   type: Type | undefined,
   context: ExtensionObservationContext,
 ): TargetTypeRef | undefined {
-  return type !== undefined && isSourceStandardLibraryDateType(type, context)
+  return type !== undefined && isDateOrNullishDateUnion(type, context)
     ? csharpJsDateTargetType()
     : undefined;
+}
+
+function isDateOrNullishDateUnion(
+  type: Type,
+  context: ExtensionObservationContext,
+): boolean {
+  if (isSourceStandardLibraryDateType(type, context)) {
+    return true;
+  }
+  const typeShape = context.compiler?.typeShape;
+  if (typeShape === undefined || !typeShape.isUnion(type)) {
+    return false;
+  }
+  const nonNullishMembers = typeShape.getUnionOrIntersectionTypes(type)
+    .filter((member): member is Type => member !== undefined && !typeShape.isNullish(member));
+  return nonNullishMembers.length > 0 &&
+    nonNullishMembers.every((member) => isSourceStandardLibraryDateType(member, context));
 }
 
 export function recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(
@@ -86,13 +105,13 @@ export function recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(
         ], "C# JS surface Date runtime carrier recorded from checked TypeScript Date type reference.");
         return;
       }
-      if (compiler.ast.is.IsNewExpression(node) !== true || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
+      if (compiler.ast.is.IsNewExpression(node) !== true) {
         return;
       }
       if (!isCheckedSourceLibraryDateConstruction(node, sourceFile, context)) {
         return;
       }
-      lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, {
+      setRuntimeCarrierFactIfUnresolved(lifecycleContext, node, {
         carrier: csharpJsDateTargetType(),
       }, [{ message: "C# JS surface Date constructor runtime carrier recorded from checked TypeScript Date construction." }]);
     });
@@ -118,9 +137,7 @@ function recordDateRuntimeCarrierFacts(
   };
   const evidence = [{ message }];
   for (const subject of subjects) {
-    if (subject !== undefined && lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey) === undefined) {
-      lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, fact, evidence);
-    }
+    setRuntimeCarrierFactIfUnresolved(lifecycleContext, subject, fact, evidence);
   }
 }
 

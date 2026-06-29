@@ -41,6 +41,9 @@ import {
   getNodeField,
 } from "../ast-utils.js";
 import {
+  isDeclarationOrVirtualSourceFile,
+} from "../ast-utils/source-file.js";
+import {
   dotnetNativeArrayTypeId,
 } from "../../../providers/dotnet/native-array.js";
 import {
@@ -92,6 +95,11 @@ export function mapCsharpCheckedPropertyAccess(
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation("source-semantics.attribute-builder.member", "property", "__tsonic_erased_source_marker"),
     }, [{ message: "C# attribute builder member access was checked by TSTS and marked for fact-driven erasure." }]);
+  }
+  if (isDeclarationOnlyPropertyAccess(request.expression, context)) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation("source-declaration.property-access", "property", "__tsonic_declaration_only"),
+    }, [{ message: "C# target accepted checked property access inside declaration-only source; backend does not emit declaration-file expressions." }]);
   }
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const selectedDeclaration = resolveProviderVirtualDeclaration(context, [
@@ -151,6 +159,18 @@ export function mapCsharpCheckedPropertyAccess(
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperationFromMember(csharpMember),
   }, [{ message: "C# target property/member access selected from checked TSTS provider declaration." }]);
+}
+
+function isDeclarationOnlyPropertyAccess(
+  expression: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+): boolean {
+  const node = asNodeSubject(expression);
+  const compiler = context.compiler;
+  if (node === undefined || compiler === undefined) {
+    return false;
+  }
+  return isDeclarationOrVirtualSourceFile(compiler.ast.getSourceFile(node), compiler.ast);
 }
 
 function propertyAccessIsCallCallee(

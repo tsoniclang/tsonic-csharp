@@ -1,6 +1,5 @@
 import {
   ExtensionObservationPoint,
-  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -20,6 +19,9 @@ import {
 import {
   createCsharpLifecycleObservationContext,
 } from "../../../runtime-carriers.js";
+import {
+  setRuntimeCarrierFactIfUnresolved,
+} from "../../../runtime-carrier-lifecycle/fact-writes.js";
 import {
   targetTypeRefIsClosed,
 } from "../../../target-ref-utils.js";
@@ -226,11 +228,7 @@ function setRuntimeCarrierFactIfMissing(
   fact: { readonly carrier: TargetTypeRef },
   message: string,
 ): boolean {
-  if (subject === undefined || context.host.facts.get(subject, runtimeCarrierFactKey) !== undefined) {
-    return false;
-  }
-  context.host.facts.set(subject, runtimeCarrierFactKey, fact, [{ message }]);
-  return true;
+  return setRuntimeCarrierFactIfUnresolved(context, subject, fact, [{ message }]);
 }
 
 function recordLifecycleRuntimeCarrierFactsForSelectedCall(
@@ -292,11 +290,8 @@ function recordArrayLifecycleRuntimeCarrierFact(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpJsSurfaceHost,
 ): void {
-  if (context.host.facts.get(subject, runtimeCarrierFactKey) !== undefined) {
-    return;
-  }
   const carrier = getCsharpJsArrayRuntimeCarrierForNode(subject, sourceFile, context, host);
   if (carrier !== undefined) {
-    context.host.facts.set(subject, runtimeCarrierFactKey, { carrier }, [{ message: "C# JS surface Array runtime carrier recorded from selected operation lifecycle metadata and checked TypeScript type facts." }]);
+    setRuntimeCarrierFactIfUnresolved(context, subject, { carrier }, [{ message: "C# JS surface Array runtime carrier recorded from selected operation lifecycle metadata and checked TypeScript type facts." }]);
   }
 }

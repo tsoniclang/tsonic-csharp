@@ -7,11 +7,7 @@ import type {
   SourceLibraryMember,
 } from "../../source-library.js";
 import {
-  jsSurfaceSelectedSourceIdentityForMember,
-} from "../../target-member-metadata.js";
-import {
   getCsharpJsSourceLibraryOperationRow,
-  operationRowClosedFactsStatus,
 } from "../member-providers/index.js";
 
 export function csharpJsSourceLibraryCallCanWaitForFinalizedFacts(
@@ -28,17 +24,10 @@ export function csharpJsSourceLibraryCallCanWaitForFinalizedFacts(
   if (row === undefined) {
     return true;
   }
-  if (row.policyKind === "unsupported") {
-    return false;
-  }
-  const status = operationRowClosedFactsStatus(
-    row,
-    jsSurfaceSelectedSourceIdentityForMember(sourceMember),
-    request,
-    context,
-    host,
-  );
-  return status.kind !== "conflict";
+  void request;
+  void context;
+  void host;
+  return row.policyKind !== "unsupported";
 }
 
 function compilerContextCanRunLifecycleFinalization(

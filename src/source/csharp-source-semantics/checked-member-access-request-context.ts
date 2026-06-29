@@ -43,7 +43,9 @@ export function getCsharpCheckedPropertyAccessRequestContext(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): CsharpCheckedPropertyAccessRequestContext {
-  return getCsharpCheckedMemberAccessRequestContext(request.receiver, request.sourceSelectedSymbol, context);
+  return getCsharpCheckedMemberAccessRequestContext(request.receiver, request.sourceSelectedSymbol, context, {
+    propertyName: request.propertyName,
+  });
 }
 
 export function getCsharpCheckedElementAccessRequestContext(
@@ -57,6 +59,7 @@ function getCsharpCheckedMemberAccessRequestContext(
   receiverSubject: ExtensionFactSubject,
   selectedSymbol: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
+  selectedPropertyOptions: { readonly propertyName?: string | undefined } = {},
 ): CsharpCheckedMemberReceiverContext & CsharpCheckedSelectedMemberContext {
   const compiler = context.compiler;
   const receiver = asNodeSubject(receiverSubject);
@@ -74,15 +77,38 @@ function getCsharpCheckedMemberAccessRequestContext(
   const receiverTypeSymbol = receiverType === undefined
     ? undefined
     : compiler.checker.getTypeSymbol(receiverType as Type);
+  const effectiveSelectedSymbol = selectedSymbol ?? getCheckedReceiverPropertySymbol(
+    receiverType,
+    selectedPropertyOptions.propertyName,
+    context,
+    receiverSourceFile,
+  );
   return {
     ...(receiverSymbol !== undefined ? { receiverSymbol } : {}),
     ...(receiverResolvedSymbol !== undefined ? { receiverResolvedSymbol } : {}),
     ...(receiverAliasedSymbol !== undefined ? { receiverAliasedSymbol } : {}),
     ...(receiverType !== undefined ? { receiverType } : {}),
     ...(receiverTypeSymbol !== undefined ? { receiverTypeSymbol } : {}),
-    ...(selectedSymbol !== undefined ? { sourceSelectedSymbol: selectedSymbol } : {}),
-    ...selectedMemberContext(selectedSymbol, context),
+    ...(effectiveSelectedSymbol !== undefined ? { sourceSelectedSymbol: effectiveSelectedSymbol } : {}),
+    ...selectedMemberContext(effectiveSelectedSymbol, context),
   };
+}
+
+function getCheckedReceiverPropertySymbol(
+  receiverType: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["checker"]["getTypeAtLocation"]> | undefined,
+  propertyName: string | undefined,
+  context: ExtensionObservationContext,
+  sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
+): ExtensionFactSubject | undefined {
+  if (
+    receiverType === undefined ||
+    propertyName === undefined ||
+    context.compiler === undefined ||
+    typeof context.compiler.checker.getPropertyOfType !== "function"
+  ) {
+    return undefined;
+  }
+  return context.compiler.checker.getPropertyOfType(receiverType as Type, propertyName, { sourceFile }) ?? undefined;
 }
 
 function selectedMemberContext(

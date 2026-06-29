@@ -126,7 +126,8 @@ function recordCsharpSourceLibraryPropertyFact(
     safeGetResolvedSymbol(node, sourceFile, context);
   const declaration = firstSymbolDeclaration(propertySymbol, context);
   const propertyName = compiler.ast.text(name);
-  const sourceMember = resolveSourceLibraryMemberIdentity(declaration, context);
+  const sourceMember = resolveSourceLibraryMemberIdentity(propertySymbol, context) ??
+    resolveSourceLibraryMemberIdentity(declaration, context);
   if (sourceMember === undefined) {
     return;
   }

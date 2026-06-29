@@ -21,6 +21,9 @@ import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../../runtime-carriers.js";
 import {
+  setRuntimeCarrierFactIfUnresolved,
+} from "../../../runtime-carrier-lifecycle/fact-writes.js";
+import {
   getSymbolForDeclarationLookup,
 } from "../../../symbol-utils.js";
 import {
@@ -69,11 +72,9 @@ export function recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(
         return;
       }
       recordCsharpJsRegExpLiteralFact(node, context);
-      if (!isCsharpJsRegExpRuntimeCarrier(lifecycleContext.host.facts.get(node, runtimeCarrierFactKey)?.carrier)) {
-        lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, {
-          carrier: csharpJsRegExpTargetType(),
-        }, [{ message: "C# JS surface RegExp literal runtime carrier recorded from source syntax." }]);
-      }
+      setRuntimeCarrierFactIfUnresolved(lifecycleContext, node, {
+        carrier: csharpJsRegExpTargetType(),
+      }, [{ message: "C# JS surface RegExp literal runtime carrier recorded from source syntax." }]);
       recordCsharpJsRegExpBindingCarrierFact(node, sourceFile, context);
     });
   }
@@ -100,15 +101,11 @@ function recordCsharpJsRegExpBindingCarrierFact(
   const name = asNodeSubject(getNodeField(declaration, "name"));
   const fact = { carrier: csharpJsRegExpTargetType() };
   const evidence = [{ message: "C# JS surface RegExp literal runtime carrier propagated to checked variable binding." }];
-  if (name !== undefined && context.host.facts.get(name, runtimeCarrierFactKey) === undefined) {
-    context.host.facts.set(name, runtimeCarrierFactKey, fact, evidence);
-  }
+  setRuntimeCarrierFactIfUnresolved(context, name, fact, evidence);
   const symbol = name === undefined
     ? undefined
     : getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
-  if (symbol !== undefined && context.host.facts.get(symbol, runtimeCarrierFactKey) === undefined) {
-    context.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
-  }
+  setRuntimeCarrierFactIfUnresolved(context, symbol, fact, evidence);
 }
 
 export function getCsharpJsRegExpRuntimeCarrierForSubject(
