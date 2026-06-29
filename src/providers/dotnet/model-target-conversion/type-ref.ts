@@ -10,6 +10,7 @@ import {
   csharpBigIntegerTargetType,
   csharpBooleanTargetType,
   csharpDelegateTargetType,
+  type CsharpDelegateSignatureShape,
   csharpNullableValueTargetType,
   type CsharpTargetTypeRenderShape,
   csharpStringTargetType,
@@ -97,12 +98,14 @@ export function requireDotnetTargetId(targetId: string | undefined, metadataName
 export function csharpTargetMetadataFromDotnetTypeDeclaration(
   declaration: DotnetTypeDeclaration,
 ): Parameters<typeof csharpTargetNamedType>[3] {
+  const delegateSignature = dotnetDelegateSignatureFromSourceShape(declaration.sourceShape);
   return {
     ...(declaration.typeKind === "struct" || declaration.typeKind === "enum" ? { valueType: true as const } : {}),
     ...(declaration.typeKind === "class" || declaration.typeKind === "interface" || declaration.typeKind === "enum"
       ? { sourceDeclarationKind: declaration.typeKind }
       : {}),
     ...(declaration.throwable === true ? { throwable: true as const } : {}),
+    ...(delegateSignature !== undefined ? { delegateSignature } : {}),
   };
 }
 
@@ -121,16 +124,30 @@ function csharpTargetMetadataFromDotnetTypeRef(
   type: Extract<DotnetTypeRef, { readonly kind: "named" }>,
 ): Parameters<typeof csharpTargetNamedType>[3] {
   const sourceShape = type.sourceShape;
-  if (sourceShape?.kind !== "array") {
-    return {};
-  }
-  const elementType = type.typeArguments?.length === 1
-    ? type.typeArguments[0]
-    : sourceShape.elementType;
-  if (elementType === undefined) {
-    return {};
-  }
+  const delegateSignature = dotnetDelegateSignatureFromSourceShape(sourceShape);
+  const elementType = sourceShape?.kind === "array"
+    ? type.typeArguments?.length === 1
+      ? type.typeArguments[0]
+      : sourceShape.elementType
+    : undefined;
   return {
-    arrayLiteralElementType: dotnetTypeRefToTargetTypeRef(elementType),
+    ...(elementType !== undefined ? { arrayLiteralElementType: dotnetTypeRefToTargetTypeRef(elementType) } : {}),
+    ...(delegateSignature !== undefined ? { delegateSignature } : {}),
+  };
+}
+
+function dotnetDelegateSignatureFromSourceShape(
+  sourceShape: DotnetTypeRef | undefined,
+): CsharpDelegateSignatureShape | undefined {
+  if (sourceShape?.kind !== "function") {
+    return undefined;
+  }
+  const parameters = sourceShape.parameters.map((parameter) => dotnetTypeRefToTargetTypeRef(parameter.type));
+  const returnType = sourceShape.returnType.kind === "void"
+    ? undefined
+    : dotnetTypeRefToTargetTypeRef(sourceShape.returnType);
+  return {
+    parameters,
+    ...(returnType !== undefined ? { returnType } : {}),
   };
 }
