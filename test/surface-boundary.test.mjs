@@ -852,7 +852,12 @@ test("JS surface maps Map and Set runtime built-ins from selected declarations a
   assert.equal(mapSetResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Map.set");
   assert.equal(mapSetResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.Map`2");
   assert.equal(mapGetResult.kind, "accept");
-  assert.equal(mapGetResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Map.get");
+  assert.equal(mapGetResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Map.get:value");
+  assert.equal(mapGetResult.value.selectedSignature.member.targetName, "getValue");
+  assert.equal(mapGetResult.value.selectedSignature.member.static, true);
+  assert.equal(mapGetResult.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(mapGetResult.value.selectedSignature.member.declaringType.id, "Tsonic.CSharp.Js.Map`2");
+  assert.equal(mapGetResult.value.selectedSignature.member.parameters.length, 1);
   assert.equal(mapGetResult.value.selectedSignature.member.returnType.id, "System.Nullable`1");
   assert.equal(mapHasResult.kind, "accept");
   assert.equal(mapHasResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Map.has");
