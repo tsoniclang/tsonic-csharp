@@ -183,6 +183,12 @@ export function mapCsharpSourceArrayCheckedElementAccess(
   extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
+  if (existingOperation !== undefined) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: existingOperation,
+    }, [{ message: "C# source array element access reused existing finalized target operation for repeated checked-element observation." }]);
+  }
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
   const receiverType = asNativeArrayTargetType(unwrapNullableTargetType(
     host.getTargetTypeRefForSubject(requestContext.receiverType, context, { allowRuntimeCarrier: true }) ??

@@ -31,6 +31,7 @@ import {
 } from "../../../csharp-facts.js";
 import {
   csharpJsSourceLibraryMemberHasCallableProvider,
+  getCsharpJsSourceLibraryOperationRow,
 } from "./calls/member-providers/index.js";
 import {
   csharpJsSourceLibraryPropertyReceiverHasClosedFacts,
@@ -199,7 +200,12 @@ function mapCsharpSourceLibraryPropertyOperation(
   }
   const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
   const receiverType = getSourceLibraryPropertyReceiverType(request, context, selectedIdentity, host);
-  if (sourceLibrarySelectedDeclarationHasCallTarget(sourceMember, receiverType)) {
+  const expressionNode = asNodeSubject(request.expression);
+  if (
+    expressionNode !== undefined &&
+    isCallCalleePropertyAccess(expressionNode, context.compiler?.ast) &&
+    sourceLibrarySelectedDeclarationHasCallTarget(sourceMember, receiverType)
+  ) {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(
         `tsonic.csharp.js.${sourceLibraryMemberIdentity(sourceMember)}.callee`,
@@ -316,5 +322,12 @@ function sourceLibrarySelectedDeclarationHasCallTarget(
 ): boolean {
   return csharpJsSourceLibraryMemberHasCallableProvider(sourceMember, {
     contextualDeclaringType: receiverType,
-  });
+  }) || sourceLibrarySelectedDeclarationHasCallPolicy(sourceMember);
+}
+
+function sourceLibrarySelectedDeclarationHasCallPolicy(
+  sourceMember: SourceLibraryMember,
+): boolean {
+  const operationRow = getCsharpJsSourceLibraryOperationRow(sourceMember);
+  return operationRow !== undefined && operationRow.policyKind !== "unsupported";
 }
