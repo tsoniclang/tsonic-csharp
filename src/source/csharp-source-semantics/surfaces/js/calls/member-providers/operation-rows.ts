@@ -70,6 +70,9 @@ const stringStaticCallIdentityPolicy = {
     "String.fromCodePoint",
   ],
 } as const satisfies JsSurfaceSourceIdentitySelector;
+const stringConstructorIdentityPolicy = {
+  ids: ["String.constructor"],
+} as const satisfies JsSurfaceSourceIdentitySelector;
 const unsupportedStringExactSemanticsIdentityPolicy = {
   ids: [
     "String.raw",
@@ -131,6 +134,20 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     closedFacts: { kind: "known-argument-targets" },
   },
   operationRowFromMetadataIndex(stringStaticCallIdentityPolicy, stringTargetMemberIdentityIndex, { capabilityId: "surface.js.string-methods", requiredFacts: selectedSignatureProviderFacts }),
+  {
+    identity: stringConstructorIdentityPolicy,
+    policyKind: "semantic-exception",
+    semanticException: {
+      reason: "String(value) converts to a primitive string while new String(value) requires an explicit wrapper-object carrier that the selected C# JS surface does not expose yet.",
+      requiredFacts: [
+        "selected StringConstructor source declaration/signature identity",
+        "call expression construct-vs-call shape",
+        "closed conversion argument target facts",
+      ],
+      capabilityId: "surface.js.string-methods",
+    },
+    targetProviders: [semanticExceptionProvider({ kind: "string-call-construct" })],
+  },
   {
     identity: unsupportedStringExactSemanticsIdentityPolicy,
     policyKind: "unsupported",
