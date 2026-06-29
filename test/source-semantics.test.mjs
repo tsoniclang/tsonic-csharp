@@ -142,16 +142,32 @@ test("source-semantics records neutral primitive facts, char and bool, and confi
   const sourceText = `
     import type { bool, int32 as i32, float64 } from "@tsonic/core/types.js";
     import type * as CoreTypes from "@tsonic/core/types.js";
-    import type { byte, int, long } from "@tsonic/csharp/types.js";
+    import type { bool as csharpBool, byte, char as csharpChar, decimal, double, float, int, long, nint, nuint, sbyte, short, uint, ulong, ushort } from "@tsonic/csharp/types.js";
+    import type * as CsharpTypes from "@tsonic/csharp/types.js";
 
     type LocalBool = bool;
     type LocalChar = CoreTypes.char;
     type I32 = i32;
     type I32Again = I32;
     type DoubleAlias = float64;
+    type CsharpBool = csharpBool;
     type CsharpInt = int;
     type CsharpLong = long;
     type CsharpByte = byte;
+    type CsharpChar = csharpChar;
+    type CsharpDecimal = decimal;
+    type CsharpDouble = double;
+    type CsharpFloat = float;
+    type CsharpNint = nint;
+    type CsharpNuint = nuint;
+    type CsharpSbyte = sbyte;
+    type CsharpShort = short;
+    type CsharpUint = uint;
+    type CsharpUlong = ulong;
+    type CsharpUshort = ushort;
+    type NamespaceCsharpInt = CsharpTypes.int;
+    type NamespaceCsharpByte = CsharpTypes.byte;
+    type NamespaceCsharpDouble = CsharpTypes.double;
     type LocalInt = number;
   `;
   const session = createCompilerSessionFromFiles({
@@ -208,24 +224,29 @@ test("source-semantics records neutral primitive facts, char and bool, and confi
     signed: true,
     width: 64,
   });
-  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("CsharpInt"), sourcePrimitiveFactKey)), {
-    kind: "int32",
-    runtimeBase: "number",
-    signed: true,
-    width: 32,
-  });
-  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("CsharpLong"), sourcePrimitiveFactKey)), {
-    kind: "int64",
-    runtimeBase: "bigint",
-    signed: true,
-    width: 64,
-  });
-  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("CsharpByte"), sourcePrimitiveFactKey)), {
-    kind: "uint8",
-    runtimeBase: "number",
-    signed: false,
-    width: 8,
-  });
+  const expectedCsharpAliases = new Map([
+    ["CsharpBool", { kind: "bool", runtimeBase: "boolean" }],
+    ["CsharpByte", { kind: "uint8", runtimeBase: "number", signed: false, width: 8 }],
+    ["CsharpChar", { kind: "char", runtimeBase: "string", signed: false, width: 16 }],
+    ["CsharpDecimal", { kind: "decimal", runtimeBase: "number", signed: true, width: 128 }],
+    ["CsharpDouble", { kind: "float64", runtimeBase: "number", signed: true, width: 64 }],
+    ["CsharpFloat", { kind: "float32", runtimeBase: "number", signed: true, width: 32 }],
+    ["CsharpInt", { kind: "int32", runtimeBase: "number", signed: true, width: 32 }],
+    ["CsharpLong", { kind: "int64", runtimeBase: "bigint", signed: true, width: 64 }],
+    ["CsharpNint", { kind: "native-int", runtimeBase: "number", signed: true }],
+    ["CsharpNuint", { kind: "native-uint", runtimeBase: "number", signed: false }],
+    ["CsharpSbyte", { kind: "int8", runtimeBase: "number", signed: true, width: 8 }],
+    ["CsharpShort", { kind: "int16", runtimeBase: "number", signed: true, width: 16 }],
+    ["CsharpUint", { kind: "uint32", runtimeBase: "number", signed: false, width: 32 }],
+    ["CsharpUlong", { kind: "uint64", runtimeBase: "bigint", signed: false, width: 64 }],
+    ["CsharpUshort", { kind: "uint16", runtimeBase: "number", signed: false, width: 16 }],
+  ]);
+  for (const [aliasName, expectedFact] of expectedCsharpAliases) {
+    assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get(aliasName), sourcePrimitiveFactKey)), expectedFact, aliasName);
+  }
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("NamespaceCsharpInt"), sourcePrimitiveFactKey)), expectedCsharpAliases.get("CsharpInt"));
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("NamespaceCsharpByte"), sourcePrimitiveFactKey)), expectedCsharpAliases.get("CsharpByte"));
+  assert.deepEqual(primitiveSummary(extensionHost.facts.get(aliases.get("NamespaceCsharpDouble"), sourcePrimitiveFactKey)), expectedCsharpAliases.get("CsharpDouble"));
   assert.equal(extensionHost.facts.get(aliases.get("LocalInt"), sourcePrimitiveFactKey), undefined);
 });
 
