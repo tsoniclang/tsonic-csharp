@@ -91,6 +91,11 @@ sealed partial class ReflectionProvider
         return $"{TargetId(method.DeclaringType!)}.{MethodMetadataName(method)}({string.Join(",", method.GetParameters().Select(ParameterTargetId))})";
     }
 
+    static string OperatorId(MethodInfo method)
+    {
+        return $"{MethodId(method)}:{TypeTargetId(method.ReturnType)}";
+    }
+
     static string MethodMetadataId(MethodInfo method)
     {
         return $"{MetadataName(method.DeclaringType!)}.{MethodMetadataName(method)}({string.Join(",", method.GetParameters().Select(ParameterMetadataName))})";

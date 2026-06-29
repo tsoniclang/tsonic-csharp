@@ -30,6 +30,8 @@ const dotnetNativeArrayProviderExportNames = new Set(["Array"]);
 export interface DotnetNativeArrayAugmentationOptions {
   readonly broadImport?: boolean;
   readonly requestedExports?: readonly string[];
+  readonly requestedTargetIds?: readonly string[];
+  readonly requestedMetadataNames?: readonly string[];
 }
 
 export function augmentDotnetModuleWithNativeArray(
@@ -55,7 +57,17 @@ export function isDotnetNativeArrayCreateMemberId(memberId: string): boolean {
 }
 
 function shouldAugmentNativeArray(options: DotnetNativeArrayAugmentationOptions): boolean {
-  return options.broadImport === true || options.requestedExports?.includes("Array") === true;
+  return options.broadImport === true
+    || options.requestedExports?.includes("Array") === true
+    || options.requestedTargetIds?.some(isDotnetNativeArrayTargetId) === true
+    || options.requestedMetadataNames?.includes("System.Array`1") === true;
+}
+
+function isDotnetNativeArrayTargetId(targetId: string): boolean {
+  return targetId === dotnetNativeArrayTypeId
+    || targetId === dotnetNativeArrayCreateMemberId
+    || targetId === dotnetNativeArrayLengthMemberId
+    || targetId === dotnetNativeArrayIndexerMemberId;
 }
 
 function dotnetNativeArrayDeclaration(): DotnetTypeDeclaration {

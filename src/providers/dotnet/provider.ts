@@ -16,6 +16,9 @@ import type {
   TargetIdentity,
 } from "@tsonic/tsts";
 import { dotnetModuleToProviderDeclarationModel } from "./declaration-model.js";
+import {
+  validateDotnetProviderDeclarationModelContract,
+} from "./model-contract.js";
 import type {
   DotnetModuleModel,
   DotnetProviderIdentity,
@@ -33,6 +36,7 @@ import {
   dotnetProviderDeclarationModelInvalidDiagnostic,
   dotnetProviderDiagnosticToExtensionDiagnostic,
   dotnetProviderRequestedExportMissingDiagnostic,
+  dotnetProviderRequestedExportUnsupportedDiagnostic,
   dotnetProviderRequestSliceRequiredDiagnostic,
   isDotnetProviderDiagnostic,
 } from "./provider-diagnostics.js";
@@ -141,7 +145,8 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if (module === undefined) {
         return dotnetExtensionDiagnostic(identity.id, "DOTNET_MODULE_SPECIFIER_INVALID", 9200001, `.NET provider does not own '${resolution.moduleSpecifier}'.`);
       }
-      const resolutionContext = resolutionContextsByVirtualFile.get(resolution.virtualFileName);
+      const resolutionContext = resolutionContextsByVirtualFile.get(resolution.virtualFileName) ??
+        dotnetProviderModuleContext({ containingFile: resolution.virtualFileName }, module);
       if (resolutionContext === undefined) {
         return dotnetProviderRequestSliceRequiredDiagnostic(identity.id, resolution.moduleSpecifier);
       }
@@ -153,6 +158,10 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
         ...(resolutionContext.broadImport === true ? { broadImport: true as const } : {}),
         ...(resolutionContext.requestedExports !== undefined ? { requestedExports: resolutionContext.requestedExports } : {}),
       });
+      const unsupportedRequestedExports = requestedUnsupportedExports(augmentedModule, resolutionContext.requestedExports);
+      if (unsupportedRequestedExports.length > 0) {
+        return dotnetProviderRequestedExportUnsupportedDiagnostic(identity.id, module.moduleSpecifier, unsupportedRequestedExports);
+      }
       const missingRequestedExports = missingDotnetRequestedExports(augmentedModule, resolutionContext);
       if (missingRequestedExports.length > 0) {
         return dotnetProviderRequestedExportMissingDiagnostic(identity.id, module.moduleSpecifier, missingRequestedExports);
@@ -193,6 +202,10 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       if ("extensionId" in model) {
         return model;
       }
+      const declarationContractDiagnostic = validateDotnetProviderDeclarationModelContract(model);
+      if (declarationContractDiagnostic !== undefined) {
+        return dotnetProviderDiagnosticToExtensionDiagnostic(identity.id, declarationContractDiagnostic);
+      }
       options.provider.recordVirtualDeclarationModel?.(model, performance.now() - startedAt);
       return model;
     },
@@ -200,6 +213,22 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
       return options.provider.getTargetIdentity?.(symbol);
     },
   };
+}
+
+function requestedUnsupportedExports(
+  module: DotnetModuleModel,
+  requestedExports: readonly string[] | undefined,
+): readonly Readonly<{ readonly sourceName: string; readonly reason: string }>[] {
+  if (requestedExports === undefined || requestedExports.length === 0 || module.unsupportedExports === undefined) {
+    return [];
+  }
+  const requested = new Set(requestedExports);
+  return module.unsupportedExports
+    .filter((declaration) => requested.has(declaration.sourceName))
+    .map((declaration) => ({
+      sourceName: declaration.sourceName,
+      reason: declaration.reason,
+    }));
 }
 
 function providerContext(

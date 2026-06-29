@@ -332,8 +332,8 @@ test(".NET target binding provider resolves dependency slices only from provider
           metadataName: "External.ExternalBase",
           sourceShape: {
             kind: "provider-ref",
-            name: "ExternalBase",
             moduleSpecifier: "@tsonic/dotnet/External.js",
+            exportName: "ExternalBase",
           },
         },
         members: [],
@@ -393,7 +393,7 @@ test(".NET target binding provider resolves dependency slices only from provider
   assert.equal("exports" in declarationModel, true, JSON.stringify(declarationModel));
   const widget = declarationModel.exports.find((declaration) => declaration.name === "Widget");
   assert.ok(widget);
-  const dependencySpecifier = widget.extends?.[0]?.moduleSpecifier;
+  const dependencySpecifier = widget.heritage?.[0]?.type.moduleSpecifier;
   assert.match(dependencySpecifier, /^tsts-provider:\/\/tsonic-dotnet-dependency\//u);
 
   assert.equal(bindingProvider.ownsModule(dependencySpecifier, {}).kind, "unowned");

@@ -1,8 +1,26 @@
 import {
+  createDotnetModuleSpecifier,
   dotnetModulePrefix,
 } from "./module-specifier.js";
+import {
+  dotnetNativeArrayCreateMemberId,
+  dotnetNativeArrayIndexerMemberId,
+  dotnetNativeArrayLengthMemberId,
+  dotnetNativeArrayTypeId,
+} from "./native-array.js";
+
+const syntheticTargetModules = new Map<string, string>([
+  [dotnetNativeArrayTypeId, createDotnetModuleSpecifier("System")],
+  [dotnetNativeArrayCreateMemberId, createDotnetModuleSpecifier("System")],
+  [dotnetNativeArrayLengthMemberId, createDotnetModuleSpecifier("System")],
+  [dotnetNativeArrayIndexerMemberId, createDotnetModuleSpecifier("System")],
+]);
 
 export function dotnetModuleSpecifierForTargetId(targetId: string): string | undefined {
+  const syntheticModuleSpecifier = syntheticTargetModules.get(targetId);
+  if (syntheticModuleSpecifier !== undefined) {
+    return syntheticModuleSpecifier;
+  }
   const metadataName = targetId.includes("::") ? targetId.slice(targetId.lastIndexOf("::") + 2) : targetId;
   const typeMetadataName = metadataName.slice(0, firstSignatureDelimiter(metadataName));
   const declaringTypeName = typeMetadataName.includes("+")

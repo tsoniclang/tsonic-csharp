@@ -182,8 +182,8 @@ sealed partial class ReflectionProvider
             return new
             {
                 kind = "provider-ref",
-                name = sourceReference.Name,
-                moduleSpecifier = sourceReference.ModuleSpecifier == activeModuleSpecifier ? null : sourceReference.ModuleSpecifier,
+                moduleSpecifier = sourceReference.ModuleSpecifier,
+                exportName = sourceReference.Name,
                 typeArguments = args.Length == 0 ? null : args,
             };
         }
