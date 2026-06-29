@@ -124,6 +124,36 @@ export function objectRecordDictionaryTargetMembersForOperation(
   })].map(jsSurfaceTargetMemberFromMetadata);
 }
 
+export function objectRecordDictionaryHasOwnTargetMembers(
+  dictionaryType: CsharpRecordDictionaryTargetTypeRef,
+): readonly TargetMember[] {
+  return [objectRuntimeMethod({
+    id: "Tsonic.CSharp.Js.Object.hasOwn:dictionary",
+    sourceName: "hasOwn",
+    targetName: "hasOwn",
+    parameters: [
+      targetParameter("value", dictionaryType),
+      targetParameter("key", csharpStringTargetType()),
+    ],
+    returnType: csharpSourcePrimitiveTargetType("bool"),
+  })].map(jsSurfaceTargetMemberFromMetadata);
+}
+
+export function objectRecordDictionaryAssignTargetMembers(
+  dictionaryType: CsharpRecordDictionaryTargetTypeRef,
+): readonly TargetMember[] {
+  return [objectRuntimeMethod({
+    id: "Tsonic.CSharp.Js.Object.assign:dictionary",
+    sourceName: "assign",
+    targetName: "assign",
+    parameters: [
+      targetParameter("target", dictionaryType),
+      targetParameter("sources", { kind: "array", element: dictionaryType }, { paramsArray: true }),
+    ],
+    returnType: dictionaryType,
+  })].map(jsSurfaceTargetMemberFromMetadata);
+}
+
 function jsObjectInstanceMethod(row: JsObjectInstanceMethodRow): JsSurfaceTargetMemberMetadata {
   return {
     id: row.id,

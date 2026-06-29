@@ -32,6 +32,7 @@ import type {
   JsSurfaceTargetMemberMetadata,
 } from "./target-member-metadata.js";
 import {
+  jsSurfaceTargetMemberFromMetadata,
   jsSurfaceTargetMembersForSelectedSourceIdentity,
   jsSurfaceTargetMemberMetadataIdentityIndex,
   jsSurfaceTargetMemberMetadataWithSourceIdentity,
@@ -78,7 +79,13 @@ const intType = csharpSourcePrimitiveTargetType("int32");
 const doubleType = csharpSourcePrimitiveTargetType("float64");
 const boolType = csharpSourcePrimitiveTargetType("bool");
 const stringHelperType = csharpTargetNamedType("Tsonic.CSharp.Js.String", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "String"));
+const globalsType = csharpTargetNamedType("Tsonic.CSharp.Js.Globals", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "Globals"));
+const objectType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const stringReceiverParameter = targetParameter("value", stringType);
+const stringConversionParameter = targetParameter("value", objectType, {
+  optional: true,
+  csharpAcceptsClosedSourceArgument: true,
+});
 const stringSearchParameter = targetParameter("search", stringType);
 const stringPositionParameter = targetParameter("position", intType, { optional: true });
 const stringIndexParameter = targetParameter("index", intType);
@@ -95,6 +102,9 @@ interface StringHelperMetadataRow {
   readonly targetName: string;
   readonly parameters: readonly TargetParameter[];
   readonly returnType: TargetTypeRef;
+  readonly declaringType?: TargetTypeRef;
+  readonly requiredFacts?: readonly string[];
+  readonly semanticEquivalence?: string;
   readonly receiverPassing?: "first-argument";
 }
 
@@ -235,6 +245,35 @@ export const stringPropertyTargetMemberIdentityIndex = jsSurfaceTargetMemberMeta
   jsSurfaceTargetMemberMetadataWithSourceIdentity("String", stringPropertyTargetMemberMetadata),
 );
 
+const stringConstructorCallTargetMemberMetadata = [
+  stringHelperMemberMetadata({
+    id: "Tsonic.CSharp.Js.Globals.String(System.Object)",
+    sourceName: "constructor",
+    targetName: "String",
+    parameters: [stringConversionParameter],
+    returnType: stringType,
+    declaringType: globalsType,
+    requiredFacts: [
+      "selected StringConstructor call signature identity",
+      "call-vs-construct expression shape",
+      "closed target facts for provided conversion argument",
+      "Tsonic.CSharp.Js.Globals.String runtime metadata row",
+    ],
+    semanticEquivalence: "Selected String(value) source call preserves ECMAScript String conversion semantics through Tsonic.CSharp.Js.Globals.String; new String(value) is intentionally not selected without a closed wrapper-object carrier.",
+  }),
+] satisfies readonly JsSurfaceTargetMemberMetadata[];
+
+const stringConstructorCallTargetMembers = stringConstructorCallTargetMemberMetadata.map(jsSurfaceTargetMemberFromMetadata);
+
+export function stringConstructorTargetMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  mode: "call" | "new",
+): readonly TargetMember[] {
+  return mode === "call" && selectedIdentity.key === "String.constructor"
+    ? stringConstructorCallTargetMembers
+    : [];
+}
+
 function stringHelperMemberMetadata(row: StringHelperMetadataRow): JsSurfaceTargetMemberMetadata {
   return {
     id: row.id,
@@ -243,12 +282,12 @@ function stringHelperMemberMetadata(row: StringHelperMetadataRow): JsSurfaceTarg
     kind: "method",
     parameters: row.parameters,
     returnType: row.returnType,
-    declaringType: stringHelperType,
+    declaringType: row.declaringType ?? stringHelperType,
     static: true,
     ...(row.receiverPassing === undefined ? {} : { receiverPassing: row.receiverPassing }),
     capabilityId: stringCapabilityId,
-    requiredFacts: stringRequiredFacts,
-    semanticEquivalence: "Selected Tsonic.CSharp.Js.String runtime member preserves ECMAScript String operation semantics for closed string carriers.",
+    requiredFacts: row.requiredFacts ?? stringRequiredFacts,
+    semanticEquivalence: row.semanticEquivalence ?? "Selected Tsonic.CSharp.Js.String runtime member preserves ECMAScript String operation semantics for closed string carriers.",
   };
 }
 

@@ -16,6 +16,9 @@ import {
   numberConstructorTargetMembersForSelectedIdentity,
 } from "../../numbers.js";
 import {
+  stringConstructorTargetMembersForSelectedIdentity,
+} from "../../strings.js";
+import {
   getCsharpArrayLikeElementType,
   getCsharpJsArrayCarrierElementType,
 } from "../../arrays.js";
@@ -54,7 +57,9 @@ import {
 } from "../helpers.js";
 import {
   getObjectPrimitiveReceiverCallMembers,
+  getObjectRecordDictionaryAssignMembers,
   getObjectRecordDictionaryCallMembers,
+  getObjectRecordDictionaryHasOwnMembers,
 } from "./object-members.js";
 import type {
   JsSurfaceCallTargetProviderRequest,
@@ -199,6 +204,10 @@ function targetMembersFromRuntimeHelperSelection(
   switch (selection.kind) {
     case "record-dictionary":
       return getObjectRecordDictionaryCallMembers(selection.operation, request.request, request.context, request.host);
+    case "record-dictionary-has-own":
+      return getObjectRecordDictionaryHasOwnMembers(request.request, request.context, request.host);
+    case "record-dictionary-assign":
+      return getObjectRecordDictionaryAssignMembers(request.request, request.context, request.host);
     case "record-dictionary-json-stringify":
       return getJsonRecordDictionaryStringifyCallMembers(request);
   }
@@ -235,6 +244,11 @@ function targetMembersFromSemanticException(
         request.selectedIdentity,
         isNewExpression(request.request.call, request.context) ? "new" : "call",
       );
+    case "string-call-construct":
+      return stringConstructorTargetMembersForSelectedIdentity(
+        request.selectedIdentity,
+        isNewExpression(request.request.call, request.context) ? "new" : "call",
+      );
     case "object-primitive-receiver-to-string":
       return getObjectPrimitiveReceiverCallMembers(request.request, request.context, request.host);
   }
@@ -251,6 +265,8 @@ function semanticExceptionHasCallableMember(
       return booleanConstructorTargetMembersForSelectedIdentity(request.selectedIdentity, "call").some(jsSurfaceTargetMemberIsCallable);
     case "number-call-construct":
       return numberConstructorTargetMembersForSelectedIdentity(request.selectedIdentity, "call").some(jsSurfaceTargetMemberIsCallable);
+    case "string-call-construct":
+      return stringConstructorTargetMembersForSelectedIdentity(request.selectedIdentity, "call").some(jsSurfaceTargetMemberIsCallable);
     case "object-primitive-receiver-to-string":
       return false;
   }

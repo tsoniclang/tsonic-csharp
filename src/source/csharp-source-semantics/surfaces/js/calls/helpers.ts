@@ -1,6 +1,7 @@
 import {
   runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
+  sourcePrimitiveFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedCallMappingRequest,
@@ -22,6 +23,7 @@ import type {
 } from "../source-library.js";
 import {
   asType,
+  csharpSourcePrimitiveTargetType,
   csharpJsCheckedTypeQuery,
 } from "../source-library.js";
 import {
@@ -72,7 +74,15 @@ export function isNewExpression(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): boolean {
   const node = asNodeSubject(subject as ExtensionFactSubject | undefined);
-  return context.compiler?.ast.is?.IsNewExpression(node) === true;
+  if (node === undefined) {
+    return false;
+  }
+  const ast = context.compiler?.ast;
+  if (ast?.is?.IsNewExpression(node) === true) {
+    return true;
+  }
+  return ast?.kindName(node) === "KindNewExpression" ||
+    (node as { readonly Kind?: unknown }).Kind === "KindNewExpression";
 }
 
 export function getSourceLibraryCallReceiverElementType(
@@ -146,11 +156,6 @@ export function getSourceLibraryCallResultTargetType(
       context.facts.get(request.call, runtimeCarrierFactKey)?.carrier ??
       getCsharpJsCollectionRuntimeCarrierForType(sourceReturnType, context, host) ??
       getCsharpJsArrayRuntimeCarrierForType(sourceReturnType, context, host) ??
-      host.getTargetTypeRefForSubject(request.sourceReturnType, context, {
-        ...csharpJsCheckedTypeQuery,
-        allowRuntimeCarrier: true,
-        allowSemanticTypeQuery: true,
-      }) ??
       host.getTargetTypeRefForSubject(request.call, context, {
         ...csharpJsCheckedTypeQuery,
         allowRuntimeCarrier: true,
@@ -177,16 +182,29 @@ function getTargetTypeRefForOptionalSubject(
   if (subject === undefined) {
     return undefined;
   }
+  const factTarget = getTargetTypeRefFromClosedFacts(subject, context);
+  if (factTarget !== undefined || asType(subject) !== undefined) {
+    return factTarget;
+  }
   const node = asNodeSubject(subject);
   const ast = context.compiler?.ast;
   if (node !== undefined && ast !== undefined && (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node))) {
-    return context.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
-      context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier ??
-      context.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
-      context.facts.get(subject, runtimeCarrierFactKey)?.carrier;
+    return factTarget;
   }
   return host.getTargetTypeRefForSubject(subject, context, {
     ...csharpJsCheckedTypeQuery,
     allowSemanticTypeQuery: false,
   });
+}
+
+function getTargetTypeRefFromClosedFacts(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): TargetTypeRef | undefined {
+  const primitive = context.factResolver.resolve(subject, sourcePrimitiveFactKey);
+  return context.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+    context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier ??
+    context.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+    context.facts.get(subject, runtimeCarrierFactKey)?.carrier ??
+    (primitive === undefined ? undefined : csharpSourcePrimitiveTargetType(primitive.kind));
 }

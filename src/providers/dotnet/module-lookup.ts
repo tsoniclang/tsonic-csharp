@@ -1,6 +1,6 @@
 import {
   dotnetModulePrefix,
-} from "../module-specifier.js";
+} from "./module-specifier.js";
 
 export function dotnetModuleSpecifierForTargetId(targetId: string): string | undefined {
   const metadataName = targetId.includes("::") ? targetId.slice(targetId.lastIndexOf("::") + 2) : targetId;

@@ -70,6 +70,9 @@ const stringStaticCallIdentityPolicy = {
     "String.fromCodePoint",
   ],
 } as const satisfies JsSurfaceSourceIdentitySelector;
+const stringConstructorIdentityPolicy = {
+  ids: ["String.constructor"],
+} as const satisfies JsSurfaceSourceIdentitySelector;
 const unsupportedStringExactSemanticsIdentityPolicy = {
   ids: [
     "String.raw",
@@ -89,6 +92,9 @@ const numberStaticCallIdentityPolicy = {
 } as const satisfies JsSurfaceSourceIdentitySelector;
 const numberConstructorIdentityPolicy = {
   ids: ["Number.constructor"],
+} as const satisfies JsSurfaceSourceIdentitySelector;
+const unsupportedNumberLocaleFormattingIdentityPolicy = {
+  ids: ["Number.toLocaleString"],
 } as const satisfies JsSurfaceSourceIdentitySelector;
 const booleanConstructorIdentityPolicy = {
   ids: ["Boolean.constructor"],
@@ -132,6 +138,20 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
   },
   operationRowFromMetadataIndex(stringStaticCallIdentityPolicy, stringTargetMemberIdentityIndex, { capabilityId: "surface.js.string-methods", requiredFacts: selectedSignatureProviderFacts }),
   {
+    identity: stringConstructorIdentityPolicy,
+    policyKind: "semantic-exception",
+    semanticException: {
+      reason: "String(value) converts to a primitive string while new String(value) requires an explicit wrapper-object carrier that the selected C# JS surface does not expose yet.",
+      requiredFacts: [
+        "selected StringConstructor source declaration/signature identity",
+        "call expression construct-vs-call shape",
+        "closed conversion argument target facts",
+      ],
+      capabilityId: "surface.js.string-methods",
+    },
+    targetProviders: [semanticExceptionProvider({ kind: "string-call-construct" })],
+  },
+  {
     identity: unsupportedStringExactSemanticsIdentityPolicy,
     policyKind: "unsupported",
     unsupported: {
@@ -163,6 +183,20 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
       capabilityId: "surface.js.number-methods",
     },
     targetProviders: [semanticExceptionProvider({ kind: "number-call-construct" })],
+  },
+  {
+    identity: unsupportedNumberLocaleFormattingIdentityPolicy,
+    policyKind: "unsupported",
+    unsupported: {
+      reason: "Number.prototype.toLocaleString requires closed Intl.NumberFormat-compatible locale and options semantics before C# emission.",
+      requiredFacts: [
+        "selected Number.toLocaleString source declaration/signature identity",
+        "closed Intl locale carrier facts",
+        "closed Intl.NumberFormat options carrier facts",
+        "runtime helper metadata proving ECMAScript locale formatting semantics",
+      ],
+      capabilityId: "surface.js.number-methods",
+    },
   },
   {
     ...operationRowFromMetadataIndex({ prefixes: ["Number."] }, numberTargetMemberIdentityIndex, { capabilityId: "surface.js.number-methods", requiredFacts: selectedSignatureProviderFacts }),
@@ -266,13 +300,21 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
       { index: 0, target: jsSurfaceTargetFeatures.objectHelper },
       { index: 1, target: jsSurfaceTargetFeatures.string },
     ] },
+    targetProviders: [
+      metadataIndexProvider(objectTargetMemberIdentityIndex),
+      runtimeHelperProvider({ kind: "record-dictionary-has-own" }),
+    ],
   },
   {
     ...operationRowFromMetadataIndex({ ids: ["Object.assign"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "arguments", conditions: [
-      { index: 0, target: jsSurfaceTargetFeatures.jsObject },
+      { index: 0, target: jsSurfaceTargetFeatures.objectHelper },
       { fromIndex: 1, target: jsSurfaceTargetFeatures.objectHelper },
     ] },
+    targetProviders: [
+      metadataIndexProvider(objectTargetMemberIdentityIndex),
+      runtimeHelperProvider({ kind: "record-dictionary-assign" }),
+    ],
   },
   {
     ...operationRowFromMetadataIndex({ ids: ["Object.hasOwnProperty"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),

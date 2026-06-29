@@ -1,6 +1,3 @@
-import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
@@ -16,6 +13,9 @@ import type {
 import {
   csharpListTargetType,
 } from "../../../target-types.js";
+import {
+  setRuntimeCarrierFactIfUnresolved,
+} from "../../../runtime-carrier-lifecycle/fact-writes.js";
 import {
   boundaryFactForArrayParameter,
 } from "./carrier-classification.js";
@@ -47,7 +47,7 @@ export function recordArrayParameterFacts(
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
   }
   for (const subject of arrayRuntimeCarrierSubjects(parameter)) {
-    lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, { carrier: boundary.coreCarrierType }, evidence);
+    setRuntimeCarrierFactIfUnresolved(lifecycleContext, subject, { carrier: boundary.coreCarrierType }, evidence);
   }
   void context;
 }
@@ -75,7 +75,7 @@ export function recordArrayReturnFacts(
     mutationVisibility: "caller-visible",
     boundary: "exported-api",
   }, evidence);
-  lifecycleContext.host.facts.set(returnType.typeNode, runtimeCarrierFactKey, { carrier: list }, evidence);
+  setRuntimeCarrierFactIfUnresolved(lifecycleContext, returnType.typeNode, { carrier: list }, evidence);
 }
 
 function arrayFactSubjects(parameter: ArrayParameterAnalysis): readonly ExtensionFactSubject[] {

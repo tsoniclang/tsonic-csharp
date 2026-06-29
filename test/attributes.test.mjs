@@ -20,6 +20,7 @@ import {
 import { diagnoseUnresolvedAttributeApplications } from "../dist/backend/planner/attributes.js";
 import { planClassDeclaration } from "../dist/backend/planner/declarations.js";
 import { printCsharpCompilationUnit } from "../dist/print/csharp-printer.js";
+import { csharpAttributeApplicationFactKey } from "../dist/source/csharp-facts.js";
 
 test("planner emits finalized source attribute facts on supported declaration placements", () => {
   const sourceExample = `
@@ -345,7 +346,7 @@ function attributeBinding(name) {
 
 function attributeFact(target, applicationTarget, args = []) {
   return {
-    target,
+    attributeType: target,
     applicationTarget,
     attributeName: target.Text,
     arguments: args,
@@ -374,7 +375,7 @@ function fakeInput(sourceFile, options) {
     facts: {
       getAttributeFact: (subject) => options.attributeFacts.get(subject),
       getTargetBindingFact: () => undefined,
-      getFact: () => undefined,
+      getFact: (subject, key) => key === csharpAttributeApplicationFactKey ? options.attributeFacts.get(subject) : undefined,
       getRuntimeCarrierFact: () => undefined,
       getSourcePrimitiveFact: () => undefined,
       getPointerFact: () => undefined,

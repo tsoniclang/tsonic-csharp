@@ -10,6 +10,8 @@ import {
   numberTargetMemberIdentityIndex,
 } from "../../numbers.js";
 import {
+  objectRecordDictionaryAssignTargetMembers,
+  objectRecordDictionaryHasOwnTargetMembers,
   type ObjectRecordDictionaryOperation,
   objectRecordDictionaryTargetMembersForOperation,
 } from "../../objects.js";
@@ -91,4 +93,30 @@ export function getObjectRecordDictionaryCallMembers(
   return dictionaryType === undefined
     ? []
     : objectRecordDictionaryTargetMembersForOperation(operation, dictionaryType);
+}
+
+export function getObjectRecordDictionaryHasOwnMembers(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): readonly TargetMember[] {
+  const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request, context, host)
+    .find((argumentType): argumentType is CsharpRecordDictionaryTargetTypeRef =>
+      argumentType !== undefined && isStringKeyedRecordDictionaryTargetType(argumentType, host));
+  return dictionaryType === undefined
+    ? []
+    : objectRecordDictionaryHasOwnTargetMembers(dictionaryType);
+}
+
+export function getObjectRecordDictionaryAssignMembers(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpJsSurfaceHost,
+): readonly TargetMember[] {
+  const dictionaryType = getSourceLibraryCallArgumentTargetTypes(request, context, host)
+    .find((argumentType): argumentType is CsharpRecordDictionaryTargetTypeRef =>
+      argumentType !== undefined && isStringKeyedRecordDictionaryTargetType(argumentType, host));
+  return dictionaryType === undefined
+    ? []
+    : objectRecordDictionaryAssignTargetMembers(dictionaryType);
 }

@@ -602,20 +602,75 @@ test("JS surface rejects Boolean methods for non-boolean closed receivers", () =
 
 test("JS surface maps Number.toString from selected declaration and closed number receiver facts", () => {
   const call = {};
+  const radixCall = {};
   const receiver = {};
+  const primitiveReceiver = {};
+  const radix = {};
   const facts = new TestFactStore();
   const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
     [receiver, float64Type()],
+    [primitiveReceiver, int32Type()],
+    [radix, int32Type()],
   ])));
 
   const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "toString"), {
     calleeReceiver: receiver,
+  }), fakeContext(facts));
+  const radixResult = provider.mapCheckedCall(jsCallRequest(radixCall, sourceLibraryMemberDeclaration("Number", "toString"), {
+    calleeReceiver: primitiveReceiver,
+    arguments: [radix],
   }), fakeContext(facts));
 
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toString");
   assert.equal(result.value.selectedSignature.member.receiverPassing, "first-argument");
   assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
+  assert.equal(radixResult.kind, "accept");
+  assert.equal(radixResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Number.toString:int32-radix");
+  assert.equal(radixResult.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(radixResult.value.selectedSignature.member.parameters.length, 1);
+  assert.equal(radixResult.value.selectedSignature.member.parameters[0].type.name, "int32");
+  assert.equal(radixResult.value.selectedSignature.member.returnType.id, "System.String");
+});
+
+test("JS surface rejects Number.toString(radix) without a closed integral receiver fact", () => {
+  const call = {};
+  const receiver = {};
+  const radix = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, float64Type()],
+    [radix, int32Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "toString"), {
+    calleeReceiver: receiver,
+    arguments: [radix],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
+  assert.match(result.diagnostic.message, /Number\.toString/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface hard-rejects selected Number locale formatting until Intl facts exist", () => {
+  const call = {};
+  const receiver = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [receiver, float64Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("Number", "toLocaleString"), {
+    calleeReceiver: receiver,
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /Number\.toLocaleString/);
+  assert.match(result.diagnostic.message, /Intl\.NumberFormat-compatible locale and options semantics/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
 });
 
 test("JS surface maps Number.valueOf from selected declaration and closed number receiver facts", () => {
@@ -852,7 +907,12 @@ test("JS surface maps Map and Set runtime built-ins from selected declarations a
   assert.equal(mapSetResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Map.set");
   assert.equal(mapSetResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.Map`2");
   assert.equal(mapGetResult.kind, "accept");
-  assert.equal(mapGetResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Map.get");
+  assert.equal(mapGetResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Map.get:value");
+  assert.equal(mapGetResult.value.selectedSignature.member.targetName, "getValue");
+  assert.equal(mapGetResult.value.selectedSignature.member.static, true);
+  assert.equal(mapGetResult.value.selectedSignature.member.receiverPassing, "first-argument");
+  assert.equal(mapGetResult.value.selectedSignature.member.declaringType.id, "Tsonic.CSharp.Js.Map`2");
+  assert.equal(mapGetResult.value.selectedSignature.member.parameters.length, 1);
   assert.equal(mapGetResult.value.selectedSignature.member.returnType.id, "System.Nullable`1");
   assert.equal(mapHasResult.kind, "accept");
   assert.equal(mapHasResult.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Map.has");
@@ -1951,6 +2011,27 @@ test("JS surface maps Object.hasOwn only from selected declaration and closed JS
   assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
 });
 
+test("JS surface maps Object.hasOwn for closed Record dictionary target facts", () => {
+  const call = {};
+  const value = {};
+  const key = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, recordDictionaryType(stringType(), int32Type())],
+    [key, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "hasOwn"), {
+    arguments: [value, key],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.hasOwn:dictionary");
+  assert.equal(result.value.selectedSignature.member.parameters[0]?.type.id, "System.Collections.Generic.Dictionary`2");
+  assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
+});
+
 test("JS surface rejects Object.hasOwn without supported closed object-helper target facts", () => {
   const call = {};
   const value = {};
@@ -2008,6 +2089,28 @@ test("JS surface maps Object.assign only from selected declaration and closed JS
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.assign");
   assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSObject");
+});
+
+test("JS surface maps Object.assign for closed Record dictionary target facts", () => {
+  const facts = new TestFactStore();
+  const call = {};
+  const target = {};
+  const source = {};
+  const dictionary = recordDictionaryType(stringType(), int32Type());
+  const targetTypes = new Map([
+    [target, dictionary],
+    [source, dictionary],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
+    arguments: [target, source],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.assign:dictionary");
+  assert.equal(result.value.selectedSignature.member.parameters[0]?.type.id, "System.Collections.Generic.Dictionary`2");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.Dictionary`2");
 });
 
 test("JS surface rejects Object.assign without closed JSObject target facts", () => {
@@ -2223,6 +2326,71 @@ test("JS surface rejects selected string helpers without closed string receiver 
   assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_NOT_MAPPED");
   assert.match(result.diagnostic.message, /String\.normalize/);
   assert.match(result.diagnostic.message, /receiver lacks finalized target runtime facts/);
+});
+
+test("JS surface maps String call conversion from selected declaration and closed argument facts", () => {
+  const call = { Kind: "KindCallExpression" };
+  const argument = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [argument, float64Type()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("StringConstructor", ""), {
+    arguments: [argument],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Globals.String(System.Object)");
+  assert.equal(result.value.selectedSignature.member.targetName, "String");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.String");
+  assert.equal(facts.get(call, csharpTargetOperationFactKey)?.operationKind, "method");
+});
+
+test("JS surface maps zero-argument String call conversion from selected declaration", () => {
+  const call = { Kind: "KindCallExpression" };
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("StringConstructor", "")), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Globals.String(System.Object)");
+  assert.equal(result.value.selectedSignature.member.parameters[0].optional, true);
+});
+
+test("JS surface rejects String call conversion without closed argument facts", () => {
+  const call = { Kind: "KindCallExpression" };
+  const argument = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("StringConstructor", ""), {
+    arguments: [argument],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.match(result.diagnostic.message, /String\.constructor/);
+  assert.equal(facts.get(call, csharpTargetOperationFactKey), undefined);
+});
+
+test("JS surface rejects new String until an explicit wrapper carrier exists", () => {
+  const construct = { Kind: "KindNewExpression" };
+  const argument = {};
+  const facts = new TestFactStore();
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, new Map([
+    [argument, stringType()],
+  ])));
+
+  const result = provider.mapCheckedCall(jsCallRequest(construct, sourceLibraryMemberDeclaration("StringConstructor", ""), {
+    arguments: [argument],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.match(result.diagnostic.message, /String\.constructor/);
+  assert.equal(facts.get(construct, csharpTargetOperationFactKey), undefined);
 });
 
 test("JS surface hard-rejects selected String.raw and regex match lanes until exact runtime facts exist", () => {

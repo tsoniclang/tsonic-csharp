@@ -1,7 +1,6 @@
 import {
   acceptObservation,
   deferObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
   ExtensionFactSubject,
@@ -40,6 +39,9 @@ import {
 import {
   targetTypeRefIsClosed,
 } from "../../target-ref-utils.js";
+import {
+  setRuntimeCarrierFactIfUnresolved,
+} from "../../runtime-carrier-lifecycle/fact-writes.js";
 
 export {
   csharpJsMapTargetType,
@@ -200,9 +202,7 @@ function setCollectionRuntimeCarrierFactIfAbsent(
   evidence: readonly { readonly message: string }[],
   context: ExtensionObservationContext,
 ): void {
-  if (subject !== undefined && context.host.facts.get(subject, runtimeCarrierFactKey) === undefined) {
-    context.host.facts.set(subject, runtimeCarrierFactKey, fact, evidence);
-  }
+  setRuntimeCarrierFactIfUnresolved(context, subject, fact, evidence);
 }
 
 function completeTargetTypeArguments(

@@ -4,9 +4,12 @@ import type {
 import {
   csharpDelegateTargetType,
   csharpEnumerableTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpNullableTargetType,
   csharpSourcePrimitiveTargetType,
+  csharpTargetNamedType,
   csharpVoidTargetType,
+  isCsharpValueTypeTargetType,
   targetParameter,
 } from "../source-library.js";
 import type {
@@ -33,12 +36,25 @@ function materializeCollectionMemberShape(
   input: CsharpJsCollectionMemberResolutionInput,
   shape: CsharpJsCollectionMemberShape,
 ): JsSurfaceTargetMemberMetadata | undefined {
+  if (!collectionTypeArgumentRequirementsMatch(input, shape)) {
+    return undefined;
+  }
   const returnType = resolveCollectionTypeExpression(input, shape.returnType);
   if (returnType === undefined) {
     return undefined;
   }
-  const parameters = (shape.parameters ?? []).map((parameter) => materializeCollectionParameter(input, parameter));
+  const declaredParameters = (shape.parameters ?? []).map((parameter) => materializeCollectionParameter(input, parameter));
+  const parameters = shape.dispatch === "static-helper"
+    ? [
+        targetParameter("collection", input.declaringType),
+        ...declaredParameters,
+      ]
+    : declaredParameters;
   if (parameters.some((parameter) => parameter === undefined)) {
+    return undefined;
+  }
+  const declaringType = collectionMemberDeclaringType(input, shape);
+  if (declaringType === undefined) {
     return undefined;
   }
   return {
@@ -48,8 +64,40 @@ function materializeCollectionMemberShape(
     kind: shape.kind,
     parameters: parameters.filter((parameter): parameter is NonNullable<typeof parameter> => parameter !== undefined),
     returnType,
-    declaringType: input.declaringType,
+    declaringType,
+    ...(shape.dispatch === "static-helper" ? { static: true, receiverPassing: "first-argument" as const } : {}),
   };
+}
+
+function collectionTypeArgumentRequirementsMatch(
+  input: CsharpJsCollectionMemberResolutionInput,
+  shape: CsharpJsCollectionMemberShape,
+): boolean {
+  return (shape.typeArgumentRequirements ?? []).every((requirement) => {
+    const typeArgument = input.typeArguments[requirement.index];
+    if (typeArgument === undefined || typeArgument.kind === "type-parameter") {
+      return false;
+    }
+    const isValueType = isCsharpValueTypeTargetType(typeArgument);
+    return requirement.kind === "value-type" ? isValueType : !isValueType;
+  });
+}
+
+function collectionMemberDeclaringType(
+  input: CsharpJsCollectionMemberResolutionInput,
+  shape: CsharpJsCollectionMemberShape,
+): TargetTypeRef | undefined {
+  if (shape.dispatch !== "static-helper") {
+    return input.declaringType;
+  }
+  const helper = input.policy.target.helper;
+  return helper === undefined
+    ? undefined
+    : csharpTargetNamedType(
+        helper.id,
+        undefined,
+        csharpQualifiedTypeRenderShape(helper.namespaceName, helper.name),
+      );
 }
 
 function materializeCollectionParameter(

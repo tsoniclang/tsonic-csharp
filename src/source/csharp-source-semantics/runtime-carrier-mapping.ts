@@ -15,7 +15,6 @@ import {
 } from "./runtime-carrier-object-shapes.js";
 import {
   csharpAnyRuntimeCarrier,
-  csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
 import {
   asType,
@@ -69,7 +68,12 @@ export function mapRuntimeCarrier(
     }, [{ message: "C# opaque any runtime carrier recorded from explicit TypeScript any boundary; dynamic behavior requires separate finalized target facts." }]);
   }
   const primitive = context.factResolver.resolve(request.type, sourcePrimitiveFactKey);
-  const syntaxCarrier = host.getTargetTypeRefForSubject(request.type, context, { allowRuntimeCarrier: false, allowSemanticTypeQuery: false });
+  if (primitive !== undefined) {
+    return deferObservation;
+  }
+  const syntaxCarrier = requestType === undefined
+    ? host.getTargetTypeRefForSubject(request.type, context, { allowRuntimeCarrier: false, allowSemanticTypeQuery: false })
+    : undefined;
   const typeSyntaxCarrier = syntaxCarrier ??
     getTypeSyntaxCarrierFromFinalizedTypeFacts(request, context, host);
   if (typeSyntaxCarrier !== undefined) {
@@ -93,25 +97,15 @@ export function mapRuntimeCarrier(
       carrier: runtimeUnionCarrier,
     }, [{ message: "C# runtime union carrier mapped from TSTS union constituents and finalized constituent carrier facts." }]);
   }
-  if (primitive === undefined) {
-    if (isCallableTypeWithoutCarrierEvidence(request, context)) {
-      return deferObservation;
-    }
-    const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(request.type, context);
-    if (objectShape !== undefined) {
-      recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, objectShape);
-      return acceptObservation<RuntimeCarrierFactResult>({
-        carrier: objectShape.targetType,
-      }, [{ message: "C# runtime carrier mapped from finalized structural object-shape facts." }]);
-    }
-    const carrier = host.getTargetTypeRefForType(requestType, context, { allowRuntimeCarrier: false });
-    return carrier === undefined
-      ? deferObservation
-      : acceptObservation<RuntimeCarrierFactResult>({
-          carrier,
-        }, [{ message: "C# runtime carrier mapped from checked TSTS type shape." }]);
+  if (isCallableTypeWithoutCarrierEvidence(request, context)) {
+    return deferObservation;
   }
-  return acceptObservation<RuntimeCarrierFactResult>({
-    carrier: csharpSourcePrimitiveTargetType(primitive.kind),
-  }, [{ message: "C# runtime carrier mapped from source primitive fact." }]);
+  const objectShape = host.getRecordedCsharpObjectShapeFactForSubject(request.type, context);
+  if (objectShape !== undefined) {
+    recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(request, context, objectShape);
+    return acceptObservation<RuntimeCarrierFactResult>({
+      carrier: objectShape.targetType,
+    }, [{ message: "C# runtime carrier mapped from finalized structural object-shape facts." }]);
+  }
+  return deferObservation;
 }

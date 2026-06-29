@@ -128,6 +128,12 @@ export type JsSurfaceRuntimeHelperSelection =
     readonly operation: ObjectRecordDictionaryOperation;
   }
   | {
+    readonly kind: "record-dictionary-has-own";
+  }
+  | {
+    readonly kind: "record-dictionary-assign";
+  }
+  | {
     readonly kind: "record-dictionary-json-stringify";
   };
 
@@ -140,6 +146,9 @@ export type JsSurfaceSemanticExceptionSelection =
   }
   | {
     readonly kind: "number-call-construct";
+  }
+  | {
+    readonly kind: "string-call-construct";
   }
   | {
     readonly kind: "object-primitive-receiver-to-string";

@@ -141,6 +141,17 @@ function collectProviderRefs(value, predicate, refs = []) {
   return refs;
 }
 
+function assertProviderDeclarationRefsFullyQualified(model) {
+  const invalidRefs = collectProviderRefs(model, (providerRef) =>
+    typeof providerRef.moduleSpecifier !== "string" ||
+    providerRef.moduleSpecifier.length === 0 ||
+    typeof providerRef.exportName !== "string" ||
+    providerRef.exportName.length === 0 ||
+    "name" in providerRef
+  );
+  assert.deepEqual(invalidRefs, []);
+}
+
 test(".NET provider declaration model preserves explicit target parameter passing modes", () => {
   const model = dotnetModuleToProviderDeclarationModel({
     moduleSpecifier: "@tsonic/dotnet/System.Collections.Generic.js",
@@ -228,8 +239,8 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   assert.deepEqual(create.signatures[0].typeParameters, [{ name: "T" }]);
   assert.deepEqual(create.signatures[0].returnType, {
     kind: "provider-ref",
-    name: "Array",
     moduleSpecifier: "@tsonic/dotnet/System.js",
+    exportName: "Array",
     typeArguments: [{ kind: "type-parameter", name: "T" }],
   });
   assert.equal(length.id, dotnetNativeArrayLengthMemberId);
@@ -752,7 +763,13 @@ test(".NET provider source type conversion fails closed for every unsupported ta
   assert.equal(tryDotnetTypeRefToProviderType({
     kind: "provider-ref",
     name: "Box",
+    moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+    exportName: "Box",
     typeArguments: [pointerType],
+  }), undefined);
+  assert.equal(tryDotnetTypeRefToProviderType({
+    kind: "provider-ref",
+    name: "Box",
   }), undefined);
   assert.equal(tryDotnetTypeRefToProviderType({
     kind: "opaque",
@@ -1191,7 +1208,10 @@ test(".NET target binding provider preserves requested-export slices through dec
   assert.equal("exports" in model, true, JSON.stringify(model));
   assert.deepEqual(observedContexts, [{
     specifier: "@tsonic/dotnet/System.js",
-    context: { requestedExports: ["Convert"] },
+    context: {
+      containingFile: resolution.virtualFileName,
+      requestedExports: ["Convert"],
+    },
   }]);
   assert.deepEqual(model.exports.map((declaration) => declaration.name), ["Convert"]);
 });
@@ -1612,8 +1632,8 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
     ?.parameters.find((parameter) => parameter.name === "encoding");
   assert.deepEqual(sourceEncodingParameter?.type.sourceShape, {
     kind: "provider-ref",
-    name: "Encoding",
     moduleSpecifier: "@tsonic/dotnet/System.Text.js",
+    exportName: "Encoding",
   });
 
   const rawMemoryStream = ioModule.exports.find((declaration) => declaration.sourceName === "MemoryStream");
@@ -1622,10 +1642,13 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
     name: "Stream",
   });
   const sourceMemoryStream = declarationModel.exports.find((declaration) => declaration.name === "MemoryStream");
-  assert.deepEqual(sourceMemoryStream?.extends, [{
-    kind: "provider-ref",
-    name: "Stream",
-    moduleSpecifier: "@tsonic/dotnet/System.IO.js",
+  assert.deepEqual(sourceMemoryStream?.heritage, [{
+    kind: "extends",
+    type: {
+      kind: "provider-ref",
+      moduleSpecifier: "@tsonic/dotnet/System.IO.js",
+      exportName: "Stream",
+    },
   }]);
 
   const tasksModule = provider.getModule("@tsonic/dotnet/System.Threading.Tasks.js", {});
@@ -1639,11 +1662,59 @@ test(".NET reflection provider preserves cross-namespace source-visible provider
   });
   const tasksDeclarationModel = dotnetModuleToProviderDeclarationModel(tasksModule);
   const sourceTaskCanceled = tasksDeclarationModel.exports.find((declaration) => declaration.name === "TaskCanceledException");
-  assert.deepEqual(sourceTaskCanceled?.extends, [{
-    kind: "provider-ref",
-    name: "OperationCanceledException",
-    moduleSpecifier: "@tsonic/dotnet/System.js",
+  assert.deepEqual(sourceTaskCanceled?.heritage, [{
+    kind: "extends",
+    type: {
+      kind: "provider-ref",
+      moduleSpecifier: "@tsonic/dotnet/System.js",
+      exportName: "OperationCanceledException",
+    },
   }]);
+});
+
+test(".NET target binding provider fully qualifies every TSTS provider-ref in reflected declaration models", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const requests = [
+    ["@tsonic/dotnet/System.js", ["CLSCompliantAttribute"]],
+    ["@tsonic/dotnet/System.IO.js", ["BinaryReader", "MemoryStream"]],
+    ["@tsonic/dotnet/System.Threading.Tasks.js", ["TaskCanceledException"]],
+  ];
+
+  for (const [moduleSpecifier, requestedExports] of requests) {
+    const resolution = bindingProvider.resolveModule(moduleSpecifier, {
+      containingFile: "provider-ref-regression.ts",
+      requestedExports,
+    });
+    assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+    const model = bindingProvider.getDeclarationModel(resolution);
+    assert.equal("exports" in model, true, JSON.stringify(model));
+    assertProviderDeclarationRefsFullyQualified(model);
+  }
+});
+
+test(".NET target binding provider qualifies CLSCompliantAttribute base provider-ref for TSTS", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/System.js", {
+    containingFile: "cls-compliant-attribute-regression.ts",
+    requestedExports: ["CLSCompliantAttribute"],
+  });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+  const model = bindingProvider.getDeclarationModel(resolution);
+  assert.equal("exports" in model, true, JSON.stringify(model));
+
+  const clsCompliantAttribute = model.exports.find((declaration) => declaration.name === "CLSCompliantAttribute");
+  assert.ok(clsCompliantAttribute);
+  assert.deepEqual(clsCompliantAttribute.heritage, [{
+    kind: "extends",
+    type: {
+      kind: "provider-ref",
+      moduleSpecifier: "@tsonic/dotnet/System.js",
+      exportName: "Attribute",
+    },
+  }]);
+  assertProviderDeclarationRefsFullyQualified(model);
 });
 
 test(".NET provider source declarations project cross-module inherited overloads", () => {
@@ -1674,7 +1745,7 @@ test(".NET provider source declarations project cross-module inherited overloads
   assert.equal(getNestedType.signatures?.every((signature) =>
     signature.returnType?.kind === "target-named" &&
     signature.returnType.sourceShape?.kind === "provider-ref" &&
-    signature.returnType.sourceShape.name === "Type" &&
+    signature.returnType.sourceShape.exportName === "Type" &&
     signature.returnType.sourceShape.moduleSpecifier === "@tsonic/dotnet/System.js"
   ), true);
 });
@@ -2577,9 +2648,10 @@ test(".NET target binding facts preserve unsupported target-only constraint evid
 
   assert.deepEqual(binding.typeParameters[0].constraints.map((constraint) => constraint.kind), [
     "reference-type",
-    "unsupported",
+    "target-specific",
   ]);
-  assert.equal(binding.typeParameters[0].constraints[1].id, testTargetId("ProviderModelFixtures.PointerContract"));
+  assert.equal(binding.typeParameters[0].constraints[1].name, "unsupported-constraint");
+  assert.equal(binding.typeParameters[0].constraints[1].value.targetId, testTargetId("ProviderModelFixtures.PointerContract"));
   assert.deepEqual(binding.typeParameters[0].unsupportedConstraints, declaration.typeParameters[0].unsupportedConstraints);
   assert.equal(binding.implementedContracts[0].kind, "implements");
   assert.deepEqual(binding.unsupportedImplementedContracts, declaration.unsupportedImplementedContracts);

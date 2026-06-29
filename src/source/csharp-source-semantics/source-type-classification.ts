@@ -95,7 +95,7 @@ export function sourceStandardLibraryTypeIsObjectShapeExcluded(
   type: Type,
   context: ExtensionObservationContext,
 ): boolean {
-  return isSourceStandardLibraryArrayLikeType(type, context);
+  return classifySourceStandardLibraryType(type, context) !== undefined;
 }
 
 const sourceStandardLibraryTypePolicies: readonly SourceStandardLibraryTypeClassification[] = [

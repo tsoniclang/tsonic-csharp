@@ -30,6 +30,11 @@ export interface CsharpJsCollectionTargetTypeMetadata {
   readonly id: string;
   readonly name: string;
   readonly namespaceName: string;
+  readonly helper?: {
+    readonly id: string;
+    readonly name: string;
+    readonly namespaceName: string;
+  };
   readonly enumerableElementType: CsharpJsCollectionTypeExpression;
 }
 
@@ -49,8 +54,15 @@ export interface CsharpJsCollectionMemberShape {
   readonly kind: JsSurfaceTargetMemberMetadata["kind"];
   readonly id: string;
   readonly targetName: string;
+  readonly dispatch?: "instance" | "static-helper";
+  readonly typeArgumentRequirements?: readonly CsharpJsCollectionTypeArgumentRequirement[];
   readonly parameters?: readonly CsharpJsCollectionParameterShape[];
   readonly returnType: CsharpJsCollectionTypeExpression;
+}
+
+export interface CsharpJsCollectionTypeArgumentRequirement {
+  readonly index: number;
+  readonly kind: "value-type" | "reference-type";
 }
 
 export interface CsharpJsCollectionParameterShape {

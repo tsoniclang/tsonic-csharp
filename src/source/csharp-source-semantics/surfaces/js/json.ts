@@ -10,7 +10,6 @@ import type {
 import {
   acceptObservation,
   deferObservation,
-  runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
   csharpJsArrayCarrierTargetType,
@@ -49,6 +48,9 @@ import {
 import {
   createRuntimeCarrierLifecycleObservationContext,
 } from "../../runtime-carriers.js";
+import {
+  setRuntimeCarrierFactIfUnresolved,
+} from "../../runtime-carrier-lifecycle/fact-writes.js";
 import type {
   CsharpRecordDictionaryTargetTypeRef,
 } from "../../dictionaries.js";
@@ -143,12 +145,11 @@ export function recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       if (
         compiler.ast.is.IsCallExpression(node) !== true ||
-        lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined ||
         !isCheckedJsonParseCall(node, sourceFile, context, host)
       ) {
         return;
       }
-      lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, {
+      setRuntimeCarrierFactIfUnresolved(lifecycleContext, node, {
         carrier: jsonValueTargetType,
       }, [{ message: "C# JS surface JSON.parse runtime carrier recorded before generic any carrier finalization." }]);
     });

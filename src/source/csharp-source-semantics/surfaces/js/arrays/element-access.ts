@@ -48,6 +48,12 @@ export function mapCsharpJsArrayElementAccess(
   receiverType: TargetTypeRef | undefined,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
+  if (existingOperation !== undefined) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: existingOperation,
+    }, [{ message: "C# JS surface array indexer reused existing finalized target operation for repeated checked-element observation." }]);
+  }
   const elementType = getCsharpArrayLikeElementType(receiverType);
   if (elementType === undefined) {
     return undefined;
@@ -136,6 +142,11 @@ function recordCsharpJsArrayElementAccessFact(
         "C# JS surface array element access requires finalized array runtime carrier facts; semantic TypeScript Array<T> shape is not enough for target emission.",
       ));
     }
+    return;
+  }
+  const existingOperation = context.host.facts.get(node, targetOperationFactKey) ??
+    context.factResolver.resolve(node, targetOperationFactKey);
+  if (existingOperation !== undefined) {
     return;
   }
   const csharpOperation = context.host.facts.get(node, csharpTargetOperationFactKey);

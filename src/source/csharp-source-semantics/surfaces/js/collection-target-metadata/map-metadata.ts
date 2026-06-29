@@ -22,6 +22,11 @@ export const csharpJsMapCollectionPolicy = {
     id: "Tsonic.CSharp.Js.Map`2",
     name: "Map",
     namespaceName: "Tsonic.CSharp.Js",
+    helper: {
+      id: "Tsonic.CSharp.Js.Map",
+      name: "Map",
+      namespaceName: "Tsonic.CSharp.Js",
+    },
     enumerableElementType: entryType,
   },
   typeParameterNames: ["K", "V"],
@@ -57,13 +62,26 @@ export const csharpJsMapCollectionPolicy = {
     },
     {
       sourceName: "get",
-      members: [{
-        id: "Tsonic.CSharp.Js.Map.get",
-        targetName: "get",
-        kind: "method",
-        parameters: [{ name: "key", type: keyType }],
-        returnType: { kind: "nullable", value: valueType },
-      }],
+      members: [
+        {
+          id: "Tsonic.CSharp.Js.Map.get:value",
+          targetName: "getValue",
+          kind: "method",
+          dispatch: "static-helper",
+          typeArgumentRequirements: [{ index: 1, kind: "value-type" }],
+          parameters: [{ name: "key", type: keyType }],
+          returnType: { kind: "nullable", value: valueType },
+        },
+        {
+          id: "Tsonic.CSharp.Js.Map.get:reference",
+          targetName: "getReference",
+          kind: "method",
+          dispatch: "static-helper",
+          typeArgumentRequirements: [{ index: 1, kind: "reference-type" }],
+          parameters: [{ name: "key", type: keyType }],
+          returnType: { kind: "nullable", value: valueType },
+        },
+      ],
     },
     {
       sourceName: "set",

@@ -72,7 +72,7 @@ function qualifyProviderTypeModuleRefs(
             : dotnetModuleExportsSourceName(context.sourceModuleSpecifier, type.exportName, context)
               ? context.sourceModuleSpecifier
               : type.moduleSpecifier;
-        const renderedModuleSpecifier = declaredModuleSpecifier === undefined || declaredModuleSpecifier === context.moduleSpecifier
+        const renderedModuleSpecifier = declaredModuleSpecifier === context.moduleSpecifier
           ? declaredModuleSpecifier
           : context.dependencyModuleSpecifier?.(declaredModuleSpecifier, type.exportName) ?? declaredModuleSpecifier;
         return {

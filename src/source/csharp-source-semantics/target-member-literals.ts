@@ -10,6 +10,9 @@ import {
   getNodeField,
 } from "./ast-utils.js";
 import {
+  getPrefixUnaryOperatorText,
+} from "./operator-syntax.js";
+import {
   parseBigIntLiteral,
   parseFiniteNumberLiteral,
 } from "../source-literal-values.js";
@@ -146,20 +149,14 @@ function getPrefixUnaryOperatorKindName(
   node: Node,
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
 ): string | undefined {
-  const operator = getNodeField(node, "Operator");
-  if (typeof operator === "number") {
-    const text = ast.text(node).trim();
-    return text.startsWith("-")
-      ? "KindMinusToken"
-      : text.startsWith("+")
-        ? "KindPlusToken"
-        : undefined;
+  const operator = getPrefixUnaryOperatorText(ast, node);
+  if (operator === "+") {
+    return "KindPlusToken";
   }
-  if (typeof operator === "string") {
-    return operator;
+  if (operator === "-") {
+    return "KindMinusToken";
   }
-  const token = asNodeSubject(getNodeField(node, "OperatorToken"));
-  return token === undefined ? undefined : ast.kindName(token);
+  return undefined;
 }
 
 function isNumberRepresentableAsPrimitive(value: number, primitive: SourcePrimitiveKind): boolean {

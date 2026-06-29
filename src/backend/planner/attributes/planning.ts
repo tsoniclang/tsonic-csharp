@@ -74,8 +74,8 @@ function planAttribute(
   }
   return {
     ...(targetSpecifier === undefined ? {} : { targetSpecifier }),
-    type: isAstNode(attribute.target)
-      ? expressionToCsharpType(attribute.target, sourceFile, input, diagnostics)
+    type: isAstNode(attribute.attributeType)
+      ? expressionToCsharpType(attribute.attributeType, sourceFile, input, diagnostics)
       : unsupportedAttributeTarget(attribute, diagnostics),
     arguments: arguments_,
   };

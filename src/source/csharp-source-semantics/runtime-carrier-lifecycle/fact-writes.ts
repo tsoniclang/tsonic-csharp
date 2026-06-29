@@ -2,6 +2,7 @@ import {
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
+  ExtensionEvidence,
   ExtensionFactSubject,
   Node,
   TargetTypeRef,
@@ -20,10 +21,20 @@ export function setRuntimeCarrierFactIfAbsent(
   fact: RuntimeCarrierFact | undefined,
   message: string,
 ): void {
-  if (node === undefined || fact === undefined || lifecycleContext.host.facts.get(node, runtimeCarrierFactKey) !== undefined) {
-    return;
+  setRuntimeCarrierFactIfUnresolved(lifecycleContext, node, fact, [{ message }]);
+}
+
+export function setRuntimeCarrierFactIfUnresolved(
+  lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"] },
+  subject: ExtensionFactSubject | undefined,
+  fact: RuntimeCarrierFact | undefined,
+  evidence: readonly ExtensionEvidence[],
+): boolean {
+  if (subject === undefined || fact === undefined || getResolvedRuntimeCarrierFact(lifecycleContext, subject) !== undefined) {
+    return false;
   }
-  lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, [{ message }]);
+  lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, fact, evidence);
+  return true;
 }
 
 export function setRuntimeCarrierFactIfAbsentOrStronger(
@@ -40,4 +51,12 @@ export function setRuntimeCarrierFactIfAbsentOrStronger(
     return;
   }
   lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, fact, [{ message }]);
+}
+
+function getResolvedRuntimeCarrierFact(
+  lifecycleContext: { readonly host: RuntimeCarrierLifecycleFactsContext["host"] },
+  subject: ExtensionFactSubject,
+): RuntimeCarrierFact | undefined {
+  return lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey) ??
+    lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey);
 }

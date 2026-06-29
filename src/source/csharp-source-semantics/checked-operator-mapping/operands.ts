@@ -155,6 +155,10 @@ function getCheckedOperatorOperandTargetTypeRef(
   if (direct !== undefined) {
     return direct;
   }
+  const typedCarrier = getMappedRuntimeCarrierTargetTypeRef(typeSubject, context, host);
+  if (typedCarrier !== undefined) {
+    return typedCarrier;
+  }
   const typed = host.getTargetTypeRefForSubject(typeSubject, context, {
     ...options,
     ...(sourceFile === undefined ? {} : { sourceFile }),
@@ -183,6 +187,18 @@ function getCheckedOperatorOperandTargetTypeRef(
   } catch {
     return undefined;
   }
+}
+
+function getMappedRuntimeCarrierTargetTypeRef(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
+  if (subject === undefined) {
+    return undefined;
+  }
+  const mapped = host.mapRuntimeCarrier({ type: subject }, context as ExtensionObservationContext<"type.resolveRuntimeCarrier">);
+  return mapped.kind === "accept" ? mapped.value.carrier : undefined;
 }
 
 function getNestedCheckedOperatorTargetTypeRef(
