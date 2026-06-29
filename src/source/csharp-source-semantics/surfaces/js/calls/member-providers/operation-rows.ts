@@ -300,13 +300,21 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
       { index: 0, target: jsSurfaceTargetFeatures.objectHelper },
       { index: 1, target: jsSurfaceTargetFeatures.string },
     ] },
+    targetProviders: [
+      metadataIndexProvider(objectTargetMemberIdentityIndex),
+      runtimeHelperProvider({ kind: "record-dictionary-has-own" }),
+    ],
   },
   {
     ...operationRowFromMetadataIndex({ ids: ["Object.assign"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "arguments", conditions: [
-      { index: 0, target: jsSurfaceTargetFeatures.jsObject },
+      { index: 0, target: jsSurfaceTargetFeatures.objectHelper },
       { fromIndex: 1, target: jsSurfaceTargetFeatures.objectHelper },
     ] },
+    targetProviders: [
+      metadataIndexProvider(objectTargetMemberIdentityIndex),
+      runtimeHelperProvider({ kind: "record-dictionary-assign" }),
+    ],
   },
   {
     ...operationRowFromMetadataIndex({ ids: ["Object.hasOwnProperty"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),

@@ -128,6 +128,12 @@ export type JsSurfaceRuntimeHelperSelection =
     readonly operation: ObjectRecordDictionaryOperation;
   }
   | {
+    readonly kind: "record-dictionary-has-own";
+  }
+  | {
+    readonly kind: "record-dictionary-assign";
+  }
+  | {
     readonly kind: "record-dictionary-json-stringify";
   };
 

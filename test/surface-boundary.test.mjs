@@ -2011,6 +2011,27 @@ test("JS surface maps Object.hasOwn only from selected declaration and closed JS
   assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
 });
 
+test("JS surface maps Object.hasOwn for closed Record dictionary target facts", () => {
+  const call = {};
+  const value = {};
+  const key = {};
+  const facts = new TestFactStore();
+  const targetTypes = new Map([
+    [value, recordDictionaryType(stringType(), int32Type())],
+    [key, stringType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "hasOwn"), {
+    arguments: [value, key],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.hasOwn:dictionary");
+  assert.equal(result.value.selectedSignature.member.parameters[0]?.type.id, "System.Collections.Generic.Dictionary`2");
+  assert.equal(result.value.selectedSignature.member.returnType.name, "bool");
+});
+
 test("JS surface rejects Object.hasOwn without supported closed object-helper target facts", () => {
   const call = {};
   const value = {};
@@ -2068,6 +2089,28 @@ test("JS surface maps Object.assign only from selected declaration and closed JS
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.assign");
   assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSObject");
+});
+
+test("JS surface maps Object.assign for closed Record dictionary target facts", () => {
+  const facts = new TestFactStore();
+  const call = {};
+  const target = {};
+  const source = {};
+  const dictionary = recordDictionaryType(stringType(), int32Type());
+  const targetTypes = new Map([
+    [target, dictionary],
+    [source, dictionary],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes, dictionaryBinding()));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
+    arguments: [target, source],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.assign:dictionary");
+  assert.equal(result.value.selectedSignature.member.parameters[0]?.type.id, "System.Collections.Generic.Dictionary`2");
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Collections.Generic.Dictionary`2");
 });
 
 test("JS surface rejects Object.assign without closed JSObject target facts", () => {

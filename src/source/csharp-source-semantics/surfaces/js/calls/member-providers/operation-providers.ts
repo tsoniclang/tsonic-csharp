@@ -57,7 +57,9 @@ import {
 } from "../helpers.js";
 import {
   getObjectPrimitiveReceiverCallMembers,
+  getObjectRecordDictionaryAssignMembers,
   getObjectRecordDictionaryCallMembers,
+  getObjectRecordDictionaryHasOwnMembers,
 } from "./object-members.js";
 import type {
   JsSurfaceCallTargetProviderRequest,
@@ -202,6 +204,10 @@ function targetMembersFromRuntimeHelperSelection(
   switch (selection.kind) {
     case "record-dictionary":
       return getObjectRecordDictionaryCallMembers(selection.operation, request.request, request.context, request.host);
+    case "record-dictionary-has-own":
+      return getObjectRecordDictionaryHasOwnMembers(request.request, request.context, request.host);
+    case "record-dictionary-assign":
+      return getObjectRecordDictionaryAssignMembers(request.request, request.context, request.host);
     case "record-dictionary-json-stringify":
       return getJsonRecordDictionaryStringifyCallMembers(request);
   }
