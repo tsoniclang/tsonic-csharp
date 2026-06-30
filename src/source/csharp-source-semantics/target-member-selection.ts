@@ -15,6 +15,7 @@ import {
 } from "./target-types.js";
 import {
   selectExactTargetMember,
+  selectProviderSelectedTargetMember,
   selectTargetMember,
 } from "./target-member-arguments/index.js";
 import type {
@@ -56,13 +57,10 @@ export function findTargetMemberForCall(
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
-    const candidates = selectedMember === undefined
-      ? []
-      : getTargetMemberCandidatesForSelectedMember(csharpBinding?.members ?? [], selectedMember);
     return selectedMember === undefined
       ? undefined
-      : selectTargetMember(
-          candidates,
+      : selectProviderSelectedTargetMember(
+          selectedMember,
           {
             arguments: request.arguments,
             receiver: requestContext.calleeReceiver,
@@ -70,7 +68,7 @@ export function findTargetMemberForCall(
           },
           context,
           resolveTargetTypeRef,
-          { ...options, preferredMemberId: selectedMember.id },
+          options,
         );
   }
   const candidates = getTargetMemberCandidates(csharpBinding, declaration);
@@ -112,19 +110,16 @@ export function findTargetMemberForElementAccess(
   const csharpBinding = csharpTargetBindingFact(binding);
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
-    const candidates = selectedMember === undefined
-      ? []
-      : getTargetMemberCandidatesForSelectedMember(csharpBinding?.members ?? [], selectedMember);
     return selectedMember === undefined
       ? undefined
-      : selectTargetMember(
-          candidates,
+      : selectProviderSelectedTargetMember(
+          selectedMember,
           {
             arguments: [request.argument],
           },
           context,
           resolveTargetTypeRef,
-          { ...options, preferredMemberId: selectedMember.id },
+          options,
         );
   }
   if (declaration === undefined) {

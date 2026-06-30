@@ -80,6 +80,9 @@ export function findCsharpTargetMemberForCall(
   if (selectedMember !== undefined) {
     return selectedMember;
   }
+  if (declaration?.signatureId !== undefined) {
+    return undefined;
+  }
   const constructorMember = findConstructorTargetMemberForProviderType(
     binding,
     declaration,
