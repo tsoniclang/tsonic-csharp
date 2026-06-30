@@ -2,15 +2,22 @@ import type {
   CheckedOperationMappingResult,
   ExtensionEvidence,
   ExtensionFactSubject,
+  ExtensionFactWriteResult,
   ExtensionObservationContext,
   TargetMember,
   TargetTypeRef,
+} from "@tsonic/tsts";
+import {
+  targetOperationFactKey,
 } from "@tsonic/tsts";
 import {
   csharpSourceOwnedPropertyOperationPrefix,
   csharpTargetMutationOperationFactKey,
   csharpTargetOperationFactKey,
 } from "../csharp-facts.js";
+import {
+  extensionFactSubjectTypeRefEquals,
+} from "../csharp-facts/equality.js";
 import {
   getCsharpArrayLiteralElementTargetType,
 } from "./target-types.js";
@@ -38,6 +45,35 @@ export function targetOperation(
     targetOperation,
     ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
   };
+}
+
+export function recordTargetOperationFact(
+  context: Pick<ExtensionObservationContext, "facts">,
+  subject: ExtensionFactSubject,
+  operation: CheckedOperationMappingResult["operation"],
+  evidence: readonly ExtensionEvidence[] = [],
+): ExtensionFactWriteResult {
+  const existing = context.facts.get(subject, targetOperationFactKey);
+  if (targetOperationFactsAreStructurallyIdentical(existing, operation)) {
+    return "idempotent";
+  }
+  return context.facts.set(subject, targetOperationFactKey, operation, evidence);
+}
+
+export function targetOperationFactsAreStructurallyIdentical(
+  left: CheckedOperationMappingResult["operation"] | undefined,
+  right: CheckedOperationMappingResult["operation"] | undefined,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left === undefined || right === undefined) {
+    return false;
+  }
+  return left.operationId === right.operationId &&
+    left.operationKind === right.operationKind &&
+    left.targetOperation === right.targetOperation &&
+    extensionFactSubjectTypeRefEquals(left.resultType, right.resultType);
 }
 
 export function sourceOwnedPropertyOperation(propertyName: string): CheckedOperationMappingResult["operation"] {

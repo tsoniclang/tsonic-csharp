@@ -7,7 +7,9 @@ import type {
   CheckedElementAccessMappingRequest,
   CheckedOperationMappingResult,
   CheckedPropertyAccessMappingRequest,
+  ExtensionFactSubject,
   ExtensionObservation,
+  Type,
 } from "@tsonic/tsts";
 import {
   csharpTargetOperationFactKey,
@@ -16,11 +18,17 @@ import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
 import {
+  csharpTargetId,
+} from "../identity.js";
+import {
   csharpTargetMemberOperation,
   csharpTargetOperationFromMember,
   recordCsharpTargetOperation,
   targetOperation,
 } from "../operations.js";
+import {
+  asNodeSubject,
+} from "../ast-utils.js";
 import {
   findTargetBinding,
 } from "../provider-bindings.js";
@@ -57,11 +65,18 @@ import {
   rejectNativeArrayPropertyNotSupported,
   rejectNonIntegralNativeArrayIndex,
   rejectNonIntegralSourceArrayIndex,
+  rejectSourceIndexerResultTypeNotProven,
+  rejectTupleElementCarrierMissing,
+  rejectTupleElementIndexNotProven,
 } from "./diagnostics.js";
 import type {
   CheckedElementAccessContext,
   CheckedPropertyAccessContext,
 } from "./types.js";
+import {
+  csharpTupleElementMemberName,
+  getTstsTupleElementIndex,
+} from "../tuple-element-index.js";
 
 export function mapCsharpNativeArrayCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -95,20 +110,21 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
   if (binding?.id !== dotnetNativeArrayTypeId) {
     return rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName, true);
   }
+  const targetBinding = binding.target === csharpTargetId
+    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    : binding;
   const selectedDeclarationFact = resolveProviderVirtualDeclaration(context, [
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclaration,
   ]);
-  const member = findTargetMember(binding, selectedDeclarationFact);
+  const member = findTargetMember(targetBinding, selectedDeclarationFact);
   if (member?.id !== dotnetNativeArrayLengthMemberId) {
     return rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName);
   }
   const operation = csharpTargetOperationFromMember(member);
   recordCsharpTargetOperation(context, request.expression, operation, [{ message: "C# native array length operation recorded from checked TypeScript property access on provider-owned array contract." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(dotnetNativeArrayLengthMemberId, "property", "System.Array.Length", {
-      resultType: csharpSourcePrimitiveTargetType("int32"),
-    }),
+    operation: targetOperation(dotnetNativeArrayLengthMemberId, "property", "System.Array.Length"),
   }, [{ message: "C# native array length selected from checked TypeScript property access on provider-owned array contract." }]);
 }
 
@@ -123,6 +139,13 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   if (receiverType?.kind !== "array") {
     return undefined;
   }
+  const selectedOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
+  const selectedCsharpOperation = context.factResolver.resolve(request.expression, csharpTargetOperationFactKey);
+  if (selectedOperation !== undefined && selectedCsharpOperation !== undefined) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: selectedOperation,
+    }, [{ message: "C# array element access reused finalized provider/surface target operation facts." }]);
+  }
   const binding = findTargetBinding(context, [
     requestContext.receiverTypeSymbol,
     requestContext.receiverType,
@@ -131,12 +154,15 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   if (binding?.id !== dotnetNativeArrayTypeId) {
     return undefined;
   }
+  const targetBinding = binding.target === csharpTargetId
+    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    : binding;
   const virtualDeclaration = resolveProviderVirtualDeclaration(context, [
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclaration,
   ]);
   const member = findTargetMemberForElementAccess(
-    binding,
+    targetBinding,
     virtualDeclaration,
     request,
     context,
@@ -155,9 +181,7 @@ export function mapCsharpNativeArrayCheckedElementAccess(
     returnType: receiverType.element,
   }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access on provider-owned array contract." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(dotnetNativeArrayIndexerMemberId, "indexer", "System.Array.Item", {
-      resultType: receiverType.element,
-    }),
+    operation: targetOperation(dotnetNativeArrayIndexerMemberId, "indexer", "System.Array.Item"),
   }, [{ message: "C# native array indexer selected from checked TypeScript element access on provider-owned array contract." }]);
 }
 
@@ -215,6 +239,7 @@ export function mapCsharpSourceArrayCheckedElementAccess(
 export function mapCsharpSourceTupleCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: CheckedElementAccessContext,
+  extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
@@ -222,27 +247,92 @@ export function mapCsharpSourceTupleCheckedElementAccess(
   if (receiverType?.kind !== "tuple") {
     return undefined;
   }
+  const argumentNode = asNodeSubject(request.argument);
+  const sourceFile = argumentNode === undefined ? undefined : context.compiler?.ast.getSourceFile(argumentNode);
+  const index = getTstsTupleElementIndex(argumentNode, sourceFile, context.compiler === undefined ? undefined : {
+    kindName: (node) => context.compiler!.ast.kindName(node),
+    text: (node) => context.compiler!.ast.text(node),
+    getConstantValue: (node, options) => context.compiler!.typeShape.getConstantValue(node, options),
+    getSymbolAtLocation: (node, options) => context.compiler!.checker.getSymbolAtLocation(node, options),
+    getResolvedSymbol: (node, options) => context.compiler!.checker.getResolvedSymbolOrNil(node, options) ?? undefined,
+    getSymbolDeclarations: (symbol) => context.compiler!.checker.getSymbolDeclarations(symbol),
+  });
+  if (index === undefined) {
+    return rejectTupleElementIndexNotProven(extensionId);
+  }
+  const resultType = receiverType.elements[index];
+  if (resultType === undefined) {
+    return rejectTupleElementCarrierMissing(extensionId, index);
+  }
+  const operationId = `tsonic.csharp.source.tuple.item.${index}`;
+  const memberName = csharpTupleElementMemberName(index);
+  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "property", memberName, {
+    resultType,
+  }), [{ message: "C# source tuple element member operation recorded from checked TSTS tuple receiver and literal element index facts." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation("tsonic.csharp.source.tuple.indexer", "indexer", "Item"),
-  }, [{ message: "C# source tuple element access accepted from checked TSTS tuple receiver facts; backend consumes finalized tuple element facts." }]);
+    operation: targetOperation(operationId, "indexer", memberName, {
+      resultType,
+    }),
+  }, [{ message: "C# source tuple element access selected from checked TSTS tuple receiver and literal element index facts." }]);
 }
 
 export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: CheckedElementAccessContext,
+  extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
-  if (selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)) {
-    return undefined;
-  }
   const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
+  }
+  if (
+    requestContext.sourceSelectedDeclaration === undefined ||
+    selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)
+  ) {
+    const indexSignature = getSingleSourceIndexSignature(requestContext.receiverType, context);
+    if (indexSignature === undefined || selectedDeclarationIsAmbientOrExternal(indexSignature.declaration, context)) {
+      return undefined;
+    }
+    const resultType = host.getTargetTypeRefForType?.(indexSignature.valueType, context);
+    if (resultType === undefined) {
+      return rejectSourceIndexerResultTypeNotProven(extensionId);
+    }
+    const operationId = "tsonic.csharp.source.indexer";
+    recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "indexer", "Item", {
+      resultType,
+    }), [{ message: "C# source-owned indexer operation recorded from checked TSTS source index-signature facts." }]);
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(operationId, "indexer", "Item", {
+        resultType,
+      }),
+    }, [{ message: "C# source-owned element access selected from checked TSTS source index-signature facts." }]);
   }
   const operationId = "tsonic.csharp.source.indexer";
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "indexer", "Item"), [{ message: "C# source-owned indexer operation recorded from checked TSTS source declaration receiver facts." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(operationId, "indexer", "Item"),
   }, [{ message: "C# source-owned element access selected from checked TSTS source declaration receiver facts." }]);
+}
+
+function getSingleSourceIndexSignature(
+  receiverType: ExtensionFactSubject | undefined,
+  context: CheckedElementAccessContext,
+): { readonly declaration: ExtensionFactSubject; readonly valueType: Type } | undefined {
+  const compiler = context.compiler;
+  if (compiler === undefined || receiverType === undefined) {
+    return undefined;
+  }
+  const indexInfos = compiler.typeShape.getIndexInfos(receiverType as Parameters<typeof compiler.typeShape.getIndexInfos>[0]);
+  if (indexInfos.length !== 1) {
+    return undefined;
+  }
+  const indexInfo = indexInfos[0]!;
+  return indexInfo.declaration === undefined || indexInfo.valueType === undefined
+    ? undefined
+    : {
+        declaration: indexInfo.declaration,
+        valueType: indexInfo.valueType,
+      };
 }

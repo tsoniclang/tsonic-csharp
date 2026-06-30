@@ -13,6 +13,12 @@ import type {
 import type {
   CsharpExpression,
 } from "../../roslyn/syntax.js";
+import type {
+  CsharpTargetOperationFact,
+} from "../../../source/csharp-facts.js";
+import {
+  csharpTargetOperationFactKey,
+} from "../../../source/csharp-facts.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -85,30 +91,15 @@ export function planPropertyAccessExpression(
     if (csharpOperation === undefined) {
       return undefined;
     }
-    if (csharpOperation.kind !== "member" || csharpOperation.operationKind !== "property") {
-      diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, "C# property access emission requires a finalized C# member property operation fact."));
-      return undefined;
-    }
-    if (csharpOperation.static === true) {
-      const staticMember = targetStaticMemberExpression(csharpOperation, diagnostics, propertyAccess);
-      if (staticMember !== undefined) {
-        return staticMember;
-      }
-      return undefined;
-    }
-    const receiverExpression = planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression);
-    if (receiverExpression === undefined) {
-      return undefined;
-    }
-    return {
-      kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-      receiver: receiverExpression,
-      name: csharpOperation.memberName,
-    };
+    return planFinalizedCsharpPropertyOperation(propertyAccess, expression, csharpOperation, sourceFile, input, diagnostics, planExpression);
   }
   if (!sourceOwnedPropertyOperation && targetOperation !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access '${sourceName}' expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
     return undefined;
+  }
+  const csharpOperation = input.facts.getFact(propertyAccess, csharpTargetOperationFactKey);
+  if (csharpOperation !== undefined) {
+    return planFinalizedCsharpPropertyOperation(propertyAccess, expression, csharpOperation, sourceFile, input, diagnostics, planExpression);
   }
   const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
   if (sourceModuleMemberReference !== undefined) {
@@ -132,6 +123,37 @@ export function planPropertyAccessExpression(
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
     receiver: receiverExpression,
     name: planIdentifierName(expression.name, "InvalidPropertyName", input, diagnostics, "Source-owned property name"),
+  };
+}
+
+function planFinalizedCsharpPropertyOperation(
+  propertyAccess: Node,
+  expression: NonNullable<ReturnType<typeof AsPropertyAccessExpression>>,
+  csharpOperation: CsharpTargetOperationFact,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  if (csharpOperation.kind !== "member" || csharpOperation.operationKind !== "property") {
+    diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, "C# property access emission requires a finalized C# member property operation fact."));
+    return undefined;
+  }
+  if (csharpOperation.static === true) {
+    const staticMember = targetStaticMemberExpression(csharpOperation, diagnostics, propertyAccess);
+    if (staticMember !== undefined) {
+      return staticMember;
+    }
+    return undefined;
+  }
+  const receiverExpression = planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression);
+  if (receiverExpression === undefined) {
+    return undefined;
+  }
+  return {
+    kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
+    receiver: receiverExpression,
+    name: csharpOperation.memberName,
   };
 }
 

@@ -143,11 +143,8 @@ function dotnetDelegateSignatureFromSourceShape(
     return undefined;
   }
   const parameters = sourceShape.parameters.map((parameter) => dotnetTypeRefToTargetTypeRef(parameter.type));
-  const returnType = sourceShape.returnType.kind === "void"
-    ? undefined
-    : dotnetTypeRefToTargetTypeRef(sourceShape.returnType);
   return {
     parameters,
-    ...(returnType !== undefined ? { returnType } : {}),
+    returnType: dotnetTypeRefToTargetTypeRef(sourceShape.returnType),
   };
 }

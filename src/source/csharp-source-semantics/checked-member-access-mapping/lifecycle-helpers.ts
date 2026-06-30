@@ -1,7 +1,6 @@
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
-  Node,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -12,8 +11,10 @@ import type {
 } from "../target-member-selection.js";
 import {
   asNodeSubject,
-  isDeclarationOrVirtualSourceFile,
 } from "../ast-utils.js";
+import {
+  isAmbientOrExternalDeclaration,
+} from "../source-declaration-utils.js";
 import {
   unwrapNullableTargetType,
 } from "../target-rules.js";
@@ -22,8 +23,6 @@ import {
 } from "../../../providers/dotnet/native-array.js";
 
 const noRuntimeCarrierQuery = { allowRuntimeCarrier: false } satisfies TargetTypeRefResolutionOptions;
-const nodeFlagsAmbient = 8388608;
-
 export function getSourceReceiverTargetType(
   receiverTypeSubject: ExtensionFactSubject | undefined,
   receiverSubject: ExtensionFactSubject | undefined,
@@ -52,9 +51,7 @@ export function selectedDeclarationIsAmbientOrExternal(
   if (selectedDeclaration === undefined || compiler === undefined) {
     return false;
   }
-  const sourceFile = compiler.ast.getSourceFile(selectedDeclaration);
-  return isDeclarationOrVirtualSourceFile(sourceFile, compiler.ast) ||
-    hasAmbientNodeFlag(selectedDeclaration);
+  return isAmbientOrExternalDeclaration(selectedDeclaration, context);
 }
 
 export function getNativeArrayReceiverType(
@@ -85,9 +82,4 @@ export function asNativeArrayTargetType(type: TargetTypeRef | undefined): Target
         kind: "array",
         element,
       };
-}
-
-function hasAmbientNodeFlag(node: Node): boolean {
-  const flags = (node as { readonly Flags?: unknown }).Flags;
-  return typeof flags === "number" && (flags & nodeFlagsAmbient) !== 0;
 }

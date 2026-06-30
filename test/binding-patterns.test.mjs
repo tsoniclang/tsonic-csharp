@@ -19,6 +19,7 @@ import {
   KindNumericLiteral,
   KindObjectBindingPattern,
   KindParameter,
+  KindTypeLiteral,
 } from "../dist/backend/planner/source-ast.js";
 
 test("parameter array destructuring emits from binding AST and finalized array carrier facts", () => {
@@ -117,6 +118,53 @@ test("parameter object destructuring emits from finalized object-shape extractio
       name: "Count",
     },
   }]);
+});
+
+test("parameter object destructuring reads finalized object-shape facts from type annotations", () => {
+  const value = identifier("value");
+  const pattern = objectBindingPattern([
+    bindingElement(value),
+  ]);
+  const typeLiteral = { Kind: KindTypeLiteral };
+  const parameter = parameterDeclaration(pattern, { type: typeLiteral });
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [{
+      sourceName: "value",
+      targetName: "value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "float64" },
+    }],
+  };
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "__tsonic_param0",
+    sourceFile,
+    fakeInput({
+      objectShapes: new Map([[typeLiteral, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "value",
+    type: { kind: "PredefinedType", name: "double" },
+    initializer: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "__tsonic_param0" },
+      name: "value",
+    },
+  }]);
+  assert.equal(parameter.Type, typeLiteral);
 });
 
 test("nested object parameter destructuring uses finalized nested object-shape facts", () => {
@@ -610,11 +658,14 @@ test("object destructuring defaults fail closed until undefined/default facts ex
   assert.match(diagnostics[0].message, /Destructuring defaults require finalized undefined\/default-value semantics/);
 });
 
-function parameterDeclaration(name) {
+function parameterDeclaration(name, options = {}) {
   const parameter = {
     Kind: KindParameter,
     name,
   };
+  if (options.type !== undefined) {
+    parameter.Type = options.type;
+  }
   name.Parent = parameter;
   return parameter;
 }

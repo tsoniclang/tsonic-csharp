@@ -34,7 +34,8 @@ import {
 } from "./target-types.js";
 import {
   targetMembersHaveCompatibleSourceSelectedSignature,
-  targetMemberAsSourceSelectedSignature,
+  targetMemberAsSourceSelectedSignatureForExpected,
+  targetMemberSourceSelectedSignatureUsesFirstArgumentReceiver,
 } from "../../source/csharp-source-semantics/selected-target-source-signature.js";
 import {
   targetTypeRefEquals,
@@ -182,23 +183,20 @@ function getSelectedMemberEmissionFactMismatch(expected: CsharpTargetMember, act
   if (actual.receiverPassing !== expected.receiverPassing) {
     return "receiver-passing";
   }
-  if (!optionalTargetTypeRefEquals(actual.returnType, expected.returnType)) {
+  const actualAsSource = targetMemberAsSourceSelectedSignatureForExpected(expected, actual);
+  if (!optionalTargetTypeRefEquals(actualAsSource.returnType, expected.returnType)) {
     return "return-type";
   }
-  if (!optionalTargetTypeRefEquals(actual.declaringType, expected.declaringType)) {
+  if (!optionalTargetTypeRefEquals(actualAsSource.declaringType, expected.declaringType)) {
     return "declaring-type";
   }
-  if (actual.receiverPassing === "first-argument") {
-    const actualReceiver = actual.parameters[0];
-    if (
-      actualReceiver === undefined ||
-      expected.declaringType === undefined ||
-      !targetTypeRefEquals(actualReceiver.type, expected.declaringType)
-    ) {
-      return "receiver-type";
-    }
+  if (
+    actual.receiverPassing === "first-argument" &&
+    expected.parameters.length === actual.parameters.length - 1 &&
+    !targetMemberSourceSelectedSignatureUsesFirstArgumentReceiver(expected, actual)
+  ) {
+    return "receiver-type";
   }
-  const actualAsSource = targetMemberAsSourceSelectedSignature(actual);
   if (actualAsSource.parameters.length !== expected.parameters.length) {
     return "parameter-list";
   }

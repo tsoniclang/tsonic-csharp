@@ -108,8 +108,12 @@ export function SourceKind(ast: AstReader, node: Node | undefined): string {
   return ast.kindName(node);
 }
 
-export function SourceTokenKind(_ast: AstReader, kind: unknown): string {
-  return typeof kind === "number" ? `Kind${kind}` : "Undefined";
+export function SourceTokenKind(ast: AstReader, kind: unknown): string {
+  if (typeof kind === "number") {
+    const decoder = (ast as { readonly kindNameFromKind?: (kind: number) => string }).kindNameFromKind;
+    return decoder === undefined ? `Kind${kind}` : decoder.call(ast, kind);
+  }
+  return kind === undefined ? "Undefined" : ast.kindName(kind as Node);
 }
 
 export function HasSourceKind(ast: AstReader, node: Node | undefined, expected: string): boolean {

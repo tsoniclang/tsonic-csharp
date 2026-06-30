@@ -1,9 +1,5 @@
 import {
   AsElementAccessExpression,
-  AsNumericLiteral,
-  HasSourceKind,
-  KindNumericLiteral,
-  Node_Text,
 } from "../source-ast.js";
 import type {
   Node,
@@ -46,8 +42,9 @@ import {
   tryPlanCompatRuntimeElementGet,
 } from "../compat-runtime-operations.js";
 import {
-  parseFiniteNumberLiteral,
-} from "../../../source/source-literal-values.js";
+  csharpTupleElementMemberName,
+  getTstsTupleElementIndex,
+} from "../../../source/csharp-source-semantics/tuple-element-index.js";
 
 export function planElementAccessExpression(
   elementAccess: Node,
@@ -110,6 +107,25 @@ export function planElementAccessExpression(
       arguments: arguments_,
     };
   }
+  if (csharpOperation?.operationKind === "property") {
+    if (csharpOperation.argumentProjection !== undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "C# element access property lowering does not accept source argument projections."));
+      return undefined;
+    }
+    if (csharpOperation.static === true) {
+      diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "C# element access property lowering requires an instance member operation fact."));
+      return undefined;
+    }
+    const receiver = planSelectedTargetReceiverExpression(expression.Expression!, sourceFile, input, diagnostics, planExpression);
+    if (receiver === undefined) {
+      return undefined;
+    }
+    return {
+      kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
+      receiver,
+      name: csharpOperation.memberName,
+    };
+  }
   if (csharpOperation !== undefined && csharpOperation.operationKind !== "indexer") {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, `C# element access emission expected an indexer operation fact or projected member call, but provider recorded '${csharpOperation.operationKind}'.`));
     return undefined;
@@ -142,6 +158,9 @@ function planTupleElementAccessExpression(
   if (receiverCarrier?.kind !== "tuple") {
     return undefined;
   }
+  if (input.facts.getSelectedTargetElementAccess(elementAccess) !== undefined) {
+    return undefined;
+  }
   if (optional) {
     diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Optional tuple element access requires finalized nullable tuple carrier facts before C# emission."));
     return undefined;
@@ -152,7 +171,7 @@ function planTupleElementAccessExpression(
   }
   const index = getFinalizedTupleElementIndex(argumentNode, sourceFile, input);
   if (index === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires a numeric-literal source index; non-literal tuple indexing needs finalized target element-access facts before C# emission."));
+    diagnostics.push(unsupportedNodeDiagnostic(elementAccess, "Tuple element access requires a statically proven non-negative integer index from TSTS literal or constant facts; unproven tuple indexing needs finalized target element-access facts before C# emission."));
     return undefined;
   }
   const elementCarrier = receiverCarrier.elements[index];
@@ -171,7 +190,7 @@ function planTupleElementAccessExpression(
   return {
     kind: "SimpleMemberAccessExpression",
     receiver,
-    name: `Item${index + 1}`,
+    name: csharpTupleElementMemberName(index),
   };
 }
 
@@ -180,23 +199,14 @@ function getFinalizedTupleElementIndex(
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): number | undefined {
-  if (HasSourceKind(input.ast, argumentNode, KindNumericLiteral)) {
-    return getNonNegativeSafeIntegerIndex(parseFiniteNumberLiteral(Node_Text(AsNumericLiteral(argumentNode))));
-  }
-  if (input.types === undefined) {
-    return undefined;
-  }
-  const literalValue = input.types.getConstantValue(argumentNode, { sourceFile });
-  return typeof literalValue === "number"
-    ? getNonNegativeSafeIntegerIndex(literalValue)
-    : undefined;
-}
-
-function getNonNegativeSafeIntegerIndex(value: number | undefined): number | undefined {
-  if (value === undefined || !Number.isSafeInteger(value) || !Number.isInteger(value) || value < 0) {
-    return undefined;
-  }
-  return value;
+  return getTstsTupleElementIndex(argumentNode, sourceFile, input.types === undefined ? undefined : {
+    kindName: (node) => input.ast.kindName(node),
+    text: (node) => input.ast.text(node),
+    getConstantValue: (node, options) => input.types!.getConstantValue(node, options),
+    getSymbolAtLocation: (node, options) => input.analysis.getSymbolAtLocation(node, { sourceFile: options.sourceFile ?? sourceFile }),
+    getResolvedSymbol: (node, options) => input.analysis.getResolvedSymbol(node, { sourceFile: options.sourceFile ?? sourceFile }),
+    getSymbolDeclarations: (symbol) => input.analysis.getSymbolDeclarations(symbol),
+  });
 }
 
 function planCsharpTargetOperationArguments(

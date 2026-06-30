@@ -54,16 +54,16 @@ export function arrayAtHelpers(
   idBase: string,
   arrayType: TargetTypeRef,
   itemType: TargetTypeRef,
-  intType: TargetTypeRef,
+  indexType: TargetTypeRef,
   declaringType: TargetTypeRef,
 ): readonly JsSurfaceTargetMemberMetadata[] {
   if (isCsharpValueTypeTargetType(itemType)) {
-    return [arrayHelperMethod(sourceName, "atValue", [targetParameter("array", arrayType), targetParameter("index", intType)], csharpNullableTargetType(itemType), declaringType, { idSuffix: `${idBase}:value` })];
+    return [arrayHelperMethod(sourceName, "atValue", [targetParameter("array", arrayType), targetParameter("index", indexType)], csharpNullableTargetType(itemType), declaringType, { idSuffix: `${idBase}:value` })];
   }
   if (itemType.kind === "type-parameter") {
     return [];
   }
-  return [arrayHelperMethod(sourceName, "atReference", [targetParameter("array", arrayType), targetParameter("index", intType)], csharpNullableTargetType(itemType), declaringType, { idSuffix: `${idBase}:reference` })];
+  return [arrayHelperMethod(sourceName, "atReference", [targetParameter("array", arrayType), targetParameter("index", indexType)], csharpNullableTargetType(itemType), declaringType, { idSuffix: `${idBase}:reference` })];
 }
 
 function getNullishElementHelperSelection(

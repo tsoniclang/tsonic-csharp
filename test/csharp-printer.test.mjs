@@ -166,4 +166,22 @@ test("object shape methods require explicit delegate signature metadata", () => 
   assert.equal(members[1].kind, "MethodDeclaration");
   assert.equal(members[1].parameters[0].name, "arg0");
   assert.deepEqual(members[1].parameters[0].type, { kind: "PredefinedType", name: "int" });
+  assert.deepEqual(members[1].returnType, { kind: "PredefinedType", name: "void" });
+  assert.equal(members[1].body.statements[0].kind, "ExpressionStatement");
+
+  const missingReturnFactShape = {
+    ...rawDelegateShape,
+    members: [{
+      ...rawDelegateShape.members[0],
+      type: {
+        ...rawDelegateShape.members[0].type,
+        csharpDelegateSignature: {
+          parameters: [{ kind: "source-primitive", name: "int32" }],
+        },
+      },
+    }],
+  };
+  const diagnostics = [];
+  assert.equal(renderObjectShapeMembers(missingReturnFactShape, false, diagnostics, { Kind: "KindTypeLiteral" }), undefined);
+  assert.match(diagnostics[0].message, /explicit return facts/);
 });

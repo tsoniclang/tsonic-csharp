@@ -219,6 +219,9 @@ function fakeInput(sourceFile, options = {}) {
       typeArguments: (candidate) => candidate?.TypeArguments?.Nodes ?? [],
       typeParameters: (candidate) => candidate?.TypeParameters?.Nodes ?? [],
       parameters: (candidate) => candidate?.Parameters?.Nodes ?? [],
+      heritageElements: () => [],
+      extendsHeritageElements: () => [],
+      implementsHeritageElements: () => [],
       parent: () => undefined,
       getSourceFile: () => sourceFile,
       forEachChild(candidate, visit) {

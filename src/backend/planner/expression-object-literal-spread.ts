@@ -66,7 +66,10 @@ export function planObjectShapeSpreadAssignments(
   for (const sourceMember of sourceShape.members) {
     const targetMemberLookup = resolveCsharpObjectShapeMemberByFinalizedSourceName(targetShape, sourceMember.sourceName, "finalized-object-spread-member");
     if (targetMemberLookup.kind !== "resolved") {
-      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, csharpObjectShapeMemberLookupFailureMessage(targetMemberLookup, "Object literal spread target shape")));
+      const message = targetMemberLookup.reason === "not-in-finalized-shape"
+        ? `Object literal spread source member '${sourceMember.sourceName}' requires a finalized target object-shape member carrier before C# emission.`
+        : csharpObjectShapeMemberLookupFailureMessage(targetMemberLookup, "Object literal spread target shape");
+      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, message));
       return [];
     }
     const targetMember = targetMemberLookup.member;

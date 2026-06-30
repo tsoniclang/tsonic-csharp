@@ -1,6 +1,3 @@
-import {
-  targetOperationFactKey,
-} from "@tsonic/tsts";
 import type {
   ExtensionObservationContext,
   Node,
@@ -22,7 +19,6 @@ import type {
 import {
   csharpTargetMemberOperation,
   recordCsharpTargetOperation,
-  targetOperation,
 } from "./operations.js";
 import {
   csharpTargetOperationFactKey,
@@ -43,6 +39,9 @@ import {
   isIntegralTargetTypeRef,
   unwrapNullableTargetType,
 } from "./target-rules.js";
+import {
+  asNativeArrayTargetType,
+} from "./checked-member-access-mapping/lifecycle-helpers.js";
 
 type LifecycleContext = {
   readonly host: ExtensionObservationContext["host"];
@@ -79,7 +78,7 @@ function recordNativeArrayLengthFact(
   if (
     compiler === undefined ||
     !compiler.ast.is.IsPropertyAccessExpression(node) ||
-    hasTargetOperationFact(context, node)
+    hasCsharpTargetOperationFact(context, node)
   ) {
     return;
   }
@@ -100,12 +99,6 @@ function recordNativeArrayLengthFact(
     declaringType: receiverType,
     resultType,
   }), [{ message: "C# native array length operation recorded from checked TypeScript Array.length declaration and finalized native array carrier." }]);
-  if (hasSelectedTargetOperationFact(context, node)) {
-    return;
-  }
-  context.host.facts.set(node, targetOperationFactKey, targetOperation(dotnetNativeArrayLengthMemberId, "property", "System.Array.Length", {
-    resultType,
-  }), [{ message: "C# native array length selected from checked TypeScript Array.length declaration and finalized native array carrier." }]);
 }
 
 function recordNativeArrayElementAccessFact(
@@ -118,7 +111,7 @@ function recordNativeArrayElementAccessFact(
   if (
     compiler === undefined ||
     !compiler.ast.is.IsElementAccessExpression(node) ||
-    hasTargetOperationFact(context, node)
+    hasCsharpTargetOperationFact(context, node)
   ) {
     return;
   }
@@ -144,30 +137,14 @@ function recordNativeArrayElementAccessFact(
     declaringType: receiverType,
     resultType: receiverType.element,
   }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access and finalized native array carrier." }]);
-  if (hasSelectedTargetOperationFact(context, node)) {
-    return;
-  }
-  context.host.facts.set(node, targetOperationFactKey, targetOperation(dotnetNativeArrayIndexerMemberId, "indexer", "System.Array.Item", {
-    resultType: receiverType.element,
-  }), [{ message: "C# native array indexer selected from checked TypeScript element access and finalized native array carrier." }]);
 }
 
-function hasTargetOperationFact(
+function hasCsharpTargetOperationFact(
   context: ExtensionObservationContext,
   node: Node,
 ): boolean {
-  return context.host.facts.get(node, targetOperationFactKey) !== undefined ||
-    context.host.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
-    context.factResolver.resolve(node, targetOperationFactKey) !== undefined ||
+  return context.host.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
     context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined;
-}
-
-function hasSelectedTargetOperationFact(
-  context: ExtensionObservationContext,
-  node: Node,
-): boolean {
-  return context.host.facts.get(node, targetOperationFactKey) !== undefined ||
-    context.factResolver.resolve(node, targetOperationFactKey) !== undefined;
 }
 
 function getNativeArrayReceiverType(
@@ -177,10 +154,10 @@ function getNativeArrayReceiverType(
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
   const type = context.compiler?.checker.getTypeAtLocation(receiver, { sourceFile });
-  return unwrapNullableTargetType(
+  return asNativeArrayTargetType(unwrapNullableTargetType(
     host.getTargetTypeRefForSubject(receiver, context, { allowRuntimeCarrier: true, sourceFile }) ??
       host.getTargetTypeRefForSubject(type, context, { allowRuntimeCarrier: true, sourceFile }),
-  );
+  ));
 }
 
 function hasIntegralIndex(

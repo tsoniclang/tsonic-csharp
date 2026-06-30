@@ -171,45 +171,54 @@ test("target member selection rejects byref parameter mode mismatches", () => {
   );
 });
 
-test("C# provider derives out/ref/in passing from selected target parameter facts", () => {
+test("C# provider keeps source-core argument-passing facts canonical", () => {
+  const provider = getNativeSemanticProvider();
+
+  assert.equal(provider.resolveParameterPassing, undefined);
+});
+
+test("C# parameter-passing validation rejects selected byref members without source marker facts", () => {
   const provider = getNativeSemanticProvider();
   const argument = {};
   const int32 = { kind: "source-primitive", name: "int32" };
-  const cases = [
-    ["notNamedOut", "byref-writeonly-must-init"],
-    ["notNamedRef", "byref-readwrite"],
-    ["notNamedIn", "byref-readonly"],
-  ];
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const member = {
+    id: "Example.Target.tryGetValue(System.String,out System.Int32)",
+    sourceName: "tryGetValue",
+    targetName: "TryGetValue",
+    kind: "method",
+    parameters: [
+      targetParameter("key", csharpStringType()),
+      targetParameter("value", int32, "byref-writeonly-must-init"),
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
 
-  for (const [name, mode] of cases) {
-    const result = provider.resolveParameterPassing({
-      target: "csharp",
-      parameter: targetParameter(name, int32, mode),
-      argument,
-    }, fakeObservationContext({}));
-
-    assert.equal(result.kind, "accept", name);
-    assert.deepEqual(result.value.passing, {
-      mode,
-      targetExpression: argument,
-    });
-  }
-
-  const markerCall = {};
-  const mismatch = provider.resolveParameterPassing({
+  const result = provider.mapCheckedCall({
     target: "csharp",
-    parameter: targetParameter("notNamedOut", int32, "byref-writeonly-must-init"),
-    argument: markerCall,
+    call: {},
+    callee: {},
+    calleePropertyName: "tryGetValue",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [{ kind: "target-named", id: "System.String" }, argument],
   }, fakeObservationContext({
-    argumentPassingSubject: markerCall,
-    argumentPassing: {
-      mode: "byref-readwrite",
-      targetExpression: argument,
+    targetBindingSubject: containerSymbol,
+    targetBinding: {
+      id: "Example.Target",
+      sourceName: "Target",
+      targetName: "Target",
+      target: "csharp",
+      kind: "class",
+      members: [member],
     },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target.tryGetValue", "tryGetValue"),
   }));
 
-  assert.equal(mismatch.kind, "reject");
-  assert.equal(mismatch.diagnostic.extensionCode, "CSHARP_ARGUMENT_PASSING_MODE_MISMATCH");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
 });
 
 test("C# provider rejects missing or mutated target parameter-mode facts before recording selected operations", () => {
@@ -1231,13 +1240,12 @@ test("C# provider maps calls from the exact selected signature identity before d
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
-test("C# provider maps constructors from exact selected signature identity", () => {
+test("C# provider preserves exact selected constructor signatures instead of refining to siblings", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
   const argument = {};
   const call = { Kind: "KindNewExpression" };
-  const recordedFacts = [];
   const binding = {
     id: "Example.Target",
     sourceName: "Target",
@@ -1273,18 +1281,10 @@ test("C# provider maps constructors from exact selected signature identity", () 
       ...virtualMember("Example.Target..ctor", "constructor"),
       signatureId: "Example.Target..ctor(System.Int64)",
     },
-    recordedFacts,
   }));
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target..ctor(System.Int64)");
-  const operationFact = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
-  assert.equal(operationFact?.operationKind, "constructor");
-  assert.deepEqual(operationFact?.resultType, {
-    kind: "target-named",
-    id: "Example.Target",
-    csharpRender: { kind: "named", namespace: ["Example"], name: "Target" },
-  });
 });
 
 test("C# provider selects provider constructors from a selected provider type identity", () => {
@@ -1477,7 +1477,7 @@ test("C# provider rejects constructor byref parameters without source marker fac
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
-test("C# provider closes exact selected generic call signatures without sibling overload search", () => {
+test("C# provider prefers selected generic signatures when target argument facts tie", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1734,7 +1734,7 @@ test("C# provider resolves overloaded member selections from provider member ide
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
-test("C# provider honors exact selected call signature identity over sibling argument matches", () => {
+test("C# provider preserves exact selected call signatures instead of refining to siblings", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1782,7 +1782,7 @@ test("C# provider honors exact selected call signature identity over sibling arg
     },
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
@@ -1887,7 +1887,7 @@ test("C# provider maps calls from TSTS-selected callee symbol virtual declaratio
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
-test("C# provider rejects exact selected provider signature mismatches instead of refining to a sibling overload", () => {
+test("C# provider rejects exact selected signatures instead of refining to compatible siblings", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1901,6 +1901,58 @@ test("C# provider rejects exact selected provider signature mismatches instead o
     members: [
       method("Example.Target.m(System.Byte)", { kind: "source-primitive", name: "uint8" }),
       method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+      signatureId: "Example.Target.m(System.Byte)",
+    },
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+});
+
+test("C# provider does not refine selected signatures outside the proven overload group", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Byte)", { kind: "source-primitive", name: "uint8" }),
+      method("Example.Target.other(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "m", overloadGroup: "Example.Target.other" }),
     ],
   };
 
@@ -2523,7 +2575,7 @@ test("C# provider does not infer unsupported identity from metadata-name-only ma
   assert.doesNotMatch(result.diagnostic.message, /Property type cannot be represented/u);
 });
 
-test("C# provider honors exact selected indexer signature identity over sibling argument matches", () => {
+test("C# provider preserves exact selected indexer signatures instead of refining to siblings", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const receiverType = {};

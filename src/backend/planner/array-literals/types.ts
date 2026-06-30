@@ -1,6 +1,7 @@
 import type {
   Node,
   SourceFile,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   TargetCompileInput,
@@ -24,5 +25,7 @@ export interface ArrayLiteralPlanner {
     input: TargetCompileInput,
     diagnostics: TargetDiagnostic[],
     expectedType: CsharpTypeNode,
+    expectedTypeSubject?: Node,
+    expectedTargetType?: TargetTypeRef,
   ) => CsharpExpression | undefined;
 }

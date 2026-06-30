@@ -27,6 +27,10 @@ export function getDeclarationTypeNode(
   if (isTypeSyntaxNode(ast, node)) {
     return node;
   }
+  const directType = asNodeSubject(getNodeField(node, "Type"));
+  if (directType !== undefined) {
+    return directType;
+  }
   const sourceFile = ast.getSourceFile(node);
   const symbol = getSymbolForDeclarationLookup(ast, checker, node, sourceFile);
   for (const declaration of getSymbolDeclarations(symbol, checker)) {

@@ -30,6 +30,8 @@ import {
 } from "../target-types.js";
 import {
   getCsharpOperatorTargetOperation,
+  isCsharpIncrementDecrementTargetTypeRef,
+  isCsharpIncrementOrDecrementOperator,
   isCsharpBitwiseOperator,
   isIntegralTargetTypeRef,
   isSourceEnumTargetTypeRef,
@@ -128,6 +130,9 @@ export function mapCsharpCheckedOperator(
   }
   if (isCsharpBitwiseOperator(request.operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# bitwise operator '${request.operator}' requires integral, enum, or explicit provider operator facts.`);
+  }
+  if (isCsharpIncrementOrDecrementOperator(request.operator) && !isCsharpIncrementDecrementTargetTypeRef(left)) {
+    return rejectMissingCsharpOperatorFact(context.extensionId, `C# increment/decrement operator '${request.operator}' requires numeric source-primitive or explicit provider operator facts.`);
   }
   if (operatorRequiresSelectedProviderIdentity(request.operator, left, right, host)) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# provider-owned operator '${request.operator}' requires an exact finalized provider operator identity selected by TSTS. The current checked operator observation request exposes operands and symbols only, not a selected provider operator member id.`);

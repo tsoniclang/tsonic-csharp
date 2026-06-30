@@ -18,6 +18,7 @@ import type {
   TargetMember,
   TargetSemanticProvider,
   TargetTypeRef,
+  Type,
 } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../csharp-facts.js";
 import { csharpProviderDiagnostic } from "./diagnostics.js";
@@ -69,7 +70,6 @@ import {
   mapCsharpCheckedConversion,
   mapCsharpContextualTargetType,
   mapCsharpNativeCheckedIteration,
-  mapCsharpParameterPassing,
 } from "./checked-native-mapping.js";
 import {
   observeCsharpPostCheckAssignability,
@@ -96,6 +96,11 @@ export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
   readonly getTargetTypeRefForSubject: (
     subject: ExtensionFactSubject | undefined,
+    context: ExtensionObservationContext,
+    options?: TargetTypeRefResolutionOptions,
+  ) => TargetTypeRef | undefined;
+  readonly getTargetTypeRefForType?: (
+    type: Type | undefined,
     context: ExtensionObservationContext,
     options?: TargetTypeRefResolutionOptions,
   ) => TargetTypeRef | undefined;
@@ -207,9 +212,6 @@ export function createCsharpTargetOperationsProvider(
     },
     mapCheckedConversion(request, context) {
       return mapCsharpCheckedConversion(request, context, surfaceAwareHost);
-    },
-    resolveParameterPassing(request, context) {
-      return mapCsharpParameterPassing(request, context);
     },
   };
 }

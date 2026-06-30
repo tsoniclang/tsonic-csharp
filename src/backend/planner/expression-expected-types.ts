@@ -28,6 +28,7 @@ import {
   KindNullKeyword,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
+import type { TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpExpression, CsharpTypeNode } from "../roslyn/syntax.js";
 import type { ExpressionPlanner, ExpectedExpressionPlanner } from "./expression-planner-types.js";
@@ -68,26 +69,27 @@ export function planExpressionWithExpectedTypeCore(
   expectedType: CsharpTypeNode,
   expectedTypeSubject: Node | undefined,
   planners: ExpectedTypeExpressionPlanners,
+  expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
   const expectedTypeLiteral = planExpectedTypeLiteral(node, input, expectedType, diagnostics);
   if (expectedTypeLiteral !== undefined) {
     return expectedTypeLiteral;
   }
   if (HasSourceKind(input.ast, node, KindAsExpression)) {
-    return planners.planExpressionWithExpectedType(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    return planners.planExpressionWithExpectedType(AsAsExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
   }
   if (HasSourceKind(input.ast, node, KindSatisfiesExpression)) {
-    return planners.planExpressionWithExpectedType(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    return planners.planExpressionWithExpectedType(AsSatisfiesExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
   }
   if (HasSourceKind(input.ast, node, KindNonNullExpression)) {
-    return planners.planExpressionWithExpectedType(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    return planners.planExpressionWithExpectedType(AsNonNullExpression(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
   }
   if (HasSourceKind(input.ast, node, KindTypeAssertionExpression)) {
-    return planners.planExpressionWithExpectedType(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    return planners.planExpressionWithExpectedType(AsTypeAssertion(node)!.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
   }
   if (HasSourceKind(input.ast, node, KindParenthesizedExpression)) {
     const expression = AsParenthesizedExpression(node)!;
-    const inner = planners.planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    const inner = planners.planExpressionWithExpectedType(expression.Expression!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
     if (inner === undefined) {
       return undefined;
     }
@@ -97,10 +99,10 @@ export function planExpressionWithExpectedTypeCore(
     };
   }
   if (HasSourceKind(input.ast, node, KindArrowFunction)) {
-    return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType);
+    return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType, undefined, expectedTargetType);
   }
   if (HasSourceKind(input.ast, node, KindFunctionExpression)) {
-    return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType);
+    return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, undefined, expectedTargetType);
   }
   if (HasSourceKind(input.ast, node, KindObjectLiteralExpression)) {
     const dictionaryDiagnosticsStart = diagnostics.length;
@@ -123,7 +125,7 @@ export function planExpressionWithExpectedTypeCore(
     );
   }
   if (expectedType.kind === "NullableType" && !HasSourceKind(input.ast, node, KindNullKeyword)) {
-    return planners.planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType.inner, expectedTypeSubject);
+    return planners.planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType.inner, expectedTypeSubject, expectedTargetType);
   }
   if (HasSourceKind(input.ast, node, KindBinaryExpression)) {
     const binaryDiagnosticsStart = diagnostics.length;
@@ -147,6 +149,12 @@ export function planExpressionWithExpectedTypeCore(
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners);
   }
+  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTargetType !== undefined && expectedTargetType.kind !== "array" && expectedTargetType.kind !== "tuple") {
+    return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedTargetType, planners);
+  }
+  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTargetType?.kind === "array") {
+    return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedTargetType, planners);
+  }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTypeSubject !== undefined) {
     const expectedCarrier = getTargetTypeRefForNode(input, expectedTypeSubject, sourceFile);
     if (expectedCarrier !== undefined && expectedCarrier.kind !== "array" && expectedCarrier.kind !== "tuple") {
@@ -159,8 +167,8 @@ export function planExpressionWithExpectedTypeCore(
   if (HasSourceKind(input.ast, node, KindConditionalExpression)) {
     const expression = AsConditionalExpression(node)!;
     const condition = planners.planExpression(expression.Condition!, sourceFile, input, diagnostics);
-    const whenTrue = planners.planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
-    const whenFalse = planners.planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
+    const whenTrue = planners.planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
+    const whenFalse = planners.planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
     if (condition === undefined || whenTrue === undefined || whenFalse === undefined) {
       return undefined;
     }

@@ -9,8 +9,12 @@ import type {
   CsharpTargetParameter,
 } from "./target-types.js";
 
-export function targetMemberAsSourceSelectedSignature(member: CsharpTargetMember): CsharpTargetMember {
-  if (member.receiverPassing !== "first-argument") {
+export function targetMemberAsSourceSelectedSignature(
+  member: CsharpTargetMember,
+  options: { readonly firstArgumentReceiver?: boolean } = {},
+): CsharpTargetMember {
+  const firstArgumentReceiver = options.firstArgumentReceiver ?? member.receiverPassing === "first-argument";
+  if (!firstArgumentReceiver) {
     return member;
   }
   const [receiverParameter, ...sourceParameters] = member.parameters;
@@ -28,7 +32,7 @@ export function targetMembersHaveCompatibleSourceSelectedSignature(expected: Csh
   if (expected.kind !== actual.kind || expected.targetName !== actual.targetName || expected.static !== actual.static || expected.receiverPassing !== actual.receiverPassing) {
     return false;
   }
-  const actualAsSource = targetMemberAsSourceSelectedSignature(actual);
+  const actualAsSource = targetMemberAsSourceSelectedSignatureForExpected(expected, actual);
   if (expected.parameters.length !== actualAsSource.parameters.length) {
     return false;
   }
@@ -36,9 +40,6 @@ export function targetMembersHaveCompatibleSourceSelectedSignature(expected: Csh
     !optionalTargetTypeEquals(expected.returnType, actualAsSource.returnType) ||
     !optionalTargetTypeEquals(expected.declaringType, actualAsSource.declaringType)
   ) {
-    return false;
-  }
-  if (!firstArgumentReceiverMatchesDeclaringType(expected, actual)) {
     return false;
   }
   for (let index = 0; index < expected.parameters.length; index += 1) {
@@ -60,9 +61,24 @@ export function targetMembersHaveCompatibleSourceSelectedSignature(expected: Csh
   return true;
 }
 
-function firstArgumentReceiverMatchesDeclaringType(expected: CsharpTargetMember, actual: CsharpTargetMember): boolean {
+export function targetMemberAsSourceSelectedSignatureForExpected(
+  expected: CsharpTargetMember,
+  actual: CsharpTargetMember,
+): CsharpTargetMember {
+  return targetMemberAsSourceSelectedSignature(actual, {
+    firstArgumentReceiver: targetMemberSourceSelectedSignatureUsesFirstArgumentReceiver(expected, actual),
+  });
+}
+
+export function targetMemberSourceSelectedSignatureUsesFirstArgumentReceiver(
+  expected: CsharpTargetMember,
+  actual: CsharpTargetMember,
+): boolean {
   if (actual.receiverPassing !== "first-argument") {
-    return true;
+    return false;
+  }
+  if (expected.parameters.length !== actual.parameters.length - 1) {
+    return false;
   }
   const actualReceiverParameter = actual.parameters[0];
   if (actualReceiverParameter === undefined || expected.declaringType === undefined) {

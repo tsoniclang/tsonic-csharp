@@ -35,6 +35,29 @@ export function getPrefixUnaryOperatorText(
   return getPrefixOperatorTextFromSource(prefixText);
 }
 
+export function getPostfixUnaryOperatorText(
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+  node: Node,
+): string | undefined {
+  const operator = getNodeField(node, "Operator");
+  if (typeof operator === "string") {
+    return getOperatorTextFromKindName(operator);
+  }
+  if (typeof operator !== "number") {
+    const token = asNodeSubject(getNodeField(node, "OperatorToken"));
+    return token === undefined ? undefined : getOperatorTextFromKindName(ast.kindName(token));
+  }
+  const operand = asNodeSubject(getNodeField(node, "Operand"));
+  const sourceFile = ast.getSourceFile(node);
+  const sourceText = ast.getSourceText(sourceFile);
+  const start = operand === undefined ? ast.pos(node) : ast.end(operand);
+  const end = ast.end(node);
+  const postfixText = start < 0 || end < start
+    ? ""
+    : sourceText.slice(start, end).trimEnd();
+  return getPostfixOperatorTextFromSource(postfixText);
+}
+
 function getPrefixOperatorTextFromSource(text: string): string | undefined {
   if (text.startsWith("++")) {
     return "++";
@@ -53,6 +76,16 @@ function getPrefixOperatorTextFromSource(text: string): string | undefined {
   }
   if (text.startsWith("~")) {
     return "~";
+  }
+  return undefined;
+}
+
+function getPostfixOperatorTextFromSource(text: string): string | undefined {
+  if (text.endsWith("++")) {
+    return "++";
+  }
+  if (text.endsWith("--")) {
+    return "--";
   }
   return undefined;
 }

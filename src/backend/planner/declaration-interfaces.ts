@@ -35,7 +35,7 @@ export function planInterfaceDeclaration(
 ): CsharpInterfaceDeclaration {
   const declaration = AsInterfaceDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "interface declaration", diagnostics);
-  const interfaces = planInterfaceHeritage(declaration.HeritageClauses?.Nodes ?? [], sourceFile, input, diagnostics);
+  const interfaces = planInterfaceHeritage(node, sourceFile, input, diagnostics);
   return {
     kind: "InterfaceDeclaration",
     name: planIdentifierName(declaration.name, "AnonymousInterface", input, diagnostics, "Interface name"),

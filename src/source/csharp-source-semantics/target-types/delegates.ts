@@ -12,6 +12,9 @@ import {
   csharpQualifiedTypeRenderShape,
 } from "./render-shapes.js";
 import {
+  csharpVoidTargetType,
+} from "./scalar-types.js";
+import {
   csharpTargetNamedType,
 } from "./target-refs.js";
 
@@ -34,7 +37,7 @@ export function csharpDelegateTargetType(
     ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
     csharpDelegateSignature: {
       parameters,
-      ...(returnType !== undefined ? { returnType } : {}),
+      returnType: returnType ?? csharpVoidTargetType(),
     },
   } satisfies CsharpDelegateTargetTypeRef;
 }

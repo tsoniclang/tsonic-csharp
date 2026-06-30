@@ -14,6 +14,7 @@ import {
   KindIdentifier,
   KindNoSubstitutionTemplateLiteral,
   KindObjectLiteralExpression,
+  KindPostfixUnaryExpression,
   KindPropertyAccessExpression,
   KindPrefixUnaryExpression,
   KindRegularExpressionLiteral,
@@ -36,6 +37,9 @@ import {
 import {
   mapCsharpCheckedOperator,
 } from "../dist/source/csharp-source-semantics/checked-operator-mapping/index.js";
+import {
+  targetOperationFactsAreStructurallyIdentical,
+} from "../dist/source/csharp-source-semantics/operations.js";
 
 test("binary expression emission requires selected target operator fact even for source primitives", () => {
   const left = identifier("left");
@@ -125,6 +129,53 @@ test("checked provider-owned binary operators consume finalized exact provider o
   assert.equal(result.kind, "accept");
   assert.equal(result.value.operation, selectedOperation);
   assert.equal(context.writes.length, 0);
+});
+
+test("source-primitive increment records finalized operator token facts", () => {
+  const operand = identifier("value");
+  const expression = {
+    Kind: KindPrefixUnaryExpression,
+    Operand: operand,
+  };
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const context = fakeObservationContext();
+  const result = mapCsharpCheckedOperator({
+    expression,
+    operator: "++",
+    left: operand,
+    target: "csharp",
+  }, context, fakeOperatorHost(intType));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.operation, {
+    operationId: "tsonic.csharp.operator.++",
+    operationKind: "operator",
+    targetOperation: "++",
+    resultType: intType,
+  });
+  assert.equal(context.writes.length, 1);
+  assert.deepEqual(context.writes[0].value, {
+    kind: "operator-token",
+    operationId: "tsonic.csharp.operator.++",
+    operator: "++",
+    resultType: intType,
+  });
+});
+
+test("target operation structural identity ignores checker-added provenance", () => {
+  const expression = identifier("value");
+  const operation = {
+    operationId: "tsonic.csharp.operator.&",
+    operationKind: "operator",
+    targetOperation: "&",
+    resultType: csharpSourcePrimitiveTargetType("int32"),
+  };
+  const operationWithProvenance = {
+    ...operation,
+    provenance: { sourceExpression: expression },
+  };
+
+  assert.equal(targetOperationFactsAreStructurallyIdentical(operationWithProvenance, operation), true);
 });
 
 test("assignment expression emission uses canonical assignment AST", () => {
@@ -364,6 +415,34 @@ test("prefix unary expression emission requires selected target operator fact", 
   assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /C# prefix unary operator emission requires a selected provider operator fact/);
+});
+
+test("postfix unary expression emission uses finalized selected target operator fact", () => {
+  const operand = identifier("value");
+  const expression = {
+    Kind: KindPostfixUnaryExpression,
+    Operand: operand,
+  };
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.++",
+      operationKind: "operator",
+      targetOperation: "++",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.++",
+      operator: "++",
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output.operatorToken, { kind: "PlusPlusToken" });
+  assert.equal(printCsharpExpression(output), "value++");
 });
 
 test("bigint literal emission requires finalized runtime carrier fact", () => {

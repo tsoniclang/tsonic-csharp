@@ -44,17 +44,35 @@ export function selectTargetMember(
   });
   const bestScore = Math.min(...matching.map((match) => match.score));
   const best = matching.filter((match) => match.score === bestScore);
-  return best.length === 1 ? best[0]?.member : undefined;
+  if (best.length === 1) {
+    return best[0]?.member;
+  }
+  const preferred = options.preferredMemberId === undefined
+    ? []
+    : best.filter((match) => match.member.id === options.preferredMemberId);
+  return preferred.length === 1 ? preferred[0]?.member : undefined;
 }
 
 export function selectExactTargetMember(
   member: CsharpTargetMember,
   request: TargetMemberSelectionRequest,
+  context: ExtensionObservationContext,
   options: TargetMemberSelectionOptions = {},
 ): CsharpTargetMember | undefined {
   const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
   if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
     return undefined;
+  }
+  for (let index = 0; index < arguments_.length; index += 1) {
+    const parameter = getParameterForArgument(member.parameters, index);
+    const argument = arguments_[index];
+    if (
+      parameter === undefined ||
+      argument === undefined ||
+      getEffectiveArgumentForTargetParameter(parameter, argument, context) === undefined
+    ) {
+      return undefined;
+    }
   }
   return substituteTargetMemberTypeParameters(
     member,

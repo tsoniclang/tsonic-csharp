@@ -82,7 +82,10 @@ function getFunctionTargetTypeRefFromSignatureLikeNode(
     return undefined;
   }
   const returnType = getTargetTypeRefForSyntaxNode(asNodeSubject(getNodeField(node, "Type")), facts, ast);
-  if (returnType === undefined || isVoidTargetType(returnType)) {
+  if (returnType === undefined) {
+    return undefined;
+  }
+  if (isVoidTargetType(returnType)) {
     return csharpDelegateTargetType("System.Action", parameters as readonly TargetTypeRef[]);
   }
   return csharpDelegateTargetType("System.Func", parameters as readonly TargetTypeRef[], returnType);

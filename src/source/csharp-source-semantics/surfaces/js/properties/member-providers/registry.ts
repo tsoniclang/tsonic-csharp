@@ -12,8 +12,14 @@ import {
   getCsharpArrayLikeElementType,
 } from "../../arrays.js";
 import {
+  arrayTargetMembersForSelectedIdentity,
+} from "../../arrays/target-members/index.js";
+import {
   isCsharpBooleanTargetType,
 } from "../../booleans.js";
+import {
+  isCsharpNumberTargetType,
+} from "../../numbers.js";
 import {
   collectionTargetMembersForSelectedIdentity,
 } from "../../collection-target-metadata/index.js";
@@ -42,11 +48,12 @@ import type {
 export function getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(
   selectedIdentity: JsSurfaceSelectedSourceIdentity,
   receiverType: TargetTypeRef | undefined,
+  host?: CsharpJsSurfaceHost,
 ): TargetMember | undefined {
   const row = propertyRowForSelectedIdentity(selectedIdentity);
   return row === undefined
     ? undefined
-    : singlePropertyMember(propertyMembersFromRow(row, { selectedIdentity, receiverType }));
+    : singlePropertyMember(propertyMembersFromRow(row, { selectedIdentity, receiverType, host }));
 }
 
 export function csharpJsSourceLibraryPropertyPrecheck(selectedIdentity: JsSurfaceSelectedSourceIdentity): CsharpJsSourceLibraryPropertyPrecheck {
@@ -83,6 +90,12 @@ export function csharpJsSourceLibraryPropertyDeferredOperation(
   return operationIds.length === 1 && targetOperations.length === 1
     ? { operationId: operationIds[0]!, targetOperation: targetOperations[0]! }
     : undefined;
+}
+
+export function csharpJsSourceLibraryPropertyAllowsCallableValue(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+): boolean {
+  return propertyRowForSelectedIdentity(selectedIdentity)?.callableValue === true;
 }
 
 export function csharpJsSourceLibraryPropertyReceiverHasClosedFacts(
@@ -140,10 +153,16 @@ function targetMembersFromProvider(
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, request.selectedIdentity);
+    case "array-metadata":
+      return arrayTargetMembersForSelectedIdentity(
+        request.selectedIdentity,
+        getCsharpArrayLikeElementType(request.receiverType),
+        request.receiverType,
+      );
     case "collection-metadata":
       return collectionTargetMembersForSelectedIdentity(request.selectedIdentity, request.receiverType, undefined);
     case "receiver-member":
-      return targetMembersFromReceiverMetadata(provider.members, request.receiverType);
+      return targetMembersFromReceiverMetadata(provider.members, request.receiverType, request.host);
   }
 }
 
@@ -154,6 +173,8 @@ function targetMembersDeclaredByProvider(
   switch (provider.kind) {
     case "metadata-index":
       return jsSurfaceTargetMembersForSelectedSourceIdentity(provider.membersBySourceIdentity, selectedIdentity);
+    case "array-metadata":
+      return arrayTargetMembersForSelectedIdentity(selectedIdentity);
     case "collection-metadata":
       return [];
     case "receiver-member":
@@ -164,8 +185,9 @@ function targetMembersDeclaredByProvider(
 function targetMembersFromReceiverMetadata(
   members: readonly JsSurfaceReceiverPropertyMember[],
   receiverType: TargetTypeRef | undefined,
+  host: CsharpJsSurfaceHost | undefined,
 ): readonly TargetMember[] {
-  const match = members.find((member) => receiverPropertySelectorMatches(member.receiver, receiverType));
+  const match = members.find((member) => receiverPropertySelectorMatches(member.receiver, receiverType, host));
   if (match === undefined) {
     return [];
   }
@@ -178,6 +200,7 @@ function targetMembersFromReceiverMetadata(
 function receiverPropertySelectorMatches(
   selector: JsSurfaceReceiverPropertySelector,
   receiverType: TargetTypeRef | undefined,
+  host: CsharpJsSurfaceHost | undefined,
 ): boolean {
   switch (selector.kind) {
     case "target-array":
@@ -186,6 +209,8 @@ function receiverPropertySelectorMatches(
       return targetTypeIdMatches(receiverType, selector.id);
     case "target-feature":
       return propertyReceiverRequirementIsSatisfied(selector, receiverType, undefined);
+    case "host":
+      return hostReceiverPredicateIsSatisfied(selector.predicate, receiverType, host);
   }
 }
 
@@ -204,10 +229,21 @@ function propertyReceiverRequirementIsSatisfied(
     case "target-type-id":
       return targetTypeIdMatches(receiverType, requirement.id);
     case "target-feature":
-      return requirement.feature === "read-only-indexable" &&
-        isCsharpReadOnlyIndexableCollectionTargetType(receiverType);
+      return propertyTargetFeatureIsSatisfied(requirement.feature, receiverType);
     case undefined:
       return false;
+  }
+}
+
+function propertyTargetFeatureIsSatisfied(
+  feature: "number" | "read-only-indexable",
+  receiverType: TargetTypeRef | undefined,
+): boolean {
+  switch (feature) {
+    case "number":
+      return isCsharpNumberTargetType(receiverType);
+    case "read-only-indexable":
+      return isCsharpReadOnlyIndexableCollectionTargetType(receiverType);
   }
 }
 

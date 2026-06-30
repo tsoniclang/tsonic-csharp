@@ -23,6 +23,13 @@ export function getCsharpObjectShapeFactForNode(
   if (direct !== undefined) {
     return direct;
   }
+  const declaredType = asNodeSubject(getNodeField(node, "Type"));
+  if (declaredType !== undefined) {
+    const declaredTypeFact = getCsharpObjectShapeFactForNode(declaredType, sourceFile, input);
+    if (declaredTypeFact !== undefined) {
+      return declaredTypeFact;
+    }
+  }
   const declarationAnnotation = getCsharpObjectShapeFactForDeclarationAnnotation(node, sourceFile, input);
   if (declarationAnnotation !== undefined) {
     return declarationAnnotation;

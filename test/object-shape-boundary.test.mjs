@@ -255,9 +255,10 @@ test("provider-owned element access rejects generic selected indexer without C# 
   assert.match(diagnostics[0].message, /requires a finalized C# target operation fact/);
 });
 
-test("tuple element access emits Roslyn member access only from numeric-literal source indexes", () => {
+test("tuple element access emits Roslyn member access only from proven tuple indexes", () => {
   const receiver = identifier("pair");
-  const access = elementAccess(receiver, numericLiteral("1"));
+  const index = numericLiteral("1");
+  const access = elementAccess(receiver, index);
   const diagnostics = [];
 
   const planned = planElementAccessExpression(
@@ -271,6 +272,41 @@ test("tuple element access emits Roslyn member access only from numeric-literal 
           csharpStringTargetType(),
         ],
       }]]),
+      constantValues: new Map([[index, 1]]),
+    }),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned, {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "pair" },
+    name: "Item2",
+  });
+});
+
+test("tuple element access consumes finalized selected tuple member operation facts", () => {
+  const receiver = identifier("pair");
+  const index = identifier("index");
+  const access = elementAccess(receiver, index);
+  const diagnostics = [];
+
+  const planned = planElementAccessExpression(
+    access,
+    {},
+    fakeInput({
+      runtimeCarriers: new Map([[receiver, {
+        kind: "tuple",
+        elements: [
+          csharpSourcePrimitiveTargetType("int32"),
+          csharpStringTargetType(),
+        ],
+      }]]),
+      selectedElementSubject: access,
+      selectedElement: targetOperation("tsonic.csharp.source.tuple.item.1", "indexer"),
+      csharpOperationSubject: access,
+      csharpOperation: csharpMemberOperation("tsonic.csharp.source.tuple.item.1", "property", "Item2"),
     }),
     diagnostics,
     planExpression,
@@ -302,7 +338,7 @@ test("tuple element access fails closed instead of reading semantic type strings
   const planned = planElementAccessExpression(access, {}, input, diagnostics, planExpression);
 
   assert.equal(planned, undefined);
-  assert.match(diagnostics[0].message, /numeric-literal source index/);
+  assert.match(diagnostics[0].message, /TSTS literal or constant facts/);
 });
 
 test("object-shape method storage names require exact member identity", () => {
@@ -926,6 +962,10 @@ function fakeInput(options = {}) {
       getPointerFact: () => undefined,
       getFunctionPointerFact: () => undefined,
     },
+    types: {
+      getConstantValue: (subject) => options.constantValues?.get(subject),
+      isNumberLike: () => false,
+    },
     analysis: {
       getSymbolName: () => undefined,
       getSymbolDeclarations: () => [],
@@ -934,7 +974,7 @@ function fakeInput(options = {}) {
       getProjectSourceReferenceForNode: () => undefined,
       getSymbolAtLocation: () => undefined,
       getResolvedSymbol: () => undefined,
-      getTypeAtLocation: () => undefined,
+      getTypeAtLocation: (subject) => options.nodeTypes?.get(subject),
       getTypeFromTypeNode: () => undefined,
       isProjectSourceShapeForNode: () => false,
     },

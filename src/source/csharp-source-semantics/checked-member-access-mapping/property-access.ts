@@ -133,17 +133,20 @@ export function mapCsharpCheckedPropertyAccess(
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
       rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName);
   }
-  const selected = selectCheckedPropertyTargetMember(binding, request, context);
-  const unsupportedSelectedMember = findUnsupportedProviderTargetMember(binding, selected.selectedDeclaration);
+  const targetBinding = binding.target === csharpTargetId
+    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    : binding;
+  const selected = selectCheckedPropertyTargetMember(targetBinding, request, context);
+  const unsupportedSelectedMember = findUnsupportedProviderTargetMember(targetBinding, selected.selectedDeclaration);
   if (unsupportedSelectedMember !== undefined && unsupportedSelectedMember.memberKind !== "event") {
-    return rejectTargetPropertyUnsupported(extensionId, unsupportedSelectedMember, binding.id);
+    return rejectTargetPropertyUnsupported(extensionId, unsupportedSelectedMember, targetBinding.id);
   }
   const member = selected.member;
   if (member === undefined) {
-    return rejectTargetPropertyNotFound(extensionId, request.propertyName, binding.id);
+    return rejectTargetPropertyNotFound(extensionId, request.propertyName, targetBinding.id);
   }
   if (member.kind === "event") {
-    return rejectTargetEventUnsupported(extensionId, member, binding.id, unsupportedSelectedMember);
+    return rejectTargetEventUnsupported(extensionId, member, targetBinding.id, unsupportedSelectedMember);
   }
   if (member.kind === "method" && propertyAccessIsCallCallee(request.expression, context)) {
     return acceptObservation<CheckedOperationMappingResult>({

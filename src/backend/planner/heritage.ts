@@ -1,9 +1,3 @@
-import {
-  AsHeritageClause,
-  KindExtendsKeyword,
-  KindImplementsKeyword,
-  SourceTokenKind,
-} from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpTypeNode } from "../roslyn/syntax.js";
@@ -16,72 +10,43 @@ export interface CsharpClassHeritage {
 }
 
 export function planClassHeritage(
-  clauses: readonly (Node | undefined)[],
+  classDeclaration: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpClassHeritage {
   const interfaces: CsharpTypeNode[] = [];
   let baseType: CsharpTypeNode | undefined;
-  for (const node of clauses) {
-    if (node === undefined) {
+  const baseTypes = input.ast.extendsHeritageElements(classDeclaration);
+  if (baseTypes.length > 1) {
+    diagnostics.push(unsupportedNodeDiagnostic(classDeclaration, "Classes can extend only one C# base type."));
+  }
+  for (const heritageType of baseTypes) {
+    if (heritageType === undefined) {
       continue;
     }
-    const clause = AsHeritageClause(node)!;
-    const types = clause.Types?.Nodes ?? [];
-    switch (SourceTokenKind(input.ast, clause.Token)) {
-      case KindExtendsKeyword:
-        if (types.length > 1) {
-          diagnostics.push(unsupportedNodeDiagnostic(node, "Classes can extend only one C# base type."));
-        }
-        for (const heritageType of types) {
-          if (heritageType === undefined) {
-            continue;
-          }
-          const planned = planHeritageType(heritageType, sourceFile, input, diagnostics);
-          if (baseType === undefined) {
-            baseType = planned;
-          } else {
-            diagnostics.push(unsupportedNodeDiagnostic(heritageType, "Additional class base types cannot be emitted to C#."));
-          }
-        }
-        break;
-      case KindImplementsKeyword:
-        interfaces.push(...planHeritageTypes(types, sourceFile, input, diagnostics));
-        break;
-      default:
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Class heritage clause is outside the current C# planning surface."));
-        break;
+    const planned = planHeritageType(heritageType, sourceFile, input, diagnostics);
+    if (baseType === undefined) {
+      baseType = planned;
+    } else {
+      diagnostics.push(unsupportedNodeDiagnostic(heritageType, "Additional class base types cannot be emitted to C#."));
     }
   }
+  interfaces.push(...planHeritageTypes(input.ast.implementsHeritageElements(classDeclaration), sourceFile, input, diagnostics));
   return baseType === undefined ? { interfaces } : { baseType, interfaces };
 }
 
 export function planInterfaceHeritage(
-  clauses: readonly (Node | undefined)[],
+  interfaceDeclaration: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): readonly CsharpTypeNode[] {
-  const interfaces: CsharpTypeNode[] = [];
-  for (const node of clauses) {
-    if (node === undefined) {
-      continue;
-    }
-    const clause = AsHeritageClause(node)!;
-    switch (SourceTokenKind(input.ast, clause.Token)) {
-      case KindExtendsKeyword:
-        interfaces.push(...planHeritageTypes(clause.Types?.Nodes ?? [], sourceFile, input, diagnostics));
-        break;
-      case KindImplementsKeyword:
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Interfaces cannot implement types in C#; use extends-compatible interface heritage."));
-        break;
-      default:
-        diagnostics.push(unsupportedNodeDiagnostic(node, "Interface heritage clause is outside the current C# planning surface."));
-        break;
-    }
+  const implementedTypes = input.ast.implementsHeritageElements(interfaceDeclaration);
+  if (implementedTypes.length > 0) {
+    diagnostics.push(unsupportedNodeDiagnostic(interfaceDeclaration, "Interfaces cannot implement types in C#; use extends-compatible interface heritage."));
   }
-  return interfaces;
+  return planHeritageTypes(input.ast.extendsHeritageElements(interfaceDeclaration), sourceFile, input, diagnostics);
 }
 
 function planHeritageTypes(
