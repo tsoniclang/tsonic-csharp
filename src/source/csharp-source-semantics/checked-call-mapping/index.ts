@@ -191,8 +191,7 @@ export function mapCsharpCheckedCall(
     ? getConstructorDeclaringTargetType(targetBinding, request, context, host)
     : undefined;
   const receiverDeclaringTargetType = constructorDeclaringTargetType === undefined
-    ? host.getTargetTypeRefForSubject(requestContext.calleeReceiverType, context) ??
-      host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context)
+    ? getReceiverDeclaringTargetType(request, context, host)
     : constructorDeclaringTargetType;
   const providerStaticContainerReceiver = isProviderStaticContainerReceiver(request, context, targetBinding);
   const selectionOptions: TargetMemberSelectionOptions = {
@@ -236,8 +235,9 @@ export function mapCsharpCheckedCall(
       "C# native array creation requires the exact selected provider declaration to be mapped by the native array creation path before generic call mapping.",
     ));
   }
-  const declaringTargetType = member.kind === "constructor" ? constructorDeclaringTargetType ?? member.declaringType : host.getTargetTypeRefForSubject(requestContext.calleeReceiverType, context) ??
-    host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context);
+  const declaringTargetType = member.kind === "constructor"
+    ? constructorDeclaringTargetType ?? member.declaringType
+    : getReceiverDeclaringTargetType(request, context, host);
   if (member.kind === "constructor" && declaringTargetType === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_CONSTRUCTOR_RESULT_TYPE_NOT_PROVEN", 9100135, `C# provider selected constructor '${member.id}', but no provider target type fact proved the constructed target type.`));
   }
@@ -253,6 +253,16 @@ export function mapCsharpCheckedCall(
       }),
     },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function getReceiverDeclaringTargetType(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
+  const requestContext = getCsharpCheckedCallRequestContext(request, context);
+  return host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context) ??
+    host.getTargetTypeRefForSubject(requestContext.calleeReceiverType, context);
 }
 
 function acceptSourceOwnedCheckedCall(
@@ -456,8 +466,8 @@ function rejectUnsupportedNativeReceiverCall(
     return undefined;
   }
   const receiverType = unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(requestContext.calleeReceiverType, context) ??
-      host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context),
+    host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context) ??
+      host.getTargetTypeRefForSubject(requestContext.calleeReceiverType, context),
   );
   if (receiverType?.kind === "array" || (receiverType?.kind === "target-named" && receiverType.id === dotnetNativeArrayTypeId)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NATIVE_ARRAY_PROPERTY_NOT_SUPPORTED", 9100136, `C# native array source contract has no target-backed property '${sourceName}'.`));

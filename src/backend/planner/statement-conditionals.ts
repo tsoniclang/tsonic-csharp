@@ -17,7 +17,6 @@ import type {
 import type {
   CsharpExpression,
   CsharpStatement,
-  CsharpTypeNode,
 } from "../roslyn/syntax.js";
 import type {
   DestructuringPlannerState,
@@ -29,13 +28,8 @@ import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 import {
-  probeCarrierFromResolution,
-  missingCarrierDiagnosticDetail,
-  resolveRuntimeCarrierForExpression,
-} from "./runtime-carriers.js";
-import {
-  csharpTypeFromTargetTypeRef,
-} from "./target-types.js";
+  requireCsharpBoolRuntimeCarrier,
+} from "./expression-bool-carriers.js";
 import type {
   NestedStatementPlanner,
 } from "./statement-nested-planner.js";
@@ -127,20 +121,8 @@ export function planConditionExpression(
   if (HasSourceKind(input.ast, expression, KindTrueKeyword) || HasSourceKind(input.ast, expression, KindFalseKeyword)) {
     return planExpression(expression, sourceFile, input, diagnostics, state);
   }
-  const carrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
-  const carrier = probeCarrierFromResolution(carrierResolution);
-  if (carrier === undefined) {
-    const detail = missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the condition expression.");
-    diagnostics.push(unsupportedNodeDiagnostic(expression, `${statementKind} condition requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission. ${detail.reason}`, detail.evidence));
-    return undefined;
-  }
-  if (!isCsharpBoolType(csharpTypeFromTargetTypeRef(carrier))) {
-    diagnostics.push(unsupportedNodeDiagnostic(expression, `${statementKind} condition requires a finalized C# bool runtime carrier; TypeScript truthiness must be resolved by TSTS/provider facts before C# emission.`));
+  if (!requireCsharpBoolRuntimeCarrier(expression, `${statementKind} condition`, sourceFile, input, diagnostics)) {
     return undefined;
   }
   return planExpression(expression, sourceFile, input, diagnostics, state);
-}
-
-function isCsharpBoolType(type: CsharpTypeNode | undefined): boolean {
-  return type?.kind === "PredefinedType" && type.name === "bool";
 }

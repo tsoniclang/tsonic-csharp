@@ -47,6 +47,9 @@ import {
   requireCsharpStringRuntimeCarrier,
 } from "./expression-literal-carriers.js";
 import {
+  requireCsharpBoolRuntimeCarrier,
+} from "./expression-bool-carriers.js";
+import {
   csharpTypeFromTargetTypeRef,
   targetTypeRefsMatch,
 } from "./target-types.js";
@@ -183,6 +186,13 @@ export function tryPlanSourceSyntaxExpression(
     }
     case KindConditionalExpression: {
       const expression = AsConditionalExpression(node)!;
+      if (expression.Condition === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(node, "Conditional expression requires a condition expression."));
+        return undefined;
+      }
+      if (!requireCsharpBoolRuntimeCarrier(expression.Condition, "Conditional expression condition", sourceFile, input, diagnostics)) {
+        return undefined;
+      }
       const condition = planExpression(expression.Condition!, sourceFile, input, diagnostics);
       const whenTrue = planExpression(expression.WhenTrue!, sourceFile, input, diagnostics);
       const whenFalse = planExpression(expression.WhenFalse!, sourceFile, input, diagnostics);

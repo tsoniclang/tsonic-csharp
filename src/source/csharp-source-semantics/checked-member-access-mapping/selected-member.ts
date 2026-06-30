@@ -114,8 +114,8 @@ export function getDeclaringTargetType(
   context: ExtensionObservationContext,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
-  return host.getTargetTypeRefForSubject(request.receiverType, context) ??
-    host.getTargetTypeRefForSubject(request.receiver, context);
+  return host.getTargetTypeRefForSubject(request.receiver, context) ??
+    host.getTargetTypeRefForSubject(request.receiverType, context);
 }
 
 export function instantiateClosedSelectedTargetMember(

@@ -22,7 +22,9 @@ import type {
 } from "./operations-provider.js";
 import {
   csharpTargetMemberOperation,
+  recordTargetOperationFact,
   recordCsharpTargetOperation,
+  targetOperation,
 } from "./operations.js";
 import {
   csharpTargetOperationFactKey,
@@ -102,7 +104,9 @@ function recordNativeArrayLengthFact(
     return;
   }
   const resultType = csharpSourcePrimitiveTargetType("int32");
-  recordCsharpTargetOperation(context, node, csharpTargetMemberOperation(getSelectedOperationIdOrDefault(context, node, "property", dotnetNativeArrayLengthMemberId), "property", "Length", {
+  const operationId = getSelectedOperationIdOrDefault(context, node, "property", dotnetNativeArrayLengthMemberId);
+  recordNativeArrayTargetOperationIfMissing(context, node, operationId, "property", "System.Array.Length", resultType, [{ message: "C# native array length selected from checked TypeScript Array.length declaration and finalized native array carrier." }]);
+  recordCsharpTargetOperation(context, node, csharpTargetMemberOperation(operationId, "property", "Length", {
     declaringType: receiverType,
     resultType,
   }), [{ message: "C# native array length operation recorded from checked TypeScript Array.length declaration and finalized native array carrier." }]);
@@ -143,10 +147,31 @@ function recordNativeArrayElementAccessFact(
   if (selectedOperationConflictsWithNativeArray(context, node, "indexer", dotnetNativeArrayIndexerMemberId)) {
     return;
   }
-  recordCsharpTargetOperation(context, node, csharpTargetMemberOperation(getSelectedOperationIdOrDefault(context, node, "indexer", dotnetNativeArrayIndexerMemberId), "indexer", "Item", {
+  const operationId = getSelectedOperationIdOrDefault(context, node, "indexer", dotnetNativeArrayIndexerMemberId);
+  recordNativeArrayTargetOperationIfMissing(context, node, operationId, "indexer", "System.Array.Item", receiverType.element, [{ message: "C# native array indexer selected from checked TypeScript element access and finalized native array carrier." }]);
+  recordCsharpTargetOperation(context, node, csharpTargetMemberOperation(operationId, "indexer", "Item", {
     declaringType: receiverType,
     resultType: receiverType.element,
   }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access and finalized native array carrier." }]);
+}
+
+function recordNativeArrayTargetOperationIfMissing(
+  context: ExtensionObservationContext,
+  node: Node,
+  operationId: string,
+  operationKind: "property" | "indexer",
+  targetOperationName: string,
+  resultType: TargetTypeRef,
+  evidence: readonly { readonly message: string }[],
+): void {
+  const existing = context.host.facts.get(node, targetOperationFactKey) ??
+    context.factResolver.resolve(node, targetOperationFactKey);
+  if (existing !== undefined) {
+    return;
+  }
+  recordTargetOperationFact(context, node, targetOperation(operationId, operationKind, targetOperationName, {
+    resultType,
+  }), evidence);
 }
 
 function selectedOperationConflictsWithNativeArray(

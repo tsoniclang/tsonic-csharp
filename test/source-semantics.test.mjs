@@ -838,6 +838,55 @@ test("source-semantics records tuple member operation facts from TSTS numeric li
   assert.equal(csharpOperation.memberName, "Item2");
 });
 
+test("source-semantics records generic and C# operation facts for optional source array element access", () => {
+  const sourceText = `
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function read(values: number[] | null, index: int32, fallback: number): number {
+      return values?.[index] ?? fallback;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
+        "./types.js": "./types.js",
+      })],
+    ]),
+    compilerOptions: {
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
+  const operation = extensionHost.facts.get(elementAccess, targetOperationFactKey);
+  const csharpOperation = extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey);
+
+  assert.equal(operation.operationId, "tsonic.dotnet.System.Array`1.Item(System.Int32)");
+  assert.equal(operation.operationKind, "indexer");
+  assert.equal(operation.targetOperation, "System.Array.Item");
+  assert.deepEqual(operation.resultType, { kind: "source-primitive", name: "float64" });
+  assert.equal(csharpOperation.operationId, operation.operationId);
+  assert.equal(csharpOperation.operationKind, "indexer");
+  assert.equal(csharpOperation.memberName, "Item");
+});
+
 test("source-semantics records inline object parameter shapes for checked member access", () => {
   const sourceText = `
     export function read(input: { count: number }): number {
@@ -1060,10 +1109,13 @@ test("C# source semantics rejects unsupported local barrels for C# lang aliases"
   assert.equal(formatDiagnostics(diagnostics), "");
 
   const extensionHost = session.finalizeExtensions();
-  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode), [
+  const reexportDiagnostics = extensionHost.diagnostics.all();
+  assert.deepEqual(reexportDiagnostics.map((diagnostic) => diagnostic.extensionCode), [
     "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
     "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
   ]);
+  assert.deepEqual(reexportDiagnostics.map((diagnostic) => diagnostic.numericCode), [9100170, 9100170]);
+  assert.equal(reexportDiagnostics.every((diagnostic) => diagnostic.nodeOrSpan !== undefined), true);
   const calls = collectCallsByCalleeText(sourceFile, session.ast, "out");
   assert.equal(calls.length, 1);
   assert.equal(extensionHost.facts.get(calls[0], argumentPassingFactKey), undefined);
