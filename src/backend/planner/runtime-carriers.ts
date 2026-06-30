@@ -41,16 +41,17 @@ export function getTargetTypeRefForNode(
   }
   const typeReferenceFact = getTargetTypeRefFromTypeReferenceName(input, sourceNode, sourceFile);
   if (input.ast.kindName(sourceNode) === "KindTypeReference") {
-      return getTargetTypeRefFromDirectFacts(input, sourceNode) ??
-      probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })) ??
+      return probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile })) ??
+      getTargetTypeRefFromDirectFacts(input, sourceNode) ??
       typeReferenceFact;
   }
+  const resolvedCarrier = probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
   return typeReferenceFact ??
+    resolvedCarrier ??
     getTargetTypeRefFromDirectFacts(input, sourceNode) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getSymbolAtLocation(sourceNode, { sourceFile })) ??
     getTargetTypeRefFromDirectFacts(input, input.analysis.getResolvedSymbol(sourceNode, { sourceFile })) ??
-    getTargetTypeRefFromSymbolDeclarations(input, sourceNode, sourceFile) ??
-    probeCarrierFromResolution(input.targetFacts.resolveRuntimeCarrierForNode(sourceNode, { sourceFile }));
+    getTargetTypeRefFromSymbolDeclarations(input, sourceNode, sourceFile);
 }
 
 function getTargetTypeRefFromSymbolDeclarations(

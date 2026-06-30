@@ -272,10 +272,31 @@ function getTargetTypeRefForCheckedOperand(
     ...options,
     ...(sourceFile === undefined ? {} : { sourceFile }),
   });
+  if (direct !== undefined && direct.kind !== "type-parameter") {
+    return direct;
+  }
+  const checked = getCheckedExpressionTargetTypeRef(subject, sourceFile, context, options, host);
+  if (checked !== undefined && checked.kind !== "type-parameter") {
+    return checked;
+  }
   if (direct !== undefined || sourceFile === undefined) {
     return direct;
   }
+  return checked;
+}
+
+function getCheckedExpressionTargetTypeRef(
+  subject: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpCheckedOperatorLifecycleHost,
+): TargetTypeRef | undefined {
+  if (sourceFile === undefined) {
+    return undefined;
+  }
   const checker = context.compiler?.checker;
+  const node = asNodeSubject(subject);
   if (node === undefined || checker === undefined) {
     return undefined;
   }

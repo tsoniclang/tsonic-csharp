@@ -46,7 +46,7 @@ export function getCsharpOperatorResultTypeRefForOperator(
     case "typeof":
       return csharpStringTargetType();
     case "??":
-      return expectedResult ?? unwrapNullableTargetType(left) ?? right ?? left;
+      return unwrapNullableTargetType(left) ?? right ?? expectedResult ?? left;
     default:
       return left;
   }

@@ -26,14 +26,14 @@ import {
   setRuntimeCarrierFactIfAbsentOrStronger,
 } from "./fact-writes.js";
 
-export function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
+export function propagateCsharpRuntimeCarrierFactFromDeclarationInitializer(
   lifecycleContext: RuntimeCarrierLifecycleFactsContext,
   sourceFile: SourceFile,
   node: Node,
   host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
   const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || compiler.ast.kindName(node) !== "KindVariableDeclaration") {
+  if (compiler === undefined || !isInitializerRuntimeCarrierDeclaration(compiler.ast, node)) {
     return;
   }
   const initializer = asNodeSubject(getNodeField(node, "Initializer"));
@@ -50,6 +50,14 @@ export function propagateCsharpRuntimeCarrierFactFromVariableInitializer(
     const symbol = getRuntimeCarrierSubjectSymbol(compiler, sourceFile, name);
     setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, symbol, initializerFact, message);
   }
+}
+
+function isInitializerRuntimeCarrierDeclaration(
+  ast: NonNullable<RuntimeCarrierLifecycleFactsContext["compiler"]>["ast"],
+  node: Node,
+): boolean {
+  const kind = ast.kindName(node);
+  return kind === "KindVariableDeclaration" || kind === "KindPropertyDeclaration";
 }
 
 function getInitializerCarrierFromCheckedType(

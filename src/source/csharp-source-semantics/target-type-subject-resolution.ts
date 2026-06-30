@@ -1,6 +1,7 @@
 import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
+  Node,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
@@ -56,6 +57,9 @@ import type {
 import {
   resolveTargetTypeRefFromSubjectFacts,
 } from "./target-type-subject-facts.js";
+import {
+  resolveSourceMemberTypeParameterFromReceiver,
+} from "./target-type-subject-resolution/source-member-type-parameters.js";
 
 export type {
   CsharpTargetTypeResolver,
@@ -134,6 +138,20 @@ export function resolveTargetTypeRefForSubjectCore(
   );
   const preferredFact = getPreferredTargetTypeRefForSubject(directFact, referenceFact, declarationType);
   if (preferredFact !== undefined) {
+    const checkedExpressionType = getCheckedExpressionSemanticTargetTypeIfMoreSpecific(
+      preferredFact,
+      node,
+      checker,
+      ast,
+      context,
+      options,
+      host,
+      recursiveTargetTypeResolver,
+      resolveTargetTypeRefForType,
+    );
+    if (checkedExpressionType !== undefined) {
+      return checkedExpressionType;
+    }
     return preferredFact;
   }
   if (directFact === undefined && referenceFact === undefined && declarationType !== undefined) {
@@ -202,4 +220,55 @@ export function resolveTargetTypeRefForSubjectCore(
     ...options,
     ...(ast !== undefined && node !== undefined ? { sourceFile: ast.getSourceFile(node) } : {}),
   }, host);
+}
+
+function getCheckedExpressionSemanticTargetTypeIfMoreSpecific(
+  preferredFact: TargetTypeRef,
+  node: Node | undefined,
+  checker: NonNullable<ExtensionObservationContext["compiler"]>["checker"] | undefined,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"] | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  recursiveTargetTypeResolver: CsharpRecursiveTargetTypeResolver,
+  resolveTargetTypeRefForType: CsharpTargetTypeResolver,
+): TargetTypeRef | undefined {
+  if (
+    preferredFact.kind !== "type-parameter" ||
+    node === undefined ||
+    checker === undefined ||
+    ast === undefined ||
+    options.allowSemanticTypeQuery === false ||
+    !isSemanticTypeQueryableValueExpressionNode(ast, node)
+  ) {
+    return undefined;
+  }
+  const sourceMemberSubstitution = resolveSourceMemberTypeParameterFromReceiver(
+    preferredFact,
+    node,
+    context,
+    options,
+    host,
+    (subject, subjectContext, subjectOptions, subjectHost) =>
+      resolveTargetTypeRefForSubjectCore(
+        subject,
+        subjectContext,
+        subjectOptions,
+        subjectHost,
+        recursiveTargetTypeResolver,
+        resolveTargetTypeRefForType,
+      ),
+  );
+  if (sourceMemberSubstitution !== undefined) {
+    return sourceMemberSubstitution;
+  }
+  const sourceFile = ast.getSourceFile(node);
+  const checkedType = asType(checker.getTypeAtLocation(node, { sourceFile }));
+  const checkedTarget = resolveTargetTypeRefForType(checkedType, context, {
+    ...options,
+    sourceFile,
+  }, host);
+  return checkedTarget === undefined || checkedTarget.kind === "type-parameter"
+    ? undefined
+    : checkedTarget;
 }

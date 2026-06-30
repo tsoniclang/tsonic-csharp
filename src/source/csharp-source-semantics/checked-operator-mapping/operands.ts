@@ -155,6 +155,13 @@ function getCheckedOperatorOperandTargetTypeRef(
     ...options,
     ...(sourceFile === undefined ? {} : { sourceFile }),
   });
+  if (direct !== undefined && direct.kind !== "type-parameter") {
+    return direct;
+  }
+  const checkedExpressionType = getCheckedExpressionTargetTypeRef(expressionSubject, sourceFile, context, options, host);
+  if (checkedExpressionType !== undefined && checkedExpressionType.kind !== "type-parameter") {
+    return checkedExpressionType;
+  }
   if (direct !== undefined) {
     return direct;
   }
@@ -169,6 +176,19 @@ function getCheckedOperatorOperandTargetTypeRef(
   if (typed !== undefined) {
     return typed;
   }
+  if (sourceFile === undefined) {
+    return undefined;
+  }
+  return getCheckedExpressionTargetTypeRef(expressionSubject, sourceFile, context, options, host);
+}
+
+function getCheckedExpressionTargetTypeRef(
+  expressionSubject: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpOperationsProviderHost,
+): TargetTypeRef | undefined {
   if (sourceFile === undefined) {
     return undefined;
   }

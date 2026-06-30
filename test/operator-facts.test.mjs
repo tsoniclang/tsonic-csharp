@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { targetOperationFactKey } from "@tsonic/tsts";
+import { runtimeCarrierFactKey, targetOperationFactKey } from "@tsonic/tsts";
 import {
   missingCarrierResolution,
   missingParameterCarrierResolution,
@@ -27,6 +27,7 @@ import {
 } from "../dist/source/csharp-facts.js";
 import {
   csharpBigIntegerTargetType,
+  csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
   csharpStringTargetType,
   csharpSourcePrimitiveTargetType,
@@ -160,6 +161,32 @@ test("source-primitive increment records finalized operator token facts", () => 
     operator: "++",
     resultType: intType,
   });
+});
+
+test("nullish coalescing result uses nullable-left target type before expression carrier", () => {
+  const left = identifier("maybeChar");
+  const right = identifier("fallback");
+  const expression = binary(left, right, "KindQuestionQuestionToken");
+  const charType = csharpSourcePrimitiveTargetType("char");
+  const nullableChar = csharpNullableValueTargetType(charType);
+  const context = fakeObservationContext(new Map([
+    [factEntryKey(expression, runtimeCarrierFactKey), { carrier: csharpStringTargetType() }],
+  ]));
+  const result = mapCsharpCheckedOperator({
+    expression,
+    operator: "??",
+    left,
+    right,
+    target: "csharp",
+  }, context, fakeOperatorHostWithSubjects(new Map([
+    [left, nullableChar],
+    [right, charType],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.operation.resultType, charType);
+  assert.equal(context.writes.length, 1);
+  assert.deepEqual(context.writes[0].value.resultType, charType);
 });
 
 test("target operation structural identity ignores checker-added provenance", () => {
@@ -710,6 +737,13 @@ function fakeOperatorHost(providerType) {
   return {
     getTargetTypeRefForSubject: (subject) => subject?.Kind === KindIdentifier ? providerType : undefined,
     getCsharpTargetBindingByTargetId: (targetId) => targetId === providerType.id ? binding : undefined,
+  };
+}
+
+function fakeOperatorHostWithSubjects(targetTypes) {
+  return {
+    getTargetTypeRefForSubject: (subject) => targetTypes.get(subject),
+    getCsharpTargetBindingByTargetId: () => undefined,
   };
 }
 

@@ -8,6 +8,7 @@ import type {
 import { tryDotnetTypeRefToProviderType } from "../model.js";
 import { dotnetMemberKindToProviderKind } from "./conversions.js";
 import {
+  dotnetProviderSignatureIdsForMember,
   dotnetSignatureToProviderSignature,
   mergeProviderSignatures,
 } from "./signatures.js";
@@ -86,8 +87,10 @@ export function dotnetMemberToProviderMember(
   if (member.type !== undefined && type === undefined) {
     return undefined;
   }
+  const memberTargetName = member.kind === "constructor" ? undefined : member.targetName;
+  const providerSignatureIds = dotnetProviderSignatureIdsForMember(member, memberTargetName);
   const signatures = member.signatures
-    ?.map((signature) => dotnetSignatureToProviderSignature(signature, member.kind === "constructor" ? undefined : member.targetName))
+    ?.map((signature) => dotnetSignatureToProviderSignature(signature, memberTargetName, providerSignatureIds.get(signature.id)))
     .filter((signature): signature is NonNullable<typeof signature> => signature !== undefined);
   if (member.signatures !== undefined && (signatures === undefined || signatures.length === 0)) {
     return undefined;
@@ -99,7 +102,7 @@ export function dotnetMemberToProviderMember(
     ...(member.static !== undefined ? { static: member.static } : {}),
     ...(isReadonlyProviderMember(member) ? { readonly: true } : {}),
     ...(type !== undefined ? { type } : {}),
-    ...(signatures !== undefined ? { signatures } : {}),
+    ...(signatures !== undefined ? { signatures: mergeProviderSignatures(signatures) } : {}),
   };
 }
 

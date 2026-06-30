@@ -4,6 +4,5 @@ export type {
 } from "./types.js";
 export {
   selectExactTargetMember,
-  selectProviderSelectedTargetMember,
   selectTargetMember,
 } from "./selection.js";

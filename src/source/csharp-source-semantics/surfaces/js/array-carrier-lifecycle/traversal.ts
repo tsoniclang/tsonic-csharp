@@ -21,14 +21,22 @@ import {
 } from "./structural-uses.js";
 import type {
   ArrayParameterAnalysis,
+  ArrayLocalAnalysis,
   ArrayReturnAnalysis,
   LifecycleContext,
 } from "./types.js";
+import {
+  isSourceStandardLibraryArrayLikeType,
+} from "../../../source-type-classification.js";
+import {
+  getCsharpArrayLiteralElementTargetType,
+  getCsharpCollectionElementTargetType,
+} from "../../../target-types.js";
 
 export function collectArrayParameters(
   sourceFile: SourceFile,
   lifecycleContext: LifecycleContext,
-  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject">,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
 ): readonly ArrayParameterAnalysis[] {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -66,7 +74,7 @@ export function collectArrayParameters(
       semanticType,
       elementType,
       sourceUses,
-      carrierRequirements: carrierRequirementsForArrayStructuralUses(sourceUses, elementType, lifecycleContext),
+      carrierRequirements: carrierRequirementsForArrayStructuralUses(sourceUses, elementType, lifecycleContext, host),
     });
   });
   return parameters;
@@ -75,7 +83,7 @@ export function collectArrayParameters(
 export function collectArrayReturnTypeNodes(
   sourceFile: SourceFile,
   lifecycleContext: LifecycleContext,
-  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject">,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
 ): readonly ArrayReturnAnalysis[] {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -105,4 +113,72 @@ export function collectArrayReturnTypeNodes(
     returns.push({ typeNode, elementType });
   });
   return returns;
+}
+
+export function collectArrayLocalDeclarations(
+  sourceFile: SourceFile,
+  lifecycleContext: LifecycleContext,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
+): readonly ArrayLocalAnalysis[] {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return [];
+  }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  const locals: ArrayLocalAnalysis[] = [];
+  visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+    if (!compiler.ast.is.IsVariableDeclaration(node)) {
+      return;
+    }
+    const initializer = asNodeSubject(getNodeField(node, "Initializer"));
+    const name = asNodeSubject(getNodeField(node, "name"));
+    if (name === undefined || !compiler.ast.is.IsIdentifier(name)) {
+      return;
+    }
+    const semanticType = compiler.checker.getTypeAtLocation(name, { sourceFile }) ??
+      compiler.checker.getTypeAtLocation(initializer, { sourceFile });
+    if (semanticType === undefined || !isSourceStandardLibraryArrayLikeType(semanticType, context)) {
+      return;
+    }
+    const typeNode = asNodeSubject(getNodeField(node, "Type"));
+    const elementType = getArrayElementTypeFromLocalDeclaration(typeNode, semanticType, sourceFile, context, host);
+    if (elementType === undefined) {
+      return;
+    }
+    const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile) ??
+      getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
+    const sourceUses = collectArrayStructuralUsesForSymbol(sourceFile, symbol, lifecycleContext);
+    locals.push({
+      declaration: node,
+      name,
+      ...(initializer === undefined ? {} : { initializer }),
+      ...(typeNode === undefined ? {} : { typeNode }),
+      symbol,
+      semanticType,
+      elementType,
+      sourceUses,
+      carrierRequirements: carrierRequirementsForArrayStructuralUses(sourceUses, elementType, lifecycleContext, host),
+    });
+  });
+  return locals;
+}
+
+function getArrayElementTypeFromLocalDeclaration(
+  typeNode: ReturnType<typeof asNodeSubject>,
+  semanticType: ReturnType<NonNullable<LifecycleContext["compiler"]>["checker"]["getTypeAtLocation"]>,
+  sourceFile: SourceFile,
+  context: ReturnType<typeof createRuntimeCarrierLifecycleObservationContext>,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
+) {
+  const compiler = context.compiler;
+  if (typeNode !== undefined && compiler?.ast.is.IsArrayTypeNode(typeNode) === true) {
+    const elementTypeNode = asNodeSubject(getNodeField(typeNode, "ElementType"));
+    const elementType = host.getTargetTypeRefForSubject(elementTypeNode, context, { allowSemanticTypeQuery: true, sourceFile });
+    return elementType;
+  }
+  const targetType = host.getTargetTypeRefForSubject(semanticType, context, { allowSemanticTypeQuery: true, sourceFile });
+  return targetType?.kind === "array"
+    ? targetType.element
+    : getCsharpArrayLiteralElementTargetType(targetType) ??
+      getCsharpCollectionElementTargetType(targetType);
 }

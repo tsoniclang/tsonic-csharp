@@ -203,8 +203,21 @@ test(".NET reflection provider emits contract-valid SDK metadata slices", () => 
   assert.equal(validateDotnetModuleModelContract(collectionsModule), undefined);
 
   const console = rawType(systemModule, "Console");
-  assert.ok(rawMethod(console, "writeLine", "System.Console.WriteLine(System.String)"));
+  const rawWriteLineString = rawMethod(console, "writeLine", "System.Console.WriteLine(System.String)");
+  const rawWriteLineChar = rawMethod(console, "writeLine", "System.Console.WriteLine(System.Char)");
+  assert.ok(rawWriteLineString);
+  assert.ok(rawWriteLineChar);
   assert.equal(rawMethod(console, "writeLine", "System.Console.WriteLine(System.String)").static, true);
+  const systemSourceModel = dotnetModuleToProviderDeclarationModel(systemModule);
+  const sourceConsole = sourceType(systemSourceModel, "Console");
+  const sourceWriteLine = sourceMember(sourceConsole, "writeLine");
+  const sourceStringWriteLineSignatures = (sourceWriteLine.signatures ?? []).filter((signature) =>
+    signature.parameters.length === 1 &&
+    signature.parameters[0]?.type.kind === "string"
+  );
+  assert.equal(sourceStringWriteLineSignatures.length, 1);
+  assert.notEqual(sourceStringWriteLineSignatures[0]?.id, rawWriteLineString.signatures[0].id);
+  assert.notEqual(sourceStringWriteLineSignatures[0]?.id, rawWriteLineChar.signatures[0].id);
 
   const clsCompliantAttribute = rawType(systemModule, "CLSCompliantAttribute");
   assert.deepEqual(clsCompliantAttribute.baseType.sourceShape, {
@@ -798,6 +811,18 @@ function rawMethod(type, sourceName, signatureShape) {
     candidate.signatures?.some((signature) => idHasShape(signature.id, signatureShape))
   );
   assert.ok(member, `Missing method ${type.sourceName}.${sourceName} with signature ${signatureShape}`);
+  return member;
+}
+
+function sourceType(model, sourceName) {
+  const declaration = model.exports.find((candidate) => candidate.name === sourceName);
+  assert.ok(declaration, `Missing source type ${sourceName}`);
+  return declaration;
+}
+
+function sourceMember(type, sourceName) {
+  const member = type.members?.find((candidate) => candidate.name === sourceName);
+  assert.ok(member, `Missing source member ${type.name}.${sourceName}`);
   return member;
 }
 

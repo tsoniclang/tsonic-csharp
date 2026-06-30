@@ -5,9 +5,6 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
-  runtimeCarrierFactKey,
-} from "@tsonic/tsts";
-import {
   asNodeSubject,
   getNodeField,
 } from "./ast-utils.js";
@@ -81,12 +78,6 @@ export function getTargetTypeRefFromCheckedExpressionSyntax(
   if (operator === undefined) {
     return undefined;
   }
-  if (operator === "??") {
-    const carrier = context.factResolver.resolve(node, runtimeCarrierFactKey)?.carrier;
-    if (carrier !== undefined) {
-      return carrier;
-    }
-  }
   const operandOptions = operator === "??"
     ? {
         ...options,
@@ -145,6 +136,7 @@ function getTargetTypeRefFromLiteralSyntax(
       return csharpBigIntegerTargetType();
     case "KindStringLiteral":
     case "KindNoSubstitutionTemplateLiteral":
+    case "KindTemplateExpression":
       return csharpStringTargetType();
     default:
       return undefined;

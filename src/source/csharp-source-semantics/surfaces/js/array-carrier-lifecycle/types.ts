@@ -40,3 +40,15 @@ export interface ArrayReturnAnalysis {
   readonly typeNode: Node;
   readonly elementType: TargetTypeRef;
 }
+
+export interface ArrayLocalAnalysis {
+  readonly declaration: Node;
+  readonly name: Node;
+  readonly initializer?: Node;
+  readonly typeNode?: Node;
+  readonly symbol: Symbol | undefined;
+  readonly semanticType: Type | undefined;
+  readonly elementType: TargetTypeRef;
+  readonly sourceUses: readonly TargetSourceUseRecord[];
+  readonly carrierRequirements: ReadonlySet<CsharpArrayCarrierRequirement>;
+}

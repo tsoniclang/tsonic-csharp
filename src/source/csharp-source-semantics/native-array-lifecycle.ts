@@ -5,6 +5,10 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import {
+  runtimeCarrierFactKey,
+  targetOperationFactKey,
+} from "@tsonic/tsts";
+import {
   dotnetNativeArrayIndexerMemberId,
   dotnetNativeArrayLengthMemberId,
 } from "../../providers/dotnet/native-array.js";
@@ -94,8 +98,11 @@ function recordNativeArrayLengthFact(
   if (propertyName !== "length") {
     return;
   }
+  if (selectedOperationConflictsWithNativeArray(context, node, "property", dotnetNativeArrayLengthMemberId)) {
+    return;
+  }
   const resultType = csharpSourcePrimitiveTargetType("int32");
-  recordCsharpTargetOperation(context, node, csharpTargetMemberOperation(dotnetNativeArrayLengthMemberId, "property", "Length", {
+  recordCsharpTargetOperation(context, node, csharpTargetMemberOperation(getSelectedOperationIdOrDefault(context, node, "property", dotnetNativeArrayLengthMemberId), "property", "Length", {
     declaringType: receiverType,
     resultType,
   }), [{ message: "C# native array length operation recorded from checked TypeScript Array.length declaration and finalized native array carrier." }]);
@@ -133,10 +140,25 @@ function recordNativeArrayElementAccessFact(
     ));
     return;
   }
-  recordCsharpTargetOperation(context, node, csharpTargetMemberOperation(dotnetNativeArrayIndexerMemberId, "indexer", "Item", {
+  if (selectedOperationConflictsWithNativeArray(context, node, "indexer", dotnetNativeArrayIndexerMemberId)) {
+    return;
+  }
+  recordCsharpTargetOperation(context, node, csharpTargetMemberOperation(getSelectedOperationIdOrDefault(context, node, "indexer", dotnetNativeArrayIndexerMemberId), "indexer", "Item", {
     declaringType: receiverType,
     resultType: receiverType.element,
   }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access and finalized native array carrier." }]);
+}
+
+function selectedOperationConflictsWithNativeArray(
+  context: ExtensionObservationContext,
+  node: Node,
+  operationKind: "property" | "indexer",
+  nativeOperationId: string,
+): boolean {
+  const selected = context.host.facts.get(node, targetOperationFactKey) ??
+    context.factResolver.resolve(node, targetOperationFactKey);
+  return selected !== undefined &&
+    (selected.operationKind !== operationKind || selected.operationId !== nativeOperationId);
 }
 
 function hasCsharpTargetOperationFact(
@@ -153,10 +175,11 @@ function getNativeArrayReceiverType(
   context: ExtensionObservationContext,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
-  const type = context.compiler?.checker.getTypeAtLocation(receiver, { sourceFile });
+  void host;
+  void sourceFile;
   return asNativeArrayTargetType(unwrapNullableTargetType(
-    host.getTargetTypeRefForSubject(receiver, context, { allowRuntimeCarrier: true, sourceFile }) ??
-      host.getTargetTypeRefForSubject(type, context, { allowRuntimeCarrier: true, sourceFile }),
+    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
+      context.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier,
   ));
 }
 
@@ -173,4 +196,17 @@ function hasIntegralIndex(
     host.getTargetTypeRefForSubject(semanticType, context, { allowSemanticTypeQuery: true });
   return isIntegralTargetTypeRef(indexType) ||
     isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), node, context);
+}
+
+function getSelectedOperationIdOrDefault(
+  context: ExtensionObservationContext,
+  node: Node,
+  operationKind: "property" | "indexer",
+  defaultOperationId: string,
+): string {
+  const selected = context.host.facts.get(node, targetOperationFactKey) ??
+    context.factResolver.resolve(node, targetOperationFactKey);
+  return selected?.operationKind === operationKind
+    ? selected.operationId
+    : defaultOperationId;
 }

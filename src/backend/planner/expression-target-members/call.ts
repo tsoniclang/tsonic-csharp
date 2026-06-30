@@ -59,9 +59,11 @@ export function planCallExpression(
   if (diagnostics.length > compatDiagnosticsStart) {
     return undefined;
   }
-  const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
   const selectedTargetCall = input.facts.getSelectedTargetCall(node);
-  if (selectedTargetCall !== undefined && !isCsharpSourceOwnedSelectedSignature(selectedTargetCall)) {
+  if (selectedTargetCall !== undefined && isCsharpSourceOwnedSelectedSignature(selectedTargetCall)) {
+    return planSourceOwnedCall(node, expression, sourceFile, input, diagnostics, planExpression, planCallArgument);
+  }
+  if (selectedTargetCall !== undefined) {
     const targetOperation = getRequiredCsharpTargetOperationForSelectedSignature(input, node, selectedTargetCall, diagnostics, "C# call emission");
     if (targetOperation?.kind === "array-creation") {
       return planNativeArrayCreationCall(node, expression, targetOperation, selectedTargetCall, sourceFile, input, diagnostics, planCallArgument);
@@ -85,8 +87,24 @@ export function planCallExpression(
       arguments: arguments_,
     };
   }
+  const ownership = getCallableSemanticOwnership(expression.Expression, sourceFile, input);
   if (ownership.requiresTargetFact || !ownership.sourceOwned) {
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# call emission requires a source-owned callable or a selected target signature fact.", ownership);
+    return undefined;
+  }
+  return planSourceOwnedCall(node, expression, sourceFile, input, diagnostics, planExpression, planCallArgument);
+}
+
+function planSourceOwnedCall(
+  node: Node,
+  expression: ReturnType<typeof AsCallExpression>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+  planCallArgument: CallArgumentPlanner,
+): CsharpExpression | undefined {
+  if (expression === undefined) {
     return undefined;
   }
   const callee = planSourceOwnedCallCallee(node, expression.Expression!, sourceFile, input, diagnostics, planExpression);

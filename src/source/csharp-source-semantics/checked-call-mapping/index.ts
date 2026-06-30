@@ -283,6 +283,10 @@ function getSourceOwnedCallReturnType(
   if (directReturnType !== undefined) {
     return directReturnType;
   }
+  const checkedCallReturnType = host.getTargetTypeRefForSubject(request.call, context);
+  if (checkedCallReturnType !== undefined) {
+    return checkedCallReturnType;
+  }
   const checker = context.compiler?.checker;
   if (checker === undefined || request.sourceSelectedSignature === undefined || host.getTargetTypeRefForType === undefined) {
     return undefined;

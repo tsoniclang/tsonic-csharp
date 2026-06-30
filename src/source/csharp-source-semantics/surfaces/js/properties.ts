@@ -29,6 +29,7 @@ import {
 } from "./source-library.js";
 import {
   csharpTargetOperationFactKey,
+  csharpArrayBoundaryFactKey,
 } from "../../../csharp-facts.js";
 import {
   csharpJsSourceLibraryMemberHasCallableProvider,
@@ -106,14 +107,6 @@ function recordCsharpSourceLibraryPropertyFact(
   if (compiler === undefined || !compiler.ast.is.IsPropertyAccessExpression(node)) {
     return;
   }
-  if (
-    (context.host.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
-      context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined) &&
-    (context.host.facts.get(node, targetOperationFactKey) !== undefined ||
-      context.factResolver.resolve(node, targetOperationFactKey) !== undefined)
-  ) {
-    return;
-  }
   if (isCallCalleePropertyAccess(node, compiler.ast)) {
     return;
   }
@@ -122,15 +115,26 @@ function recordCsharpSourceLibraryPropertyFact(
   if (receiver === undefined || name === undefined) {
     return;
   }
+  const propertyName = compiler.ast.text(name);
+  const receiverSemanticType = compiler.checker.getTypeAtLocation(receiver, { sourceFile });
   const propertySymbol = compiler.checker.getSymbolAtLocation(name, { sourceFile }) ??
     safeGetResolvedSymbol(name, sourceFile, context) ??
     compiler.checker.getSymbolAtLocation(node, { sourceFile }) ??
-    safeGetResolvedSymbol(node, sourceFile, context);
+    safeGetResolvedSymbol(node, sourceFile, context) ??
+    compiler.checker.getPropertyOfType(receiverSemanticType, propertyName, { sourceFile }) ??
+    compiler.typeShape.getProperty(receiverSemanticType, propertyName, { sourceFile });
   const declaration = firstSymbolDeclaration(propertySymbol, context);
-  const propertyName = compiler.ast.text(name);
   const sourceMember = resolveSourceLibraryMemberIdentity(propertySymbol, context) ??
     resolveSourceLibraryMemberIdentity(declaration, context);
   if (sourceMember === undefined) {
+    return;
+  }
+  const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
+  if (
+    hasRecordedCsharpPropertyOperation(context, node) &&
+    hasRecordedGenericPropertyOperation(context, node) &&
+    !sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity)
+  ) {
     return;
   }
   const mapped = mapCsharpSourceLibraryPropertyOperation({
@@ -148,16 +152,32 @@ function recordCsharpSourceLibraryPropertyFact(
     return;
   }
   if (
-    context.host.facts.get(node, targetOperationFactKey) === undefined &&
+    context.facts.get(node, targetOperationFactKey) === undefined &&
     context.factResolver.resolve(node, targetOperationFactKey) === undefined
   ) {
-    context.host.facts.set(
+    context.facts.set(
       node,
       targetOperationFactKey,
       mapped.value.operation,
       mapped.evidence ?? [{ message: "C# JS surface property operation selected from checked TypeScript library property before finalization." }],
     );
   }
+}
+
+function hasRecordedCsharpPropertyOperation(
+  context: ExtensionObservationContext,
+  node: Node,
+): boolean {
+  return context.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
+    context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined;
+}
+
+function hasRecordedGenericPropertyOperation(
+  context: ExtensionObservationContext,
+  node: Node,
+): boolean {
+  return context.facts.get(node, targetOperationFactKey) !== undefined ||
+    context.factResolver.resolve(node, targetOperationFactKey) !== undefined;
 }
 
 function safeGetResolvedSymbol(
@@ -291,6 +311,16 @@ function getSourceLibraryPropertyReceiverType(
   host: CsharpJsSurfaceHost,
 ): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  if (sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity)) {
+    return host.unwrapNullableTargetType(
+      getArrayBoundaryReceiverCarrier(request.receiver, context) ??
+      context.factResolver.resolve(request.receiver, runtimeCarrierFactKey)?.carrier ??
+        host.getTargetTypeRefForSubject(request.receiver, context, {
+          allowRuntimeCarrier: true,
+          allowSemanticTypeQuery: false,
+        }),
+    );
+  }
   if (sourceLibraryPropertyRequiresSeededReceiverFacts(selectedIdentity)) {
     return host.unwrapNullableTargetType(
       host.getTargetTypeRefForSubject(request.receiver, context, {
@@ -317,6 +347,56 @@ function getSourceLibraryPropertyReceiverType(
     host.getTargetTypeRefForSubject(request.receiver, context, csharpJsCheckedTypeQuery) ??
       host.getTargetTypeRefForSubject(requestContext.receiverType, context, csharpJsCheckedTypeQuery),
   );
+}
+
+function getArrayBoundaryReceiverCarrier(
+  receiver: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
+  const direct = getArrayBoundaryCoreCarrier(receiver, context);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const receiverNode = asNodeSubject(receiver);
+  const compiler = context.compiler;
+  if (receiverNode === undefined || compiler === undefined) {
+    return undefined;
+  }
+  const sourceFile = compiler.ast.getSourceFile(receiverNode);
+  if (sourceFile === undefined) {
+    return undefined;
+  }
+  const symbols = [
+    compiler.checker.getSymbolAtLocation(receiverNode, { sourceFile }),
+    safeGetResolvedSymbol(receiverNode, sourceFile, context),
+  ];
+  for (const symbol of symbols) {
+    const symbolCarrier = getArrayBoundaryCoreCarrier(symbol, context);
+    if (symbolCarrier !== undefined) {
+      return symbolCarrier;
+    }
+    for (const declaration of compiler.checker.getSymbolDeclarations(symbol)) {
+      const declarationCarrier = getArrayBoundaryCoreCarrier(declaration, context) ??
+        getArrayBoundaryCoreCarrier(asNodeSubject(getNodeField(declaration, "name")), context) ??
+        getArrayBoundaryCoreCarrier(asNodeSubject(getNodeField(declaration, "Name")), context) ??
+        getArrayBoundaryCoreCarrier(asNodeSubject(getNodeField(declaration, "type")), context) ??
+        getArrayBoundaryCoreCarrier(asNodeSubject(getNodeField(declaration, "Type")), context);
+      if (declarationCarrier !== undefined) {
+        return declarationCarrier;
+      }
+    }
+  }
+  return undefined;
+}
+
+function getArrayBoundaryCoreCarrier(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+): ReturnType<CsharpJsSurfaceHost["getTargetTypeRefForSubject"]> {
+  return subject === undefined
+    ? undefined
+    : (context.factResolver.resolve(subject, csharpArrayBoundaryFactKey) ??
+      context.facts.get(subject, csharpArrayBoundaryFactKey))?.coreCarrierType;
 }
 
 function getSourceLibraryPropertyMember(

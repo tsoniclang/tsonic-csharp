@@ -62,28 +62,48 @@ function getImplementedInterfacePropertyNames(
 ): ReadonlySet<string> {
   const names = new Set<string>();
   for (const heritageType of input.ast.implementsHeritageElements(classDeclaration)) {
-    const referenceNode = AsExpressionWithTypeArguments(heritageType)?.Expression ?? heritageType;
-    const declaration = input.analysis.getProjectSourceReferenceForNode(referenceNode, { sourceFile })?.declaration ??
-      input.analysis.getProjectSourceDeclarationForNode(referenceNode, { sourceFile });
-    if (SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
-      continue;
-    }
-    const interfaceDeclaration = AsInterfaceDeclaration(declaration);
-    if (interfaceDeclaration === undefined) {
-      continue;
-    }
-    for (const member of interfaceDeclaration.Members?.Nodes ?? []) {
-      if (SourceKind(input.ast, member) !== KindPropertySignature) {
-        continue;
-      }
-      const property = AsPropertySignatureDeclaration(member);
-      const name = property?.name === undefined ? undefined : planIdentifierName(property.name, "PropertyDeclaration", input, [], "Interface property name");
-      if (name !== undefined) {
-        names.add(name);
-      }
+    if (heritageType !== undefined) {
+      collectImplementedInterfacePropertyNames(heritageType, sourceFile, input, names, new Set<Node>());
     }
   }
   return names;
+}
+
+function collectImplementedInterfacePropertyNames(
+  heritageType: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  names: Set<string>,
+  seen: Set<Node>,
+): void {
+  const referenceNode = AsExpressionWithTypeArguments(heritageType)?.Expression ?? heritageType;
+  const reference = input.analysis.getProjectSourceReferenceForNode(referenceNode, { sourceFile });
+  const declaration = reference?.declaration ??
+    input.analysis.getProjectSourceDeclarationForNode(referenceNode, { sourceFile });
+  if (declaration === undefined || seen.has(declaration) || SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
+    return;
+  }
+  seen.add(declaration);
+  const interfaceDeclaration = AsInterfaceDeclaration(declaration);
+  if (interfaceDeclaration === undefined) {
+    return;
+  }
+  for (const member of interfaceDeclaration.Members?.Nodes ?? []) {
+    if (SourceKind(input.ast, member) !== KindPropertySignature) {
+      continue;
+    }
+    const property = AsPropertySignatureDeclaration(member);
+    const name = property?.name === undefined ? undefined : planIdentifierName(property.name, "PropertyDeclaration", input, [], "Interface property name");
+    if (name !== undefined) {
+      names.add(name);
+    }
+  }
+  const declarationSourceFile = reference?.sourceFile ?? input.ast.getSourceFile(declaration) ?? sourceFile;
+  for (const baseType of input.ast.extendsHeritageElements(declaration)) {
+    if (baseType !== undefined) {
+      collectImplementedInterfacePropertyNames(baseType, declarationSourceFile, input, names, seen);
+    }
+  }
 }
 
 export function planFunctionDeclaration(

@@ -23,6 +23,9 @@ import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import {
   csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
+import {
+  csharpSourceOwnedSelectedSignatureFact,
+} from "../dist/source/csharp-source-semantics/source-owned-selected-signature.js";
 
 test("compat any property get renders only from finalized closed carrier operation facts", () => {
   const receiver = identifier("value");
@@ -205,6 +208,41 @@ test("compat any call and construct render closed carrier operations from explic
   assert.equal(printCsharpExpression(constructOutput), "constructorValue.ConstructCompat(2)");
 });
 
+test("source-owned selected call facts bypass provider-call ownership gates", () => {
+  const handler = identifier("handler");
+  const call = callExpression(handler, []);
+  const diagnostics = [];
+  const output = planExpression(call, {}, fakeInput({
+    runtimeCarriers: new Map([[handler, {
+      carrier: {
+        kind: "target-named",
+        id: "System.Action",
+        csharpDelegateSignature: {
+          parameters: [],
+          returnType: { kind: "target-named", id: "System.Void" },
+        },
+      },
+    }]]),
+    selectedCalls: new Map([[call, csharpSourceOwnedSelectedSignatureFact({})]]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), "handler()");
+});
+
+test("source-owned selected member calls render invocation callees without property-read facts", () => {
+  const receiver = identifier("calculator");
+  const member = property(receiver, "add");
+  const call = callExpression(member, []);
+  const diagnostics = [];
+  const output = planExpression(call, {}, fakeInput({
+    selectedCalls: new Map([[call, csharpSourceOwnedSelectedSignatureFact({})]]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), "calculator.add()");
+});
+
 test("compat carrier facts are rejected in strict-native target mode", () => {
   const receiver = identifier("value");
   const propertyAccess = property(receiver, "name");
@@ -255,7 +293,7 @@ function fakeInput(options = {}) {
       getTargetConversionFact: () => undefined,
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
-      getSelectedTargetCall: () => undefined,
+      getSelectedTargetCall: (subject) => options.selectedCalls?.get(subject),
       getSelectedTargetOperator: () => undefined,
       getContextualTargetTypeFact: () => undefined,
       getRuntimeCarrierFact: (subject) => options.runtimeCarriers?.get(subject),
@@ -396,4 +434,5 @@ function numeric(text) {
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   kindNameFromKind: (kind) => String(kind),
+  typeArguments: () => [],
 };
