@@ -81,7 +81,6 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
 export function mapCsharpProjectSourceCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
-  host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const selectedDeclaration = asNodeSubject(requestContext.sourceSelectedDeclaration);
@@ -93,7 +92,7 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
     return undefined;
   }
   const operation = sourceOwnedPropertyOperation(request.propertyName);
-  recordCsharpSourceOwnedPropertyOperation(request, context, host, operation.operationId);
+  recordCsharpSourceOwnedPropertyOperation(request, context, operation.operationId);
   return acceptObservation<CheckedOperationMappingResult>({
     operation,
   }, [{ message: "C# source-owned property access accepted from TSTS-selected project source declaration; backend renders source syntax without provider target-member facts." }]);
@@ -113,7 +112,7 @@ export function mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(
     return undefined;
   }
   const operation = sourceOwnedPropertyOperation(request.propertyName);
-  recordCsharpSourceOwnedPropertyOperation(request, context, host, operation.operationId);
+  recordCsharpSourceOwnedPropertyOperation(request, context, operation.operationId);
   return acceptObservation<CheckedOperationMappingResult>({
     operation,
   }, [{ message: "C# source-owned property access accepted from checked TSTS source declaration receiver facts." }]);
@@ -122,20 +121,12 @@ export function mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(
 function recordCsharpSourceOwnedPropertyOperation(
   request: CheckedPropertyAccessMappingRequest,
   context: CheckedPropertyAccessContext,
-  host: CsharpOperationsProviderHost,
   operationId: string,
 ): void {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  const declaringType = host.getTargetTypeRefForSubject(requestContext.sourceSelectedDeclarationContainer, context, {
-    allowRuntimeCarrier: false,
-  });
-  const resultType = host.getTargetTypeRefForSubject(request.expression, context) ??
-    host.getTargetTypeRefForSubject(requestContext.sourceSelectedDeclaration, context);
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "property", request.propertyName, {
-    ...(declaringType === undefined ? {} : { declaringType }),
     ...(requestContext.sourceSelectedDeclarationContainer === undefined ? {} : { sourceDeclaringType: requestContext.sourceSelectedDeclarationContainer }),
-    ...(resultType === undefined ? {} : { resultType }),
-  }), [{ message: "C# source-owned property operation recorded from TSTS-selected source declaration identity and finalized target type facts." }]);
+  }), [{ message: "C# source-owned property operation recorded from TSTS-selected source declaration identity; backend resolves target type facts after semantic finalization." }]);
 }
 
 function isNamespaceImportReceiver(

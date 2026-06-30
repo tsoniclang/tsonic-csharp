@@ -504,8 +504,7 @@ test("call argument emission rejects unsupported finalized argument-passing mode
     expectedIdentifierExpressionPlanner,
   );
 
-  assert.equal(planned.passing, undefined);
-  assert.deepEqual(planned.expression, { kind: "IdentifierName", name: "value" });
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /does not support finalized argument-passing mode 'borrow-shared'/);
 });

@@ -70,6 +70,10 @@ export function planCallArgumentCore(
     const expression = planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
     return expression === undefined ? undefined : { kind: "Argument", expression };
   }
+  if (!csharpSupportsArgumentPassingMode(argumentPassing.mode)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission does not support finalized argument-passing mode '${argumentPassing.mode}'.`));
+    return undefined;
+  }
   if (argumentPassing.mode !== expectedArgumentPassingMode) {
     diagnostics.push(unsupportedNodeDiagnostic(node, `Finalized argument-passing fact '${argumentPassing.mode}' does not match the selected call parameter mode '${expectedArgumentPassingMode}'.`));
     return undefined;
@@ -133,6 +137,22 @@ function planCallArgumentExpression(
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   return planExpression(node, sourceFile, input, diagnostics);
+}
+
+function csharpSupportsArgumentPassingMode(
+  mode: ArgumentPassingFact["mode"],
+): boolean {
+  switch (mode) {
+    case "by-value":
+    case "byref-writeonly-must-init":
+    case "byref-readwrite":
+    case "byref-readonly":
+      return true;
+    case "borrow-shared":
+    case "borrow-mut":
+    case "move":
+      return false;
+  }
 }
 
 function getCsharpArgumentPassing(

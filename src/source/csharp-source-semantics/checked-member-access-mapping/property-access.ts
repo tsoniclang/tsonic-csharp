@@ -125,7 +125,7 @@ export function mapCsharpCheckedPropertyAccess(
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedPropertyAccess(request, context, extensionId, host) ??
       mapCsharpObjectShapeCheckedPropertyAccess(request, context, host) ??
-      mapCsharpProjectSourceCheckedPropertyAccess(request, context, host) ??
+      mapCsharpProjectSourceCheckedPropertyAccess(request, context) ??
       mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(request, context, host) ??
       rejectPropertyAccessNotMapped(extensionId, request.propertyName);
   }
