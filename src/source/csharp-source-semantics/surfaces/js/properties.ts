@@ -7,6 +7,7 @@ import {
 import type {
   CheckedOperationMappingResult,
   CheckedPropertyAccessMappingRequest,
+  ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
@@ -31,9 +32,9 @@ import {
 } from "../../../csharp-facts.js";
 import {
   csharpJsSourceLibraryMemberHasCallableProvider,
-  getCsharpJsSourceLibraryOperationRow,
 } from "./calls/member-providers/index.js";
 import {
+  csharpJsSourceLibraryPropertyAllowsCallableValue,
   csharpJsSourceLibraryPropertyReceiverHasClosedFacts,
   csharpJsSourceLibraryPropertyDeferredOperation,
   csharpJsSourceLibraryPropertyDeferredResultType,
@@ -198,13 +199,12 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (sourceMember === undefined) {
     return undefined;
   }
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
   const receiverType = getSourceLibraryPropertyReceiverType(request, context, selectedIdentity, host);
-  const expressionNode = asNodeSubject(request.expression);
   if (
-    expressionNode !== undefined &&
-    isCallCalleePropertyAccess(expressionNode, context.compiler?.ast) &&
-    sourceLibrarySelectedDeclarationHasCallTarget(sourceMember, receiverType)
+    request.expression !== undefined &&
+    sourceLibrarySelectedDeclarationHasCallTarget(sourceMember, receiverType, requestContext.sourceSelectedDeclaration, context)
   ) {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(
@@ -319,15 +319,44 @@ function getSourceLibraryPropertyMember(selectedIdentity: JsSurfaceSelectedSourc
 function sourceLibrarySelectedDeclarationHasCallTarget(
   sourceMember: SourceLibraryMember,
   receiverType: ReturnType<typeof getSourceLibraryPropertyReceiverType>,
+  sourceSelectedDeclaration: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): boolean {
-  return csharpJsSourceLibraryMemberHasCallableProvider(sourceMember, {
-    contextualDeclaringType: receiverType,
-  }) || sourceLibrarySelectedDeclarationHasCallPolicy(sourceMember);
+  if (csharpJsSourceLibraryPropertyAllowsCallableValue(jsSurfaceSelectedSourceIdentityForMember(sourceMember))) {
+    return true;
+  }
+  return sourceDeclarationIsCallable(sourceSelectedDeclaration, context) &&
+    csharpJsSourceLibraryMemberHasCallableProvider(sourceMember, {
+      contextualDeclaringType: receiverType,
+    });
 }
 
-function sourceLibrarySelectedDeclarationHasCallPolicy(
-  sourceMember: SourceLibraryMember,
+function sourceDeclarationIsCallable(
+  declaration: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): boolean {
-  const operationRow = getCsharpJsSourceLibraryOperationRow(sourceMember);
-  return operationRow !== undefined && operationRow.policyKind !== "unsupported";
+  const node = asNodeSubject(declaration);
+  const compiler = context.compiler;
+  if (node === undefined || compiler === undefined) {
+    return false;
+  }
+  switch (compiler.ast.kindName(node)) {
+    case "KindMethodSignature":
+    case "MethodSignature":
+    case "KindMethodDeclaration":
+    case "MethodDeclaration":
+    case "KindFunctionDeclaration":
+    case "FunctionDeclaration":
+    case "KindCallSignature":
+    case "CallSignature":
+    case "KindConstructSignature":
+    case "ConstructSignature":
+    case "KindConstructor":
+    case "Constructor":
+    case "KindConstructorType":
+    case "ConstructorType":
+      return true;
+    default:
+      return false;
+  }
 }

@@ -85,6 +85,15 @@ export function csharpJsSourceLibraryPropertyDeferredOperation(
     : undefined;
 }
 
+export function csharpJsSourceLibraryPropertyAllowsCallableValue(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+): boolean {
+  const row = propertyRowForSelectedIdentity(selectedIdentity);
+  return row?.callableValue === true &&
+    propertyDeclaredMembersFromRow(row, selectedIdentity).some((member) =>
+      member.kind === "method" || member.kind === "constructor");
+}
+
 export function csharpJsSourceLibraryPropertyReceiverHasClosedFacts(
   receiverType: TargetTypeRef | undefined,
   selectedIdentity: JsSurfaceSelectedSourceIdentity,

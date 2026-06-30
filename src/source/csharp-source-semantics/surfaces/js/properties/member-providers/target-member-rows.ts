@@ -11,6 +11,9 @@ import {
   csharpJsSetCollectionPolicy,
 } from "../../collection-target-metadata/set-metadata.js";
 import {
+  consoleTargetMembersBySourceIdentity,
+} from "../../console.js";
+import {
   jsonTargetMemberIdentityIndex,
 } from "../../json.js";
 import {
@@ -121,7 +124,8 @@ const arrayLengthReceiverMembers: readonly JsSurfaceReceiverPropertyMember[] = [
 export const jsSurfacePropertyRows: readonly JsSurfacePropertyRow[] = [
   {
     identity: { prefixes: ["Console."] },
-    precheck: "defer",
+    callableValue: true,
+    targetProviders: [metadataIndexProvider(consoleTargetMembersBySourceIdentity)],
   },
   metadataPresencePrecheckRow({ ids: objectCallablePropertyIdentities }, objectTargetMemberIdentityIndex, "surface.js.object-runtime"),
   metadataPresencePrecheckRow({ ids: jsonCallablePropertyIdentities }, jsonTargetMemberIdentityIndex, "surface.js.math-json-regexp"),
@@ -183,6 +187,8 @@ function metadataPresencePrecheckRow(
 ): JsSurfacePropertyRow {
   return {
     identity,
+    callableValue: true,
+    targetProviders: [metadataIndexProvider(membersBySourceIdentity)],
     precheck: targetMemberExistsPrecheck(metadataIndexProvider(membersBySourceIdentity)),
     ...(capabilityId === undefined ? {} : { capabilityId }),
     requiredFacts: ["selected source property identity", "provider/runtime callable metadata row"],

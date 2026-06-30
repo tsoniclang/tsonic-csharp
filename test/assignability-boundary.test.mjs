@@ -149,7 +149,8 @@ test("C# target generic constraints diagnose reflected notnull violations throug
   const sourceFile = session.getSourceFile("/src/index.ts");
 
   const diagnostics = session.ensureChecked(sourceFile);
-  assert.equal(diagnostics.some((diagnostic) => diagnostic.code === 9100145), true, formatDiagnostics(diagnostics));
+  assert.equal(formatDiagnostics(diagnostics), "");
+  session.finalizeExtensions();
 
   const targetDiagnostics = session.extensionHost?.diagnostics.all().filter((diagnostic) =>
     diagnostic.extensionCode === "CSHARP_TARGET_CONSTRAINT_INVALID"

@@ -147,8 +147,11 @@ function hasSelectedJsArrayLengthPropertyFact(
   const csharpOperation = context.factResolver.resolve(propertyAccess, csharpTargetOperationFactKey);
   return selected !== undefined &&
     csharpJsArrayLengthPropertyOperationIds.has(selected.operationId) &&
-    csharpOperation?.kind === "member" &&
-    csharpOperation.operationKind === "property";
+    selected.operationKind === "property" &&
+    (
+      csharpOperation === undefined ||
+      (csharpOperation.kind === "member" && csharpOperation.operationKind === "property")
+    );
 }
 
 function getJsArrayCarrierForReceiver(
@@ -158,9 +161,13 @@ function getJsArrayCarrierForReceiver(
   host: CsharpJsSurfaceHost,
 ): TargetTypeRef | undefined {
   const type = context.compiler?.checker.getTypeAtLocation(receiver, { sourceFile });
-  return context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
-    host.getTargetTypeRefForSubject(receiver, context, { allowRuntimeCarrier: true, sourceFile }) ??
-    host.getTargetTypeRefForSubject(type, context, { allowRuntimeCarrier: true, sourceFile });
+  const candidates = [
+    context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier,
+    host.getTargetTypeRefForSubject(receiver, context, { allowRuntimeCarrier: true, sourceFile }),
+    host.getTargetTypeRefForSubject(type, context, { allowRuntimeCarrier: true, sourceFile }),
+  ];
+  return candidates.find(isCsharpJsArrayCarrierTargetType) ??
+    candidates.find((candidate) => candidate !== undefined);
 }
 
 function hasIntegralIndex(

@@ -267,7 +267,10 @@ export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
-  if (selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)) {
+  if (
+    requestContext.sourceSelectedDeclaration === undefined ||
+    selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)
+  ) {
     return undefined;
   }
   const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);

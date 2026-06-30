@@ -18,6 +18,7 @@ export type CsharpJsSourceLibraryPropertyPrecheck = "continue" | "defer" | "reje
 export interface JsSurfacePropertyRow {
   readonly identity: JsSurfaceSourceIdentitySelector;
   readonly precheck?: JsSurfacePropertyPrecheck;
+  readonly callableValue?: boolean;
   readonly receiverFacts?: JsSurfacePropertyReceiverFacts;
   readonly targetProviders?: readonly JsSurfacePropertyTargetProvider[];
   readonly deferredResultType?: TargetTypeRef;

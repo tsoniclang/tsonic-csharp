@@ -29,11 +29,16 @@ export function validateObservedAssignmentTargetFact(
     return;
   }
   const expression = asNode(fact.expression);
-  const assignmentTarget = getAssignmentTarget(expression, context);
-  if (assignmentTarget === undefined) {
+  const assignmentTargets = getAssignmentTargets(expression, context);
+  if (assignmentTargets.length === 0) {
     return;
   }
-  const operation = context.facts.get(assignmentTarget, csharpTargetOperationFactKey);
+  const operationTarget = assignmentTargets.find((target) =>
+    (context.facts.get(target, csharpTargetOperationFactKey) ??
+      context.factResolver.resolve(target, csharpTargetOperationFactKey)) !== undefined) ??
+    assignmentTargets[0]!;
+  const operation = context.facts.get(operationTarget, csharpTargetOperationFactKey) ??
+    context.factResolver.resolve(operationTarget, csharpTargetOperationFactKey);
   if (operation?.kind !== "member") {
     return;
   }
@@ -48,22 +53,34 @@ export function validateObservedAssignmentTargetFact(
       9100134,
       invalidWriteReason.message,
     ),
-    nodeOrSpan: assignmentTarget,
+    nodeOrSpan: operationTarget,
     evidence: invalidWriteReason.evidence,
-    identity: `csharp-target-member-write:${subjectIdentity(assignmentTarget)}`,
+    identity: `csharp-target-member-write:${subjectIdentity(operationTarget)}`,
   });
 }
 
-function getAssignmentTarget(
+function getAssignmentTargets(
   expression: Node | undefined,
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
-): Node | undefined {
+): readonly Node[] {
   if (expression === undefined) {
-    return undefined;
+    return [];
   }
-  return asNode(context.compiler?.ast.as.AsBinaryExpression(expression)?.Left) ??
-    asNode(getNodeField(expression, "Left")) ??
-    asNode(getNodeField(expression, "left"));
+  return uniqueNodes([
+    asNode(getNodeField(expression, "Left")),
+    asNode(getNodeField(expression, "left")),
+    asNode(context.compiler?.ast.as.AsBinaryExpression(expression)?.Left),
+  ]);
+}
+
+function uniqueNodes(nodes: readonly (Node | undefined)[]): readonly Node[] {
+  const unique: Node[] = [];
+  for (const node of nodes) {
+    if (node !== undefined && !unique.includes(node)) {
+      unique.push(node);
+    }
+  }
+  return unique;
 }
 
 function getInvalidTargetMemberWriteReason(

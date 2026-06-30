@@ -1,17 +1,26 @@
 import {
   acceptObservation,
   deferObservation,
+  ExtensionObservationPoint,
   rejectObservation,
 } from "@tsonic/tsts";
 import type {
   ExtensionEvidence,
+  ExtensionLifecycleContext,
   ExtensionObservation,
   ExtensionObservationContext,
+  Node,
   SourcePrimitiveKind,
   TargetConstraint,
   TargetConstraintValidationRequest,
+  TargetBindingFact,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import {
+  asNodeSubject,
+  getNodeField,
+  visitAstReaderNodes,
+} from "./ast-utils.js";
 import {
   csharpProviderDiagnostic,
 } from "./diagnostics.js";
@@ -21,6 +30,9 @@ import {
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
+import {
+  findTargetBinding,
+} from "./provider-bindings.js";
 import {
   csharpSourcePrimitiveDotnetMetadataName,
   getCsharpNullableElementTargetType,
@@ -55,6 +67,91 @@ export function validateCsharpTargetConstraint(
     return acceptObservation(true, validation.evidence);
   }
   return rejectCsharpTargetConstraint(request, context, validation.reason, validation.evidence);
+}
+
+export function validateCsharpTargetConstraintFactsBeforeFinalization(
+  lifecycleContext: Pick<ExtensionLifecycleContext, "extensionId" | "host" | "compiler">,
+  host: CsharpOperationsProviderHost,
+): void {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return;
+  }
+  const context = {
+    observation: ExtensionObservationPoint.validateTargetConstraint,
+    extensionId: lifecycleContext.extensionId,
+    host: lifecycleContext.host,
+    facts: lifecycleContext.host.facts,
+    factResolver: lifecycleContext.host.factResolver,
+    diagnostics: lifecycleContext.host.diagnostics,
+    compiler,
+  } satisfies ExtensionObservationContext<"target.validateConstraint">;
+  for (const sourceFile of compiler.getSourceFiles()) {
+    if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
+      continue;
+    }
+    visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
+      validateTypeReferenceConstraintsBeforeFinalization(node, context, host);
+    });
+  }
+}
+
+function validateTypeReferenceConstraintsBeforeFinalization(
+  node: Node,
+  context: ExtensionObservationContext<"target.validateConstraint">,
+  host: CsharpOperationsProviderHost,
+): void {
+  const ast = context.compiler?.ast;
+  if (ast === undefined || !ast.is.IsTypeReferenceNode(node)) {
+    return;
+  }
+  const typeName = asNodeSubject(getNodeField(node, "TypeName") ?? getNodeField(node, "typeName"));
+  const type = context.compiler?.checker.getTypeFromTypeNode(node);
+  const symbol = type === undefined ? undefined : context.compiler?.checker.getTypeSymbol(type);
+  const binding = getConstraintSourceBinding(findTargetBinding(context, [node, typeName, type, symbol]), host);
+  if (binding === undefined || binding.typeParameters === undefined || binding.typeParameters.length === 0) {
+    return;
+  }
+  validateTypeReferenceConstraintArguments(node, binding, context, host);
+}
+
+function getConstraintSourceBinding(
+  binding: TargetBindingFact | undefined,
+  host: CsharpOperationsProviderHost,
+): TargetBindingFact | undefined {
+  return binding === undefined
+    ? undefined
+    : host.getCsharpTargetBindingByTargetId(binding.id) ?? binding;
+}
+
+function validateTypeReferenceConstraintArguments(
+  node: Node,
+  binding: TargetBindingFact,
+  context: ExtensionObservationContext<"target.validateConstraint">,
+  host: CsharpOperationsProviderHost,
+): void {
+  const ast = context.compiler?.ast;
+  const sourceFile = ast?.getSourceFile(node);
+  const typeArguments = ast?.typeArguments(node) ?? [];
+  for (let parameterIndex = 0; parameterIndex < binding.typeParameters!.length; parameterIndex++) {
+    const parameter = binding.typeParameters![parameterIndex];
+    const argument = typeArguments[parameterIndex];
+    if (parameter === undefined || argument === undefined) {
+      continue;
+    }
+    const source = host.getTargetTypeRefForSubject(argument, context, {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: true,
+      ...(sourceFile === undefined ? {} : { sourceFile }),
+    });
+    for (const constraint of parameter.constraints ?? []) {
+      const validation = validateCsharpTargetConstraintForType(source, constraint, host, new Set());
+      if (validation.valid) {
+        continue;
+      }
+      appendTargetConstraintDiagnostic(argument, constraint, context, validation.reason, validation.evidence);
+    }
+  }
 }
 
 function validateCsharpTargetConstraintForType(
@@ -275,16 +372,40 @@ function rejectCsharpTargetConstraint(
   evidence: readonly ExtensionEvidence[],
 ): ExtensionObservation<boolean> {
   return rejectObservation({
+    ...targetConstraintDiagnostic(request.source, context, message, evidence),
+  });
+}
+
+function appendTargetConstraintDiagnostic(
+  source: TargetConstraintValidationRequest["source"],
+  constraint: TargetConstraint,
+  context: ExtensionObservationContext<"target.validateConstraint">,
+  message: string,
+  evidence: readonly ExtensionEvidence[],
+): void {
+  context.diagnostics.append(targetConstraintDiagnostic(source, context, message, [
+    ...evidence,
+    { message: "Finalized provider generic constraint", details: constraint },
+  ]));
+}
+
+function targetConstraintDiagnostic(
+  source: TargetConstraintValidationRequest["source"],
+  context: ExtensionObservationContext<"target.validateConstraint">,
+  message: string,
+  evidence: readonly ExtensionEvidence[],
+) {
+  return {
     ...csharpProviderDiagnostic(
       context.extensionId,
       "CSHARP_TARGET_CONSTRAINT_INVALID",
       9100145,
       message,
     ),
-    nodeOrSpan: request.source,
+    nodeOrSpan: source,
     evidence,
-    identity: `csharp-target-constraint:${subjectIdentity(request.source)}`,
-  });
+    identity: `csharp-target-constraint:${subjectIdentity(source)}`,
+  };
 }
 
 function subjectIdentity(subject: unknown): string {
