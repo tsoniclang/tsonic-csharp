@@ -22,6 +22,7 @@ import {
 import type {
   DotnetModuleModel,
   DotnetProviderIdentity,
+  DotnetUnsupportedExportDeclaration,
 } from "./model.js";
 import {
   augmentDotnetModuleWithNativeArray,
@@ -218,17 +219,12 @@ export function createDotnetTargetBindingProvider(options: DotnetBindingProvider
 function requestedUnsupportedExports(
   module: DotnetModuleModel,
   requestedExports: readonly string[] | undefined,
-): readonly Readonly<{ readonly sourceName: string; readonly reason: string }>[] {
+): readonly DotnetUnsupportedExportDeclaration[] {
   if (requestedExports === undefined || requestedExports.length === 0 || module.unsupportedExports === undefined) {
     return [];
   }
   const requested = new Set(requestedExports);
-  return module.unsupportedExports
-    .filter((declaration) => requested.has(declaration.sourceName))
-    .map((declaration) => ({
-      sourceName: declaration.sourceName,
-      reason: declaration.reason,
-    }));
+  return module.unsupportedExports.filter((declaration) => requested.has(declaration.sourceName));
 }
 
 function providerContext(

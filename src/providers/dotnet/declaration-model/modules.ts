@@ -35,7 +35,7 @@ export function dotnetModuleToProviderDeclarationModel(
         const providerExport = dotnetExportToProviderExport(declaration, context);
         return providerExport === undefined
           ? undefined
-          : qualifyProviderExportModuleRefs(providerExport, qualifiedModule.moduleSpecifier, context);
+          : qualifyProviderExportModuleRefs(providerExport, context);
       })
       .filter((declaration): declaration is ProviderExportDeclaration => declaration !== undefined),
     evidence: [{ message: ".NET provider declaration model generated from target provider data." }],

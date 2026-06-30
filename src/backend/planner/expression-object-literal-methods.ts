@@ -31,7 +31,8 @@ import {
 } from "./statements.js";
 import {
   isAsyncExpression,
-  isCsharpDelegateType,
+  csharpDelegateSignatureFromTargetTypeRef,
+  lambdaTargetContextFromTargetRef,
   planLambdaParameters,
 } from "./expression-lambdas.js";
 import {
@@ -57,11 +58,11 @@ export function planObjectShapeMethodMemberAssignment(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a renderable delegate target type before C# emission.`));
     return undefined;
   }
-  if (!isCsharpDelegateType(memberType)) {
+  if (csharpDelegateSignatureFromTargetTypeRef(member.type) === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a finalized delegate target type before C# emission.`));
     return undefined;
   }
-  const expression = planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType);
+  const expression = planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType, member.type);
   if (expression === undefined) {
     return undefined;
   }
@@ -78,6 +79,7 @@ function planObjectLiteralMethodAsLambda(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
+  expectedTargetType: Parameters<typeof csharpDelegateSignatureFromTargetTypeRef>[0],
 ): CsharpExpression | undefined {
   const method = AsMethodDeclaration(methodNode);
   void expectedType;
@@ -96,7 +98,7 @@ function planObjectLiteralMethodAsLambda(
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(methodNode) ? { async: true } : {}),
-    parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics),
+    parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, undefined, lambdaTargetContextFromTargetRef(expectedTargetType)),
     body: {
       kind: "Block",
       statements: planBlockStatements(method.Body, sourceFile, input, diagnostics),

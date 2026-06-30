@@ -10,14 +10,9 @@ import type {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
-
-export function isDelegateTypeNode(type: CsharpTypeNode): boolean {
-  if (type.kind === "NullableType") {
-    return isDelegateTypeNode(type.inner);
-  }
-  return type.kind === "IdentifierName" &&
-    (type.name === "Func" || type.name === "Action" || type.name === "Predicate");
-}
+import {
+  csharpDelegateSignatureFromTargetTypeRef,
+} from "../expression-lambdas.js";
 
 export function getCsharpCallableContextualType(
   node: Node,
@@ -27,7 +22,7 @@ export function getCsharpCallableContextualType(
   const csharpType = contextualTargetType === undefined
     ? undefined
     : csharpTypeFromTargetTypeRef(contextualTargetType);
-  return csharpType !== undefined && isDelegateTypeNode(csharpType)
+  return csharpType !== undefined && csharpDelegateSignatureFromTargetTypeRef(contextualTargetType) !== undefined
     ? csharpType
     : undefined;
 }

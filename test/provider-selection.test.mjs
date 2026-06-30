@@ -1536,6 +1536,96 @@ test("C# provider closes exact selected generic call signatures without sibling 
   assert.deepEqual(result.value.selectedSignature.member.returnType, argument);
 });
 
+test("C# provider keeps inferred generic method arguments after selected binding enrichment", () => {
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const receiver = { Kind: "KindIdentifier", Text: "referenceNew" };
+  const call = {};
+  const markedType = {
+    kind: "target-named",
+    id: "Acme.Constraints.Marked",
+    csharpRender: { kind: "named", namespace: ["Acme", "Constraints"], name: "Marked" },
+  };
+  const declaringOpenType = {
+    kind: "target-named",
+    id: "Acme.Constraints.ReferenceNewTarget`1",
+    typeArguments: [{ kind: "type-parameter", name: "T" }],
+    csharpRender: { kind: "named", namespace: ["Acme", "Constraints"], name: "ReferenceNewTarget" },
+  };
+  const declaringClosedType = {
+    ...declaringOpenType,
+    typeArguments: [markedType],
+  };
+  const genericMember = {
+    id: "Acme.Constraints.ReferenceNewTarget`1.Copy``1(TMethod)",
+    sourceName: "copy",
+    targetName: "Copy",
+    kind: "method",
+    declaringType: declaringOpenType,
+    typeParameters: [{ name: "TMethod" }],
+    parameters: [{
+      name: "value",
+      type: { kind: "type-parameter", name: "TMethod" },
+      passingMode: "by-value",
+    }],
+    returnType: csharpVoidType(),
+    overloadGroup: "Acme.Constraints.ReferenceNewTarget`1.Copy",
+  };
+  const binding = {
+    id: "Acme.Constraints.ReferenceNewTarget`1",
+    sourceName: "ReferenceNewTarget",
+    targetName: "ReferenceNewTarget",
+    target: "csharp",
+    kind: "class",
+    typeParameters: [{ name: "T" }],
+    csharpType: declaringOpenType,
+    members: [genericMember],
+  };
+  const provider = getNativeSemanticProvider({
+    bindings: [
+      binding,
+      {
+        id: markedType.id,
+        sourceName: "Marked",
+        targetName: "Marked",
+        target: "csharp",
+        kind: "class",
+        csharpType: markedType,
+      },
+    ],
+  });
+  const recordedFacts = [];
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: propertyAccessCallee(receiver, "copy"),
+    calleePropertyName: "copy",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [markedType],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember(genericMember.id, "copy", binding.id),
+      signatureId: genericMember.id,
+    },
+    typesByNode: new Map([[receiver, declaringClosedType]]),
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, genericMember.id);
+  assert.deepEqual(result.value.selectedSignature.member.parameters[0].type, markedType);
+  assert.equal(result.value.selectedSignature.member.returnType.id, "System.Void");
+
+  const operation = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(operation?.operationId, genericMember.id);
+  assert.deepEqual(operation?.selectedMember.parameters[0].type, markedType);
+});
+
 test("C# provider rejects exact selected generic signatures with contradictory target facts", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -1797,7 +1887,7 @@ test("C# provider maps calls from TSTS-selected callee symbol virtual declaratio
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
-test("C# provider may refine an exact source signature inside the same provider overload group", () => {
+test("C# provider rejects exact selected provider signature mismatches instead of refining to a sibling overload", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1845,8 +1935,8 @@ test("C# provider may refine an exact source signature inside the same provider 
     },
   }));
 
-  assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
 });
 
 test("C# provider accepts literal arguments for exact selected target signatures", () => {
@@ -1941,7 +2031,7 @@ test("C# provider does not search target members outside the selected provider o
     },
   }));
 
-  assert.equal(result.kind, "accept");
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 

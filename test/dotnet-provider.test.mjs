@@ -2100,6 +2100,10 @@ test(".NET reflection provider exposes delegates with source shells and target d
   assert.equal(targetBinding?.kind, "delegate");
   assert.equal(targetBinding?.csharpType.kind, "target-named");
   assert.equal(targetBinding?.csharpType.kind === "target-named" ? idEndsWith(targetBinding.csharpType.id, "System.Predicate`1") : false, true);
+  assert.deepEqual(targetBinding?.csharpType.csharpDelegateSignature, {
+    parameters: [{ kind: "type-parameter", name: "T" }],
+    returnType: { kind: "source-primitive", name: "bool" },
+  });
 });
 
 test(".NET reflection provider signature ids preserve byref modes and generic method arity", () => {
@@ -2413,6 +2417,7 @@ test(".NET reflection provider keeps requested unsupported source exports target
   assert.ok(binding);
   assert.equal(binding.kind, "delegate");
   assert.equal(binding.sourceName, "PointerDelegate");
+  assert.equal(binding.csharpType.csharpDelegateSignature, undefined);
 });
 
 test(".NET reflection provider records unsupported members instead of silently dropping them", () => {

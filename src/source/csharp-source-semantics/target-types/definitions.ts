@@ -25,6 +25,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpEnumerableElementType?: TargetTypeRef;
   readonly csharpReadOnlyIndexableElementType?: TargetTypeRef;
   readonly csharpDenseMutableElementType?: TargetTypeRef;
+  readonly csharpDelegateSignature?: CsharpDelegateSignatureShape;
 };
 
 export type CsharpNullableReferenceTargetTypeRef = TargetTypeRef & {

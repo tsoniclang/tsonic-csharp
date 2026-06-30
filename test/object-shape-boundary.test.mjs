@@ -537,6 +537,43 @@ test("object-shape object literals fail closed for generic methods", () => {
   assert.match(diagnostics[0].message, /Object literal generic methods require finalized target delegate facts/);
 });
 
+test("object-shape method object literals require delegate signature facts", () => {
+  const method = methodDeclaration(identifier("run"), {
+    parameters: [parameter(identifier("value"))],
+    body: block([]),
+  });
+  const literal = objectLiteral([method]);
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [{
+      sourceName: "run",
+      targetName: "Run",
+      memberKind: "method",
+      type: csharpTargetNamedType("Provider.CustomDelegate", undefined, { kind: "named", name: "CustomDelegate" }),
+    }],
+  };
+  const diagnostics = [];
+
+  const planned = planObjectLiteralExpressionWithExpectedType(
+    literal,
+    {},
+    fakeInput({ objectShapes: new Map([[literal, shape]]) }),
+    diagnostics,
+    { kind: "IdentifierName", name: "__Shape" },
+    undefined,
+    planExpression,
+    planExpectedExpression,
+  );
+
+  assert.equal(planned.assignments.length, 0);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /must carry a finalized delegate target type/);
+});
+
 test("record dictionary object literals lower through explicit nested Record carriers", () => {
   const sourceFile = {};
   const nestedLiteral = objectLiteral([

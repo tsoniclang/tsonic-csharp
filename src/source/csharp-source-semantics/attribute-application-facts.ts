@@ -14,6 +14,12 @@ import type {
   CsharpAttributeApplicationFact,
 } from "../csharp-facts.js";
 import {
+  csharpSourceSemanticsExtensionId,
+} from "./identity.js";
+import {
+  csharpProviderDiagnostic,
+} from "./diagnostics.js";
+import {
   asNodeSubject,
   getAstReaderChildNodes,
   getNodeField,
@@ -25,6 +31,10 @@ interface AttributeApplicationState {
   readonly applicationParameterName?: string;
   readonly applicationTargetSpecifier?: string;
 }
+
+type AttributeApplicationStateResult =
+  | { readonly kind: "ok"; readonly state: AttributeApplicationState }
+  | { readonly kind: "diagnostic"; readonly diagnostic: ReturnType<typeof csharpProviderDiagnostic> };
 
 export function recordCsharpAttributeApplicationFactsBeforeFinalization(
   lifecycleContext: ExtensionLifecycleContext,
@@ -81,6 +91,10 @@ function deriveAttributeApplicationFact(
   }
   const receiver = asNodeSubject(getNodeField(callee, "Expression"));
   const state = deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
+  if (state?.kind === "diagnostic") {
+    lifecycleContext.host.diagnostics.append(state.diagnostic);
+    return undefined;
+  }
   if (state === undefined) {
     return undefined;
   }
@@ -88,10 +102,10 @@ function deriveAttributeApplicationFact(
     attributeType: attribute.target,
     attributeName: attribute.attributeName,
     ...(attribute.arguments === undefined ? {} : { arguments: attribute.arguments }),
-    applicationTarget: state.applicationTarget,
-    ...(state.applicationPlacement === undefined ? {} : { applicationPlacement: state.applicationPlacement }),
-    ...(state.applicationParameterName === undefined ? {} : { applicationParameterName: state.applicationParameterName }),
-    ...(state.applicationTargetSpecifier === undefined ? {} : { applicationTargetSpecifier: state.applicationTargetSpecifier }),
+    applicationTarget: state.state.applicationTarget,
+    ...(state.state.applicationPlacement === undefined ? {} : { applicationPlacement: state.state.applicationPlacement }),
+    ...(state.state.applicationParameterName === undefined ? {} : { applicationParameterName: state.state.applicationParameterName }),
+    ...(state.state.applicationTargetSpecifier === undefined ? {} : { applicationTargetSpecifier: state.state.applicationTargetSpecifier }),
   };
 }
 
@@ -99,13 +113,13 @@ function deriveAttributeApplicationState(
   lifecycleContext: ExtensionLifecycleContext,
   expression: Node | undefined,
   attribute: AttributeFact,
-): AttributeApplicationState | undefined {
+): AttributeApplicationStateResult | undefined {
   if (expression === undefined) {
     return undefined;
   }
   const expressionAttribute = lifecycleContext.host.facts.get(expression, attributeFactKey);
   if (expressionAttribute !== undefined) {
-    return { applicationTarget: expressionAttribute.target };
+    return { kind: "ok", state: { applicationTarget: expressionAttribute.target } };
   }
   if (!lifecycleContext.compiler.ast.is.IsCallExpression(expression)) {
     return undefined;
@@ -121,49 +135,110 @@ function deriveAttributeApplicationState(
     case "method": {
       const selectorTarget = selectorApplicationTarget(lifecycleContext, expression);
       if (selectorTarget === undefined) {
-        return undefined;
+        return {
+          kind: "diagnostic",
+          diagnostic: attributeBuilderDiagnostic(
+            "SOURCE_SEMANTICS_ATTRIBUTE_SELECTOR_TARGET_NOT_PROVEN",
+            9100168,
+            `C# attribute ${methodName} selector must return a checked source member expression before the attribute can be emitted.`,
+            expression,
+          ),
+        };
       }
       return {
-        applicationTarget: selectorTarget,
-        applicationPlacement: "declaration",
+        kind: "ok",
+        state: {
+          applicationTarget: selectorTarget,
+          applicationPlacement: "declaration",
+        },
       };
     }
     case "constructor":
       {
         const previous = deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
-        if (previous === undefined) {
-          return undefined;
+        if (previous === undefined || previous.kind === "diagnostic") {
+          return previous;
         }
         return {
-          ...previous,
-          applicationPlacement: "constructor",
+          kind: "ok",
+          state: {
+            ...previous.state,
+            applicationPlacement: "constructor",
+          },
         };
       }
     case "parameter": {
       const previous = deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
+      if (previous === undefined || previous.kind === "diagnostic") {
+        return previous;
+      }
       const parameterName = stringArgument(lifecycleContext, expression, 0);
-      if (previous === undefined || parameterName === undefined) {
-        return undefined;
+      if (parameterName === undefined) {
+        return {
+          kind: "diagnostic",
+          diagnostic: attributeBuilderDiagnostic(
+            "SOURCE_SEMANTICS_ATTRIBUTE_PARAMETER_NAME_NOT_PROVEN",
+            9100169,
+            "C# attribute parameter selector must use a statically proven string-literal parameter name.",
+            expression,
+          ),
+        };
       }
       return {
-        ...previous,
-        applicationParameterName: parameterName,
+        kind: "ok",
+        state: {
+          ...previous.state,
+          applicationParameterName: parameterName,
+        },
       };
     }
     case "target": {
       const previous = deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
+      if (previous === undefined || previous.kind === "diagnostic") {
+        return previous;
+      }
       const targetSpecifier = stringArgument(lifecycleContext, expression, 0);
-      if (previous === undefined || targetSpecifier === undefined) {
-        return undefined;
+      if (targetSpecifier === undefined) {
+        return {
+          kind: "diagnostic",
+          diagnostic: attributeBuilderDiagnostic(
+            "SOURCE_SEMANTICS_ATTRIBUTE_TARGET_SPECIFIER_NOT_PROVEN",
+            9100170,
+            "C# attribute target selector must use a statically proven string-literal target specifier.",
+            expression,
+          ),
+        };
       }
       return {
-        ...previous,
-        applicationTargetSpecifier: targetSpecifier,
+        kind: "ok",
+        state: {
+          ...previous.state,
+          applicationTargetSpecifier: targetSpecifier,
+        },
       };
     }
     default:
       return deriveAttributeApplicationState(lifecycleContext, receiver, attribute);
   }
+}
+
+function attributeBuilderDiagnostic(
+  extensionCode: string,
+  numericCode: number,
+  message: string,
+  node: Node,
+): ReturnType<typeof csharpProviderDiagnostic> {
+  return {
+    ...csharpProviderDiagnostic(
+      csharpSourceSemanticsExtensionId,
+      extensionCode,
+      numericCode,
+      message,
+      [{ message: "C# attribute builder chain must be fully proven by finalized source-core facts before emission." }],
+    ),
+    nodeOrSpan: node,
+    identity: `${extensionCode}:${String((node as { readonly id?: unknown }).id ?? "unknown")}`,
+  };
 }
 
 function selectorApplicationTarget(
@@ -174,7 +249,10 @@ function selectorApplicationTarget(
   if (argument === undefined || !lifecycleContext.compiler.ast.is.IsArrowFunction(argument)) {
     return undefined;
   }
-  return asNodeSubject(getNodeField(argument, "Body"));
+  const body = asNodeSubject(getNodeField(argument, "Body"));
+  return body !== undefined && lifecycleContext.compiler.ast.is.IsPropertyAccessExpression(body)
+    ? body
+    : undefined;
 }
 
 function stringArgument(

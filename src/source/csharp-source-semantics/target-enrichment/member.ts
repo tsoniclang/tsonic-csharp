@@ -26,13 +26,14 @@ export function enrichCsharpTargetMember(
   options: {
     readonly declaringTargetType?: TargetTypeRef;
     readonly methodTargetTypeArguments?: readonly TargetTypeRef[];
+    readonly preserveSelectedMember?: boolean;
   } = {},
 ): CsharpTargetMember | undefined {
   const binding = member.declaringType?.kind === "target-named"
     ? host.getCsharpTargetBindingByTargetId(member.declaringType.id)
     : undefined;
   const bindingMember = getTargetBindingMemberById(csharpTargetBindingFact(binding), member.id);
-  const selectedMember = bindingMember ?? member;
+  const selectedMember = options.preserveSelectedMember === true ? member : bindingMember ?? member;
   const typeArgumentMap = createTargetTypeArgumentMap(selectedMember, csharpTargetBindingFact(binding), options);
   const substitutedMember = substituteTargetMemberTypeParameters(selectedMember, typeArgumentMap);
   const effectiveDeclaringType = substitutedMember.declaringType ?? options.declaringTargetType;

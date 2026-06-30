@@ -6,6 +6,7 @@ import type {
 } from "@tsonic/tsts";
 import type {
   CsharpTargetMember,
+  CsharpTargetParameter,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
   csharpTargetMemberFact,
@@ -211,11 +212,18 @@ function getSelectedMemberEmissionFactMismatch(expected: CsharpTargetMember, act
       return "parameter-type";
     }
     if (
-      actualParameter.passingMode !== expectedParameter.passingMode ||
-      actualParameter.optional !== expectedParameter.optional ||
-      actualParameter.paramsArray !== expectedParameter.paramsArray
+      actualParameter.passingMode !== expectedParameter.passingMode
     ) {
       return "parameter-passing";
+    }
+    if (actualParameter.optional !== expectedParameter.optional) {
+      return "parameter-optional";
+    }
+    if (actualParameter.paramsArray !== expectedParameter.paramsArray) {
+      return "parameter-params";
+    }
+    if (!targetParameterMetadataEquals(actualParameter, expectedParameter)) {
+      return "parameter-default";
     }
   }
   return undefined;
@@ -226,4 +234,36 @@ function optionalTargetTypeRefEquals(left: TargetTypeRef | undefined, right: Tar
     return left === right;
   }
   return targetTypeRefEquals(left, right);
+}
+
+function targetParameterMetadataEquals(left: CsharpTargetParameter, right: CsharpTargetParameter): boolean {
+  return left.csharpOmittableOptionalArgument === right.csharpOmittableOptionalArgument &&
+    targetMetadataValueEquals(left.defaultValue, right.defaultValue) &&
+    targetMetadataValueEquals(left.unsupportedDefaultValue, right.unsupportedDefaultValue);
+}
+
+function targetMetadataValueEquals(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((item, index) => targetMetadataValueEquals(item, right[index]));
+  }
+  if (!isPlainRecord(left) || !isPlainRecord(right)) {
+    return false;
+  }
+  const leftKeys = Object.keys(left).sort();
+  const rightKeys = Object.keys(right).sort();
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key, index) => {
+      const rightKey = rightKeys[index];
+      return key === rightKey && targetMetadataValueEquals(left[key], right[rightKey]);
+    });
+}
+
+function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

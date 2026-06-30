@@ -79,10 +79,7 @@ function dotnetBaseSourceMembers(
   }
   const baseMembers = (dotnetTypeSourceMembers(baseDeclaration, context) ?? [])
     .filter((member) => member.static !== true);
-  const baseModuleSpecifier = baseType.moduleSpecifier;
-  const inheritedMembers = baseModuleSpecifier === context.moduleSpecifier
-    ? baseMembers
-    : baseMembers.map((member) => qualifyProviderMemberModuleRefs(member, baseModuleSpecifier, context));
+  const inheritedMembers = baseMembers.map((member) => qualifyProviderMemberModuleRefs(member, context));
   const substitutions = getBaseTypeParameterSubstitutions(baseDeclaration, baseType);
   return substitutions.size === 0
     ? inheritedMembers

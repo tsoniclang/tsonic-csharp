@@ -22,6 +22,7 @@ export function instantiateSelectedTargetMember(
   return enrichCsharpTargetMember(selectedSignature.member, host, {
     declaringTargetType: options.declaringTargetType,
     methodTargetTypeArguments: selectedSignature.targetTypeArguments ?? [],
+    preserveSelectedMember: true,
   });
 }
 

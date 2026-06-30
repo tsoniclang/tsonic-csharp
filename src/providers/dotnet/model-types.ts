@@ -41,7 +41,7 @@ export interface DotnetUnsupportedTypeFamilyExportDeclaration {
   readonly kind: "unsupported-type-family";
   readonly sourceName: string;
   readonly reason: string;
-  readonly targetIds?: readonly string[];
+  readonly targetIds: readonly string[];
   readonly metadataNames: readonly string[];
   readonly assemblies?: readonly DotnetAssemblyReference[];
 }
