@@ -20,7 +20,7 @@ test("executable output plans a Roslyn AST entrypoint that invokes module initia
   });
   const diagnostics = [];
   validateSourceFileOutputIdentities(input, diagnostics);
-  const moduleInitialization = planCsharpModuleInitialization(input);
+  const moduleInitialization = planCsharpModuleInitialization(input, diagnostics);
   const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics, moduleInitialization);
 
   assert.deepEqual(diagnostics, []);
@@ -69,7 +69,7 @@ test("library output does not synthesize executable entrypoint AST or artifacts"
   const input = fakeInput();
   const diagnostics = [];
   validateSourceFileOutputIdentities(input, diagnostics);
-  const moduleInitialization = planCsharpModuleInitialization(input);
+  const moduleInitialization = planCsharpModuleInitialization(input, diagnostics);
   const plannedSource = planSourceFile(input.sourceFiles[0], input, diagnostics, moduleInitialization);
   assert.deepEqual(diagnostics, []);
   assert.ok(plannedSource);
@@ -81,25 +81,52 @@ test("library output does not synthesize executable entrypoint AST or artifacts"
   assert.equal(result.artifacts.some((artifact) => artifact.kind === "source"), true);
 });
 
+test("runtime module dependency cycles diagnose before C# module initialization planning", () => {
+  const a = sourceFile("/project/a.ts");
+  const b = sourceFile("/project/b.ts");
+  const diagnostics = [];
+  const input = fakeInput({
+    outputType: "Exe",
+    entryPoint: "a.ts",
+    sourceFiles: [a, b],
+    moduleDependencies: new Map([
+      [a.FileName, [b]],
+      [b.FileName, [a]],
+    ]),
+  });
+
+  planCsharpModuleInitialization(input, diagnostics);
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "CSHARP_UNSUPPORTED_RUNTIME_MODULE_CYCLE");
+  assert.match(diagnostics[0].message, /a\.ts -> b\.ts -> a\.ts|b\.ts -> a\.ts -> b\.ts/u);
+  assert.deepEqual(diagnostics[0].evidence, [
+    "TSTS selected a runtime project-source import/export dependency cycle.",
+    "C# emission must fail closed rather than reading uninitialized default target values.",
+    "Implement provider-backed ESM live bindings/TDZ facts before enabling cyclic runtime module graphs.",
+  ]);
+});
+
 function fakeInput(options = {}) {
+  const sourceFiles = options.sourceFiles ?? [sourceFile()];
   const target = { id: "csharp", options };
   return {
-    project: { entryPoint: "index.ts", targets: [target] },
+    project: { entryPoint: options.entryPoint ?? "index.ts", targets: [target] },
     target,
     runtimeReferences: [],
-    sourceFiles: [sourceFile()],
+    sourceFiles,
     paths: { projectRoot: "/project" },
     ast: fakeAst,
     facts: fakeFacts,
-    analysis: fakeSemantics,
+    analysis: fakeSemantics(options.moduleDependencies),
     targetFacts: fakeTargetFacts,
     types: fakeTypes,
   };
 }
 
-function sourceFile() {
+function sourceFile(fileName = "/project/index.ts") {
   return {
-    FileName: "/project/index.ts",
+    FileName: fileName,
     IsDeclarationFile: false,
     Statements: {
       Nodes: [{
@@ -167,18 +194,26 @@ const fakeFacts = {
   getFact: () => undefined,
 };
 
-const fakeSemantics = {
-  getProjectSourceReferenceForNode: () => undefined,
-  getProjectSourceDeclarationForNode: () => undefined,
-  getProjectSourceModuleDependencies: () => [],
-  getObjectShapeForNode: () => undefined,
-  getResolvedSymbol: () => undefined,
-  getSymbolAtLocation: () => undefined,
-  getTypeAtLocation: () => undefined,
-  getTypeFromTypeNode: () => undefined,
-  describeTypeAtLocation: () => undefined,
-  getEnumMemberConstant: () => undefined,
-};
+function fakeSemantics(moduleDependencies = new Map()) {
+  return {
+    getProjectSourceReferenceForNode: () => undefined,
+    getProjectSourceDeclarationForNode: () => undefined,
+    getProjectSourceModuleDependencies: (sourceFile) =>
+      (moduleDependencies.get(sourceFile.FileName) ?? []).map((dependency) => ({
+        sourceFile: dependency,
+        declaration: {},
+        moduleSpecifier: {},
+        kind: "import",
+      })),
+    getObjectShapeForNode: () => undefined,
+    getResolvedSymbol: () => undefined,
+    getSymbolAtLocation: () => undefined,
+    getTypeAtLocation: () => undefined,
+    getTypeFromTypeNode: () => undefined,
+    describeTypeAtLocation: () => undefined,
+    getEnumMemberConstant: () => undefined,
+  };
+}
 
 const fakeTargetFacts = {
   getTargetBinding: () => undefined,

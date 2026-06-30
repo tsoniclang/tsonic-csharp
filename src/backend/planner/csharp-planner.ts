@@ -25,7 +25,13 @@ export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningRe
     };
   }
   const plannedSources: PlannedCsharpSourceFile[] = [];
-  const moduleInitialization = planCsharpModuleInitialization(input);
+  const moduleInitialization = planCsharpModuleInitialization(input, diagnostics);
+  if (diagnostics.length > 0) {
+    return {
+      artifacts: [],
+      diagnostics,
+    };
+  }
   for (const sourceFile of input.sourceFiles) {
     const plannedSource = planSourceFile(sourceFile, input, diagnostics, moduleInitialization);
     if (plannedSource !== undefined) {
