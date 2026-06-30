@@ -33,6 +33,7 @@ import type {
 } from "./target-member-selection.js";
 import {
   asType,
+  targetTypeRefContainsSourcePrimitive,
 } from "./target-ref-utils.js";
 import {
   csharpSourcePrimitiveTargetType,
@@ -53,6 +54,9 @@ import {
 import {
   getCsharpRecordDictionaryTargetType,
 } from "./dictionaries.js";
+import {
+  typeSyntaxContainsSourcePrimitiveEvidence,
+} from "./source-primitive-evidence.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -98,7 +102,9 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
   }
   const aliasedType = getTargetTypeRefFromTypeAliasDeclarations(candidateSubjects, node, context, options, host, resolver);
   if (aliasedType !== undefined) {
-    return aliasedType;
+    return typeSyntaxContainsSourcePrimitiveEvidence(node, context, ast.getSourceFile(node)) && !targetTypeRefContainsSourcePrimitive(aliasedType)
+      ? undefined
+      : aliasedType;
   }
   const binding = resolveTargetBindingFact(context, node) ??
     resolveTargetBindingFact(context, typeName) ??

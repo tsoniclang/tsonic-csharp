@@ -13,7 +13,6 @@ import type {
   CsharpTypeNode,
 } from "../../roslyn/syntax.js";
 import {
-  getCsharpTypeFromRuntimeCarrier,
   getCsharpTypeFromSourcePrimitiveTypeReference,
 } from "../csharp-type-facts.js";
 import {
@@ -21,11 +20,23 @@ import {
   getCsharpTypeFromArrayOrTupleTypeNode,
 } from "./array-types.js";
 import {
+  invalidCsharpType,
+} from "../csharp-type-primitives.js";
+import {
   getCsharpTypeFromKeywordTypeNode,
 } from "./predefined-types.js";
 import {
   getCsharpTypeFromTargetBindingForReference,
 } from "./provider-types.js";
+import {
+  getTargetTypeRefForNode,
+} from "../runtime-carriers.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../target-types.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../diagnostics.js";
 import {
   getCsharpTypeFromProjectSourceTypeReferenceNode,
 } from "../project-source-types.js";
@@ -38,6 +49,10 @@ import {
 import type {
   CsharpTypeResolver,
 } from "./types.js";
+import {
+  describeSourcePrimitiveEvidence,
+  targetTypePreservesSourcePrimitiveEvidence,
+} from "../source-primitive-evidence.js";
 
 export function getCsharpTypeFromExplicitTypeSyntax(
   node: Node,
@@ -77,9 +92,22 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   if (typeAlias !== undefined) {
     return typeAlias;
   }
-  const directType = getCsharpTypeFromRuntimeCarrier(node, input);
-  if (directType !== undefined) {
-    return directType;
+  const directTargetType = getTargetTypeRefForNode(input, node, sourceFile);
+  if (directTargetType !== undefined) {
+    if (!targetTypePreservesSourcePrimitiveEvidence(input, node, sourceFile, directTargetType)) {
+      diagnostics?.push({
+        ...unsupportedNodeDiagnostic(
+          node,
+          "C# type emission requires transformed source-core primitive type syntax to preserve explicit target primitive evidence; backend must not collapse source-core primitives to TypeScript primitive fallbacks.",
+        ),
+        evidence: describeSourcePrimitiveEvidence(input, node, sourceFile),
+      });
+      return invalidCsharpType("source primitive type transform");
+    }
+    const directType = csharpTypeFromTargetTypeRef(directTargetType);
+    if (directType !== undefined) {
+      return directType;
+    }
   }
   return getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
 }
