@@ -237,8 +237,7 @@ export function mapCsharpCheckedCall(
     ));
   }
   const declaringTargetType = member.kind === "constructor" ? constructorDeclaringTargetType ?? member.declaringType : host.getTargetTypeRefForSubject(requestContext.calleeReceiverType, context) ??
-    host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context) ??
-    host.getTargetTypeRefForSubject(request.call, context);
+    host.getTargetTypeRefForSubject(requestContext.calleeReceiver, context);
   if (member.kind === "constructor" && declaringTargetType === undefined) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_CONSTRUCTOR_RESULT_TYPE_NOT_PROVEN", 9100135, `C# provider selected constructor '${member.id}', but no provider target type fact proved the constructed target type.`));
   }
@@ -265,7 +264,7 @@ function acceptSourceOwnedCheckedCall(
   if (declaration === undefined) {
     return undefined;
   }
-  const returnType = host.getTargetTypeRefForSubject(request.call, context);
+  const returnType = getSourceOwnedCallReturnType(request, context, host);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: csharpSourceOwnedSelectedSignatureFact({
       ...(request.sourceSelectedSignature === undefined ? {} : { sourceSignature: request.sourceSelectedSignature }),
@@ -273,6 +272,23 @@ function acceptSourceOwnedCheckedCall(
       ...(returnType === undefined ? {} : { returnType }),
     }),
   }, [{ message: "C# target observed a TSTS-selected project source call; backend emission remains source-owned and target facts are not inferred from source spelling." }]);
+}
+
+function getSourceOwnedCallReturnType(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
+  const directReturnType = host.getTargetTypeRefForSubject(request.sourceReturnType, context);
+  if (directReturnType !== undefined) {
+    return directReturnType;
+  }
+  const checker = context.compiler?.checker;
+  if (checker === undefined || request.sourceSelectedSignature === undefined || host.getTargetTypeRefForType === undefined) {
+    return undefined;
+  }
+  const sourceReturnType = checker.getReturnTypeOfSignature(request.sourceSelectedSignature as Signature);
+  return host.getTargetTypeRefForType(sourceReturnType, context);
 }
 
 function getSourceOwnedCallDeclaration(
@@ -400,17 +416,22 @@ function rejectUnmappedExternalCall(
     return undefined;
   }
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
+  const callNode = asNodeSubject(request.call);
+  const isConstruction = callNode !== undefined && compiler.ast.is.IsNewExpression(callNode);
   return rejectObservation(csharpProviderDiagnostic(
     extensionId,
     "CSHARP_EXTERNAL_CALL_NOT_MAPPED",
     9100161,
-    `C# target requires selected target facts for external TypeScript declaration call '${requestContext.calleePropertyName ?? "<anonymous>"}'.`,
+    isConstruction
+      ? `C# target requires selected target facts for external TypeScript declaration call '${requestContext.calleePropertyName ?? "<anonymous>"}'; C# construction emission requires a source-owned constructor or a selected target constructor fact.`
+      : `C# target requires selected target facts for external TypeScript declaration call '${requestContext.calleePropertyName ?? "<anonymous>"}'.`,
     [
       {
         message: "Missing selected target mapping",
         details: {
           sourceDeclarationFile: compiler.ast.getFileName(declarationSourceFile),
           calleePropertyName: requestContext.calleePropertyName,
+          operation: isConstruction ? "construct" : "call",
         },
       },
     ],

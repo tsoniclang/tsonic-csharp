@@ -29,8 +29,8 @@ export function planObjectLiteralExpressionWithExpectedType(
   planExpression: ExpressionPlanner,
   planExpressionWithExpectedType: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
-  const objectShape = getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input) ??
-    getExpectedObjectShapeFact(node, sourceFile, input);
+  const objectShape = getExpectedObjectShapeFact(node, sourceFile, input) ??
+    getExpectedObjectShapeFact(expectedTypeSubject, sourceFile, input);
   if (objectShape !== undefined) {
     return planObjectLiteralExpressionWithObjectShape(node, sourceFile, input, diagnostics, objectShape, planExpression, planExpressionWithExpectedType);
   }

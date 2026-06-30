@@ -11,6 +11,9 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpLocalDeclaration, CsharpStatement } from "../roslyn/syntax.js";
 import { getCsharpTypeForNode } from "./csharp-types.js";
 import {
+  getTargetTypeRefForNode,
+} from "./runtime-carriers.js";
+import {
   getCsharpTypeFromSemanticType,
 } from "./csharp-semantic-types.js";
 import { planExpressionWithExpectedType } from "./expressions.js";
@@ -33,11 +36,13 @@ export function planLocalDeclaration(
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
   const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, input) ?? variable.name ?? variable.Initializer;
+  const expectedTargetType = getTargetTypeRefForNode(input, typeSubject, sourceFile) ??
+    getTargetTypeRefForNode(input, variable.name, sourceFile);
   const explicitType = variable.Type === undefined
     ? undefined
     : getCsharpTypeForNode(variable.Type, sourceFile, input, undefined, diagnostics);
   const inferredLambdaType = variable.Initializer !== undefined
-    ? getLambdaTargetContext(variable.Initializer, sourceFile, input, explicitType)?.type
+    ? getLambdaTargetContext(variable.Initializer, sourceFile, input, explicitType, expectedTargetType)?.type
     : undefined;
   const constAssertionType = variable.Type === undefined && variable.Initializer !== undefined
     ? getConstAssertionInitializerType(variable.Initializer, sourceFile, input)
@@ -52,7 +57,7 @@ export function planLocalDeclaration(
     name,
     type,
     ...(variable.Initializer !== undefined
-      ? { initializer: planExpressionWithExpectedType(variable.Initializer, sourceFile, input, diagnostics, type, variable.Type ?? variable.name, state) }
+      ? { initializer: planExpressionWithExpectedType(variable.Initializer, sourceFile, input, diagnostics, type, variable.Type ?? variable.name, state, expectedTargetType) }
       : {}),
   };
 }

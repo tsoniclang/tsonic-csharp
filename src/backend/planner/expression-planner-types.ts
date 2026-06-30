@@ -33,4 +33,5 @@ export type ExpectedExpressionPlanner = (
   diagnostics: TargetDiagnostic[],
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
+  expectedTargetType?: TargetTypeRef,
 ) => PlannedExpression;

@@ -18,6 +18,7 @@ import type {
   TargetMember,
   TargetSemanticProvider,
   TargetTypeRef,
+  Type,
 } from "@tsonic/tsts";
 import type { CsharpObjectShapeFact } from "../csharp-facts.js";
 import { csharpProviderDiagnostic } from "./diagnostics.js";
@@ -95,6 +96,11 @@ export interface CsharpOperationsProviderHost {
   readonly getCsharpTargetBindingByMetadataName: (metadataName: string) => TargetBindingFact | undefined;
   readonly getTargetTypeRefForSubject: (
     subject: ExtensionFactSubject | undefined,
+    context: ExtensionObservationContext,
+    options?: TargetTypeRefResolutionOptions,
+  ) => TargetTypeRef | undefined;
+  readonly getTargetTypeRefForType?: (
+    type: Type | undefined,
     context: ExtensionObservationContext,
     options?: TargetTypeRefResolutionOptions,
   ) => TargetTypeRef | undefined;

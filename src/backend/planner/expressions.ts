@@ -126,8 +126,8 @@ function planExpressionCore(
       return planArrayLiteralExpressionFromFacts(node, sourceFile, input, diagnostics, {
         planExpression: (element, elementSourceFile, elementInput, elementDiagnostics) =>
           planExpression(element, elementSourceFile, elementInput, elementDiagnostics, state),
-        planExpressionWithExpectedType: (element, elementSourceFile, elementInput, elementDiagnostics, expectedType) =>
-          planExpressionWithExpectedType(element, elementSourceFile, elementInput, elementDiagnostics, expectedType, undefined, state),
+        planExpressionWithExpectedType: (element, elementSourceFile, elementInput, elementDiagnostics, expectedType, expectedTypeSubject, expectedTargetType) =>
+          planExpressionWithExpectedType(element, elementSourceFile, elementInput, elementDiagnostics, expectedType, expectedTypeSubject, state, expectedTargetType),
       });
     }
     case KindObjectLiteralExpression:
@@ -210,13 +210,14 @@ export function planExpressionWithExpectedType(
   expectedType: CsharpTypeNode,
   expectedTypeSubject?: Node,
   state?: DestructuringPlannerState,
+  expectedTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
   const expression = planExpressionWithExpectedTypeCore(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, {
     planExpression: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
       planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
-    planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject) =>
-      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, state),
-  });
+    planExpressionWithExpectedType: (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, nestedExpectedTargetType) =>
+      planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, nestedExpectedType, nestedExpectedTypeSubject, state, nestedExpectedTargetType),
+  }, expectedTargetType);
   const kind = SourceKind(input.ast, node);
   return kind === KindAsExpression || kind === KindTypeAssertionExpression
     ? applyTargetConversionFact(node, input, diagnostics, expression)

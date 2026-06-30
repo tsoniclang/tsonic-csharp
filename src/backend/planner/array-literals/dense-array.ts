@@ -7,6 +7,7 @@ import {
 import type {
   Node,
   SourceFile,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   TargetCompileInput,
@@ -51,6 +52,7 @@ export function planArrayLiteralExpression(
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
+  elementTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
   const literal = AsArrayLiteralExpression(node)!;
   if (arrayLiteralHasElision(node, input)) {
@@ -60,7 +62,7 @@ export function planArrayLiteralExpression(
     return planArraySpreadLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner);
   }
   const elements = plannedArrayElements(literal.Elements?.Nodes ?? [], sourceFile, input, diagnostics, (element, elementSourceFile, elementInput, elementDiagnostics) =>
-    planner.planExpressionWithExpectedType(element, elementSourceFile, elementInput, elementDiagnostics, elementType));
+    planner.planExpressionWithExpectedType(element, elementSourceFile, elementInput, elementDiagnostics, elementType, undefined, elementTargetType));
   if (elements === undefined) {
     return undefined;
   }

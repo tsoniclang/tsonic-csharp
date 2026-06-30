@@ -39,6 +39,9 @@ export type JsSurfacePropertyTargetProvider =
     readonly membersBySourceIdentity: ReadonlyMap<SourceLibraryMemberKey, readonly TargetMember[]>;
   }
   | {
+    readonly kind: "array-metadata";
+  }
+  | {
     readonly kind: "collection-metadata";
   }
   | {
@@ -49,6 +52,7 @@ export type JsSurfacePropertyTargetProvider =
 export interface JsSurfacePropertyTargetProviderRequest {
   readonly selectedIdentity: JsSurfaceSelectedSourceIdentity;
   readonly receiverType?: TargetTypeRef;
+  readonly host?: CsharpJsSurfaceHost;
 }
 
 export interface JsSurfacePropertyReceiverFacts {
@@ -62,7 +66,11 @@ export type JsSurfacePropertyReceiverRequirement =
   | { readonly kind: "array-like" }
   | { readonly kind: "host"; readonly predicate: JsSurfacePropertyHostReceiverPredicate }
   | { readonly kind: "target-type-id"; readonly id: string }
-  | { readonly kind: "target-feature"; readonly feature: "read-only-indexable" };
+  | { readonly kind: "target-feature"; readonly feature: JsSurfacePropertyTargetFeature };
+
+export type JsSurfacePropertyTargetFeature =
+  | "number"
+  | "read-only-indexable";
 
 export type JsSurfacePropertyHostReceiverPredicate =
   | keyof Pick<CsharpJsSurfaceHost, "isCsharpStringType">
@@ -77,4 +85,5 @@ export interface JsSurfaceReceiverPropertyMember {
 export type JsSurfaceReceiverPropertySelector =
   | { readonly kind: "target-array" }
   | { readonly kind: "target-id"; readonly id: string }
-  | { readonly kind: "target-feature"; readonly feature: "read-only-indexable" };
+  | { readonly kind: "target-feature"; readonly feature: JsSurfacePropertyTargetFeature }
+  | { readonly kind: "host"; readonly predicate: JsSurfacePropertyHostReceiverPredicate };

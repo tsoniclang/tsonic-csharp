@@ -84,7 +84,7 @@ export function planArrayLiteralExpressionWithCarrier(
   if (carrier?.kind === "array") {
     const elementType = csharpTypeFromTargetTypeRef(carrier.element);
     if (elementType !== undefined) {
-      return planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner);
+      return planArrayLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner, carrier.element);
     }
     diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires a renderable provider element carrier type before C# emission."));
     return undefined;

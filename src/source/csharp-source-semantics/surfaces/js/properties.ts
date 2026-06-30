@@ -254,7 +254,7 @@ function mapCsharpSourceLibraryPropertyOperation(
   if (!sourceLibraryPropertyReceiverHasClosedFacts(receiverType, selectedIdentity, host)) {
     return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }
-  const member = getSourceLibraryPropertyMember(selectedIdentity, receiverType);
+  const member = getSourceLibraryPropertyMember(selectedIdentity, receiverType, host);
   if (member === undefined) {
     return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
   }
@@ -319,8 +319,12 @@ function getSourceLibraryPropertyReceiverType(
   );
 }
 
-function getSourceLibraryPropertyMember(selectedIdentity: JsSurfaceSelectedSourceIdentity, receiverType: ReturnType<typeof getSourceLibraryPropertyReceiverType>): TargetMember | undefined {
-  return getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(selectedIdentity, receiverType);
+function getSourceLibraryPropertyMember(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  receiverType: ReturnType<typeof getSourceLibraryPropertyReceiverType>,
+  host: CsharpJsSurfaceHost,
+): TargetMember | undefined {
+  return getCsharpJsSourceLibraryPropertyMemberForSelectedIdentity(selectedIdentity, receiverType, host);
 }
 
 function sourceLibrarySelectedDeclarationHasCallTarget(

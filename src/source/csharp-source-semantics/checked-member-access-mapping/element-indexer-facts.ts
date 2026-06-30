@@ -7,7 +7,9 @@ import type {
   CheckedElementAccessMappingRequest,
   CheckedOperationMappingResult,
   CheckedPropertyAccessMappingRequest,
+  ExtensionFactSubject,
   ExtensionObservation,
+  Type,
 } from "@tsonic/tsts";
 import {
   csharpTargetOperationFactKey,
@@ -63,6 +65,7 @@ import {
   rejectNativeArrayPropertyNotSupported,
   rejectNonIntegralNativeArrayIndex,
   rejectNonIntegralSourceArrayIndex,
+  rejectSourceIndexerResultTypeNotProven,
   rejectTupleElementCarrierMissing,
   rejectTupleElementIndexNotProven,
 } from "./diagnostics.js";
@@ -276,22 +279,60 @@ export function mapCsharpSourceTupleCheckedElementAccess(
 export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: CheckedElementAccessContext,
+  extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
+  const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);
+  if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
+    return undefined;
+  }
   if (
     requestContext.sourceSelectedDeclaration === undefined ||
     selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)
   ) {
-    return undefined;
-  }
-  const receiverType = getSourceReceiverTargetType(requestContext.receiverType, request.receiver, context, host);
-  if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
-    return undefined;
+    const indexSignature = getSingleSourceIndexSignature(requestContext.receiverType, context);
+    if (indexSignature === undefined || selectedDeclarationIsAmbientOrExternal(indexSignature.declaration, context)) {
+      return undefined;
+    }
+    const resultType = host.getTargetTypeRefForType?.(indexSignature.valueType, context);
+    if (resultType === undefined) {
+      return rejectSourceIndexerResultTypeNotProven(extensionId);
+    }
+    const operationId = "tsonic.csharp.source.indexer";
+    recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "indexer", "Item", {
+      resultType,
+    }), [{ message: "C# source-owned indexer operation recorded from checked TSTS source index-signature facts." }]);
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(operationId, "indexer", "Item", {
+        resultType,
+      }),
+    }, [{ message: "C# source-owned element access selected from checked TSTS source index-signature facts." }]);
   }
   const operationId = "tsonic.csharp.source.indexer";
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "indexer", "Item"), [{ message: "C# source-owned indexer operation recorded from checked TSTS source declaration receiver facts." }]);
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation(operationId, "indexer", "Item"),
   }, [{ message: "C# source-owned element access selected from checked TSTS source declaration receiver facts." }]);
+}
+
+function getSingleSourceIndexSignature(
+  receiverType: ExtensionFactSubject | undefined,
+  context: CheckedElementAccessContext,
+): { readonly declaration: ExtensionFactSubject; readonly valueType: Type } | undefined {
+  const compiler = context.compiler;
+  if (compiler === undefined || receiverType === undefined) {
+    return undefined;
+  }
+  const indexInfos = compiler.typeShape.getIndexInfos(receiverType as Parameters<typeof compiler.typeShape.getIndexInfos>[0]);
+  if (indexInfos.length !== 1) {
+    return undefined;
+  }
+  const indexInfo = indexInfos[0]!;
+  return indexInfo.declaration === undefined || indexInfo.valueType === undefined
+    ? undefined
+    : {
+        declaration: indexInfo.declaration,
+        valueType: indexInfo.valueType,
+      };
 }

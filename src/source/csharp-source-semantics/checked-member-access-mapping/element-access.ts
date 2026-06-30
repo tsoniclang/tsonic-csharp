@@ -86,7 +86,7 @@ export function mapCsharpCheckedElementAccess(
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ??
       mapCsharpSourceArrayCheckedElementAccess(request, context, extensionId, host) ??
       mapCsharpSourceTupleCheckedElementAccess(request, context, extensionId, host) ??
-      mapCsharpSourceDeclaredReceiverCheckedElementAccess(request, context, host) ??
+      mapCsharpSourceDeclaredReceiverCheckedElementAccess(request, context, extensionId, host) ??
       rejectElementAccessNotMapped(extensionId);
   }
   if (binding.id === dotnetNativeArrayTypeId) {

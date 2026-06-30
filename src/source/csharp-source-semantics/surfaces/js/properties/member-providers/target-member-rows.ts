@@ -5,6 +5,9 @@ import {
   csharpJsArrayCarrierId,
 } from "../../array-target-type.js";
 import {
+  booleanTargetMembersForSelectedIdentity,
+} from "../../booleans.js";
+import {
   csharpJsMapCollectionPolicy,
 } from "../../collection-target-metadata/map-metadata.js";
 import {
@@ -24,6 +27,7 @@ import {
 } from "../../math.js";
 import {
   numberPropertyTargetMemberIdentityIndex,
+  numberTargetMembersForSelectedIdentity,
 } from "../../numbers.js";
 import {
   objectTargetMemberIdentityIndex,
@@ -39,7 +43,15 @@ import type {
 } from "../../source-library.js";
 import type {
   JsSurfaceSourceIdentitySelector,
+  JsSurfaceSelectedSourceIdentity,
 } from "../../target-member-metadata.js";
+import {
+  arrayCallableIdentityPolicy,
+  objectToStringIdentityPolicy,
+} from "../../calls/member-providers/identities.js";
+import {
+  stringTargetMembersForSelectedIdentity,
+} from "../../strings.js";
 import type {
   JsSurfacePropertyPrecheck,
   JsSurfacePropertyReceiverFacts,
@@ -105,6 +117,11 @@ const arrayLengthReceiverFacts = {
   requirement: { kind: "array-like" },
 } as const satisfies JsSurfacePropertyReceiverFacts;
 
+const arrayCallableReceiverFacts = {
+  seedRequired: true,
+  requirement: { kind: "array-like" },
+} as const satisfies JsSurfacePropertyReceiverFacts;
+
 const mapSizeReceiverFacts = {
   seedRequired: true,
   requirement: { kind: "target-type-id", id: csharpJsMapCollectionPolicy.target.id },
@@ -119,6 +136,12 @@ const arrayLengthReceiverMembers: readonly JsSurfaceReceiverPropertyMember[] = [
   receiverPropertyMember({ kind: "target-array" }, arrayLengthTargetMember("Length")),
   receiverPropertyMember({ kind: "target-id", id: csharpJsArrayCarrierId }, arrayLengthTargetMember("length")),
   receiverPropertyMember({ kind: "target-feature", feature: "read-only-indexable" }, arrayLengthTargetMember("Count")),
+];
+
+const objectPrimitiveToStringReceiverMembers: readonly JsSurfaceReceiverPropertyMember[] = [
+  ...receiverMembersForSelectedIdentity({ key: "String.toString" }, { kind: "host", predicate: "isCsharpStringType" }, stringTargetMembersForSelectedIdentity),
+  ...receiverMembersForSelectedIdentity({ key: "Boolean.toString" }, { kind: "host", predicate: "isCsharpBooleanTargetType" }, booleanTargetMembersForSelectedIdentity),
+  ...receiverMembersForSelectedIdentity({ key: "Number.toString" }, { kind: "target-feature", feature: "number" }, numberTargetMembersForSelectedIdentity),
 ];
 
 export const jsSurfacePropertyRows: readonly JsSurfacePropertyRow[] = [
@@ -137,6 +160,10 @@ export const jsSurfacePropertyRows: readonly JsSurfacePropertyRow[] = [
   propertyRowFromCollectionMetadata({ ids: setSizePropertyIdentities }, setSizeReceiverFacts),
   propertyRowFromReceiverMetadata({ ids: arrayLengthPropertyIdentities }, arrayLengthReceiverMembers, arrayLengthReceiverFacts, {
     deferredResultType: int32PropertyReturnType,
+  }),
+  propertyRowFromArrayMetadata(arrayCallableIdentityPolicy, arrayCallableReceiverFacts, "surface.js.array-methods"),
+  propertyRowFromReceiverMetadata(objectToStringIdentityPolicy, objectPrimitiveToStringReceiverMembers, alwaysReceiverFacts, {
+    callableValue: true,
   }),
 ];
 
@@ -170,13 +197,29 @@ function propertyRowFromReceiverMetadata(
   identity: JsSurfaceSourceIdentitySelector,
   members: readonly JsSurfaceReceiverPropertyMember[],
   receiverFacts: JsSurfacePropertyReceiverFacts,
-  options: { readonly deferredResultType?: TargetMember["returnType"] } = {},
+  options: { readonly deferredResultType?: TargetMember["returnType"]; readonly callableValue?: boolean } = {},
 ): JsSurfacePropertyRow {
   return {
     identity,
     receiverFacts,
+    ...(options.callableValue === true ? { callableValue: true } : {}),
     targetProviders: [receiverMemberProvider(members)],
     ...(options.deferredResultType !== undefined ? { deferredResultType: options.deferredResultType } : {}),
+  };
+}
+
+function propertyRowFromArrayMetadata(
+  identity: JsSurfaceSourceIdentitySelector,
+  receiverFacts: JsSurfacePropertyReceiverFacts,
+  capabilityId: string,
+): JsSurfacePropertyRow {
+  return {
+    identity,
+    callableValue: true,
+    receiverFacts,
+    targetProviders: [arrayMetadataProvider()],
+    capabilityId,
+    requiredFacts: selectedPropertyFacts,
   };
 }
 
@@ -219,6 +262,12 @@ function collectionMetadataProvider(): JsSurfacePropertyTargetProvider {
   };
 }
 
+function arrayMetadataProvider(): JsSurfacePropertyTargetProvider {
+  return {
+    kind: "array-metadata",
+  };
+}
+
 function receiverMemberProvider(
   members: readonly JsSurfaceReceiverPropertyMember[],
 ): JsSurfacePropertyTargetProvider {
@@ -236,6 +285,14 @@ function receiverPropertyMember(
     receiver,
     member,
   };
+}
+
+function receiverMembersForSelectedIdentity(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  receiver: JsSurfaceReceiverPropertySelector,
+  selectMembers: (identity: JsSurfaceSelectedSourceIdentity) => readonly TargetMember[],
+): readonly JsSurfaceReceiverPropertyMember[] {
+  return selectMembers(selectedIdentity).map((member) => receiverPropertyMember(receiver, member));
 }
 
 function arrayLengthTargetMember(targetName: string): TargetMember {

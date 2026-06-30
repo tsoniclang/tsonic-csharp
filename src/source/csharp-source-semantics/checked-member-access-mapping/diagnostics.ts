@@ -158,3 +158,9 @@ export function rejectTupleElementCarrierMissing(
 ): ExtensionObservation<CheckedOperationMappingResult> {
   return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TUPLE_ELEMENT_CARRIER_MISSING", 9100147, `C# source tuple element access index ${index} requires a finalized tuple element carrier fact.`));
 }
+
+export function rejectSourceIndexerResultTypeNotProven(
+  extensionId: string,
+): ExtensionObservation<CheckedOperationMappingResult> {
+  return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_SOURCE_INDEXER_RESULT_TYPE_NOT_PROVEN", 9100148, "C# source-owned index signature element access requires a TSTS-proven index result target carrier before emission."));
+}

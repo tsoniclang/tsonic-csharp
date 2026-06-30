@@ -182,14 +182,14 @@ export function getLambdaTargetContext(
     return expectedTargetContext;
   }
   void expectedType;
+  const explicitSignatureContext = getExplicitLambdaSignatureTarget(node, sourceFile, input);
+  if (explicitSignatureContext !== undefined) {
+    return explicitSignatureContext;
+  }
   const contextualTarget = getContextualTargetRef(node, sourceFile, input);
   const contextualTargetContext = lambdaTargetContextFromTargetRef(contextualTarget);
   if (contextualTargetContext !== undefined) {
     return contextualTargetContext;
-  }
-  const explicitSignatureContext = getExplicitLambdaSignatureTarget(node, sourceFile, input);
-  if (explicitSignatureContext !== undefined) {
-    return explicitSignatureContext;
   }
   return undefined;
 }
