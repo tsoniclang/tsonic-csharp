@@ -1231,7 +1231,7 @@ test("C# provider maps calls from the exact selected signature identity before d
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
-test("C# provider maps constructors from exact selected signature identity", () => {
+test("C# provider refines selected constructor signatures within the proven overload group", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1277,7 +1277,7 @@ test("C# provider maps constructors from exact selected signature identity", () 
   }));
 
   assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
-  assert.equal(result.value.selectedSignature.member.id, "Example.Target..ctor(System.Int64)");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target..ctor(System.Int32)");
   const operationFact = recordedFacts.find((fact) => fact.subject === call && fact.key === csharpTargetOperationFactKey)?.value;
   assert.equal(operationFact?.operationKind, "constructor");
   assert.deepEqual(operationFact?.resultType, {
@@ -1477,7 +1477,7 @@ test("C# provider rejects constructor byref parameters without source marker fac
   assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
-test("C# provider closes exact selected generic call signatures without sibling overload search", () => {
+test("C# provider prefers selected generic signatures when target argument facts tie", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1734,7 +1734,7 @@ test("C# provider resolves overloaded member selections from provider member ide
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
 });
 
-test("C# provider honors exact selected call signature identity over sibling argument matches", () => {
+test("C# provider refines selected call signatures within the proven overload group", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1783,7 +1783,7 @@ test("C# provider honors exact selected call signature identity over sibling arg
   }));
 
   assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int64)");
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
 test("C# provider selects within a proven overload group from target argument facts", () => {
@@ -1887,7 +1887,7 @@ test("C# provider maps calls from TSTS-selected callee symbol virtual declaratio
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
-test("C# provider rejects exact selected provider signature mismatches instead of refining to a sibling overload", () => {
+test("C# provider uses target argument facts after selected signature proves an overload group", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
@@ -1901,6 +1901,58 @@ test("C# provider rejects exact selected provider signature mismatches instead o
     members: [
       method("Example.Target.m(System.Byte)", { kind: "source-primitive", name: "uint8" }),
       method("Example.Target.m(System.Int32)", { kind: "source-primitive", name: "int32" }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+      signatureId: "Example.Target.m(System.Byte)",
+    },
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+});
+
+test("C# provider does not refine selected signatures outside the proven overload group", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = {};
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Byte)", { kind: "source-primitive", name: "uint8" }),
+      method("Example.Target.other(System.Int32)", { kind: "source-primitive", name: "int32" }, { sourceName: "m", overloadGroup: "Example.Target.other" }),
     ],
   };
 
@@ -2523,7 +2575,7 @@ test("C# provider does not infer unsupported identity from metadata-name-only ma
   assert.doesNotMatch(result.diagnostic.message, /Property type cannot be represented/u);
 });
 
-test("C# provider honors exact selected indexer signature identity over sibling argument matches", () => {
+test("C# provider refines selected indexer signatures within the proven overload group", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const receiverType = {};
@@ -2566,7 +2618,7 @@ test("C# provider honors exact selected indexer signature identity over sibling 
   }));
 
   assert.equal(result.kind, "accept");
-  assert.equal(result.value.operation.operationId, "Example.Target.Item(System.Int64)");
+  assert.equal(result.value.operation.operationId, "Example.Target.Item(System.Int32)");
 });
 
 test("C# provider maps selected string indexers from provider signature identity", () => {

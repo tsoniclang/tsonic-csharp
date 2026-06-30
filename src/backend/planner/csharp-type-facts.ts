@@ -35,6 +35,7 @@ import {
   asNodeSubject,
 } from "../../source/fact-subjects.js";
 import {
+  getAstReaderChildNodes,
   getNodeField,
   getNodeList,
 } from "../../source/csharp-source-semantics/ast-utils.js";
@@ -173,7 +174,7 @@ function getUnionTypeConstituents(node: Node, input: TargetCompileInput): readon
     ...getNodeList(getNodeField(node, "types")),
   ];
   return direct.length === 0
-    ? input.ast.children(node).map(asNodeSubject).filter((child): child is Node => child !== undefined)
+    ? getAstReaderChildNodes(input.ast, node).map(asNodeSubject).filter((child): child is Node => child !== undefined)
     : direct;
 }
 

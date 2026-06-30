@@ -55,6 +55,7 @@ import {
   validateCsharpObservedAssignabilityFactsBeforeFinalization,
 } from "./checked-assignability-validation/index.js";
 import {
+  diagnoseSourceCompatRuntimeHardRejectsBeforeFinalization,
   diagnoseOpaqueAnyOperationsBeforeFinalization,
 } from "./opaque-any-diagnostics.js";
 import {
@@ -109,6 +110,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         runBeforeFinalizedStage("target-name-facts", () => recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext));
         runBeforeFinalizedStage("source-declaration-facts", () => recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
         runBeforeFinalizedStage("attribute-application-facts", () => recordCsharpAttributeApplicationFactsBeforeFinalization(lifecycleContext));
+        runBeforeFinalizedStage("source-compat-runtime-hard-rejects", () => diagnoseSourceCompatRuntimeHardRejectsBeforeFinalization(lifecycleContext));
         if (jsSurfaceSelected) {
           runBeforeFinalizedStage("js-surface-seed-facts", () => recordCsharpJsSurfaceSeedFactsBeforeFinalization(lifecycleContext, hosts));
         }

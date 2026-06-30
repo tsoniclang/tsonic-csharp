@@ -1,6 +1,5 @@
 import {
   runtimeCarrierFactKey,
-  targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
   CheckedOperatorMappingRequest,
@@ -18,10 +17,13 @@ import {
 } from "../target-types.js";
 import {
   csharpTargetTokenOperatorOperation,
+  recordTargetOperationFact,
   targetOperation,
 } from "../operations.js";
 import {
   getCsharpOperatorTargetOperation,
+  isCsharpIncrementDecrementTargetTypeRef,
+  isCsharpIncrementOrDecrementOperator,
   isCsharpBitwiseOperator,
   isIntegralTargetTypeRef,
   isSourceEnumTargetTypeRef,
@@ -34,6 +36,7 @@ import {
 } from "../target-member-selection.js";
 import {
   getBinaryOperatorText,
+  getPostfixUnaryOperatorText,
   getPrefixUnaryOperatorText,
 } from "../operator-syntax.js";
 import {
@@ -222,10 +225,15 @@ function getNestedCheckedOperatorTargetTypeRef(
   const prefixUnaryExpression = ast.is.IsPrefixUnaryExpression(node)
     ? ast.as.AsPrefixUnaryExpression(node)
     : undefined;
+  const postfixUnaryExpression = ast.is.IsPostfixUnaryExpression(node)
+    ? ast.as.AsPostfixUnaryExpression(node)
+    : undefined;
   const operator = binaryExpression !== undefined
     ? getBinaryOperatorText(ast, node)
     : prefixUnaryExpression !== undefined
       ? getPrefixUnaryOperatorText(ast, node)
+      : postfixUnaryExpression !== undefined
+        ? getPostfixUnaryOperatorText(ast, node)
       : undefined;
   const targetOperator = operator === undefined
     ? undefined
@@ -235,7 +243,7 @@ function getNestedCheckedOperatorTargetTypeRef(
   }
   const leftSubject = binaryExpression !== undefined
     ? asNodeSubject(binaryExpression.Left)
-    : asNodeSubject(prefixUnaryExpression?.Operand);
+    : asNodeSubject(prefixUnaryExpression?.Operand ?? postfixUnaryExpression?.Operand);
   const rightSubject = binaryExpression !== undefined
     ? asNodeSubject(binaryExpression.Right)
     : undefined;
@@ -268,6 +276,9 @@ function getNestedCheckedOperatorTargetTypeRef(
   if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
     return undefined;
   }
+  if (isCsharpIncrementOrDecrementOperator(operator) && !isCsharpIncrementDecrementTargetTypeRef(left)) {
+    return undefined;
+  }
   if (operatorRequiresSelectedProviderIdentity(operator, left, right, host)) {
     return undefined;
   }
@@ -279,7 +290,7 @@ function getNestedCheckedOperatorTargetTypeRef(
     targetOperator,
     { resultType },
   );
-  context.facts.set(node, targetOperationFactKey, operation, [{ message: "C# nested checked operator fact finalized during checked-operator mapping from deterministic operand facts." }]);
+  recordTargetOperationFact(context, node, operation, [{ message: "C# nested checked operator fact finalized during checked-operator mapping from deterministic operand facts." }]);
   context.facts.set(node, csharpTargetOperationFactKey, csharpTargetTokenOperatorOperation(operationId, targetOperator, resultType), [{ message: "C# nested checked operator token fact finalized during checked-operator mapping from deterministic operand facts." }]);
   void options;
   return resultType;

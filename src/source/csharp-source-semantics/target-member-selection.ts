@@ -16,7 +16,6 @@ import {
 import {
   selectExactTargetMember,
   selectTargetMember,
-  selectProviderSelectedTargetMember,
 } from "./target-member-arguments/index.js";
 import type {
   TargetMemberSelectionOptions,
@@ -57,10 +56,13 @@ export function findTargetMemberForCall(
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
+    const candidates = selectedMember === undefined
+      ? []
+      : getTargetMemberCandidatesForSelectedMember(csharpBinding?.members ?? [], selectedMember);
     return selectedMember === undefined
       ? undefined
-      : selectProviderSelectedTargetMember(
-          selectedMember,
+      : selectTargetMember(
+          candidates,
           {
             arguments: request.arguments,
             receiver: requestContext.calleeReceiver,
@@ -68,7 +70,7 @@ export function findTargetMemberForCall(
           },
           context,
           resolveTargetTypeRef,
-          options,
+          { ...options, preferredMemberId: selectedMember.id },
         );
   }
   const candidates = getTargetMemberCandidates(csharpBinding, declaration);
@@ -109,16 +111,19 @@ export function findTargetMemberForElementAccess(
   const csharpBinding = csharpTargetBindingFact(binding);
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
+    const candidates = selectedMember === undefined
+      ? []
+      : getTargetMemberCandidatesForSelectedMember(csharpBinding?.members ?? [], selectedMember);
     return selectedMember === undefined
       ? undefined
-      : selectProviderSelectedTargetMember(
-          selectedMember,
+      : selectTargetMember(
+          candidates,
           {
             arguments: [request.argument],
           },
           context,
           resolveTargetTypeRef,
-          options,
+          { ...options, preferredMemberId: selectedMember.id },
         );
   }
   if (declaration === undefined) {

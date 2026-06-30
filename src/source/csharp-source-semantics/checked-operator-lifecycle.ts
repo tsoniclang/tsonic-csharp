@@ -17,12 +17,15 @@ import {
 } from "./ast-utils.js";
 import {
   getBinaryOperatorText,
+  getPostfixUnaryOperatorText,
   getPrefixUnaryOperatorText,
 } from "./operator-syntax.js";
 import {
   csharpTargetTypeofRuntimeOperation,
   csharpTargetTokenOperatorOperation,
+  recordTargetOperationFact,
   targetOperation,
+  targetOperationFactsAreStructurallyIdentical,
 } from "./operations.js";
 import {
   CsharpTargetOperationFact,
@@ -30,6 +33,8 @@ import {
 } from "../csharp-facts.js";
 import {
   getCsharpOperatorTargetOperation,
+  isCsharpIncrementDecrementTargetTypeRef,
+  isCsharpIncrementOrDecrementOperator,
   isCsharpBitwiseOperator,
   isIntegralTargetTypeRef,
   isSourceEnumTargetTypeRef,
@@ -95,11 +100,14 @@ export function recordCsharpCheckedOperatorFactsBeforeFinalization(
         }
         const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
         if (operation !== undefined) {
+          const targetOperationWrite = recordTargetOperationFact(lifecycleContext.host, node, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
+          if (targetOperationWrite === "conflict" || targetOperationWrite === "sealed" || targetOperationWrite === "invalid-subject") {
+            continue;
+          }
           if (existingTargetOperation === undefined) {
-            lifecycleContext.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic target operand facts." }]);
             lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic target operand facts." }]);
             progressed = true;
-          } else if (existingCsharpOperation === undefined && existingTargetOperation.operationId === operation.operation.operationId) {
+          } else if (existingCsharpOperation === undefined && targetOperationFactsAreStructurallyIdentical(existingTargetOperation, operation.operation)) {
             lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from existing checked TSTS/provider operator fact." }]);
             progressed = true;
           }
@@ -128,10 +136,15 @@ function getCsharpCheckedOperatorFactsFromSyntax(
   const prefixUnaryExpression = ast.is.IsPrefixUnaryExpression(node)
     ? ast.as.AsPrefixUnaryExpression(node)
     : undefined;
+  const postfixUnaryExpression = ast.is.IsPostfixUnaryExpression(node)
+    ? ast.as.AsPostfixUnaryExpression(node)
+    : undefined;
   const operator = binaryExpression !== undefined
     ? getBinaryOperatorText(ast, node)
     : prefixUnaryExpression !== undefined
       ? getPrefixUnaryOperatorText(ast, node)
+      : postfixUnaryExpression !== undefined
+        ? getPostfixUnaryOperatorText(ast, node)
       : undefined;
   const targetOperator = operator === undefined ? undefined : getCsharpOperatorTargetOperation(operator);
   if (operator === undefined || targetOperator === undefined) {
@@ -139,7 +152,7 @@ function getCsharpCheckedOperatorFactsFromSyntax(
   }
   const leftSubject = binaryExpression !== undefined
     ? asNodeSubject(binaryExpression.Left)
-    : asNodeSubject(prefixUnaryExpression?.Operand);
+    : asNodeSubject(prefixUnaryExpression?.Operand ?? postfixUnaryExpression?.Operand);
   const rightSubject = binaryExpression !== undefined
     ? asNodeSubject(binaryExpression.Right)
     : undefined;
@@ -171,6 +184,9 @@ function getCsharpCheckedOperatorFactsFromSyntax(
     return undefined;
   }
   if (isCsharpBitwiseOperator(operator) && !isIntegralTargetTypeRef(left) && !isSourceEnumTargetTypeRef(left)) {
+    return undefined;
+  }
+  if (isCsharpIncrementOrDecrementOperator(operator) && !isCsharpIncrementDecrementTargetTypeRef(left)) {
     return undefined;
   }
   if (operatorRequiresSelectedProviderIdentity(operator, left, right, host)) {
@@ -241,11 +257,12 @@ function getTargetTypeRefForCheckedOperand(
   if (
     node !== undefined &&
     (context.compiler?.ast.is.IsBinaryExpression(node) === true ||
-      context.compiler?.ast.is.IsPrefixUnaryExpression(node) === true)
+      context.compiler?.ast.is.IsPrefixUnaryExpression(node) === true ||
+      context.compiler?.ast.is.IsPostfixUnaryExpression(node) === true)
   ) {
     const operation = getCsharpCheckedOperatorFactsFromSyntax(node, context, host);
     if (operation !== undefined) {
-      context.host.facts.set(node, targetOperationFactKey, operation.operation, [{ message: "C# checked operator fact finalized from deterministic nested target operand facts." }]);
+      recordTargetOperationFact(context.host, node, operation.operation, [{ message: "C# checked operator fact finalized from deterministic nested target operand facts." }]);
       context.host.facts.set(node, csharpTargetOperationFactKey, operation.csharpOperation, [{ message: "C# checked operator token operation finalized from deterministic nested target operand facts." }]);
       return operation.csharpOperation.resultType;
     }
