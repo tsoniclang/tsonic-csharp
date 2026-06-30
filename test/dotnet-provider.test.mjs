@@ -2141,6 +2141,20 @@ test(".NET reflection provider signature ids preserve byref modes and generic me
   ]);
   assert.deepEqual(genericSignatures.map((signature) => signature.typeParameters?.length ?? 0), [0, 1, 2]);
 
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "SignatureTarget");
+  assert.ok(sourceTarget);
+  const sourceM = sourceTarget.members.find((member) => member.name === "m");
+  assert.ok(sourceM);
+  assert.deepEqual(sourceM.signatures.map((signature) => stripAssemblyQualifiers(signature.id)), [
+    "ProviderSignatureFixtures.SignatureTarget.M(System.Int32)",
+    "ProviderSignatureFixtures.SignatureTarget.M(ref System.Int32)",
+  ]);
+  assert.deepEqual(sourceM.signatures.map((signature) => signature.parameters[0].passingMode), [
+    undefined,
+    "byref-readwrite",
+  ]);
+
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderSignatureFixtures.js", "ProviderSignatureFixtures.SignatureTarget");
   assert.ok(binding.members.some((member) => idEndsWith(member.id, "ProviderSignatureFixtures.SignatureTarget.M(ref System.Int32)")));
   assert.ok(binding.members.some((member) => idEndsWith(member.id, "ProviderSignatureFixtures.SignatureTarget.Generic``2()")));

@@ -74,6 +74,7 @@ function providerSignatureShapeKey(signature: ProviderSignatureDeclaration): str
       defaultType: parameter.defaultType === undefined ? undefined : providerTypeExpressionSourceShapeKey(parameter.defaultType),
     })),
     parameters: signature.parameters.map((parameter) => ({
+      passingMode: parameter.passingMode,
       optional: parameter.optional,
       rest: parameter.rest,
       type: providerTypeExpressionSourceShapeKey(parameter.type),
@@ -122,6 +123,7 @@ function providerTypeExpressionSourceShapeKey(type: import("@tsonic/tsts").Provi
           defaultType: parameter.defaultType === undefined ? undefined : providerTypeExpressionSourceShapeKey(parameter.defaultType),
         })),
         parameters: type.parameters.map((parameter) => ({
+          passingMode: parameter.passingMode,
           optional: parameter.optional,
           rest: parameter.rest,
           type: providerTypeExpressionSourceShapeKey(parameter.type),
