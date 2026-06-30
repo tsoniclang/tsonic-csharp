@@ -54,10 +54,6 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
   if (!ownership.sourceOwned) {
     return undefined;
   }
-  const annotatedReturnType = getCsharpTypeFromSourceCallReturnAnnotation(node, call, sourceFile, input, resolveCsharpType, diagnostics);
-  if (annotatedReturnType !== undefined) {
-    return annotatedReturnType;
-  }
   const carrierResolution = input.targetFacts.resolveCallReturnRuntimeCarrier(node, { sourceFile });
   const carrier = probeCarrierFromResolution(carrierResolution);
   if (carrier !== undefined) {
@@ -67,6 +63,10 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
       return invalidCsharpType("source call return carrier");
     }
     return csharpType;
+  }
+  const annotatedReturnType = getCsharpTypeFromSourceCallReturnAnnotation(node, call, sourceFile, input, resolveCsharpType, diagnostics);
+  if (annotatedReturnType !== undefined && input.ast.typeArguments(node).length > 0) {
+    return annotatedReturnType;
   }
   const detail = missingCarrierDiagnosticDetail(carrierResolution, "Source-owned call return carrier fact is missing.");
   diagnostics?.push(unsupportedNodeDiagnostic(

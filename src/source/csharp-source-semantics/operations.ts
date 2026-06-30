@@ -113,6 +113,7 @@ export function csharpTargetMemberOperation(
   options: {
     readonly static?: boolean;
     readonly declaringType?: TargetTypeRef;
+    readonly sourceDeclaringType?: ExtensionFactSubject;
     readonly resultType?: TargetTypeRef;
     readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
     readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];
@@ -126,6 +127,7 @@ export function csharpTargetMemberOperation(
     memberName,
     ...(options.static === true ? { static: true } : {}),
     ...(options.declaringType !== undefined ? { declaringType: options.declaringType } : {}),
+    ...(options.sourceDeclaringType !== undefined ? { sourceDeclaringType: options.sourceDeclaringType } : {}),
     ...(options.resultType !== undefined ? { resultType: options.resultType } : {}),
     ...(options.argumentProjection !== undefined ? { argumentProjection: options.argumentProjection } : {}),
     ...(options.argumentArrayLiteralElementTypes !== undefined ? { argumentArrayLiteralElementTypes: options.argumentArrayLiteralElementTypes } : {}),
