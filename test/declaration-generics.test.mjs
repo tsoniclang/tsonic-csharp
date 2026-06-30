@@ -231,6 +231,9 @@ function fakeInput(sourceFile, options) {
       typeArguments: (candidate) => candidate?.TypeArguments?.Nodes ?? [],
       typeParameters: (candidate) => candidate?.TypeParameters?.Nodes ?? [],
       parameters: (candidate) => candidate?.Parameters?.Nodes ?? [],
+      heritageElements: (candidate, kind) => heritageElements(candidate, kind),
+      extendsHeritageElements: (candidate) => heritageElements(candidate, "extends"),
+      implementsHeritageElements: (candidate) => heritageElements(candidate, "implements"),
       parent: () => undefined,
       getSourceFile: () => sourceFile,
       forEachChild(candidate, visit) {
@@ -297,6 +300,14 @@ function fakeInput(sourceFile, options) {
     },
     types: emptyTypeQueries(),
   };
+}
+
+function heritageElements(candidate, kind) {
+  const tokenKind = kind === "extends" ? KindExtendsKeyword : KindImplementsKeyword;
+  return (candidate?.HeritageClauses?.Nodes ?? [])
+    .filter((clause) => clause?.Token === tokenValue(tokenKind))
+    .flatMap((clause) => clause.Types?.Nodes ?? [])
+    .filter(Boolean);
 }
 
 function children(candidate) {

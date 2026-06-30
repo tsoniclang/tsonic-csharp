@@ -2,14 +2,11 @@ import {
   AsClassDeclaration,
   AsExpressionWithTypeArguments,
   AsFunctionDeclaration,
-  AsHeritageClause,
   AsInterfaceDeclaration,
   AsPropertySignatureDeclaration,
-  KindImplementsKeyword,
   KindInterfaceDeclaration,
   KindPropertySignature,
   SourceKind,
-  SourceTokenKind,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -44,8 +41,8 @@ export function planClassDeclaration(
   const declaration = AsClassDeclaration(node)!;
   diagnoseTypeScriptOnlyRuntimeShapeModifiers(node, "class declaration", diagnostics);
   const className = planIdentifierName(declaration.name, "AnonymousClass", input, diagnostics, "Class name");
-  const heritage = planClassHeritage(declaration.HeritageClauses?.Nodes ?? [], sourceFile, input, diagnostics);
-  const autoPropertyNames = getImplementedInterfacePropertyNames(declaration.HeritageClauses?.Nodes ?? [], sourceFile, input);
+  const heritage = planClassHeritage(node, sourceFile, input, diagnostics);
+  const autoPropertyNames = getImplementedInterfacePropertyNames(node, sourceFile, input);
   return {
     kind: "ClassDeclaration",
     name: className,
@@ -59,37 +56,30 @@ export function planClassDeclaration(
 }
 
 function getImplementedInterfacePropertyNames(
-  heritageClauses: readonly (Node | undefined)[],
+  classDeclaration: Node,
   sourceFile: SourceFile,
   input: TargetCompileInput,
 ): ReadonlySet<string> {
   const names = new Set<string>();
-  for (const clause of heritageClauses) {
-    const heritageClause = AsHeritageClause(clause);
-    if (heritageClause === undefined || SourceTokenKind(input.ast, heritageClause.Token) !== KindImplementsKeyword) {
+  for (const heritageType of input.ast.implementsHeritageElements(classDeclaration)) {
+    const referenceNode = AsExpressionWithTypeArguments(heritageType)?.Expression ?? heritageType;
+    const declaration = input.analysis.getProjectSourceReferenceForNode(referenceNode, { sourceFile })?.declaration ??
+      input.analysis.getProjectSourceDeclarationForNode(referenceNode, { sourceFile });
+    if (SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
       continue;
     }
-    const types = heritageClause.Types?.Nodes ?? [];
-    for (const heritageType of types) {
-      const referenceNode = AsExpressionWithTypeArguments(heritageType)?.Expression ?? heritageType;
-      const declaration = input.analysis.getProjectSourceReferenceForNode(referenceNode, { sourceFile })?.declaration ??
-        input.analysis.getProjectSourceDeclarationForNode(referenceNode, { sourceFile });
-      if (SourceKind(input.ast, declaration) !== KindInterfaceDeclaration) {
+    const interfaceDeclaration = AsInterfaceDeclaration(declaration);
+    if (interfaceDeclaration === undefined) {
+      continue;
+    }
+    for (const member of interfaceDeclaration.Members?.Nodes ?? []) {
+      if (SourceKind(input.ast, member) !== KindPropertySignature) {
         continue;
       }
-      const interfaceDeclaration = AsInterfaceDeclaration(declaration);
-      if (interfaceDeclaration === undefined) {
-        continue;
-      }
-      for (const member of interfaceDeclaration.Members?.Nodes ?? []) {
-        if (SourceKind(input.ast, member) !== KindPropertySignature) {
-          continue;
-        }
-        const property = AsPropertySignatureDeclaration(member);
-        const name = property?.name === undefined ? undefined : planIdentifierName(property.name, "PropertyDeclaration", input, [], "Interface property name");
-        if (name !== undefined) {
-          names.add(name);
-        }
+      const property = AsPropertySignatureDeclaration(member);
+      const name = property?.name === undefined ? undefined : planIdentifierName(property.name, "PropertyDeclaration", input, [], "Interface property name");
+      if (name !== undefined) {
+        names.add(name);
       }
     }
   }
