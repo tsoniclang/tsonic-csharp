@@ -1062,10 +1062,62 @@ test("C# source semantics rejects unsupported local barrels for C# lang aliases"
   const extensionHost = session.finalizeExtensions();
   assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode), [
     "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
+    "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
   ]);
   const calls = collectCallsByCalleeText(sourceFile, session.ast, "out");
   assert.equal(calls.length, 1);
   assert.equal(extensionHost.facts.get(calls[0], argumentPassingFactKey), undefined);
+});
+
+test("C# source semantics rejects renamed and namespace local barrels for C# lang aliases", () => {
+  const sourceText = `
+    import { writeOut, CsharpLang } from "./barrel.js";
+    import type { Pointer, Callback } from "./barrel.js";
+
+    let value!: number;
+    writeOut(value);
+    CsharpLang.out(value);
+    type ValuePointer = Pointer<number>;
+    type ValueCallback = Callback<[number], number>;
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/barrel.ts", [
+        "export { out as writeOut } from '@tsonic/csharp/lang.js';",
+        "export type { ptr as Pointer, fnptr as Callback } from '@tsonic/csharp/lang.js';",
+        "export * as CsharpLang from '@tsonic/csharp/lang.js';",
+      ].join("\n")],
+      ["/src/node_modules/@tsonic/csharp/package.json", packageJson("@tsonic/csharp", {
+        "./lang.js": "./lang.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  session.ensureChecked(sourceFile);
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode), [
+    "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
+    "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
+    "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
+  ]);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "writeOut")[0], argumentPassingFactKey), undefined);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeExpressionText(sourceFile, session.ast, "CsharpLang.out")[0], argumentPassingFactKey), undefined);
+  assert.equal(extensionHost.facts.get(collectTypeReferencesByText(sourceFile, session.ast, "Pointer")[0], pointerFactKey), undefined);
+  assert.equal(extensionHost.facts.get(collectTypeReferencesByText(sourceFile, session.ast, "Callback")[0], functionPointerFactKey), undefined);
 });
 
 test("C# source semantics rejects unsupported type-only barrels for C# type aliases", () => {
@@ -1150,18 +1202,34 @@ test("source-semantics rejects attribute builder chains with unproven declaratio
 
 test("C# target rejects neutral borrow and move markers instead of silently erasing them", () => {
   const sourceText = `
-    import { borrow, borrowMut, move } from "@tsonic/core/lang.js";
+    import { borrow, borrowMut, move, borrow as sharedBorrow, borrowMut as mutableBorrow, move as movedValue } from "@tsonic/core/lang.js";
+    import * as CoreLang from "@tsonic/core/lang.js";
     import type { int32 } from "@tsonic/core/types.js";
+    import { borrow as localBorrow, borrowMut as localBorrowMut, move as localMove } from "./local.js";
 
     let value!: int32;
     borrow(value);
     borrowMut(value);
     move(value);
+    sharedBorrow(value);
+    mutableBorrow(value);
+    movedValue(value);
+    CoreLang.borrow(value);
+    CoreLang.borrowMut(value);
+    CoreLang.move(value);
+    localBorrow(value);
+    localBorrowMut(value);
+    localMove(value);
   `;
   const session = createCompilerSessionFromFiles({
     currentDirectory: "/src",
     files: new Map([
       ["/src/index.ts", sourceText],
+      ["/src/local.ts", [
+        "export function borrow<T>(value: T): T { return value; }",
+        "export function borrowMut<T>(value: T): T { return value; }",
+        "export function move<T>(value: T): T { return value; }",
+      ].join("\n")],
       ["/src/node_modules/@tsonic/core/package.json", packageJson("@tsonic/core", {
         "./lang.js": "./lang.js",
         "./types.js": "./types.js",
@@ -1185,16 +1253,31 @@ test("C# target rejects neutral borrow and move markers instead of silently eras
   assert.equal(formatDiagnostics(diagnostics), "");
 
   const extensionHost = session.finalizeExtensions();
-  const flowStates = ["borrow", "borrowMut", "move"].map((callee) =>
-    extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, callee)[0], flowStateFactKey)?.state
+  const flowStates = ["borrow", "borrowMut", "move", "sharedBorrow", "mutableBorrow", "movedValue", "CoreLang.borrow", "CoreLang.borrowMut", "CoreLang.move"].map((callee) =>
+    extensionHost.facts.get(collectCallsByCalleeExpressionText(sourceFile, session.ast, callee)[0], flowStateFactKey)?.state
   );
-  assert.deepEqual(flowStates, ["borrowed-shared", "borrowed-mut", "moved"]);
+  assert.deepEqual(flowStates, [
+    "borrowed-shared",
+    "borrowed-mut",
+    "moved",
+    "borrowed-shared",
+    "borrowed-mut",
+    "moved",
+    "borrowed-shared",
+    "borrowed-mut",
+    "moved",
+  ]);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "localBorrow")[0], flowStateFactKey), undefined);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "localBorrowMut")[0], flowStateFactKey), undefined);
+  assert.equal(extensionHost.facts.get(collectCallsByCalleeText(sourceFile, session.ast, "localMove")[0], flowStateFactKey), undefined);
   const flowDiagnostics = extensionHost.diagnostics.all()
     .filter((diagnostic) => diagnostic.extensionCode === "CSHARP_SOURCE_FLOW_MARKER_UNSUPPORTED");
   assert.equal(flowDiagnostics.length, 3);
-  assert.match(flowDiagnostics[0].message, /borrow/u);
-  assert.match(flowDiagnostics[1].message, /borrowMut/u);
-  assert.match(flowDiagnostics[2].message, /move/u);
+  assert.deepEqual(flowDiagnostics.map((diagnostic) => diagnostic.message.match(/'(borrow|borrowMut|move)'/u)?.[1]), [
+    "borrow",
+    "borrowMut",
+    "move",
+  ]);
 });
 
 test("source-semantics ignores local names that are not configured source-core imports", () => {
@@ -1544,6 +1627,16 @@ function collectCallsByCalleeText(sourceFile, ast, text) {
     .filter((node) => calleeText(node, ast) === text);
 }
 
+function collectCallsByCalleeExpressionText(sourceFile, ast, text) {
+  return collectNodesByKind(sourceFile, ast, "KindCallExpression")
+    .filter((node) => expressionText(node.Expression, ast) === text);
+}
+
+function collectTypeReferencesByText(sourceFile, ast, text) {
+  return collectNodesByKind(sourceFile, ast, "KindTypeReference")
+    .filter((node) => typeReferenceText(node.TypeName, ast) === text);
+}
+
 function typeAliasTypeNode(session, typeAliasDeclaration) {
   const typeNode = session.ast.as.AsTypeAliasDeclaration(typeAliasDeclaration)?.Type;
   assert.ok(typeNode !== undefined, `Missing type node for alias ${session.ast.text(session.ast.name(typeAliasDeclaration))}`);
@@ -1563,6 +1656,34 @@ function calleeText(callExpression, ast) {
     return ast.text(ast.name(expression));
   }
   return undefined;
+}
+
+function expressionText(node, ast) {
+  if (node === undefined) {
+    return undefined;
+  }
+  const kind = ast.kindName(node);
+  if (kind === "KindIdentifier") {
+    return ast.text(node);
+  }
+  if (kind === "KindPropertyAccessExpression") {
+    const receiver = expressionText(node.Expression, ast);
+    const name = ast.text(ast.name(node));
+    return receiver === undefined || receiver === "" ? name : `${receiver}.${name}`;
+  }
+  return ast.text(ast.name(node) ?? node);
+}
+
+function typeReferenceText(node, ast) {
+  if (node === undefined) {
+    return undefined;
+  }
+  if (ast.kindName(node) === "KindQualifiedName") {
+    const left = typeReferenceText(node.Left, ast);
+    const right = typeReferenceText(node.Right, ast);
+    return left === undefined || left === "" ? right : `${left}.${right}`;
+  }
+  return ast.text(node);
 }
 
 function argumentPassingFactForCall(sourceFile, ast, extensionHost, callee, index) {

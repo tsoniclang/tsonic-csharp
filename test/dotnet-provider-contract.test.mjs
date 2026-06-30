@@ -188,6 +188,74 @@ test(".NET provider declaration contract rejects provider refs missing public TS
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].heritage[0].type.moduleSpecifier"), true);
 });
 
+test(".NET provider declaration contract rejects invalid provider parameter passing and rest facts", () => {
+  const diagnostic = validateDotnetProviderDeclarationModelContract({
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    providerModuleId: "@tsonic/dotnet/ProviderContractFixtures.js",
+    exports: [
+      {
+        id: testTargetId("ProviderContractFixtures.Target"),
+        name: "Target",
+        kind: "class",
+        targetIdentity: {
+          target: "csharp",
+          id: testTargetId("ProviderContractFixtures.Target"),
+        },
+        members: [
+          {
+            id: testTargetId("ProviderContractFixtures.Target.Invalid"),
+            name: "invalid",
+            kind: "method",
+            signatures: [
+              {
+                id: testTargetId("ProviderContractFixtures.Target.Invalid(System.Int32[],System.String)"),
+                parameters: [
+                  {
+                    name: "values",
+                    type: { kind: "array", elementType: { kind: "source-primitive", name: "int32" } },
+                    rest: true,
+                    passingMode: "byref-readonly",
+                  },
+                  {
+                    name: "mode",
+                    type: { kind: "string" },
+                    passingMode: "not-a-mode",
+                  },
+                ],
+                returnType: { kind: "void" },
+              },
+            ],
+          },
+          {
+            id: testTargetId("ProviderContractFixtures.Target.InvalidRestType"),
+            name: "invalidRestType",
+            kind: "method",
+            signatures: [
+              {
+                id: testTargetId("ProviderContractFixtures.Target.InvalidRestType(System.String)"),
+                parameters: [
+                  {
+                    name: "value",
+                    type: { kind: "string" },
+                    rest: true,
+                  },
+                ],
+                returnType: { kind: "void" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(diagnostic?.code, "DOTNET_PROVIDER_DECLARATION_CONTRACT_INVALID");
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[0].rest"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[0].passingMode"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].passingMode"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[1].signatures[0].parameters[0].type"), true);
+});
+
 test(".NET reflection provider emits contract-valid SDK metadata slices", () => {
   const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {

@@ -87,10 +87,13 @@ function recordUnsupportedCsharpLangReExportDiagnostics(
   if (sourceFile === undefined) {
     return;
   }
+  let exportDeclarationIndex = 0;
   for (const statement of ast.statements(sourceFile)) {
     if (statement === undefined || !ast.is.IsExportDeclaration(statement)) {
       continue;
     }
+    const statementIdentity = exportDeclarationIndex;
+    exportDeclarationIndex += 1;
     const moduleSpecifier = ast.as.AsExportDeclaration(statement)?.ModuleSpecifier;
     if (moduleSpecifier === undefined || ast.text(moduleSpecifier) !== csharpLangModule) {
       continue;
@@ -114,7 +117,7 @@ function recordUnsupportedCsharpLangReExportDiagnostics(
           exportedNames,
         },
       }],
-      identity: `csharp-source-lang-reexport:${String((statement as { readonly id?: unknown }).id ?? "unknown")}`,
+      identity: `csharp-source-lang-reexport:${statementIdentity}:${exportedNames.join(",")}`,
     });
   }
 }

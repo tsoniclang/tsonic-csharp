@@ -549,7 +549,10 @@ function validateProviderSignatureList(
     requireUnique(signatureIds, signature.id, `${signaturePath}.id`, collector);
     validateProviderTypeParameters(signature.typeParameters ?? [], `${signaturePath}.typeParameters`, collector);
     for (const [parameterIndex, parameter] of signature.parameters.entries()) {
-      validateProviderParameter(parameter, `${signaturePath}.parameters[${parameterIndex}]`, collector);
+      validateProviderParameter(parameter, `${signaturePath}.parameters[${parameterIndex}]`, collector, {
+        index: parameterIndex,
+        count: signature.parameters.length,
+      });
     }
     if (signature.returnType === undefined) {
       if (options.requireReturnType) {
@@ -565,10 +568,25 @@ function validateProviderParameter(
   parameter: ProviderParameterDeclaration,
   path: string,
   collector: ContractCollector,
+  options: { readonly index: number; readonly count: number },
 ): void {
   requireNonEmptyString(parameter.name, `${path}.name`, collector);
   validateProviderTypeExpression(parameter.type, `${path}.type`, collector);
   validateOptionalProviderTypeExpression(parameter.defaultType, `${path}.defaultType`, collector);
+  if (parameter.passingMode !== undefined && !supportedPassingModes.has(parameter.passingMode)) {
+    collector.add(`${path}.passingMode`, "Provider declaration parameter passingMode is not a supported provider contract value.", parameter.passingMode);
+  }
+  if (parameter.rest === true) {
+    if (options.index !== options.count - 1) {
+      collector.add(`${path}.rest`, "Provider declaration rest parameters must be the final parameter.");
+    }
+    if (parameter.passingMode !== undefined && parameter.passingMode !== "by-value") {
+      collector.add(`${path}.passingMode`, "Provider declaration rest parameters must be passed by value.", parameter.passingMode);
+    }
+    if (parameter.type.kind !== "array") {
+      collector.add(`${path}.type`, "Provider declaration rest parameters must carry an array source type.", parameter.type);
+    }
+  }
 }
 
 function validateProviderHeritage(
@@ -675,7 +693,10 @@ function validateProviderTypeExpression(
     case "function":
       validateProviderTypeParameters(type.typeParameters ?? [], `${path}.typeParameters`, collector);
       for (const [index, parameter] of type.parameters.entries()) {
-        validateProviderParameter(parameter, `${path}.parameters[${index}]`, collector);
+        validateProviderParameter(parameter, `${path}.parameters[${index}]`, collector, {
+          index,
+          count: type.parameters.length,
+        });
       }
       validateProviderTypeExpression(type.returnType, `${path}.returnType`, collector);
       return;

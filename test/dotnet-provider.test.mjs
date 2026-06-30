@@ -15,6 +15,7 @@ import {
   dotnetModuleToProviderDeclarationModel,
   dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
+  validateDotnetProviderDeclarationModelContract,
 } from "../dist/index.js";
 import {
   dotnetExportToTargetBinding,
@@ -758,6 +759,67 @@ test(".NET provider function source shapes preserve parameter modes and fail clo
     ],
     returnType: { kind: "void" },
   }), undefined);
+});
+
+test(".NET provider declaration model exposes namespace members as fact-backed provider members", () => {
+  const model = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+    namespaceName: "ProviderModelFixtures",
+    exports: [
+      {
+        kind: "namespace",
+        sourceName: "Native",
+        namespaceName: "ProviderModelFixtures.Native",
+        exports: [
+          {
+            kind: "value",
+            sourceName: "answer",
+            targetId: testTargetId("ProviderModelFixtures.Native.Answer"),
+            metadataName: "ProviderModelFixtures.Native.Answer",
+            type: { kind: "source-primitive", name: "int32" },
+          },
+          {
+            kind: "function",
+            sourceName: "compute",
+            targetId: testTargetId("ProviderModelFixtures.Native.Compute"),
+            metadataName: "ProviderModelFixtures.Native.Compute(System.String)",
+            signatures: [
+              {
+                id: testTargetId("ProviderModelFixtures.Native.Compute(System.String)"),
+                parameters: [
+                  { name: "text", type: { kind: "string" }, passingMode: "by-value" },
+                ],
+                returnType: { kind: "source-primitive", name: "int32" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(validateDotnetProviderDeclarationModelContract(model), undefined);
+  const nativeNamespace = model.exports.find((declaration) => declaration.kind === "namespace" && declaration.name === "Native");
+  assert.ok(nativeNamespace);
+  assert.equal(nativeNamespace.id, "ProviderModelFixtures.Native");
+  const answer = nativeNamespace.members.find((member) => member.name === "answer");
+  const compute = nativeNamespace.members.find((member) => member.name === "compute");
+  assert.deepEqual(answer, {
+    id: testTargetId("ProviderModelFixtures.Native.Answer"),
+    name: "answer",
+    kind: "property",
+    static: true,
+    type: { kind: "source-primitive", name: "int32" },
+  });
+  assert.equal(compute.kind, "method");
+  assert.equal(compute.id, testTargetId("ProviderModelFixtures.Native.Compute"));
+  assert.deepEqual(compute.signatures, [
+    {
+      id: testTargetId("ProviderModelFixtures.Native.Compute(System.String)"),
+      parameters: [{ name: "text", type: { kind: "string" } }],
+      returnType: { kind: "source-primitive", name: "int32" },
+    },
+  ]);
 });
 
 test(".NET provider source type conversion fails closed for every unsupported target-only type ref", () => {
