@@ -3,8 +3,14 @@ import {
   AsPropertyAccessExpression,
   HasSourceKind,
   KindExportAssignment,
+  KindClassDeclaration,
+  KindEnumDeclaration,
+  KindEnumMember,
   KindFunctionDeclaration,
+  KindInterfaceDeclaration,
+  KindMethodDeclaration,
   KindPropertyAccessExpression,
+  KindPropertyDeclaration,
   KindVariableDeclaration,
   Node_Name,
   Node_Text,
@@ -102,11 +108,24 @@ export function planProjectSourceModuleMemberReference(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
+  const sourceTypeMemberReference = tryPlanProjectSourceTypeMemberReference(node, sourceFile, input, diagnostics);
+  if (sourceTypeMemberReference !== undefined) {
+    return sourceTypeMemberReference;
+  }
   const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
   if (sourceReference === undefined || sourceReference.sourceFile === sourceFile) {
     return undefined;
   }
   if (isExternalDeclarationReference(sourceReference, sourceFile, input)) {
+    return undefined;
+  }
+  if (isModuleTypeValueDeclaration(sourceReference.declaration, input)) {
+    return {
+      kind: "IdentifierName",
+      name: planProjectSourceModuleMemberName(sourceReference.declaration, input, diagnostics),
+    };
+  }
+  if (isNestedProjectSourceMemberDeclaration(sourceReference.declaration, input)) {
     return undefined;
   }
   if (!isModuleStaticValueDeclaration(sourceReference.declaration, input)) {
@@ -129,6 +148,10 @@ export function tryPlanProjectSourceModuleStaticMemberReference(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression | undefined {
+  const sourceTypeMemberReference = tryPlanProjectSourceTypeMemberReference(node, sourceFile, input, diagnostics);
+  if (sourceTypeMemberReference !== undefined) {
+    return sourceTypeMemberReference;
+  }
   const sourceReference = getProjectSourceReferenceForModuleMemberNode(node, sourceFile, input);
   if (sourceReference === undefined ||
     sourceReference.sourceFile === sourceFile ||
@@ -182,6 +205,66 @@ function isModuleStaticValueDeclaration(declaration: Node, input: TargetCompileI
   return HasSourceKind(input.ast, declaration, KindFunctionDeclaration) ||
     HasSourceKind(input.ast, declaration, KindVariableDeclaration) ||
     HasSourceKind(input.ast, declaration, KindExportAssignment);
+}
+
+function isModuleTypeValueDeclaration(declaration: Node, input: TargetCompileInput): boolean {
+  return HasSourceKind(input.ast, declaration, KindClassDeclaration) ||
+    HasSourceKind(input.ast, declaration, KindEnumDeclaration);
+}
+
+function tryPlanProjectSourceTypeMemberReference(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression | undefined {
+  if (!HasSourceKind(input.ast, node, KindPropertyAccessExpression)) {
+    return undefined;
+  }
+  const propertyAccess = AsPropertyAccessExpression(node);
+  if (propertyAccess?.Expression === undefined || propertyAccess.name === undefined) {
+    return undefined;
+  }
+  const receiverReference = input.analysis.getProjectSourceReferenceForNode(propertyAccess.Expression, { sourceFile });
+  if (receiverReference === undefined ||
+    receiverReference.sourceFile.IsDeclarationFile ||
+    isProviderVirtualSourceFile(input, receiverReference.sourceFile) ||
+    !isModuleTypeValueDeclaration(receiverReference.declaration, input)) {
+    return undefined;
+  }
+  const selectedMemberReference = input.analysis.getProjectSourceReferenceForNode(node, { sourceFile }) ??
+    input.analysis.getProjectSourceReferenceForNode(propertyAccess.name, { sourceFile });
+  if (selectedMemberReference === undefined ||
+    selectedMemberReference.sourceFile.IsDeclarationFile ||
+    isProviderVirtualSourceFile(input, selectedMemberReference.sourceFile) ||
+    input.ast.parent(selectedMemberReference.declaration) !== receiverReference.declaration ||
+    !isProjectSourceTypeMemberDeclaration(selectedMemberReference.declaration, input)) {
+    return undefined;
+  }
+  return {
+    kind: "SimpleMemberAccessExpression",
+    receiver: {
+      kind: "IdentifierName",
+      name: planProjectSourceModuleMemberName(receiverReference.declaration, input, diagnostics),
+    },
+    name: planProjectSourceModuleMemberName(selectedMemberReference.declaration, input, diagnostics),
+  };
+}
+
+function isProjectSourceTypeMemberDeclaration(declaration: Node, input: TargetCompileInput): boolean {
+  return HasSourceKind(input.ast, declaration, KindEnumMember) ||
+    HasSourceKind(input.ast, declaration, KindMethodDeclaration) ||
+    HasSourceKind(input.ast, declaration, KindPropertyDeclaration);
+}
+
+function isNestedProjectSourceMemberDeclaration(declaration: Node, input: TargetCompileInput): boolean {
+  if (!isProjectSourceTypeMemberDeclaration(declaration, input)) {
+    return false;
+  }
+  const parent = input.ast.parent(declaration);
+  return HasSourceKind(input.ast, parent, KindClassDeclaration) ||
+    HasSourceKind(input.ast, parent, KindEnumDeclaration) ||
+    HasSourceKind(input.ast, parent, KindInterfaceDeclaration);
 }
 
 function planProjectSourceModuleMemberName(
