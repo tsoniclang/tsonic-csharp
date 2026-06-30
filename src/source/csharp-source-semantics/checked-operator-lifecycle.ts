@@ -268,19 +268,9 @@ function getTargetTypeRefForCheckedOperand(
     }
     return undefined;
   }
-  const direct = host.getTargetTypeRefForSubject(subject, context, {
-    ...options,
-    ...(sourceFile === undefined ? {} : { sourceFile }),
-  });
-  if (direct !== undefined && direct.kind !== "type-parameter") {
-    return direct;
-  }
   const checked = getCheckedExpressionTargetTypeRef(subject, sourceFile, context, options, host);
   if (checked !== undefined && checked.kind !== "type-parameter") {
     return checked;
-  }
-  if (direct !== undefined || sourceFile === undefined) {
-    return direct;
   }
   return checked;
 }

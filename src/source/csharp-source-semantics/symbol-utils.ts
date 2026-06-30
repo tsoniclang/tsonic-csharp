@@ -104,15 +104,14 @@ export function getAliasedSymbolIfAvailable(
   symbol: ExtensionFactSubject | undefined,
   sourceFile: ReturnType<NonNullable<ExtensionObservationContext["compiler"]>["ast"]["getSourceFile"]> | undefined,
 ): Symbol | undefined {
-  if (symbol === undefined) {
+  if (!isTstsSymbolSubject(symbol)) {
     return undefined;
   }
-  const candidate = symbol as Symbol;
-  if ((candidate.Flags & symbolFlagsAlias) === 0) {
+  if ((symbol.Flags & symbolFlagsAlias) === 0) {
     return undefined;
   }
   try {
-    return checker.getAliasedSymbol(candidate, { sourceFile });
+    return checker.getAliasedSymbol(symbol, { sourceFile });
   } catch {
     return undefined;
   }
@@ -122,10 +121,25 @@ export function getSymbolDeclarations(
   symbol: ExtensionFactSubject | undefined,
   checker: Pick<TypeCheckerQueries, "getSymbolDeclarations"> | undefined,
 ): readonly Node[] {
-  if (symbol === undefined || checker === undefined) {
+  if (!isTstsSymbolSubject(symbol) || checker === undefined) {
     return [];
   }
-  return checker.getSymbolDeclarations(symbol as Symbol).filter((declaration): declaration is Node => declaration !== undefined);
+  return checker.getSymbolDeclarations(symbol).filter((declaration): declaration is Node => declaration !== undefined);
+}
+
+export function isTstsSymbolSubject(subject: ExtensionFactSubject | undefined): subject is Symbol {
+  const candidate = subject as {
+    readonly Flags?: unknown;
+    readonly Name?: unknown;
+    readonly Kind?: unknown;
+    readonly data?: unknown;
+  } | undefined;
+  return candidate !== undefined &&
+    typeof candidate === "object" &&
+    typeof candidate.Flags === "number" &&
+    typeof candidate.Name === "string" &&
+    candidate.Kind === undefined &&
+    candidate.data === undefined;
 }
 
 function isSymbolLookupNode(

@@ -9,6 +9,7 @@ import {
 } from "../ast-utils.js";
 import {
   getAliasedSymbolIfAvailable,
+  getSymbolForDeclarationLookup,
   getSymbolDeclarations,
 } from "../symbol-utils.js";
 import {
@@ -49,7 +50,7 @@ export function getSourceCoreStructMarkerDeclarationFromSubject(
     return undefined;
   }
   const sourceFile = compiler.ast.getSourceFile(referenceName);
-  const symbol = getSafeSymbol(referenceName, context) ?? getSafeResolvedSymbol(referenceName, context);
+  const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, referenceName, sourceFile);
   const aliasedSymbol = sourceFile === undefined
     ? undefined
     : getAliasedSymbolIfAvailable(compiler.checker, symbol, sourceFile);
