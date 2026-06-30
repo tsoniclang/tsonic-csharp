@@ -16,6 +16,9 @@ import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
 import {
+  csharpTargetId,
+} from "../identity.js";
+import {
   csharpTargetMemberOperation,
   csharpTargetOperationFromMember,
   recordCsharpTargetOperation,
@@ -104,20 +107,21 @@ export function mapCsharpNativeArrayCheckedPropertyAccess(
   if (binding?.id !== dotnetNativeArrayTypeId) {
     return rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName, true);
   }
+  const targetBinding = binding.target === csharpTargetId
+    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    : binding;
   const selectedDeclarationFact = resolveProviderVirtualDeclaration(context, [
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclaration,
   ]);
-  const member = findTargetMember(binding, selectedDeclarationFact);
+  const member = findTargetMember(targetBinding, selectedDeclarationFact);
   if (member?.id !== dotnetNativeArrayLengthMemberId) {
     return rejectNativeArrayPropertyNotSupported(extensionId, request.propertyName);
   }
   const operation = csharpTargetOperationFromMember(member);
   recordCsharpTargetOperation(context, request.expression, operation, [{ message: "C# native array length operation recorded from checked TypeScript property access on provider-owned array contract." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(dotnetNativeArrayLengthMemberId, "property", "System.Array.Length", {
-      resultType: csharpSourcePrimitiveTargetType("int32"),
-    }),
+    operation: targetOperation(dotnetNativeArrayLengthMemberId, "property", "System.Array.Length"),
   }, [{ message: "C# native array length selected from checked TypeScript property access on provider-owned array contract." }]);
 }
 
@@ -132,6 +136,13 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   if (receiverType?.kind !== "array") {
     return undefined;
   }
+  const selectedOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
+  const selectedCsharpOperation = context.factResolver.resolve(request.expression, csharpTargetOperationFactKey);
+  if (selectedOperation !== undefined && selectedCsharpOperation !== undefined) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: selectedOperation,
+    }, [{ message: "C# array element access reused finalized provider/surface target operation facts." }]);
+  }
   const binding = findTargetBinding(context, [
     requestContext.receiverTypeSymbol,
     requestContext.receiverType,
@@ -140,12 +151,15 @@ export function mapCsharpNativeArrayCheckedElementAccess(
   if (binding?.id !== dotnetNativeArrayTypeId) {
     return undefined;
   }
+  const targetBinding = binding.target === csharpTargetId
+    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    : binding;
   const virtualDeclaration = resolveProviderVirtualDeclaration(context, [
     requestContext.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclaration,
   ]);
   const member = findTargetMemberForElementAccess(
-    binding,
+    targetBinding,
     virtualDeclaration,
     request,
     context,
@@ -164,9 +178,7 @@ export function mapCsharpNativeArrayCheckedElementAccess(
     returnType: receiverType.element,
   }), [{ message: "C# native array indexer operation recorded from checked TypeScript element access on provider-owned array contract." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(dotnetNativeArrayIndexerMemberId, "indexer", "System.Array.Item", {
-      resultType: receiverType.element,
-    }),
+    operation: targetOperation(dotnetNativeArrayIndexerMemberId, "indexer", "System.Array.Item"),
   }, [{ message: "C# native array indexer selected from checked TypeScript element access on provider-owned array contract." }]);
 }
 

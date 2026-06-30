@@ -202,9 +202,16 @@ function mapCsharpSourceLibraryPropertyOperation(
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
   const selectedIdentity = jsSurfaceSelectedSourceIdentityForMember(sourceMember);
   const receiverType = getSourceLibraryPropertyReceiverType(request, context, selectedIdentity, host);
+  const expressionNode = asNodeSubject(request.expression);
   if (
     request.expression !== undefined &&
-    sourceLibrarySelectedDeclarationHasCallTarget(sourceMember, receiverType, requestContext.sourceSelectedDeclaration, context)
+    sourceLibrarySelectedDeclarationHasCallTarget(
+      sourceMember,
+      receiverType,
+      expressionNode !== undefined && isCallCalleePropertyAccess(expressionNode, context.compiler?.ast),
+      requestContext.sourceSelectedDeclaration,
+      context,
+    )
   ) {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(
@@ -319,13 +326,14 @@ function getSourceLibraryPropertyMember(selectedIdentity: JsSurfaceSelectedSourc
 function sourceLibrarySelectedDeclarationHasCallTarget(
   sourceMember: SourceLibraryMember,
   receiverType: ReturnType<typeof getSourceLibraryPropertyReceiverType>,
+  isCallCallee: boolean,
   sourceSelectedDeclaration: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): boolean {
   if (csharpJsSourceLibraryPropertyAllowsCallableValue(jsSurfaceSelectedSourceIdentityForMember(sourceMember))) {
     return true;
   }
-  return sourceDeclarationIsCallable(sourceSelectedDeclaration, context) &&
+  return (isCallCallee || sourceDeclarationIsCallable(sourceSelectedDeclaration, context)) &&
     csharpJsSourceLibraryMemberHasCallableProvider(sourceMember, {
       contextualDeclaringType: receiverType,
     });

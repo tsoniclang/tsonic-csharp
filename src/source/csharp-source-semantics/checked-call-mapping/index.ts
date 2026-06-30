@@ -248,7 +248,11 @@ export function mapCsharpCheckedCall(
   }
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target call operation finalized from checked TSTS selection and provider target identity." }]);
   return acceptObservation<CheckedCallMappingResult>({
-    selectedSignature: { member: targetMemberAsSourceSelectedSignature(csharpMember) },
+    selectedSignature: {
+      member: targetMemberAsSourceSelectedSignature(csharpMember, {
+        firstArgumentReceiver: csharpMember.receiverPassing === "first-argument" && !providerStaticContainerReceiver,
+      }),
+    },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
 }
 

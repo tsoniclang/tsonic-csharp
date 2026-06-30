@@ -17,6 +17,9 @@ import type {
   TargetTypeRefResolutionOptions,
 } from "./target-member-selection.js";
 import {
+  csharpTargetOperationFactKey,
+} from "../csharp-facts.js";
+import {
   csharpSourcePrimitiveTargetType,
 } from "./target-types.js";
 import {
@@ -126,7 +129,9 @@ function targetOperationResultType(
   context: ExtensionObservationContext,
 ): ExtensionFactSubject | undefined {
   return context.factResolver.resolve(subject, targetOperationFactKey)?.resultType ??
-    context.facts.get(subject, targetOperationFactKey)?.resultType;
+    context.facts.get(subject, targetOperationFactKey)?.resultType ??
+    context.factResolver.resolve(subject, csharpTargetOperationFactKey)?.resultType ??
+    context.facts.get(subject, csharpTargetOperationFactKey)?.resultType;
 }
 
 function declarationSubjectsForInitializerLookup(

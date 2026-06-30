@@ -92,18 +92,21 @@ export function mapCsharpCheckedElementAccess(
   if (binding.id === dotnetNativeArrayTypeId) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ?? deferObservation;
   }
+  const targetBinding = binding.target === csharpTargetId
+    ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
+    : binding;
   const declaringTargetType = getDeclaringTargetType({ receiver: request.receiver, receiverType: requestContext.receiverType }, context, host);
-  const selected = selectCheckedElementTargetMember(binding, request, context, host, declaringTargetType);
-  const unsupportedSelectedMember = findUnsupportedProviderTargetMember(binding, selected.selectedDeclaration);
+  const selected = selectCheckedElementTargetMember(targetBinding, request, context, host, declaringTargetType);
+  const unsupportedSelectedMember = findUnsupportedProviderTargetMember(targetBinding, selected.selectedDeclaration);
   if (unsupportedSelectedMember !== undefined) {
-    return rejectTargetIndexerUnsupported(extensionId, unsupportedSelectedMember, binding.id);
+    return rejectTargetIndexerUnsupported(extensionId, unsupportedSelectedMember, targetBinding.id);
   }
   const member = selected.member;
   if (member === undefined) {
-    return rejectTargetIndexerNotFound(extensionId, binding.id);
+    return rejectTargetIndexerNotFound(extensionId, targetBinding.id);
   }
   if (member.kind !== "indexer") {
-    return rejectNonIndexerSelectedForElementAccess(extensionId, member.id, binding.id);
+    return rejectNonIndexerSelectedForElementAccess(extensionId, member.id, targetBinding.id);
   }
   const csharpMember = instantiateClosedSelectedTargetMember(member, host, declaringTargetType);
   if (csharpMember === undefined) {
