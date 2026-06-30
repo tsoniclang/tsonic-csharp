@@ -23,6 +23,9 @@ import {
   resolveTargetTypeRefFromKeywordTypeSyntax,
 } from "./target-type-keywords.js";
 import {
+  resolveTargetTypeRefFromLiteralTypeSyntax,
+} from "./target-type-literal-syntax.js";
+import {
   getTargetTypeRefFromTypeReferenceSyntax,
 } from "./target-type-reference-syntax.js";
 import type {
@@ -60,6 +63,10 @@ export function getTargetTypeRefFromSyntax(
   const keywordType = resolveTargetTypeRefFromKeywordTypeSyntax(ast, node);
   if (keywordType !== undefined) {
     return keywordType;
+  }
+  const literalType = resolveTargetTypeRefFromLiteralTypeSyntax(ast, node);
+  if (literalType !== undefined) {
+    return literalType;
   }
   if (ast.is.IsNewExpression(node)) {
     return getTargetTypeRefFromConstructedExpressionSyntax(node, context, options, host, resolver);

@@ -6,6 +6,13 @@ import type {
   Node,
   SourceFile,
 } from "@tsonic/tsts";
+import {
+  asNodeSubject,
+  getNodeField,
+} from "./ast-utils.js";
+import {
+  getAliasedSymbolIfAvailable,
+} from "./symbol-utils.js";
 
 export function typeSyntaxContainsSourcePrimitiveEvidence(
   node: Node,
@@ -26,11 +33,11 @@ export function typeSyntaxContainsSourcePrimitiveEvidence(
       found = true;
       return;
     }
-    const symbol = safeGetSymbolAtLocation(current, context, sourceFile);
-    const resolvedSymbol = safeGetResolvedSymbol(current, context, sourceFile);
+    const symbol = getTypeReferenceSymbol(current, context, sourceFile);
+    const aliasedSymbol = getAliasedSymbolIfAvailable(context.compiler.checker, symbol, sourceFile);
     if (
       (symbol !== undefined && context.factResolver.resolve(symbol, sourcePrimitiveFactKey) !== undefined) ||
-      (resolvedSymbol !== undefined && context.factResolver.resolve(resolvedSymbol, sourcePrimitiveFactKey) !== undefined)
+      (aliasedSymbol !== undefined && context.factResolver.resolve(aliasedSymbol, sourcePrimitiveFactKey) !== undefined)
     ) {
       found = true;
       return;
@@ -43,25 +50,26 @@ export function typeSyntaxContainsSourcePrimitiveEvidence(
   return found;
 }
 
-function safeGetSymbolAtLocation(
+function getTypeReferenceSymbol(
   node: Node,
   context: ExtensionObservationContext,
   sourceFile: SourceFile,
 ) {
-  try {
-    return context.compiler?.checker.getSymbolAtLocation(node, { sourceFile });
-  } catch {
+  const ast = context.compiler?.ast;
+  const checker = context.compiler?.checker;
+  if (ast === undefined || checker === undefined) {
     return undefined;
   }
-}
-
-function safeGetResolvedSymbol(
-  node: Node,
-  context: ExtensionObservationContext,
-  sourceFile: SourceFile,
-) {
+  const lookupNode = ast.is.IsTypeReferenceNode(node)
+    ? asNodeSubject(getNodeField(node, "TypeName"))
+    : ast.is.IsQualifiedName(node)
+      ? node
+      : undefined;
+  if (lookupNode === undefined) {
+    return undefined;
+  }
   try {
-    return context.compiler?.checker.getResolvedSymbol(node, { sourceFile });
+    return checker.getSymbolAtLocation(lookupNode, { sourceFile });
   } catch {
     return undefined;
   }
