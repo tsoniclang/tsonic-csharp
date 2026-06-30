@@ -283,12 +283,18 @@ function getSourceOwnedCallReturnType(
   if (directReturnType !== undefined) {
     return directReturnType;
   }
+  const checkedCallType = host.getTargetTypeRefForSubject(request.call, context, { allowSemanticTypeQuery: false });
+  if (checkedCallType !== undefined) {
+    return checkedCallType;
+  }
   const checker = context.compiler?.checker;
   if (checker === undefined || request.sourceSelectedSignature === undefined || host.getTargetTypeRefForType === undefined) {
     return undefined;
   }
-  const sourceReturnType = checker.getReturnTypeOfSignature(request.sourceSelectedSignature as Signature);
-  return host.getTargetTypeRefForType(sourceReturnType, context);
+  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
+  const sourceFile = signatureDeclaration === undefined ? undefined : context.compiler?.ast.getSourceFile(signatureDeclaration);
+  const sourceReturnType = checker.getReturnTypeOfSignature(request.sourceSelectedSignature as Signature, { sourceFile });
+  return host.getTargetTypeRefForType(sourceReturnType, context, { sourceFile });
 }
 
 function getSourceOwnedCallDeclaration(

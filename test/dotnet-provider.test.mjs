@@ -698,6 +698,27 @@ test(".NET explicit type-ref kinds carry special target semantics without metada
   });
 });
 
+test(".NET explicit CLR array target refs preserve provider-supplied rank facts", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+
+  assert.deepEqual(dotnetTypeRefToTargetTypeRef({
+    kind: "array",
+    elementType: intType,
+  }), {
+    kind: "array",
+    element: intType,
+  });
+  assert.deepEqual(dotnetTypeRefToTargetTypeRef({
+    kind: "array",
+    elementType: intType,
+    rank: 2,
+  }), {
+    kind: "array",
+    element: intType,
+    rank: 2,
+  });
+});
+
 test(".NET provider function source shapes preserve parameter modes and fail closed for unsupported parameter types", () => {
   const functionType = dotnetTypeRefToProviderType({
     kind: "function",

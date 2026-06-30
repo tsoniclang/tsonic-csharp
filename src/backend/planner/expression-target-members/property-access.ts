@@ -17,9 +17,6 @@ import type {
   CsharpTargetOperationFact,
 } from "../../../source/csharp-facts.js";
 import {
-  csharpTargetOperationFactKey,
-} from "../../../source/csharp-facts.js";
-import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
@@ -96,10 +93,6 @@ export function planPropertyAccessExpression(
   if (!sourceOwnedPropertyOperation && targetOperation !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access '${sourceName}' expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
     return undefined;
-  }
-  const csharpOperation = input.facts.getFact(propertyAccess, csharpTargetOperationFactKey);
-  if (csharpOperation !== undefined) {
-    return planFinalizedCsharpPropertyOperation(propertyAccess, expression, csharpOperation, sourceFile, input, diagnostics, planExpression);
   }
   const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
   if (sourceModuleMemberReference !== undefined) {

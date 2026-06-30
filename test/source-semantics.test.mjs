@@ -1024,6 +1024,82 @@ test("C# source semantics does not map shadowed source-core marker names", () =>
   assert.deepEqual(extensionHost.diagnostics.all(), []);
 });
 
+test("C# source semantics rejects unsupported local barrels for C# lang aliases", () => {
+  const sourceText = `
+    import { out } from "./barrel.js";
+
+    let value!: number;
+    out(value);
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/barrel.ts", [
+        "export { out, ref, inref, struct, field, attribute, defaultof } from '@tsonic/csharp/lang.js';",
+        "export type { ptr, fnptr } from '@tsonic/csharp/lang.js';",
+      ].join("\n")],
+      ["/src/node_modules/@tsonic/csharp/package.json", packageJson("@tsonic/csharp", {
+        "./lang.js": "./lang.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode), [
+    "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
+  ]);
+  const calls = collectCallsByCalleeText(sourceFile, session.ast, "out");
+  assert.equal(calls.length, 1);
+  assert.equal(extensionHost.facts.get(calls[0], argumentPassingFactKey), undefined);
+});
+
+test("C# source semantics rejects unsupported type-only barrels for C# type aliases", () => {
+  const sourceText = `
+    export type { ptr, fnptr } from "@tsonic/csharp/lang.js";
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+      ["/src/node_modules/@tsonic/csharp/package.json", packageJson("@tsonic/csharp", {
+        "./lang.js": "./lang.js",
+      })],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.match(formatDiagnostics(diagnostics), /TSONIC_CSHARP_9100170/u);
+  assert.deepEqual(session.extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode), [
+    "CSHARP_SOURCE_LANG_REEXPORT_UNSUPPORTED",
+  ]);
+});
+
 test("source-semantics rejects attribute builder chains with unproven declaration targets", () => {
   const sourceText = `
     import { attribute } from "@tsonic/core/lang.js";

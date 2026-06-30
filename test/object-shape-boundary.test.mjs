@@ -207,6 +207,28 @@ test("provider-owned property access rejects generic selected fact without C# op
   assert.match(diagnostics[0].message, /generic TSTS target operation 'Example\.Values\.Actual' is not enough/);
 });
 
+test("provider-owned property access rejects C# helper facts without checked target operation facts", () => {
+  const receiver = identifier("values");
+  const access = propertyAccess(receiver, "sourceSpellingMustNotSelectActual");
+  const diagnostics = [];
+
+  const planned = planPropertyAccessExpression(
+    access,
+    {},
+    fakeInput({
+      csharpOperationSubject: access,
+      csharpOperation: csharpMemberOperation("Example.Values.Actual", "property", "Actual"),
+      targetBindingSubject: receiver,
+    }),
+    diagnostics,
+    planExpression,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /must be selected by TSTS\/provider facts before emission/);
+});
+
 test("provider-owned element access emits only from finalized selected indexer facts", () => {
   const receiver = identifier("values");
   const access = elementAccess(receiver, numericLiteral("0"));
