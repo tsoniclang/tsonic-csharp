@@ -1040,7 +1040,7 @@ test(".NET provider models LINQ ExtensionMethods receiver metadata from target f
     member.static === true
   );
   assert.ok(average);
-  assert.ok(findByIdSuffix(average.signatures, "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)"));
+  assert.ok(average.signatures.some((signature) => signature.id.includes("#source-signature:")));
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/System.Linq.js", "System.Linq.Enumerable");
   const targetAverage = findByIdSuffix(binding.members, "System.Linq.Enumerable.Average(System.Collections.Generic.IEnumerable`1<System.Int32>)");

@@ -68,11 +68,12 @@ export function planArrowFunctionExpression(
   const expression = AsArrowFunction(node)!;
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
   diagnoseMissingLambdaTargetContext(node, sourceFile, input, diagnostics, targetContext);
+  const parameters = planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetContext);
   if (HasSourceKind(input.ast, expression.Body, KindBlock)) {
     return {
       kind: "LambdaExpression",
       ...(isAsyncExpression(node) ? { async: true } : {}),
-      parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetContext),
+      parameters,
       body: {
         kind: "Block",
         statements: planBlockStatements(expression.Body, sourceFile, input, diagnostics, state),
@@ -86,7 +87,7 @@ export function planArrowFunctionExpression(
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(node) ? { async: true } : {}),
-    parameters: planLambdaParameters(expression.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, state, targetContext),
+    parameters,
     body,
   };
 }

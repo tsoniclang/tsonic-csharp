@@ -23,6 +23,9 @@ import {
 import {
   dotnetTypeRefToTargetTypeRef,
 } from "./type-ref.js";
+import {
+  dotnetProviderSignatureIdsForMember,
+} from "../declaration-model/signatures.js";
 
 export type DotnetTargetParameter = CsharpTargetParameter;
 
@@ -36,7 +39,10 @@ export function dotnetMemberToTargetMembers(member: DotnetMemberDeclaration, dec
     case "constructor":
     case "indexer":
     case "operator":
-      return (member.signatures ?? []).map((signature) => dotnetSignatureToTargetMember(member, signature, declaringType));
+      const memberTargetName = member.kind === "constructor" ? undefined : member.targetName;
+      const providerSignatureIds = dotnetProviderSignatureIdsForMember(member, memberTargetName);
+      return (member.signatures ?? []).map((signature) =>
+        dotnetSignatureToTargetMember(member, signature, declaringType, providerSignatureIds.get(signature.id)));
     case "property":
     case "field":
     case "event":
@@ -80,6 +86,7 @@ function dotnetSignatureToTargetMember(
   member: DotnetMemberDeclaration,
   signature: DotnetSignatureDeclaration,
   declaringType: TargetTypeRef,
+  providerSourceSignatureId: string | undefined,
 ): DotnetTargetMember {
   return {
     id: signature.id,
@@ -110,6 +117,7 @@ function dotnetSignatureToTargetMember(
       ? { typeParameters: signature.typeParameters.map(dotnetTypeParameterToTargetTypeParameter) }
       : {}),
     overloadGroup: dotnetTargetMemberOverloadGroup(member),
+    ...(providerSourceSignatureId !== undefined ? { providerSourceSignatureId } : {}),
   };
 }
 

@@ -21,7 +21,7 @@ import {
   propagateCsharpExpectedRuntimeCarrierFactFromContext,
 } from "./expected-context-propagation.js";
 import {
-  propagateCsharpRuntimeCarrierFactFromVariableInitializer,
+  propagateCsharpRuntimeCarrierFactFromDeclarationInitializer,
 } from "./initializer-propagation.js";
 import {
   recordCsharpRuntimeCarrierFact,
@@ -163,7 +163,7 @@ function propagateRuntimeCarrierInitializerFacts(
   host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
   for (const node of [...nodes].reverse()) {
-    propagateCsharpRuntimeCarrierFactFromVariableInitializer(lifecycleContext, sourceFile, node, host);
+    propagateCsharpRuntimeCarrierFactFromDeclarationInitializer(lifecycleContext, sourceFile, node, host);
   }
 }
 

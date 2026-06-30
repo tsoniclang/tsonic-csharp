@@ -21,6 +21,7 @@ export function substituteTargetTypeParameters(
       const denseMutableElementType = (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
       const taskResultType = (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType;
       const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
+      const delegateSignature = (type as CsharpTargetNamedTypeRef).csharpDelegateSignature;
       return {
         ...type,
         ...(type.typeArguments === undefined ? {} : { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeParameters(argument, substitutions)) }),
@@ -42,6 +43,14 @@ export function substituteTargetTypeParameters(
         ...(runtimeUnionArms === undefined
           ? {}
           : { csharpRuntimeUnionArms: runtimeUnionArms.map((arm) => substituteTargetTypeParameters(arm, substitutions)) }),
+        ...(delegateSignature === undefined
+          ? {}
+          : {
+              csharpDelegateSignature: {
+                parameters: delegateSignature.parameters.map((parameter) => substituteTargetTypeParameters(parameter, substitutions)),
+                returnType: substituteTargetTypeParameters(delegateSignature.returnType, substitutions),
+              },
+            }),
       };
     case "array":
       return { ...type, element: substituteTargetTypeParameters(type.element, substitutions) };

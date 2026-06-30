@@ -95,6 +95,7 @@ export interface CsharpTargetMember extends Omit<TargetMember, "parameters" | "t
   readonly unsupportedAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
   readonly returnAttributes?: readonly CsharpTargetAttributeFact[];
   readonly unsupportedReturnAttributes?: readonly CsharpTargetUnsupportedAttributeFact[];
+  readonly providerSourceSignatureId?: string;
 }
 
 export interface CsharpTargetConversionOperatorFact {

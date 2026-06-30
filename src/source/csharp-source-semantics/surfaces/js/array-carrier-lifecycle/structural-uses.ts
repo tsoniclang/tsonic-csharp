@@ -6,6 +6,9 @@ import type {
 import type {
   TargetSourceUseRecord,
 } from "@tsonic/target-api";
+import type {
+  CsharpOperationsProviderHost,
+} from "../../../operations-provider.js";
 import {
   carrierRequirementsForStructuralCallArgumentUse,
   carrierRequirementsForStructuralPropertyUse,
@@ -28,14 +31,16 @@ export function carrierRequirementsForArrayStructuralUses(
   sourceUses: readonly TargetSourceUseRecord[],
   elementType: TargetTypeRef,
   lifecycleContext: LifecycleContext,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
 ): ReadonlySet<CsharpArrayCarrierRequirement> {
-  return new Set(sourceUses.flatMap((use) => carrierRequirementsForArrayStructuralUse(use, elementType, lifecycleContext)));
+  return new Set(sourceUses.flatMap((use) => carrierRequirementsForArrayStructuralUse(use, elementType, lifecycleContext, host)));
 }
 
 function carrierRequirementsForArrayStructuralUse(
   use: TargetSourceUseRecord,
   elementType: TargetTypeRef,
   lifecycleContext: LifecycleContext,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
 ): readonly CsharpArrayCarrierRequirement[] {
   if (use.operation === "element") {
     if (use.access === "delete") {
@@ -58,8 +63,11 @@ function carrierRequirementsForArrayStructuralUse(
   if (use.operation === "destructure") {
     return ["index-read", "length-read"];
   }
+  if (use.operation === "return") {
+    return ["dense-mutation"];
+  }
   if (use.operation === "argument") {
-    return carrierRequirementsForStructuralCallArgumentUse(use, elementType, lifecycleContext);
+    return carrierRequirementsForStructuralCallArgumentUse(use, elementType, lifecycleContext, host);
   }
   return [];
 }

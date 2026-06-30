@@ -1939,6 +1939,52 @@ test("C# provider rejects exact selected signatures instead of refining to compa
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
 });
 
+test("C# provider selects within provider source-projection signature groups using target facts", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const argument = csharpStringType();
+  const sourceProjectionSignatureId = "Example.Target.m#source-signature:string";
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.m(System.Char)", { kind: "source-primitive", name: "char" }, { providerSourceSignatureId: sourceProjectionSignatureId }),
+      method("Example.Target.m(System.String)", csharpStringType(), { providerSourceSignatureId: sourceProjectionSignatureId }),
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "m",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      providerId: "test",
+      providerVersion: "0",
+      providerModuleId: "test",
+      moduleSpecifier: "test",
+      virtualFileName: "tsts-provider://test",
+      memberName: "m",
+      memberId: "Example.Target.m",
+      signatureId: sourceProjectionSignatureId,
+    },
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : result.kind);
+  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.String)");
+});
+
 test("C# provider does not refine selected signatures outside the proven overload group", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -3271,6 +3317,7 @@ function method(id, parameterType, options = {}) {
     }],
     returnType: csharpVoidType(),
     overloadGroup: options.overloadGroup ?? "Example.Target.m",
+    ...(options.providerSourceSignatureId === undefined ? {} : { providerSourceSignatureId: options.providerSourceSignatureId }),
   };
 }
 

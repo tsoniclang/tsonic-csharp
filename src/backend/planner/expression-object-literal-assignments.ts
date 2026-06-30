@@ -73,7 +73,7 @@ export function planObjectShapeLiteralAssignment(
         diagnostics.push(unsupportedNodeDiagnostic(property, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
         return [];
       }
-      const expression = planExpressionWithExpectedType(propertyAssignment.Initializer, sourceFile, input, diagnostics, memberType);
+      const expression = planExpressionWithExpectedType(propertyAssignment.Initializer, sourceFile, input, diagnostics, memberType, undefined, member.type);
       if (expression === undefined) {
         return [];
       }
@@ -101,7 +101,7 @@ export function planObjectShapeLiteralAssignment(
         diagnostics.push(unsupportedNodeDiagnostic(property, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
         return [];
       }
-      const expression = planExpressionWithExpectedType(nameNode, sourceFile, input, diagnostics, memberType);
+      const expression = planExpressionWithExpectedType(nameNode, sourceFile, input, diagnostics, memberType, undefined, member.type);
       if (expression === undefined) {
         return [];
       }

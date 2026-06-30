@@ -45,31 +45,55 @@ import {
 export function mapCsharpJsArrayElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
-  receiverType: TargetTypeRef | undefined,
+  receiverCarrier: TargetTypeRef | undefined,
+  semanticReceiverType: TargetTypeRef | undefined,
   host: CsharpJsSurfaceHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
+  const elementType = getCsharpArrayLikeElementType(receiverCarrier ?? semanticReceiverType);
+  if (elementType === undefined) {
+    return undefined;
+  }
   const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
   if (existingOperation !== undefined) {
+    if (
+      existingOperation.operationKind === "indexer" &&
+      receiverCarrier !== undefined &&
+      context.factResolver.resolve(request.expression, csharpTargetOperationFactKey) === undefined &&
+      context.facts.get(request.expression, csharpTargetOperationFactKey) === undefined
+    ) {
+      recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(existingOperation.operationId, "indexer", "Item", {
+        resultType: elementType,
+      }), [{ message: "C# JS surface array indexer C# operation recorded from finalized receiver carrier for an existing checked target operation." }]);
+    }
     return acceptObservation<CheckedOperationMappingResult>({
       operation: existingOperation,
     }, [{ message: "C# JS surface array indexer reused existing finalized target operation for repeated checked-element observation." }]);
   }
-  const elementType = getCsharpArrayLikeElementType(receiverType);
-  if (elementType === undefined) {
-    return undefined;
+  const existingCsharpOperation = context.factResolver.resolve(request.expression, csharpTargetOperationFactKey) ??
+    context.facts.get(request.expression, csharpTargetOperationFactKey);
+  if (existingCsharpOperation?.kind === "member" && existingCsharpOperation.operationKind === "indexer") {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(existingCsharpOperation.operationId, "indexer", "System.Array.Item", {
+        ...(existingCsharpOperation.resultType !== undefined ? { resultType: existingCsharpOperation.resultType } : {}),
+      }),
+    }, [{ message: "C# JS surface array indexer reused existing finalized C# target indexer operation after proving no canonical target operation already exists." }]);
   }
   const indexType = host.getTargetTypeRefForSubject(request.argument, context, csharpJsCheckedTypeQuery);
   if (!host.isIntegralTargetTypeRef(indexType) && !host.isLiteralRepresentableAsTargetType(csharpSourcePrimitiveTargetType("int32"), request.argument, context)) {
     return rejectObservation(host.csharpProviderDiagnostic(host.extensionId, "CSHARP_NON_INTEGRAL_ARRAY_INDEX", 9100111, "C# JS surface array element access requires an integral provider-backed index type."));
   }
-  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.js.array.indexer", "indexer", "Item", {
-    resultType: elementType,
-  }), [{ message: "C# JS surface array indexer operation recorded from checked TypeScript element access." }]);
+  if (receiverCarrier !== undefined) {
+    recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation("tsonic.csharp.js.array.indexer", "indexer", "Item", {
+      resultType: elementType,
+    }), [{ message: "C# JS surface array indexer operation recorded from finalized array receiver carrier facts." }]);
+  }
   return acceptObservation<CheckedOperationMappingResult>({
     operation: targetOperation("tsonic.csharp.js.array.indexer", "indexer", "System.Array.Item", {
       resultType: elementType,
     }),
-  }, [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);
+  }, [{ message: receiverCarrier === undefined
+    ? "C# JS surface array indexer selected from checked TypeScript array semantics; C# operation finalization still requires receiver carrier facts."
+    : "C# JS surface array indexer selected from finalized array receiver carrier facts." }]);
 }
 
 export function recordCsharpJsArrayElementAccessFactsBeforeFinalization(
@@ -88,10 +112,8 @@ export function recordCsharpJsArrayElementAccessFactsBeforeFinalization(
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       if (
         !compiler.ast.is.IsElementAccessExpression(node) ||
-        context.host.facts.get(node, targetOperationFactKey) !== undefined ||
-        context.host.facts.get(node, csharpTargetOperationFactKey) !== undefined ||
-        context.factResolver.resolve(node, targetOperationFactKey) !== undefined ||
-        context.factResolver.resolve(node, csharpTargetOperationFactKey) !== undefined
+        context.facts.get(node, targetOperationFactKey) !== undefined ||
+        context.factResolver.resolve(node, targetOperationFactKey) !== undefined
       ) {
         return;
       }
@@ -127,6 +149,7 @@ function recordCsharpJsArrayElementAccessFact(
     request,
     context as ExtensionObservationContext<"operation.mapCheckedElementAccess">,
     receiverCarrier,
+    receiverCarrier,
     host,
   );
   if (mapped?.kind === "reject") {
@@ -144,14 +167,14 @@ function recordCsharpJsArrayElementAccessFact(
     }
     return;
   }
-  const existingOperation = context.host.facts.get(node, targetOperationFactKey) ??
+  const existingOperation = context.facts.get(node, targetOperationFactKey) ??
     context.factResolver.resolve(node, targetOperationFactKey);
   if (existingOperation !== undefined) {
     return;
   }
-  const csharpOperation = context.host.facts.get(node, csharpTargetOperationFactKey);
-  context.host.facts.set(node, targetOperationFactKey, csharpOperation?.kind === "member" && csharpOperation.operationKind === "indexer"
-    ? targetOperation(csharpOperation.operationId, "indexer", csharpOperation.memberName, {
+  const csharpOperation = context.facts.get(node, csharpTargetOperationFactKey);
+  context.facts.set(node, targetOperationFactKey, csharpOperation?.kind === "member" && csharpOperation.operationKind === "indexer"
+    ? targetOperation(csharpOperation.operationId, "indexer", "System.Array.Item", {
         ...(csharpOperation.resultType !== undefined ? { resultType: csharpOperation.resultType } : {}),
       })
     : mapped.value.operation, mapped.evidence ?? [{ message: "C# JS surface array indexer selected from checked TypeScript element access." }]);

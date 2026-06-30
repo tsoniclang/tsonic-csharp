@@ -44,6 +44,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
 import {
+  getTargetTypeRefForNode,
+} from "../runtime-carriers.js";
+import {
   combineOwnership,
 } from "./ownership.js";
 
@@ -128,8 +131,8 @@ function getFinalizedNullishResultType(
     return undefined;
   }
   if (!sameCsharpType(resultType, expectedType)) {
-    const leftUnwrappedResultType = getNullishOperandUnwrappedResultType(left, input);
-    if (leftUnwrappedResultType !== undefined && sameCsharpType(leftUnwrappedResultType, expectedType)) {
+    const leftCompatibleResultType = getNullishOperandExpectedCompatibleType(left, sourceFile, input);
+    if (leftCompatibleResultType !== undefined && sameCsharpType(leftCompatibleResultType, expectedType)) {
       return expectedType;
     }
     diagnostics.push(unsupportedNodeDiagnostic(node, "C# nullish coalescing expected-type emission requires the finalized operator result target type to match the enclosing expected target type."));
@@ -138,14 +141,16 @@ function getFinalizedNullishResultType(
   return resultType;
 }
 
-function getNullishOperandUnwrappedResultType(
+function getNullishOperandExpectedCompatibleType(
   node: Node,
+  sourceFile: SourceFile,
   input: TargetCompileInput,
 ): CsharpTypeNode | undefined {
-  const resultType = input.facts.getFact(node, csharpTargetOperationFactKey)?.resultType;
+  const resultType = input.facts.getFact(node, csharpTargetOperationFactKey)?.resultType ??
+    getTargetTypeRefForNode(input, node, sourceFile);
   if (resultType === undefined) {
     return undefined;
   }
   const rendered = csharpTypeFromTargetTypeRef(resultType);
-  return rendered?.kind === "NullableType" ? rendered.inner : undefined;
+  return rendered?.kind === "NullableType" ? rendered.inner : rendered;
 }

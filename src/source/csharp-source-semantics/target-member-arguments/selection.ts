@@ -10,12 +10,15 @@ import {
   getEffectiveArgumentForTargetParameter,
 } from "./argument-passing.js";
 import {
+  asNodeSubject,
+  isSemanticTypeQueryableValueExpressionNode,
+} from "../ast-utils.js";
+import {
   getParameterForArgument,
   targetArityMatches,
   targetMemberArityPenalty,
 } from "./arity.js";
 import {
-  selectedTargetTypeAcceptsArgument,
   targetTypeArgumentMatchScore,
 } from "./type-matching.js";
 import {
@@ -57,33 +60,6 @@ export function selectExactTargetMember(
   member: CsharpTargetMember,
   request: TargetMemberSelectionRequest,
   context: ExtensionObservationContext,
-  options: TargetMemberSelectionOptions = {},
-): CsharpTargetMember | undefined {
-  const arguments_ = getTargetArgumentSubjectsForMember(member, request, options);
-  if (arguments_ === undefined || !targetArityMatches(member.parameters, arguments_.length)) {
-    return undefined;
-  }
-  for (let index = 0; index < arguments_.length; index += 1) {
-    const parameter = getParameterForArgument(member.parameters, index);
-    const argument = arguments_[index];
-    if (
-      parameter === undefined ||
-      argument === undefined ||
-      getEffectiveArgumentForTargetParameter(parameter, argument, context) === undefined
-    ) {
-      return undefined;
-    }
-  }
-  return substituteTargetMemberTypeParameters(
-    member,
-    getDeclaringTypeParameterBindings(options),
-  );
-}
-
-export function selectProviderSelectedTargetMember(
-  member: CsharpTargetMember,
-  request: TargetMemberSelectionRequest,
-  context: ExtensionObservationContext,
   resolveTargetTypeRef: TargetTypeRefResolver,
   options: TargetMemberSelectionOptions = {},
 ): CsharpTargetMember | undefined {
@@ -102,19 +78,37 @@ export function selectProviderSelectedTargetMember(
     if (effectiveArgument === undefined) {
       return undefined;
     }
-    const argumentType = resolveTargetTypeRef(effectiveArgument.subject, context);
-    if (!selectedTargetTypeAcceptsArgument(
+    const argumentType = getTargetTypeRefForArgument(
+      effectiveArgument.subject,
+      context,
+      resolveTargetTypeRef,
+    );
+    if (
+      argumentType !== undefined &&
+      targetParameterAcceptsClosedSourceArgument(parameter) &&
+      request.sourceSelectedSignature !== undefined &&
+      targetTypeRefIsClosed(argumentType)
+    ) {
+      continue;
+    }
+    if (argumentType === undefined && targetParameterAcceptsCheckedSourceArgument(parameter) && request.sourceSelectedSignature !== undefined) {
+      continue;
+    }
+    if (targetTypeArgumentMatchScore(
       getExpectedTargetTypeForArgument(parameter),
       argumentType,
       effectiveArgument.subject,
       context,
       typeParameterBindings,
       options,
-    )) {
+    ) === undefined) {
       return undefined;
     }
   }
-  return substituteTargetMemberTypeParameters(member, typeParameterBindings);
+  return substituteTargetMemberTypeParameters(
+    member,
+    typeParameterBindings,
+  );
 }
 
 function targetMemberMatch(
@@ -144,7 +138,11 @@ function targetMemberMatch(
     if (effectiveArgument === undefined) {
       return undefined;
     }
-    const argumentType = resolveTargetTypeRef(effectiveArgument.subject, context);
+    const argumentType = getTargetTypeRefForArgument(
+      effectiveArgument.subject,
+      context,
+      resolveTargetTypeRef,
+    );
     if (
       argumentType !== undefined &&
       targetParameterAcceptsClosedSourceArgument(parameter) &&
@@ -168,6 +166,45 @@ function targetMemberMatch(
     member: substituteTargetMemberTypeParameters(member, typeParameterBindings),
     score: argumentScore + targetMemberArityPenalty(parameters, arguments_.length),
   };
+}
+
+function getTargetTypeRefForArgument(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+  resolveTargetTypeRef: TargetTypeRefResolver,
+): ReturnType<TargetTypeRefResolver> {
+  const direct = resolveTargetTypeRef(subject, context);
+  if (direct !== undefined && direct.kind !== "type-parameter") {
+    return direct;
+  }
+  const checked = getCheckedExpressionTargetTypeRef(subject, context, resolveTargetTypeRef);
+  return checked !== undefined && (direct === undefined || checked.kind !== "type-parameter")
+    ? checked
+    : direct;
+}
+
+function getCheckedExpressionTargetTypeRef(
+  subject: ExtensionFactSubject,
+  context: ExtensionObservationContext,
+  resolveTargetTypeRef: TargetTypeRefResolver,
+): ReturnType<TargetTypeRefResolver> {
+  const node = asNodeSubject(subject);
+  const compiler = context.compiler;
+  if (
+    node === undefined ||
+    compiler === undefined
+  ) {
+    return undefined;
+  }
+  try {
+    if (!isSemanticTypeQueryableValueExpressionNode(compiler.ast, node)) {
+      return undefined;
+    }
+    const sourceFile = compiler.ast.getSourceFile(node);
+    return resolveTargetTypeRef(compiler.checker.getTypeAtLocation(node, { sourceFile }), context, { sourceFile });
+  } catch {
+    return undefined;
+  }
 }
 
 function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetParameter): boolean {

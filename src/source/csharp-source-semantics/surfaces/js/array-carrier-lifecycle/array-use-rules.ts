@@ -1,5 +1,6 @@
 import type {
   TargetTypeRef,
+  Symbol,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetMember,
@@ -9,6 +10,12 @@ import type {
   TargetSourceAccessKind,
   TargetSourceUseRecord,
 } from "@tsonic/target-api";
+import type {
+  CsharpOperationsProviderHost,
+} from "../../../operations-provider.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "../../../runtime-carriers.js";
 import {
   getCsharpCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
@@ -59,7 +66,12 @@ export function carrierRequirementsForStructuralCallArgumentUse(
   use: TargetSourceUseRecord,
   elementType: TargetTypeRef,
   lifecycleContext: LifecycleContext,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
 ): readonly CsharpArrayCarrierRequirement[] {
+  const selectedSignatureRequirements = carrierRequirementsForSelectedSignatureArgumentUse(use, lifecycleContext, host);
+  if (selectedSignatureRequirements.length > 0) {
+    return selectedSignatureRequirements;
+  }
   const selectedIdentity = getSelectedSourceIdentityForStructuralUse(use, lifecycleContext);
   if (selectedIdentity === undefined || use.argumentIndex === undefined) {
     return ["full-js"];
@@ -74,6 +86,41 @@ export function carrierRequirementsForStructuralCallArgumentUse(
       .map((member) => targetParameterForArgumentIndex(member.parameters, argumentIndex)?.type)
       .filter((type): type is TargetTypeRef => type !== undefined),
   );
+}
+
+function carrierRequirementsForSelectedSignatureArgumentUse(
+  use: TargetSourceUseRecord,
+  lifecycleContext: LifecycleContext,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
+): readonly CsharpArrayCarrierRequirement[] {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || use.selectedSignature === undefined || use.argumentIndex === undefined) {
+    return [];
+  }
+  const parameters = compiler.checker.getSignatureParameters(use.selectedSignature);
+  const parameter = selectedSignatureParameterForArgument(parameters, use.argumentIndex);
+  if (parameter === undefined) {
+    return [];
+  }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  const parameterType = compiler.checker.getTypeOfSymbol(parameter, { sourceFile: use.sourceFile });
+  const parameterCarrier = host.getTargetTypeRefForSubject(parameter, context, {
+    allowRuntimeCarrier: true,
+    sourceFile: use.sourceFile,
+  }) ?? host.getTargetTypeRefForType?.(parameterType, context, {
+      allowRuntimeCarrier: true,
+      sourceFile: use.sourceFile,
+    });
+  return parameterCarrier === undefined
+    ? []
+    : carrierRequirementsForTargetTypes([parameterCarrier]);
+}
+
+function selectedSignatureParameterForArgument(
+  parameters: readonly (Symbol | undefined)[],
+  argumentIndex: number,
+): Symbol | undefined {
+  return parameters[argumentIndex] ?? parameters[parameters.length - 1];
 }
 
 function propertyCarrierRequirementsForSelectedIdentity(

@@ -42,9 +42,6 @@ import {
   createCsharpJsSurfaceMappers,
 } from "./surfaces/js/index.js";
 import {
-  recordCsharpJsArrayCarrierFactsBeforeFinalization,
-} from "./surfaces/js/array-carrier-lifecycle.js";
-import {
   recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization,
 } from "./surfaces/js/date/index.js";
 import {
@@ -234,7 +231,6 @@ function ensureCsharpJsSurfaceSeedFacts(
   recordCsharpJsRegExpRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
   recordCsharpJsDateRuntimeCarrierFactsBeforeFinalization(lifecycleContext);
   recordCsharpJsJsonRuntimeCarrierFactsBeforeFinalization(lifecycleContext, host);
-  recordCsharpJsArrayCarrierFactsBeforeFinalization(lifecycleContext, host);
 }
 
 export function createCsharpJsSurfaceHost(
