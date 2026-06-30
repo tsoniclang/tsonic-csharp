@@ -40,6 +40,9 @@ import {
   getCommonNonNullishUnionRuntimeCarrier,
   getNonNullishRuntimeUnionCarrier,
 } from "./runtime-carrier-mapping/unions.js";
+import {
+  getTupleRuntimeCarrier,
+} from "./runtime-carrier-mapping/tuples.js";
 
 export function mapRuntimeCarrier(
   request: RuntimeCarrierFactRequest,
@@ -60,6 +63,12 @@ export function mapRuntimeCarrier(
     return acceptObservation<RuntimeCarrierFactResult>({
       carrier: callableCarrier,
     }, [{ message: "C# callable runtime carrier mapped from checked TSTS signature and source parameter facts." }]);
+  }
+  const tupleCarrier = getTupleRuntimeCarrier(request, context, host);
+  if (tupleCarrier !== undefined) {
+    return acceptObservation<RuntimeCarrierFactResult>({
+      carrier: tupleCarrier,
+    }, [{ message: "C# tuple runtime carrier mapped from checked TSTS tuple element facts." }]);
   }
   const requestType = asType(request.type);
   if (isAnyRuntimeCarrierType(requestType, context)) {

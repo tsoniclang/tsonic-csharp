@@ -37,6 +37,7 @@ import type {
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
   csharpDelegateTargetType,
+  isCsharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 
 export interface LambdaTargetContext {
@@ -252,9 +253,10 @@ function getExplicitLambdaSignatureTarget(
 export function csharpDelegateSignatureFromTargetTypeRef(
   type: TargetTypeRef | undefined,
 ): CsharpDelegateSignatureShape | undefined {
-  return type?.kind === "target-named"
+  const signature = type?.kind === "target-named"
     ? (type as { readonly csharpDelegateSignature?: CsharpDelegateSignatureShape }).csharpDelegateSignature
     : undefined;
+  return signature?.returnType === undefined ? undefined : signature;
 }
 
 export function lambdaTargetContextFromTargetRef(type: TargetTypeRef | undefined): LambdaTargetContext | undefined {
@@ -267,17 +269,15 @@ export function lambdaTargetContextFromTargetRef(type: TargetTypeRef | undefined
     return undefined;
   }
   const parameters = signature.parameters.map(csharpTypeFromTargetTypeRef);
-  const returnType = signature.returnType === undefined
-    ? undefined
-    : csharpTypeFromTargetTypeRef(signature.returnType);
-  if (parameters.some((parameter) => parameter === undefined) || (signature.returnType !== undefined && returnType === undefined)) {
+  const returnType = csharpTypeFromTargetTypeRef(signature.returnType);
+  if (parameters.some((parameter) => parameter === undefined) || returnType === undefined) {
     return undefined;
   }
   return {
     type: targetType,
     signature: {
       parameters: parameters as readonly CsharpTypeNode[],
-      ...(returnType !== undefined ? { returnType } : {}),
+      ...(isCsharpVoidTargetType(signature.returnType) ? {} : { returnType }),
     },
   };
 }

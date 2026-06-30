@@ -82,6 +82,7 @@ export function findTargetMemberForCall(
         receiver: requestContext.calleeReceiver,
         sourceSelectedSignature: request.sourceSelectedSignature,
       },
+      context,
       options,
     );
   }
@@ -127,7 +128,7 @@ export function findTargetMemberForElementAccess(
         );
   }
   if (declaration === undefined) {
-    return selectSingleProviderIndexer(csharpBinding, request, options);
+    return selectSingleProviderIndexer(csharpBinding, request, context, options);
   }
   const candidates = getTargetMemberCandidates(csharpBinding, declaration);
   if (candidates.length === 1) {
@@ -136,11 +137,12 @@ export function findTargetMemberForElementAccess(
       {
         arguments: [request.argument],
       },
+      context,
       options,
     );
   }
   if (declaration?.memberId === undefined) {
-    return selectSingleProviderIndexer(csharpBinding, request, options);
+    return selectSingleProviderIndexer(csharpBinding, request, context, options);
   }
   const selected = selectTargetMember(
     candidates,
@@ -153,13 +155,14 @@ export function findTargetMemberForElementAccess(
   );
   return selected
     ?? (candidates.length === 0
-      ? selectSingleProviderIndexer(csharpBinding, request, options)
+      ? selectSingleProviderIndexer(csharpBinding, request, context, options)
       : undefined);
 }
 
 function selectSingleProviderIndexer(
   binding: CsharpTargetBindingFact | undefined,
   request: CheckedElementAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
   options: TargetMemberSelectionOptions,
 ): CsharpTargetMember | undefined {
   const indexerCandidates = (binding?.members ?? []).filter((member) => member.kind === "indexer");
@@ -169,6 +172,7 @@ function selectSingleProviderIndexer(
         {
           arguments: [request.argument],
         },
+        context,
         options,
       )
     : undefined;

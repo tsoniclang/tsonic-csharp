@@ -23,6 +23,9 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
+import {
+  isCsharpVoidTargetType,
+} from "../../../source/csharp-source-semantics/target-types.js";
 
 export function renderObjectShapeMembers(
   fact: CsharpObjectShapeFact,
@@ -73,7 +76,7 @@ function renderObjectShapeMethodMember(
   const signature = csharpDelegateSignatureFromTargetTypeRef(member.type);
   if (signature === undefined) {
     if (diagnostics !== undefined && diagnosticSubject !== undefined) {
-      diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, `Object-shape method '${member.sourceName}' must carry a Func/Action delegate target type before C# emission.`));
+      diagnostics.push(unsupportedNodeDiagnostic(diagnosticSubject, `Object-shape method '${member.sourceName}' must carry a Func/Action delegate target type with explicit return facts before C# emission.`));
     }
     return [undefined];
   }
@@ -105,11 +108,11 @@ function renderObjectShapeMethodMember(
     kind: "MethodDeclaration",
     name: member.targetName,
     modifiers: ["public"],
-    returnType: signature.returnType ?? { kind: "PredefinedType", name: "void" },
+    returnType: signature.returnType,
     parameters,
     body: {
       kind: "Block",
-      statements: signature.returnType === undefined
+      statements: signature.returnsVoid
         ? [{ kind: "ExpressionStatement", expression: call }]
         : [{ kind: "ReturnStatement", expression: call }],
     },
@@ -121,19 +124,18 @@ interface CsharpDelegateSignatureMetadata {
   readonly returnType?: TargetTypeRef;
 }
 
-function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): { readonly parameters: readonly CsharpTypeNode[]; readonly returnType?: CsharpTypeNode } | undefined {
+function csharpDelegateSignatureFromTargetTypeRef(type: TargetTypeRef): { readonly parameters: readonly CsharpTypeNode[]; readonly returnType: CsharpTypeNode; readonly returnsVoid: boolean } | undefined {
   const metadata = (type as { readonly csharpDelegateSignature?: CsharpDelegateSignatureMetadata }).csharpDelegateSignature;
-  if (metadata === undefined) {
+  if (metadata?.returnType === undefined) {
     return undefined;
   }
   const parameters = metadata.parameters.map(csharpTypeFromTargetTypeRef);
-  const returnType = metadata.returnType === undefined
-    ? undefined
-    : csharpTypeFromTargetTypeRef(metadata.returnType);
-  return parameters.some((parameter) => parameter === undefined) || (metadata.returnType !== undefined && returnType === undefined)
+  const returnType = csharpTypeFromTargetTypeRef(metadata.returnType);
+  return parameters.some((parameter) => parameter === undefined) || returnType === undefined
     ? undefined
     : {
         parameters: parameters as readonly CsharpTypeNode[],
-        ...(returnType !== undefined ? { returnType } : {}),
+        returnType,
+        returnsVoid: isCsharpVoidTargetType(metadata.returnType),
       };
 }

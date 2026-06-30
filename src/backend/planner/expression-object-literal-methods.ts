@@ -59,7 +59,7 @@ export function planObjectShapeMethodMemberAssignment(
     return undefined;
   }
   if (csharpDelegateSignatureFromTargetTypeRef(member.type) === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a finalized delegate target type before C# emission.`));
+    diagnostics.push(unsupportedNodeDiagnostic(methodNode, `Object-shape method '${member.sourceName}' must carry a finalized delegate target type with explicit return facts before C# emission.`));
     return undefined;
   }
   const expression = planObjectLiteralMethodAsLambda(methodNode, sourceFile, input, diagnostics, memberType, member.type);

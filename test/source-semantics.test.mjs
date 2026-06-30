@@ -495,6 +495,7 @@ test("source-semantics records source-core marker facts and rejects unproven sto
   const diagnostics = session.ensureChecked(sourceFile);
   assert.deepEqual((session.extensionHost?.diagnostics.all() ?? []).map((diagnostic) => diagnostic.extensionCode).sort(), [
     "CSHARP_FIELD_MARKER_FACT_NOT_PROVEN",
+    "SOURCE_SEMANTICS_FIELD_CONTEXT_NOT_PROVEN",
     "SOURCE_SEMANTICS_NON_STORAGE_ARGUMENT",
   ]);
   assert.match(formatDiagnostics(diagnostics), /TSTS_SOURCE_SEMANTICS_0001/);
@@ -502,6 +503,7 @@ test("source-semantics records source-core marker facts and rejects unproven sto
   const extensionHost = session.finalizeExtensions();
   assert.deepEqual(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).sort(), [
     "CSHARP_FIELD_MARKER_FACT_NOT_PROVEN",
+    "SOURCE_SEMANTICS_FIELD_CONTEXT_NOT_PROVEN",
     "SOURCE_SEMANTICS_NON_STORAGE_ARGUMENT",
   ]);
 
@@ -743,6 +745,99 @@ test("source-semantics closes generic structural object-literal carriers over ty
   assert.deepEqual(extensionHost.facts.get(objectLiteral, runtimeCarrierFactKey)?.carrier, fact.targetType);
 });
 
+test("source-semantics reuses utility-projected object shape identity inside Parameters tuple carriers", () => {
+  const sourceText = `
+    type Fn = (input: { count: number }) => number;
+    type Args = Parameters<Fn>;
+
+    export function read([input]: Args): number {
+      return input.count;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const typeLiteral = collectNodesByKind(sourceFile, session.ast, "KindTypeLiteral")[0];
+  const argsReference = collectNodesByKind(sourceFile, session.ast, "KindTypeReference")
+    .find((node) => session.ast.text(node.TypeName) === "Args");
+  const parameter = collectNodesByKind(sourceFile, session.ast, "KindParameter")
+    .find((node) => session.ast.kindName(node.name) === "KindArrayBindingPattern");
+  const objectShape = extensionHost.facts.get(typeLiteral, csharpObjectShapeFactKey);
+  const argsCarrier = extensionHost.facts.get(argsReference, runtimeCarrierFactKey)?.carrier;
+  const parameterCarrier = extensionHost.facts.get(parameter, runtimeCarrierFactKey)?.carrier;
+
+  assert.equal(argsCarrier?.kind, "tuple");
+  assert.equal(parameterCarrier?.kind, "tuple");
+  assert.equal(argsCarrier.elements[0].id, objectShape.targetType.id);
+  assert.equal(parameterCarrier.elements[0].id, objectShape.targetType.id);
+});
+
+test("source-semantics records tuple member operation facts from TSTS numeric literal types", () => {
+  const sourceText = `
+    const one = 1 as const;
+
+    export function read(pair: [number, string]): string {
+      return pair[one];
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
+  const operation = extensionHost.facts.get(elementAccess, targetOperationFactKey);
+  const csharpOperation = extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey);
+
+  assert.equal(operation.operationId, "tsonic.csharp.source.tuple.item.1");
+  assert.equal(operation.targetOperation, "Item2");
+  assert.equal(csharpOperation.operationKind, "property");
+  assert.equal(csharpOperation.memberName, "Item2");
+});
+
 test("source-semantics records inline object parameter shapes for checked member access", () => {
   const sourceText = `
     export function read(input: { count: number }): number {
@@ -784,6 +879,57 @@ test("source-semantics records inline object parameter shapes for checked member
   assert.deepEqual(fact.members.map((member) => [member.sourceName, member.targetName]), [["count", "count"]]);
   assert.equal(extensionHost.facts.get(propertyAccess, targetOperationFactKey)?.targetOperation, "count");
   assert.equal(extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey)?.memberName, "count");
+});
+
+test("source-semantics records structural type-literal methods with contextual delegate returns", () => {
+  const sourceText = `
+    type Visitor = { visit(value: number): number };
+
+    export const visitor: Visitor = {
+      visit(value) {
+        return value + 1;
+      },
+    };
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const objectLiteral = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")[0];
+  const fact = extensionHost.facts.get(objectLiteral, csharpObjectShapeFactKey);
+  const method = fact?.members.find((member) => member.sourceName === "visit");
+
+  assert.equal(method?.memberKind, "method");
+  assert.equal(method?.type.kind, "target-named");
+  assert.equal(method?.type.kind === "target-named" ? method.type.id : undefined, "System.Func`2");
+  assert.deepEqual(method?.type.kind === "target-named"
+    ? method.type.csharpDelegateSignature
+    : undefined, {
+      parameters: [{ kind: "source-primitive", name: "float64" }],
+      returnType: { kind: "source-primitive", name: "float64" },
+    });
 });
 
 test("source-semantics rejects source-core marker calls missing required type evidence", () => {

@@ -171,45 +171,54 @@ test("target member selection rejects byref parameter mode mismatches", () => {
   );
 });
 
-test("C# provider derives out/ref/in passing from selected target parameter facts", () => {
+test("C# provider keeps source-core argument-passing facts canonical", () => {
+  const provider = getNativeSemanticProvider();
+
+  assert.equal(provider.resolveParameterPassing, undefined);
+});
+
+test("C# parameter-passing validation rejects selected byref members without source marker facts", () => {
   const provider = getNativeSemanticProvider();
   const argument = {};
   const int32 = { kind: "source-primitive", name: "int32" };
-  const cases = [
-    ["notNamedOut", "byref-writeonly-must-init"],
-    ["notNamedRef", "byref-readwrite"],
-    ["notNamedIn", "byref-readonly"],
-  ];
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const member = {
+    id: "Example.Target.tryGetValue(System.String,out System.Int32)",
+    sourceName: "tryGetValue",
+    targetName: "TryGetValue",
+    kind: "method",
+    parameters: [
+      targetParameter("key", csharpStringType()),
+      targetParameter("value", int32, "byref-writeonly-must-init"),
+    ],
+    returnType: { kind: "source-primitive", name: "bool" },
+  };
 
-  for (const [name, mode] of cases) {
-    const result = provider.resolveParameterPassing({
-      target: "csharp",
-      parameter: targetParameter(name, int32, mode),
-      argument,
-    }, fakeObservationContext({}));
-
-    assert.equal(result.kind, "accept", name);
-    assert.deepEqual(result.value.passing, {
-      mode,
-      targetExpression: argument,
-    });
-  }
-
-  const markerCall = {};
-  const mismatch = provider.resolveParameterPassing({
+  const result = provider.mapCheckedCall({
     target: "csharp",
-    parameter: targetParameter("notNamedOut", int32, "byref-writeonly-must-init"),
-    argument: markerCall,
+    call: {},
+    callee: {},
+    calleePropertyName: "tryGetValue",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [{ kind: "target-named", id: "System.String" }, argument],
   }, fakeObservationContext({
-    argumentPassingSubject: markerCall,
-    argumentPassing: {
-      mode: "byref-readwrite",
-      targetExpression: argument,
+    targetBindingSubject: containerSymbol,
+    targetBinding: {
+      id: "Example.Target",
+      sourceName: "Target",
+      targetName: "Target",
+      target: "csharp",
+      kind: "class",
+      members: [member],
     },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Target.tryGetValue", "tryGetValue"),
   }));
 
-  assert.equal(mismatch.kind, "reject");
-  assert.equal(mismatch.diagnostic.extensionCode, "CSHARP_ARGUMENT_PASSING_MODE_MISMATCH");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
 });
 
 test("C# provider rejects missing or mutated target parameter-mode facts before recording selected operations", () => {

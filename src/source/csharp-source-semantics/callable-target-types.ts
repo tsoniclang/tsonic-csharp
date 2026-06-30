@@ -78,7 +78,10 @@ export function getCallableExpressionTargetTypeRef(
       context,
       options,
     );
-  return checkedReturnType === undefined || isVoidTargetType(checkedReturnType)
+  if (checkedReturnType === undefined) {
+    return undefined;
+  }
+  return isVoidTargetType(checkedReturnType)
     ? csharpDelegateTargetType("System.Action", parameters as readonly TargetTypeRef[])
     : csharpDelegateTargetType("System.Func", parameters as readonly TargetTypeRef[], checkedReturnType);
 }

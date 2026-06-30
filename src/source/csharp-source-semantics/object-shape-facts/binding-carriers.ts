@@ -47,9 +47,10 @@ export function recordObjectBindingMemberRuntimeCarriers(
   if (pattern === undefined || compiler.ast.kindName(pattern) !== "KindObjectBindingPattern") {
     return;
   }
-  const sourceExpression = asNodeSubject(getNodeField(node, "Initializer")) ??
-    asNodeSubject(getNodeField(node, "Type"));
-  const objectShape = resolveObjectShape(sourceExpression, context, host);
+  const sourceExpression = asNodeSubject(getNodeField(node, "Initializer"));
+  const declaredType = asNodeSubject(getNodeField(node, "Type"));
+  const objectShape = resolveObjectShape(sourceExpression, context, host) ??
+    resolveObjectShape(declaredType, context, host);
   if (objectShape === undefined) {
     return;
   }

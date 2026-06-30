@@ -159,7 +159,10 @@ function getFunctionTargetTypeRefFromSemanticSignature(
     return undefined;
   }
   const returnType = host.getTargetTypeRefForType(compiler.typeShape.getReturnTypeOfSignature(signature as Parameters<typeof compiler.typeShape.getReturnTypeOfSignature>[0], { sourceFile }), context);
-  return returnType === undefined || isVoidTargetType(returnType)
+  if (returnType === undefined) {
+    return undefined;
+  }
+  return isVoidTargetType(returnType)
     ? csharpDelegateTargetType("System.Action", parameterTypes as readonly TargetTypeRef[])
     : csharpDelegateTargetType("System.Func", parameterTypes as readonly TargetTypeRef[], returnType);
 }

@@ -22,6 +22,9 @@ import {
   targetOperation,
 } from "../operations.js";
 import {
+  asNodeSubject,
+} from "../ast-utils.js";
+import {
   findTargetBinding,
 } from "../provider-bindings.js";
 import {
@@ -57,11 +60,17 @@ import {
   rejectNativeArrayPropertyNotSupported,
   rejectNonIntegralNativeArrayIndex,
   rejectNonIntegralSourceArrayIndex,
+  rejectTupleElementCarrierMissing,
+  rejectTupleElementIndexNotProven,
 } from "./diagnostics.js";
 import type {
   CheckedElementAccessContext,
   CheckedPropertyAccessContext,
 } from "./types.js";
+import {
+  csharpTupleElementMemberName,
+  getTstsTupleElementIndex,
+} from "../tuple-element-index.js";
 
 export function mapCsharpNativeArrayCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
@@ -215,6 +224,7 @@ export function mapCsharpSourceArrayCheckedElementAccess(
 export function mapCsharpSourceTupleCheckedElementAccess(
   request: CheckedElementAccessMappingRequest,
   context: CheckedElementAccessContext,
+  extensionId: string,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
@@ -222,9 +232,33 @@ export function mapCsharpSourceTupleCheckedElementAccess(
   if (receiverType?.kind !== "tuple") {
     return undefined;
   }
+  const argumentNode = asNodeSubject(request.argument);
+  const sourceFile = argumentNode === undefined ? undefined : context.compiler?.ast.getSourceFile(argumentNode);
+  const index = getTstsTupleElementIndex(argumentNode, sourceFile, context.compiler === undefined ? undefined : {
+    kindName: (node) => context.compiler!.ast.kindName(node),
+    text: (node) => context.compiler!.ast.text(node),
+    getConstantValue: (node, options) => context.compiler!.typeShape.getConstantValue(node, options),
+    getSymbolAtLocation: (node, options) => context.compiler!.checker.getSymbolAtLocation(node, options),
+    getResolvedSymbol: (node, options) => context.compiler!.checker.getResolvedSymbolOrNil(node, options) ?? undefined,
+    getSymbolDeclarations: (symbol) => context.compiler!.checker.getSymbolDeclarations(symbol),
+  });
+  if (index === undefined) {
+    return rejectTupleElementIndexNotProven(extensionId);
+  }
+  const resultType = receiverType.elements[index];
+  if (resultType === undefined) {
+    return rejectTupleElementCarrierMissing(extensionId, index);
+  }
+  const operationId = `tsonic.csharp.source.tuple.item.${index}`;
+  const memberName = csharpTupleElementMemberName(index);
+  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "property", memberName, {
+    resultType,
+  }), [{ message: "C# source tuple element member operation recorded from checked TSTS tuple receiver and literal element index facts." }]);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation("tsonic.csharp.source.tuple.indexer", "indexer", "Item"),
-  }, [{ message: "C# source tuple element access accepted from checked TSTS tuple receiver facts; backend consumes finalized tuple element facts." }]);
+    operation: targetOperation(operationId, "indexer", memberName, {
+      resultType,
+    }),
+  }, [{ message: "C# source tuple element access selected from checked TSTS tuple receiver and literal element index facts." }]);
 }
 
 export function mapCsharpSourceDeclaredReceiverCheckedElementAccess(

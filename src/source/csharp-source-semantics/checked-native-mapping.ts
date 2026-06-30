@@ -1,6 +1,5 @@
 import {
   acceptObservation,
-  argumentPassingFactKey,
   contextualTargetTypeFactKey,
   deferObservation,
   providerVirtualDeclarationFactKey,
@@ -16,8 +15,6 @@ import type {
   ContextualTargetTypeResult,
   ExtensionObservation,
   ExtensionObservationContext,
-  ParameterPassingRequest,
-  ParameterPassingResult,
 } from "@tsonic/tsts";
 import {
   csharpTargetConversionOperationFactKey,
@@ -45,7 +42,6 @@ import {
   mapCsharpIterationOperationRows,
 } from "./operation-selection/iteration.js";
 import {
-  asTargetParameter,
   asType,
   targetTypeRefEquals,
   targetTypeRefKey,
@@ -219,39 +215,6 @@ export function mapCsharpCheckedConversion(
     convertedType: target,
     ...(operation !== undefined ? { operation: operation.operation } : {}),
   }, [{ message: "C# target conversion recorded from checked call argument and selected target parameter." }]);
-}
-
-export function mapCsharpParameterPassing(
-  request: ParameterPassingRequest,
-  context: ExtensionObservationContext<"parameter.resolvePassing">,
-): ExtensionObservation<ParameterPassingResult> {
-  if (request.target !== undefined && request.target !== csharpTargetId) {
-    return deferObservation;
-  }
-  const parameter = asTargetParameter(request.parameter);
-  if (parameter === undefined) {
-    return deferObservation;
-  }
-  const sourceMarkerPassing = context.facts.get(request.argument, argumentPassingFactKey);
-  if (sourceMarkerPassing !== undefined) {
-    if (sourceMarkerPassing.mode !== parameter.passingMode) {
-      return rejectObservation(csharpProviderDiagnostic(
-        context.extensionId,
-        "CSHARP_ARGUMENT_PASSING_MODE_MISMATCH",
-        9100148,
-        `C# parameter passing requires '${parameter.passingMode}', but the selected source marker provided '${sourceMarkerPassing.mode}'.`,
-      ));
-    }
-    return acceptObservation<ParameterPassingResult>({
-      passing: sourceMarkerPassing,
-    }, [{ message: "C# argument passing reused the finalized source-core storage marker fact for the selected provider parameter." }]);
-  }
-  return acceptObservation<ParameterPassingResult>({
-    passing: {
-      mode: parameter.passingMode,
-      ...(request.argument !== undefined ? { targetExpression: request.argument } : {}),
-    },
-  }, [{ message: "C# argument passing recorded from selected target parameter." }]);
 }
 
 function subjectIdentity(subject: unknown): string {

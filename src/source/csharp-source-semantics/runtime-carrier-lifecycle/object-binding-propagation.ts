@@ -47,9 +47,11 @@ export function propagateCsharpRuntimeCarrierFactFromObjectBindingDeclaration(
   }
   const sourceExpression = kind === "KindVariableDeclaration"
     ? asNodeSubject(getNodeField(node, "Initializer"))
-    : asNodeSubject(getNodeField(node, "Type"));
+    : undefined;
+  const declaredType = asNodeSubject(getNodeField(node, "Type"));
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const objectShape = host.getCsharpObjectShapeFactForSubject(sourceExpression, context);
+  const objectShape = host.getCsharpObjectShapeFactForSubject(sourceExpression, context) ??
+    host.getCsharpObjectShapeFactForSubject(declaredType, context);
   if (objectShape === undefined) {
     return;
   }

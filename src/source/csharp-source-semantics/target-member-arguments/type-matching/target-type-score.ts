@@ -8,6 +8,7 @@ import {
   getCsharpNullableElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
   isCsharpReadOnlyIndexableCollectionTargetType,
+  isCsharpVoidTargetType,
 } from "../../target-types.js";
 import type {
   CsharpDelegateSignatureShape,
@@ -189,9 +190,11 @@ function targetDelegateSignatureMatchesExpected(
   })) {
     return false;
   }
-  if (expected.returnType === undefined) {
-    return true;
+  if (expected.returnType === undefined || actualSignature.returnType === undefined) {
+    return false;
   }
-  return actualSignature.returnType !== undefined &&
-    targetTypeMatchScore(expected.returnType, actualSignature.returnType, typeParameterBindings, options, seenActualTypes) !== undefined;
+  if (isCsharpVoidTargetType(expected.returnType)) {
+    return isCsharpVoidTargetType(actualSignature.returnType);
+  }
+  return targetTypeMatchScore(expected.returnType, actualSignature.returnType, typeParameterBindings, options, seenActualTypes) !== undefined;
 }

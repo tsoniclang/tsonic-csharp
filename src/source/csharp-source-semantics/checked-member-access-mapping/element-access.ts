@@ -85,7 +85,7 @@ export function mapCsharpCheckedElementAccess(
   if (binding === undefined) {
     return mapCsharpNativeArrayCheckedElementAccess(request, context, extensionId, host) ??
       mapCsharpSourceArrayCheckedElementAccess(request, context, extensionId, host) ??
-      mapCsharpSourceTupleCheckedElementAccess(request, context, host) ??
+      mapCsharpSourceTupleCheckedElementAccess(request, context, extensionId, host) ??
       mapCsharpSourceDeclaredReceiverCheckedElementAccess(request, context, host) ??
       rejectElementAccessNotMapped(extensionId);
   }

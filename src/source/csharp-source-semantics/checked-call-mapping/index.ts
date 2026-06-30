@@ -9,6 +9,8 @@ import type {
   CheckedCallMappingResult,
   ExtensionObservation,
   ExtensionObservationContext,
+  Node,
+  Signature,
 } from "@tsonic/tsts";
 import {
   csharpTargetOperationFactKey,
@@ -86,8 +88,14 @@ import {
 } from "../checked-call-request-context.js";
 import {
   asNodeSubject,
-  isDeclarationOrVirtualSourceFile,
+  getNodeField,
 } from "../ast-utils.js";
+import {
+  getSymbolDeclarations,
+} from "../symbol-utils.js";
+import {
+  isAmbientOrExternalDeclaration,
+} from "../source-declaration-utils.js";
 
 export function mapCsharpCheckedCall(
   request: CheckedCallMappingRequest,
@@ -249,13 +257,8 @@ function acceptSourceOwnedCheckedCall(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
-  const compiler = context.compiler;
-  const declaration = asNodeSubject(request.sourceSelectedDeclaration);
-  if (compiler === undefined || declaration === undefined) {
-    return undefined;
-  }
-  const declarationSourceFile = compiler.ast.getSourceFile(declaration);
-  if (declarationSourceFile === undefined || isDeclarationOrVirtualSourceFile(declarationSourceFile, compiler.ast)) {
+  const declaration = getSourceOwnedCallDeclaration(request, context, host);
+  if (declaration === undefined) {
     return undefined;
   }
   const returnType = host.getTargetTypeRefForSubject(request.call, context);
@@ -266,6 +269,116 @@ function acceptSourceOwnedCheckedCall(
       ...(returnType === undefined ? {} : { returnType }),
     }),
   }, [{ message: "C# target observed a TSTS-selected project source call; backend emission remains source-owned and target facts are not inferred from source spelling." }]);
+}
+
+function getSourceOwnedCallDeclaration(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): Node | undefined {
+  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ??
+    getSignatureDeclaration(request.sourceSelectedSignature, context);
+  if (sourceDeclarationIsOwnedProjectDeclaration(selectedDeclaration, context)) {
+    return selectedDeclaration;
+  }
+  const symbolDeclaration = getUniqueCalleeDeclaration(request, context);
+  if (
+    sourceDeclarationIsOwnedProjectDeclaration(symbolDeclaration, context) &&
+    isSourceCallableSymbolDeclaration(symbolDeclaration, request, context, host)
+  ) {
+    return symbolDeclaration;
+  }
+  return undefined;
+}
+
+function getSignatureDeclaration(
+  signature: CheckedCallMappingRequest["sourceSelectedSignature"],
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): Node | undefined {
+  const checker = context.compiler?.checker;
+  if (signature === undefined || checker === undefined) {
+    return undefined;
+  }
+  return asNodeSubject(checker.getSignatureDeclaration(signature as Signature));
+}
+
+function getUniqueCalleeDeclaration(
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): Node | undefined {
+  const compiler = context.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  const callee = asNodeSubject(request.callee);
+  const sourceFile = callee === undefined ? undefined : compiler.ast.getSourceFile(callee);
+  const resolvedSymbol = request.sourceCalleeSymbol ??
+    (callee === undefined ? undefined : compiler.checker.getResolvedSymbolOrNil(callee, { sourceFile }));
+  const declarations = getSymbolDeclarations(resolvedSymbol, compiler.checker);
+  return declarations.length === 1 ? declarations[0] : undefined;
+}
+
+function sourceDeclarationIsOwnedProjectDeclaration(
+  declaration: Node | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): declaration is Node {
+  return declaration !== undefined &&
+    context.compiler !== undefined &&
+    !isAmbientOrExternalDeclaration(declaration, context);
+}
+
+function isSourceCallableSymbolDeclaration(
+  declaration: Node,
+  request: CheckedCallMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): boolean {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return false;
+  }
+  switch (ast.kindName(declaration)) {
+    case "KindFunctionDeclaration":
+    case "KindFunctionExpression":
+    case "KindArrowFunction":
+    case "KindMethodDeclaration":
+    case "KindConstructor":
+    case "KindClassDeclaration":
+      return true;
+    case "KindVariableDeclaration":
+      return isDirectCallableSyntax(asNodeSubject(getNodeField(declaration, "Initializer")), context);
+    case "KindBindingElement":
+      return isCsharpDelegateTargetRef(
+        host.getTargetTypeRefForSubject(request.callee, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }) ??
+          host.getTargetTypeRefForSubject(request.call, context, { allowRuntimeCarrier: true, allowSemanticTypeQuery: false }),
+      );
+    default:
+      return false;
+  }
+}
+
+function isDirectCallableSyntax(
+  node: Node | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): boolean {
+  const ast = context.compiler?.ast;
+  if (node === undefined || ast === undefined) {
+    return false;
+  }
+  switch (ast.kindName(node)) {
+    case "KindFunctionDeclaration":
+    case "KindFunctionExpression":
+    case "KindArrowFunction":
+    case "KindMethodDeclaration":
+    case "KindConstructor":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isCsharpDelegateTargetRef(type: ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]>): boolean {
+  return typeof (type as { readonly csharpDelegateSignature?: unknown } | undefined)?.csharpDelegateSignature === "object";
 }
 
 function rejectUnmappedExternalCall(

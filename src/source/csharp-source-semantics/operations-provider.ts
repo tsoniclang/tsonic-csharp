@@ -69,7 +69,6 @@ import {
   mapCsharpCheckedConversion,
   mapCsharpContextualTargetType,
   mapCsharpNativeCheckedIteration,
-  mapCsharpParameterPassing,
 } from "./checked-native-mapping.js";
 import {
   observeCsharpPostCheckAssignability,
@@ -207,9 +206,6 @@ export function createCsharpTargetOperationsProvider(
     },
     mapCheckedConversion(request, context) {
       return mapCsharpCheckedConversion(request, context, surfaceAwareHost);
-    },
-    resolveParameterPassing(request, context) {
-      return mapCsharpParameterPassing(request, context);
     },
   };
 }

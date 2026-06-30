@@ -136,7 +136,10 @@ function sourceFunctionArgumentMatchScore(
   if (parameterCount !== expectedDelegate.parameters.length) {
     return undefined;
   }
-  if (expectedDelegate.returnType === undefined || isCsharpVoidTargetType(expectedDelegate.returnType)) {
+  if (expectedDelegate.returnType === undefined) {
+    return undefined;
+  }
+  if (isCsharpVoidTargetType(expectedDelegate.returnType)) {
     return 4;
   }
   const actualReturnType = getCsharpDelegateSignature(actual)?.returnType;
