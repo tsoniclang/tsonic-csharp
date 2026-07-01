@@ -16,6 +16,7 @@ import {
 } from "../dist/source/csharp-source-semantics/surface-extensions.js";
 import {
   createCsharpNodejsProviderPackageBindingProvider,
+  createCsharpNodejsProviderPackageOperationsMappers,
   createCsharpNodejsProviderPackageOperationsProvider,
 } from "../dist/source/csharp-source-semantics/provider-packages/nodejs/index.js";
 import { mapCsharpJsSurfaceCheckedIteration } from "../dist/source/csharp-source-semantics/surfaces/js/iteration.js";
@@ -3413,7 +3414,8 @@ test("selected NodeJS provider package finalizes process metadata and environmen
 
     export function processInfo(): string {
       const envPath = process.env["PATH"] ?? "";
-      return process.arch + process.argv0 + process.execPath + process.platform + process.version + process.versions.node + process.versions.dotnet + envPath + process.pid + process.ppid;
+      const usage = process.memoryUsage();
+      return process.arch + process.argv0 + process.execPath + process.platform + process.version + process.versions.node + process.versions.dotnet + envPath + process.pid + process.ppid + process.uptime() + usage.rss + usage.heapUsed;
     }
 
     export function currentExitCode(): number | null {
@@ -3445,6 +3447,8 @@ test("selected NodeJS provider package finalizes process metadata and environmen
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.chdir(System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.exit(System.Nullable`1)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.kill(System.Int32,System.Object)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.memoryUsage()"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.uptime()"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.arch"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.argv0"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.env"));
@@ -3458,6 +3462,8 @@ test("selected NodeJS provider package finalizes process metadata and environmen
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.process.versions"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.ProcessVersions.node"));
   assert.ok(operationIds.includes("Tsonic.CSharp.Node.ProcessVersions.dotnet"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.MemoryUsage.rss"));
+  assert.ok(operationIds.includes("Tsonic.CSharp.Node.MemoryUsage.heapUsed"));
 });
 
 test("NodeJS provider package rejects provider declarations whose selected identity is not mapped", () => {
@@ -3823,6 +3829,7 @@ function createCsharpSession(sourceText, options = {}) {
     id: "csharp",
     ...(options.typescriptCompatibility === undefined ? {} : { options: { typescriptCompatibility: options.typescriptCompatibility } }),
   };
+  const selectedPackages = selectedProviderPackages(options.selectedPackages ?? []);
   const context = {
     project: {
       entryPoint: "index.ts",
@@ -3830,7 +3837,7 @@ function createCsharpSession(sourceText, options = {}) {
     },
     target,
     selectedSurfaces: options.selectedSurfaces ?? [],
-    selectedPackages: options.selectedPackages ?? [],
+    selectedPackages,
   };
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -3855,14 +3862,30 @@ function createCsharpSession(sourceText, options = {}) {
             : []
         ),
         ...context.selectedPackages.flatMap((providerPackage) =>
-          providerPackage.id === "nodejs"
-            ? [createCsharpNodejsProviderPackageExtension({ ...context, package: providerPackage, targetPack: fakeTargetPack })]
-            : []
+          providerPackage.createExtensions?.({ ...context, package: providerPackage, targetPack: fakeTargetPack }) ?? []
         ),
       ],
     },
   });
 }
+
+function selectedProviderPackages(requestedPackages) {
+  return requestedPackages.map((providerPackage) =>
+    providerPackage.id === nodejsTestProviderPackage.id
+      ? nodejsTestProviderPackage
+      : providerPackage
+  );
+}
+
+const nodejsTestProviderPackage = {
+  id: "nodejs",
+  displayName: "Node.js provider package",
+  requiredSurfaces: ["js"],
+  createCsharpOperationsMappers: createCsharpNodejsProviderPackageOperationsMappers,
+  createExtensions(context) {
+    return [createCsharpNodejsProviderPackageExtension(context)];
+  },
+};
 
 const fakeTargetPack = {
   id: "csharp",

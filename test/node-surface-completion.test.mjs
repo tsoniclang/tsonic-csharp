@@ -16,6 +16,7 @@ import {
 } from "../dist/index.js";
 import {
   createCsharpNodejsProviderPackageBindingProvider,
+  createCsharpNodejsProviderPackageOperationsMappers,
   createCsharpNodejsProviderPackageOperationsProvider,
 } from "../dist/source/csharp-source-semantics/provider-packages/nodejs/index.js";
 
@@ -33,6 +34,7 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   assertModuleExport(bindingProvider, "node:crypto", "createCipheriv", "node:crypto.createCipheriv(System.String,System.Object,System.Object)");
   assertModuleExport(bindingProvider, "node:os", "cpus", "node:os.cpus()");
   assertModuleExport(bindingProvider, "node:process", "memoryUsage", "node:process.memoryUsage()");
+  assertClassProperty(bindingProvider, "node:process", "MemoryUsage", "rss", "Tsonic.CSharp.Node.MemoryUsage.rss");
   assertModuleExport(bindingProvider, "node:util", "format", "node:util.format(System.Object,System.Object[])");
   assertClassMember(bindingProvider, "node:url", "URLSearchParams", "append", "node:url.URLSearchParams.append(System.String,System.String)");
 });
@@ -62,6 +64,12 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const cryptoHmacSignature = {};
   const osHomedirCall = {};
   const osHomedirSignature = {};
+  const processMemoryCall = {};
+  const processMemorySignature = {};
+  const processMemoryRssExpression = {};
+  const processMemoryRssDeclaration = {};
+  const processUptimeCall = {};
+  const processUptimeSignature = {};
   const utilCall = {};
   const utilSignature = {};
   const urlCanParseCall = {};
@@ -77,6 +85,9 @@ test("NodeJS provider package maps closed operations from selected provider iden
   facts.set(bufferWriteUInt8Signature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "writeUInt8", "node:buffer.Buffer.writeUInt8", "node:buffer.Buffer.writeUInt8(System.Byte,System.Int32)"));
   facts.set(cryptoHmacSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:crypto", "createHmac", "node:crypto.createHmac(System.String,Tsonic.CSharp.Node.Buffer)"));
   facts.set(osHomedirSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("os", "homedir", "node:os.homedir()"));
+  facts.set(processMemorySignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "memoryUsage", "node:process.memoryUsage()"));
+  facts.set(processMemoryRssDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:process", "MemoryUsage", "rss", "Tsonic.CSharp.Node.MemoryUsage.rss"));
+  facts.set(processUptimeSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "uptime", "node:process.uptime()"));
   facts.set(utilSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "toUSVString", "node:util.toUSVString(System.String)"));
   facts.set(urlCanParseSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("url", "URL", "canParse", "node:url.URL.canParse", "node:url.URL.canParse(System.String,Tsonic.CSharp.Node.URL)"));
 
@@ -91,6 +102,9 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const bufferWriteUInt8Result = provider.mapCheckedCall(nodejsCallRequest(bufferWriteUInt8Call, bufferWriteUInt8Signature), fakeContext(facts));
   const cryptoHmacResult = provider.mapCheckedCall(nodejsCallRequest(cryptoHmacCall, cryptoHmacSignature), fakeContext(facts));
   const osHomedirResult = provider.mapCheckedCall(nodejsCallRequest(osHomedirCall, osHomedirSignature), fakeContext(facts));
+  const processMemoryResult = provider.mapCheckedCall(nodejsCallRequest(processMemoryCall, processMemorySignature), fakeContext(facts));
+  const processMemoryRssResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(processMemoryRssExpression, processMemoryRssDeclaration), fakeContext(facts));
+  const processUptimeResult = provider.mapCheckedCall(nodejsCallRequest(processUptimeCall, processUptimeSignature), fakeContext(facts));
   const utilResult = provider.mapCheckedCall(nodejsCallRequest(utilCall, utilSignature), fakeContext(facts));
   const urlCanParseResult = provider.mapCheckedCall(nodejsCallRequest(urlCanParseCall, urlCanParseSignature), fakeContext(facts));
 
@@ -108,6 +122,12 @@ test("NodeJS provider package maps closed operations from selected provider iden
   assertSelectedMember(bufferWriteUInt8Result, "Tsonic.CSharp.Node.Buffer.writeUInt8(System.Byte,System.Int32)");
   assertSelectedMember(cryptoHmacResult, "Tsonic.CSharp.Node.crypto.createHmac(System.String,Tsonic.CSharp.Node.Buffer)");
   assertSelectedMember(osHomedirResult, "Tsonic.CSharp.Node.os.homedir()");
+  assertSelectedMember(processMemoryResult, "Tsonic.CSharp.Node.process.memoryUsage()");
+  assert.equal(processMemoryResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Node.MemoryUsage");
+  assert.equal(processMemoryRssResult.kind, "accept");
+  assert.equal(processMemoryRssResult.value.operation.operationId, "Tsonic.CSharp.Node.MemoryUsage.rss");
+  assert.equal(facts.get(processMemoryRssExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.MemoryUsage.rss");
+  assertSelectedMember(processUptimeResult, "Tsonic.CSharp.Node.process.uptime()");
   assertSelectedMember(utilResult, "Tsonic.CSharp.Node.util.toUSVString(System.String)");
   assertSelectedMember(urlCanParseResult, "Tsonic.CSharp.Node.URL.canParse(System.String,Tsonic.CSharp.Node.URL)");
 });
@@ -121,7 +141,6 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
   const cryptoCipherSignature = {};
   const osCpusSignature = {};
   const osConstantsDeclaration = {};
-  const processMemorySignature = {};
   const processStdinDeclaration = {};
   const utilFormatSignature = {};
   const urlAppendSignature = {};
@@ -131,7 +150,6 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
   facts.set(cryptoCipherSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("crypto", "createCipheriv", "node:crypto.createCipheriv(System.String,System.Object,System.Object)"));
   facts.set(osCpusSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:os", "cpus", "node:os.cpus()"));
   facts.set(osConstantsDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("os", "constants"));
-  facts.set(processMemorySignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "memoryUsage", "node:process.memoryUsage()"));
   facts.set(processStdinDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("process", "stdin"));
   facts.set(utilFormatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "format", "node:util.format(System.Object,System.Object[])"));
   facts.set(urlAppendSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:url", "URLSearchParams", "append", "node:url.URLSearchParams.append", "node:url.URLSearchParams.append(System.String,System.String)"));
@@ -142,7 +160,6 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
   assertUnsupportedCall(provider, facts, cryptoCipherSignature, "unsupported:Tsonic.CSharp.Node.crypto.createCipheriv(System.String,System.Object,System.Object)");
   assertUnsupportedCall(provider, facts, osCpusSignature, "unsupported:Tsonic.CSharp.Node.os.cpus()");
   assertUnsupportedProperty(provider, facts, osConstantsDeclaration, "unsupported:Tsonic.CSharp.Node.os.constants");
-  assertUnsupportedCall(provider, facts, processMemorySignature, "unsupported:Tsonic.CSharp.Node.process.memoryUsage()");
   assertUnsupportedProperty(provider, facts, processStdinDeclaration, "unsupported:Tsonic.CSharp.Node.process.stdin");
   assertUnsupportedCall(provider, facts, utilFormatSignature, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
   assertUnsupportedCall(provider, facts, urlAppendSignature, "unsupported:Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
@@ -240,6 +257,21 @@ function assertClassMember(bindingProvider, moduleSpecifier, exportName, memberN
   assert.ok(identity?.id);
 }
 
+function assertClassProperty(bindingProvider, moduleSpecifier, exportName, memberName, memberId) {
+  const resolution = bindingProvider.resolveModule(moduleSpecifier, {});
+  assert.equal(resolution.kind, "virtual");
+  const model = bindingProvider.getDeclarationModel(resolution);
+  const declaration = model.exports.find((entry) => entry.name === exportName);
+  const member = declaration?.members?.find((entry) => entry.name === memberName);
+  assert.equal(member?.id, memberId);
+  const identity = bindingProvider.getTargetIdentity({
+    moduleSpecifier,
+    exportName,
+    memberName,
+  });
+  assert.equal(identity?.id, memberId);
+}
+
 function assertSelectedMember(result, memberId) {
   assert.equal(result.kind, "accept");
   assert.equal(result.value.selectedSignature.member.id, memberId);
@@ -270,6 +302,7 @@ function fakeContext(facts) {
 
 function createCsharpSession(sourceText, options = {}) {
   const target = { id: "csharp" };
+  const selectedPackages = selectedProviderPackages(options.selectedPackages ?? []);
   const context = {
     project: {
       entryPoint: "index.ts",
@@ -277,7 +310,7 @@ function createCsharpSession(sourceText, options = {}) {
     },
     target,
     selectedSurfaces: options.selectedSurfaces ?? [],
-    selectedPackages: options.selectedPackages ?? [],
+    selectedPackages,
   };
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -302,14 +335,30 @@ function createCsharpSession(sourceText, options = {}) {
             : []
         ),
         ...context.selectedPackages.flatMap((providerPackage) =>
-          providerPackage.id === "nodejs"
-            ? [createCsharpNodejsProviderPackageExtension({ ...context, package: providerPackage, targetPack: fakeTargetPack })]
-            : []
+          providerPackage.createExtensions?.({ ...context, package: providerPackage, targetPack: fakeTargetPack }) ?? []
         ),
       ],
     },
   });
 }
+
+function selectedProviderPackages(requestedPackages) {
+  return requestedPackages.map((providerPackage) =>
+    providerPackage.id === nodejsTestProviderPackage.id
+      ? nodejsTestProviderPackage
+      : providerPackage
+  );
+}
+
+const nodejsTestProviderPackage = {
+  id: "nodejs",
+  displayName: "Node.js provider package",
+  requiredSurfaces: ["js"],
+  createCsharpOperationsMappers: createCsharpNodejsProviderPackageOperationsMappers,
+  createExtensions(context) {
+    return [createCsharpNodejsProviderPackageExtension(context)];
+  },
+};
 
 const fakeTargetPack = {
   id: "csharp",

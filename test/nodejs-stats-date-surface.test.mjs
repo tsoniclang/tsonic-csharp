@@ -18,6 +18,7 @@ import {
 } from "../dist/index.js";
 import {
   createCsharpNodejsProviderPackageBindingProvider,
+  createCsharpNodejsProviderPackageOperationsMappers,
   createCsharpNodejsProviderPackageOperationsProvider,
 } from "../dist/source/csharp-source-semantics/provider-packages/nodejs/index.js";
 
@@ -151,6 +152,7 @@ function fakeContext(facts) {
 
 function createCsharpSession(sourceText, options = {}) {
   const target = { id: "csharp" };
+  const selectedPackages = selectedProviderPackages(options.selectedPackages ?? []);
   const context = {
     project: {
       entryPoint: "index.ts",
@@ -158,7 +160,7 @@ function createCsharpSession(sourceText, options = {}) {
     },
     target,
     selectedSurfaces: options.selectedSurfaces ?? [],
-    selectedPackages: options.selectedPackages ?? [],
+    selectedPackages,
   };
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -183,14 +185,30 @@ function createCsharpSession(sourceText, options = {}) {
             : []
         ),
         ...context.selectedPackages.flatMap((providerPackage) =>
-          providerPackage.id === "nodejs"
-            ? [createCsharpNodejsProviderPackageExtension({ ...context, package: providerPackage, targetPack: fakeTargetPack })]
-            : []
+          providerPackage.createExtensions?.({ ...context, package: providerPackage, targetPack: fakeTargetPack }) ?? []
         ),
       ],
     },
   });
 }
+
+function selectedProviderPackages(requestedPackages) {
+  return requestedPackages.map((providerPackage) =>
+    providerPackage.id === nodejsTestProviderPackage.id
+      ? nodejsTestProviderPackage
+      : providerPackage
+  );
+}
+
+const nodejsTestProviderPackage = {
+  id: "nodejs",
+  displayName: "Node.js provider package",
+  requiredSurfaces: ["js"],
+  createCsharpOperationsMappers: createCsharpNodejsProviderPackageOperationsMappers,
+  createExtensions(context) {
+    return [createCsharpNodejsProviderPackageExtension(context)];
+  },
+};
 
 const fakeTargetPack = {
   id: "csharp",

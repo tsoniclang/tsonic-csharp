@@ -44,12 +44,16 @@ const undefinedProviderType = { kind: "void" } satisfies ProviderTypeExpression;
 const objectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 const stringTargetType = csharpStringTargetType();
 const intTargetType = csharpSourcePrimitiveTargetType("int32");
+const longTargetType = csharpSourcePrimitiveTargetType("int64");
+const doubleTargetType = csharpSourcePrimitiveTargetType("float64");
 const boolTargetType = csharpSourcePrimitiveTargetType("bool");
 const voidTargetType = csharpVoidTargetType();
 const processTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.process", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "process"));
 const processEnvTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.ProcessEnv", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "ProcessEnv"));
+const processMemoryUsageTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.MemoryUsage", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "MemoryUsage"));
 const processVersionsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.ProcessVersions", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "ProcessVersions"));
 const processEnvProviderType = { kind: "provider-ref", moduleSpecifier: "node:process", exportName: "ProcessEnv" } satisfies ProviderTypeExpression;
+const processMemoryUsageProviderType = { kind: "provider-ref", moduleSpecifier: "node:process", exportName: "MemoryUsage" } satisfies ProviderTypeExpression;
 const processVersionsProviderType = { kind: "provider-ref", moduleSpecifier: "node:process", exportName: "ProcessVersions" } satisfies ProviderTypeExpression;
 const stringOrUndefinedProviderType = { kind: "union", types: [stringProviderType, undefinedProviderType] } satisfies ProviderTypeExpression;
 const stringOrNumberProviderType = { kind: "union", types: [stringProviderType, numberProviderType] } satisfies ProviderTypeExpression;
@@ -71,11 +75,15 @@ export const nodeProcessCwdSignatureId = "node:process.cwd()";
 export const nodeProcessPlatformExportName = "platform";
 export const nodeProcessEnvExportName = "env";
 export const nodeProcessProcessEnvExportName = "ProcessEnv";
+export const nodeProcessMemoryUsageExportName = "memoryUsage";
+export const nodeProcessMemoryUsageSignatureId = "node:process.memoryUsage()";
+export const nodeProcessProcessMemoryUsageExportName = "MemoryUsage";
 export const nodeProcessProcessVersionsExportName = "ProcessVersions";
 
 export function nodeProcessExports(): readonly ProviderExportDeclaration[] {
   return [
     nodeProcessEnvExportDeclaration(),
+    nodeProcessMemoryUsageExportDeclaration(),
     nodeProcessVersionsExportDeclaration(),
     ...nodeProcessCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
       id: `node:process.${exportName}`,
@@ -151,6 +159,8 @@ export function nodeProcessCallTargetMembers(): readonly NodeProcessCallTargetMe
       targetParameter("pid", intTargetType),
       targetParameter("signal", objectTargetType, { optional: true, csharpAcceptsClosedSourceArgument: true }),
     ], targetReturnType: boolTargetType }),
+    processCall({ exportName: nodeProcessMemoryUsageExportName, signatureId: nodeProcessMemoryUsageSignatureId, targetMemberId: "Tsonic.CSharp.Node.process.memoryUsage()", sourceName: "memoryUsage", targetName: "memoryUsage", providerParameters: [], providerReturnType: processMemoryUsageProviderType, targetParameters: [], targetReturnType: processMemoryUsageTargetType }),
+    processCall({ exportName: "uptime", signatureId: "node:process.uptime()", targetMemberId: "Tsonic.CSharp.Node.process.uptime()", sourceName: "uptime", targetName: "uptime", providerParameters: [], providerReturnType: numberProviderType, targetParameters: [], targetReturnType: doubleTargetType }),
   ];
 }
 
@@ -182,6 +192,7 @@ export function nodeProcessUnsupportedTargetIdentities(): readonly NodeProcessUn
 export function nodeProcessClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
   return [
     ...nodeProcessEnvClassPropertyTargetMembers(),
+    ...nodeProcessMemoryUsageClassPropertyTargetMembers(),
     ...nodeProcessVersionsClassPropertyTargetMembers(),
   ];
 }
@@ -203,6 +214,18 @@ function nodeProcessEnvClassPropertyTargetMembers(): readonly NodejsClassPropert
     }),
   ];
 }
+
+function nodeProcessMemoryUsageClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
+  return nodeProcessMemoryUsageClassPropertyTargetMetadataRows.map(nodejsClassPropertyTargetMetadata);
+}
+
+const nodeProcessMemoryUsageClassPropertyTargetMetadataRows = [
+  { exportName: nodeProcessProcessMemoryUsageExportName, memberName: "rss", memberId: "Tsonic.CSharp.Node.MemoryUsage.rss", targetMemberId: "Tsonic.CSharp.Node.MemoryUsage.rss", sourceName: "rss", targetName: "rss", memberKind: "property", providerType: numberProviderType, targetParameters: [], targetReturnType: longTargetType, declaringType: processMemoryUsageTargetType, readonly: true },
+  { exportName: nodeProcessProcessMemoryUsageExportName, memberName: "heapTotal", memberId: "Tsonic.CSharp.Node.MemoryUsage.heapTotal", targetMemberId: "Tsonic.CSharp.Node.MemoryUsage.heapTotal", sourceName: "heapTotal", targetName: "heapTotal", memberKind: "property", providerType: numberProviderType, targetParameters: [], targetReturnType: longTargetType, declaringType: processMemoryUsageTargetType, readonly: true },
+  { exportName: nodeProcessProcessMemoryUsageExportName, memberName: "heapUsed", memberId: "Tsonic.CSharp.Node.MemoryUsage.heapUsed", targetMemberId: "Tsonic.CSharp.Node.MemoryUsage.heapUsed", sourceName: "heapUsed", targetName: "heapUsed", memberKind: "property", providerType: numberProviderType, targetParameters: [], targetReturnType: longTargetType, declaringType: processMemoryUsageTargetType, readonly: true },
+  { exportName: nodeProcessProcessMemoryUsageExportName, memberName: "external", memberId: "Tsonic.CSharp.Node.MemoryUsage.external", targetMemberId: "Tsonic.CSharp.Node.MemoryUsage.external", sourceName: "external", targetName: "external", memberKind: "property", providerType: numberProviderType, targetParameters: [], targetReturnType: longTargetType, declaringType: processMemoryUsageTargetType, readonly: true },
+  { exportName: nodeProcessProcessMemoryUsageExportName, memberName: "arrayBuffers", memberId: "Tsonic.CSharp.Node.MemoryUsage.arrayBuffers", targetMemberId: "Tsonic.CSharp.Node.MemoryUsage.arrayBuffers", sourceName: "arrayBuffers", targetName: "arrayBuffers", memberKind: "property", providerType: numberProviderType, targetParameters: [], targetReturnType: longTargetType, declaringType: processMemoryUsageTargetType, readonly: true },
+] satisfies readonly Parameters<typeof nodejsClassPropertyTargetMetadata>[0][];
 
 function nodeProcessVersionsClassPropertyTargetMembers(): readonly NodejsClassPropertyTargetMember[] {
   return [
@@ -285,6 +308,27 @@ function nodeProcessEnvExportDeclaration(): ProviderExportDeclaration {
         returnType: stringOrUndefinedProviderType,
       }],
     }],
+  };
+}
+
+function nodeProcessMemoryUsageExportDeclaration(): ProviderExportDeclaration {
+  return {
+    id: `node:process.${nodeProcessProcessMemoryUsageExportName}`,
+    name: nodeProcessProcessMemoryUsageExportName,
+    kind: "interface",
+    targetIdentity: {
+      target: "csharp",
+      id: processMemoryUsageTargetType.id,
+      displayName: "Tsonic.CSharp.Node.MemoryUsage",
+    },
+    members: nodeProcessMemoryUsageClassPropertyTargetMembers()
+      .map((member) => ({
+        id: member.memberId,
+        name: member.memberName,
+        kind: "property" as const,
+        readonly: true,
+        type: numberProviderType,
+      })),
   };
 }
 
@@ -377,13 +421,6 @@ const nodeProcessUnsupportedExports = [
     providerType: unknownProviderType,
   },
   {
-    exportName: "memoryUsage",
-    signatureId: "node:process.memoryUsage()",
-    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.memoryUsage()",
-    displayName: "unsupported NodeJS process.memoryUsage",
-    providerType: unknownProviderType,
-  },
-  {
     exportName: "hrtime",
     signatureId: "node:process.hrtime(System.Int32[])",
     targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.hrtime(System.Int32[])",
@@ -401,13 +438,6 @@ const nodeProcessUnsupportedExports = [
       unknownRestParameter("args"),
     ],
     providerType: voidProviderType,
-  },
-  {
-    exportName: "uptime",
-    signatureId: "node:process.uptime()",
-    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.uptime()",
-    displayName: "unsupported NodeJS process.uptime",
-    providerType: numberProviderType,
   },
 ] satisfies readonly {
   readonly exportName: string;
