@@ -481,6 +481,51 @@ test("array binding defaults emit finalized length-guarded projections", () => {
   assert.equal(diagnostics.length, 0);
 });
 
+test("JSArray binding defaults use finalized hole-presence checks", () => {
+  const first = identifier("first");
+  const pattern = arrayBindingPattern([
+    bindingElement(first, { initializer: numericLiteral("42") }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: csharpJsArrayCarrierTargetType({ kind: "source-primitive", name: "int32" }) }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "first",
+    type: { kind: "PredefinedType", name: "int" },
+    initializer: {
+      kind: "ConditionalExpression",
+      condition: {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "value" },
+          name: "hasIndex",
+        },
+        arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: 0 } }],
+      },
+      whenTrue: {
+        kind: "ElementAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        argument: { kind: "LiteralExpression", value: 0 },
+      },
+      whenFalse: { kind: "LiteralExpression", value: 42 },
+    },
+  }]);
+  assert.equal(diagnostics.length, 0);
+});
+
 test("destructured parameters allocate synthetic parameters and emit fixed rest default prelude from facts", () => {
   const sourceExample = `
     export function sum([first = 42, second, ...rest]: number[]): number {

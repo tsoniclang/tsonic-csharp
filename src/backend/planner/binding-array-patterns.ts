@@ -184,18 +184,37 @@ function planArrayBindingDefaultProjection(
   }
   return {
     kind: "ConditionalExpression",
-    condition: {
-      kind: "BinaryExpression",
-      left: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: sourceExpression,
-        name: sourceCarrier.lengthMember,
-      },
-      operatorToken: { kind: "GreaterThanToken" },
-      right: { kind: "LiteralExpression", value: index },
-    },
+    condition: arrayBindingDefaultPresenceCondition(sourceExpression, index, sourceCarrier),
     whenTrue: projected,
     whenFalse,
+  };
+}
+
+function arrayBindingDefaultPresenceCondition(
+  sourceExpression: CsharpExpression,
+  index: number,
+  sourceCarrier: Extract<ArrayBindingCarrier, { readonly kind: "array" }>,
+): CsharpExpression {
+  if (isCsharpJsArrayCarrierTargetType(sourceCarrier.carrier)) {
+    return {
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: sourceExpression,
+        name: "hasIndex",
+      },
+      arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: index } }],
+    };
+  }
+  return {
+    kind: "BinaryExpression",
+    left: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: sourceExpression,
+      name: sourceCarrier.lengthMember,
+    },
+    operatorToken: { kind: "GreaterThanToken" },
+    right: { kind: "LiteralExpression", value: index },
   };
 }
 
