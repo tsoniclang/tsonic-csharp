@@ -8,6 +8,7 @@ import {
 } from "./helpers/target-facts.mjs";
 import { planExpression, planExpressionWithExpectedType } from "../dist/backend/planner/expressions.js";
 import {
+  KindArrowFunction,
   KindArrayLiteralExpression,
   KindAwaitExpression,
   KindBigIntLiteral,
@@ -20,6 +21,7 @@ import {
   KindPrefixUnaryExpression,
   KindRegularExpressionLiteral,
   KindTemplateExpression,
+  ModifierFlagsAsync,
 } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import {
@@ -28,6 +30,7 @@ import {
 } from "../dist/source/csharp-facts.js";
 import {
   csharpBigIntegerTargetType,
+  csharpDelegateTargetType,
   csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
   csharpStringTargetType,
@@ -704,6 +707,60 @@ test("await expression statement allows finalized non-generic Task carrier", () 
   assert.equal(printCsharpExpression(output), "await task");
 });
 
+test("async lambda emission accepts finalized Task-returning delegate facts", () => {
+  const sourceExample = `
+    const callback: () => Promise<number> = async () => 1;
+  `;
+  assert.match(sourceExample, /Promise<number>/);
+  assert.match(sourceExample, /async \(\) => 1/);
+  const resultType = csharpSourcePrimitiveTargetType("int32");
+  const delegateType = csharpDelegateTargetType("System.Func", [], csharpTaskTargetType(resultType));
+  const expression = asyncArrowFunction(numericLiteral("1"));
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(
+    expression,
+    {},
+    fakeInput(),
+    diagnostics,
+    { kind: "IdentifierName", name: "Func" },
+    undefined,
+    undefined,
+    delegateType,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "LambdaExpression");
+  assert.equal(output.async, true);
+  assert.equal(printCsharpExpression(output), "async () => 1");
+});
+
+test("async lambda emission rejects non-Task delegate return facts", () => {
+  const sourceExample = `
+    const callback: () => number = async () => 1;
+  `;
+  assert.match(sourceExample, /\(\) => number/);
+  const resultType = csharpSourcePrimitiveTargetType("int32");
+  const delegateType = csharpDelegateTargetType("System.Func", [], resultType);
+  const expression = asyncArrowFunction(numericLiteral("1"));
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(
+    expression,
+    {},
+    fakeInput(),
+    diagnostics,
+    { kind: "IdentifierName", name: "Func" },
+    undefined,
+    undefined,
+    delegateType,
+  );
+
+  assert.equal(output, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Async lambda emission requires a finalized Task\/Promise-returning delegate carrier fact/);
+});
+
 function binary(left, right, operatorKind = "KindPlusToken") {
   return {
     Kind: "KindBinaryExpression",
@@ -726,6 +783,15 @@ function awaitExpression(expression) {
   return {
     Kind: KindAwaitExpression,
     Expression: expression,
+  };
+}
+
+function asyncArrowFunction(body) {
+  return {
+    Kind: KindArrowFunction,
+    ModifierFlags: ModifierFlagsAsync,
+    Parameters: { Nodes: [] },
+    Body: body,
   };
 }
 
