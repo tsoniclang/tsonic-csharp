@@ -111,14 +111,14 @@ function createJsArrayLiteralChunks(
     const expression = AsSpreadElement(element)?.Expression;
     if (expression === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
-      continue;
+      return undefined;
     }
     const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
     const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
     if (!isCsharpJsArrayCarrierTargetType(spreadCarrier)) {
       const detail = missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the JS array spread expression.");
       diagnostics.push(unsupportedNodeDiagnostic(element, `JS surface array spread requires a finalized JSArray carrier fact for the spread expression. ${detail.reason}`, detail.evidence));
-      continue;
+      return undefined;
     }
     const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
     if (planned === undefined) {

@@ -137,7 +137,7 @@ function createNativeCollectionSpreadChunks(
     const expression = AsSpreadElement(element)?.Expression;
     if (expression === undefined) {
       diagnostics.push(unsupportedNodeDiagnostic(element, "Array spread requires a source expression."));
-      continue;
+      return undefined;
     }
     const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
     const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
@@ -145,7 +145,7 @@ function createNativeCollectionSpreadChunks(
     if (spreadType === undefined || !arraySpreadElementCarrierMatches(elementCarrier, spreadCarrier)) {
       const detail = missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.");
       diagnostics.push(unsupportedNodeDiagnostic(element, `JS surface array spread requires a finalized provider collection carrier with matching element type before C# emission. ${detail.reason}`, detail.evidence));
-      continue;
+      return undefined;
     }
     const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
     if (planned === undefined) {

@@ -516,7 +516,7 @@ test("object-shape object literals fail closed for computed property names", () 
     planExpectedExpression,
   );
 
-  assert.deepEqual(planned.assignments, []);
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 2);
   assert.match(diagnostics[0].message, /require identifier or string-literal property names/);
   assert.match(diagnostics[1].message, /must match a finalized provider object-shape member/);
@@ -552,7 +552,7 @@ test("object-shape object literals fail closed for accessors", () => {
     planExpectedExpression,
   );
 
-  assert.deepEqual(planned.assignments, []);
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal member is outside the current C# planning surface/);
 });
@@ -590,7 +590,7 @@ test("object-shape object literals fail closed for generic methods", () => {
     planExpectedExpression,
   );
 
-  assert.equal(planned.assignments.length, 0);
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal generic methods require finalized target delegate facts/);
 });
@@ -627,7 +627,7 @@ test("object-shape method object literals require delegate signature facts", () 
     planExpectedExpression,
   );
 
-  assert.equal(planned.assignments.length, 0);
+  assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /must carry a finalized delegate target type/);
 });
@@ -783,7 +783,7 @@ test("object spread fails closed without finalized source object-shape facts", (
     planExpression,
   );
 
-  assert.deepEqual(assignments, []);
+  assert.equal(assignments, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal spread requires finalized provider object-shape facts/);
 });
@@ -808,9 +808,61 @@ test("object spread rejects non-identifier expressions until single-evaluation f
     planExpression,
   );
 
-  assert.deepEqual(assignments, []);
+  assert.equal(assignments, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a single-evaluation provider lowering/);
+});
+
+test("object literal spread missing facts fail closed before partial C# object creation", () => {
+  const sourceExample = `
+    type Shape = { count: number; label: string };
+    declare const source: Shape;
+    const value: Shape = { count: 1, ...source };
+  `;
+  assert.match(sourceExample, /\.\.\.source/);
+
+  const source = identifier("source");
+  const literal = objectLiteral([
+    propertyAssignment(identifier("count"), numericLiteral("1")),
+    spreadAssignment(source),
+  ]);
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [
+      {
+        sourceName: "count",
+        targetName: "Count",
+        memberKind: "property",
+        type: { kind: "source-primitive", name: "int32" },
+      },
+      {
+        sourceName: "label",
+        targetName: "Label",
+        memberKind: "property",
+        type: csharpStringTargetType(),
+      },
+    ],
+  };
+  const diagnostics = [];
+
+  const planned = planObjectLiteralExpressionWithExpectedType(
+    literal,
+    {},
+    fakeInput({ objectShapes: new Map([[literal, shape]]) }),
+    diagnostics,
+    { kind: "IdentifierName", name: "__Shape" },
+    undefined,
+    planExpression,
+    planExpectedExpression,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object literal spread requires finalized provider object-shape facts/);
 });
 
 function identifier(text) {
@@ -933,6 +985,8 @@ function planExpectedExpression(node) {
       return { kind: "LiteralExpression", value: true };
     case KindFalseKeyword:
       return { kind: "LiteralExpression", value: false };
+    case KindNumericLiteral:
+      return { kind: "LiteralExpression", value: Number(node.Text) };
     case KindIdentifier:
       return { kind: "IdentifierName", name: node.Text };
     default:
