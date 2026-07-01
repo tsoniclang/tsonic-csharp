@@ -166,7 +166,6 @@ function createCompilerSession(sourceText) {
       ["/src/index.ts", sourceText],
     ]),
     compilerOptions: {
-      noLib: true,
       module: "esnext",
       moduleResolution: "bundler",
       strictNullChecks: true,
@@ -348,6 +347,7 @@ function csharpProviderContext() {
       targets: [target],
     },
     target,
+    selectedPackages: [],
     selectedSurfaces: [],
   };
 }

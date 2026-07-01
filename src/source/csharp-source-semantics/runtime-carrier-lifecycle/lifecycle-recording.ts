@@ -108,5 +108,12 @@ function getRuntimeCarrierFromTypeSyntax(
       allowRuntimeCarrier: false,
       allowSemanticTypeQuery: false,
     },
+  ) ?? host.getTargetTypeRefForSubject(
+    node,
+    createRuntimeCarrierLifecycleObservationContext(lifecycleContext),
+    {
+      allowRuntimeCarrier: true,
+      allowSemanticTypeQuery: false,
+    },
   );
 }

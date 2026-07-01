@@ -10,6 +10,7 @@ import {
   csharpBooleanTargetType,
   csharpQualifiedTypeRenderShape,
   csharpStringTargetType,
+  csharpTsUnionTargetType,
   csharpTargetNamedType,
 } from "./target-types.js";
 import {
@@ -21,6 +22,7 @@ export const csharpCompatRuntimeEvidence = Object.freeze([
 ]);
 
 export const tsValueType = csharpTargetNamedType("Tsonic.CSharp.Js.TsValue", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"));
+export const tsUnionType = csharpTsUnionTargetType();
 
 export function compatAnyPropertyReadOperation(propertyName: string): CsharpTargetMemberOperationFact {
   return compatRuntimeMethodOperation(`tsonic.csharp.compat.any.property-read:${propertyName}`, "ReadCompatSlot", [
@@ -90,6 +92,20 @@ export function compatAnyTypedBoundaryCastOperation(targetType: TargetTypeRef): 
     [{ kind: "source-argument", index: 0 }],
     targetType,
     [targetType],
+  );
+}
+
+export function compatAnyRuntimeUnionTypedBoundaryCastOperation(
+  targetType: TargetTypeRef,
+  arms: readonly TargetTypeRef[],
+): CsharpTargetMemberOperationFact {
+  return compatRuntimeStaticMethodOperation(
+    `tsonic.csharp.compat.any.typed-boundary-cast:${targetTypeRefKey(targetType)}`,
+    "CastCompat",
+    [{ kind: "source-argument", index: 0 }],
+    targetType,
+    arms,
+    tsUnionType,
   );
 }
 
@@ -209,6 +225,7 @@ function compatRuntimeStaticMethodOperation(
   argumentProjection: readonly CsharpTargetOperationArgument[],
   resultType: TargetTypeRef = tsValueType,
   typeArguments: readonly TargetTypeRef[] = [],
+  declaringType: TargetTypeRef = tsValueType,
 ): CsharpTargetMemberOperationFact {
   return {
     kind: "member",
@@ -216,7 +233,7 @@ function compatRuntimeStaticMethodOperation(
     operationKind: "method",
     memberName,
     static: true,
-    declaringType: tsValueType,
+    declaringType,
     resultType,
     ...(typeArguments.length === 0 ? {} : { typeArguments }),
     argumentProjection,

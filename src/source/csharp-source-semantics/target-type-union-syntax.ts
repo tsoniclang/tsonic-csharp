@@ -13,7 +13,11 @@ import type {
 } from "./target-member-selection.js";
 import {
   csharpNullableTargetType,
+  csharpRuntimeUnionTargetType,
 } from "./target-types.js";
+import {
+  targetTypeRefEquals,
+} from "./target-ref-utils.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -35,6 +39,31 @@ export function getNullableUnionTargetTypeRefFromSyntax(
   }
   const inner = resolveUnionMemberTargetType(nonNullish[0]!, context, options, host, resolver);
   return inner === undefined ? undefined : csharpNullableTargetType(inner);
+}
+
+export function getRuntimeUnionTargetTypeRefFromSyntax(
+  node: Node,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolver: CsharpRecursiveTargetTypeResolver,
+): TargetTypeRef | undefined {
+  if (options.allowRuntimeCarrier === false) {
+    return undefined;
+  }
+  const members = getNodeList(getNodeField(node, "Types"));
+  const nonNullish = members.filter((member) => !isNullishTypeSyntax(member, context));
+  if (nonNullish.length < 2 || nonNullish.length !== members.length) {
+    return undefined;
+  }
+  const memberCarriers = nonNullish.map((member) => resolveUnionMemberTargetType(member, context, options, host, resolver));
+  if (!memberCarriers.every((member): member is TargetTypeRef => member !== undefined)) {
+    return undefined;
+  }
+  if (memberCarriers.some((member, index) => memberCarriers.some((candidate, candidateIndex) => candidateIndex < index && targetTypeRefEquals(candidate, member)))) {
+    return undefined;
+  }
+  return csharpRuntimeUnionTargetType(memberCarriers);
 }
 
 function resolveUnionMemberTargetType(

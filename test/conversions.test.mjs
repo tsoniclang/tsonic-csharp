@@ -8,8 +8,15 @@ import { planExpression } from "../dist/backend/planner/expressions.js";
 import { KindTrueKeyword } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import { csharpTargetConversionOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { getCompatAnyTypedBoundaryConversion } from "../dist/source/csharp-source-semantics/compat-any-typed-boundary-conversions.js";
 import { getCsharpProviderConversionOperatorById } from "../dist/source/csharp-source-semantics/provider-conversion-operators.js";
-import { csharpQualifiedTypeRenderShape, csharpTargetNamedType } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpQualifiedTypeRenderShape,
+  csharpRuntimeUnionTargetType,
+  csharpSourcePrimitiveTargetType,
+  csharpStringTargetType,
+  csharpTargetNamedType,
+} from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("planner renders target conversion method facts as C# AST calls", () => {
   const value = trueKeyword();
@@ -68,6 +75,29 @@ test("planner renders generic target conversion method facts as C# AST calls", (
 
   assert.deepEqual(diagnostics, []);
   assert.equal(printCsharpExpression(expression), "Tsonic.CSharp.Js.TsValue.CastCompat<int>(true)");
+});
+
+test("compat any-to-runtime-union conversion facts use TsUnion arm generics", () => {
+  const target = csharpRuntimeUnionTargetType([
+    csharpSourcePrimitiveTargetType("float64"),
+    csharpStringTargetType(),
+  ]);
+  assert.ok(target);
+
+  const conversion = getCompatAnyTypedBoundaryConversion({ kind: "opaque", id: "any" }, target);
+
+  assert.equal(conversion?.kind, "cast");
+  assert.equal(conversion.convertedType, target);
+  assert.equal(conversion.operation.operationKind, "method");
+  assert.match(conversion.operation.operationId, /^tsonic\.csharp\.compat\.any\.typed-boundary-cast:/u);
+  assert.equal(conversion.csharpOperation.kind, "member");
+  assert.equal(conversion.csharpOperation.memberName, "CastCompat");
+  assert.equal(conversion.csharpOperation.static, true);
+  assert.equal(conversion.csharpOperation.declaringType.id, "Tsonic.CSharp.Js.TsUnion");
+  assert.deepEqual(conversion.csharpOperation.typeArguments.map(targetTypeKey), [
+    "source:float64",
+    "target-named:System.String",
+  ]);
 });
 
 test("planner leaves provider-proven identity conversions unwrapped", () => {
@@ -333,6 +363,13 @@ function hostForBindings(bindings) {
   return {
     getCsharpTargetBindingByTargetId: (targetId) => byId.get(targetId),
   };
+}
+
+function targetTypeKey(type) {
+  if (type.kind === "source-primitive") {
+    return `source:${type.name}`;
+  }
+  return `${type.kind}:${type.id}`;
 }
 
 function fakeInput(options = {}) {

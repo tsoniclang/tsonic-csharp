@@ -33,6 +33,7 @@ import type {
 } from "./target-type-syntax-types.js";
 import {
   getNullableUnionTargetTypeRefFromSyntax,
+  getRuntimeUnionTargetTypeRefFromSyntax,
 } from "./target-type-union-syntax.js";
 
 export type {
@@ -92,6 +93,10 @@ export function getTargetTypeRefFromSyntax(
     const nullable = getNullableUnionTargetTypeRefFromSyntax(node, context, options, host, resolver);
     if (nullable !== undefined) {
       return nullable;
+    }
+    const runtimeUnion = getRuntimeUnionTargetTypeRefFromSyntax(node, context, options, host, resolver);
+    if (runtimeUnion !== undefined) {
+      return runtimeUnion;
     }
   }
   if (ast.is.IsTypeLiteralNode(node)) {

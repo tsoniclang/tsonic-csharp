@@ -323,6 +323,7 @@ test("compat mode accepts each closed Tsonic-owned compat carrier for opaque any
     "Tsonic.CSharp.Js.TsValue",
     "Tsonic.CSharp.Js.TsObject",
     "Tsonic.CSharp.Js.TsArray",
+    "Tsonic.CSharp.Js.TsUnion",
     "Tsonic.CSharp.Js.TsFunction",
   ];
   const session = createNativeSession(`
@@ -330,10 +331,12 @@ test("compat mode accepts each closed Tsonic-owned compat carrier for opaque any
     declare let value1: any;
     declare let value2: any;
     declare let value3: any;
+    declare let value4: any;
     value0.name;
     value1.name;
     value2.name;
     value3.name;
+    value4.name;
   `, { typescriptCompatibility: "compat" }, [
     createTestDynamicOperationFactExtension("KindPropertyAccessExpression", { carrierIds }),
   ]);

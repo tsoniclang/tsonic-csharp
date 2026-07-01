@@ -7,6 +7,7 @@ import type {
   CsharpTargetOperationFact,
 } from "../csharp-facts.js";
 import {
+  compatAnyRuntimeUnionTypedBoundaryCastOperation,
   compatAnyTypedBoundaryBoxOperation,
   compatAnyTypedBoundaryCastOperation,
   csharpCompatRuntimeEvidence,
@@ -16,6 +17,7 @@ import {
   targetOperation,
 } from "./operations.js";
 import {
+  getCsharpRuntimeUnionArms,
   isCsharpAnyRuntimeCarrier,
 } from "./target-types.js";
 
@@ -54,7 +56,10 @@ export function getCompatAnyTypedBoundaryConversion(
   if (!sourceAny) {
     return undefined;
   }
-  const csharpOperation = compatAnyTypedBoundaryCastOperation(target);
+  const runtimeUnionArms = getCsharpRuntimeUnionArms(target);
+  const csharpOperation = runtimeUnionArms === undefined
+    ? compatAnyTypedBoundaryCastOperation(target)
+    : compatAnyRuntimeUnionTypedBoundaryCastOperation(target, runtimeUnionArms);
   return {
     kind: "cast",
     convertedType: target,
