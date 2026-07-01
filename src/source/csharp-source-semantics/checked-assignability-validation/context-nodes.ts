@@ -171,6 +171,9 @@ function getObservedAssignabilityContextTargetNode(
   if (parent === undefined) {
     return undefined;
   }
+  if (isInsideDestructuringAssignmentTarget(expression, context)) {
+    return expression;
+  }
   if (ast.is.IsBinaryExpression(parent) && asNode(getNodeField(parent, "Right")) === expression) {
     return asNode(getNodeField(parent, "Left"));
   }
@@ -185,4 +188,35 @@ function getObservedAssignabilityContextTargetNode(
     return getEnclosingReturnTypeNode(parent, context);
   }
   return undefined;
+}
+
+function isInsideDestructuringAssignmentTarget(
+  expression: Node,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): boolean {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return false;
+  }
+  let current: Node | undefined = expression;
+  for (let parent = ast.parent(current); parent !== undefined && current !== undefined; parent = ast.parent(parent)) {
+    if (ast.is.IsBinaryExpression(parent)) {
+      const operatorToken = asNode(getNodeField(parent, "OperatorToken"));
+      return asNode(getNodeField(parent, "Left")) === current &&
+        operatorToken !== undefined &&
+        ast.kindName(operatorToken) === "KindEqualsToken" &&
+        isDestructuringAssignmentPatternRoot(current, context);
+    }
+    current = parent;
+  }
+  return false;
+}
+
+function isDestructuringAssignmentPatternRoot(
+  node: Node,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): boolean {
+  const ast = context.compiler?.ast;
+  return ast !== undefined &&
+    (ast.kindName(node) === "KindObjectLiteralExpression" || ast.kindName(node) === "KindArrayLiteralExpression");
 }

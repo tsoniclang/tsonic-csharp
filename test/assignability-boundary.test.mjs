@@ -120,6 +120,29 @@ test("C# post-check target assignability fails closed when target type facts are
   assert.equal(session.getDiagnostics("all").some((diagnostic) => diagnostic?.code === targetDiagnostics[0].numericCode), true);
 });
 
+test("C# post-check target assignability resolves object-rest assignment targets", () => {
+  const sourceText = `
+    type Shape = { value: number; label: string };
+
+    export function assign(input: Shape): string {
+      let value: number = 0;
+      let rest: { label: string } = { label: "" };
+      ({ value, ...rest } = input);
+      return rest.label + value;
+    }
+  `;
+  const session = createNativeSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.ok(sourceFile);
+
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+  session.finalizeExtensions();
+
+  const diagnostics = session.extensionHost?.diagnostics.all() ?? [];
+  assert.equal(diagnostics.filter((diagnostic) => diagnostic.extensionCode === "FACT_CONFLICT").length, 0);
+  assert.equal(diagnostics.filter((diagnostic) => diagnostic.extensionCode === "CSHARP_TARGET_ASSIGNABILITY_INVALID").length, 0);
+});
+
 test("C# target generic constraints diagnose unproven provider type arguments after TSTS accepts source syntax", () => {
   const sourceText = `
     import type { SearchValues } from "@example/csharp/search-values.js";

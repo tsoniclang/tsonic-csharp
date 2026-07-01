@@ -74,14 +74,29 @@ export function observeCsharpPostCheckAssignability(
     return deferObservation;
   }
   const subject = request.expression ?? request.errorNode ?? request.target;
-  context.facts.set(subject, csharpObservedTargetAssignabilityFactKey, {
+  const fact = {
     source: request.source,
     target: request.target,
     ...(request.relation !== undefined ? { relation: request.relation } : {}),
     ...(request.errorNode !== undefined ? { errorNode: request.errorNode } : {}),
     ...(request.expression !== undefined ? { expression: request.expression } : {}),
-  }, [{ message: "C# target assignability observation recorded after TSTS accepted the TypeScript relation; target validation is deferred until semantic finalization." }]);
+  } satisfies CsharpObservedTargetAssignabilityFact;
+  const existing = context.facts.get(subject, csharpObservedTargetAssignabilityFactKey);
+  if (existing !== undefined && observedAssignabilityFactsShareSite(existing, fact)) {
+    return acceptObservation(undefined, [{ message: "C# post-check target assignability observation reused an existing fact for the same checked source site." }]);
+  }
+  context.facts.set(subject, csharpObservedTargetAssignabilityFactKey, fact, [{ message: "C# target assignability observation recorded after TSTS accepted the TypeScript relation; target validation is deferred until semantic finalization." }]);
   return acceptObservation(undefined, [{ message: "C# post-check target assignability observed without querying or changing the TSTS assignability relation." }]);
+}
+
+function observedAssignabilityFactsShareSite(
+  left: CsharpObservedTargetAssignabilityFact,
+  right: CsharpObservedTargetAssignabilityFact,
+): boolean {
+  return left.target === right.target &&
+    left.relation === right.relation &&
+    left.errorNode === right.errorNode &&
+    left.expression === right.expression;
 }
 
 export function validateCsharpObservedAssignabilityFactsBeforeFinalization(

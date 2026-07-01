@@ -1258,6 +1258,87 @@ test("object-shape destructuring assignment statements emit storage writes from 
   ]);
 });
 
+test("object rest destructuring assignment fails closed without rest target facts", () => {
+  const diagnostics = [];
+  const source = identifier("input");
+  const assignment = binaryExpression(
+    {
+      Kind: KindObjectLiteralExpression,
+      Properties: {
+        Nodes: [
+          { Kind: "KindShorthandPropertyAssignment", name: identifier("value") },
+          { Kind: "KindSpreadAssignment", Expression: identifier("rest") },
+        ],
+      },
+    },
+    source,
+  );
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InputShape",
+      csharpRender: { kind: "named", name: "__InputShape" },
+    },
+    members: [
+      {
+        sourceName: "value",
+        targetName: "Value",
+        memberKind: "property",
+        type: csharpSourcePrimitiveTargetType("int32"),
+      },
+      {
+        sourceName: "label",
+        targetName: "Label",
+        memberKind: "property",
+        type: csharpStringTargetType(),
+      },
+    ],
+  };
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      objectShapeFacts: new Map([[source, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(output.slice(0, 2), [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "IdentifierName", name: "__InputShape" },
+      initializer: { kind: "IdentifierName", name: "input" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "value" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          name: "Value",
+        },
+      },
+    },
+  ]);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object rest destructuring assignment requires finalized provider object-shape facts for the rest target/);
+});
+
 test("object-shape destructuring assignment defaults use finalized nullable member carriers", () => {
   const sourceExample = "({ value = 7 } = input);";
   assert.match(sourceExample, /value = 7/);
