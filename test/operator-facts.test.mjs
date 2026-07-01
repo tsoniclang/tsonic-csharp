@@ -16,6 +16,7 @@ import {
   KindIdentifier,
   KindNoSubstitutionTemplateLiteral,
   KindObjectLiteralExpression,
+  KindParameter,
   KindPostfixUnaryExpression,
   KindPropertyAccessExpression,
   KindMethodDeclaration,
@@ -833,6 +834,44 @@ test("async lambda emission accepts finalized Task-returning delegate facts", ()
   assert.equal(printCsharpExpression(output), "async () => 1");
 });
 
+test("async callback lambda emission uses finalized parameter and await Task facts", () => {
+  const sourceExample = `
+    const callback: (task: Promise<int32>) => Promise<int32> = async (task) => await task;
+  `;
+  assert.match(sourceExample, /Promise<int32>/);
+  assert.match(sourceExample, /await task/);
+  const resultType = csharpSourcePrimitiveTargetType("int32");
+  const taskType = csharpTaskTargetType(resultType);
+  const delegateType = csharpDelegateTargetType("System.Func", [taskType], taskType);
+  const taskParameterName = identifier("task");
+  const awaited = awaitExpression(taskParameterName);
+  const expression = asyncArrowFunctionWithParameters([
+    node(KindParameter, { name: taskParameterName }),
+  ], awaited);
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(
+    expression,
+    {},
+    fakeInput({
+      runtimeCarrierFacts: new Map([
+        [taskParameterName, { carrier: taskType }],
+        [awaited, { carrier: resultType }],
+      ]),
+    }),
+    diagnostics,
+    { kind: "IdentifierName", name: "Func" },
+    undefined,
+    undefined,
+    delegateType,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "LambdaExpression");
+  assert.equal(output.async, true);
+  assert.equal(printCsharpExpression(output), "async (System.Threading.Tasks.Task<int> task) => await task");
+});
+
 test("async lambda emission rejects non-Task delegate return facts", () => {
   const sourceExample = `
     const callback: () => number = async () => 1;
@@ -889,6 +928,15 @@ function asyncArrowFunction(body) {
     Kind: KindArrowFunction,
     ModifierFlags: ModifierFlagsAsync,
     Parameters: { Nodes: [] },
+    Body: body,
+  };
+}
+
+function asyncArrowFunctionWithParameters(parameters, body) {
+  return {
+    Kind: KindArrowFunction,
+    ModifierFlags: ModifierFlagsAsync,
+    Parameters: { Nodes: parameters },
     Body: body,
   };
 }

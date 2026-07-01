@@ -250,6 +250,82 @@ test("async function declarations consume finalized Task return and await result
   }]);
 });
 
+test("async class methods consume finalized Task return and await result facts", () => {
+  const sourceExample = `
+    class Loader {
+      async load(task: Promise<number>): Promise<number> {
+        return await task;
+      }
+    }
+  `;
+  assert.match(sourceExample, /async load/);
+  assert.match(sourceExample, /Promise<number>/);
+
+  const sourceFile = sourceFileNode("/src/async-method.ts");
+  const taskName = identifier("task");
+  const taskParameterTypeNode = typeNode("Promise<number>");
+  const methodReturnTypeNode = typeNode("Promise<number>");
+  const awaited = node(KindAwaitExpression, { Expression: taskName });
+  const methodDeclaration = node(KindMethodDeclaration, {
+    name: identifier("load"),
+    ModifierFlags: ModifierFlagsAsync,
+    Type: methodReturnTypeNode,
+    Parameters: { Nodes: [
+      node(KindParameter, { name: taskName, Type: taskParameterTypeNode }),
+    ] },
+    Body: block([
+      node(KindReturnStatement, { Expression: awaited }),
+    ]),
+  });
+  const classDeclaration = node(KindClassDeclaration, {
+    name: identifier("Loader"),
+    Members: { Nodes: [methodDeclaration] },
+  });
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const taskType = csharpTaskTargetType(intType);
+  const diagnostics = [];
+
+  const planned = planClassDeclaration(classDeclaration, sourceFile, fakeInput(sourceFile, {
+    runtimeCarrierFacts: new Map([
+      [methodReturnTypeNode, { carrier: taskType }],
+      [taskParameterTypeNode, { carrier: taskType }],
+      [taskName, { carrier: taskType }],
+      [awaited, { carrier: intType }],
+    ]),
+  }), diagnostics);
+  const method = planned.members[0];
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(method.kind, "MethodDeclaration");
+  assert.deepEqual(method.modifiers, ["public", "async"]);
+  assert.deepEqual(method.returnType, {
+    kind: "QualifiedName",
+    left: {
+      kind: "QualifiedName",
+      left: {
+        kind: "QualifiedName",
+        left: { kind: "IdentifierName", name: "System" },
+        name: "Threading",
+      },
+      name: "Tasks",
+    },
+    name: "Task",
+    typeArguments: [{ kind: "PredefinedType", name: "int" }],
+  });
+  assert.deepEqual(method.parameters[0], {
+    name: "task",
+    type: method.returnType,
+    attributes: undefined,
+  });
+  assert.deepEqual(method.body.statements, [{
+    kind: "ReturnStatement",
+    expression: {
+      kind: "AwaitExpression",
+      expression: { kind: "IdentifierName", name: "task" },
+    },
+  }]);
+});
+
 test("async function declarations fail closed without Promise/Task return facts", () => {
   const sourceExample = `
     async function load() {
@@ -276,6 +352,44 @@ test("async function declarations fail closed without Promise/Task return facts"
   ));
   assert.ok(diagnostics.some((diagnostic) =>
     /Async C# function declaration emission requires finalized Promise\/Task result carrier facts/.test(diagnostic.message)
+  ));
+});
+
+test("async class methods fail closed without Promise/Task return facts", () => {
+  const sourceExample = `
+    class Loader {
+      async load() {
+        return 1;
+      }
+    }
+  `;
+  assert.match(sourceExample, /async load/);
+  assert.match(sourceExample, /return 1/);
+
+  const sourceFile = sourceFileNode("/src/async-method-missing.ts");
+  const classDeclaration = node(KindClassDeclaration, {
+    name: identifier("Loader"),
+    Members: { Nodes: [
+      node(KindMethodDeclaration, {
+        name: identifier("load"),
+        ModifierFlags: ModifierFlagsAsync,
+        Parameters: { Nodes: [] },
+        Body: block([
+          node(KindReturnStatement, { Expression: node("KindNumericLiteral", { Text: "1" }) }),
+        ]),
+      }),
+    ] },
+  });
+  const diagnostics = [];
+
+  const planned = planClassDeclaration(classDeclaration, sourceFile, fakeInput(sourceFile), diagnostics);
+
+  assert.equal(planned.members[0]?.kind, "MethodDeclaration");
+  assert.ok(diagnostics.some((diagnostic) =>
+    /C# method declaration emission requires a finalized signature return carrier/.test(diagnostic.message)
+  ));
+  assert.ok(diagnostics.some((diagnostic) =>
+    /Async C# method declaration emission requires finalized Promise\/Task result carrier facts/.test(diagnostic.message)
   ));
 });
 

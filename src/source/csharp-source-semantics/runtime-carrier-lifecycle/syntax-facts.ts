@@ -127,6 +127,9 @@ function isRuntimeCarrierSyntaxFactCandidate(
   if (isRuntimeCarrierTypeSyntaxNode(ast, node)) {
     return false;
   }
+  if (ast.kindName(node) === "KindAwaitExpression") {
+    return false;
+  }
   return ast.is.IsRegularExpressionLiteral(node) ||
     ast.is.IsNewExpression(node) ||
     isLiteralValueSyntaxNode(ast, node) ||

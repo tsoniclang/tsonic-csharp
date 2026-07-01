@@ -1765,6 +1765,45 @@ test("source-semantics records Promise/Task await result carrier facts", () => {
   assert.equal(returnLiteralCarrier?.id, "System.String");
 });
 
+test("source-semantics refines awaited source-primitive aliases from Promise/Task result facts", () => {
+  const sourceText = `
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export async function identity(value: Promise<int32>): Promise<int32> {
+      return await value;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const awaitExpression = collectNodesByKind(sourceFile, session.ast, "KindAwaitExpression")[0];
+  assert.ok(awaitExpression);
+  const awaitResultCarrier = extensionHost.facts.get(awaitExpression, runtimeCarrierFactKey)?.carrier;
+
+  assert.equal(awaitResultCarrier?.kind, "source-primitive");
+  assert.equal(awaitResultCarrier.name, "int32");
+});
+
 test("source-semantics propagates object-shape callable carriers through parameter destructuring", () => {
   const sourceText = `
     export interface Named {
