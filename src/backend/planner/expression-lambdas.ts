@@ -146,11 +146,11 @@ export function planLambdaParameters(
           : HasSourceKind(input.ast, parameter.name, KindIdentifier)
             ? requireCsharpIdentifier(Node_Text(parameter.name), diagnostics, "Lambda parameter")
             : "arg",
-        ...(expectedParameterType !== undefined
-          ? { type: expectedParameterType }
-          : explicitParameterType === undefined
+        ...(explicitParameterType !== undefined
+          ? { type: explicitParameterType }
+          : expectedParameterType === undefined
             ? {}
-            : { type: explicitParameterType }),
+            : { type: expectedParameterType }),
       };
     });
 }

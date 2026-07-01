@@ -1098,6 +1098,12 @@ test(".NET provider source declarations keep extension-method signature identiti
 
   const signature = findByIdSuffix(asSpan.signatures, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
   assert.ok(signature);
+  const indexSignature = findByIdSuffix(asSpan.signatures, "System.MemoryExtensions.AsSpan(System.String,System.Index)");
+  assert.ok(indexSignature);
+  assert.ok(
+    asSpan.signatures.indexOf(signature) < asSpan.signatures.indexOf(indexSignature),
+    "source-exact int32 overload must appear before provider-ref Index projection so TSTS source overload selection does not drift toward target-only conversions",
+  );
   assert.equal(signature.name, "AsSpan");
   assert.deepEqual(signature.parameters.map((parameter) => parameter.name), ["text", "start"]);
   assert.deepEqual(signature.parameters[0].type, { kind: "string" });
@@ -1107,6 +1113,31 @@ test(".NET provider source declarations keep extension-method signature identiti
   const targetMember = findByIdSuffix(binding.members, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
   assert.ok(targetMember);
   assert.equal(targetMember.receiverPassing, "first-argument");
+});
+
+test(".NET provider declaration model orders source-exact overloads before provider projection overloads", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.IO.js", {});
+  assert.equal("exports" in module, true);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const file = declarationModel.exports.find((declaration) => declaration.name === "File");
+  assert.ok(file);
+  const writeAllText = file.members.find((member) =>
+    member.kind === "method" &&
+    member.name === "writeAllText" &&
+    member.static === true
+  );
+  assert.ok(writeAllText);
+
+  const stringSignature = findByIdSuffix(writeAllText.signatures, "System.IO.File.WriteAllText(System.String,System.String)");
+  const spanSignature = findByIdSuffix(writeAllText.signatures, "System.IO.File.WriteAllText(System.String,System.ReadOnlySpan`1<System.Char>)");
+  assert.ok(stringSignature);
+  assert.ok(spanSignature);
+  assert.ok(
+    writeAllText.signatures.indexOf(stringSignature) < writeAllText.signatures.indexOf(spanSignature),
+    "source-exact string overload must appear before provider-ref ReadOnlySpan projection so TSTS source overload selection remains source-truthful",
+  );
 });
 
 test(".NET provider models LINQ ExtensionMethods receiver metadata from target facts", () => {

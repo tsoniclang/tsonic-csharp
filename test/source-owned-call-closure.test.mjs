@@ -15,7 +15,7 @@ test("source-owned checked calls close over destructured binding carrier facts",
   const bindingElement = node("KindBindingElement", sourceFile);
   const callee = node("KindIdentifier", sourceFile);
   const call = node("KindCallExpression", sourceFile);
-  const symbol = { Name: "run" };
+  const symbol = { Flags: 0, Name: "run" };
   const float64 = { kind: "source-primitive", name: "float64" };
   const delegateCarrier = {
     kind: "target-named",
@@ -50,7 +50,7 @@ test("source-owned checked calls close over implicit source class constructor sy
   const classDeclaration = node("KindClassDeclaration", sourceFile);
   const callee = node("KindIdentifier", sourceFile);
   const call = node("KindNewExpression", sourceFile);
-  const symbol = { Name: "Point" };
+  const symbol = { Flags: 0, Name: "Point" };
   const pointType = {
     kind: "target-named",
     id: "Point",

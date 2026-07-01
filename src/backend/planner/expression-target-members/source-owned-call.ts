@@ -59,6 +59,9 @@ import {
 import {
   asSemanticType,
 } from "../../../source/fact-subjects.js";
+import {
+  planProjectSourceModuleMemberReference,
+} from "../expression-source-references.js";
 
 export function planSourceOwnedCallArguments(
   call: Node,
@@ -137,6 +140,10 @@ function planSourceOwnedSelectedMemberCallCallee(
     !HasSourceKind(input.ast, calleeNode, KindPropertyAccessExpression)) {
     return undefined;
   }
+  const sourceModuleMemberReference = planProjectSourceModuleMemberReference(calleeNode, sourceFile, input, diagnostics);
+  if (sourceModuleMemberReference !== undefined) {
+    return sourceModuleMemberReference;
+  }
   const property = AsPropertyAccessExpression(calleeNode);
   if (property?.Expression === undefined || property.name === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(callNode, "Source-owned member call emission requires a checked property-access callee with a receiver and member name."));
@@ -161,10 +168,6 @@ function getResolvedSourceCallArgumentExpectation(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): { readonly kind?: "expectation"; readonly type?: CsharpTypeNode; readonly subject?: Node; readonly targetType?: TargetTypeRef } | { readonly kind: "failed" } | undefined {
-  const contextualExpectation = getContextualArgumentExpectation(argument, sourceFile, input, diagnostics);
-  if (contextualExpectation !== undefined) {
-    return contextualExpectation;
-  }
   const sourceCall = AsCallExpression(call);
   const declaration = input.analysis.getResolvedCallParameterDeclarations(call, { sourceFile })?.[argumentIndex];
   const declarationType = getNodeType(declaration);
@@ -211,6 +214,10 @@ function getResolvedSourceCallArgumentExpectation(
       subject: declarationType ?? declaration,
       targetType: targetType === undefined ? undefined : substituteTargetTypeParameters(targetType, targetSubstitutions),
     };
+  }
+  const contextualExpectation = getContextualArgumentExpectation(argument, sourceFile, input, diagnostics);
+  if (contextualExpectation !== undefined) {
+    return contextualExpectation;
   }
   return undefined;
 }

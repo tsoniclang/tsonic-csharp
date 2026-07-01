@@ -11,6 +11,7 @@ import type {
   DotnetMemberDeclaration,
   DotnetParameterDeclaration,
   DotnetSignatureDeclaration,
+  DotnetTypeRef,
 } from "../model-types.js";
 import {
   dotnetAttributeToTargetAttribute,
@@ -126,6 +127,7 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
     name: parameter.name,
     type: dotnetTypeRefToTargetTypeRef(parameter.type),
     passingMode: parameter.passingMode,
+    ...(dotnetParameterTypeHasSourceProjection(parameter.type) ? { csharpAcceptsCheckedSourceArgument: true as const } : {}),
     ...(parameter.optional === true ? { optional: true } : {}),
     ...(parameter.rest === true ? { paramsArray: true } : {}),
     ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
@@ -137,6 +139,40 @@ function dotnetParameterToTargetParameter(parameter: DotnetParameterDeclaration)
       ? { unsupportedAttributes: parameter.unsupportedAttributes.map(dotnetUnsupportedAttributeToTargetUnsupportedAttribute) }
       : {}),
   };
+}
+
+function dotnetParameterTypeHasSourceProjection(type: DotnetTypeRef): boolean {
+  switch (type.kind) {
+    case "named":
+    case "opaque":
+      return type.sourceShape !== undefined;
+    case "nullable":
+      return dotnetParameterTypeHasSourceProjection(type.elementType);
+    case "array":
+      return dotnetParameterTypeHasSourceProjection(type.elementType);
+    case "tuple":
+      return type.elements.some(dotnetParameterTypeHasSourceProjection);
+    case "union":
+      return type.types.some(dotnetParameterTypeHasSourceProjection);
+    case "function":
+      return type.parameters.some((parameter) => dotnetParameterTypeHasSourceProjection(parameter.type)) ||
+        dotnetParameterTypeHasSourceProjection(type.returnType);
+    case "void":
+    case "any":
+    case "unknown":
+    case "object":
+    case "string":
+    case "literal":
+    case "boolean":
+    case "number":
+    case "bigint":
+    case "source-primitive":
+    case "type-parameter":
+    case "provider-ref":
+    case "pointer":
+    case "function-pointer":
+      return false;
+  }
 }
 
 function dotnetMemberIsReadonly(member: DotnetMemberDeclaration): boolean {

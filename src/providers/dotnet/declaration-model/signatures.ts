@@ -63,7 +63,21 @@ export function mergeProviderSignatures(signatures: readonly ProviderSignatureDe
   for (const signature of signatures) {
     byId.set(providerSignatureShapeKey(signature), signature);
   }
-  return [...byId.values()];
+  return sortProviderSignaturesBySourceSpecificity([...byId.values()]);
+}
+
+function sortProviderSignaturesBySourceSpecificity(
+  signatures: readonly ProviderSignatureDeclaration[],
+): readonly ProviderSignatureDeclaration[] {
+  return signatures
+    .map((signature, index) => ({ signature, index, score: providerSignatureSourceSpecificityScore(signature) }))
+    .sort((left, right) => left.score - right.score || left.index - right.index)
+    .map((entry) => entry.signature);
+}
+
+function providerSignatureSourceSpecificityScore(signature: ProviderSignatureDeclaration): number {
+  return signature.parameters.reduce((score, parameter) =>
+    score + providerTypeExpressionSourceSpecificityScore(parameter.type), 0);
 }
 
 function providerSignatureShapeKey(signature: ProviderSignatureDeclaration): string {
@@ -138,6 +152,46 @@ function providerTypeExpressionSourceShapeKey(type: import("@tsonic/tsts").Provi
         typeArguments: type.typeArguments?.map(providerTypeExpressionSourceShapeKey),
       };
   }
+}
+
+function providerTypeExpressionSourceSpecificityScore(type: import("@tsonic/tsts").ProviderTypeExpression): number {
+  switch (type.kind) {
+    case "literal":
+    case "source-primitive":
+    case "string":
+    case "boolean":
+    case "number":
+    case "bigint":
+    case "object":
+    case "void":
+    case "never":
+      return 0;
+    case "any":
+    case "unknown":
+      return 1;
+    case "type-parameter":
+      return 2;
+    case "array":
+      return 1 + providerTypeExpressionSourceSpecificityScore(type.elementType);
+    case "tuple":
+      return 1 + sumProviderTypeExpressionScores(type.elementTypes);
+    case "function":
+      return 1 +
+        sumProviderTypeExpressionScores(type.parameters.map((parameter) => parameter.type)) +
+        providerTypeExpressionSourceSpecificityScore(type.returnType);
+    case "union":
+    case "intersection":
+      return 2 + sumProviderTypeExpressionScores(type.types);
+    case "target-named":
+    case "opaque":
+      return 4 + (type.sourceShape === undefined ? 12 : providerTypeExpressionSourceSpecificityScore(type.sourceShape));
+    case "provider-ref":
+      return 8 + sumProviderTypeExpressionScores(type.typeArguments ?? []);
+  }
+}
+
+function sumProviderTypeExpressionScores(types: readonly import("@tsonic/tsts").ProviderTypeExpression[]): number {
+  return types.reduce((score, type) => score + providerTypeExpressionSourceSpecificityScore(type), 0);
 }
 
 function sourcePrimitiveSourceRuntimeKind(name: string): "boolean" | "string" | "number" {
