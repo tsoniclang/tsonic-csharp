@@ -37,6 +37,12 @@ import {
 import {
   isCsharpJsArrayCarrierTargetType,
 } from "../../../source/csharp-source-semantics/surfaces/js/array-carriers.js";
+import {
+  getCsharpCollectionElementTargetType,
+} from "../../../source/csharp-source-semantics/target-types.js";
+import {
+  targetTypeRefEquals,
+} from "../../../source/csharp-source-semantics/target-ref-utils.js";
 import type {
   ArrayLiteralPlanner,
 } from "./types.js";
@@ -59,7 +65,7 @@ export function planArrayLiteralExpression(
     return rejectSparseArrayLiteralElision(node, diagnostics);
   }
   if ((literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindSpreadElement))) {
-    return planArraySpreadLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner);
+    return planArraySpreadLiteralExpression(node, sourceFile, input, diagnostics, elementType, planner, elementTargetType);
   }
   const elements = plannedArrayElements(literal.Elements?.Nodes ?? [], sourceFile, input, diagnostics, (element, elementSourceFile, elementInput, elementDiagnostics) =>
     planner.planExpressionWithExpectedType(element, elementSourceFile, elementInput, elementDiagnostics, elementType, undefined, elementTargetType));
@@ -106,9 +112,10 @@ function planArraySpreadLiteralExpression(
   diagnostics: TargetDiagnostic[],
   elementType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
+  elementTargetType?: TargetTypeRef,
 ): CsharpExpression | undefined {
   const expectedArrayType = { kind: "ArrayType", elementType } satisfies CsharpTypeNode;
-  const chunks = createArraySpreadChunks(node, sourceFile, input, diagnostics, elementType, expectedArrayType, planner);
+  const chunks = createArraySpreadChunks(node, sourceFile, input, diagnostics, elementType, expectedArrayType, planner, elementTargetType);
   if (chunks === undefined) {
     return undefined;
   }
@@ -133,6 +140,7 @@ function createArraySpreadChunks(
   elementType: CsharpTypeNode,
   expectedArrayType: CsharpTypeNode,
   planner: ArrayLiteralPlanner,
+  elementTargetType?: TargetTypeRef,
 ): readonly { readonly expression: CsharpExpression; readonly fromSpread?: boolean }[] | undefined {
   const literal = AsArrayLiteralExpression(node)!;
   const chunks: { readonly expression: CsharpExpression; readonly fromSpread?: boolean }[] = [];
@@ -182,6 +190,17 @@ function createArraySpreadChunks(
       });
       continue;
     }
+    if (spreadCarrierElementMatchesTargetElement(spreadCarrier, elementTargetType, elementType)) {
+      const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
+      if (planned === undefined) {
+        return undefined;
+      }
+      chunks.push({
+        expression: planned,
+        fromSpread: true,
+      });
+      continue;
+    }
     if (isCsharpJsArrayCarrierTargetType(spreadCarrier)) {
       const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
       if (planned === undefined) {
@@ -214,4 +233,20 @@ function createArraySpreadChunks(
   }
   flushPending();
   return chunks;
+}
+
+function spreadCarrierElementMatchesTargetElement(
+  spreadCarrier: TargetTypeRef | undefined,
+  elementTargetType: TargetTypeRef | undefined,
+  elementType: CsharpTypeNode,
+): boolean {
+  const spreadElementTargetType = getCsharpCollectionElementTargetType(spreadCarrier);
+  if (spreadElementTargetType === undefined) {
+    return false;
+  }
+  if (elementTargetType !== undefined) {
+    return targetTypeRefEquals(spreadElementTargetType, elementTargetType);
+  }
+  const spreadElementType = csharpTypeFromTargetTypeRef(spreadElementTargetType);
+  return spreadElementType !== undefined && sameCsharpType(spreadElementType, elementType);
 }

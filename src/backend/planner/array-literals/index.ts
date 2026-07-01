@@ -65,7 +65,8 @@ export function planArrayLiteralExpressionFromFacts(
   planner: ArrayLiteralPlanner,
 ): CsharpExpression | undefined {
   const carrierResolution = resolveRuntimeCarrierForExpression(input, node, sourceFile);
-  const carrier = probeCarrierFromResolution(carrierResolution);
+  const carrier = probeCarrierFromResolution(carrierResolution) ??
+    input.facts.getContextualTargetTypeFact(node)?.targetType;
   return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, carrier, planner, carrierResolution);
 }
 
