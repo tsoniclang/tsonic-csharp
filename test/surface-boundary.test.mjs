@@ -3229,8 +3229,8 @@ test("NodeJS provider package exposes URL as a provider-owned virtual module", (
   assert.equal(hrefIdentity?.id, "Tsonic.CSharp.Node.URL.href");
   assert.equal(pathIdentity?.id, "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
   assert.equal(formatIdentity?.id, "Tsonic.CSharp.Node.url.format(System.Object)");
-  assert.equal(searchParamsIdentity?.id, "unsupported:Tsonic.CSharp.Node.URL.searchParams");
-  assert.equal(appendIdentity?.id, "unsupported:Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
+  assert.equal(searchParamsIdentity?.id, "Tsonic.CSharp.Node.URL.searchParams");
+  assert.equal(appendIdentity?.id, "Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
 });
 
 test("NodeJS provider package maps closed URL members from selected provider identities", () => {
@@ -3246,6 +3246,10 @@ test("NodeJS provider package maps closed URL members from selected provider ide
   const pathToFileURLSignature = {};
   const fileURLToPathCall = {};
   const fileURLToPathSignature = {};
+  const searchParamsExpression = {};
+  const searchParamsDeclaration = {};
+  const appendCall = {};
+  const appendSignature = {};
   facts.set(constructorSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
     "node:url",
     "URL",
@@ -3268,37 +3272,6 @@ test("NodeJS provider package maps closed URL members from selected provider ide
   ));
   facts.set(pathToFileURLSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("url", "pathToFileURL", "node:url.pathToFileURL(System.String)"));
   facts.set(fileURLToPathSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:url", "fileURLToPath", "node:url.fileURLToPath(Tsonic.CSharp.Node.URL)"));
-
-  const constructorResult = provider.mapCheckedCall(nodejsCallRequest(constructorCall, constructorSignature), fakeContext(facts));
-  const hrefResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(hrefExpression, hrefDeclaration), fakeContext(facts));
-  const toStringResult = provider.mapCheckedCall(nodejsCallRequest(toStringCall, toStringSignature), fakeContext(facts));
-  const pathToFileURLResult = provider.mapCheckedCall(nodejsCallRequest(pathToFileURLCall, pathToFileURLSignature), fakeContext(facts));
-  const fileURLToPathResult = provider.mapCheckedCall(nodejsCallRequest(fileURLToPathCall, fileURLToPathSignature), fakeContext(facts));
-
-  assert.equal(constructorResult.kind, "accept");
-  assert.equal(constructorResult.value.selectedSignature.member.kind, "constructor");
-  assert.equal(constructorResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URL..ctor(System.String,System.String)");
-  assert.equal(hrefResult.kind, "accept");
-  assert.equal(hrefResult.value.operation.operationId, "Tsonic.CSharp.Node.URL.href");
-  assert.equal(toStringResult.kind, "accept");
-  assert.equal(toStringResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URL.ToString()");
-  assert.equal(pathToFileURLResult.kind, "accept");
-  assert.equal(pathToFileURLResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
-  assert.equal(pathToFileURLResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Node.URL");
-  assert.equal(fileURLToPathResult.kind, "accept");
-  assert.equal(fileURLToPathResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.url.fileURLToPath(Tsonic.CSharp.Node.URL)");
-});
-
-test("NodeJS provider package fails closed for unsupported URL provider identities", () => {
-  const facts = new TestFactStore();
-  const provider = createCsharpNodejsProviderPackageOperationsProvider();
-  const formatCall = {};
-  const formatSignature = {};
-  const searchParamsExpression = {};
-  const searchParamsDeclaration = {};
-  const appendCall = {};
-  const appendSignature = {};
-  facts.set(formatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:url", "format", "node:url.format(System.Object)"));
   facts.set(searchParamsDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
     "node:url",
     "URL",
@@ -3313,22 +3286,76 @@ test("NodeJS provider package fails closed for unsupported URL provider identiti
     "node:url.URLSearchParams.append(System.String,System.String)",
   ));
 
-  const formatResult = provider.mapCheckedCall(nodejsCallRequest(formatCall, formatSignature), fakeContext(facts));
+  const constructorResult = provider.mapCheckedCall(nodejsCallRequest(constructorCall, constructorSignature), fakeContext(facts));
+  const hrefResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(hrefExpression, hrefDeclaration), fakeContext(facts));
+  const toStringResult = provider.mapCheckedCall(nodejsCallRequest(toStringCall, toStringSignature), fakeContext(facts));
+  const pathToFileURLResult = provider.mapCheckedCall(nodejsCallRequest(pathToFileURLCall, pathToFileURLSignature), fakeContext(facts));
+  const fileURLToPathResult = provider.mapCheckedCall(nodejsCallRequest(fileURLToPathCall, fileURLToPathSignature), fakeContext(facts));
   const searchParamsResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(searchParamsExpression, searchParamsDeclaration), fakeContext(facts));
   const appendResult = provider.mapCheckedCall(nodejsCallRequest(appendCall, appendSignature), fakeContext(facts));
+
+  assert.equal(constructorResult.kind, "accept");
+  assert.equal(constructorResult.value.selectedSignature.member.kind, "constructor");
+  assert.equal(constructorResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URL..ctor(System.String,System.String)");
+  assert.equal(hrefResult.kind, "accept");
+  assert.equal(hrefResult.value.operation.operationId, "Tsonic.CSharp.Node.URL.href");
+  assert.equal(toStringResult.kind, "accept");
+  assert.equal(toStringResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URL.ToString()");
+  assert.equal(pathToFileURLResult.kind, "accept");
+  assert.equal(pathToFileURLResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
+  assert.equal(pathToFileURLResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Node.URL");
+  assert.equal(fileURLToPathResult.kind, "accept");
+  assert.equal(fileURLToPathResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.url.fileURLToPath(Tsonic.CSharp.Node.URL)");
+  assert.equal(searchParamsResult.kind, "accept");
+  assert.equal(searchParamsResult.value.operation.operationId, "Tsonic.CSharp.Node.URL.searchParams");
+  assert.equal(facts.get(searchParamsExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.URL.searchParams");
+  assert.equal(appendResult.kind, "accept");
+  assert.equal(appendResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
+});
+
+test("NodeJS provider package fails closed for unsupported URL provider identities", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
+  const formatCall = {};
+  const formatSignature = {};
+  const urlPatternTestCall = {};
+  const urlPatternTestSignature = {};
+  const urlPatternExecCall = {};
+  const urlPatternExecSignature = {};
+  facts.set(formatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:url", "format", "node:url.format(System.Object)"));
+  facts.set(urlPatternTestSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:url",
+    "URLPattern",
+    "test",
+    "node:url.URLPattern.test",
+    "node:url.URLPattern.test(System.String)",
+  ));
+  facts.set(urlPatternExecSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:url",
+    "URLPattern",
+    "exec",
+    "node:url.URLPattern.exec",
+    "node:url.URLPattern.exec(System.String)",
+  ));
+
+  const formatResult = provider.mapCheckedCall(nodejsCallRequest(formatCall, formatSignature), fakeContext(facts));
+  const urlPatternTestResult = provider.mapCheckedCall(nodejsCallRequest(urlPatternTestCall, urlPatternTestSignature), fakeContext(facts));
+  const urlPatternExecResult = provider.mapCheckedCall(nodejsCallRequest(urlPatternExecCall, urlPatternExecSignature), fakeContext(facts));
 
   assert.equal(formatResult.kind, "reject");
   assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
   assert.match(formatResult.diagnostic.message, /node:url/);
   assert.match(formatResult.diagnostic.message, /format/);
-  assert.equal(searchParamsResult.kind, "reject");
-  assert.equal(searchParamsResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
-  assert.match(searchParamsResult.diagnostic.message, /searchParams/);
-  assert.equal(searchParamsResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.URL.searchParams");
-  assert.equal(appendResult.kind, "reject");
-  assert.equal(appendResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
-  assert.match(appendResult.diagnostic.message, /URLSearchParams/);
-  assert.match(appendResult.diagnostic.message, /append/);
+  assert.equal(urlPatternTestResult.kind, "reject");
+  assert.equal(urlPatternTestResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(urlPatternTestResult.diagnostic.message, /URLPattern/);
+  assert.match(urlPatternTestResult.diagnostic.message, /test/);
+  assert.equal(urlPatternTestResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.URLPattern.test(System.String)");
+  assert.equal(urlPatternExecResult.kind, "reject");
+  assert.equal(urlPatternExecResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(urlPatternExecResult.diagnostic.message, /URLPattern/);
+  assert.match(urlPatternExecResult.diagnostic.message, /exec/);
+  assert.equal(urlPatternExecResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.URLPattern.exec(System.String)");
 });
 
 test("NodeJS provider package maps Buffer static calls from selected provider member signature identity", () => {
