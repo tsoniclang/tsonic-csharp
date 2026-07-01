@@ -32,6 +32,7 @@ export function planDiscardedExpression(expression: CsharpExpression): CsharpExp
 
 function isValidCsharpExpressionStatement(expression: CsharpExpression): boolean {
   switch (expression.kind) {
+    case "AwaitExpression":
     case "InvocationExpression":
     case "ObjectCreationExpression":
     case "PostfixUnaryExpression":

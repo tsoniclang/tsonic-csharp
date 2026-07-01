@@ -18,6 +18,7 @@ import {
   KindDefaultClause,
   KindDoStatement,
   KindArrayLiteralExpression,
+  KindAwaitExpression,
   KindBinaryExpression,
   KindEqualsToken,
   KindExpressionStatement,
@@ -47,6 +48,8 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
+  csharpTaskTargetType,
+  csharpVoidTargetType,
   csharpTsValueTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 
@@ -757,6 +760,32 @@ test("array destructuring assignment statements emit storage writes from finaliz
   ]);
 });
 
+test("await expression statements emit await directly instead of assigning void results", () => {
+  const diagnostics = [];
+  const task = identifier("task");
+  const statement = expressionStatement(awaitExpression(task));
+  const output = planStatements(
+    statement,
+    sourceFile,
+    fakeInput({
+      runtimeCarrierFacts: new Map([[task, { carrier: csharpTaskTargetType(csharpVoidTargetType()) }]]),
+    }),
+    diagnostics,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [{
+    kind: "ExpressionStatement",
+    expression: {
+      kind: "AwaitExpression",
+      expression: {
+        kind: "IdentifierName",
+        name: "task",
+      },
+    },
+  }]);
+});
+
 test("object-shape destructuring assignment statements emit storage writes from finalized facts", () => {
   const diagnostics = [];
   const source = identifier("input");
@@ -1169,6 +1198,13 @@ function tryStatement(tryBlock, catchClauseNode, finallyBlock) {
 function expressionStatement(expression) {
   return {
     Kind: KindExpressionStatement,
+    Expression: expression,
+  };
+}
+
+function awaitExpression(expression) {
+  return {
+    Kind: KindAwaitExpression,
     Expression: expression,
   };
 }

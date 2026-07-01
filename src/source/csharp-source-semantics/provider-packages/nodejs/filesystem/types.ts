@@ -13,6 +13,9 @@ import {
   csharpTargetNamedType,
 } from "../../../surfaces/js/source-library.js";
 import {
+  csharpTaskTargetType,
+} from "../../../target-types.js";
+import {
   csharpJsDateTargetType,
 } from "../../../surfaces/js/date/index.js";
 import {
@@ -46,8 +49,28 @@ export const voidTargetType = csharpVoidTargetType();
 export const dateTargetType = csharpJsDateTargetType();
 export const bufferTargetType = nodeBufferTargetType;
 export const fsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.fs", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "fs"));
+export const fsPromisesTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.fs_promises", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "fs_promises"));
 export const statsProviderType = { kind: "provider-ref", moduleSpecifier: "node:fs", exportName: "Stats" } satisfies ProviderTypeExpression;
 export const statsTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.Stats", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "Stats"));
+
+export function promiseProviderType(resultType: ProviderTypeExpression): ProviderTypeExpression {
+  return {
+    kind: "target-named",
+    target: "csharp",
+    id: resultType.kind === "void" ? "System.Threading.Tasks.Task" : "System.Threading.Tasks.Task`1",
+    ...(resultType.kind === "void" ? {} : { typeArguments: [resultType] }),
+    sourceShape: {
+      kind: "provider-ref",
+      moduleSpecifier: "global:js",
+      exportName: "Promise",
+      typeArguments: [resultType],
+    },
+  };
+}
+
+export function taskTargetType(resultType: TargetTypeRef): TargetTypeRef {
+  return csharpTaskTargetType(resultType);
+}
 
 export interface NodeFsProviderParameter {
   readonly name: string;

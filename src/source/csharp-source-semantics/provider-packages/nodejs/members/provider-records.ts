@@ -27,6 +27,8 @@ import {
   nodeFsClassCallTargetMembers,
   nodeFsClassPropertyTargetMembers,
   nodeFsModuleSpecifier,
+  nodeFsPromisesCallTargetMembers,
+  nodeFsPromisesModuleSpecifier,
   nodeFsUnsupportedTargetIdentities,
 } from "../filesystem/index.js";
 import {
@@ -104,6 +106,7 @@ export function nodejsTargetMemberMetadataRecords(): readonly NodejsTargetMember
     ...moduleCallRecords(nodeFsModuleSpecifier, nodeFsCallTargetMembers()),
     ...classCallRecords(nodeFsModuleSpecifier, nodeFsClassCallTargetMembers()),
     ...classPropertyRecords(nodeFsModuleSpecifier, nodeFsClassPropertyTargetMembers()),
+    ...moduleCallRecords(nodeFsPromisesModuleSpecifier, nodeFsPromisesCallTargetMembers()),
     ...moduleCallRecords(nodeCryptoModuleSpecifier, nodeCryptoCallTargetMembers()),
     ...classCallRecords(nodeCryptoModuleSpecifier, nodeCryptoClassCallTargetMembers()),
     ...moduleCallRecords(nodeOsModuleSpecifier, nodeOsCallTargetMembers()),

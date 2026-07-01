@@ -1,4 +1,5 @@
 export const nodeFsModuleSpecifier = "node:fs";
+export const nodeFsPromisesModuleSpecifier = "node:fs/promises";
 export const nodeFsStatsExportName = "Stats";
 export const nodeFsExistsSyncExportName = "existsSync";
 export const nodeFsExistsSyncSignatureId = "node:fs.existsSync(System.String)";

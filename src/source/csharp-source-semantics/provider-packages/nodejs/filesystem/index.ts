@@ -7,9 +7,13 @@ import {
 import {
   nodeFsStatsExportDeclaration,
 } from "./stats.js";
+import {
+  nodeFsPromisesExportDeclarations,
+} from "./promises.js";
 
 export {
   nodeFsModuleSpecifier,
+  nodeFsPromisesModuleSpecifier,
   nodeFsStatsExportName,
   nodeFsExistsSyncExportName,
   nodeFsExistsSyncSignatureId,
@@ -36,6 +40,10 @@ export {
   nodeFsUnsupportedTargetIdentities,
 } from "./calls.js";
 export {
+  getNodeFsPromisesCallTargetMember,
+  nodeFsPromisesCallTargetMembers,
+} from "./promises.js";
+export {
   nodeFsClassCallTargetMembers,
   nodeFsClassPropertyTargetMembers,
 } from "./stats.js";
@@ -45,4 +53,8 @@ export function nodeFsExports(): readonly ProviderExportDeclaration[] {
     nodeFsStatsExportDeclaration(),
     ...nodeFsCallExportDeclarations(),
   ];
+}
+
+export function nodeFsPromisesExports(): readonly ProviderExportDeclaration[] {
+  return nodeFsPromisesExportDeclarations();
 }

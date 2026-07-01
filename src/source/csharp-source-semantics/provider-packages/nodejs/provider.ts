@@ -34,6 +34,8 @@ import {
 import {
   nodeFsExports,
   nodeFsModuleSpecifier,
+  nodeFsPromisesExports,
+  nodeFsPromisesModuleSpecifier,
 } from "./filesystem/index.js";
 import {
   nodeOsExports,
@@ -65,6 +67,7 @@ const canonicalModules = new Map<string, readonly ProviderExportDeclaration[]>([
   [nodeBufferModuleSpecifier, nodeBufferExports()],
   [nodePathModuleSpecifier, nodePathExports()],
   [nodeFsModuleSpecifier, nodeFsExports()],
+  [nodeFsPromisesModuleSpecifier, nodeFsPromisesExports()],
   [nodeCryptoModuleSpecifier, nodeCryptoExports()],
   [nodeOsModuleSpecifier, nodeOsExports()],
   [nodeProcessModuleSpecifier, nodeProcessExports()],

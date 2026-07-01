@@ -9,6 +9,7 @@ import {
 } from "./crypto.js";
 import {
   nodeFsModuleSpecifier,
+  nodeFsPromisesModuleSpecifier,
 } from "./filesystem/index.js";
 import {
   nodeOsModuleSpecifier,
@@ -37,6 +38,8 @@ const canonicalBySpecifier = new Map<string, string>([
   [nodeCryptoModuleSpecifier, nodeCryptoModuleSpecifier],
   ["fs", nodeFsModuleSpecifier],
   [nodeFsModuleSpecifier, nodeFsModuleSpecifier],
+  ["fs/promises", nodeFsPromisesModuleSpecifier],
+  [nodeFsPromisesModuleSpecifier, nodeFsPromisesModuleSpecifier],
   ["os", nodeOsModuleSpecifier],
   [nodeOsModuleSpecifier, nodeOsModuleSpecifier],
   ["path", nodePathModuleSpecifier],
