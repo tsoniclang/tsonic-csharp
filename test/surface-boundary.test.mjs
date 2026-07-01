@@ -3138,16 +3138,28 @@ test("NodeJS provider package fails closed for unsupported util provider identit
   const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const formatCall = {};
   const formatSignature = {};
+  const formatWithOptionsCall = {};
+  const formatWithOptionsSignature = {};
   const inspectCall = {};
   const inspectSignature = {};
+  const debuglogCall = {};
+  const debuglogSignature = {};
+  const deprecateCall = {};
+  const deprecateSignature = {};
   const isDeepStrictEqualCall = {};
   const isDeepStrictEqualSignature = {};
   facts.set(formatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "format", "node:util.format(System.Object,System.Object[])"));
+  facts.set(formatWithOptionsSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "formatWithOptions", "node:util.formatWithOptions(System.Object,System.Object,System.Object[])"));
   facts.set(inspectSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "inspect", "node:util.inspect(System.Object)"));
+  facts.set(debuglogSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "debuglog", "node:util.debuglog(System.String)"));
+  facts.set(deprecateSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "deprecate", "node:util.deprecate(Function,System.String,System.String)"));
   facts.set(isDeepStrictEqualSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "isDeepStrictEqual", "node:util.isDeepStrictEqual(System.Object,System.Object)"));
 
   const formatResult = provider.mapCheckedCall(nodejsCallRequest(formatCall, formatSignature), fakeContext(facts));
+  const formatWithOptionsResult = provider.mapCheckedCall(nodejsCallRequest(formatWithOptionsCall, formatWithOptionsSignature), fakeContext(facts));
   const inspectResult = provider.mapCheckedCall(nodejsCallRequest(inspectCall, inspectSignature), fakeContext(facts));
+  const debuglogResult = provider.mapCheckedCall(nodejsCallRequest(debuglogCall, debuglogSignature), fakeContext(facts));
+  const deprecateResult = provider.mapCheckedCall(nodejsCallRequest(deprecateCall, deprecateSignature), fakeContext(facts));
   const isDeepStrictEqualResult = provider.mapCheckedCall(nodejsCallRequest(isDeepStrictEqualCall, isDeepStrictEqualSignature), fakeContext(facts));
 
   assert.equal(formatResult.kind, "reject");
@@ -3155,12 +3167,26 @@ test("NodeJS provider package fails closed for unsupported util provider identit
   assert.match(formatResult.diagnostic.message, /node:util/);
   assert.match(formatResult.diagnostic.message, /format/);
   assert.equal(formatResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
+  assert.equal(formatWithOptionsResult.kind, "reject");
+  assert.equal(formatWithOptionsResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(formatWithOptionsResult.diagnostic.message, /formatWithOptions/);
+  assert.equal(formatWithOptionsResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.formatWithOptions(System.Object,System.Object,System.Object[])");
   assert.equal(inspectResult.kind, "reject");
   assert.equal(inspectResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
   assert.match(inspectResult.diagnostic.message, /inspect/);
+  assert.equal(inspectResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.inspect(System.Object)");
+  assert.equal(debuglogResult.kind, "reject");
+  assert.equal(debuglogResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(debuglogResult.diagnostic.message, /debuglog/);
+  assert.equal(debuglogResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.debuglog(System.String)");
+  assert.equal(deprecateResult.kind, "reject");
+  assert.equal(deprecateResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.match(deprecateResult.diagnostic.message, /deprecate/);
+  assert.equal(deprecateResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.deprecate(Function,System.String,System.String)");
   assert.equal(isDeepStrictEqualResult.kind, "reject");
   assert.equal(isDeepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
   assert.match(isDeepStrictEqualResult.diagnostic.message, /isDeepStrictEqual/);
+  assert.equal(isDeepStrictEqualResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.isDeepStrictEqual(System.Object,System.Object)");
 });
 
 test("NodeJS provider package exposes URL as a provider-owned virtual module", () => {
