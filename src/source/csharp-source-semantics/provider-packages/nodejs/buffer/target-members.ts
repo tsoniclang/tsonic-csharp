@@ -124,6 +124,9 @@ import {
   getNodeBufferPoolSizeTargetMember,
   getNodeBufferTranscodeTargetMember,
 } from "./static-members.js";
+import {
+  nodeBufferNumericClassCallTargetMembers,
+} from "./numeric-members.js";
 
 export {
   getNodeBufferLengthTargetMember,
@@ -165,6 +168,7 @@ export function nodeBufferClassCallTargetMembers(): readonly NodejsClassCallTarg
     nodeBufferClassCallTargetMember(nodeBufferWriteExportName, nodeBufferWriteMemberId, nodeBufferWriteSignatureId, getNodeBufferWriteTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferReadUInt8ExportName, nodeBufferReadUInt8MemberId, nodeBufferReadUInt8SignatureId, getNodeBufferReadUInt8TargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferWriteUInt8ExportName, nodeBufferWriteUInt8MemberId, nodeBufferWriteUInt8SignatureId, getNodeBufferWriteUInt8TargetMember()),
+    ...nodeBufferNumericClassCallTargetMembers(),
   ];
 }
 

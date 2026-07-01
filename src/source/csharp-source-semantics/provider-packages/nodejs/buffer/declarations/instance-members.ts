@@ -46,6 +46,9 @@ import {
   nodeBufferProviderType,
   nodeBufferStringProviderType,
 } from "../provider-types.js";
+import {
+  nodeBufferNumericInstanceMemberDeclarations,
+} from "../numeric-members.js";
 
 type ProviderClassMembers = NonNullable<ProviderExportDeclaration["members"]>;
 
@@ -221,5 +224,6 @@ export function nodeBufferInstanceMemberDeclarations(): ProviderClassMembers {
         returnType: nodeBufferNumberProviderType,
       }],
     },
+    ...nodeBufferNumericInstanceMemberDeclarations(),
   ];
 }

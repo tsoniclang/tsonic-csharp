@@ -3436,6 +3436,39 @@ test("NodeJS provider package maps expanded Buffer static and instance calls fro
   assert.equal(instanceResult.value.selectedSignature.member.static, undefined);
 });
 
+test("NodeJS provider package maps Buffer numeric read and write calls from selected provider member identities", () => {
+  const facts = new TestFactStore();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
+  const readCall = {};
+  const readSignature = {};
+  const writeCall = {};
+  const writeSignature = {};
+  facts.set(readSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:buffer",
+    "Buffer",
+    "readUInt16LE",
+    "node:buffer.Buffer.readUInt16LE",
+    "node:buffer.Buffer.readUInt16LE(System.Int32)",
+  ));
+  facts.set(writeSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
+    "node:buffer",
+    "Buffer",
+    "writeDoubleBE",
+    "node:buffer.Buffer.writeDoubleBE",
+    "node:buffer.Buffer.writeDoubleBE(System.Double,System.Int32)",
+  ));
+
+  const readResult = provider.mapCheckedCall(nodejsCallRequest(readCall, readSignature), fakeContext(facts));
+  const writeResult = provider.mapCheckedCall(nodejsCallRequest(writeCall, writeSignature), fakeContext(facts));
+
+  assert.equal(readResult.kind, "accept");
+  assert.equal(readResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Buffer.readUInt16LE(System.Int32)");
+  assert.equal(readResult.value.selectedSignature.member.returnType.name, "uint16");
+  assert.equal(writeResult.kind, "accept");
+  assert.equal(writeResult.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Buffer.writeDoubleBE(System.Double,System.Int32)");
+  assert.equal(writeResult.value.selectedSignature.member.returnType.name, "int32");
+});
+
 test("NodeJS provider package maps Buffer instance properties from selected provider member identity", () => {
   const expression = {};
   const selectedPropertySymbol = {};
