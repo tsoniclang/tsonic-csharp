@@ -106,11 +106,11 @@ export function nodeFsPromisesCallTargetMembers(): readonly NodeFsCallTargetMemb
       targetParameter("path", stringTargetType),
       targetParameter("recursive", boolTargetType, { optional: true }),
     ], targetReturnType: taskTargetType(voidTargetType) }),
-    fsPromiseCall({ exportName: "readFile", signatureId: "node:fs/promises.readFile(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)", sourceName: "readFile", targetName: "readFile", providerParameters: [stringParameter("path"), optionalStringParameter("encoding")], providerReturnType: promiseProviderType(stringProviderType), targetParameters: [
+    fsPromiseCall({ exportName: "readFile", signatureId: "node:fs/promises.readFile(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)", sourceName: "readFile", targetName: "readFile", providerParameters: [stringParameter("path"), stringParameter("encoding")], providerReturnType: promiseProviderType(stringProviderType), targetParameters: [
       targetParameter("path", stringTargetType),
-      targetParameter("encoding", stringTargetType, { optional: true }),
+      targetParameter("encoding", stringTargetType),
     ], targetReturnType: taskTargetType(stringTargetType) }),
-    fsPromiseCall({ exportName: "readFile", signatureId: "node:fs/promises.readFile(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readFileBytes(System.String)", sourceName: "readFile", targetName: "readFileBytes", providerParameters: [stringParameter("path")], providerReturnType: promiseProviderType(bufferProviderType), targetParameters: [
+    fsPromiseCall({ exportName: "readFile", signatureId: "node:fs/promises.readFile(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readFile(System.String)", sourceName: "readFile", targetName: "readFile", providerParameters: [stringParameter("path")], providerReturnType: promiseProviderType(bufferProviderType), targetParameters: [
       targetParameter("path", stringTargetType),
     ], targetReturnType: taskTargetType(bufferTargetType) }),
     fsPromiseCall({ exportName: "readdir", signatureId: "node:fs/promises.readdir(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readdir(System.String)", sourceName: "readdir", targetName: "readdir", providerParameters: [stringParameter("path")], providerReturnType: promiseProviderType({ kind: "array", elementType: stringProviderType }), targetParameters: [

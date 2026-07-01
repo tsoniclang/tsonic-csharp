@@ -26,6 +26,7 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   assertModuleExport(bindingProvider, "node:fs", "watchFile", "node:fs.watchFile(System.String,Function)");
   assertModuleExport(bindingProvider, "node:fs", "readdirSync", "node:fs.readdirSync(System.String)");
   assertModuleExport(bindingProvider, "node:fs/promises", "readFile", "node:fs/promises.readFile(System.String,System.String)");
+  assertModuleExport(bindingProvider, "node:fs/promises", "readFile", "node:fs/promises.readFile(System.String)");
   assertModuleExport(bindingProvider, "node:fs/promises", "readdir", "node:fs/promises.readdir(System.String)");
   assertModuleExport(bindingProvider, "node:path", "format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)");
   assertClassMember(bindingProvider, "node:buffer", "Buffer", "compare", "node:buffer.Buffer.compare(Tsonic.CSharp.Node.Buffer,Tsonic.CSharp.Node.Buffer)");
@@ -63,6 +64,8 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const pathParseSignature = {};
   const fsPromisesReadCall = {};
   const fsPromisesReadSignature = {};
+  const fsPromisesReadBytesCall = {};
+  const fsPromisesReadBytesSignature = {};
   const fsPromisesReaddirCall = {};
   const fsPromisesReaddirSignature = {};
   const parsedBaseExpression = {};
@@ -113,6 +116,7 @@ test("NodeJS provider package maps closed operations from selected provider iden
   facts.set(readdirSyncSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "readdirSync", "node:fs.readdirSync(System.String)"));
   facts.set(pathParseSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "parse", "node:path.parse(System.String)"));
   facts.set(fsPromisesReadSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs/promises", "readFile", "node:fs/promises.readFile(System.String,System.String)"));
+  facts.set(fsPromisesReadBytesSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs/promises", "readFile", "node:fs/promises.readFile(System.String)"));
   facts.set(fsPromisesReaddirSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs/promises", "readdir", "node:fs/promises.readdir(System.String)"));
   facts.set(parsedBaseDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:path", "ParsedPath", "base", "node:path.ParsedPath.base"));
   facts.set(processCwdSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("process", "cwd", "node:process.cwd()"));
@@ -142,6 +146,7 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const readdirSyncResult = provider.mapCheckedCall(nodejsCallRequest(readdirSyncCall, readdirSyncSignature), fakeContext(facts));
   const pathParseResult = provider.mapCheckedCall(nodejsCallRequest(pathParseCall, pathParseSignature), fakeContext(facts));
   const fsPromisesReadResult = provider.mapCheckedCall(nodejsCallRequest(fsPromisesReadCall, fsPromisesReadSignature), fakeContext(facts));
+  const fsPromisesReadBytesResult = provider.mapCheckedCall(nodejsCallRequest(fsPromisesReadBytesCall, fsPromisesReadBytesSignature), fakeContext(facts));
   const fsPromisesReaddirResult = provider.mapCheckedCall(nodejsCallRequest(fsPromisesReaddirCall, fsPromisesReaddirSignature), fakeContext(facts));
   const parsedBaseResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(parsedBaseExpression, parsedBaseDeclaration), fakeContext(facts));
   const processCwdResult = provider.mapCheckedCall(nodejsCallRequest(processCwdCall, processCwdSignature), fakeContext(facts));
@@ -170,6 +175,7 @@ test("NodeJS provider package maps closed operations from selected provider iden
   assertSelectedMember(readdirSyncResult, "Tsonic.CSharp.Node.fs.readdirSync(System.String)");
   assertSelectedMember(pathParseResult, "Tsonic.CSharp.Node.path.parse(System.String)");
   assertSelectedMember(fsPromisesReadResult, "Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)");
+  assertSelectedMember(fsPromisesReadBytesResult, "Tsonic.CSharp.Node.fs_promises.readFile(System.String)");
   assertSelectedMember(fsPromisesReaddirResult, "Tsonic.CSharp.Node.fs_promises.readdir(System.String)");
   assert.equal(parsedBaseResult.kind, "accept");
   assert.equal(parsedBaseResult.value.operation.operationId, "Tsonic.CSharp.Node.ParsedPath.@base");
@@ -279,10 +285,15 @@ test("selected NodeJS Buffer source type-checks compare provider declarations", 
 
 test("selected NodeJS fs promises source type-checks and maps through provider-package declarations", () => {
   const session = createCsharpSession(`
+    import type { Buffer } from "node:buffer";
     import { chmod, cp, readFile, readlink, realpath, rmdir, stat, symlink, writeFile } from "node:fs/promises";
 
     export function load(path: string): Promise<string> {
       return readFile(path, "utf8");
+    }
+
+    export function loadBytes(path: string): Promise<Buffer> {
+      return readFile(path);
     }
 
     export async function saveAndSize(path: string): Promise<number> {
@@ -308,6 +319,7 @@ test("selected NodeJS fs promises source type-checks and maps through provider-p
 
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.readFile(System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.writeFile(System.String,System.String,System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.stat(System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.symlink(System.String,System.String,System.String)"));
@@ -383,7 +395,7 @@ function assertModuleExport(bindingProvider, moduleSpecifier, exportName, signat
   assert.equal(resolution.kind, "virtual");
   const model = bindingProvider.getDeclarationModel(resolution);
   const declaration = model.exports.find((entry) => entry.name === exportName);
-  assert.equal(declaration?.signatures?.[0]?.id, signatureId);
+  assert.ok(declaration?.signatures?.some((signature) => signature.id === signatureId));
   const identity = bindingProvider.getTargetIdentity({
     moduleSpecifier,
     exportName,
