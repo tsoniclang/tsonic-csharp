@@ -274,6 +274,34 @@ test("call emission accepts finalized callable Invoke facts with default and par
   assert.equal(operation?.selectedMember?.parameters[2]?.paramsArray, true);
 });
 
+test("call emission accepts finalized callable Invoke facts with byref parameter modes", () => {
+  const call = { Kind: 1 };
+  const selected = callableByrefInvokeMember();
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "method",
+        memberName: "Invoke",
+        resultType: selected.returnType,
+        selectedMember: selected,
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# callable emission",
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(operation?.selectedMember?.parameters[0]?.passingMode, "byref-readwrite");
+  assert.equal(operation?.selectedMember?.parameters[1]?.passingMode, "byref-writeonly-must-init");
+  assert.equal(operation?.selectedMember?.parameters[2]?.passingMode, "byref-readonly");
+});
+
 test("call emission rejects operation facts that drift selected parameter default facts", () => {
   const call = { Kind: 1 };
   const selected = callableInvokeMember();
@@ -306,6 +334,38 @@ test("call emission rejects operation facts that drift selected parameter defaul
   assert.equal(operation, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /parameter-default/);
+});
+
+test("call emission rejects callable Invoke facts that drift byref parameter modes", () => {
+  const call = { Kind: 1 };
+  const selected = callableByrefInvokeMember();
+  const diagnostics = [];
+  const operation = getRequiredCsharpTargetMemberOperationForSelectedSignature(
+    fakeInput({
+      subject: call,
+      operation: {
+        kind: "member",
+        operationId: selected.id,
+        operationKind: "method",
+        memberName: "Invoke",
+        resultType: selected.returnType,
+        selectedMember: {
+          ...selected,
+          parameters: selected.parameters.map((parameter, index) =>
+            index === 1 ? { ...parameter, passingMode: "by-value" } : parameter
+          ),
+        },
+      },
+    }),
+    call,
+    { member: selected },
+    diagnostics,
+    "C# callable emission",
+  );
+
+  assert.equal(operation, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /parameter-passing/);
 });
 
 test("call emission rejects operation facts that hide mismatched first-argument receiver types", () => {
@@ -509,6 +569,30 @@ test("call argument emission rejects unsupported finalized argument-passing mode
   assert.match(diagnostics[0].message, /does not support finalized argument-passing mode 'borrow-shared'/);
 });
 
+test("call argument emission reports source evidence when selected byref facts are missing", () => {
+  const argument = sourceLocatedIdentifier("value");
+  const diagnostics = [];
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFileWithText,
+    fakeArgumentInput(),
+    diagnostics,
+    identifierExpressionPlanner,
+    expectedIdentifierExpressionPlanner,
+    undefined,
+    undefined,
+    undefined,
+    "byref-writeonly-must-init",
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires finalized argument-passing facts/);
+  assert.ok(diagnostics[0].evidence?.includes("source.module=/src/index.ts"));
+  assert.ok(diagnostics[0].evidence?.includes("source.file=/src/index.ts"));
+  assert.ok(diagnostics[0].evidence?.some((entry) => entry.startsWith("source.span=2:10-2:15")));
+});
+
 test("selected target receiver expression uses planned binding identity instead of source text", () => {
   const receiver = identifier("array");
   const diagnostics = [];
@@ -648,6 +732,37 @@ function callableInvokeMember() {
   };
 }
 
+function callableByrefInvokeMember() {
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const bool = { kind: "source-primitive", name: "bool" };
+  const int64 = { kind: "source-primitive", name: "int64" };
+  return {
+    id: "Example.Callback.Invoke(ref System.Int32,out System.Boolean,in System.Int64)",
+    sourceName: "invoke",
+    targetName: "Invoke",
+    kind: "method",
+    parameters: [
+      {
+        name: "current",
+        type: int32,
+        passingMode: "byref-readwrite",
+      },
+      {
+        name: "assigned",
+        type: bool,
+        passingMode: "byref-writeonly-must-init",
+      },
+      {
+        name: "snapshot",
+        type: int64,
+        passingMode: "byref-readonly",
+      },
+    ],
+    returnType: bool,
+    overloadGroup: "Example.Callback.Invoke",
+  };
+}
+
 function fakeInput(options = {}) {
   return {
     facts: {
@@ -715,3 +830,22 @@ const sourceFile = {
   FileName: "/src/index.ts",
   IsDeclarationFile: false,
 };
+
+const sourceFileWithText = {
+  Kind: "KindSourceFile",
+  FileName: "/src/index.ts",
+  Text: "function f() {\n  target(value);\n}\n",
+  IsDeclarationFile: false,
+};
+
+function sourceLocatedIdentifier(text) {
+  return {
+    Kind: KindIdentifier,
+    Text: text,
+    Parent: sourceFileWithText,
+    Loc: {
+      pos: sourceFileWithText.Text.indexOf(text),
+      end: sourceFileWithText.Text.indexOf(text) + text.length,
+    },
+  };
+}
