@@ -8,6 +8,9 @@ import {
 } from "./helpers/target-facts.mjs";
 import { planExpression, planExpressionWithExpectedType } from "../dist/backend/planner/expressions.js";
 import {
+  createDestructuringPlannerState,
+} from "../dist/backend/planner/bindings.js";
+import {
   KindArrowFunction,
   KindArrayLiteralExpression,
   KindAwaitExpression,
@@ -296,6 +299,43 @@ test("destructuring assignment fails closed without finalized storage facts", ()
   assert.equal(output, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
+});
+
+test("destructuring assignment expressions emit closed lambda and return assigned source value from finalized facts", () => {
+  const left = {
+    Kind: KindArrayLiteralExpression,
+    Elements: { Nodes: [identifier("first")] },
+  };
+  const right = identifier("values");
+  const expression = binary(left, right, "KindEqualsToken");
+  const diagnostics = [];
+  const intType = csharpSourcePrimitiveTargetType("int32");
+
+  const output = planExpression(expression, {}, fakeInput({
+    selectedOperatorSubject: expression,
+    selectedOperator: {
+      operationId: "tsonic.csharp.operator.assign",
+      operationKind: "operator",
+      targetOperation: "=",
+    },
+    csharpOperationSubject: expression,
+    csharpOperation: {
+      kind: "operator-token",
+      operationId: "tsonic.csharp.operator.assign",
+      operator: "=",
+    },
+    runtimeCarrierFacts: new Map([[right, { carrier: { kind: "array", element: intType } }]]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), [
+    "((System.Func<int[]>)(() =>",
+    "{",
+    "    int[] __tsonic_destructure0 = values;",
+    "    first = __tsonic_destructure0[0];",
+    "    return __tsonic_destructure0;",
+    "}))()",
+  ].join("\n"));
 });
 
 test("object destructuring assignment fails closed before ordinary assignment emission", () => {

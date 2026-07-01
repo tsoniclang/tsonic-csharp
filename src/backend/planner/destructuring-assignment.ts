@@ -119,12 +119,94 @@ export function planDestructuringAssignmentStatement(
   if (!isDestructuringAssignmentExpression(node, input)) {
     return undefined;
   }
+  const planned = planDestructuringAssignmentCore(
+    node!,
+    sourceFile,
+    input,
+    diagnostics,
+    state,
+    planExpression,
+    planDefaultExpressionWithExpectedType,
+  );
+  return planned?.statements ?? [];
+}
+
+export function tryPlanDestructuringAssignmentExpression(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState | undefined,
+  planExpression: ExpressionPlanner,
+  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
+): CsharpExpression | undefined {
+  if (!isDestructuringAssignmentExpression(node, input)) {
+    return undefined;
+  }
+  if (state === undefined) {
+    pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
+    return undefined;
+  }
+  const planned = planDestructuringAssignmentCore(
+    node,
+    sourceFile,
+    input,
+    diagnostics,
+    state,
+    planExpression,
+    planDefaultExpressionWithExpectedType,
+  );
+  if (planned === undefined) {
+    return undefined;
+  }
+  return {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "ParenthesizedExpression",
+      expression: {
+        kind: "CastExpression",
+        type: csharpFuncType(planned.sourceType),
+        expression: {
+          kind: "LambdaExpression",
+          parameters: [],
+          body: {
+            kind: "Block",
+            statements: [
+              ...planned.statements,
+              {
+                kind: "ReturnStatement",
+                expression: planned.resultExpression,
+              },
+            ],
+          },
+        },
+      },
+    },
+    arguments: [],
+  };
+}
+
+interface DestructuringAssignmentPlan {
+  readonly sourceType: CsharpTypeNode;
+  readonly resultExpression: CsharpExpression;
+  readonly statements: readonly CsharpStatement[];
+}
+
+function planDestructuringAssignmentCore(
+  node: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+  planExpression: ExpressionPlanner,
+  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
+): DestructuringAssignmentPlan | undefined {
   const expression = AsBinaryExpression(node)!;
   const left = expression.Left;
   const right = expression.Right;
   if (left === undefined || right === undefined) {
-    pushMissingDestructuringAssignmentFactsDiagnostic(node!, diagnostics);
-    return [];
+    pushMissingDestructuringAssignmentFactsDiagnostic(node, diagnostics);
+    return undefined;
   }
   const selectedOperator = input.facts.getSelectedTargetOperator(node!);
   const csharpOperation = input.facts.getFact(node!, csharpTargetOperationFactKey);
@@ -136,23 +218,26 @@ export function planDestructuringAssignmentStatement(
     csharpOperation.operator !== "="
   ) {
     pushMissingDestructuringAssignmentFactsDiagnostic(left, diagnostics);
-    return [];
+    return undefined;
   }
   const pattern = destructuringAssignmentPattern(left, input);
   if (pattern === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(left, "Destructuring assignment target is outside the current C# planning surface."));
-    return [];
+    return undefined;
   }
   const sourceExpression = planExpression(right, sourceFile, input, diagnostics);
   if (sourceExpression === undefined) {
-    return [];
+    return undefined;
   }
   const sourceType = getCsharpTypeForExpressionCarrier(right, sourceFile, input, diagnostics, left, "Destructuring assignment source");
   const sourceCarrier = getArrayBoundaryCoreCarrierForExpression(input, right, sourceFile) ??
     getRuntimeCarrierForExpression(input, right, sourceFile);
   const tempName = allocateDestructuringTemp(state);
   const tempReference: CsharpExpression = { kind: "IdentifierName", name: tempName };
-  return [
+  return {
+    sourceType,
+    resultExpression: tempReference,
+    statements: [
     {
       kind: "LocalDeclarationStatement",
       name: tempName,
@@ -170,7 +255,17 @@ export function planDestructuringAssignmentStatement(
       sourceCarrier,
       planDefaultExpressionWithExpectedType,
     ),
-  ];
+    ],
+  };
+}
+
+function csharpFuncType(returnType: CsharpTypeNode): CsharpTypeNode {
+  return {
+    kind: "QualifiedName",
+    left: { kind: "IdentifierName", name: "System" },
+    name: "Func",
+    typeArguments: [returnType],
+  };
 }
 
 type DestructuringAssignmentPattern =

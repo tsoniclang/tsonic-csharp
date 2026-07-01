@@ -71,6 +71,9 @@ import {
 import {
   tryPlanSourceSyntaxExpression,
 } from "./expression-source-syntax.js";
+import {
+  tryPlanDestructuringAssignmentExpression,
+} from "./destructuring-assignment.js";
 
 export function planExpression(
   node: Node,
@@ -182,6 +185,23 @@ function planExpressionCore(
       return planPostfixUnaryExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     }
     case KindBinaryExpression: {
+      const destructuringAssignment = tryPlanDestructuringAssignmentExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        state,
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
+          planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState) =>
+          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, nestedState ?? state),
+      );
+      if (destructuringAssignment !== undefined) {
+        return destructuringAssignment;
+      }
+      if (diagnostics.length > sourceSyntaxDiagnosticsStart) {
+        return undefined;
+      }
       const binary = tryPlanBinaryExpression(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
         planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state));
       return binary;

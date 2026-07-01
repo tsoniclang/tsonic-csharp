@@ -426,7 +426,7 @@ test("tuple destructuring defaults fail closed without optional-element facts", 
     "value",
     sourceFile,
     fakeInput({
-      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [int32Type()] } }]]),
+      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [csharpNullableValueTargetType(int32Type())] } }]]),
     }),
     diagnostics,
     createDestructuringPlannerState(),
@@ -434,7 +434,7 @@ test("tuple destructuring defaults fail closed without optional-element facts", 
 
   assert.deepEqual(statements, []);
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Tuple destructuring defaults require finalized tuple optional-element facts/);
+  assert.match(diagnostics[0].message, /Tuple destructuring defaults for optional\/nullish tuple elements require finalized tuple optional-element facts/);
 });
 
 test("tuple rest destructuring emits one-element System.ValueTuple from finalized carrier facts", () => {
