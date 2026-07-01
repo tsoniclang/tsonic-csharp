@@ -1949,6 +1949,59 @@ test("source-semantics records object-shape facts for destructured object bindin
   assert.equal(csharpOperation?.memberName, "label");
 });
 
+test("source-semantics records nested object rest facts from TSTS-checked rest binding types", () => {
+  const sourceText = `
+    export type Address = {
+      city: string;
+      zip: string;
+      country: string;
+    };
+
+    export type User = {
+      name: string;
+      address: Address;
+    };
+
+    export function describe(input: User): string {
+      const { address: { city, ...restAddress } } = input;
+      return city + restAddress.zip + restAddress.country;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const restBindingName = collectIdentifiersByText(sourceFile, session.ast, "restAddress")
+    .find((node) => session.ast.kindName(session.ast.parent(node)) === "KindBindingElement");
+  assert.ok(restBindingName);
+  const restShape = extensionHost.facts.get(restBindingName, csharpObjectShapeFactKey);
+  const runtimeCarrier = extensionHost.facts.get(restBindingName, runtimeCarrierFactKey)?.carrier;
+
+  assert.deepEqual(restShape?.members.map((member) => member.sourceName).sort(), ["country", "zip"]);
+  assert.equal(restShape?.members.some((member) => member.sourceName === "city"), false);
+  assert.equal(runtimeCarrier?.kind, "target-named");
+  assert.equal(runtimeCarrier?.id, restShape?.targetType.id);
+});
+
 test("source-semantics records array boundary facts for destructured rest bindings before later length access", () => {
   const sourceText = `
     export function tailLength(values: number[]): number {
