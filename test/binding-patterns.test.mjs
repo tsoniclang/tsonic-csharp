@@ -16,8 +16,11 @@ import {
   csharpObjectShapeFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
+  csharpListTargetType,
   csharpNullableValueTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpReadOnlyListTargetType,
+  csharpTargetNamedType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 import {
   csharpJsArrayCarrierTargetType,
@@ -351,6 +354,126 @@ test("parameter destructuring diagnostics preserve missing carrier reason and ev
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /parameter array carrier was not finalized/);
   assert.deepEqual(diagnostics[0].evidence, ["binding parameter T[] lacked array carrier fact"]);
+});
+
+test("tuple parameter destructuring emits Item projections from finalized tuple carrier facts", () => {
+  const sourceExample = `
+    declare const value: [number, boolean];
+    const [count, enabled] = value;
+  `;
+  assert.match(sourceExample, /\[count, enabled\]/);
+
+  const count = identifier("count");
+  const enabled = identifier("enabled");
+  const pattern = arrayBindingPattern([
+    bindingElement(count),
+    bindingElement(enabled),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [int32Type(), { kind: "source-primitive", name: "bool" }] } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "count",
+      type: { kind: "PredefinedType", name: "int" },
+      initializer: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        name: "Item1",
+      },
+    },
+    {
+      kind: "LocalDeclarationStatement",
+      name: "enabled",
+      type: { kind: "PredefinedType", name: "bool" },
+      initializer: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        name: "Item2",
+      },
+    },
+  ]);
+});
+
+test("tuple destructuring defaults fail closed without optional-element facts", () => {
+  const sourceExample = `
+    declare const value: [number?];
+    const [count = 1] = value;
+  `;
+  assert.match(sourceExample, /count = 1/);
+
+  const pattern = arrayBindingPattern([
+    bindingElement(identifier("count"), { initializer: numericLiteral("1") }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [int32Type()] } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Tuple destructuring defaults require finalized tuple optional-element facts/);
+});
+
+test("tuple rest destructuring fails closed without tuple slice facts", () => {
+  const sourceExample = `
+    declare const value: [number, number];
+    const [first, ...rest] = value;
+  `;
+  assert.match(sourceExample, /\.\.\.rest/);
+
+  const pattern = arrayBindingPattern([
+    bindingElement(identifier("first")),
+    bindingElement(identifier("rest"), { rest: true }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: { kind: "tuple", elements: [int32Type(), int32Type()] } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "first",
+    type: { kind: "PredefinedType", name: "int" },
+    initializer: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "value" },
+      name: "Item1",
+    },
+  }]);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Tuple rest destructuring requires finalized tuple slice facts/);
 });
 
 test("nested array parameter destructuring uses finalized nested array carrier facts", () => {
@@ -702,11 +825,123 @@ test("array destructuring over finalized read-only collection carriers emits Cou
   });
 });
 
-test("array destructuring over finalized JSArray carriers emits JSArray length and instance slice projections", () => {
+test("array destructuring over provider read-only indexable carriers does not require array-literal metadata", () => {
+  const sourceExample = `
+    declare const value: ProviderReadOnlyIndexable<number>;
+    const [first = 7, ...rest] = value;
+  `;
+  assert.match(sourceExample, /ProviderReadOnlyIndexable/);
+
   const first = identifier("first");
   const rest = identifier("rest");
   const pattern = arrayBindingPattern([
     bindingElement(first, { initializer: numericLiteral("7") }),
+    bindingElement(rest, { rest: true }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const sourceCarrier = providerReadOnlyIndexableTargetType(int32Type());
+  const diagnostics = [];
+
+  assert.equal(sourceCarrier.csharpArrayLiteralElementType, undefined);
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: sourceCarrier }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements[0].initializer.condition.left, {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "value" },
+    name: "Count",
+  });
+  assert.deepEqual(statements[1], {
+    kind: "LocalDeclarationStatement",
+    name: "rest",
+    type: {
+      kind: "QualifiedName",
+      left: {
+        kind: "QualifiedName",
+        left: {
+          kind: "QualifiedName",
+          left: { kind: "IdentifierName", name: "System" },
+          name: "Collections",
+        },
+        name: "Generic",
+      },
+      name: "List",
+      typeArguments: [{ kind: "PredefinedType", name: "int" }],
+    },
+    initializer: {
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: {
+          kind: "QualifiedName",
+          left: {
+            kind: "QualifiedName",
+            left: {
+              kind: "QualifiedName",
+              left: { kind: "IdentifierName", name: "Tsonic" },
+              name: "CSharp",
+            },
+            name: "Js",
+          },
+          name: "Array",
+        },
+        name: "slice",
+      },
+      arguments: [
+        { kind: "Argument", expression: { kind: "IdentifierName", name: "value" } },
+        { kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } },
+      ],
+    },
+  });
+});
+
+test("array destructuring rejects provider array-literal-only carriers as missing index evidence", () => {
+  const sourceExample = `
+    declare const value: ProviderLiteralOnly<number>;
+    const [first] = value;
+  `;
+  assert.match(sourceExample, /ProviderLiteralOnly/);
+
+  const pattern = arrayBindingPattern([
+    bindingElement(identifier("first")),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const sourceCarrier = providerArrayLiteralOnlyTargetType(int32Type());
+  const diagnostics = [];
+
+  assert.equal(sourceCarrier.csharpReadOnlyIndexableElementType, undefined);
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: sourceCarrier }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, []);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Array destructuring requires a finalized provider array or tuple runtime-carrier fact/);
+});
+
+test("array destructuring over finalized JSArray carriers emits element and instance slice projections", () => {
+  const first = identifier("first");
+  const rest = identifier("rest");
+  const pattern = arrayBindingPattern([
+    bindingElement(first),
     bindingElement(rest, { rest: true }),
   ]);
   const parameter = parameterDeclaration(pattern);
@@ -726,10 +961,10 @@ test("array destructuring over finalized JSArray carriers emits JSArray length a
 
   assert.deepEqual(diagnostics, []);
   assert.equal(statements.length, 2);
-  assert.deepEqual(statements[0].initializer.condition.left, {
-    kind: "SimpleMemberAccessExpression",
+  assert.deepEqual(statements[0].initializer, {
+    kind: "ElementAccessExpression",
     receiver: { kind: "IdentifierName", name: "value" },
-    name: "length",
+    argument: { kind: "LiteralExpression", value: 0 },
   });
   assert.deepEqual(statements[1].initializer, {
     kind: "InvocationExpression",
@@ -1171,6 +1406,24 @@ const sourceFile = {};
 
 function int32Type() {
   return { kind: "source-primitive", name: "int32" };
+}
+
+function providerReadOnlyIndexableTargetType(elementType) {
+  return csharpTargetNamedType(
+    "Example.ProviderReadOnlyIndexable`1",
+    [elementType],
+    csharpQualifiedTypeRenderShape("Example", "ProviderReadOnlyIndexable"),
+    { readOnlyIndexableElementType: elementType },
+  );
+}
+
+function providerArrayLiteralOnlyTargetType(elementType) {
+  return csharpTargetNamedType(
+    "Example.ProviderLiteralOnly`1",
+    [elementType],
+    csharpQualifiedTypeRenderShape("Example", "ProviderLiteralOnly"),
+    { arrayLiteralElementType: elementType, arrayLiteralConstructionType: csharpListTargetType(elementType) },
+  );
 }
 
 const fakeAst = {

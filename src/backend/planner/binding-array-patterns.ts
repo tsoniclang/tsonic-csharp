@@ -24,7 +24,7 @@ import {
 import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import {
   csharpListTargetType,
-  getCsharpArrayLiteralElementTargetType,
+  getCsharpReadOnlyIndexableCollectionElementTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
   getCsharpArrayLengthMember,
@@ -77,7 +77,7 @@ function arrayBindingCarrier(sourceCarrier: TargetTypeRef | undefined): ArrayBin
   if (sourceCarrier === undefined) {
     return undefined;
   }
-  const element = getCsharpArrayLiteralElementTargetType(sourceCarrier);
+  const element = getCsharpReadOnlyIndexableCollectionElementTargetType(sourceCarrier);
   const lengthMember = getCsharpArrayLengthMember(sourceCarrier);
   if (element === undefined || lengthMember === undefined) {
     return undefined;

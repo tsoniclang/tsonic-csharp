@@ -33,7 +33,7 @@ import {
 } from "../diagnostics.js";
 import {
   getCsharpArrayLiteralConstructionTargetType,
-  getCsharpArrayLiteralElementTargetType,
+  getCsharpCollectionElementTargetType,
 } from "../../../source/csharp-source-semantics/target-types.js";
 import type {
   ArrayLiteralPlanner,
@@ -163,7 +163,7 @@ function arraySpreadElementCarrierMatches(
   }
   const actualElement = spreadCarrier.kind === "array"
     ? spreadCarrier.element
-    : getCsharpArrayLiteralElementTargetType(spreadCarrier);
+    : getCsharpCollectionElementTargetType(spreadCarrier);
   const expectedType = csharpTypeFromTargetTypeRef(expectedElement);
   const actualType = actualElement === undefined ? undefined : csharpTypeFromTargetTypeRef(actualElement);
   return expectedType !== undefined && actualType !== undefined && sameCsharpType(expectedType, actualType);

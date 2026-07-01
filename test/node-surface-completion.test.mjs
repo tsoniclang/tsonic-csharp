@@ -48,6 +48,8 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   assertClassMember(bindingProvider, "node:url", "URLSearchParams", "append", "node:url.URLSearchParams.append(System.String,System.String)");
   assertClassProperty(bindingProvider, "node:url", "URLSearchParams", "size", "node:url.URLSearchParams.size", "Tsonic.CSharp.Node.URLSearchParams.size");
   assertDefaultModuleCall(bindingProvider, "node:fs", "NodeFsModule", "existsSync", "node:fs.existsSync(System.String)", "Tsonic.CSharp.Node.fs.existsSync(System.String)");
+  assertDefaultModuleCall(bindingProvider, "node:fs/promises", "NodeFsPromisesModule", "readFile", "node:fs/promises.readFile(System.String,System.String)", "Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)");
+  assertDefaultModuleSignature(bindingProvider, "node:fs/promises", "NodeFsPromisesModule", "readFile", "node:fs/promises.readFile(System.String)", "Tsonic.CSharp.Node.fs_promises.readFile(System.String)");
   assertDefaultModuleCall(bindingProvider, "node:path", "NodePathModule", "join", "node:path.join(System.String[])", "Tsonic.CSharp.Node.path.join(System.String[])");
   assertDefaultModuleCall(bindingProvider, "node:process", "NodeProcessModule", "cwd", "node:process.cwd()", "Tsonic.CSharp.Node.process.cwd()");
   assertDefaultModuleProperty(bindingProvider, "node:process", "NodeProcessModule", "platform", "node:process.NodeProcessModule.platform", "Tsonic.CSharp.Node.process.platform");
@@ -178,6 +180,8 @@ test("NodeJS provider package maps closed operations from selected provider iden
   assertSelectedMember(pathParseResult, "Tsonic.CSharp.Node.path.parse(System.String)");
   assertSelectedMember(fsPromisesReadResult, "Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)");
   assertSelectedMember(fsPromisesReadBytesResult, "Tsonic.CSharp.Node.fs_promises.readFile(System.String)");
+  assert.equal(fsPromisesReadResult.value.selectedSignature.member.returnType.csharpTaskResultType.id, "System.String");
+  assert.equal(fsPromisesReadBytesResult.value.selectedSignature.member.returnType.csharpTaskResultType.id, "Tsonic.CSharp.Node.Buffer");
   assertSelectedMember(fsPromisesReaddirResult, "Tsonic.CSharp.Node.fs_promises.readdir(System.String)");
   assert.equal(parsedBaseResult.kind, "accept");
   assert.equal(parsedBaseResult.value.operation.operationId, "Tsonic.CSharp.Node.ParsedPath.@base");
@@ -366,7 +370,9 @@ test("selected NodeJS URLSearchParams source type-checks through closed provider
 
 test("selected NodeJS default module imports type-check through provider-package declarations", () => {
   const session = createCsharpSession(`
+    import { Buffer } from "node:buffer";
     import fs from "node:fs";
+    import fsPromises from "node:fs/promises";
     import path from "node:path";
     import process from "node:process";
     import util from "node:util";
@@ -378,6 +384,14 @@ test("selected NodeJS default module imports type-check through provider-package
 
     export function defaultModuleExists(input: string): boolean {
       return fs.existsSync(input);
+    }
+
+    export function defaultModuleReadText(input: string): Promise<string> {
+      return fsPromises.readFile(input, "utf8");
+    }
+
+    export function defaultModuleReadBytes(input: string): Promise<Buffer> {
+      return fsPromises.readFile(input);
     }
 
     export function defaultModuleFileUrl(input: string): string {
@@ -393,6 +407,8 @@ test("selected NodeJS default module imports type-check through provider-package
 
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs.existsSync(System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.readFile(System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.path.join(System.String[])"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.cwd()"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.util.toUSVString(System.String)"));
@@ -447,6 +463,18 @@ function assertClassProperty(bindingProvider, moduleSpecifier, exportName, membe
 function assertDefaultModuleCall(bindingProvider, moduleSpecifier, interfaceName, memberName, signatureId, targetIdentityId) {
   const member = assertDefaultModuleMember(bindingProvider, moduleSpecifier, interfaceName, memberName);
   assert.equal(member?.signatures?.[0]?.id, signatureId);
+  const identity = bindingProvider.getTargetIdentity({
+    moduleSpecifier,
+    exportName: interfaceName,
+    memberName,
+    signatureId,
+  });
+  assert.equal(identity?.id, targetIdentityId);
+}
+
+function assertDefaultModuleSignature(bindingProvider, moduleSpecifier, interfaceName, memberName, signatureId, targetIdentityId) {
+  const member = assertDefaultModuleMember(bindingProvider, moduleSpecifier, interfaceName, memberName);
+  assert.ok(member?.signatures?.some((signature) => signature.id === signatureId));
   const identity = bindingProvider.getTargetIdentity({
     moduleSpecifier,
     exportName: interfaceName,

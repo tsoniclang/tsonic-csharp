@@ -258,6 +258,76 @@ test("native collection spread emits only from finalized collection element fact
   ]);
 });
 
+test("native collection spread accepts provider enumerable carriers without array-literal metadata", () => {
+  const sourceExample = `
+    declare const tail: ProviderEnumerable<number>;
+    const value: List<number> = [1, ...tail];
+  `;
+  assert.match(sourceExample, /ProviderEnumerable/);
+
+  const tail = identifier("tail");
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+    spreadElement(tail),
+  ]);
+  const diagnostics = [];
+  const tailCarrier = providerEnumerableTargetType(int32Type());
+
+  assert.equal(tailCarrier.csharpArrayLiteralElementType, undefined);
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, tailCarrier]]) }),
+    diagnostics,
+    csharpListTargetType(int32Type()),
+    planner,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(planned.kind, "InvocationExpression");
+  assert.equal(planned.callee.name, "concat");
+  assert.deepEqual(planned.arguments.map((argument) => argument.expression), [
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [{ kind: "LiteralExpression", value: 1 }],
+    },
+    { kind: "IdentifierName", name: "tail" },
+  ]);
+});
+
+test("native collection spread rejects provider array-literal-only carriers as missing enumerable evidence", () => {
+  const sourceExample = `
+    declare const tail: ProviderLiteralOnly<number>;
+    const value: List<number> = [...tail];
+  `;
+  assert.match(sourceExample, /ProviderLiteralOnly/);
+
+  const tail = identifier("tail");
+  const literal = arrayLiteral([
+    spreadElement(tail),
+  ]);
+  const diagnostics = [];
+  const tailCarrier = providerArrayLiteralOnlyTargetType(int32Type());
+
+  assert.equal(tailCarrier.csharpEnumerableElementType, undefined);
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, tailCarrier]]) }),
+    diagnostics,
+    csharpListTargetType(int32Type()),
+    planner,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Finalized spread carrier element type does not match the target collection element type/);
+  assert.doesNotMatch(diagnostics[0].message, /carrier fact is missing/);
+});
+
 test("native collection literals use provider construction metadata instead of target id branches", () => {
   const sourceExample = `
     const value: IReadOnlyList<number> = [1, 2];
@@ -378,6 +448,24 @@ function stringArrayType() {
     kind: "array",
     element: csharpStringTargetType(),
   };
+}
+
+function providerEnumerableTargetType(elementType) {
+  return csharpTargetNamedType(
+    "Example.ProviderEnumerable`1",
+    [elementType],
+    csharpQualifiedTypeRenderShape("Example", "ProviderEnumerable"),
+    { enumerableElementType: elementType },
+  );
+}
+
+function providerArrayLiteralOnlyTargetType(elementType) {
+  return csharpTargetNamedType(
+    "Example.ProviderLiteralOnly`1",
+    [elementType],
+    csharpQualifiedTypeRenderShape("Example", "ProviderLiteralOnly"),
+    { arrayLiteralElementType: elementType, arrayLiteralConstructionType: csharpListTargetType(elementType) },
+  );
 }
 
 function int32Type() {
