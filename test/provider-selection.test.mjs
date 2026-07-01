@@ -1478,6 +1478,30 @@ test("C# provider rejects reused selected provider signatures without argument c
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_ARGUMENT_CONVERSIONS_NOT_PROVEN");
 });
 
+test("C# provider rejects reused selected provider signatures with mismatched argument conversions", () => {
+  const provider = getNativeSemanticProvider();
+  const call = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const int64 = { kind: "source-primitive", name: "int64" };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    calleePropertyName: "m",
+    arguments: [{}],
+  }, fakeObservationContext({
+    selectedSignatureSubject: call,
+    selectedSignature: {
+      member: method("Example.Target.m(System.Int32)", int32),
+      argumentConversions: [int64],
+    },
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_ARGUMENT_CONVERSIONS_MISMATCH");
+});
+
 test("C# provider includes virtual declaration signature id as candidate evidence", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -1892,6 +1916,70 @@ test("C# provider closes ref out and in parameter modes from selected provider m
     "byref-writeonly-must-init",
     "byref-readonly",
   ]);
+});
+
+test("C# provider rejects argument-passing facts tied to another selected provider signature", () => {
+  const selectedSignature = {};
+  const containerSymbol = {};
+  const call = {};
+  const outCall = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const outParameter = targetParameter("assigned", int32, "byref-writeonly-must-init");
+  const selectedProviderDeclaration = {
+    ...virtualMember("Example.Target.update", "update"),
+    signatureId: "Example.Target.update(out System.Int32)",
+  };
+  const otherProviderDeclaration = {
+    ...virtualMember("Example.Target.update", "update"),
+    signatureId: "Example.Target.update(ref System.Int32)",
+  };
+  const member = {
+    id: selectedProviderDeclaration.signatureId,
+    sourceName: "update",
+    targetName: "Update",
+    kind: "method",
+    parameters: [outParameter],
+    returnType: { kind: "source-primitive", name: "bool" },
+    overloadGroup: "Example.Target.update",
+  };
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [member],
+  };
+  const provider = getNativeSemanticProvider({ bindings: [binding] });
+  const recordedFacts = [];
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    calleePropertyName: "update",
+    sourceSelectedSignature: selectedSignature,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [outCall],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualSignatureSubject: selectedSignature,
+    virtualSignatureDeclaration: selectedProviderDeclaration,
+    argumentPassingSubject: outCall,
+    argumentPassing: {
+      mode: "byref-writeonly-must-init",
+      targetExpression: int32,
+      parameterIndex: 0,
+      targetParameter: outParameter,
+      selectedSignature: otherProviderDeclaration,
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
 test("C# provider rejects constructor byref parameters without source marker facts", () => {

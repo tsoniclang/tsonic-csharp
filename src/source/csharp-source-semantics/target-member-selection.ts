@@ -19,6 +19,7 @@ import {
 } from "./target-member-arguments/index.js";
 import type {
   TargetMemberSelectionOptions,
+  TargetMemberSelectionRequest,
 } from "./target-member-arguments/index.js";
 import type {
   TargetTypeRefResolver,
@@ -55,12 +56,13 @@ export function findTargetMemberForCall(
   const csharpBinding = csharpTargetBindingFact(binding);
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
   const checkedSourceSelection = getCheckedSourceSelectionEvidence(request.sourceSelectedSignature, declaration);
+  const selectionRequest = targetMemberSelectionRequest(
+    request.arguments,
+    declaration,
+    requestContext.calleeReceiver,
+    checkedSourceSelection,
+  );
   if (declaration?.signatureId !== undefined) {
-    const selectionRequest = {
-      arguments: request.arguments,
-      receiver: requestContext.calleeReceiver,
-      sourceSelectedSignature: checkedSourceSelection,
-    };
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
     if (selectedMember !== undefined) {
       return selectExactTargetMember(
@@ -95,11 +97,7 @@ export function findTargetMemberForCall(
   if (candidates.length === 1) {
     return selectExactTargetMember(
       candidates[0]!,
-      {
-        arguments: request.arguments,
-        receiver: requestContext.calleeReceiver,
-        sourceSelectedSignature: checkedSourceSelection,
-      },
+      selectionRequest,
       context,
       resolveTargetTypeRef,
       options,
@@ -109,15 +107,25 @@ export function findTargetMemberForCall(
     ? undefined
     : selectTargetMember(
         candidates,
-        {
-          arguments: request.arguments,
-          receiver: requestContext.calleeReceiver,
-          sourceSelectedSignature: checkedSourceSelection,
-        },
+        selectionRequest,
         context,
         resolveTargetTypeRef,
         options,
       );
+}
+
+function targetMemberSelectionRequest(
+  arguments_: TargetMemberSelectionRequest["arguments"],
+  declaration: ProviderVirtualDeclarationFact | undefined,
+  receiver?: TargetMemberSelectionRequest["receiver"],
+  sourceSelectedSignature?: TargetMemberSelectionRequest["sourceSelectedSignature"],
+): TargetMemberSelectionRequest {
+  return {
+    arguments: arguments_,
+    ...(receiver !== undefined ? { receiver } : {}),
+    ...(sourceSelectedSignature !== undefined ? { sourceSelectedSignature } : {}),
+    ...(declaration !== undefined ? { selectedProviderDeclaration: declaration } : {}),
+  };
 }
 
 function getCheckedSourceSelectionEvidence(
@@ -136,14 +144,13 @@ export function findTargetMemberForElementAccess(
   options: TargetMemberSelectionOptions = {},
 ): CsharpTargetMember | undefined {
   const csharpBinding = csharpTargetBindingFact(binding);
+  const selectionRequest = targetMemberSelectionRequest([request.argument], declaration);
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
     if (selectedMember !== undefined) {
       return selectExactTargetMember(
         selectedMember,
-        {
-          arguments: [request.argument],
-        },
+        selectionRequest,
         context,
         resolveTargetTypeRef,
         options,
@@ -153,9 +160,7 @@ export function findTargetMemberForElementAccess(
     if (sourceProjectionCandidates.length === 1) {
       return selectExactTargetMember(
         sourceProjectionCandidates[0]!,
-        {
-          arguments: [request.argument],
-        },
+        selectionRequest,
         context,
         resolveTargetTypeRef,
         options,
@@ -165,9 +170,7 @@ export function findTargetMemberForElementAccess(
       ? undefined
       : selectTargetMember(
           sourceProjectionCandidates,
-          {
-            arguments: [request.argument],
-          },
+          selectionRequest,
           context,
           resolveTargetTypeRef,
           options,
@@ -180,9 +183,7 @@ export function findTargetMemberForElementAccess(
   if (candidates.length === 1) {
     return selectExactTargetMember(
       candidates[0]!,
-      {
-        arguments: [request.argument],
-      },
+      selectionRequest,
       context,
       resolveTargetTypeRef,
       options,
@@ -193,9 +194,7 @@ export function findTargetMemberForElementAccess(
   }
   const selected = selectTargetMember(
     candidates,
-    {
-      arguments: [request.argument],
-    },
+    selectionRequest,
     context,
     resolveTargetTypeRef,
     options,
