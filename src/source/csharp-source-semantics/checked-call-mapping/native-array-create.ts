@@ -30,6 +30,9 @@ import {
   findTargetMember,
 } from "../target-member-selection.js";
 import {
+  getTargetArgumentConversionTypes,
+} from "../target-member-arguments/argument-conversions.js";
+import {
   targetMemberIsClosed,
 } from "../target-ref-utils.js";
 import type {
@@ -80,9 +83,18 @@ export function mapDotnetNativeArrayCreateCall(
   if (csharpMember === undefined || !targetMemberIsClosed(csharpMember)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_RENDERABLE", 9100104, `C# provider selected '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`));
   }
+  const argumentConversions = getTargetArgumentConversionTypes(csharpMember.parameters, request.arguments.length);
+  if (argumentConversions === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_TARGET_ARGUMENT_CONVERSIONS_NOT_PROVEN",
+      9100163,
+      `C# provider selected target member '${csharpMember.id}', but argument conversion facts could not be closed for the checked call.`,
+    ));
+  }
   recordCsharpTargetOperation(context, request.call, csharpTargetArrayCreationOperation(csharpMember.id, nativeArrayElementType, csharpMember), [{ message: "C# native array creation operation finalized from checked TSTS provider declaration and explicit target array facts." }]);
   return acceptObservation<CheckedCallMappingResult>({
-    selectedSignature: { member: csharpMember, targetTypeArguments: [nativeArrayElementType] },
+    selectedSignature: { member: csharpMember, argumentConversions, targetTypeArguments: [nativeArrayElementType] },
   }, [{ message: "C# native array creation selected from checked TSTS provider declaration." }]);
 }
 
