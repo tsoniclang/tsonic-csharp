@@ -41,6 +41,13 @@ test("missing required runtime carrier preserves resolver reason and evidence an
   assert.ok(result.diagnostics[0].evidence?.includes(`source.module=${fileName}`));
   assert.ok(result.diagnostics[0].evidence?.includes(`source.file=${fileName}`));
   assert.ok(result.diagnostics[0].evidence?.includes("source.span=2:5-2:10"));
+  assert.deepEqual(result.diagnostics[0].sourceSpan, {
+    fileName,
+    line: 2,
+    column: 5,
+    endLine: 2,
+    endColumn: 10,
+  });
 });
 
 test("unsupported selected backend operation records source module, file, and span evidence", () => {
@@ -64,6 +71,13 @@ test("unsupported selected backend operation records source module, file, and sp
   assert.ok(diagnostics[0].evidence?.includes(`source.module=${fileName}`));
   assert.ok(diagnostics[0].evidence?.includes(`source.file=${fileName}`));
   assert.ok(diagnostics[0].evidence?.includes("source.span=2:1-2:13"));
+  assert.deepEqual(diagnostics[0].sourceSpan, {
+    fileName,
+    line: 2,
+    column: 1,
+    endLine: 2,
+    endColumn: 13,
+  });
 });
 
 function fakeCompileInput(sourceFile, options = {}) {

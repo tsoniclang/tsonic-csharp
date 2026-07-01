@@ -19,11 +19,13 @@ export function unsupportedNodeDiagnostic(
     ...(options.evidence ?? []),
     ...sourceLocationEvidence(node, options.sourceFile),
   ]);
+  const sourceSpan = structuredSourceSpan(node, options.sourceFile);
   return {
     code: "CSHARP_UNSUPPORTED_AST",
     category: "error",
     source: "tsonic-csharp",
     message: `${message} Node kind: ${KindString(node.Kind)}.`,
+    ...(sourceSpan === undefined ? {} : { sourceSpan }),
     ...(evidence.length === 0 ? {} : { evidence }),
   };
 }
@@ -59,6 +61,35 @@ function sourceSpanEvidence(
         `source.span=${start.line}:${start.column}-${end.line}:${end.column}`,
         `source.byteSpan=${span.pos}-${span.end}`,
       ];
+}
+
+function structuredSourceSpan(
+  node: Node | undefined,
+  sourceFile: SourceFile | undefined = sourceFileForNode(node),
+): TargetDiagnostic["sourceSpan"] | undefined {
+  if (sourceFile === undefined) {
+    return undefined;
+  }
+  const fileName = SourceFile_FileName(sourceFile);
+  if (fileName.length === 0) {
+    return undefined;
+  }
+  const span = sourceByteSpan(node);
+  const text = sourceFileText(sourceFile);
+  if (span === undefined || text === undefined) {
+    return undefined;
+  }
+  const start = sourceLocationFromByteOffset(text, span.pos);
+  const end = sourceLocationFromByteOffset(text, span.end);
+  return start === undefined || end === undefined
+    ? undefined
+    : {
+        fileName,
+        line: start.line,
+        column: start.column,
+        endLine: end.line,
+        endColumn: end.column,
+      };
 }
 
 function sourceFileForNode(node: Node | undefined): SourceFile | undefined {
