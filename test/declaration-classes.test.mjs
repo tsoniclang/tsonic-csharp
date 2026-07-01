@@ -233,6 +233,53 @@ test("accessor properties consume finalized project-source member dispatch facts
   assert.deepEqual(derivedPlanned.members[0]?.modifiers, ["public", "override"]);
 });
 
+test("class property declarations consume finalized dispatch facts as C# properties", () => {
+  const sourceExample = `
+    class Base {
+      value: string = "base";
+      print(): string { return this.value; }
+    }
+    class Derived extends Base {
+      value: string = "derived";
+    }
+  `;
+  assert.match(sourceExample, /value: string/);
+
+  const sourceFile = sourceFileNode("/src/property-dispatch.ts");
+  const baseProperty = property("value", stringType());
+  const derivedProperty = property("value", stringType());
+  const baseClass = node(KindClassDeclaration, {
+    name: identifier("Base"),
+    Members: { Nodes: [baseProperty] },
+  });
+  const derivedClass = node(KindClassDeclaration, {
+    name: identifier("Derived"),
+    Members: { Nodes: [derivedProperty] },
+  });
+  baseProperty.Parent = baseClass;
+  derivedProperty.Parent = derivedClass;
+  const diagnostics = [];
+
+  const input = fakeInput(sourceFile, {
+    memberDispatches: new Map([
+      [baseProperty, { overridesBase: false, hasDerivedOverride: true }],
+      [derivedProperty, { overridesBase: true, hasDerivedOverride: false }],
+    ]),
+  });
+  const basePlanned = planClassDeclaration(baseClass, sourceFile, input, diagnostics);
+  const derivedPlanned = planClassDeclaration(derivedClass, sourceFile, input, diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(basePlanned.members[0]?.kind, "PropertyDeclaration");
+  assert.deepEqual(basePlanned.members[0]?.modifiers, ["public", "virtual"]);
+  assert.equal(basePlanned.members[0]?.autoGetter, true);
+  assert.equal(basePlanned.members[0]?.autoSetter, true);
+  assert.equal(derivedPlanned.members[0]?.kind, "PropertyDeclaration");
+  assert.deepEqual(derivedPlanned.members[0]?.modifiers, ["public", "override"]);
+  assert.equal(derivedPlanned.members[0]?.autoGetter, true);
+  assert.equal(derivedPlanned.members[0]?.autoSetter, true);
+});
+
 test("async function declarations consume finalized Task return and await result facts", () => {
   const sourceExample = `
     async function load(task: Promise<number>): Promise<number> {
