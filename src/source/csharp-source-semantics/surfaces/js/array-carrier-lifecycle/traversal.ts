@@ -170,6 +170,9 @@ export function collectArrayLocalDeclarations(
     if (elementType === undefined) {
       return;
     }
+    if (initializer !== undefined && initializerHasExplicitNativeArrayTarget(initializer, sourceFile, context, host)) {
+      return;
+    }
     const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile) ??
       getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
     const sourceUses = collectArrayStructuralUsesForSymbol(sourceFile, symbol, lifecycleContext);
@@ -258,4 +261,22 @@ function getArrayElementTypeFromLocalDeclaration(
     ? targetType.element
     : getCsharpArrayLiteralElementTargetType(targetType) ??
       getCsharpCollectionElementTargetType(targetType);
+}
+
+function initializerHasExplicitNativeArrayTarget(
+  initializer: Node,
+  sourceFile: SourceFile,
+  context: ReturnType<typeof createRuntimeCarrierLifecycleObservationContext>,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
+): boolean {
+  const compiler = context.compiler;
+  if (compiler?.ast.is.IsArrayLiteralExpression(initializer) === true) {
+    return false;
+  }
+  const targetType = host.getTargetTypeRefForSubject(initializer, context, {
+    allowRuntimeCarrier: false,
+    allowSemanticTypeQuery: false,
+    sourceFile,
+  });
+  return targetType?.kind === "array";
 }

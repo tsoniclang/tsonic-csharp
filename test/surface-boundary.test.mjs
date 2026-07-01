@@ -1573,6 +1573,31 @@ test("selected JS surface finalizes array element and length operations from car
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).includes("CSHARP_JS_ARRAY_ELEMENT_ACCESS_REQUIRES_CARRIER"), false);
 });
 
+test("selected JS surface preserves provider-returned native array length from selected target facts", () => {
+  const session = createCsharpSession(`
+    import { readdirSync } from "node:fs";
+
+    export function count(path: string): number {
+      const entries = readdirSync(path);
+      return entries.length;
+    }
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const call = collectNodesByKind(sourceFile, session.ast, "KindCallExpression")[0];
+  const lengthAccess = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .find((node) => session.ast.text(session.ast.name(node)) === "length");
+
+  assert.ok(call);
+  assert.ok(lengthAccess);
+  assert.equal(extensionHost.facts.get(call, selectedTargetSignatureFactKey)?.member.returnType.kind, "array");
+  assert.equal(extensionHost.facts.get(lengthAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
+  assert.equal(extensionHost.facts.get(lengthAccess, csharpTargetOperationFactKey)?.memberName, "Length");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});
+
 test("selected JS surface finalizes Array length construction to JSArray carrier", () => {
   const session = createCsharpSession(`
     import type { int32 } from "@tsonic/core/types.js";
