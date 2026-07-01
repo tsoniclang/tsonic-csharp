@@ -50,6 +50,9 @@ import {
   arrayLiteralHasElision,
   rejectSparseArrayLiteralElision,
 } from "./elision.js";
+import {
+  planTupleSpreadArrayExpression,
+} from "./tuple-spread.js";
 
 export function planArrayLiteralExpression(
   node: Node,
@@ -192,6 +195,17 @@ function createArraySpreadChunks(
     }
     if (spreadCarrierElementMatchesTargetElement(spreadCarrier, elementTargetType, elementType)) {
       const planned = planner.planExpression(expression, sourceFile, input, diagnostics);
+      if (planned === undefined) {
+        return undefined;
+      }
+      chunks.push({
+        expression: planned,
+        fromSpread: true,
+      });
+      continue;
+    }
+    if (spreadCarrier?.kind === "tuple") {
+      const planned = planTupleSpreadArrayExpression(element, expression, sourceFile, input, diagnostics, spreadCarrier, elementType, elementTargetType, planner.planExpression);
       if (planned === undefined) {
         return undefined;
       }

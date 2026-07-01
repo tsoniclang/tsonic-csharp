@@ -18,6 +18,7 @@ import {
 } from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
 import {
   KindArrayLiteralExpression,
+  KindCallExpression,
   KindIdentifier,
   KindNumericLiteral,
   KindOmittedExpression,
@@ -126,6 +127,109 @@ test("array spread rejects finalized carriers with mismatched element facts", ()
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Finalized spread carrier does not match the target array carrier/);
   assert.doesNotMatch(diagnostics[0].message, /carrier fact is missing/);
+});
+
+test("array spread emits tuple carrier elements from finalized tuple facts", () => {
+  const sourceExample = `
+    declare const tail: [number, number];
+    const value: number[] = [1, ...tail, 4];
+  `;
+  assert.match(sourceExample, /\[number, number\]/);
+
+  const tail = identifier("tail");
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+    spreadElement(tail),
+    numericLiteral("4"),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, tupleType([int32Type(), int32Type()])]]) }),
+    diagnostics,
+    int32ArrayType(),
+    planner,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(planned.kind, "InvocationExpression");
+  assert.equal(planned.callee.name, "Concat");
+  assert.deepEqual(planned.arguments.map((argument) => argument.expression), [
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [{ kind: "LiteralExpression", value: 1 }],
+    },
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [
+        { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "tail" }, name: "Item1" },
+        { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "tail" }, name: "Item2" },
+      ],
+    },
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [{ kind: "LiteralExpression", value: 4 }],
+    },
+  ]);
+});
+
+test("array spread rejects tuple carriers with mismatched element facts", () => {
+  const sourceExample = `
+    declare const tail: [string, number];
+    const value: number[] = [...tail];
+  `;
+  assert.match(sourceExample, /\[string, number\]/);
+
+  const tail = identifier("tail");
+  const literal = arrayLiteral([
+    spreadElement(tail),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, tupleType([csharpStringTargetType(), int32Type()])]]) }),
+    diagnostics,
+    int32ArrayType(),
+    planner,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Tuple spread element 0 requires matching finalized tuple and target array element carriers/);
+});
+
+test("array spread rejects non-identifier tuple operands until single-evaluation facts exist", () => {
+  const sourceExample = `
+    declare function makeTail(): [number, number];
+    const value: number[] = [...makeTail()];
+  `;
+  assert.match(sourceExample, /makeTail/);
+
+  const tail = callExpression();
+  const literal = arrayLiteral([
+    spreadElement(tail),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, tupleType([int32Type(), int32Type()])]]) }),
+    diagnostics,
+    int32ArrayType(),
+    planner,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /single-evaluation provider lowering/);
 });
 
 test("JSArray spread rejects finalized non-JSArray carriers without treating them as missing", () => {
@@ -297,6 +401,49 @@ test("native collection spread accepts provider enumerable carriers without arra
   ]);
 });
 
+test("native collection spread accepts tuple carriers from finalized tuple element facts", () => {
+  const sourceExample = `
+    declare const tail: [number, number];
+    const value: List<number> = [1, ...tail];
+  `;
+  assert.match(sourceExample, /List<number>/);
+
+  const tail = identifier("tail");
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+    spreadElement(tail),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, tupleType([int32Type(), int32Type()])]]) }),
+    diagnostics,
+    csharpListTargetType(int32Type()),
+    planner,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(planned.kind, "InvocationExpression");
+  assert.equal(planned.callee.name, "concat");
+  assert.deepEqual(planned.arguments.map((argument) => argument.expression), [
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [{ kind: "LiteralExpression", value: 1 }],
+    },
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [
+        { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "tail" }, name: "Item1" },
+        { kind: "SimpleMemberAccessExpression", receiver: { kind: "IdentifierName", name: "tail" }, name: "Item2" },
+      ],
+    },
+  ]);
+});
+
 test("native collection spread rejects provider array-literal-only carriers as missing enumerable evidence", () => {
   const sourceExample = `
     declare const tail: ProviderLiteralOnly<number>;
@@ -400,6 +547,12 @@ function spreadElement(expression) {
   };
 }
 
+function callExpression() {
+  return {
+    Kind: KindCallExpression,
+  };
+}
+
 function identifier(text) {
   return {
     Kind: KindIdentifier,
@@ -440,6 +593,13 @@ function int32ArrayType() {
   return {
     kind: "array",
     element: int32Type(),
+  };
+}
+
+function tupleType(elements) {
+  return {
+    kind: "tuple",
+    elements,
   };
 }
 

@@ -1,0 +1,93 @@
+import {
+  HasSourceKind,
+  KindIdentifier,
+} from "../source-ast.js";
+import type {
+  Node,
+  SourceFile,
+  TargetTypeRef,
+} from "@tsonic/tsts";
+import type {
+  TargetCompileInput,
+  TargetDiagnostic,
+} from "@tsonic/target-api";
+import type {
+  CsharpExpression,
+  CsharpTypeNode,
+} from "../../roslyn/syntax.js";
+import {
+  targetTypeRefEquals,
+} from "../../../source/csharp-source-semantics/target-ref-utils.js";
+import {
+  csharpTupleElementMemberName,
+} from "../../../source/csharp-source-semantics/tuple-element-index.js";
+import {
+  unsupportedNodeDiagnostic,
+} from "../diagnostics.js";
+import type {
+  ExpressionPlanner,
+} from "../expression-planner-types.js";
+import {
+  sameCsharpType,
+} from "../csharp-types.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "../target-types.js";
+
+export function planTupleSpreadArrayExpression(
+  spreadNode: Node,
+  expression: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  spreadCarrier: TargetTypeRef,
+  elementType: CsharpTypeNode,
+  elementTargetType: TargetTypeRef | undefined,
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  if (spreadCarrier.kind !== "tuple") {
+    return undefined;
+  }
+  if (!HasSourceKind(input.ast, expression, KindIdentifier)) {
+    diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Tuple spread over non-identifier expressions requires single-evaluation provider lowering before C# emission."));
+    return undefined;
+  }
+  const receiver = planExpression(expression, sourceFile, input, diagnostics);
+  if (receiver === undefined) {
+    return undefined;
+  }
+  const elements: CsharpExpression[] = [];
+  for (let index = 0; index < spreadCarrier.elements.length; index += 1) {
+    const tupleElement = spreadCarrier.elements[index];
+    if (tupleElement === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Tuple spread element ${index} requires a finalized tuple element carrier before C# emission.`));
+      return undefined;
+    }
+    if (!tupleElementMatchesTarget(tupleElement, elementTargetType, elementType)) {
+      diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Tuple spread element ${index} requires matching finalized tuple and target array element carriers before C# emission.`));
+      return undefined;
+    }
+    elements.push({
+      kind: "SimpleMemberAccessExpression",
+      receiver,
+      name: csharpTupleElementMemberName(index),
+    });
+  }
+  return {
+    kind: "ArrayCreationExpression",
+    elementType,
+    elements,
+  };
+}
+
+function tupleElementMatchesTarget(
+  tupleElement: TargetTypeRef,
+  elementTargetType: TargetTypeRef | undefined,
+  elementType: CsharpTypeNode,
+): boolean {
+  if (elementTargetType !== undefined) {
+    return targetTypeRefEquals(tupleElement, elementTargetType);
+  }
+  const tupleElementType = csharpTypeFromTargetTypeRef(tupleElement);
+  return tupleElementType !== undefined && sameCsharpType(tupleElementType, elementType);
+}

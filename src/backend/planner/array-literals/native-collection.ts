@@ -41,6 +41,9 @@ import type {
 import {
   planArrayLiteralExpression,
 } from "./dense-array.js";
+import {
+  planTupleSpreadArrayExpression,
+} from "./tuple-spread.js";
 
 export function planNativeCollectionArrayLiteralExpression(
   node: Node,
@@ -134,6 +137,14 @@ function createNativeCollectionSpreadChunks(
     const spreadCarrierResolution = resolveRuntimeCarrierForExpression(input, expression, sourceFile);
     const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
     const spreadType = spreadCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(spreadCarrier);
+    if (spreadCarrier?.kind === "tuple") {
+      const planned = planTupleSpreadArrayExpression(element, expression, sourceFile, input, diagnostics, spreadCarrier, elementType, elementCarrier, planner.planExpression);
+      if (planned === undefined) {
+        return undefined;
+      }
+      chunks.push(planned);
+      continue;
+    }
     if (spreadType === undefined || !arraySpreadElementCarrierMatches(elementCarrier, spreadCarrier)) {
       const detail = spreadCarrier === undefined
         ? missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.")
