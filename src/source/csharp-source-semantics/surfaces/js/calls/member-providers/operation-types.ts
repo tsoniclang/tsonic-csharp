@@ -59,8 +59,8 @@ export type JsSurfaceReceiverTargetCondition =
   JsSurfaceTargetFeatureCondition;
 
 export type JsSurfaceArgumentCondition =
-  | { readonly index: number; readonly target: JsSurfaceArgumentTargetCondition }
-  | { readonly fromIndex: number; readonly target: JsSurfaceArgumentTargetCondition };
+  | { readonly index: number; readonly target: JsSurfaceArgumentTargetCondition; readonly allowNullish?: true }
+  | { readonly fromIndex: number; readonly target: JsSurfaceArgumentTargetCondition; readonly allowNullish?: true };
 
 export type JsSurfaceArgumentTargetCondition =
   JsSurfaceTargetFeatureCondition;

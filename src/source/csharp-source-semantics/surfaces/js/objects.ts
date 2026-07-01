@@ -197,7 +197,10 @@ const objectTargetMemberMetadata = [
     targetName: "assign",
     parameters: [
       targetParameter("target", jsObjectCarrierType),
-      targetParameter("sources", jsObjectCarrierType, { paramsArray: true }),
+      targetParameter("sources", objectTargetType, {
+        paramsArray: true,
+        csharpAcceptsCheckedSourceArgument: true,
+      }),
     ],
     returnType: jsObjectCarrierType,
   }),

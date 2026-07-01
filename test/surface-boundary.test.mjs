@@ -2093,6 +2093,49 @@ test("JS surface maps Object.assign only from selected declaration and closed JS
   assert.equal(result.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Js.JSObject");
 });
 
+test("JS surface maps Object.assign nullish sources from explicit source type facts", () => {
+  const facts = new TestFactStore();
+  const call = {};
+  const target = {};
+  const nullSource = { SemanticType: nullishType() };
+  const objectSource = {};
+  const undefinedSource = { SemanticType: nullishType() };
+  const targetTypes = new Map([
+    [target, jsObjectType()],
+    [objectSource, jsObjectType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
+    arguments: [target, nullSource, objectSource, undefinedSource],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Js.Object.assign");
+  assert.equal(result.value.selectedSignature.member.parameters[1]?.paramsArray, true);
+  assert.equal(result.value.selectedSignature.member.parameters[1]?.type.element.id, "System.Object");
+  assert.equal(result.value.selectedSignature.member.parameters[1]?.csharpAcceptsCheckedSourceArgument, true);
+});
+
+test("JS surface rejects Object.assign source without object-helper or nullish facts", () => {
+  const facts = new TestFactStore();
+  const call = {};
+  const target = {};
+  const source = {};
+  const targetTypes = new Map([
+    [target, jsObjectType()],
+  ]);
+  const provider = createCsharpJsSurfaceOperationsProvider(fakeHost(undefined, targetTypes));
+
+  const result = provider.mapCheckedCall(jsCallRequest(call, sourceLibraryMemberDeclaration("ObjectConstructor", "assign"), {
+    arguments: [target, source],
+  }), fakeContext(facts));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_SOURCE_LIBRARY_CALL_ARGUMENT_REQUIRES_TARGET_FACT");
+  assert.match(result.diagnostic.message, /argument 2/);
+});
+
 test("JS surface maps Object.assign for closed Record dictionary target facts", () => {
   const facts = new TestFactStore();
   const call = {};
@@ -3757,6 +3800,9 @@ function fakeContext(facts) {
         getResolvedSymbol: () => undefined,
         getAliasedSymbol: () => undefined,
       },
+      typeShape: {
+        isNullish: (type) => type?.kind === "test-nullish",
+      },
     },
   };
 }
@@ -3956,6 +4002,10 @@ function float64Type() {
 
 function boolType() {
   return { kind: "source-primitive", name: "bool" };
+}
+
+function nullishType() {
+  return { kind: "test-nullish" };
 }
 
 function stringType() {

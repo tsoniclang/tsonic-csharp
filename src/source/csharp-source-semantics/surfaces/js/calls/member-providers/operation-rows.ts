@@ -309,7 +309,7 @@ export const jsSurfaceOperationRows: readonly JsSurfaceOperationRow[] = [
     ...operationRowFromMetadataIndex({ ids: ["Object.assign"] }, objectTargetMemberIdentityIndex, { capabilityId: "surface.js.object-runtime", requiredFacts: selectedSignatureProviderFacts }),
     closedFacts: { kind: "arguments", conditions: [
       { index: 0, target: jsSurfaceTargetFeatures.objectHelper },
-      { fromIndex: 1, target: jsSurfaceTargetFeatures.objectHelper },
+      { fromIndex: 1, target: jsSurfaceTargetFeatures.objectHelper, allowNullish: true },
     ] },
     targetProviders: [
       metadataIndexProvider(objectTargetMemberIdentityIndex),
