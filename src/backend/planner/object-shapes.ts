@@ -16,18 +16,45 @@ export {
 
 interface ObjectShapeRegistry {
   readonly declarations: Map<string, CsharpClassDeclaration>;
+  readonly declarationOwners: Map<string, string | undefined>;
+  activeOwner?: string;
 }
 
 const registries = new WeakMap<TargetCompileInput, ObjectShapeRegistry>();
 
 export function beginObjectShapePlanning(input: TargetCompileInput): void {
-  registries.set(input, { declarations: new Map() });
+  registries.set(input, createObjectShapeRegistry());
 }
 
-export function takeObjectShapeDeclarations(input: TargetCompileInput): readonly CsharpTypeDeclaration[] {
+export function beginObjectShapeSourceFilePlanning(input: TargetCompileInput, owner: string): void {
+  const registry = registries.get(input) ?? createObjectShapeRegistry();
+  registry.activeOwner = owner;
+  registries.set(input, registry);
+}
+
+function createObjectShapeRegistry(): ObjectShapeRegistry {
+  return {
+    declarations: new Map(),
+    declarationOwners: new Map(),
+  };
+}
+
+export function takeObjectShapeDeclarations(input: TargetCompileInput, owner?: string): readonly CsharpTypeDeclaration[] {
   const registry = registries.get(input);
+  if (registry === undefined) {
+    return [];
+  }
+  if (owner === undefined) {
+    registries.delete(input);
+    return [...registry.declarations.values()];
+  }
+  return [...registry.declarations]
+    .filter(([name]) => registry.declarationOwners.get(name) === owner)
+    .map(([, declaration]) => declaration);
+}
+
+export function finishObjectShapePlanning(input: TargetCompileInput): void {
   registries.delete(input);
-  return registry === undefined ? [] : [...registry.declarations.values()];
 }
 
 export function csharpTypeFromObjectShapeFact(
@@ -108,4 +135,5 @@ function registerObjectShapeDeclaration(
     ...(interfaces.length === 0 ? {} : { interfaces }),
     members,
   });
+  registry.declarationOwners.set(name, registry.activeOwner);
 }

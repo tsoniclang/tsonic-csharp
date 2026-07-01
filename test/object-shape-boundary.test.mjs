@@ -11,6 +11,7 @@ import {
 } from "../dist/source/csharp-facts.js";
 import {
   beginObjectShapePlanning,
+  beginObjectShapeSourceFilePlanning,
   csharpTypeFromObjectShapeFact,
   objectShapeStorageMemberName,
   takeObjectShapeDeclarations,
@@ -493,6 +494,51 @@ test("generated structural carriers reuse declarations only when implemented-int
   assert.equal(declarations.length, 1);
   assert.match(printed, /public class __TsonicShape_InterfaceBox : Contracts\.IHasValue/);
   assert.match(printed, /public int Value\n\s+\{\n\s+get;\n\s+set;\n\s+\}/);
+});
+
+test("generated structural carriers emit once across source files", () => {
+  const sourceExample = `
+    // a.ts
+    export function first(): Shape { return { value: 1 }; }
+
+    // b.ts
+    export function second(): Shape { return { value: 2 }; }
+  `;
+  assert.match(sourceExample, /a\.ts/);
+  assert.match(sourceExample, /b\.ts/);
+
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__TsonicShape_Shared",
+      csharpRender: { kind: "named", name: "__TsonicShape_Shared" },
+    },
+    members: [{
+      sourceName: "value",
+      targetName: "value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const input = fakeInput();
+  const diagnostics = [];
+
+  beginObjectShapePlanning(input);
+  beginObjectShapeSourceFilePlanning(input, "/src/a.ts");
+  const firstType = csharpTypeFromObjectShapeFact(input, shape, diagnostics, identifier("first"));
+  const firstDeclarations = takeObjectShapeDeclarations(input, "/src/a.ts");
+
+  beginObjectShapeSourceFilePlanning(input, "/src/b.ts");
+  const secondType = csharpTypeFromObjectShapeFact(input, shape, diagnostics, identifier("second"));
+  const secondDeclarations = takeObjectShapeDeclarations(input, "/src/b.ts");
+  const allDeclarations = takeObjectShapeDeclarations(input);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(firstType, { kind: "IdentifierName", name: "__TsonicShape_Shared" });
+  assert.deepEqual(secondType, firstType);
+  assert.equal(firstDeclarations.length, 1);
+  assert.equal(secondDeclarations.length, 0);
+  assert.equal(allDeclarations.length, 1);
 });
 
 test("generated structural carriers fail closed when duplicate target identities carry different interfaces", () => {

@@ -9,6 +9,10 @@ import {
   sourceFileArtifactPath,
   validateSourceFileOutputIdentities,
 } from "./source-paths.js";
+import {
+  beginObjectShapePlanning,
+  finishObjectShapePlanning,
+} from "./object-shapes.js";
 
 export interface CsharpPlanningResult {
   readonly artifacts: readonly TargetArtifact[];
@@ -32,12 +36,14 @@ export function planCsharpArtifacts(input: TargetCompileInput): CsharpPlanningRe
       diagnostics,
     };
   }
+  beginObjectShapePlanning(input);
   for (const sourceFile of input.sourceFiles) {
     const plannedSource = planSourceFile(sourceFile, input, diagnostics, moduleInitialization);
     if (plannedSource !== undefined) {
       plannedSources.push(plannedSource);
     }
   }
+  finishObjectShapePlanning(input);
   if (diagnostics.length > 0) {
     return {
       artifacts: [],
