@@ -129,6 +129,13 @@ export function mapCsharpCheckedOperator(
   if (left === undefined || (request.right !== undefined && right === undefined)) {
     return deferObservation;
   }
+  if (request.operator === "=" && (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right))) {
+    const operationId = `tsonic.csharp.operator.${targetOperator}`;
+    recordCsharpTargetOperation(context, request.expression, csharpTargetTokenOperatorOperation(operationId, targetOperator, left), [{ message: "C# assignment token operation recorded after TSTS accepted the source assignment; typed any-boundary validation is handled by post-check assignability facts." }]);
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(operationId, "operator", targetOperator, { resultType: left }),
+    }, [{ message: "C# assignment operator accepted without dynamic any dispatch; target conversion or diagnostic is supplied by assignability validation." }]);
+  }
   if (isCsharpAnyRuntimeCarrier(left) || isCsharpAnyRuntimeCarrier(right)) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' requires explicit compat-runtime carrier operation facts for any operands.`);
   }

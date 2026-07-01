@@ -148,7 +148,11 @@ export function getEnclosingReturnTargetCarrier(
       kind === "KindArrowFunction" ||
       kind === "KindGetAccessor"
     ) {
-      return context.facts.get(asNode(getNodeField(current, "Type")), runtimeCarrierFactKey)?.carrier;
+      const typeNode = asNode(getNodeField(current, "Type"));
+      return typeNode === undefined
+        ? undefined
+        : context.facts.get(typeNode, runtimeCarrierFactKey)?.carrier ??
+          context.factResolver.resolve(typeNode, runtimeCarrierFactKey)?.carrier;
     }
     current = ast.parent(current);
   }

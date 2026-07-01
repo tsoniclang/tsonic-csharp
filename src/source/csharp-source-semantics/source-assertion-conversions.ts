@@ -36,11 +36,9 @@ import {
   csharpProviderDiagnostic,
 } from "./diagnostics.js";
 import {
-  compatAnyTypedBoundaryBoxOperation,
-  compatAnyTypedBoundaryCastOperation,
-  csharpCompatRuntimeEvidence,
-  tsValueType,
-} from "./compat-runtime-operation-model.js";
+  getCompatAnyTypedBoundaryConversion,
+  getCompatAnyTypedBoundaryEvidence,
+} from "./compat-any-typed-boundary-conversions.js";
 import {
   requiresCsharpProviderConversionEvidence,
 } from "./provider-conversion-operators.js";
@@ -105,7 +103,7 @@ export function recordCsharpAssertionConversionFactsBeforeFinalization(
         hasOpaqueAnyCarrier(assertion.target, lifecycleContext)
       ) {
         const compatConversion = compatibilityMode === "compat"
-          ? getCompatAnyAssertionConversionOperation(source, target, sourceHasOpaqueAnyCarrier)
+          ? getCompatAnyTypedBoundaryConversion(source, target, sourceHasOpaqueAnyCarrier)
           : undefined;
         if (compatConversion?.kind === "identity") {
           return;
@@ -118,7 +116,7 @@ export function recordCsharpAssertionConversionFactsBeforeFinalization(
             compatConversion.operation,
             compatConversion.csharpOperation,
             lifecycleContext,
-            csharpCompatRuntimeEvidence,
+            getCompatAnyTypedBoundaryEvidence(compatConversion.kind),
           );
           return;
         }
@@ -201,36 +199,6 @@ function recordAssertionConversionFacts(
   }
 }
 
-function getCompatAnyAssertionConversionOperation(
-  source: TargetTypeRef | undefined,
-  target: TargetTypeRef,
-  sourceHasOpaqueAnyCarrier: boolean,
-): CsharpAssertionCompatConversionDecision | undefined {
-  const sourceAny = sourceHasOpaqueAnyCarrier || isCsharpAnyRuntimeCarrier(source);
-  if (isCsharpAnyRuntimeCarrier(target)) {
-    if (sourceAny) {
-      return { kind: "identity" };
-    }
-    if (source === undefined) {
-      return undefined;
-    }
-    const csharpOperation = compatAnyTypedBoundaryBoxOperation(source);
-    return {
-      kind: "conversion",
-      convertedType: tsValueType,
-      operation: targetOperation(csharpOperation.operationId, "method", csharpOperation.memberName, { resultType: tsValueType }),
-      csharpOperation,
-    };
-  }
-  const csharpOperation = compatAnyTypedBoundaryCastOperation(target);
-  return {
-    kind: "conversion",
-    convertedType: target,
-    operation: targetOperation(csharpOperation.operationId, "method", csharpOperation.memberName, { resultType: target }),
-    csharpOperation,
-  };
-}
-
 function getAssertionParts(
   node: Node,
   ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
@@ -305,15 +273,6 @@ type CsharpAssertionConversionDecision =
       readonly numericCode: number;
       readonly message: string;
       readonly evidence: readonly { readonly message: string; readonly details?: string }[];
-    };
-
-type CsharpAssertionCompatConversionDecision =
-  | { readonly kind: "identity" }
-  | {
-      readonly kind: "conversion";
-      readonly convertedType: TargetTypeRef;
-      readonly operation: TargetOperationFact;
-      readonly csharpOperation: CsharpTargetOperationFact;
     };
 
 function isSourceDeclaredAssertionTarget(source: TargetTypeRef, target: TargetTypeRef): boolean {

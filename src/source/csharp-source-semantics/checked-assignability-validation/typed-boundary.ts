@@ -1,11 +1,19 @@
 import {
   runtimeCarrierFactKey,
+  targetConversionFactKey,
 } from "@tsonic/tsts";
 import type {
+  ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
   TargetTypeRef,
 } from "@tsonic/tsts";
+import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
+import {
+  csharpTargetConversionOperationFactKey,
+} from "../../csharp-facts.js";
 import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
@@ -19,6 +27,16 @@ import {
   isCsharpAnyRuntimeCarrier,
 } from "../target-types.js";
 import {
+  targetTypeRefEquals,
+} from "../target-ref-utils.js";
+import {
+  tsValueType,
+} from "../compat-runtime-operation-model.js";
+import {
+  getCompatAnyTypedBoundaryConversion,
+  getCompatAnyTypedBoundaryEvidence,
+} from "../compat-any-typed-boundary-conversions.js";
+import {
   getEnclosingReturnTargetCarrier,
 } from "./context-nodes.js";
 import {
@@ -29,39 +47,130 @@ import {
 export function diagnoseAnyTypedBoundaryForNode(
   node: Node,
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  compatibilityMode: TargetTypescriptCompatibilityMode,
+  observedBoundary?: {
+    readonly conversionSubject?: Node;
+    readonly source?: TargetTypeRef;
+    readonly target?: TargetTypeRef;
+  },
 ): boolean {
+  if (observedBoundary !== undefined && isAnyBoundary(observedBoundary.source, observedBoundary.target)) {
+    return handleAnyBoundary(
+      node,
+      observedBoundary.conversionSubject,
+      context,
+      observedBoundary.source,
+      observedBoundary.target,
+      compatibilityMode,
+    );
+  }
   const compiler = context.compiler;
   if (compiler === undefined) {
     return false;
   }
   const ast = compiler.ast;
   if (ast.is.IsBinaryExpression(node) && getBinaryOperatorText(ast, node) === "=") {
-    return appendAnyBoundaryDiagnostic(
+    const sourceNode = asNode(getNodeField(node, "Right"));
+    return handleAnyBoundary(
       node,
+      sourceNode,
       context,
-      context.facts.get(asNode(getNodeField(node, "Right")), runtimeCarrierFactKey)?.carrier,
-      context.facts.get(asNode(getNodeField(node, "Left")), runtimeCarrierFactKey)?.carrier,
+      getRuntimeCarrier(context, sourceNode),
+      getRuntimeCarrier(context, asNode(getNodeField(node, "Left"))),
+      compatibilityMode,
     );
   }
   const kind = ast.kindName(node);
   if (kind === "KindVariableDeclaration" || kind === "KindPropertyDeclaration") {
-    return appendAnyBoundaryDiagnostic(
+    const sourceNode = asNode(getNodeField(node, "Initializer"));
+    return handleAnyBoundary(
       node,
+      sourceNode,
       context,
-      context.facts.get(asNode(getNodeField(node, "Initializer")), runtimeCarrierFactKey)?.carrier,
-      context.facts.get(node, runtimeCarrierFactKey)?.carrier ??
-        context.facts.get(asNode(getNodeField(node, "Type")), runtimeCarrierFactKey)?.carrier,
+      getRuntimeCarrier(context, sourceNode),
+      getRuntimeCarrier(context, node) ??
+        getRuntimeCarrier(context, asNode(getNodeField(node, "Type"))),
+      compatibilityMode,
     );
   }
   if (kind === "KindReturnStatement") {
-    return appendAnyBoundaryDiagnostic(
+    const sourceNode = asNode(getNodeField(node, "Expression"));
+    return handleAnyBoundary(
       node,
+      sourceNode,
       context,
-      context.facts.get(asNode(getNodeField(node, "Expression")), runtimeCarrierFactKey)?.carrier,
+      getRuntimeCarrier(context, sourceNode),
       getEnclosingReturnTargetCarrier(node, context),
+      compatibilityMode,
     );
   }
   return false;
+}
+
+function handleAnyBoundary(
+  diagnosticNode: Node,
+  conversionSubject: Node | undefined,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  source: TargetTypeRef | undefined,
+  target: TargetTypeRef | undefined,
+  compatibilityMode: TargetTypescriptCompatibilityMode,
+): boolean {
+  if (!isAnyBoundary(source, target)) {
+    return false;
+  }
+  if (
+    compatibilityMode === "compat" &&
+    conversionSubject !== undefined &&
+    recordCompatAnyBoundaryConversionFact(conversionSubject, context, source, target)
+  ) {
+    return true;
+  }
+  appendAnyBoundaryDiagnostic(diagnosticNode, context, source, target);
+  return true;
+}
+
+function recordCompatAnyBoundaryConversionFact(
+  conversionSubject: Node,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  source: TargetTypeRef | undefined,
+  target: TargetTypeRef | undefined,
+): boolean {
+  if (source === undefined || target === undefined) {
+    return false;
+  }
+  const existing = context.facts.get(conversionSubject, targetConversionFactKey);
+  if (existing?.convertedType !== undefined && existingConversionSatisfiesBoundary(existing.convertedType, target)) {
+    return true;
+  }
+  if (existing !== undefined) {
+    return false;
+  }
+  const conversion = getCompatAnyTypedBoundaryConversion(source, target);
+  if (conversion === undefined || conversion.kind === "identity") {
+    return false;
+  }
+  const evidence = getCompatAnyTypedBoundaryEvidence(conversion.kind);
+  context.facts.set(
+    conversionSubject,
+    targetConversionFactKey,
+    {
+      convertedType: conversion.convertedType,
+      operation: conversion.operation,
+    },
+    evidence,
+  );
+  context.facts.set(
+    conversionSubject,
+    csharpTargetConversionOperationFactKey,
+    conversion.csharpOperation,
+    evidence,
+  );
+  return true;
+}
+
+function existingConversionSatisfiesBoundary(convertedType: TargetTypeRef, target: TargetTypeRef): boolean {
+  return targetTypeRefEquals(convertedType, target) ||
+    (isCsharpAnyRuntimeCarrier(target) && targetTypeRefEquals(convertedType, tsValueType));
 }
 
 function appendAnyBoundaryDiagnostic(
@@ -69,10 +178,7 @@ function appendAnyBoundaryDiagnostic(
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
   source: TargetTypeRef | undefined,
   target: TargetTypeRef | undefined,
-): boolean {
-  if (!isAnyBoundary(source, target)) {
-    return false;
-  }
+): void {
   context.diagnostics.append({
     ...csharpProviderDiagnostic(
       context.extensionId,
@@ -88,11 +194,20 @@ function appendAnyBoundaryDiagnostic(
     ],
     identity: `csharp-target-assignability:${subjectIdentity(node)}`,
   });
-  return true;
 }
 
 function isAnyBoundary(source: TargetTypeRef | undefined, target: TargetTypeRef | undefined): boolean {
   const sourceAny = isCsharpAnyRuntimeCarrier(source);
   const targetAny = isCsharpAnyRuntimeCarrier(target);
   return source !== undefined && target !== undefined && sourceAny !== targetAny;
+}
+
+function getRuntimeCarrier(
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+  subject: ExtensionFactSubject | undefined,
+): TargetTypeRef | undefined {
+  return subject === undefined
+    ? undefined
+    : context.facts.get(subject, runtimeCarrierFactKey)?.carrier ??
+      context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier;
 }

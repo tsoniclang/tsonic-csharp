@@ -13,6 +13,9 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
+import type {
   CsharpObservedTargetAssignabilityFact,
 } from "../../csharp-facts.js";
 import {
@@ -84,6 +87,7 @@ export function observeCsharpPostCheckAssignability(
 export function validateCsharpObservedAssignabilityFactsBeforeFinalization(
   lifecycleContext: Pick<ExtensionLifecycleContext, "extensionId" | "host" | "compiler">,
   host: CsharpOperationsProviderHost,
+  compatibilityMode: TargetTypescriptCompatibilityMode,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -102,7 +106,7 @@ export function validateCsharpObservedAssignabilityFactsBeforeFinalization(
     if (sourceFile === undefined || sourceFile.IsDeclarationFile === true) {
       continue;
     }
-    validateObservedAssignabilityFactsForNode(sourceFile, context, host);
+    validateObservedAssignabilityFactsForNode(sourceFile, context, host, compatibilityMode);
   }
 }
 
@@ -110,21 +114,22 @@ function validateObservedAssignabilityFactsForNode(
   node: Node | undefined,
   context: ExtensionObservationContext<"target.observePostCheckAssignability">,
   host: CsharpOperationsProviderHost,
+  compatibilityMode: TargetTypescriptCompatibilityMode,
 ): void {
   if (node === undefined) {
     return;
   }
   for (const child of getAstReaderChildNodes(context.compiler!.ast, node)) {
-    validateObservedAssignabilityFactsForNode(child, context, host);
+    validateObservedAssignabilityFactsForNode(child, context, host, compatibilityMode);
+  }
+  if (compatibilityMode === "compat") {
+    diagnoseAnyTypedBoundaryForNode(node, context, compatibilityMode);
   }
   const fact = context.facts.get(node, csharpObservedTargetAssignabilityFactKey);
   if (fact === undefined) {
     return;
   }
   validateObservedAssignmentTargetFact(fact, context);
-  if (diagnoseAnyTypedBoundaryForNode(node, context)) {
-    return;
-  }
   if (isCompatRuntimeAssignmentObservation(fact, context)) {
     return;
   }
@@ -133,6 +138,13 @@ function validateObservedAssignabilityFactsForNode(
   }
   const source = resolveObservedAssignabilitySource(fact, context, host);
   const target = resolveObservedAssignabilityTarget(fact, context, host);
+  if (diagnoseAnyTypedBoundaryForNode(node, context, compatibilityMode, {
+    conversionSubject: resolveObservedAssignabilitySourceNode(fact, context),
+    source,
+    target,
+  })) {
+    return;
+  }
   const validation = validateCsharpTargetAssignability(source, target, host, new Set());
   if (validation.kind !== "invalid") {
     return;
