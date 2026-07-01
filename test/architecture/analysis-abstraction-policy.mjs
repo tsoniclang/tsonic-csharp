@@ -413,6 +413,12 @@ export const analysisAbstractionRules = Object.freeze([
       "Node provider member selection must use canonical declaration/signature identity indexes rather than local export/signature search.",
   },
   {
+    id: "central-nodejs-provider-package-branch",
+    pattern: /\bproviderPackage\.id\s*(?:={2,3}|!={1,2})\s*["']nodejs["']/g,
+    replacement:
+      "NodeJS must be a provider-package contributor selected through the generic provider-package model, not a central C# semantic-host branch on providerPackage.id.",
+  },
+  {
     id: "nodejs-target-id-source-name-synthesis",
     filePattern: /(?:^|\/)provider-packages\/nodejs\/.+\.ts$/,
     pattern: /\b(?:id|targetMemberId|targetIdentityId)\s*:\s*`(?:unsupported:)?Tsonic\.CSharp\.Node\.[^`]*\$\{\s*(?:sourceName|sourceMemberName|exportName|memberName|targetName)\s*\}/g,
@@ -452,6 +458,12 @@ export const analysisAbstractionRules = Object.freeze([
     pattern: /\bfallback\b/gi,
     replacement:
       "Classify as harmless syntax fallback or replace semantic fallback with fail-closed diagnostics.",
+  },
+  {
+    id: "fabricated-tsts-compiler-node",
+    pattern: /\bas\s+unknown\s+as\s+(?:Node|Symbol|Signature|Type)\b/g,
+    replacement:
+      "Backend and provider code must consume real TSTS public objects or backend-local models; do not fabricate TSTS compiler nodes, symbols, signatures, or types.",
   },
 ]);
 
