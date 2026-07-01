@@ -113,9 +113,8 @@ export function nodeFsPromisesCallTargetMembers(): readonly NodeFsCallTargetMemb
     fsPromiseCall({ exportName: "readFile", signatureId: "node:fs/promises.readFile(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readFileBytes(System.String)", sourceName: "readFile", targetName: "readFileBytes", providerParameters: [stringParameter("path")], providerReturnType: promiseProviderType(bufferProviderType), targetParameters: [
       targetParameter("path", stringTargetType),
     ], targetReturnType: taskTargetType(bufferTargetType) }),
-    fsPromiseCall({ exportName: "readdir", signatureId: "node:fs/promises.readdir(System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readdir(System.String,System.Boolean)", sourceName: "readdir", targetName: "readdir", providerParameters: [stringParameter("path"), optionalBoolParameter("withFileTypes")], providerReturnType: promiseProviderType({ kind: "array", elementType: stringProviderType }), targetParameters: [
+    fsPromiseCall({ exportName: "readdir", signatureId: "node:fs/promises.readdir(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readdir(System.String)", sourceName: "readdir", targetName: "readdir", providerParameters: [stringParameter("path")], providerReturnType: promiseProviderType({ kind: "array", elementType: stringProviderType }), targetParameters: [
       targetParameter("path", stringTargetType),
-      targetParameter("withFileTypes", boolTargetType, { optional: true }),
     ], targetReturnType: taskTargetType({ kind: "array", element: stringTargetType }) }),
     fsPromiseCall({ exportName: "readlink", signatureId: "node:fs/promises.readlink(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readlink(System.String)", sourceName: "readlink", targetName: "readlink", providerParameters: [stringParameter("path")], providerReturnType: promiseProviderType(stringProviderType), targetParameters: [
       targetParameter("path", stringTargetType),

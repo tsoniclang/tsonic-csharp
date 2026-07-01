@@ -315,9 +315,17 @@ function printInterpolatedString(
       case "InterpolatedStringText":
         return escapeCsharpInterpolatedStringText(part.text);
       case "Interpolation":
-        return `{${context.printExpression(part.expression)}}`;
+        return `{${printInterpolationExpression(part.expression, context)}}`;
     }
     return failUnsupportedCsharpSyntax(part, "interpolated string part");
   }).join("");
   return `$"${body}"`;
+}
+
+function printInterpolationExpression(
+  expression: CsharpExpression,
+  context: CsharpPrintContext,
+): string {
+  const printed = context.printExpression(expression);
+  return expression.kind === "ConditionalExpression" ? `(${printed})` : printed;
 }

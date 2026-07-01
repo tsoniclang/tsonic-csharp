@@ -24,7 +24,9 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
 
   assertModuleExport(bindingProvider, "node:fs", "watchFile", "node:fs.watchFile(System.String,Function)");
+  assertModuleExport(bindingProvider, "node:fs", "readdirSync", "node:fs.readdirSync(System.String)");
   assertModuleExport(bindingProvider, "node:fs/promises", "readFile", "node:fs/promises.readFile(System.String,System.String)");
+  assertModuleExport(bindingProvider, "node:fs/promises", "readdir", "node:fs/promises.readdir(System.String)");
   assertModuleExport(bindingProvider, "node:path", "format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)");
   assertClassMember(bindingProvider, "node:buffer", "Buffer", "compare", "node:buffer.Buffer.compare(Tsonic.CSharp.Node.Buffer,Tsonic.CSharp.Node.Buffer)");
   assertClassMember(bindingProvider, "node:buffer", "Buffer", "includes", "node:buffer.Buffer.includes(System.Object,System.Int32,System.String)");
@@ -55,10 +57,14 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const readFileCall = {};
   const readFileSignature = {};
+  const readdirSyncCall = {};
+  const readdirSyncSignature = {};
   const pathParseCall = {};
   const pathParseSignature = {};
   const fsPromisesReadCall = {};
   const fsPromisesReadSignature = {};
+  const fsPromisesReaddirCall = {};
+  const fsPromisesReaddirSignature = {};
   const parsedBaseExpression = {};
   const parsedBaseDeclaration = {};
   const processCwdCall = {};
@@ -104,8 +110,10 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const urlSearchParamsSizeExpression = {};
   const urlSearchParamsSizeDeclaration = {};
   facts.set(readFileSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "readFileSync", "node:fs.readFileSync(System.String,System.String)"));
+  facts.set(readdirSyncSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "readdirSync", "node:fs.readdirSync(System.String)"));
   facts.set(pathParseSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "parse", "node:path.parse(System.String)"));
   facts.set(fsPromisesReadSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs/promises", "readFile", "node:fs/promises.readFile(System.String,System.String)"));
+  facts.set(fsPromisesReaddirSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs/promises", "readdir", "node:fs/promises.readdir(System.String)"));
   facts.set(parsedBaseDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:path", "ParsedPath", "base", "node:path.ParsedPath.base"));
   facts.set(processCwdSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("process", "cwd", "node:process.cwd()"));
   facts.set(bufferCompareSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("buffer", "Buffer", "compare", "node:buffer.Buffer.compare", "node:buffer.Buffer.compare(Tsonic.CSharp.Node.Buffer,Tsonic.CSharp.Node.Buffer)"));
@@ -131,8 +139,10 @@ test("NodeJS provider package maps closed operations from selected provider iden
   facts.set(urlSearchParamsSizeDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:url", "URLSearchParams", "size", "node:url.URLSearchParams.size"));
 
   const readFileResult = provider.mapCheckedCall(nodejsCallRequest(readFileCall, readFileSignature), fakeContext(facts));
+  const readdirSyncResult = provider.mapCheckedCall(nodejsCallRequest(readdirSyncCall, readdirSyncSignature), fakeContext(facts));
   const pathParseResult = provider.mapCheckedCall(nodejsCallRequest(pathParseCall, pathParseSignature), fakeContext(facts));
   const fsPromisesReadResult = provider.mapCheckedCall(nodejsCallRequest(fsPromisesReadCall, fsPromisesReadSignature), fakeContext(facts));
+  const fsPromisesReaddirResult = provider.mapCheckedCall(nodejsCallRequest(fsPromisesReaddirCall, fsPromisesReaddirSignature), fakeContext(facts));
   const parsedBaseResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(parsedBaseExpression, parsedBaseDeclaration), fakeContext(facts));
   const processCwdResult = provider.mapCheckedCall(nodejsCallRequest(processCwdCall, processCwdSignature), fakeContext(facts));
   const bufferCompareResult = provider.mapCheckedCall(nodejsCallRequest(bufferCompareCall, bufferCompareSignature), fakeContext(facts));
@@ -157,8 +167,10 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const urlSearchParamsSizeResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(urlSearchParamsSizeExpression, urlSearchParamsSizeDeclaration), fakeContext(facts));
 
   assertSelectedMember(readFileResult, "Tsonic.CSharp.Node.fs.readFileSync(System.String,System.String)");
+  assertSelectedMember(readdirSyncResult, "Tsonic.CSharp.Node.fs.readdirSync(System.String)");
   assertSelectedMember(pathParseResult, "Tsonic.CSharp.Node.path.parse(System.String)");
   assertSelectedMember(fsPromisesReadResult, "Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)");
+  assertSelectedMember(fsPromisesReaddirResult, "Tsonic.CSharp.Node.fs_promises.readdir(System.String)");
   assert.equal(parsedBaseResult.kind, "accept");
   assert.equal(parsedBaseResult.value.operation.operationId, "Tsonic.CSharp.Node.ParsedPath.@base");
   assert.equal(facts.get(parsedBaseExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.ParsedPath.@base");
@@ -206,6 +218,8 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
   const processStdinDeclaration = {};
   const utilFormatSignature = {};
   const urlPatternTestSignature = {};
+  const staleReaddirSignature = {};
+  const staleReaddirCall = {};
   facts.set(fsWatchFileSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "watchFile", "node:fs.watchFile(System.String,Function)"));
   facts.set(cryptoCipherSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("crypto", "createCipheriv", "node:crypto.createCipheriv(System.String,System.Object,System.Object)"));
   facts.set(osCpusSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:os", "cpus", "node:os.cpus()"));
@@ -213,6 +227,7 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
   facts.set(processStdinDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("process", "stdin"));
   facts.set(utilFormatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "format", "node:util.format(System.Object,System.Object[])"));
   facts.set(urlPatternTestSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:url", "URLPattern", "test", "node:url.URLPattern.test", "node:url.URLPattern.test(System.String)"));
+  facts.set(staleReaddirSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "readdirSync", "node:fs.readdirSync(System.String,System.Boolean)"));
 
   assertUnsupportedCall(provider, facts, fsWatchFileSignature, "unsupported:Tsonic.CSharp.Node.fs.watchFile(System.String,Function)");
   assertUnsupportedCall(provider, facts, cryptoCipherSignature, "unsupported:Tsonic.CSharp.Node.crypto.createCipheriv(System.String,System.Object,System.Object)");
@@ -221,6 +236,10 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
   assertUnsupportedProperty(provider, facts, processStdinDeclaration, "unsupported:Tsonic.CSharp.Node.process.stdin");
   assertUnsupportedCall(provider, facts, utilFormatSignature, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
   assertUnsupportedCall(provider, facts, urlPatternTestSignature, "unsupported:Tsonic.CSharp.Node.URLPattern.test(System.String)");
+  const staleReaddirResult = provider.mapCheckedCall(nodejsCallRequest(staleReaddirCall, staleReaddirSignature), fakeContext(facts));
+  assert.equal(staleReaddirResult.kind, "reject");
+  assert.equal(staleReaddirResult.diagnostic.extensionCode, "CSHARP_NODEJS_CALL_NOT_MAPPED");
+  assert.equal(facts.get(staleReaddirCall, csharpTargetOperationFactKey), undefined);
 });
 
 test("NodeJS provider package requires selected signatures before target member selection", () => {

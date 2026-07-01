@@ -174,9 +174,8 @@ export function nodeFsCallTargetMembers(): readonly NodeFsCallTargetMember[] {
       targetParameter("length", intTargetType),
       targetParameter("position", csharpNullableValueTargetType(intTargetType), { optional: true }),
     ], targetReturnType: intTargetType }),
-    fsCall({ exportName: "readdirSync", signatureId: "node:fs.readdirSync(System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs.readdirSync(System.String,System.Boolean)", sourceName: "readdirSync", targetName: "readdirSync", providerParameters: [stringParameter("path"), optionalBoolParameter("withFileTypes")], providerReturnType: { kind: "array", elementType: stringProviderType }, targetParameters: [
+    fsCall({ exportName: "readdirSync", signatureId: "node:fs.readdirSync(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.readdirSync(System.String)", sourceName: "readdirSync", targetName: "readdirSync", providerParameters: [stringParameter("path")], providerReturnType: { kind: "array", elementType: stringProviderType }, targetParameters: [
       targetParameter("path", stringTargetType),
-      targetParameter("withFileTypes", boolTargetType, { optional: true }),
     ], targetReturnType: { kind: "array", element: stringTargetType } }),
     fsCall({ exportName: "readlinkSync", signatureId: "node:fs.readlinkSync(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs.readlinkSync(System.String)", sourceName: "readlinkSync", targetName: "readlinkSync", providerParameters: [stringParameter("path")], providerReturnType: stringProviderType, targetParameters: [
       targetParameter("path", stringTargetType),

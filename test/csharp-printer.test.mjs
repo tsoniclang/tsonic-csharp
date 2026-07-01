@@ -61,6 +61,27 @@ test("printer renders generic member invocation from Roslyn AST nodes", () => {
   );
 });
 
+test("printer parenthesizes conditional expressions inside interpolation holes", () => {
+  assert.equal(
+    printCsharpExpression({
+      kind: "InterpolatedStringExpression",
+      parts: [
+        { kind: "InterpolatedStringText", text: "value:" },
+        {
+          kind: "Interpolation",
+          expression: {
+            kind: "ConditionalExpression",
+            condition: { kind: "IdentifierName", name: "ok" },
+            whenTrue: { kind: "LiteralExpression", value: "yes" },
+            whenFalse: { kind: "LiteralExpression", value: "no" },
+          },
+        },
+      ],
+    }),
+    '$"value:{(ok ? "yes" : "no")}"',
+  );
+});
+
 test("printer fails closed for invalid or foreign raw syntax nodes", () => {
   assert.throws(
     () => printCsharpExpression({ kind: "RawExpression", code: "Console.WriteLine(1)" }),
