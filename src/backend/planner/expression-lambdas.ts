@@ -36,6 +36,9 @@ import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import type {
   CsharpDelegateSignatureShape,
 } from "../../source/csharp-source-semantics/target-types.js";
+import type {
+  ExpectedExpressionPlanner,
+} from "./expression-planner-types.js";
 import {
   csharpDelegateTargetType,
   csharpVoidTargetType,
@@ -68,6 +71,7 @@ export function planArrowFunctionExpression(
   expectedType?: CsharpTypeNode,
   state?: DestructuringPlannerState,
   expectedTargetType?: TargetTypeRef,
+  planExpressionWithExpectedType?: ExpectedExpressionPlanner,
 ): CsharpExpression | undefined {
   const expression = AsArrowFunction(node)!;
   const targetContext = getLambdaTargetContext(node, sourceFile, input, expectedType, expectedTargetType);
@@ -89,7 +93,17 @@ export function planArrowFunctionExpression(
       body,
     };
   }
-  const body = planExpression(expression.Body!, sourceFile, input, diagnostics);
+  const body = asyncReturnContext !== undefined && planExpressionWithExpectedType !== undefined
+    ? planExpressionWithExpectedType(
+      expression.Body!,
+      sourceFile,
+      input,
+      diagnostics,
+      asyncReturnContext.returnExpressionType,
+      asyncReturnContext.returnExpressionTypeSubject,
+      asyncReturnContext.returnExpressionTargetType,
+    )
+    : planExpression(expression.Body!, sourceFile, input, diagnostics);
   if (body === undefined) {
     return undefined;
   }
@@ -132,6 +146,7 @@ export function planFunctionExpression(
 export interface AsyncLambdaReturnContext {
   readonly returnExpressionType: CsharpTypeNode;
   readonly returnExpressionTypeSubject?: Node;
+  readonly returnExpressionTargetType: TargetTypeRef;
 }
 
 export function planLambdaBlockBody(
@@ -150,15 +165,18 @@ export function planLambdaBlockBody(
   const lambdaState = state ?? createDestructuringPlannerState(lambdaNode, input.ast);
   const previousReturnExpressionType = lambdaState.currentReturnExpressionType;
   const previousReturnExpressionTypeSubject = lambdaState.currentReturnExpressionTypeSubject;
+  const previousReturnExpressionTargetType = lambdaState.currentReturnExpressionTargetType;
   if (asyncReturnContext !== undefined) {
     lambdaState.currentReturnExpressionType = asyncReturnContext.returnExpressionType;
     lambdaState.currentReturnExpressionTypeSubject = asyncReturnContext.returnExpressionTypeSubject;
+    lambdaState.currentReturnExpressionTargetType = asyncReturnContext.returnExpressionTargetType;
   }
   try {
     return { kind: "Block", statements: planBlockStatements(bodyNode, sourceFile, input, diagnostics, lambdaState) };
   } finally {
     lambdaState.currentReturnExpressionType = previousReturnExpressionType;
     lambdaState.currentReturnExpressionTypeSubject = previousReturnExpressionTypeSubject;
+    lambdaState.currentReturnExpressionTargetType = previousReturnExpressionTargetType;
   }
 }
 
@@ -192,6 +210,7 @@ function getAsyncLambdaReturnContext(
   return {
     returnExpressionType,
     ...(returnExpressionTypeSubject === undefined ? {} : { returnExpressionTypeSubject }),
+    returnExpressionTargetType: resultTargetType,
   };
 }
 

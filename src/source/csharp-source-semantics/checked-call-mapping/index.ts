@@ -427,14 +427,48 @@ function getSourceOwnedCallReturnType(
   if (checkedCallType !== undefined) {
     return checkedCallType;
   }
+  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
+  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ?? signatureDeclaration ?? getUniqueCalleeDeclaration(request, context);
+  const annotatedReturnType = getSourceOwnedCallableReturnTypeNode(selectedDeclaration, context);
+  const annotatedReturnTargetType = getSourceOwnedCallableReturnTargetType(annotatedReturnType, context, host);
+  if (annotatedReturnTargetType !== undefined) {
+    return annotatedReturnTargetType;
+  }
   const checker = context.compiler?.checker;
   if (checker === undefined || request.sourceSelectedSignature === undefined || host.getTargetTypeRefForType === undefined) {
     return undefined;
   }
-  const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
   const sourceFile = signatureDeclaration === undefined ? undefined : context.compiler?.ast.getSourceFile(signatureDeclaration);
   const sourceReturnType = checker.getReturnTypeOfSignature(request.sourceSelectedSignature as Signature, { sourceFile });
   return host.getTargetTypeRefForType(sourceReturnType, context, { sourceFile });
+}
+
+function getSourceOwnedCallableReturnTypeNode(
+  declaration: Node | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): Node | undefined {
+  const typeNode = asNodeSubject(getNodeField(declaration, "Type"));
+  if (typeNode === undefined) {
+    return undefined;
+  }
+  const ast = context.compiler?.ast;
+  return ast?.is.IsFunctionTypeNode(typeNode) === true || ast?.is.IsConstructorTypeNode(typeNode) === true
+    ? asNodeSubject(getNodeField(typeNode, "Type"))
+    : typeNode;
+}
+
+function getSourceOwnedCallableReturnTargetType(
+  returnTypeNode: Node | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+  host: CsharpOperationsProviderHost,
+): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
+  const direct = host.getTargetTypeRefForSubject(returnTypeNode, context);
+  if (direct !== undefined || returnTypeNode === undefined || host.getTargetTypeRefForType === undefined) {
+    return direct;
+  }
+  const sourceFile = context.compiler?.ast.getSourceFile(returnTypeNode);
+  const semanticType = context.compiler?.checker.getTypeFromTypeNode(returnTypeNode, { sourceFile });
+  return host.getTargetTypeRefForType(semanticType, context, { sourceFile });
 }
 
 function getSourceOwnedCallDeclaration(

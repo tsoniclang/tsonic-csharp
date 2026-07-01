@@ -29,6 +29,7 @@ import {
 } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import {
+  csharpObjectShapeFactKey,
   csharpRegularExpressionLiteralFactKey,
   csharpTargetOperationFactKey,
 } from "../dist/source/csharp-facts.js";
@@ -898,6 +899,111 @@ test("async lambda emission rejects non-Task delegate return facts", () => {
   assert.match(diagnostics[0].message, /Async lambda emission requires a finalized Task\/Promise-returning delegate carrier fact/);
 });
 
+test("async lambda expression bodies use finalized Task result object-shape facts", () => {
+  const sourceExample = `
+    const callback: () => Promise<{ value: int32 }> = async () => ({ value: 1 });
+  `;
+  assert.match(sourceExample, /Promise<\{ value: int32 \}>/);
+  assert.match(sourceExample, /async \(\) => \(\{ value: 1 \}\)/);
+  const resultType = csharpTargetNamedType("__AsyncResult", undefined, { kind: "named", name: "__AsyncResult" });
+  const resultShape = objectShape(resultType, [{
+    sourceName: "value",
+    targetName: "value",
+    memberKind: "property",
+    type: csharpSourcePrimitiveTargetType("int32"),
+  }]);
+  const delegateType = csharpDelegateTargetType("System.Func", [], csharpTaskTargetType(resultType));
+  const expression = asyncArrowFunction(objectLiteral([
+    propertyAssignment(identifier("value"), numericLiteral("1")),
+  ]));
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(
+    expression,
+    {},
+    fakeInput({
+      objectShapeFacts: new Map([[resultType, resultShape]]),
+    }),
+    diagnostics,
+    { kind: "IdentifierName", name: "Func" },
+    undefined,
+    undefined,
+    delegateType,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "LambdaExpression");
+  assert.equal(printCsharpExpression(output), "async () => new __AsyncResult\n{\n    value = 1,\n}");
+});
+
+test("async lambda block returns use finalized Task result object-shape facts", () => {
+  const sourceExample = `
+    const callback: () => Promise<{ value: int32 }> = async () => {
+      return { value: 1 };
+    };
+  `;
+  assert.match(sourceExample, /return \{ value: 1 \}/);
+  const resultType = csharpTargetNamedType("__AsyncBlockResult", undefined, { kind: "named", name: "__AsyncBlockResult" });
+  const resultShape = objectShape(resultType, [{
+    sourceName: "value",
+    targetName: "value",
+    memberKind: "property",
+    type: csharpSourcePrimitiveTargetType("int32"),
+  }]);
+  const delegateType = csharpDelegateTargetType("System.Func", [], csharpTaskTargetType(resultType));
+  const expression = asyncArrowFunction(block([
+    returnStatement(objectLiteral([
+      propertyAssignment(identifier("value"), numericLiteral("1")),
+    ])),
+  ]));
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(
+    expression,
+    {},
+    fakeInput({
+      objectShapeFacts: new Map([[resultType, resultShape]]),
+    }),
+    diagnostics,
+    { kind: "IdentifierName", name: "Func" },
+    undefined,
+    undefined,
+    delegateType,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "LambdaExpression");
+  assert.equal(printCsharpExpression(output), "async () =>\n{\n    return new __AsyncBlockResult\n    {\n        value = 1,\n    };\n}");
+});
+
+test("async lambda object-literal returns fail closed without result object-shape facts", () => {
+  const sourceExample = `
+    const callback: () => Promise<{ value: int32 }> = async () => ({ value: 1 });
+  `;
+  assert.match(sourceExample, /async \(\) => \(\{ value: 1 \}\)/);
+  const resultType = csharpTargetNamedType("__MissingAsyncResult", undefined, { kind: "named", name: "__MissingAsyncResult" });
+  const delegateType = csharpDelegateTargetType("System.Func", [], csharpTaskTargetType(resultType));
+  const expression = asyncArrowFunction(objectLiteral([
+    propertyAssignment(identifier("value"), numericLiteral("1")),
+  ]));
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(
+    expression,
+    {},
+    fakeInput(),
+    diagnostics,
+    { kind: "IdentifierName", name: "Func" },
+    undefined,
+    undefined,
+    delegateType,
+  );
+
+  assert.equal(output, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object literal emission requires finalized TSTS\/provider object-shape facts/);
+});
+
 function binary(left, right, operatorKind = "KindPlusToken") {
   return {
     Kind: "KindBinaryExpression",
@@ -938,6 +1044,43 @@ function asyncArrowFunctionWithParameters(parameters, body) {
     ModifierFlags: ModifierFlagsAsync,
     Parameters: { Nodes: parameters },
     Body: body,
+  };
+}
+
+function block(statements) {
+  return {
+    Kind: "KindBlock",
+    Statements: { Nodes: statements },
+  };
+}
+
+function returnStatement(expression) {
+  return {
+    Kind: "KindReturnStatement",
+    Expression: expression,
+  };
+}
+
+function objectLiteral(properties) {
+  return {
+    Kind: KindObjectLiteralExpression,
+    Properties: { Nodes: properties },
+  };
+}
+
+function propertyAssignment(name, initializer) {
+  return {
+    Kind: "KindPropertyAssignment",
+    name,
+    Initializer: initializer,
+  };
+}
+
+function objectShape(targetType, members) {
+  return {
+    targetType,
+    members,
+    implements: [],
   };
 }
 
@@ -1073,6 +1216,9 @@ function fakeInput(options = {}) {
         ? { kind: "int32", runtimeBase: "number", signed: true, width: 32 }
         : undefined,
       getFact: (subject, key) => {
+        if (key === csharpObjectShapeFactKey) {
+          return options.objectShapeFacts?.get(subject);
+        }
         if (subject === options.csharpOperationSubject && key === csharpTargetOperationFactKey) {
           return options.csharpOperation;
         }
@@ -1150,6 +1296,7 @@ const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
   parent: (node) => node?.Parent,
+  name: (node) => node?.name,
   getSourceFile: () => undefined,
   is: {
     IsKeywordTypeNode: () => false,

@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput } from "@tsonic/target-api";
 import { csharpObjectShapeFactKey } from "../../source/csharp-facts.js";
 import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
@@ -40,6 +40,15 @@ export function getCsharpObjectShapeFactForNode(
   const semanticTypeSymbol = input.analysis.getTypeSymbol(semanticType);
   return input.facts.getFact(semanticType, csharpObjectShapeFactKey) ??
     input.facts.getFact(semanticTypeSymbol, csharpObjectShapeFactKey);
+}
+
+export function getCsharpObjectShapeFactForTargetType(
+  targetType: TargetTypeRef | undefined,
+  input: TargetCompileInput,
+): CsharpObjectShapeFact | undefined {
+  return targetType === undefined
+    ? undefined
+    : input.facts.getFact(targetType, csharpObjectShapeFactKey);
 }
 
 function getCsharpObjectShapeFactForDeclarationAnnotation(

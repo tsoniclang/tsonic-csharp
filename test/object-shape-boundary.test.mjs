@@ -446,6 +446,106 @@ test("generated structural carriers close over finalized type-parameter target a
   assert.match(printed, /public T value;/);
 });
 
+test("generated structural carriers reuse declarations only when implemented-interface facts match", () => {
+  const sourceExample = `
+    interface HasValue {
+      value: number;
+    }
+
+    export function create(value: number): HasValue {
+      return { value };
+    }
+  `;
+  assert.match(sourceExample, /interface HasValue/);
+  assert.match(sourceExample, /return \{ value \}/);
+
+  const contract = csharpTargetNamedType("Contracts.IHasValue", undefined, csharpQualifiedTypeRenderShape("Contracts", "IHasValue"));
+  const shape = {
+    targetType: {
+      kind: "target-named",
+      id: "__TsonicShape_InterfaceBox",
+      csharpRender: { kind: "named", name: "__TsonicShape_InterfaceBox" },
+    },
+    implements: [contract],
+    members: [{
+      sourceName: "value",
+      targetName: "Value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const input = fakeInput();
+  const diagnostics = [];
+
+  beginObjectShapePlanning(input);
+  const firstType = csharpTypeFromObjectShapeFact(input, shape, diagnostics, identifier("first"));
+  const secondType = csharpTypeFromObjectShapeFact(input, shape, diagnostics, identifier("second"));
+  const declarations = takeObjectShapeDeclarations(input);
+  const printed = printCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: declarations,
+  });
+
+  assert.deepEqual(firstType, { kind: "IdentifierName", name: "__TsonicShape_InterfaceBox" });
+  assert.deepEqual(secondType, firstType);
+  assert.deepEqual(diagnostics, []);
+  assert.equal(declarations.length, 1);
+  assert.match(printed, /public class __TsonicShape_InterfaceBox : Contracts\.IHasValue/);
+  assert.match(printed, /public int Value\n\s+\{\n\s+get;\n\s+set;\n\s+\}/);
+});
+
+test("generated structural carriers fail closed when duplicate target identities carry different interfaces", () => {
+  const sourceExample = `
+    interface ReadableBox {
+      value: number;
+    }
+
+    interface WritableBox {
+      value: number;
+    }
+
+    declare const readable: ReadableBox;
+    declare const writable: WritableBox;
+  `;
+  assert.match(sourceExample, /ReadableBox/);
+  assert.match(sourceExample, /WritableBox/);
+
+  const readableContract = csharpTargetNamedType("Contracts.IReadableBox", undefined, csharpQualifiedTypeRenderShape("Contracts", "IReadableBox"));
+  const writableContract = csharpTargetNamedType("Contracts.IWritableBox", undefined, csharpQualifiedTypeRenderShape("Contracts", "IWritableBox"));
+  const baseShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__TsonicShape_CollidingBox",
+      csharpRender: { kind: "named", name: "__TsonicShape_CollidingBox" },
+    },
+    members: [{
+      sourceName: "value",
+      targetName: "Value",
+      memberKind: "property",
+      type: { kind: "source-primitive", name: "int32" },
+    }],
+  };
+  const input = fakeInput();
+  const diagnostics = [];
+
+  beginObjectShapePlanning(input);
+  csharpTypeFromObjectShapeFact(input, { ...baseShape, implements: [readableContract] }, diagnostics, identifier("readable"));
+  csharpTypeFromObjectShapeFact(input, { ...baseShape, implements: [writableContract] }, diagnostics, identifier("writable"));
+  const declarations = takeObjectShapeDeclarations(input);
+  const printed = printCsharpCompilationUnit({
+    kind: "CompilationUnit",
+    usings: [],
+    members: declarations,
+  });
+
+  assert.equal(declarations.length, 1);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Object-shape carrier '__TsonicShape_CollidingBox' was requested with incompatible finalized members/);
+  assert.match(printed, /Contracts\.IReadableBox/);
+  assert.doesNotMatch(printed, /Contracts\.IWritableBox/);
+});
+
 test("generated structural carriers fail closed when type-parameter facts are not declared on the carrier", () => {
   const sourceExample = `
     type Box<T> = { value: T };

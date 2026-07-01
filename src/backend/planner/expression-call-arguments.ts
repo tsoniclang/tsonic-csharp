@@ -111,7 +111,7 @@ function planCallArgumentExpression(
 ): CsharpExpression | undefined {
   if (expectedType !== undefined && conversionExpectedTargetType !== undefined) {
     if (HasSourceKind(input.ast, node, KindArrowFunction)) {
-      return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planExpression, expectedType, state, conversionExpectedTargetType);
+      return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planExpression, expectedType, state, conversionExpectedTargetType, planExpressionWithExpectedType);
     }
     if (HasSourceKind(input.ast, node, KindFunctionExpression)) {
       return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, state, conversionExpectedTargetType);

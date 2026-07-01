@@ -73,14 +73,103 @@ test("source-owned checked calls close over implicit source class constructor sy
   assert.equal(result.value.selectedSignature.member.returnType, pointType);
 });
 
+test("source-owned checked calls close over selected declaration return annotations", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const returnType = node("KindNumberKeyword", sourceFile);
+  const functionDeclaration = node("KindFunctionDeclaration", sourceFile, { Type: returnType });
+  const callee = node("KindIdentifier", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+  const symbol = { Flags: 0, Name: "classify" };
+  const float64 = { kind: "source-primitive", name: "float64" };
+
+  const result = sourceOwnedProvider(new Map([
+    [returnType, float64],
+  ])).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee,
+    sourceCalleeSymbol: symbol,
+    sourceSelectedDeclaration: functionDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    declarationsBySymbol: new Map([[symbol, [functionDeclaration]]]),
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
+  assert.equal(result.value.selectedSignature.member.returnType, float64);
+});
+
+test("source-owned checked calls close over callable type return annotations", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const returnType = node("KindNumberKeyword", sourceFile);
+  const functionType = node("KindFunctionTypeNode", sourceFile, { Type: returnType });
+  const variableDeclaration = node("KindVariableDeclaration", sourceFile, { Type: functionType });
+  const callee = node("KindIdentifier", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+  const symbol = { Flags: 0, Name: "callback" };
+  const float64 = { kind: "source-primitive", name: "float64" };
+
+  const result = sourceOwnedProvider(new Map([
+    [returnType, float64],
+  ])).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee,
+    sourceCalleeSymbol: symbol,
+    sourceSelectedDeclaration: variableDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    declarationsBySymbol: new Map([[symbol, [variableDeclaration]]]),
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
+  assert.equal(result.value.selectedSignature.member.returnType, float64);
+});
+
+test("source-owned checked calls use TSTS semantic return annotation when direct annotation facts are absent", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const returnType = node("KindNumberKeyword", sourceFile);
+  const functionDeclaration = node("KindFunctionDeclaration", sourceFile, { Type: returnType });
+  const callee = node("KindIdentifier", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+  const symbol = { Flags: 0, Name: "score" };
+  const semanticType = { kind: "semantic-number" };
+  const float64 = { kind: "source-primitive", name: "float64" };
+
+  const result = sourceOwnedProvider(new Map([
+    [semanticType, float64],
+  ])).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee,
+    sourceCalleeSymbol: symbol,
+    sourceSelectedDeclaration: functionDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    declarationsBySymbol: new Map([[symbol, [functionDeclaration]]]),
+    semanticTypesByTypeNode: new Map([[returnType, semanticType]]),
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
+  assert.equal(result.value.selectedSignature.member.returnType, float64);
+});
+
+
 function sourceOwnedProvider(targetTypes) {
   return createCsharpNativeOperationsProvider({
     getCsharpTargetBindingByTargetId: () => undefined,
     getCsharpTargetBindingByMetadataName: () => undefined,
-    getTargetTypeRefForSubject: (subject) => targetTypes.get(subject),
+    getTargetTypeRefForSubject: (subject, _context, options) => {
+      const targetType = targetTypes.get(subject);
+      return typeof targetType === "function" ? targetType(options) : targetType;
+    },
     getBaseTargetTypeRef: () => undefined,
     getCsharpObjectShapeFactForSubject: () => undefined,
     mapRuntimeCarrier: () => deferObservation,
+    getTargetTypeRefForType: (type) => targetTypes.get(type),
   });
 }
 
@@ -107,6 +196,8 @@ function fakeObservationContext(options = {}) {
           IsPrivateIdentifier: () => false,
           IsQualifiedName: () => false,
           IsPropertyAccessExpression: () => false,
+          IsFunctionTypeNode: (subject) => subject?.Kind === "KindFunctionTypeNode",
+          IsConstructorTypeNode: (subject) => subject?.Kind === "KindConstructorTypeNode",
         },
       },
       checker: {
@@ -115,6 +206,7 @@ function fakeObservationContext(options = {}) {
         getResolvedSymbolOrNil: () => undefined,
         getAliasedSymbol: () => undefined,
         getTypeAtLocation: () => undefined,
+        getTypeFromTypeNode: (node) => options.semanticTypesByTypeNode?.get(node),
         getTypeSymbol: () => undefined,
         getSymbolDeclarations: (symbol) => options.declarationsBySymbol?.get(symbol) ?? [],
       },
@@ -129,9 +221,10 @@ function sourceFileNode(fileName) {
   };
 }
 
-function node(kind, sourceFile) {
+function node(kind, sourceFile, fields = {}) {
   return {
     Kind: kind,
     SourceFile: sourceFile,
+    ...fields,
   };
 }

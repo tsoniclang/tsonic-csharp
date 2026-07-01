@@ -146,8 +146,19 @@ function planExpressionCore(
     case KindElementAccessExpression:
       return planElementAccessExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindArrowFunction:
-      return planArrowFunctionExpression(node, sourceFile, input, diagnostics, (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
-        planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state), undefined, state);
+      return planArrowFunctionExpression(
+        node,
+        sourceFile,
+        input,
+        diagnostics,
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics) =>
+          planExpression(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, state),
+        undefined,
+        state,
+        undefined,
+        (expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, expectedTargetType) =>
+          planExpressionWithExpectedType(expressionNode, expressionSourceFile, expressionInput, expressionDiagnostics, expressionExpectedType, expectedTypeSubject, state, expectedTargetType),
+      );
     case KindFunctionExpression:
       return planFunctionExpression(node, sourceFile, input, diagnostics, undefined, state);
     case KindCallExpression:

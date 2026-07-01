@@ -53,6 +53,7 @@ export function planMethodDeclaration(
     const returnExpressionType = getAsyncReturnExpressionExpectedType(declaration.Type, node, "method declaration", sourceFile, input, diagnostics);
     state.currentReturnExpressionType = returnExpressionType?.type;
     state.currentReturnExpressionTypeSubject = returnExpressionType?.subject;
+    state.currentReturnExpressionTargetType = returnExpressionType?.targetType;
   }
   return {
     kind: "MethodDeclaration",

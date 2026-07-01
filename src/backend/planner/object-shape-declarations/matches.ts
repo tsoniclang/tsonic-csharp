@@ -1,6 +1,7 @@
 import type {
   CsharpClassDeclaration,
   CsharpTypeMember,
+  CsharpTypeNode,
   CsharpTypeParameter,
 } from "../../roslyn/syntax.js";
 import type {
@@ -18,6 +19,9 @@ import {
 import {
   renderObjectShapeTypeParameters,
 } from "./type-parameters.js";
+import {
+  renderObjectShapeInterfaces,
+} from "./interfaces.js";
 
 export function objectShapeDeclarationMatches(
   declaration: CsharpClassDeclaration,
@@ -25,6 +29,10 @@ export function objectShapeDeclarationMatches(
 ): boolean {
   const typeParameters = renderObjectShapeTypeParameters(fact, undefined, undefined);
   if (typeParameters === undefined || !objectShapeTypeParametersMatch(declaration.typeParameters, typeParameters)) {
+    return false;
+  }
+  const interfaces = renderObjectShapeInterfaces(fact, undefined, undefined);
+  if (interfaces === undefined || !objectShapeInterfacesMatch(declaration.interfaces, interfaces)) {
     return false;
   }
   for (const member of fact.members) {
@@ -62,6 +70,24 @@ function isObjectShapeStorageDeclaration(
   member: CsharpTypeMember,
 ): member is Extract<CsharpTypeMember, { readonly kind: "FieldDeclaration" | "PropertyDeclaration" }> {
   return member.kind === "FieldDeclaration" || member.kind === "PropertyDeclaration";
+}
+
+function objectShapeInterfacesMatch(
+  actual: readonly CsharpTypeNode[] | undefined,
+  expected: readonly CsharpTypeNode[],
+): boolean {
+  const remaining = [...(actual ?? [])];
+  if (remaining.length !== expected.length) {
+    return false;
+  }
+  for (const expectedInterface of expected) {
+    const index = remaining.findIndex((actualInterface) => sameCsharpType(actualInterface, expectedInterface));
+    if (index < 0) {
+      return false;
+    }
+    remaining.splice(index, 1);
+  }
+  return true;
 }
 
 function objectShapeTypeParametersMatch(

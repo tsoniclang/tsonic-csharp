@@ -88,11 +88,12 @@ export function planReturnStatement(
   }
   const expectedReturnExpressionType = state.currentReturnExpressionType ?? state.currentReturnType;
   const expectedReturnExpressionTypeSubject = state.currentReturnExpressionTypeSubject ?? state.currentReturnTypeSubject;
+  const expectedReturnExpressionTargetType = state.currentReturnExpressionTargetType;
   const expression = statement.Expression === undefined
     ? undefined
     : expectedReturnExpressionType === undefined
       ? planExpression(statement.Expression, sourceFile, input, diagnostics, state)
-      : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state);
+      : planExpressionWithExpectedType(statement.Expression, sourceFile, input, diagnostics, expectedReturnExpressionType, expectedReturnExpressionTypeSubject, state, expectedReturnExpressionTargetType);
   if (statement.Expression !== undefined && expression === undefined) {
     return [];
   }

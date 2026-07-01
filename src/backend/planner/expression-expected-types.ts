@@ -102,7 +102,7 @@ export function planExpressionWithExpectedTypeCore(
     };
   }
   if (HasSourceKind(input.ast, node, KindArrowFunction)) {
-    return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType, undefined, expectedTargetType);
+    return planArrowFunctionExpression(node, sourceFile, input, diagnostics, planners.planExpression, expectedType, undefined, expectedTargetType, planners.planExpressionWithExpectedType);
   }
   if (HasSourceKind(input.ast, node, KindFunctionExpression)) {
     return planFunctionExpression(node, sourceFile, input, diagnostics, expectedType, undefined, expectedTargetType);
@@ -125,6 +125,7 @@ export function planExpressionWithExpectedTypeCore(
       expectedTypeSubject,
       planners.planExpression,
       planners.planExpressionWithExpectedType,
+      expectedTargetType,
     );
   }
   if (expectedType.kind === "NullableType" && !HasSourceKind(input.ast, node, KindNullKeyword)) {

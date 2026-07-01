@@ -1,4 +1,4 @@
-import type { Node, SourceFile } from "@tsonic/tsts";
+import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
@@ -47,7 +47,7 @@ export function getAsyncReturnExpressionExpectedType(
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
-): { readonly type: ReturnType<typeof getCsharpTypeForNode>; readonly subject?: Node } | undefined {
+): { readonly type: ReturnType<typeof getCsharpTypeForNode>; readonly subject?: Node; readonly targetType: TargetTypeRef } | undefined {
   const returnTargetType = getDeclarationReturnTargetType(typeNode, declarationNode, sourceFile, input);
   const resultTargetType = getCsharpTaskResultTargetType(returnTargetType);
   if (resultTargetType === undefined) {
@@ -66,7 +66,7 @@ export function getAsyncReturnExpressionExpectedType(
     return undefined;
   }
   const subject = getAsyncReturnExpressionSubject(typeNode, input);
-  return { type, ...(subject === undefined ? {} : { subject }) };
+  return { type, ...(subject === undefined ? {} : { subject }), targetType: resultTargetType };
 }
 
 function getDeclarationReturnTargetType(

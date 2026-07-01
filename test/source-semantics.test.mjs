@@ -1804,6 +1804,56 @@ test("source-semantics refines awaited source-primitive aliases from Promise/Tas
   assert.equal(awaitResultCarrier.name, "int32");
 });
 
+test("source-semantics records Promise/Task result carriers with async object-literal return shapes", () => {
+  const sourceText = `
+    export interface AsyncBox {
+      value: number;
+    }
+
+    export async function make(): Promise<AsyncBox> {
+      return { value: 1 };
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  assert.deepEqual(extensionHost.diagnostics.all(), []);
+
+  const promiseReference = collectTypeReferencesByText(sourceFile, session.ast, "Promise")[0];
+  const objectLiteral = collectNodesByKind(sourceFile, session.ast, "KindObjectLiteralExpression")[0];
+  assert.ok(promiseReference);
+  assert.ok(objectLiteral);
+
+  const promiseCarrier = extensionHost.facts.get(promiseReference, runtimeCarrierFactKey)?.carrier;
+  const objectLiteralCarrier = extensionHost.facts.get(objectLiteral, runtimeCarrierFactKey)?.carrier;
+  const objectLiteralShape = extensionHost.facts.get(objectLiteral, csharpObjectShapeFactKey);
+
+  assert.equal(promiseCarrier?.id, "System.Threading.Tasks.Task`1");
+  assert.equal(promiseCarrier.csharpTaskResultType.id, "AsyncBox");
+  assert.equal(objectLiteralCarrier?.id, objectLiteralShape?.targetType.id);
+  assert.deepEqual(objectLiteralShape?.members.map((member) => [member.sourceName, member.memberKind]), [["value", "property"]]);
+});
+
 test("source-semantics propagates object-shape callable carriers through parameter destructuring", () => {
   const sourceText = `
     export interface Named {
