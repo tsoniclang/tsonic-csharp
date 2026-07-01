@@ -67,10 +67,11 @@ export function isCsharpClosedCompatRuntimeCarrier(type: TargetTypeRef | undefin
 }
 
 export function isCsharpRuntimeUnionTargetType(type: TargetTypeRef | undefined): type is CsharpRuntimeUnionTargetTypeRef {
+  const arms = (type as Partial<CsharpRuntimeUnionTargetTypeRef> | undefined)?.csharpRuntimeUnionArms;
   return type?.kind === "target-named" &&
-    typeof type.id === "string" &&
-    type.id.startsWith("Tsonic.CSharp.Runtime.Union`") &&
-    Array.isArray((type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms);
+    Array.isArray(arms) &&
+    arms.length >= 2 &&
+    arms.length <= 8;
 }
 
 export function getCsharpRuntimeUnionArms(type: TargetTypeRef | undefined): readonly TargetTypeRef[] | undefined {

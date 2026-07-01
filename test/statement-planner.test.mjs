@@ -760,6 +760,105 @@ test("array destructuring assignment statements emit storage writes from finaliz
   ]);
 });
 
+test("array destructuring assignment consumes finalized target carrier resolution", () => {
+  const sourceExample = "[first] = values;";
+  assert.match(sourceExample, /\[first\] = values/);
+  const diagnostics = [];
+  const source = identifier("values");
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first")] },
+    },
+    source,
+  );
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      resolvedRuntimeCarrierFacts: new Map([[source, { carrier: { kind: "array", element: intType } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+      initializer: { kind: "IdentifierName", name: "values" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "first" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "ElementAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          argument: { kind: "LiteralExpression", value: 0 },
+        },
+      },
+    },
+  ]);
+});
+
+test("array destructuring assignment diagnostics preserve missing carrier evidence", () => {
+  const sourceExample = "[first] = values;";
+  assert.match(sourceExample, /\[first\] = values/);
+  const diagnostics = [];
+  const source = identifier("values");
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first")] },
+    },
+    source,
+  );
+
+  planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      missingRuntimeCarrierReason: "assignment source carrier was not finalized",
+      missingRuntimeCarrierEvidence: [{ message: "array destructuring assignment source lacked a finalized carrier fact" }],
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.equal(diagnostics.length, 2);
+  assert.match(diagnostics[0].message, /assignment source carrier was not finalized/);
+  assert.deepEqual(diagnostics[0].evidence, ["array destructuring assignment source lacked a finalized carrier fact"]);
+  assert.match(diagnostics[1].message, /Array destructuring assignment requires a finalized provider array or tuple runtime-carrier fact/);
+  assert.match(diagnostics[1].message, /assignment source carrier was not finalized/);
+  assert.deepEqual(diagnostics[1].evidence, ["array destructuring assignment source lacked a finalized carrier fact"]);
+});
+
 test("await expression statements emit await directly instead of assigning void results", () => {
   const diagnostics = [];
   const task = identifier("task");
@@ -1385,7 +1484,8 @@ function fakeInput(options = {}) {
 }
 
 function runtimeCarrierResolution(options, subject) {
-  const fact = options.runtimeCarrierFacts?.get(subject);
+  const fact = options.resolvedRuntimeCarrierFacts?.get(subject) ??
+    options.runtimeCarrierFacts?.get(subject);
   return fact === undefined
     ? missingCarrierResolution(options.missingRuntimeCarrierReason, options.missingRuntimeCarrierEvidence)
     : resolvedCarrierResolution(fact.carrier);

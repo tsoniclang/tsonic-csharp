@@ -144,7 +144,12 @@ export function findTargetMemberForElementAccess(
   options: TargetMemberSelectionOptions = {},
 ): CsharpTargetMember | undefined {
   const csharpBinding = csharpTargetBindingFact(binding);
-  const selectionRequest = targetMemberSelectionRequest([request.argument], declaration);
+  const selectionRequest = targetMemberSelectionRequest(
+    [request.argument],
+    declaration,
+    undefined,
+    getCheckedSourceSelectionEvidence(undefined, declaration),
+  );
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
     if (selectedMember !== undefined) {

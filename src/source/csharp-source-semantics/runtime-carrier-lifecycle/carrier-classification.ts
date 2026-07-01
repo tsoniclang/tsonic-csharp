@@ -6,6 +6,9 @@ import type {
 import {
   targetTypeRefContainsSourcePrimitive,
 } from "../target-ref-utils.js";
+import {
+  isCsharpRuntimeUnionTargetType,
+} from "../target-types.js";
 
 export function runtimeCarrierFactIsSafeForSharedSemanticTypeSubject(type: TargetTypeRef): boolean {
   if (targetTypeRefContainsSourcePrimitive(type)) {
@@ -45,7 +48,5 @@ export function isSourceDeclarationCarrier(type: TargetTypeRef): boolean {
 }
 
 export function isRuntimeUnionCarrier(type: TargetTypeRef): boolean {
-  return type.kind === "target-named" &&
-    ((type as { readonly csharpRuntimeUnionArms?: unknown }).csharpRuntimeUnionArms !== undefined ||
-      type.id.startsWith("Tsonic.CSharp.Runtime.Union`"));
+  return isCsharpRuntimeUnionTargetType(type);
 }

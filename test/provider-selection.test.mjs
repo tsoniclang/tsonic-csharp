@@ -3266,6 +3266,144 @@ test("C# provider maps selected string indexers from provider signature identity
   assert.equal(result.value.operation.operationId, "Example.Headers.Item(System.String)");
 });
 
+test("C# provider closes selected indexer arguments through provider conversion metadata", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const expression = {};
+  const argument = { kind: "source-primitive", name: "int32" };
+  const recordedFacts = [];
+  const objectType = csharpObjectType();
+  const member = {
+    ...indexer("Example.Headers.Item(System.Object)", objectType, { sourceName: "item", overloadGroup: "Example.Headers.Item" }),
+    parameters: [{
+      name: "key",
+      type: objectType,
+      passingMode: "by-value",
+      csharpAcceptsClosedSourceArgument: true,
+    }],
+  };
+  const binding = {
+    id: "Example.Headers",
+    sourceName: "Headers",
+    targetName: "Headers",
+    target: "csharp",
+    kind: "class",
+    members: [member],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver: {},
+    receiverType,
+    sourceSelectedSymbol: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Headers.Item", "item"),
+      signatureId: member.id,
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.operation.operationId, member.id);
+  const csharpOperation = recordedFacts.find((fact) => fact.subject === expression && fact.key === csharpTargetOperationFactKey)?.value;
+  assert.equal(csharpOperation?.selectedMember?.parameters[0]?.csharpAcceptsClosedSourceArgument, true);
+  assert.deepEqual(csharpOperation?.selectedMember?.parameters[0]?.type, objectType);
+});
+
+test("C# provider rejects selected indexer conversions without provider metadata", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const expression = {};
+  const argument = { kind: "source-primitive", name: "int32" };
+  const recordedFacts = [];
+  const objectType = csharpObjectType();
+  const member = indexer("Example.Headers.Item(System.Object)", objectType, { sourceName: "item", overloadGroup: "Example.Headers.Item" });
+  const binding = {
+    id: "Example.Headers",
+    sourceName: "Headers",
+    targetName: "Headers",
+    target: "csharp",
+    kind: "class",
+    members: [member],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver: {},
+    receiverType,
+    sourceSelectedSymbol: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Headers.Item", "item"),
+      signatureId: member.id,
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_NOT_FOUND");
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
+test("C# provider rejects indexer conversion metadata without exact signature identity", () => {
+  const provider = getNativeSemanticProvider();
+  const selectedDeclaration = {};
+  const receiverType = {};
+  const expression = {};
+  const argument = { kind: "source-primitive", name: "int32" };
+  const recordedFacts = [];
+  const objectType = csharpObjectType();
+  const member = {
+    ...indexer("Example.Headers.Item(System.Object)", objectType, { sourceName: "item", overloadGroup: "Example.Headers.Item" }),
+    parameters: [{
+      name: "key",
+      type: objectType,
+      passingMode: "by-value",
+      csharpAcceptsClosedSourceArgument: true,
+    }],
+  };
+  const binding = {
+    id: "Example.Headers",
+    sourceName: "Headers",
+    targetName: "Headers",
+    target: "csharp",
+    kind: "class",
+    members: [member],
+  };
+
+  const result = provider.mapCheckedElementAccess({
+    target: "csharp",
+    expression,
+    receiver: {},
+    receiverType,
+    sourceSelectedSymbol: selectedDeclaration,
+    argument,
+  }, fakeObservationContext({
+    targetBindingSubject: receiverType,
+    targetBinding: binding,
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: virtualMember("Example.Headers.Item", "item"),
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_INDEXER_NOT_FOUND");
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
 test("C# provider maps selected byref indexers from source marker target expressions", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
@@ -3976,6 +4114,14 @@ function csharpStringType() {
     id: "System.String",
     csharpRender: { kind: "predefined", name: "string" },
     csharpSpecialType: "string",
+  };
+}
+
+function csharpObjectType() {
+  return {
+    kind: "target-named",
+    id: "System.Object",
+    csharpRender: { kind: "predefined", name: "object" },
   };
 }
 

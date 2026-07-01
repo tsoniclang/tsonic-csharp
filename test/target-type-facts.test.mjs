@@ -24,15 +24,20 @@ import {
   csharpTargetNamedType,
   csharpVoidTargetType,
   csharpEnumerableTargetType,
+  csharpRuntimeUnionTargetType,
   getCsharpArrayLiteralElementTargetType,
   getCsharpArrayLiteralConstructionTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpReadOnlyIndexableCollectionElementTargetType,
+  isCsharpRuntimeUnionTargetType,
   isCsharpDenseMutableCollectionTargetType,
   isCsharpReadOnlyIndexableCollectionTargetType,
   csharpListTargetType,
   csharpReadOnlyListTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  isRuntimeUnionCarrier,
+} from "../dist/source/csharp-source-semantics/runtime-carrier-lifecycle/carrier-classification.js";
 import {
   csharpJsArrayCarrierTargetType,
 } from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
@@ -171,6 +176,32 @@ test("JS RegExp runtime carrier requires explicit JS surface metadata", () => {
 test("JS Date runtime carrier requires explicit JS surface metadata", () => {
   assert.equal(isCsharpJsDateRuntimeCarrier({ kind: "target-named", id: "Tsonic.CSharp.Js.Date" }), false);
   assert.equal(isCsharpJsDateRuntimeCarrier(csharpJsDateTargetType()), true);
+});
+
+test("runtime union carriers require explicit union-arm metadata", () => {
+  const arms = [
+    csharpSourcePrimitiveTargetType("float64"),
+    csharpStringTargetType(),
+  ];
+  const rawUnion = {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Runtime.Union`2",
+    typeArguments: arms,
+  };
+  const malformedUnion = {
+    kind: "target-named",
+    id: "Tsonic.CSharp.Runtime.Union`2",
+    csharpRuntimeUnionArms: [arms[0]],
+  };
+  const runtimeUnion = csharpRuntimeUnionTargetType(arms);
+
+  assert.ok(runtimeUnion);
+  assert.equal(isCsharpRuntimeUnionTargetType(rawUnion), false);
+  assert.equal(isRuntimeUnionCarrier(rawUnion), false);
+  assert.equal(isCsharpRuntimeUnionTargetType(malformedUnion), false);
+  assert.equal(isRuntimeUnionCarrier(malformedUnion), false);
+  assert.equal(isCsharpRuntimeUnionTargetType(runtimeUnion), true);
+  assert.equal(isRuntimeUnionCarrier(runtimeUnion), true);
 });
 
 test("type parameter constraints render finalized C# type facts", () => {

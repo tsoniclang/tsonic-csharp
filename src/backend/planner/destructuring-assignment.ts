@@ -34,6 +34,9 @@ import type {
   BindingDefaultExpressionPlanner,
 } from "./binding-array-patterns.js";
 import {
+  getArrayBoundaryCoreCarrierForExpression,
+} from "./array-boundary-facts.js";
+import {
   getCsharpTypeForExpressionCarrier,
 } from "./binding-patterns.js";
 import {
@@ -42,6 +45,11 @@ import {
 import {
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
+import {
+  getRuntimeCarrierForExpression,
+  missingCarrierDiagnosticDetail,
+  resolveRuntimeCarrierForExpression,
+} from "./runtime-carriers.js";
 import {
   requireCsharpIdentifier,
 } from "./identifiers.js";
@@ -138,7 +146,8 @@ export function planDestructuringAssignmentStatement(
     return [];
   }
   const sourceType = getCsharpTypeForExpressionCarrier(right, sourceFile, input, diagnostics, left, "Destructuring assignment source");
-  const sourceCarrier = input.facts.getRuntimeCarrierFact(right)?.carrier;
+  const sourceCarrier = getArrayBoundaryCoreCarrierForExpression(input, right, sourceFile) ??
+    getRuntimeCarrierForExpression(input, right, sourceFile);
   const tempName = allocateDestructuringTemp(state);
   const tempReference: CsharpExpression = { kind: "IdentifierName", name: tempName };
   return [
@@ -216,7 +225,7 @@ function planAssignmentPatternFromExpression(
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   if (pattern.kind === "array") {
-    return planArrayAssignmentPattern(pattern, sourceExpression, sourceFile, input, diagnostics, state, sourceCarrier, planDefaultExpressionWithExpectedType);
+    return planArrayAssignmentPattern(pattern, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, sourceCarrier, planDefaultExpressionWithExpectedType);
   }
   if (pattern.kind === "object") {
     return planObjectAssignmentPattern(pattern, sourceExpression, sourceNode, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
@@ -268,6 +277,7 @@ function planAssignmentTargetFromProjection(
 function planArrayAssignmentPattern(
   pattern: Extract<DestructuringAssignmentPattern, { readonly kind: "array" }>,
   sourceExpression: CsharpExpression,
+  sourceNode: Node | undefined,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
@@ -277,7 +287,9 @@ function planArrayAssignmentPattern(
 ): readonly CsharpStatement[] {
   const bindingCarrier = assignmentArrayCarrier(sourceCarrier);
   if (bindingCarrier === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(pattern.sourceNode, "Array destructuring assignment requires a finalized provider array or tuple runtime-carrier fact for the source expression."));
+    const resolution = resolveRuntimeCarrierForExpression(input, sourceNode, sourceFile);
+    const detail = missingCarrierDiagnosticDetail(resolution, "Runtime carrier fact is missing for the array destructuring assignment source expression.");
+    diagnostics.push(unsupportedNodeDiagnostic(pattern.sourceNode, `Array destructuring assignment requires a finalized provider array or tuple runtime-carrier fact for the source expression. ${detail.reason}`, detail.evidence));
     return [];
   }
   return pattern.elements.flatMap((element, index) => {
