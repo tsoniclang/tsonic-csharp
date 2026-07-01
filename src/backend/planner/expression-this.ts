@@ -97,6 +97,6 @@ function isClassInstanceMember(node: Node, input: TargetCompileInput): boolean {
 function unsupportedThis(context: string): ThisBindingClassification {
   return {
     kind: "unsupported",
-    reason: `C# this emission requires a TSTS-selected instance class receiver; ${context} uses JavaScript this-binding semantics that need explicit target facts and are not emitted as a fallback.`,
+    reason: `C# this emission requires a TSTS-selected instance class receiver; ${context} uses JavaScript this-binding semantics that need explicit target facts before emission.`,
   };
 }
