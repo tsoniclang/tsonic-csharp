@@ -42,6 +42,7 @@ import {
 } from "./statements.js";
 import {
   planClassMemberModifiers,
+  planPropertyModifiers,
 } from "./declaration-class-modifiers.js";
 import {
   planAttributesForSubject,
@@ -87,7 +88,7 @@ export function planPropertyDeclaration(
   return {
     kind: "PropertyDeclaration",
     name: propertyName,
-    modifiers: planClassMemberModifiers(node, declaration.name, input),
+    modifiers: planPropertyModifiers(node, declaration.name, sourceFile, input),
     attributes: planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     autoGetter: true,
@@ -152,7 +153,7 @@ function mergeGetterAccessor(
   return {
     kind: "PropertyDeclaration",
     name,
-    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name, input),
+    modifiers: existing?.modifiers ?? planPropertyModifiers(node, declaration.name, sourceFile, input),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     getter: {
@@ -204,7 +205,7 @@ function mergeSetterAccessor(
   return {
     kind: "PropertyDeclaration",
     name,
-    modifiers: existing?.modifiers ?? planClassMemberModifiers(node, declaration.name, input),
+    modifiers: existing?.modifiers ?? planPropertyModifiers(node, declaration.name, sourceFile, input),
     attributes: existing?.attributes ?? planAttributesForSubject(node, sourceFile, input, diagnostics),
     type,
     ...(existing?.getter === undefined ? {} : { getter: existing.getter }),

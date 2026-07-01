@@ -10,6 +10,7 @@ import {
   KindClassDeclaration,
   KindClassStaticBlockDeclaration,
   KindFunctionDeclaration,
+  KindGetAccessor,
   KindIdentifier,
   KindMethodDeclaration,
   KindParameter,
@@ -180,6 +181,56 @@ test("abstract classes and members are deterministic diagnostics until provider 
   assert.equal(diagnostics.length, 2);
   assert.match(diagnostics[0].message, /TypeScript-only modifier 'abstract' on class declaration/);
   assert.match(diagnostics[1].message, /TypeScript-only modifier 'abstract' on method declaration/);
+});
+
+test("accessor properties consume finalized project-source member dispatch facts", () => {
+  const sourceExample = `
+    class Animal {
+      get label(): string { return "animal"; }
+    }
+    class Dog extends Animal {
+      get label(): string { return "dog"; }
+    }
+  `;
+  assert.match(sourceExample, /get label/);
+
+  const sourceFile = sourceFileNode("/src/accessor-dispatch.ts");
+  const baseGetter = node(KindGetAccessor, {
+    name: identifier("label"),
+    Type: stringType(),
+    Body: block([]),
+  });
+  const derivedGetter = node(KindGetAccessor, {
+    name: identifier("label"),
+    Type: stringType(),
+    Body: block([]),
+  });
+  const baseClass = node(KindClassDeclaration, {
+    name: identifier("Animal"),
+    Members: { Nodes: [baseGetter] },
+  });
+  const derivedClass = node(KindClassDeclaration, {
+    name: identifier("Dog"),
+    Members: { Nodes: [derivedGetter] },
+  });
+  baseGetter.Parent = baseClass;
+  derivedGetter.Parent = derivedClass;
+  const diagnostics = [];
+
+  const input = fakeInput(sourceFile, {
+    memberDispatches: new Map([
+      [baseGetter, { overridesBase: false, hasDerivedOverride: true }],
+      [derivedGetter, { overridesBase: true, hasDerivedOverride: false }],
+    ]),
+  });
+  const basePlanned = planClassDeclaration(baseClass, sourceFile, input, diagnostics);
+  const derivedPlanned = planClassDeclaration(derivedClass, sourceFile, input, diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(basePlanned.members[0]?.kind, "PropertyDeclaration");
+  assert.deepEqual(basePlanned.members[0]?.modifiers, ["public", "virtual"]);
+  assert.equal(derivedPlanned.members[0]?.kind, "PropertyDeclaration");
+  assert.deepEqual(derivedPlanned.members[0]?.modifiers, ["public", "override"]);
 });
 
 test("async function declarations consume finalized Task return and await result facts", () => {
@@ -489,7 +540,7 @@ function fakeInput(sourceFile, options = {}) {
       getTypeAliasSymbol: () => undefined,
       getProjectSourceReferenceForNode: () => undefined,
       getProjectSourceDeclarationForNode: () => undefined,
-      getProjectSourceMethodDispatch: () => undefined,
+      getProjectSourceMemberDispatch: (subject) => options.memberDispatches?.get(subject),
       getTypeFromTypeNode: () => undefined,
       getTypeAtLocation: () => undefined,
       describeTypeAtLocation: () => undefined,

@@ -143,7 +143,7 @@ function fakeCompileInput(sourceFile, options = {}) {
       isProjectSourceConstructibleObjectForNode: () => false,
       getProjectSourceDeclarationForNode: () => undefined,
       getProjectSourceReferenceForNode: () => undefined,
-      getProjectSourceMethodDispatch: () => undefined,
+      getProjectSourceMemberDispatch: () => undefined,
       describeTypeAtLocation: () => undefined,
       lazy: {},
     },

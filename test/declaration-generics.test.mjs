@@ -280,7 +280,7 @@ function fakeInput(sourceFile, options) {
           : { declaration, sourceFile, symbol: { Name: declaration.name?.Text ?? "" } };
       },
       getProjectSourceDeclarationForNode: (subject) => references.get(subject),
-      getProjectSourceMethodDispatch: () => undefined,
+      getProjectSourceMemberDispatch: () => undefined,
       getTypeFromTypeNode: () => undefined,
       getTypeAtLocation: () => undefined,
       describeTypeAtLocation: () => undefined,
