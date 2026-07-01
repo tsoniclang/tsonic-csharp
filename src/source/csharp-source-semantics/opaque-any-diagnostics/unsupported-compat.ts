@@ -42,6 +42,10 @@ export function getUnsupportedCompatRuntimeOperation(
   if (sourceOperation !== undefined) {
     return sourceOperation;
   }
+  const anyDeleteOperation = getUnsupportedAnyDeleteOperation(node, lifecycleContext);
+  if (anyDeleteOperation !== undefined) {
+    return anyDeleteOperation;
+  }
   const operation = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey);
   if (isClosedCompatRuntimeOperationFact(operation) && !isExplicitTypeScriptAnyCompatOperation(node, lifecycleContext)) {
     return hardRejectedCompatOperation(
@@ -73,6 +77,12 @@ function isExplicitTypeScriptAnyCompatOperation(
   }
   if (ast.is.IsBinaryExpression(node) && getBinaryOperatorText(ast, node) === "=") {
     return isExplicitTypeScriptAnyAssignmentOperation(node, lifecycleContext);
+  }
+  if (ast.is.IsTypeOfExpression(node)) {
+    return isExplicitTypeScriptAnySubject(asNodeSubject(getNodeField(node, "Expression")), lifecycleContext);
+  }
+  if (ast.is.IsDeleteExpression(node)) {
+    return isExplicitTypeScriptAnyDeleteExpression(node, lifecycleContext);
   }
   return false;
 }
@@ -112,6 +122,42 @@ function isExplicitTypeScriptAnySubject(
   const sourceFile = compiler.ast.getSourceFile(subject);
   const type = sourceFile === undefined ? undefined : compiler.checker.getTypeAtLocation(subject, { sourceFile });
   return type !== undefined && compiler.typeShape.isAny(type);
+}
+
+function isExplicitTypeScriptAnyDeleteExpression(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
+): boolean {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || !compiler.ast.is.IsDeleteExpression(node)) {
+    return false;
+  }
+  const operand = asNodeSubject(getNodeField(node, "Expression"));
+  if (operand === undefined) {
+    return false;
+  }
+  if (isExplicitTypeScriptAnySubject(operand, lifecycleContext)) {
+    return true;
+  }
+  if (compiler.ast.is.IsPropertyAccessExpression(operand) || compiler.ast.is.IsElementAccessExpression(operand)) {
+    return isExplicitTypeScriptAnySubject(asNodeSubject(getNodeField(operand, "Expression")), lifecycleContext);
+  }
+  return false;
+}
+
+function getUnsupportedAnyDeleteOperation(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
+): UnsupportedCompatRuntimeOperation | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || !compiler.ast.is.IsDeleteExpression(node) || !isExplicitTypeScriptAnyDeleteExpression(node, lifecycleContext)) {
+    return undefined;
+  }
+  return hardRejectedCompatOperation(
+    "any-delete-operator",
+    "C# compatibility mode has no closed compat-runtime carrier operation for TypeScript any operator 'delete'.",
+    "delete mutates JavaScript object/array property presence and sparse-slot state; Tsonic must not approximate it without an explicit closed delete carrier operation and finalized target fact.",
+  );
 }
 
 export function getUnsupportedSourceCompatRuntimeOperation(

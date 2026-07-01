@@ -388,6 +388,7 @@ test("compat mode records opaque any call, element, and supported operator facts
     value + 1;
     value === 1;
     !value;
+    typeof value;
   `, { typescriptCompatibility: "compat" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
@@ -397,6 +398,7 @@ test("compat mode records opaque any call, element, and supported operator facts
   const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
   const binaryExpressions = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression");
   const prefixUnaryExpression = collectNodesByKind(sourceFile, session.ast, "KindPrefixUnaryExpression")[0];
+  const typeOfExpression = collectNodesByKind(sourceFile, session.ast, "KindTypeOfExpression")[0];
 
   assert.deepEqual(anyOperationDiagnostics(extensionHost).map((diagnostic) => diagnostic.message), []);
   assert.equal(extensionHost.facts.get(callExpression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.call");
@@ -404,12 +406,15 @@ test("compat mode records opaque any call, element, and supported operator facts
   assert.equal(extensionHost.facts.get(binaryExpressions[0], csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:+");
   assert.equal(extensionHost.facts.get(binaryExpressions[1], csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:===");
   assert.equal(extensionHost.facts.get(prefixUnaryExpression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:!");
+  assert.equal(extensionHost.facts.get(typeOfExpression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:typeof");
 });
 
 test("compat mode hard rejects unsupported opaque any operators without fallback", () => {
   const session = createNativeSession(`
     declare let value: any;
     value << 1;
+    "name" in value;
+    value += 1;
   `, { typescriptCompatibility: "compat" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
@@ -419,8 +424,29 @@ test("compat mode hard rejects unsupported opaque any operators without fallback
     diagnostic.extensionCode === "CSHARP_COMPAT_ANY_OPERATOR_UNSUPPORTED"
   );
 
+  assert.equal(diagnostics.length, 3);
+  assert.deepEqual(sortedMessages(diagnostics.map((diagnostic) => diagnostic.message)), sortedMessages([
+    "C# compatibility mode has no closed compat-runtime carrier operation for TypeScript any operator '<<'.",
+    "C# compatibility mode has no closed compat-runtime carrier operation for TypeScript any operator 'in'.",
+    "C# compatibility mode has no closed compat-runtime carrier operation for TypeScript any operator '+='.",
+  ]));
+  assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
+});
+
+test("compat mode hard rejects opaque any delete without fallback", () => {
+  const session = createNativeSession(`
+    declare let value: any;
+    delete value.name;
+  `, { typescriptCompatibility: "compat" });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const diagnostics = compatRuntimeDiagnostics(extensionHost);
+
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /operator '<<'/u);
+  assert.equal(diagnostics[0].message, "C# compatibility mode has no closed compat-runtime carrier operation for TypeScript any operator 'delete'.");
+  assert.match(JSON.stringify(diagnostics[0].evidence), /sparse-slot state/u);
   assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
 });
 

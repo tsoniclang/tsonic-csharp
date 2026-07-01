@@ -119,7 +119,7 @@ function planExpressionCore(
     case KindRegularExpressionLiteral:
       return planRegularExpressionLiteral(node, sourceFile, input, diagnostics);
     case KindTypeOfExpression:
-      return planTypeofExpression(node, sourceFile, input, diagnostics);
+      return planTypeofExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindDeleteExpression:
       return tryPlanJsArrayDeleteExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindArrayLiteralExpression: {

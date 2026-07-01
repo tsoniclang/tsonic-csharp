@@ -164,6 +164,9 @@ function isUnsupportedCompatAnyOperator(
     const operator = getPrefixUnaryOperatorText(ast, node);
     return operator !== undefined && compatAnyUnaryOperatorOperation(operator) === undefined;
   }
+  if (ast.is.IsDeleteExpression(node)) {
+    return true;
+  }
   return false;
 }
 
@@ -175,6 +178,7 @@ function hasExistingCompatOperationDiagnostic(
     diagnostic.nodeOrSpan === node &&
     (
       diagnostic.extensionCode === "CSHARP_COMPAT_ANY_OPERATOR_UNSUPPORTED" ||
+      diagnostic.extensionCode === unsupportedCompatRuntimeOperationCode ||
       diagnostic.extensionCode === "CSHARP_OPERATOR_NOT_MAPPED"
     )
   );

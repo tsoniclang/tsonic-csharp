@@ -9,6 +9,7 @@ import type {
 import {
   csharpBooleanTargetType,
   csharpQualifiedTypeRenderShape,
+  csharpStringTargetType,
   csharpTargetNamedType,
 } from "./target-types.js";
 import {
@@ -75,12 +76,10 @@ export function compatAnyUnaryOperatorOperation(operator: string): CsharpTargetM
   if (memberName === undefined) {
     return undefined;
   }
-  const resultType = operator === "!"
-    ? csharpBooleanTargetType()
-    : tsValueType;
+  const resultType = compatUnaryOperatorResultType(operator);
   return compatRuntimeStaticMethodOperation(`tsonic.csharp.compat.any.operator:${operator}`, memberName, [
     { kind: "source-argument", index: 0 },
-    { kind: "literal", value: operator },
+    ...(memberName === "ApplyCompatTypeof" ? [] : [{ kind: "literal" as const, value: operator }]),
   ], resultType);
 }
 
@@ -155,7 +154,7 @@ function compatBooleanOperator(operator: string): boolean {
   }
 }
 
-function compatUnaryOperatorRuntimeMember(operator: string): "ApplyCompatUnary" | "ApplyCompatUnaryBoolean" | undefined {
+function compatUnaryOperatorRuntimeMember(operator: string): "ApplyCompatUnary" | "ApplyCompatUnaryBoolean" | "ApplyCompatTypeof" | undefined {
   switch (operator) {
     case "+":
     case "-":
@@ -163,9 +162,21 @@ function compatUnaryOperatorRuntimeMember(operator: string): "ApplyCompatUnary" 
       return "ApplyCompatUnary";
     case "!":
       return "ApplyCompatUnaryBoolean";
+    case "typeof":
+      return "ApplyCompatTypeof";
     default:
       return undefined;
   }
+}
+
+function compatUnaryOperatorResultType(operator: string): TargetTypeRef {
+  if (operator === "!") {
+    return csharpBooleanTargetType();
+  }
+  if (operator === "typeof") {
+    return csharpStringTargetType();
+  }
+  return tsValueType;
 }
 
 function compatRuntimeMethodOperation(

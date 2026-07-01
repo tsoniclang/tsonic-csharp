@@ -137,6 +137,9 @@ function getCompatRuntimeOperationFact(
     const operator = getPrefixUnaryOperatorText(ast, node);
     return operator === undefined ? undefined : compatAnyUnaryOperatorOperation(operator);
   }
+  if (ast.is.IsTypeOfExpression(node)) {
+    return compatAnyUnaryOperatorOperation("typeof");
+  }
   return undefined;
 }
 

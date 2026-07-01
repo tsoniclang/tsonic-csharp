@@ -18,6 +18,7 @@ import {
   KindNewExpression,
   KindNumericLiteral,
   KindPropertyAccessExpression,
+  KindTypeOfExpression,
 } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import {
@@ -213,11 +214,13 @@ test("compat any operators render static runtime helper calls from finalized ope
   const one = numeric("1");
   const plus = binary(value, one, "KindPlusToken");
   const equal = binary(value, one, "KindEqualsEqualsEqualsToken");
+  const typeOf = typeOfExpression(value);
   const input = fakeInput({
     runtimeCarriers: new Map([[value, anyCarrierFact()]]),
     selectedOperators: new Map([
       [plus, selectedOperator("tsonic.csharp.compat.any.operator:+", "+")],
       [equal, selectedOperator("tsonic.csharp.compat.any.operator:===", "===")],
+      [typeOf, selectedOperator("tsonic.csharp.compat.any.operator:typeof", "typeof")],
     ]),
     operations: new Map([
       [plus, compatRuntimeStaticOperation("tsonic.csharp.compat.any.operator:+", "ApplyCompatBinary", [
@@ -230,18 +233,25 @@ test("compat any operators render static runtime helper calls from finalized ope
         { kind: "literal", value: "===" },
         { kind: "source-argument", index: 1 },
       ], boolCarrier())],
+      [typeOf, compatRuntimeStaticOperation("tsonic.csharp.compat.any.operator:typeof", "ApplyCompatTypeof", [
+        { kind: "source-argument", index: 0 },
+      ], stringCarrier())],
     ]),
   });
   const plusDiagnostics = [];
   const equalDiagnostics = [];
+  const typeOfDiagnostics = [];
 
   const plusOutput = planExpression(plus, {}, input, plusDiagnostics);
   const equalOutput = planExpression(equal, {}, input, equalDiagnostics);
+  const typeOfOutput = planExpression(typeOf, {}, input, typeOfDiagnostics);
 
   assert.deepEqual(plusDiagnostics, []);
   assert.deepEqual(equalDiagnostics, []);
+  assert.deepEqual(typeOfDiagnostics, []);
   assert.equal(printCsharpExpression(plusOutput), 'Tsonic.CSharp.Js.TsValue.ApplyCompatBinary(value, "+", 1)');
   assert.equal(printCsharpExpression(equalOutput), 'Tsonic.CSharp.Js.TsValue.ApplyCompatBinaryBoolean(value, "===", 1)');
+  assert.equal(printCsharpExpression(typeOfOutput), "Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(value)");
 });
 
 test("source-owned selected call facts bypass provider-call ownership gates", () => {
@@ -442,6 +452,14 @@ function boolCarrier() {
   };
 }
 
+function stringCarrier() {
+  return {
+    kind: "target-named",
+    id: "System.String",
+    csharpRender: { kind: "predefined", name: "string" },
+  };
+}
+
 function anyCarrierFact() {
   return { carrier: { kind: "opaque", id: "any" } };
 }
@@ -488,6 +506,13 @@ function binary(left, right, operator = KindEqualsToken) {
     Left: left,
     Right: right,
     OperatorToken: { Kind: operator },
+  };
+}
+
+function typeOfExpression(expression) {
+  return {
+    Kind: KindTypeOfExpression,
+    Expression: expression,
   };
 }
 

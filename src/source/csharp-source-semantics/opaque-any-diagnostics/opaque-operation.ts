@@ -65,7 +65,35 @@ export function getOpaqueAnyOperation(
       ? { kind: "operator", description: "C# prefix unary operator emission" }
       : undefined;
   }
+  if (ast.is.IsTypeOfExpression(node)) {
+    return hasOpaqueAnyCarrier(asNodeSubject(getNodeField(node, "Expression")), lifecycleContext)
+      ? { kind: "operator", description: "C# 'typeof' operator emission" }
+      : undefined;
+  }
+  if (ast.is.IsDeleteExpression(node)) {
+    const operand = asNodeSubject(getNodeField(node, "Expression"));
+    return isAnyDeleteOperand(operand, ast, lifecycleContext)
+      ? { kind: "operator", description: "C# 'delete' operator emission" }
+      : undefined;
+  }
   return undefined;
+}
+
+function isAnyDeleteOperand(
+  operand: Node | undefined,
+  ast: NonNullable<ExtensionLifecycleContext["compiler"]>["ast"],
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
+): boolean {
+  if (operand === undefined) {
+    return false;
+  }
+  if (hasOpaqueAnyCarrier(operand, lifecycleContext)) {
+    return true;
+  }
+  if (ast.is.IsPropertyAccessExpression(operand) || ast.is.IsElementAccessExpression(operand)) {
+    return hasOpaqueAnyCarrier(asNodeSubject(getNodeField(operand, "Expression")), lifecycleContext);
+  }
+  return false;
 }
 
 function hasOpaqueAnyCarrier(
