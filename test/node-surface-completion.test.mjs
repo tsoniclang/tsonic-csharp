@@ -27,6 +27,8 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   assertModuleExport(bindingProvider, "node:fs", "readdirSync", "node:fs.readdirSync(System.String)");
   assertModuleExport(bindingProvider, "node:fs/promises", "readFile", "node:fs/promises.readFile(System.String,System.String)");
   assertModuleExport(bindingProvider, "node:fs/promises", "readFile", "node:fs/promises.readFile(System.String)");
+  assertModuleExport(bindingProvider, "node:fs/promises", "writeFile", "node:fs/promises.writeFile(System.String,Tsonic.CSharp.Node.Buffer)");
+  assertModuleExport(bindingProvider, "node:fs/promises", "appendFile", "node:fs/promises.appendFile(System.String,Tsonic.CSharp.Node.Buffer)");
   assertModuleExport(bindingProvider, "node:fs/promises", "readdir", "node:fs/promises.readdir(System.String)");
   assertModuleExport(bindingProvider, "node:path", "format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)");
   assertClassMember(bindingProvider, "node:buffer", "Buffer", "compare", "node:buffer.Buffer.compare(Tsonic.CSharp.Node.Buffer,Tsonic.CSharp.Node.Buffer)");
@@ -285,8 +287,8 @@ test("selected NodeJS Buffer source type-checks compare provider declarations", 
 
 test("selected NodeJS fs promises source type-checks and maps through provider-package declarations", () => {
   const session = createCsharpSession(`
-    import type { Buffer } from "node:buffer";
-    import { chmod, cp, readFile, readlink, realpath, rmdir, stat, symlink, writeFile } from "node:fs/promises";
+    import { Buffer } from "node:buffer";
+    import { appendFile, chmod, cp, readFile, readlink, realpath, rmdir, stat, symlink, writeFile } from "node:fs/promises";
 
     export function load(path: string): Promise<string> {
       return readFile(path, "utf8");
@@ -300,6 +302,11 @@ test("selected NodeJS fs promises source type-checks and maps through provider-p
       await writeFile(path, "hello", "utf8");
       const stats = await stat(path);
       return stats.size;
+    }
+
+    export async function saveBytes(path: string): Promise<void> {
+      await writeFile(path, Buffer.from("a", "utf8"));
+      await appendFile(path, Buffer.from("b", "utf8"));
     }
 
     export async function prepareLink(target: string, path: string): Promise<string> {
@@ -321,6 +328,8 @@ test("selected NodeJS fs promises source type-checks and maps through provider-p
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.readFile(System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.writeFile(System.String,System.String,System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.writeFile(System.String,Tsonic.CSharp.Node.Buffer)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.appendFile(System.String,Tsonic.CSharp.Node.Buffer)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.stat(System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.symlink(System.String,System.String,System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.chmod(System.String,System.Int32)"));

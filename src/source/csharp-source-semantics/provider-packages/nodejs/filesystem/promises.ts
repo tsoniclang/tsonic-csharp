@@ -88,6 +88,10 @@ export function nodeFsPromisesCallTargetMembers(): readonly NodeFsCallTargetMemb
       targetParameter("data", stringTargetType),
       targetParameter("encoding", stringTargetType, { optional: true }),
     ], targetReturnType: taskTargetType(voidTargetType) }),
+    fsPromiseCall({ exportName: "appendFile", signatureId: "node:fs/promises.appendFile(System.String,Tsonic.CSharp.Node.Buffer)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.appendFile(System.String,Tsonic.CSharp.Node.Buffer)", sourceName: "appendFile", targetName: "appendFile", providerParameters: [stringParameter("path"), { name: "data", type: bufferProviderType }], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
+      targetParameter("path", stringTargetType),
+      targetParameter("data", bufferTargetType),
+    ], targetReturnType: taskTargetType(voidTargetType) }),
     fsPromiseCall({ exportName: "chmod", signatureId: "node:fs/promises.chmod(System.String,System.Int32)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.chmod(System.String,System.Int32)", sourceName: "chmod", targetName: "chmod", providerParameters: [stringParameter("path"), numberParameter("mode")], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("mode", intTargetType),
@@ -154,7 +158,7 @@ export function nodeFsPromisesCallTargetMembers(): readonly NodeFsCallTargetMemb
       targetParameter("data", stringTargetType),
       targetParameter("encoding", stringTargetType, { optional: true }),
     ], targetReturnType: taskTargetType(voidTargetType) }),
-    fsPromiseCall({ exportName: "writeFile", signatureId: "node:fs/promises.writeFile(System.String,Tsonic.CSharp.Node.Buffer)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.writeFileBytes(System.String,Tsonic.CSharp.Node.Buffer)", sourceName: "writeFile", targetName: "writeFileBytes", providerParameters: [stringParameter("path"), { name: "data", type: bufferProviderType }], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
+    fsPromiseCall({ exportName: "writeFile", signatureId: "node:fs/promises.writeFile(System.String,Tsonic.CSharp.Node.Buffer)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.writeFile(System.String,Tsonic.CSharp.Node.Buffer)", sourceName: "writeFile", targetName: "writeFile", providerParameters: [stringParameter("path"), { name: "data", type: bufferProviderType }], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("data", bufferTargetType),
     ], targetReturnType: taskTargetType(voidTargetType) }),
