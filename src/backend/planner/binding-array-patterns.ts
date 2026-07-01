@@ -15,6 +15,7 @@ import {
 } from "./array-boundary-facts.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
+import { csharpTupleExpression } from "./csharp-tuples.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   missingCarrierDiagnosticDetail,
@@ -267,24 +268,18 @@ function planTupleRestBindingElement(
     return [];
   }
   const restElements = sourceCarrier.elements.slice(index);
-  if (restElements.length < 2) {
-    diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Tuple rest destructuring requires at least two finalized tuple slice elements before C# emission."));
-    return [];
-  }
   const restCarrier = { kind: "tuple" as const, elements: restElements };
   const projectedType = csharpTypeFromTargetTypeRef(restCarrier);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(elementNode, "Tuple rest destructuring requires a renderable provider tuple carrier type before C# emission."));
     return [];
   }
-  const projected: CsharpExpression = {
-    kind: "TupleExpression",
-    elements: restElements.map((_, offset) => ({
+  const projectedElements = restElements.map((_, offset) => ({
       kind: "SimpleMemberAccessExpression" as const,
       receiver: sourceExpression,
       name: `Item${index + offset + 1}`,
-    })),
-  };
+    }));
+  const projected = csharpTupleExpression(projectedElements, projectedType);
   return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, restCarrier);
 }
 

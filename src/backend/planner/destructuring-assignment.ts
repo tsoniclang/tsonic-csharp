@@ -54,6 +54,7 @@ import {
   requireCsharpIdentifier,
 } from "./identifiers.js";
 import { runtimeArrayHelperCall } from "./array-helpers.js";
+import { csharpTupleExpression } from "./csharp-tuples.js";
 import {
   csharpTypeFromObjectShapeFact,
   objectShapeStorageMemberName,
@@ -384,24 +385,18 @@ function planTupleAssignmentRestElement(
   planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   const restElements = sourceCarrier.elements.slice(index);
-  if (restElements.length < 2) {
-    diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Tuple rest destructuring assignment requires at least two finalized tuple slice elements before C# emission."));
-    return [];
-  }
   const restCarrier = { kind: "tuple" as const, elements: restElements };
   const projectedType = csharpTypeFromTargetTypeRef(restCarrier);
   if (projectedType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Tuple rest destructuring assignment requires a renderable provider tuple carrier type before C# emission."));
     return [];
   }
-  const projected: CsharpExpression = {
-    kind: "TupleExpression",
-    elements: restElements.map((_, offset) => ({
+  const projectedElements = restElements.map((_, offset) => ({
       kind: "SimpleMemberAccessExpression" as const,
       receiver: sourceExpression,
       name: `Item${index + offset + 1}`,
-    })),
-  };
+    }));
+  const projected = csharpTupleExpression(projectedElements, projectedType);
   return planAssignmentTargetFromProjection(
     element.target,
     projected,

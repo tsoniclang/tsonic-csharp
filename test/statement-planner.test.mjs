@@ -909,6 +909,70 @@ test("tuple destructuring assignment emits rest tuple from finalized carrier fac
   ]);
 });
 
+test("tuple destructuring assignment emits one-element rest as System.ValueTuple from finalized carrier facts", () => {
+  const diagnostics = [];
+  const source = identifier("values");
+  const restElement = {
+    Kind: KindSpreadElement,
+    Expression: identifier("rest"),
+  };
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first"), restElement] },
+    },
+    source,
+  );
+  const stringType = csharpStringTargetType();
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier: { kind: "tuple", elements: [stringType, intType] } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[2], {
+    kind: "ExpressionStatement",
+    expression: {
+      kind: "AssignmentExpression",
+      left: { kind: "IdentifierName", name: "rest" },
+      operatorToken: { kind: "EqualsToken" },
+      right: {
+        kind: "ObjectCreationExpression",
+        type: {
+          kind: "QualifiedName",
+          left: { kind: "IdentifierName", name: "System" },
+          name: "ValueTuple",
+          typeArguments: [{ kind: "PredefinedType", name: "int" }],
+        },
+        arguments: [{
+          kind: "Argument",
+          expression: {
+            kind: "SimpleMemberAccessExpression",
+            receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+            name: "Item2",
+          },
+        }],
+      },
+    },
+  });
+});
+
 test("array destructuring assignment diagnostics preserve missing carrier evidence", () => {
   const sourceExample = "[first] = values;";
   assert.match(sourceExample, /\[first\] = values/);

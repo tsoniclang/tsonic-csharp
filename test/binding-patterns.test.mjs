@@ -437,7 +437,7 @@ test("tuple destructuring defaults fail closed without optional-element facts", 
   assert.match(diagnostics[0].message, /Tuple destructuring defaults require finalized tuple optional-element facts/);
 });
 
-test("tuple rest destructuring fails closed without tuple slice facts", () => {
+test("tuple rest destructuring emits one-element System.ValueTuple from finalized carrier facts", () => {
   const sourceExample = `
     declare const value: [number, number];
     const [first, ...rest] = value;
@@ -462,18 +462,46 @@ test("tuple rest destructuring fails closed without tuple slice facts", () => {
     createDestructuringPlannerState(),
   );
 
-  assert.deepEqual(statements, [{
-    kind: "LocalDeclarationStatement",
-    name: "first",
-    type: { kind: "PredefinedType", name: "int" },
-    initializer: {
-      kind: "SimpleMemberAccessExpression",
-      receiver: { kind: "IdentifierName", name: "value" },
-      name: "Item1",
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "first",
+      type: { kind: "PredefinedType", name: "int" },
+      initializer: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        name: "Item1",
+      },
     },
-  }]);
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Tuple rest destructuring requires finalized tuple slice facts/);
+    {
+      kind: "LocalDeclarationStatement",
+      name: "rest",
+      type: {
+        kind: "QualifiedName",
+        left: { kind: "IdentifierName", name: "System" },
+        name: "ValueTuple",
+        typeArguments: [{ kind: "PredefinedType", name: "int" }],
+      },
+      initializer: {
+        kind: "ObjectCreationExpression",
+        type: {
+          kind: "QualifiedName",
+          left: { kind: "IdentifierName", name: "System" },
+          name: "ValueTuple",
+          typeArguments: [{ kind: "PredefinedType", name: "int" }],
+        },
+        arguments: [{
+          kind: "Argument",
+          expression: {
+            kind: "SimpleMemberAccessExpression",
+            receiver: { kind: "IdentifierName", name: "value" },
+            name: "Item2",
+          },
+        }],
+      },
+    },
+  ]);
 });
 
 test("nested array parameter destructuring uses finalized nested array carrier facts", () => {

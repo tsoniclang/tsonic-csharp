@@ -40,6 +40,7 @@ import {
 import {
   getTargetTypeRefForNode,
 } from "./runtime-carriers.js";
+import { csharpTypeFromTargetTypeRef } from "./target-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
   planArrowFunctionExpression,
@@ -150,8 +151,11 @@ export function planExpressionWithExpectedTypeCore(
       return undefined;
     }
   }
+  if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTargetType?.kind === "tuple") {
+    return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners, csharpTypeFromTargetTypeRef(expectedTargetType));
+  }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "TupleType") {
-    return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners);
+    return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners, expectedType);
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTargetType !== undefined && expectedTargetType.kind !== "array" && expectedTargetType.kind !== "tuple") {
     return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedTargetType, planners);
