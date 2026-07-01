@@ -3599,7 +3599,7 @@ test("NodeJS provider package rejects optional-arity calls without selected sign
   assert.equal(result.diagnostic.evidence?.[0]?.details?.reason, "NodeJS provider-package calls require TSTS-selected provider signature identity before target member selection");
 });
 
-test("NodeJS provider package rejects selected provider members absent from the explicit surface map", () => {
+test("NodeJS provider package maps Buffer.isBuffer from selected provider member identity", () => {
   const call = {};
   const selectedSignature = {};
   const facts = new TestFactStore();
@@ -3614,10 +3614,8 @@ test("NodeJS provider package rejects selected provider members absent from the 
 
   const result = provider.mapCheckedCall(nodejsCallRequest(call, selectedSignature), fakeContext(facts));
 
-  assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
-  assert.match(result.diagnostic.message, /member 'isBuffer'/);
-  assert.match(result.diagnostic.message, /node:buffer\.Buffer\.isBuffer/);
+  assert.equal(result.kind, "accept");
+  assert.equal(result.value.selectedSignature.member.id, "Tsonic.CSharp.Node.Buffer.isBuffer(System.Object)");
 });
 
 test("NodeJS provider package rejects single-signature calls without selected signature identity", () => {
