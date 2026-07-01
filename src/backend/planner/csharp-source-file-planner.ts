@@ -1,5 +1,6 @@
 import {
   AsExportAssignment,
+  AsFunctionDeclaration,
   KindClassDeclaration,
   KindDebuggerStatement,
   KindDoStatement,
@@ -102,7 +103,9 @@ export function planSourceFile(
         namespaceMembers.push(planEnumDeclaration(statement, sourceFile, input, diagnostics));
         break;
       case KindFunctionDeclaration:
-        members.push(planFunctionDeclaration(statement, sourceFile, input, diagnostics));
+        if (AsFunctionDeclaration(statement)?.Body !== undefined) {
+          members.push(planFunctionDeclaration(statement, sourceFile, input, diagnostics));
+        }
         break;
       case KindClassDeclaration:
         namespaceMembers.push(planClassDeclaration(statement, sourceFile, input, diagnostics));

@@ -161,6 +161,212 @@ test(".NET provider model contract rejects metadata-name fallback identities and
   assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].targetIds"), true);
 });
 
+test(".NET provider model contract rejects assembly identity drift", () => {
+  const diagnostic = validateDotnetModuleModelContract({
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    namespaceName: "ProviderContractFixtures",
+    assembly: { name: "Acme.Contracts" },
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "Widget",
+        namespaceName: "ProviderContractFixtures",
+        targetId: "Contoso.Contracts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null::ProviderContractFixtures.Widget",
+        metadataName: "ProviderContractFixtures.Widget",
+        assembly: { name: "Acme.Contracts" },
+      },
+    ],
+    unsupportedExports: [
+      {
+        kind: "unsupported-type-family",
+        sourceName: "Collision",
+        reason: "Duplicate source-visible CLR type family.",
+        targetIds: [
+          "Contoso.Contracts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null::ProviderContractFixtures.Collision",
+        ],
+        metadataNames: ["ProviderContractFixtures.Collision"],
+        assemblies: [{ name: "Acme.Contracts" }],
+      },
+    ],
+  });
+
+  assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].targetId"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.unsupportedExports[0].targetIds[0]"), true);
+});
+
+test(".NET provider model contract rejects unsupported discriminants and conversion operator drift", () => {
+  const diagnostic = validateDotnetModuleModelContract({
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    namespaceName: "ProviderContractFixtures",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "record",
+        sourceName: "Broken",
+        namespaceName: "ProviderContractFixtures",
+        targetId: testTargetId("ProviderContractFixtures.Broken"),
+        metadataName: "ProviderContractFixtures.Broken",
+        renderShape: { kind: "qualified-name", name: "" },
+        members: [
+          {
+            kind: "accessor",
+            sourceName: "value",
+            targetName: "Value",
+            targetId: testTargetId("ProviderContractFixtures.Broken.Value"),
+            metadataName: "ProviderContractFixtures.Broken.Value",
+          },
+        ],
+        conversionOperators: [
+          {
+            id: testTargetId("ProviderContractFixtures.Broken.op_Implicit(System.Double)"),
+            targetName: "op_Implicit",
+            metadataName: "ProviderContractFixtures.Broken.op_Implicit(System.Double)",
+            conversionKind: "explicit",
+            sourceType: { kind: "source-primitive", name: "float64" },
+            targetType: {
+              kind: "named",
+              targetId: testTargetId("ProviderContractFixtures.Broken"),
+              metadataName: "ProviderContractFixtures.Broken",
+            },
+          },
+          {
+            id: testTargetId("ProviderContractFixtures.Broken.op_CheckedExplicit(System.Double)"),
+            targetName: "op_CheckedExplicit",
+            metadataName: "ProviderContractFixtures.Broken.op_CheckedExplicit(System.Double)",
+            conversionKind: "checked-explicit",
+            sourceType: { kind: "source-primitive", name: "float64" },
+            targetType: {
+              kind: "named",
+              targetId: testTargetId("ProviderContractFixtures.Broken"),
+              metadataName: "ProviderContractFixtures.Broken",
+            },
+          },
+        ],
+      },
+      {
+        kind: "alias",
+        sourceName: "Alias",
+      },
+    ],
+  });
+
+  assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].typeKind"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].renderShape.kind"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].renderShape.name"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].kind"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[0].conversionKind"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[1].targetName"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[1].conversionKind"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[1].kind"), true);
+});
+
+test(".NET provider model contract rejects supported rows with unsupported CLR source shapes", () => {
+  const diagnostic = validateDotnetModuleModelContract({
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    namespaceName: "ProviderContractFixtures",
+    exports: [
+      {
+        kind: "type",
+        typeKind: "class",
+        sourceName: "UnsupportedShapeTarget",
+        namespaceName: "ProviderContractFixtures",
+        targetId: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget"),
+        metadataName: "ProviderContractFixtures.UnsupportedShapeTarget",
+        members: [
+          {
+            kind: "property",
+            sourceName: "pointer",
+            targetName: "Pointer",
+            targetId: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.Pointer"),
+            metadataName: "ProviderContractFixtures.UnsupportedShapeTarget.Pointer",
+            readable: true,
+            type: {
+              kind: "pointer",
+              pointee: { kind: "source-primitive", name: "int32" },
+            },
+          },
+          {
+            kind: "method",
+            sourceName: "acceptMatrix",
+            targetName: "AcceptMatrix",
+            targetId: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.AcceptMatrix"),
+            metadataName: "ProviderContractFixtures.UnsupportedShapeTarget.AcceptMatrix",
+            signatures: [
+              {
+                id: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.AcceptMatrix(System.Int32[,])"),
+                parameters: [
+                  {
+                    name: "matrix",
+                    type: {
+                      kind: "array",
+                      rank: 2,
+                      elementType: { kind: "source-primitive", name: "int32" },
+                    },
+                    passingMode: "by-value",
+                  },
+                ],
+                returnType: { kind: "void" },
+              },
+            ],
+          },
+          {
+            kind: "method",
+            sourceName: "choose",
+            targetName: "Choose",
+            targetId: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.Choose"),
+            metadataName: "ProviderContractFixtures.UnsupportedShapeTarget.Choose",
+            signatures: [
+              {
+                id: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.Choose(System.Object)"),
+                parameters: [
+                  {
+                    name: "value",
+                    type: {
+                      kind: "union",
+                      types: [
+                        { kind: "string" },
+                        { kind: "source-primitive", name: "int32" },
+                      ],
+                    },
+                    passingMode: "by-value",
+                  },
+                ],
+                returnType: { kind: "void" },
+              },
+            ],
+          },
+        ],
+        conversionOperators: [
+          {
+            id: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget.op_Explicit(System.Int32*)"),
+            targetName: "op_Explicit",
+            metadataName: "ProviderContractFixtures.UnsupportedShapeTarget.op_Explicit(System.Int32*)",
+            conversionKind: "explicit",
+            sourceType: {
+              kind: "pointer",
+              pointee: { kind: "source-primitive", name: "int32" },
+            },
+            targetType: {
+              kind: "named",
+              targetId: testTargetId("ProviderContractFixtures.UnsupportedShapeTarget"),
+              metadataName: "ProviderContractFixtures.UnsupportedShapeTarget",
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(diagnostic?.code, "DOTNET_PROVIDER_MODEL_CONTRACT_INVALID");
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].type"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[1].signatures[0].parameters[0].type"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[2].signatures[0].parameters[0].type"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].conversionOperators[0].sourceType"), true);
+});
+
 test(".NET provider declaration contract rejects provider refs missing public TSTS identity", () => {
   const diagnostic = validateDotnetProviderDeclarationModelContract({
     moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
@@ -186,6 +392,74 @@ test(".NET provider declaration contract rejects provider refs missing public TS
   assert.equal(diagnostic?.code, "DOTNET_PROVIDER_DECLARATION_CONTRACT_INVALID");
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].targetIdentity"), true);
   assert.equal(hasEvidencePath(diagnostic, "$.exports[0].heritage[0].type.moduleSpecifier"), true);
+});
+
+test(".NET provider declaration contract rejects invalid provider parameter passing and rest facts", () => {
+  const diagnostic = validateDotnetProviderDeclarationModelContract({
+    moduleSpecifier: "@tsonic/dotnet/ProviderContractFixtures.js",
+    providerModuleId: "@tsonic/dotnet/ProviderContractFixtures.js",
+    exports: [
+      {
+        id: testTargetId("ProviderContractFixtures.Target"),
+        name: "Target",
+        kind: "class",
+        targetIdentity: {
+          target: "csharp",
+          id: testTargetId("ProviderContractFixtures.Target"),
+        },
+        members: [
+          {
+            id: testTargetId("ProviderContractFixtures.Target.Invalid"),
+            name: "invalid",
+            kind: "method",
+            signatures: [
+              {
+                id: testTargetId("ProviderContractFixtures.Target.Invalid(System.Int32[],System.String)"),
+                parameters: [
+                  {
+                    name: "values",
+                    type: { kind: "array", elementType: { kind: "source-primitive", name: "int32" } },
+                    rest: true,
+                    passingMode: "byref-readonly",
+                  },
+                  {
+                    name: "mode",
+                    type: { kind: "string" },
+                    passingMode: "not-a-mode",
+                  },
+                ],
+                returnType: { kind: "void" },
+              },
+            ],
+          },
+          {
+            id: testTargetId("ProviderContractFixtures.Target.InvalidRestType"),
+            name: "invalidRestType",
+            kind: "method",
+            signatures: [
+              {
+                id: testTargetId("ProviderContractFixtures.Target.InvalidRestType(System.String)"),
+                parameters: [
+                  {
+                    name: "value",
+                    type: { kind: "string" },
+                    rest: true,
+                  },
+                ],
+                returnType: { kind: "void" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(diagnostic?.code, "DOTNET_PROVIDER_DECLARATION_CONTRACT_INVALID");
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[0].rest"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[0].passingMode"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[0].signatures[0].parameters[1].passingMode"), true);
+  assert.equal(hasEvidencePath(diagnostic, "$.exports[0].members[1].signatures[0].parameters[0].type"), true);
 });
 
 test(".NET reflection provider emits contract-valid SDK metadata slices", () => {

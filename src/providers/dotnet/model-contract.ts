@@ -12,6 +12,7 @@ import type {
 import type {
   DotnetConstraint,
   DotnetAssemblyReference,
+  DotnetConversionOperatorDeclaration,
   DotnetExportDeclaration,
   DotnetMemberDeclaration,
   DotnetModuleModel,
@@ -26,6 +27,9 @@ import type {
   DotnetUnsupportedExportDeclaration,
   DotnetUnsupportedMemberDeclaration,
 } from "./model.js";
+import type {
+  DotnetRenderShape,
+} from "./model-types.js";
 import type {
   DotnetProviderDiagnostic,
 } from "./provider.js";
@@ -42,6 +46,80 @@ const supportedTypeParameterVariance = new Set([
   "out",
   "invariant",
   "target-defined",
+]);
+
+const supportedDotnetExportKinds = new Set([
+  "type",
+  "function",
+  "value",
+  "namespace",
+]);
+
+const supportedDotnetTypeKinds = new Set([
+  "class",
+  "struct",
+  "interface",
+  "enum",
+  "delegate",
+  "opaque",
+]);
+
+const supportedDotnetMemberKinds = new Set([
+  "constructor",
+  "method",
+  "property",
+  "field",
+  "indexer",
+  "event",
+  "operator",
+]);
+
+const supportedDotnetConversionOperatorNames = new Set([
+  "op_Implicit",
+  "op_Explicit",
+]);
+
+const supportedDotnetConversionKinds = new Set([
+  "implicit",
+  "explicit",
+]);
+
+const supportedDotnetConstraintKinds = new Set([
+  "implements",
+  "value-type",
+  "reference-type",
+  "constructible",
+  "unmanaged",
+  "not-null",
+  "target-specific",
+]);
+
+const supportedDotnetTypeRefKinds = new Set([
+  "void",
+  "any",
+  "unknown",
+  "object",
+  "string",
+  "literal",
+  "boolean",
+  "number",
+  "bigint",
+  "source-primitive",
+  "type-parameter",
+  "provider-ref",
+  "named",
+  "nullable",
+  "array",
+  "tuple",
+  "union",
+  "function",
+  "pointer",
+  "function-pointer",
+  "opaque",
+]);
+
+const supportedDotnetRenderShapeKinds = new Set([
+  "named",
 ]);
 
 export function validateDotnetModuleModelContract(module: DotnetModuleModel): DotnetProviderDiagnostic | undefined {
@@ -125,6 +203,15 @@ function validateDotnetExportDeclaration(
   collector: ContractCollector,
   options: { readonly sourceVisible: boolean },
 ): void {
+  if (!requireSupportedDiscriminant(
+    (declaration as unknown as Readonly<Record<string, unknown>>).kind,
+    `${path}.kind`,
+    collector,
+    ".NET export declaration kind",
+    supportedDotnetExportKinds,
+  )) {
+    return;
+  }
   switch (declaration.kind) {
     case "type":
       validateDotnetTypeDeclaration(declaration, path, collector, options);
@@ -137,7 +224,7 @@ function validateDotnetExportDeclaration(
     case "value":
       requireNonEmptyString(declaration.sourceName, `${path}.sourceName`, collector);
       validateDotnetTargetIdentity(declaration.targetId, declaration.metadataName, `${path}.targetId`, `${path}.metadataName`, collector);
-      validateDotnetTypeRef(declaration.type, `${path}.type`, collector, { allowLiteral: false, allowProviderRef: false });
+      validateDotnetTypeRef(declaration.type, `${path}.type`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
       return;
     case "namespace":
       requireNonEmptyString(declaration.sourceName, `${path}.sourceName`, collector);
@@ -153,14 +240,22 @@ function validateDotnetTypeDeclaration(
   collector: ContractCollector,
   options: { readonly sourceVisible: boolean },
 ): void {
+  const typeKindValid = requireSupportedDiscriminant(
+    (declaration as unknown as Readonly<Record<string, unknown>>).typeKind,
+    `${path}.typeKind`,
+    collector,
+    ".NET type declaration kind",
+    supportedDotnetTypeKinds,
+  );
   requireNonEmptyString(declaration.sourceName, `${path}.sourceName`, collector);
   requireNonEmptyString(declaration.namespaceName, `${path}.namespaceName`, collector);
   validateDotnetTargetIdentity(declaration.targetId, declaration.metadataName, `${path}.targetId`, `${path}.metadataName`, collector, {
     assembly: declaration.assembly,
   });
   validateOptionalDotnetAssemblyReference(declaration.assembly, `${path}.assembly`, collector);
+  validateOptionalDotnetRenderShape(declaration.renderShape, `${path}.renderShape`, collector);
   validateDotnetTypeParameters(declaration.typeParameters ?? [], `${path}.typeParameters`, collector);
-  validateOptionalDotnetTypeRef(declaration.baseType, `${path}.baseType`, collector, { allowLiteral: false, allowProviderRef: true });
+  validateOptionalDotnetTypeRef(declaration.baseType, `${path}.baseType`, collector, { allowLiteral: false, allowProviderRef: true, targetPosition: true });
   validateDotnetConstraints(declaration.implementedContracts ?? [], `${path}.implementedContracts`, collector);
   validateUnsupportedConstraints(declaration.unsupportedImplementedContracts ?? [], `${path}.unsupportedImplementedContracts`, collector);
   const unsupportedMembers = declaration.unsupportedMembers ?? [];
@@ -171,13 +266,35 @@ function validateDotnetTypeDeclaration(
   validateUnsupportedMembers(unsupportedMembers, `${path}.unsupportedMembers`, collector);
   for (const [index, operator] of (declaration.conversionOperators ?? []).entries()) {
     const operatorPath = `${path}.conversionOperators[${index}]`;
+    const targetNameValid = requireSupportedDiscriminant(
+      (operator as unknown as Readonly<Record<string, unknown>>).targetName,
+      `${operatorPath}.targetName`,
+      collector,
+      ".NET conversion operator target name",
+      supportedDotnetConversionOperatorNames,
+    );
+    const conversionKindValid = requireSupportedDiscriminant(
+      (operator as unknown as Readonly<Record<string, unknown>>).conversionKind,
+      `${operatorPath}.conversionKind`,
+      collector,
+      ".NET conversion operator kind",
+      supportedDotnetConversionKinds,
+    );
+    if (targetNameValid && conversionKindValid && !dotnetConversionOperatorNameMatchesKind(operator.targetName, operator.conversionKind)) {
+      collector.add(`${operatorPath}.conversionKind`, ".NET conversion operator targetName and conversionKind must describe the same CLR operator.", operator.conversionKind);
+    }
     validateDotnetTargetIdentity(operator.id, operator.metadataName, `${operatorPath}.id`, `${operatorPath}.metadataName`, collector);
-    validateDotnetTypeRef(operator.sourceType, `${operatorPath}.sourceType`, collector, { allowLiteral: false, allowProviderRef: false });
-    validateDotnetTypeRef(operator.targetType, `${operatorPath}.targetType`, collector, { allowLiteral: false, allowProviderRef: false });
+    validateDotnetTypeRef(operator.sourceType, `${operatorPath}.sourceType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
+    validateDotnetTypeRef(operator.targetType, `${operatorPath}.targetType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
+    validateNoUnsupportedClrSourceTypeRef(operator.sourceType, `${operatorPath}.sourceType`, collector, "Conversion operator source type");
+    validateNoUnsupportedClrSourceTypeRef(operator.targetType, `${operatorPath}.targetType`, collector, "Conversion operator target type");
   }
   validateOptionalDotnetTypeRef(declaration.sourceShape, `${path}.sourceShape`, collector, { allowLiteral: true, allowProviderRef: true });
-  validateOptionalDotnetTypeRef(declaration.targetType, `${path}.targetType`, collector, { allowLiteral: false, allowProviderRef: false });
-  if (options.sourceVisible && declaration.typeKind === "delegate" && declaration.sourceShape === undefined) {
+  if (options.sourceVisible) {
+    validateOptionalNoUnsupportedClrSourceTypeRef(declaration.sourceShape, `${path}.sourceShape`, collector, "Source-visible type sourceShape");
+  }
+  validateOptionalDotnetTypeRef(declaration.targetType, `${path}.targetType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
+  if (options.sourceVisible && typeKindValid && declaration.typeKind === "delegate" && declaration.sourceShape === undefined) {
     collector.add(`${path}.sourceShape`, "Source-visible delegate declarations must carry a source function shape or be moved to targetOnlyTypes/unsupportedExports.");
   }
 }
@@ -193,6 +310,15 @@ function validateDotnetMemberList(
 ): void {
   for (const [index, member] of members.entries()) {
     const memberPath = `${path}[${index}]`;
+    if (!requireSupportedDiscriminant(
+      (member as unknown as Readonly<Record<string, unknown>>).kind,
+      `${memberPath}.kind`,
+      collector,
+      ".NET member declaration kind",
+      supportedDotnetMemberKinds,
+    )) {
+      continue;
+    }
     requireNonEmptyString(member.sourceName, `${memberPath}.sourceName`, collector);
     requireNonEmptyString(member.targetName, `${memberPath}.targetName`, collector);
     validateDotnetTargetIdentity(member.targetId, member.metadataName, `${memberPath}.targetId`, `${memberPath}.metadataName`, collector);
@@ -205,6 +331,9 @@ function validateDotnetMemberList(
         if ((member.signatures ?? []).length === 0) {
           collector.add(`${memberPath}.signatures`, `${member.kind} members must carry at least one supported signature.`);
         }
+        if (options.sourceVisible) {
+          validateSourceVisibleCallableMemberClrShapes(member, memberPath, collector);
+        }
         break;
       case "property":
       case "field":
@@ -212,7 +341,10 @@ function validateDotnetMemberList(
         if (member.type === undefined) {
           collector.add(`${memberPath}.type`, `${member.kind} members must carry a closed target type.`);
         } else {
-          validateDotnetTypeRef(member.type, `${memberPath}.type`, collector, { allowLiteral: false, allowProviderRef: false });
+          validateDotnetTypeRef(member.type, `${memberPath}.type`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
+          if (options.sourceVisible) {
+            validateNoUnsupportedClrSourceTypeRef(member.type, `${memberPath}.type`, collector, `Source-visible ${member.kind} member type`);
+          }
         }
         if (options.sourceVisible && member.kind === "event" && !hasMatchingUnsupportedMember(options.unsupportedMembers, member, "event")) {
           collector.add(
@@ -222,6 +354,32 @@ function validateDotnetMemberList(
           );
         }
         break;
+    }
+  }
+}
+
+function validateSourceVisibleCallableMemberClrShapes(
+  member: DotnetMemberDeclaration,
+  path: string,
+  collector: ContractCollector,
+): void {
+  for (const [signatureIndex, signature] of (member.signatures ?? []).entries()) {
+    const signaturePath = `${path}.signatures[${signatureIndex}]`;
+    for (const [parameterIndex, parameter] of signature.parameters.entries()) {
+      validateNoUnsupportedClrSourceTypeRef(
+        parameter.type,
+        `${signaturePath}.parameters[${parameterIndex}].type`,
+        collector,
+        `Source-visible ${member.kind} parameter '${parameter.name}' type`,
+      );
+    }
+    if (signature.returnType !== undefined) {
+      validateNoUnsupportedClrSourceTypeRef(
+        signature.returnType,
+        `${signaturePath}.returnType`,
+        collector,
+        `Source-visible ${member.kind} return type`,
+      );
     }
   }
 }
@@ -247,9 +405,10 @@ function validateDotnetSignatureList(
       validateDotnetTypeRef(signature.returnType, `${signaturePath}.returnType`, collector, {
         allowLiteral: false,
         allowProviderRef: signature.targetReturnType !== undefined,
+        targetPosition: signature.targetReturnType === undefined,
       });
     }
-    validateOptionalDotnetTypeRef(signature.targetReturnType, `${signaturePath}.targetReturnType`, collector, { allowLiteral: false, allowProviderRef: false });
+    validateOptionalDotnetTypeRef(signature.targetReturnType, `${signaturePath}.targetReturnType`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
   }
 }
 
@@ -261,7 +420,7 @@ function validateDotnetParameters(
   for (const [index, parameter] of parameters.entries()) {
     const parameterPath = `${path}[${index}]`;
     requireNonEmptyString(parameter.name, `${parameterPath}.name`, collector);
-    validateDotnetTypeRef(parameter.type, `${parameterPath}.type`, collector, { allowLiteral: false, allowProviderRef: false });
+    validateDotnetTypeRef(parameter.type, `${parameterPath}.type`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
     if (!supportedPassingModes.has(parameter.passingMode)) {
       collector.add(`${parameterPath}.passingMode`, "Parameter passingMode is not a supported provider contract value.", parameter.passingMode);
     }
@@ -316,8 +475,17 @@ function validateDotnetConstraints(
 ): void {
   for (const [index, constraint] of constraints.entries()) {
     const constraintPath = `${path}[${index}]`;
+    if (!requireSupportedDiscriminant(
+      (constraint as unknown as Readonly<Record<string, unknown>>).kind,
+      `${constraintPath}.kind`,
+      collector,
+      ".NET constraint kind",
+      supportedDotnetConstraintKinds,
+    )) {
+      continue;
+    }
     if (constraint.kind === "implements") {
-      validateDotnetTypeRef(constraint.contract, `${constraintPath}.contract`, collector, { allowLiteral: false, allowProviderRef: false });
+      validateDotnetTypeRef(constraint.contract, `${constraintPath}.contract`, collector, { allowLiteral: false, allowProviderRef: false, targetPosition: true });
     }
     if (constraint.kind === "target-specific") {
       requireNonEmptyString(constraint.name, `${constraintPath}.name`, collector);
@@ -345,6 +513,13 @@ function validateUnsupportedMembers(
   const memberIds = new Set<string>();
   for (const [index, member] of members.entries()) {
     const memberPath = `${path}[${index}]`;
+    requireSupportedDiscriminant(
+      (member as unknown as Readonly<Record<string, unknown>>).memberKind,
+      `${memberPath}.memberKind`,
+      collector,
+      ".NET unsupported member kind",
+      supportedDotnetMemberKinds,
+    );
     requireNonEmptyString(member.sourceName, `${memberPath}.sourceName`, collector);
     requireNonEmptyString(member.targetName, `${memberPath}.targetName`, collector);
     validateDotnetTargetIdentity(member.targetId, member.metadataName, `${memberPath}.targetId`, `${memberPath}.metadataName`, collector);
@@ -410,10 +585,94 @@ function validateOptionalDotnetTypeRef(
   type: DotnetTypeRef | undefined,
   path: string,
   collector: ContractCollector,
-  options: { readonly allowLiteral: boolean; readonly allowProviderRef: boolean },
+  options: { readonly allowLiteral: boolean; readonly allowProviderRef: boolean; readonly targetPosition?: boolean },
 ): void {
   if (type !== undefined) {
     validateDotnetTypeRef(type, path, collector, options);
+  }
+}
+
+function validateOptionalNoUnsupportedClrSourceTypeRef(
+  type: DotnetTypeRef | undefined,
+  path: string,
+  collector: ContractCollector,
+  context: string,
+): void {
+  if (type !== undefined) {
+    validateNoUnsupportedClrSourceTypeRef(type, path, collector, context);
+  }
+}
+
+function validateNoUnsupportedClrSourceTypeRef(
+  type: DotnetTypeRef,
+  path: string,
+  collector: ContractCollector,
+  context: string,
+): void {
+  switch (type.kind) {
+    case "pointer":
+      collector.add(path, `${context} uses an unsupported CLR pointer type. Move the row to unsupported member/export evidence instead of exposing it as supported metadata.`, type);
+      validateNoUnsupportedClrSourceTypeRef(type.pointee, `${path}.pointee`, collector, context);
+      return;
+    case "function-pointer":
+      collector.add(path, `${context} uses an unsupported CLR function-pointer type. Move the row to unsupported member/export evidence instead of exposing it as supported metadata.`, type);
+      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.args, `${path}.args`, collector, context);
+      validateNoUnsupportedClrSourceTypeRef(type.result, `${path}.result`, collector, context);
+      return;
+    case "array":
+      if (type.rank !== undefined && type.rank !== 1) {
+        collector.add(path, `${context} uses an unsupported ranked CLR array type. Move the row to unsupported member/export evidence instead of exposing it as supported metadata.`, type);
+      }
+      validateNoUnsupportedClrSourceTypeRef(type.elementType, `${path}.elementType`, collector, context);
+      return;
+    case "nullable":
+      validateNoUnsupportedClrSourceTypeRef(type.elementType, `${path}.elementType`, collector, context);
+      return;
+    case "tuple":
+      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.elements, `${path}.elements`, collector, context);
+      return;
+    case "union":
+      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.types, `${path}.types`, collector, context);
+      return;
+    case "function":
+      for (const [index, parameter] of type.parameters.entries()) {
+        validateNoUnsupportedClrSourceTypeRef(parameter.type, `${path}.parameters[${index}].type`, collector, context);
+      }
+      validateNoUnsupportedClrSourceTypeRef(type.returnType, `${path}.returnType`, collector, context);
+      return;
+    case "named":
+      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.typeArguments ?? [], `${path}.typeArguments`, collector, context);
+      validateOptionalNoUnsupportedClrSourceTypeRef(type.sourceShape, `${path}.sourceShape`, collector, context);
+      return;
+    case "provider-ref":
+      validateDotnetTypeRefsForUnsupportedClrSourceShapes(type.typeArguments ?? [], `${path}.typeArguments`, collector, context);
+      return;
+    case "opaque":
+      validateOptionalNoUnsupportedClrSourceTypeRef(type.sourceShape, `${path}.sourceShape`, collector, context);
+      return;
+    case "void":
+    case "any":
+    case "unknown":
+    case "object":
+    case "string":
+    case "literal":
+    case "boolean":
+    case "number":
+    case "bigint":
+    case "source-primitive":
+    case "type-parameter":
+      return;
+  }
+}
+
+function validateDotnetTypeRefsForUnsupportedClrSourceShapes(
+  types: readonly DotnetTypeRef[],
+  path: string,
+  collector: ContractCollector,
+  context: string,
+): void {
+  for (const [index, type] of types.entries()) {
+    validateNoUnsupportedClrSourceTypeRef(type, `${path}[${index}]`, collector, context);
   }
 }
 
@@ -421,8 +680,17 @@ function validateDotnetTypeRef(
   type: DotnetTypeRef,
   path: string,
   collector: ContractCollector,
-  options: { readonly allowLiteral: boolean; readonly allowProviderRef: boolean },
+  options: { readonly allowLiteral: boolean; readonly allowProviderRef: boolean; readonly targetPosition?: boolean },
 ): void {
+  if (!requireSupportedDiscriminant(
+    (type as unknown as Readonly<Record<string, unknown>>).kind,
+    `${path}.kind`,
+    collector,
+    ".NET type ref kind",
+    supportedDotnetTypeRefKinds,
+  )) {
+    return;
+  }
   switch (type.kind) {
     case "literal":
       if (!options.allowLiteral) {
@@ -438,6 +706,7 @@ function validateDotnetTypeRef(
       return;
     case "named":
       validateDotnetTargetIdentity(type.targetId, type.metadataName, `${path}.targetId`, `${path}.metadataName`, collector);
+      validateOptionalDotnetRenderShape(type.renderShape, `${path}.renderShape`, collector);
       validateDotnetTypeRefs(type.typeArguments ?? [], `${path}.typeArguments`, collector, options);
       validateOptionalDotnetTypeRef(type.sourceShape, `${path}.sourceShape`, collector, { allowLiteral: true, allowProviderRef: true });
       return;
@@ -454,6 +723,9 @@ function validateDotnetTypeRef(
       validateDotnetTypeRefs(type.elements, `${path}.elements`, collector, options);
       return;
     case "union":
+      if (options.targetPosition === true) {
+        collector.add(path, "Union type refs are source declaration shapes only and require an explicit closed target type fact before target emission.", type);
+      }
       if (type.types.length === 0) {
         collector.add(`${path}.types`, "Union type refs must contain at least one type.");
       }
@@ -495,7 +767,7 @@ function validateDotnetTypeRefs(
   types: readonly DotnetTypeRef[],
   path: string,
   collector: ContractCollector,
-  options: { readonly allowLiteral: boolean; readonly allowProviderRef: boolean },
+  options: { readonly allowLiteral: boolean; readonly allowProviderRef: boolean; readonly targetPosition?: boolean },
 ): void {
   for (const [index, type] of types.entries()) {
     validateDotnetTypeRef(type, `${path}[${index}]`, collector, options);
@@ -549,7 +821,10 @@ function validateProviderSignatureList(
     requireUnique(signatureIds, signature.id, `${signaturePath}.id`, collector);
     validateProviderTypeParameters(signature.typeParameters ?? [], `${signaturePath}.typeParameters`, collector);
     for (const [parameterIndex, parameter] of signature.parameters.entries()) {
-      validateProviderParameter(parameter, `${signaturePath}.parameters[${parameterIndex}]`, collector);
+      validateProviderParameter(parameter, `${signaturePath}.parameters[${parameterIndex}]`, collector, {
+        index: parameterIndex,
+        count: signature.parameters.length,
+      });
     }
     if (signature.returnType === undefined) {
       if (options.requireReturnType) {
@@ -565,10 +840,25 @@ function validateProviderParameter(
   parameter: ProviderParameterDeclaration,
   path: string,
   collector: ContractCollector,
+  options: { readonly index: number; readonly count: number },
 ): void {
   requireNonEmptyString(parameter.name, `${path}.name`, collector);
   validateProviderTypeExpression(parameter.type, `${path}.type`, collector);
   validateOptionalProviderTypeExpression(parameter.defaultType, `${path}.defaultType`, collector);
+  if (parameter.passingMode !== undefined && !supportedPassingModes.has(parameter.passingMode)) {
+    collector.add(`${path}.passingMode`, "Provider declaration parameter passingMode is not a supported provider contract value.", parameter.passingMode);
+  }
+  if (parameter.rest === true) {
+    if (options.index !== options.count - 1) {
+      collector.add(`${path}.rest`, "Provider declaration rest parameters must be the final parameter.");
+    }
+    if (parameter.passingMode !== undefined && parameter.passingMode !== "by-value") {
+      collector.add(`${path}.passingMode`, "Provider declaration rest parameters must be passed by value.", parameter.passingMode);
+    }
+    if (parameter.type.kind !== "array") {
+      collector.add(`${path}.type`, "Provider declaration rest parameters must carry an array source type.", parameter.type);
+    }
+  }
 }
 
 function validateProviderHeritage(
@@ -675,7 +965,10 @@ function validateProviderTypeExpression(
     case "function":
       validateProviderTypeParameters(type.typeParameters ?? [], `${path}.typeParameters`, collector);
       for (const [index, parameter] of type.parameters.entries()) {
-        validateProviderParameter(parameter, `${path}.parameters[${index}]`, collector);
+        validateProviderParameter(parameter, `${path}.parameters[${index}]`, collector, {
+          index,
+          count: type.parameters.length,
+        });
       }
       validateProviderTypeExpression(type.returnType, `${path}.returnType`, collector);
       return;
@@ -728,6 +1021,27 @@ function validateDotnetAssemblyReference(
   requireOptionalNonEmptyString(record.path, `${path}.path`, collector);
 }
 
+function validateOptionalDotnetRenderShape(
+  shape: DotnetRenderShape | undefined,
+  path: string,
+  collector: ContractCollector,
+): void {
+  if (shape === undefined) {
+    return;
+  }
+  requireSupportedDiscriminant(
+    (shape as unknown as Readonly<Record<string, unknown>>).kind,
+    `${path}.kind`,
+    collector,
+    ".NET render shape kind",
+    supportedDotnetRenderShapeKinds,
+  );
+  requireNonEmptyString(shape.name, `${path}.name`, collector);
+  for (const [index, namespacePart] of (shape.namespace ?? []).entries()) {
+    requireNonEmptyString(namespacePart, `${path}.namespace[${index}]`, collector);
+  }
+}
+
 function validateDotnetTargetIdentity(
   targetId: string | undefined,
   metadataName: string | undefined,
@@ -750,6 +1064,13 @@ function validateDotnetTargetIdentity(
   }
   if (options.assembly !== undefined && assemblySeparator < 0) {
     collector.add(targetPath, "Assembly-backed target identity must include an assembly qualifier.", targetId);
+  }
+  const expectedAssemblyName = options.assembly?.name;
+  if (typeof expectedAssemblyName === "string" && expectedAssemblyName.length > 0 && assemblySeparator > 0) {
+    const actualAssemblyName = targetId.slice(0, assemblySeparator).split(",")[0] ?? "";
+    if (actualAssemblyName !== expectedAssemblyName) {
+      collector.add(targetPath, "Assembly-qualified target identity must agree with the assembly reference name.", targetId);
+    }
   }
 }
 
@@ -825,6 +1146,28 @@ function hasMatchingUnsupportedMember(
     typeof candidate.reason === "string" &&
     candidate.reason.length > 0
   );
+}
+
+function dotnetConversionOperatorNameMatchesKind(
+  targetName: DotnetConversionOperatorDeclaration["targetName"],
+  conversionKind: DotnetConversionOperatorDeclaration["conversionKind"],
+): boolean {
+  return (targetName === "op_Implicit" && conversionKind === "implicit") ||
+    (targetName === "op_Explicit" && conversionKind === "explicit");
+}
+
+function requireSupportedDiscriminant(
+  value: unknown,
+  path: string,
+  collector: ContractCollector,
+  description: string,
+  supported: ReadonlySet<string>,
+): boolean {
+  if (typeof value !== "string" || !supported.has(value)) {
+    collector.add(path, `Unsupported ${description}.`, value);
+    return false;
+  }
+  return true;
 }
 
 function requireNonEmptyString(value: string | undefined, path: string, collector: ContractCollector): void {

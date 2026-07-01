@@ -7,6 +7,8 @@ import {
   deferObservation,
   fieldFactKey,
   flowStateFactKey,
+  functionPointerFactKey,
+  pointerFactKey,
   providerVirtualDeclarationFactKey,
   selectedTargetSignatureFactKey,
   sourcePrimitiveFactKey,
@@ -20,6 +22,7 @@ import {
   csharpNullableValueTargetType,
   csharpSourcePrimitiveDotnetMetadataName,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import { resolveTargetTypeRefFromSubjectFacts } from "../dist/source/csharp-source-semantics/target-type-subject-facts.js";
 
 test("C# provider rejects ambiguous target members instead of ranking candidates", () => {
   const provider = getNativeSemanticProvider();
@@ -1025,6 +1028,85 @@ test("C# erased source marker accepts supported markers only with finalized sour
   assert.equal(fieldResult.value.selectedSignature.member.id, "source-semantics.field:count");
   assert.equal(structResult.kind, "accept", structResult.kind === "reject" ? structResult.diagnostic.message : undefined);
   assert.equal(structResult.value.selectedSignature.member.id, "@tsonic/core/lang.js::struct");
+});
+
+test("C# target resolves source-core ptr and fnptr facts to target type refs", () => {
+  const pointerSubject = {};
+  const functionPointerSubject = {};
+  const int32Subject = {};
+  const boolSubject = {};
+  const unresolvedPointerSubject = {};
+  const unresolvedFunctionPointerSubject = {};
+  const facts = new Map();
+  const setFact = (subject, key, value) => {
+    const subjectFacts = facts.get(subject) ?? new Map();
+    subjectFacts.set(key, value);
+    facts.set(subject, subjectFacts);
+  };
+  setFact(int32Subject, sourcePrimitiveFactKey, {
+    kind: "int32",
+    runtimeBase: "number",
+    signed: true,
+    width: 32,
+  });
+  setFact(boolSubject, sourcePrimitiveFactKey, {
+    kind: "bool",
+    runtimeBase: "boolean",
+  });
+  setFact(pointerSubject, pointerFactKey, {
+    pointee: int32Subject,
+    mutability: "target-defined",
+    unsafeRequired: true,
+  });
+  setFact(functionPointerSubject, functionPointerFactKey, {
+    parameters: [pointerSubject, int32Subject],
+    result: boolSubject,
+    abi: ["target-default"],
+  });
+  setFact(unresolvedPointerSubject, pointerFactKey, {
+    pointee: {},
+    mutability: "target-defined",
+    unsafeRequired: true,
+  });
+  setFact(unresolvedFunctionPointerSubject, functionPointerFactKey, {
+    parameters: [int32Subject],
+    result: {},
+    abi: ["target-default"],
+  });
+  const context = {
+    facts: {
+      get(subject, key) {
+        return facts.get(subject)?.get(key);
+      },
+    },
+    factResolver: {
+      resolve(subject, key) {
+        return facts.get(subject)?.get(key);
+      },
+    },
+  };
+  const resolveSubject = (subject) => resolveTargetTypeRefFromSubjectFacts(subject, context, {}, resolveSubject);
+
+  assert.deepEqual(resolveSubject(pointerSubject), {
+    kind: "pointer",
+    pointee: { kind: "source-primitive", name: "int32" },
+    mutability: "target-defined",
+  });
+  assert.deepEqual(resolveSubject(functionPointerSubject), {
+    kind: "function-pointer",
+    args: [
+      {
+        kind: "pointer",
+        pointee: { kind: "source-primitive", name: "int32" },
+        mutability: "target-defined",
+      },
+      { kind: "source-primitive", name: "int32" },
+    ],
+    result: { kind: "source-primitive", name: "bool" },
+    abi: ["target-default"],
+  });
+  assert.equal(resolveSubject(unresolvedPointerSubject), undefined);
+  assert.equal(resolveSubject(unresolvedFunctionPointerSubject), undefined);
 });
 
 test("C# attribute builder marker identity comes from finalized attribute facts", () => {

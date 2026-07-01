@@ -91,8 +91,10 @@ export function mapCsharpProjectSourceCheckedPropertyAccess(
   if (selectedDeclarationIsAmbientOrExternal(requestContext.sourceSelectedDeclaration, context)) {
     return undefined;
   }
+  const operation = sourceOwnedPropertyOperation(request.propertyName);
+  recordCsharpSourceOwnedPropertyOperation(request, context, operation.operationId);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: sourceOwnedPropertyOperation(request.propertyName),
+    operation,
   }, [{ message: "C# source-owned property access accepted from TSTS-selected project source declaration; backend renders source syntax without provider target-member facts." }]);
 }
 
@@ -109,9 +111,22 @@ export function mapCsharpSourceDeclaredReceiverCheckedPropertyAccess(
   if (!targetTypeRefIsSourceDeclaredReceiver(receiverType)) {
     return undefined;
   }
+  const operation = sourceOwnedPropertyOperation(request.propertyName);
+  recordCsharpSourceOwnedPropertyOperation(request, context, operation.operationId);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: sourceOwnedPropertyOperation(request.propertyName),
+    operation,
   }, [{ message: "C# source-owned property access accepted from checked TSTS source declaration receiver facts." }]);
+}
+
+function recordCsharpSourceOwnedPropertyOperation(
+  request: CheckedPropertyAccessMappingRequest,
+  context: CheckedPropertyAccessContext,
+  operationId: string,
+): void {
+  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, "property", request.propertyName, {
+    ...(requestContext.sourceSelectedDeclarationContainer === undefined ? {} : { sourceDeclaringType: requestContext.sourceSelectedDeclarationContainer }),
+  }), [{ message: "C# source-owned property operation recorded from TSTS-selected source declaration identity; backend resolves target type facts after semantic finalization." }]);
 }
 
 function isNamespaceImportReceiver(

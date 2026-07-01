@@ -1,4 +1,4 @@
-import type { Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
+import type { ArgumentPassingFact, Node, SourceFile, TargetTypeRef } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type {
   CsharpArgument,
@@ -24,6 +24,7 @@ export type CallArgumentPlanner = (
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
+  expectedArgumentPassingMode?: ArgumentPassingFact["mode"],
 ) => PlannedArgument;
 
 export type ExpectedExpressionPlanner = (

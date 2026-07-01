@@ -178,6 +178,7 @@ export interface CsharpTargetMemberOperationFact {
   readonly memberName: string;
   readonly static?: boolean;
   readonly declaringType?: TargetTypeRef;
+  readonly sourceDeclaringType?: ExtensionFactSubject;
   readonly resultType?: TargetTypeRef;
   readonly argumentProjection?: readonly CsharpTargetOperationArgument[];
   readonly argumentArrayLiteralElementTypes?: readonly (TargetTypeRef | undefined)[];

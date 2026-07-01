@@ -10,7 +10,6 @@ import type {
   ExtensionFactSubject,
   ExtensionObservationContext,
   Node,
-  Symbol,
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -29,6 +28,9 @@ import {
   asNodeSubject,
   getNodeField,
 } from "./ast-utils.js";
+import {
+  getSymbolDeclarations,
+} from "./symbol-utils.js";
 
 export type SubjectTargetTypeResolver = (
   subject: ExtensionFactSubject | undefined,
@@ -193,10 +195,7 @@ function symbolDeclarationNodes(
   subject: ExtensionFactSubject | undefined,
   context: ExtensionObservationContext,
 ): readonly Node[] {
-  return subject === undefined
-    ? []
-    : (context.compiler?.checker.getSymbolDeclarations(subject as Symbol) ?? [])
-        .filter((declaration): declaration is Node => declaration !== undefined);
+  return getSymbolDeclarations(subject, context.compiler?.checker);
 }
 
 function uniqueNodes(nodes: readonly Node[]): readonly Node[] {

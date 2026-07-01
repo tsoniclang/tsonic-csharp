@@ -58,19 +58,34 @@ export function planCallArgumentCore(
   expectedType?: CsharpTypeNode,
   expectedTypeSubject?: Node,
   conversionExpectedTargetType?: TargetTypeRef,
+  expectedArgumentPassingMode: ArgumentPassingFact["mode"] = "by-value",
   state?: DestructuringPlannerState,
 ): CsharpArgument | undefined {
   const argumentPassing = input.facts.getArgumentPassingFact(node);
   if (argumentPassing === undefined) {
+    if (expectedArgumentPassingMode !== "by-value") {
+      diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission requires finalized argument-passing facts for selected ${expectedArgumentPassingMode} parameters.`));
+      return undefined;
+    }
     const expression = planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
     return expression === undefined ? undefined : { kind: "Argument", expression };
+  }
+  if (!csharpSupportsArgumentPassingMode(argumentPassing.mode)) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `C# argument emission does not support finalized argument-passing mode '${argumentPassing.mode}'.`));
+    return undefined;
+  }
+  if (argumentPassing.mode !== expectedArgumentPassingMode) {
+    diagnostics.push(unsupportedNodeDiagnostic(node, `Finalized argument-passing fact '${argumentPassing.mode}' does not match the selected call parameter mode '${expectedArgumentPassingMode}'.`));
+    return undefined;
   }
   if (!isAstNode(argumentPassing.targetExpression)) {
     diagnostics.push(unsupportedNodeDiagnostic(node, "Argument-passing facts must carry AST target expressions before C# argument emission."));
-    const expression = planCallArgumentExpression(node, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
-    return expression === undefined ? undefined : { kind: "Argument", expression };
+    return undefined;
   }
   const passing = getCsharpArgumentPassing(argumentPassing.mode, node, diagnostics);
+  if (argumentPassing.mode !== "by-value" && passing === undefined) {
+    return undefined;
+  }
   const expression = planCallArgumentExpression(argumentPassing.targetExpression, sourceFile, input, diagnostics, planExpression, planExpressionWithExpectedType, expectedType, expectedTypeSubject, conversionExpectedTargetType, state);
   if (expression === undefined) {
     return undefined;
@@ -122,6 +137,22 @@ function planCallArgumentExpression(
     return planExpressionWithExpectedType(node, sourceFile, input, diagnostics, expectedType, expectedTypeSubject);
   }
   return planExpression(node, sourceFile, input, diagnostics);
+}
+
+function csharpSupportsArgumentPassingMode(
+  mode: ArgumentPassingFact["mode"],
+): boolean {
+  switch (mode) {
+    case "by-value":
+    case "byref-writeonly-must-init":
+    case "byref-readwrite":
+    case "byref-readonly":
+      return true;
+    case "borrow-shared":
+    case "borrow-mut":
+    case "move":
+      return false;
+  }
 }
 
 function getCsharpArgumentPassing(

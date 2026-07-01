@@ -15,6 +15,7 @@ import {
   dotnetModuleToProviderDeclarationModel,
   dotnetTypeRefToProviderType,
   dotnetTypeRefToTargetTypeRef,
+  validateDotnetProviderDeclarationModelContract,
 } from "../dist/index.js";
 import {
   dotnetExportToTargetBinding,
@@ -698,6 +699,27 @@ test(".NET explicit type-ref kinds carry special target semantics without metada
   });
 });
 
+test(".NET explicit CLR array target refs preserve provider-supplied rank facts", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+
+  assert.deepEqual(dotnetTypeRefToTargetTypeRef({
+    kind: "array",
+    elementType: intType,
+  }), {
+    kind: "array",
+    element: intType,
+  });
+  assert.deepEqual(dotnetTypeRefToTargetTypeRef({
+    kind: "array",
+    elementType: intType,
+    rank: 2,
+  }), {
+    kind: "array",
+    element: intType,
+    rank: 2,
+  });
+});
+
 test(".NET provider function source shapes preserve parameter modes and fail closed for unsupported parameter types", () => {
   const functionType = dotnetTypeRefToProviderType({
     kind: "function",
@@ -737,6 +759,67 @@ test(".NET provider function source shapes preserve parameter modes and fail clo
     ],
     returnType: { kind: "void" },
   }), undefined);
+});
+
+test(".NET provider declaration model exposes namespace members as fact-backed provider members", () => {
+  const model = dotnetModuleToProviderDeclarationModel({
+    moduleSpecifier: "@tsonic/dotnet/ProviderModelFixtures.js",
+    namespaceName: "ProviderModelFixtures",
+    exports: [
+      {
+        kind: "namespace",
+        sourceName: "Native",
+        namespaceName: "ProviderModelFixtures.Native",
+        exports: [
+          {
+            kind: "value",
+            sourceName: "answer",
+            targetId: testTargetId("ProviderModelFixtures.Native.Answer"),
+            metadataName: "ProviderModelFixtures.Native.Answer",
+            type: { kind: "source-primitive", name: "int32" },
+          },
+          {
+            kind: "function",
+            sourceName: "compute",
+            targetId: testTargetId("ProviderModelFixtures.Native.Compute"),
+            metadataName: "ProviderModelFixtures.Native.Compute(System.String)",
+            signatures: [
+              {
+                id: testTargetId("ProviderModelFixtures.Native.Compute(System.String)"),
+                parameters: [
+                  { name: "text", type: { kind: "string" }, passingMode: "by-value" },
+                ],
+                returnType: { kind: "source-primitive", name: "int32" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(validateDotnetProviderDeclarationModelContract(model), undefined);
+  const nativeNamespace = model.exports.find((declaration) => declaration.kind === "namespace" && declaration.name === "Native");
+  assert.ok(nativeNamespace);
+  assert.equal(nativeNamespace.id, "ProviderModelFixtures.Native");
+  const answer = nativeNamespace.members.find((member) => member.name === "answer");
+  const compute = nativeNamespace.members.find((member) => member.name === "compute");
+  assert.deepEqual(answer, {
+    id: testTargetId("ProviderModelFixtures.Native.Answer"),
+    name: "answer",
+    kind: "property",
+    static: true,
+    type: { kind: "source-primitive", name: "int32" },
+  });
+  assert.equal(compute.kind, "method");
+  assert.equal(compute.id, testTargetId("ProviderModelFixtures.Native.Compute"));
+  assert.deepEqual(compute.signatures, [
+    {
+      id: testTargetId("ProviderModelFixtures.Native.Compute(System.String)"),
+      parameters: [{ name: "text", type: { kind: "string" } }],
+      returnType: { kind: "source-primitive", name: "int32" },
+    },
+  ]);
 });
 
 test(".NET provider source type conversion fails closed for every unsupported target-only type ref", () => {
@@ -1015,6 +1098,12 @@ test(".NET provider source declarations keep extension-method signature identiti
 
   const signature = findByIdSuffix(asSpan.signatures, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
   assert.ok(signature);
+  const indexSignature = findByIdSuffix(asSpan.signatures, "System.MemoryExtensions.AsSpan(System.String,System.Index)");
+  assert.ok(indexSignature);
+  assert.ok(
+    asSpan.signatures.indexOf(signature) < asSpan.signatures.indexOf(indexSignature),
+    "source-exact int32 overload must appear before provider-ref Index projection so TSTS source overload selection does not drift toward target-only conversions",
+  );
   assert.equal(signature.name, "AsSpan");
   assert.deepEqual(signature.parameters.map((parameter) => parameter.name), ["text", "start"]);
   assert.deepEqual(signature.parameters[0].type, { kind: "string" });
@@ -1024,6 +1113,31 @@ test(".NET provider source declarations keep extension-method signature identiti
   const targetMember = findByIdSuffix(binding.members, "System.MemoryExtensions.AsSpan(System.String,System.Int32)");
   assert.ok(targetMember);
   assert.equal(targetMember.receiverPassing, "first-argument");
+});
+
+test(".NET provider declaration model orders source-exact overloads before provider projection overloads", () => {
+  const provider = createDotnetReflectionTypeDataProvider();
+  const module = provider.getModule("@tsonic/dotnet/System.IO.js", {});
+  assert.equal("exports" in module, true);
+
+  const declarationModel = dotnetModuleToProviderDeclarationModel(module);
+  const file = declarationModel.exports.find((declaration) => declaration.name === "File");
+  assert.ok(file);
+  const writeAllText = file.members.find((member) =>
+    member.kind === "method" &&
+    member.name === "writeAllText" &&
+    member.static === true
+  );
+  assert.ok(writeAllText);
+
+  const stringSignature = findByIdSuffix(writeAllText.signatures, "System.IO.File.WriteAllText(System.String,System.String)");
+  const spanSignature = findByIdSuffix(writeAllText.signatures, "System.IO.File.WriteAllText(System.String,System.ReadOnlySpan`1<System.Char>)");
+  assert.ok(stringSignature);
+  assert.ok(spanSignature);
+  assert.ok(
+    writeAllText.signatures.indexOf(stringSignature) < writeAllText.signatures.indexOf(spanSignature),
+    "source-exact string overload must appear before provider-ref ReadOnlySpan projection so TSTS source overload selection remains source-truthful",
+  );
 });
 
 test(".NET provider models LINQ ExtensionMethods receiver metadata from target facts", () => {
@@ -2140,6 +2254,20 @@ test(".NET reflection provider signature ids preserve byref modes and generic me
     "ProviderSignatureFixtures.SignatureTarget.Generic``2()",
   ]);
   assert.deepEqual(genericSignatures.map((signature) => signature.typeParameters?.length ?? 0), [0, 1, 2]);
+
+  const sourceModel = dotnetModuleToProviderDeclarationModel(module);
+  const sourceTarget = sourceModel.exports.find((declaration) => declaration.name === "SignatureTarget");
+  assert.ok(sourceTarget);
+  const sourceM = sourceTarget.members.find((member) => member.name === "m");
+  assert.ok(sourceM);
+  assert.deepEqual(sourceM.signatures.map((signature) => stripAssemblyQualifiers(signature.id)), [
+    "ProviderSignatureFixtures.SignatureTarget.M(System.Int32)",
+    "ProviderSignatureFixtures.SignatureTarget.M(ref System.Int32)",
+  ]);
+  assert.deepEqual(sourceM.signatures.map((signature) => signature.parameters[0].passingMode), [
+    undefined,
+    "byref-readwrite",
+  ]);
 
   const binding = getDotnetBinding(provider, "@tsonic/dotnet/ProviderSignatureFixtures.js", "ProviderSignatureFixtures.SignatureTarget");
   assert.ok(binding.members.some((member) => idEndsWith(member.id, "ProviderSignatureFixtures.SignatureTarget.M(ref System.Int32)")));

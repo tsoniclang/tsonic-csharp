@@ -33,6 +33,7 @@ import type {
 } from "./target-member-selection.js";
 import {
   asType,
+  targetTypeRefContainsSourcePrimitive,
 } from "./target-ref-utils.js";
 import {
   csharpSourcePrimitiveTargetType,
@@ -45,6 +46,7 @@ import {
 import {
   getSourceArrayTargetTypeRef,
   getSourcePromiseTargetTypeRef,
+  resolveTargetTypeArgumentsForTypeWithResolver,
 } from "./target-type-semantic-resolution.js";
 import {
   getCsharpTargetTypeFromBinding,
@@ -52,6 +54,9 @@ import {
 import {
   getCsharpRecordDictionaryTargetType,
 } from "./dictionaries.js";
+import {
+  typeSyntaxContainsSourcePrimitiveEvidence,
+} from "./source-primitive-evidence.js";
 import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
@@ -95,16 +100,22 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
       return csharpSourcePrimitiveTargetType(primitive.kind);
     }
   }
+  const aliasedType = getTargetTypeRefFromTypeAliasDeclarations(candidateSubjects, node, context, options, host, resolver);
+  if (aliasedType !== undefined) {
+    return typeSyntaxContainsSourcePrimitiveEvidence(node, context, ast.getSourceFile(node)) && !targetTypeRefContainsSourcePrimitive(aliasedType)
+      ? undefined
+      : aliasedType;
+  }
   const binding = resolveTargetBindingFact(context, node) ??
     resolveTargetBindingFact(context, typeName) ??
     resolveTargetBindingFact(context, type) ??
     resolveTargetBindingFact(context, typeSymbol);
   if (binding !== undefined) {
-    const typeArguments = ast.typeArguments(node).map((argument) => resolver.resolveSubject(argument, context, options, host));
-    if (typeArguments.some((argument) => argument === undefined)) {
+    const typeArguments = resolveTargetTypeArgumentsForReferenceSyntax(node, type, context, options, host, resolver);
+    if (typeArguments === undefined) {
       return undefined;
     }
-    return getCsharpTargetTypeFromBinding(binding, typeArguments as readonly TargetTypeRef[], host);
+    return getCsharpTargetTypeFromBinding(binding, typeArguments, host);
   }
   const recordDictionaryType = getRecordDictionaryTypeRefFromTypeReference(
     candidateSubjects,
@@ -129,11 +140,31 @@ export function getTargetTypeRefFromTypeReferenceSyntax(
   if (sourceDeclarationType !== undefined) {
     return sourceDeclarationType;
   }
-  const aliasedType = getTargetTypeRefFromTypeAliasDeclarations(candidateSubjects, node, context, options, host, resolver);
-  if (aliasedType !== undefined) {
-    return aliasedType;
-  }
   return undefined;
+}
+
+function resolveTargetTypeArgumentsForReferenceSyntax(
+  node: Node,
+  semanticType: Type | undefined,
+  context: ExtensionObservationContext,
+  options: TargetTypeRefResolutionOptions,
+  host: CsharpTargetTypeResolutionHost,
+  resolver: CsharpRecursiveTargetTypeResolver,
+): readonly TargetTypeRef[] | undefined {
+  const ast = context.compiler?.ast;
+  if (ast === undefined) {
+    return undefined;
+  }
+  const syntaxArguments = ast.typeArguments(node);
+  if (syntaxArguments.length > 0) {
+    const resolved = syntaxArguments.map((argument) => resolver.resolveSubject(argument, context, options, host));
+    return resolved.some((argument) => argument === undefined)
+      ? undefined
+      : resolved as readonly TargetTypeRef[];
+  }
+  return semanticType === undefined
+    ? []
+    : resolveTargetTypeArgumentsForTypeWithResolver(semanticType, context, options, host, resolver);
 }
 
 function getRecordDictionaryTypeRefFromTypeReference(

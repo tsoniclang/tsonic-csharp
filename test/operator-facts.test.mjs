@@ -11,6 +11,7 @@ import {
   KindArrayLiteralExpression,
   KindAwaitExpression,
   KindBigIntLiteral,
+  KindConditionalExpression,
   KindIdentifier,
   KindNoSubstitutionTemplateLiteral,
   KindObjectLiteralExpression,
@@ -400,6 +401,36 @@ test("nullish equality emission maps checked undefined operands to C# null", () 
   assert.equal(printCsharpExpression(output), "value == null");
 });
 
+test("conditional expression emission requires finalized bool condition carrier facts", () => {
+  const condition = identifier("value");
+  const expression = conditional(condition, numericLiteral("1"), numericLiteral("2"));
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    runtimeCarrierSubject: condition,
+    runtimeCarrier: sourcePrimitiveCarrier("int32"),
+  }), diagnostics);
+
+  assert.equal(output, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Conditional expression condition requires a finalized C# bool runtime carrier/);
+});
+
+test("conditional expression emission consumes finalized bool condition carrier facts", () => {
+  const condition = identifier("flag");
+  const expression = conditional(condition, numericLiteral("1"), numericLiteral("2"));
+  const diagnostics = [];
+
+  const output = planExpressionWithExpectedType(expression, {}, fakeInput({
+    runtimeCarrierSubject: condition,
+    runtimeCarrier: sourcePrimitiveCarrier("bool"),
+  }), diagnostics, { kind: "PredefinedType", name: "int" });
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "ConditionalExpression");
+  assert.equal(printCsharpExpression(output), "flag ? 1 : 2");
+});
+
 test("operator token facts must map to supported Roslyn tokens", () => {
   const left = identifier("left");
   const right = identifier("right");
@@ -682,6 +713,15 @@ function binary(left, right, operatorKind = "KindPlusToken") {
   };
 }
 
+function conditional(condition, whenTrue, whenFalse) {
+  return {
+    Kind: KindConditionalExpression,
+    Condition: condition,
+    WhenTrue: whenTrue,
+    WhenFalse: whenFalse,
+  };
+}
+
 function awaitExpression(expression) {
   return {
     Kind: KindAwaitExpression,
@@ -693,6 +733,13 @@ function identifier(name) {
   return {
     Kind: KindIdentifier,
     Text: name,
+  };
+}
+
+function numericLiteral(text) {
+  return {
+    Kind: "KindNumericLiteral",
+    Text: text,
   };
 }
 

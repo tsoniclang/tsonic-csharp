@@ -109,7 +109,6 @@ function validateObservedAssignabilityFactsForNode(
   }
   const fact = context.facts.get(node, csharpObservedTargetAssignabilityFactKey);
   if (fact === undefined) {
-    diagnoseAnyTypedBoundaryForNode(node, context);
     return;
   }
   validateObservedAssignmentTargetFact(fact, context);

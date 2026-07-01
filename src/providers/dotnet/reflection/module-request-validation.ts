@@ -37,7 +37,8 @@ function missingRequestedExports(
     return [];
   }
   const exports = new Set(module.exports.map((declaration) => declaration.sourceName));
-  return requestedExports.filter((exportName) => !exports.has(exportName));
+  const unsupportedExports = new Set((module.unsupportedExports ?? []).map((declaration) => declaration.sourceName));
+  return requestedExports.filter((exportName) => !exports.has(exportName) && !unsupportedExports.has(exportName));
 }
 
 function missingRequestedTargetIds(

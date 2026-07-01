@@ -55,6 +55,9 @@ import {
 import {
   tryPlanBinaryExpressionWithExpectedType,
 } from "./expression-operators.js";
+import {
+  requireCsharpBoolRuntimeCarrier,
+} from "./expression-bool-carriers.js";
 
 export interface ExpectedTypeExpressionPlanners {
   readonly planExpression: ExpressionPlanner;
@@ -166,6 +169,13 @@ export function planExpressionWithExpectedTypeCore(
   }
   if (HasSourceKind(input.ast, node, KindConditionalExpression)) {
     const expression = AsConditionalExpression(node)!;
+    if (expression.Condition === undefined) {
+      diagnostics.push(unsupportedNodeDiagnostic(node, "Conditional expression requires a condition expression."));
+      return undefined;
+    }
+    if (!requireCsharpBoolRuntimeCarrier(expression.Condition, "Conditional expression condition", sourceFile, input, diagnostics)) {
+      return undefined;
+    }
     const condition = planners.planExpression(expression.Condition!, sourceFile, input, diagnostics);
     const whenTrue = planners.planExpressionWithExpectedType(expression.WhenTrue!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);
     const whenFalse = planners.planExpressionWithExpectedType(expression.WhenFalse!, sourceFile, input, diagnostics, expectedType, expectedTypeSubject, expectedTargetType);

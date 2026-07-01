@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   createDotnetReflectionTypeDataProvider,
+  createDotnetTargetBindingProvider,
 } from "../dist/index.js";
 import { buildDotnetFixture } from "./helpers/dotnet-fixtures.mjs";
 
@@ -53,6 +54,28 @@ test(".NET reflection provider records assembly reference facts on supported mod
   assertAssemblyReference(widget.assembly, "Acme.Contracts");
   assert.equal(widget.assembly.path.endsWith("Acme.Contracts.dll"), true);
   assert.equal(module.unsupportedExports, undefined);
+});
+
+test(".NET target binding provider reports assembly-qualified unsupported export diagnostics", () => {
+  const { acmeDll, contosoDll } = buildAssemblyIdentityFixtures();
+  const provider = createDotnetReflectionTypeDataProvider({ references: [acmeDll, contosoDll] });
+  const bindingProvider = createDotnetTargetBindingProvider({ provider });
+  const resolution = bindingProvider.resolveModule("@tsonic/dotnet/Shared.js", {
+    containingFile: "assembly-collision.ts",
+    requestedExports: ["Widget"],
+  });
+  assert.equal(resolution.kind, "virtual", JSON.stringify(resolution));
+
+  const model = bindingProvider.getDeclarationModel(resolution);
+
+  assert.equal(model.extensionCode, "DOTNET_PROVIDER_REQUESTED_EXPORT_UNSUPPORTED");
+  assert.match(model.message, /Widget/u);
+  const diagnosticJson = JSON.stringify(model.evidence);
+  assert.match(diagnosticJson, /unsupported-type-family/u);
+  assert.match(diagnosticJson, /Acme\.Contracts, Version=\d+\.\d+\.\d+\.\d+/u);
+  assert.match(diagnosticJson, /Contoso\.Contracts, Version=\d+\.\d+\.\d+\.\d+/u);
+  assert.match(diagnosticJson, /::Shared\.Widget/u);
+  assert.match(diagnosticJson, /"assemblies"/u);
 });
 
 function isSharedWidgetDeclaration(declaration) {

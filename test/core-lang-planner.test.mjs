@@ -65,6 +65,10 @@ test("planner emits byref arguments only from finalized argument-passing facts",
     diagnostics,
     identifierExpressionPlanner,
     identifierExpressionPlanner,
+    undefined,
+    undefined,
+    undefined,
+    "byref-writeonly-must-init",
   );
 
   assert.deepEqual(diagnostics, []);
@@ -73,6 +77,54 @@ test("planner emits byref arguments only from finalized argument-passing facts",
     expression: { kind: "IdentifierName", name: "value" },
     passing: "out",
   });
+});
+
+test("planner rejects byref markers when selected parameter mode is by-value", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const markerCall = node(KindCallExpression);
+  const targetExpression = identifier("value");
+  const diagnostics = [];
+
+  const planned = planCallArgumentCore(
+    markerCall,
+    sourceFile,
+    fakeInput(sourceFile, {
+      argumentPassing: new Map([[markerCall, {
+        mode: "byref-readwrite",
+        targetExpression,
+      }]]),
+    }),
+    diagnostics,
+    identifierExpressionPlanner,
+    identifierExpressionPlanner,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /does not match the selected call parameter mode 'by-value'/);
+});
+
+test("planner rejects byref selected parameters without matching marker facts", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const argument = identifier("value");
+  const diagnostics = [];
+
+  const planned = planCallArgumentCore(
+    argument,
+    sourceFile,
+    fakeInput(sourceFile),
+    diagnostics,
+    identifierExpressionPlanner,
+    identifierExpressionPlanner,
+    undefined,
+    undefined,
+    undefined,
+    "byref-readonly",
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires finalized argument-passing facts/);
 });
 
 test("planner rejects argument-passing facts without AST target expressions", () => {
@@ -92,6 +144,10 @@ test("planner rejects argument-passing facts without AST target expressions", ()
     diagnostics,
     () => undefined,
     () => undefined,
+    undefined,
+    undefined,
+    undefined,
+    "byref-readwrite",
   );
 
   assert.equal(planned, undefined);

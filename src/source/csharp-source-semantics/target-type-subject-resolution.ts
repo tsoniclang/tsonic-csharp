@@ -60,6 +60,9 @@ import {
 import {
   resolveSourceMemberTypeParameterFromReceiver,
 } from "./target-type-subject-resolution/source-member-type-parameters.js";
+import {
+  typeSyntaxContainsSourcePrimitiveEvidence,
+} from "./source-primitive-evidence.js";
 
 export type {
   CsharpTargetTypeResolver,
@@ -216,10 +219,21 @@ export function resolveTargetTypeRefForSubjectCore(
     : ast !== undefined && !isSemanticTypeQueryableValueExpressionNode(ast, node)
       ? undefined
       : asType(checker.getTypeAtLocation(node));
-  return resolveTargetTypeRefForType(type, context, {
+  const semanticResult = resolveTargetTypeRefForType(type, context, {
     ...options,
     ...(ast !== undefined && node !== undefined ? { sourceFile: ast.getSourceFile(node) } : {}),
   }, host);
+  if (
+    semanticResult !== undefined &&
+    node !== undefined &&
+    ast !== undefined &&
+    checker !== undefined &&
+    isTypeSyntaxNode(ast, node) &&
+    typeSyntaxContainsSourcePrimitiveEvidence(node, context, ast.getSourceFile(node) ?? options.sourceFile)
+  ) {
+    return undefined;
+  }
+  return semanticResult;
 }
 
 function getCheckedExpressionSemanticTargetTypeIfMoreSpecific(

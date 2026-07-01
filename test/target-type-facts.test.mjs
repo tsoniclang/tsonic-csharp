@@ -420,6 +420,7 @@ function fakeTypeInput(sourceFile, options = {}) {
       typeArguments: (node) => node?.TypeArguments?.Nodes ?? [],
       parent: () => undefined,
       getSourceFile: () => sourceFile,
+      forEachChild: () => undefined,
       is: {
         IsKeywordTypeNode: () => false,
         IsTypeReferenceNode: (node) => node?.Kind === KindTypeReference,

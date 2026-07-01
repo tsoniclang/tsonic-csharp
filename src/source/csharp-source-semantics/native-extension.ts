@@ -65,6 +65,9 @@ import {
   recordCsharpTargetNameFactsBeforeFinalization,
 } from "./target-name-facts.js";
 import {
+  recordCsharpProviderTargetBindingFactsBeforeFinalization,
+} from "./provider-target-binding-facts.js";
+import {
   recordCsharpSourceDeclarationFactsBeforeFinalization,
 } from "./source-declaration-facts.js";
 import {
@@ -111,6 +114,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       }));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         runBeforeFinalizedStage("target-name-facts", () => recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext));
+        runBeforeFinalizedStage("provider-target-binding-facts", () => recordCsharpProviderTargetBindingFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("source-declaration-facts", () => recordCsharpSourceDeclarationFactsBeforeFinalization(lifecycleContext, hosts.objectShapeSemanticsHost));
         runBeforeFinalizedStage("attribute-application-facts", () => recordCsharpAttributeApplicationFactsBeforeFinalization(lifecycleContext));
         runBeforeFinalizedStage("source-compat-runtime-hard-rejects", () => diagnoseSourceCompatRuntimeHardRejectsBeforeFinalization(lifecycleContext));

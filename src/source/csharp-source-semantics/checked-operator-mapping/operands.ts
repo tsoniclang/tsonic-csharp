@@ -151,19 +151,16 @@ function getCheckedOperatorOperandTargetTypeRef(
   if (nestedOperationResult !== undefined) {
     return nestedOperationResult;
   }
-  const direct = host.getTargetTypeRefForSubject(expressionSubject, context, {
+  const expressionTarget = host.getTargetTypeRefForSubject(expressionSubject, context, {
     ...options,
     ...(sourceFile === undefined ? {} : { sourceFile }),
   });
-  if (direct !== undefined && direct.kind !== "type-parameter") {
-    return direct;
+  if (expressionTarget !== undefined) {
+    return expressionTarget;
   }
   const checkedExpressionType = getCheckedExpressionTargetTypeRef(expressionSubject, sourceFile, context, options, host);
   if (checkedExpressionType !== undefined && checkedExpressionType.kind !== "type-parameter") {
     return checkedExpressionType;
-  }
-  if (direct !== undefined) {
-    return direct;
   }
   const typedCarrier = getMappedRuntimeCarrierTargetTypeRef(typeSubject, context, host);
   if (typedCarrier !== undefined) {
@@ -176,10 +173,7 @@ function getCheckedOperatorOperandTargetTypeRef(
   if (typed !== undefined) {
     return typed;
   }
-  if (sourceFile === undefined) {
-    return undefined;
-  }
-  return getCheckedExpressionTargetTypeRef(expressionSubject, sourceFile, context, options, host);
+  return checkedExpressionType;
 }
 
 function getCheckedExpressionTargetTypeRef(

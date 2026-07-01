@@ -95,6 +95,53 @@ test(".NET reflection provider records unsupported attribute values instead of d
   assert.ok(binding.unsupportedAttributes.some((attribute) => attribute.id === unsupported.id));
 });
 
+test(".NET reflection provider proves attribute type bases, constructors, defaults, and allowed targets", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ references: [buildAttributeFixture()] });
+  const module = provider.getModule(attributeModuleSpecifier, {});
+  assert.equal("exports" in module, true);
+
+  const sampleAttribute = getDeclaration(module, "ProviderAttributeFixtures.SampleAttribute");
+  assert.deepEqual(sampleAttribute.baseType.sourceShape, {
+    kind: "provider-ref",
+    moduleSpecifier: "@tsonic/dotnet/System.js",
+    exportName: "Attribute",
+  });
+
+  const constructor = sampleAttribute.members
+    ?.filter((member) => member.kind === "constructor")
+    .flatMap((member) => member.signatures ?? [])
+    .find((signature) => idEndsWith(
+      signature.id,
+      "ProviderAttributeFixtures.SampleAttribute..ctor(System.String,System.Int32,ProviderAttributeFixtures.ProviderAttributeMode,System.Type,System.Int32[])",
+    ));
+  assert.ok(constructor);
+  assert.deepEqual(constructor.parameters.map((parameter) => parameter.name), [
+    "name",
+    "count",
+    "mode",
+    "targetType",
+    "numbers",
+  ]);
+
+  const attributeUsage = attributeByMetadataName(sampleAttribute.attributes, "System.AttributeUsageAttribute");
+  assert.equal(attributeUsage.target, "type");
+  assert.ok(idEndsWith(attributeUsage.constructorId, "System.AttributeUsageAttribute..ctor(System.AttributeTargets)"));
+  assert.equal(attributeUsage.arguments[0].value.kind, "enum");
+  assert.equal(targetMetadataName(attributeUsage.arguments[0].value.type), "System.AttributeTargets");
+  assert.equal(attributeUsage.arguments[0].value.fieldName, "All");
+  assert.deepEqual(attributeUsage.arguments.slice(1), [
+    { kind: "named", name: "AllowMultiple", memberKind: "property", value: { kind: "source-primitive", name: "bool", value: true } },
+  ]);
+
+  const targetBinding = provider.findTargetBindingByTargetId(sampleAttribute.targetId);
+  assert.ok(targetBinding);
+  assert.equal(idEndsWith(targetBinding.csharpBaseType.id, "System.Attribute"), true);
+  assert.ok(targetBinding.attributes.some((attribute) =>
+    attribute.target === "type" &&
+    idEndsWith(attribute.constructorId, "System.AttributeUsageAttribute..ctor(System.AttributeTargets)")
+  ));
+});
+
 function getDeclaration(module, metadataName) {
   const declaration = [...module.exports, ...(module.targetOnlyTypes ?? [])]
     .find((candidate) => candidate.kind === "type" && candidate.metadataName === metadataName);
@@ -110,6 +157,12 @@ function sampleAttribute(attributes, name) {
     candidate.arguments[0].value.value === name
   );
   assert.ok(attribute, `Missing SampleAttribute '${name}'`);
+  return attribute;
+}
+
+function attributeByMetadataName(attributes, metadataName) {
+  const attribute = attributes?.find((candidate) => targetMetadataName(candidate.attributeType) === metadataName);
+  assert.ok(attribute, `Missing attribute '${metadataName}'`);
   return attribute;
 }
 

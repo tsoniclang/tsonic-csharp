@@ -67,7 +67,7 @@ export function planSelectedTargetCallArguments(
     const parameterTargetType = parameter?.type;
     const renderTargetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
     const expectedType = renderTargetType === undefined ? undefined : getExpectedArgumentRenderType(argument, renderTargetType, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
-    const planned = planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, parameterTargetType);
+    const planned = planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, parameterTargetType, parameter?.passingMode ?? "by-value");
     if (planned === undefined) {
       return undefined;
     }
@@ -195,7 +195,7 @@ function planSelectedTargetReceiverArgument(
   const parameterTargetType = parameter?.type;
   const renderTargetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
   const expectedType = renderTargetType === undefined ? undefined : getExpectedArgumentRenderType(receiver, renderTargetType, input, argumentArrayLiteralElementTypes?.[0]);
-  return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType, undefined, parameterTargetType);
+  return planCallArgument(receiver, sourceFile, input, diagnostics, expectedType, undefined, parameterTargetType, parameter?.passingMode ?? "by-value");
 }
 
 function getTargetParameterForArgument(parameters: readonly CsharpTargetParameter[], index: number): CsharpTargetParameter | undefined {

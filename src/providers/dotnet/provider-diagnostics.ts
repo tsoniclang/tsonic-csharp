@@ -69,6 +69,8 @@ export function dotnetProviderRequestedExportUnsupportedDiagnostic(
     readonly targetIds?: readonly string[];
     readonly metadataName?: string;
     readonly metadataNames?: readonly string[];
+    readonly assembly?: unknown;
+    readonly assemblies?: readonly unknown[];
   }>[],
 ): ExtensionDiagnostic {
   return dotnetExtensionDiagnostic(
@@ -84,6 +86,8 @@ export function dotnetProviderRequestedExportUnsupportedDiagnostic(
       ...(entry.targetIds !== undefined ? { targetIds: entry.targetIds } : {}),
       ...(entry.metadataName !== undefined ? { metadataName: entry.metadataName } : {}),
       ...(entry.metadataNames !== undefined ? { metadataNames: entry.metadataNames } : {}),
+      ...(entry.assembly !== undefined ? { assembly: entry.assembly } : {}),
+      ...(entry.assemblies !== undefined ? { assemblies: entry.assemblies } : {}),
       reason: entry.reason,
     })),
   );

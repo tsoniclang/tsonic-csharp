@@ -1,5 +1,6 @@
 import {
   AsPropertyAccessExpression,
+  isAstNode,
   Node_Text,
 } from "../source-ast.js";
 import type {
@@ -15,9 +16,6 @@ import type {
 } from "../../roslyn/syntax.js";
 import type {
   CsharpTargetOperationFact,
-} from "../../../source/csharp-facts.js";
-import {
-  csharpTargetOperationFactKey,
 } from "../../../source/csharp-facts.js";
 import {
   unsupportedNodeDiagnostic,
@@ -42,6 +40,7 @@ import {
 } from "../expression-selected-target-members.js";
 import {
   isCsharpSourceOwnedPropertyOperation,
+  csharpTargetOperationFactKey,
   csharpObjectShapeMemberLookupFailureMessage,
   resolveCsharpObjectShapeMemberByFinalizedSourceName,
 } from "../../../source/csharp-facts.js";
@@ -57,6 +56,15 @@ import {
 import {
   tryPlanCompatRuntimePropertyGet,
 } from "../compat-runtime-operations.js";
+import {
+  getTargetTypeRefForNode,
+} from "../runtime-carriers.js";
+import {
+  targetTypeRefEquals,
+} from "../../../source/csharp-source-semantics/target-ref-utils.js";
+import {
+  unwrapNullableTargetType,
+} from "../../../source/csharp-source-semantics/target-rules.js";
 
 export function planPropertyAccessExpression(
   propertyAccess: Node,
@@ -86,6 +94,7 @@ export function planPropertyAccessExpression(
     if (sourceModuleMemberReference !== undefined) {
       return sourceModuleMemberReference;
     }
+    return planSourceOwnedPropertyAccess(propertyAccess, expression, sourceName, sourceFile, input, diagnostics, planExpression);
   } else if (targetOperation !== undefined && targetOperation.operationKind === "property") {
     const csharpOperation = getRequiredCsharpTargetOperation(input, propertyAccess, targetOperation, diagnostics, "C# property access emission");
     if (csharpOperation === undefined) {
@@ -96,10 +105,6 @@ export function planPropertyAccessExpression(
   if (!sourceOwnedPropertyOperation && targetOperation !== undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, `Property access '${sourceName}' expected a provider property fact, but provider selected a ${targetOperation.operationKind} operation.`));
     return undefined;
-  }
-  const csharpOperation = input.facts.getFact(propertyAccess, csharpTargetOperationFactKey);
-  if (csharpOperation !== undefined) {
-    return planFinalizedCsharpPropertyOperation(propertyAccess, expression, csharpOperation, sourceFile, input, diagnostics, planExpression);
   }
   const sourceModuleMemberReference = planProjectSourceModuleMemberReference(propertyAccess, sourceFile, input, diagnostics);
   if (sourceModuleMemberReference !== undefined) {
@@ -124,6 +129,97 @@ export function planPropertyAccessExpression(
     receiver: receiverExpression,
     name: planIdentifierName(expression.name, "InvalidPropertyName", input, diagnostics, "Source-owned property name"),
   };
+}
+
+function planSourceOwnedPropertyAccess(
+  propertyAccess: Node,
+  expression: NonNullable<ReturnType<typeof AsPropertyAccessExpression>>,
+  sourceName: string,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  planExpression: ExpressionPlanner,
+): CsharpExpression | undefined {
+  const receiver = planExpression(expression.Expression!, sourceFile, input, diagnostics);
+  if (receiver === undefined) {
+    return undefined;
+  }
+  return {
+    kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
+    receiver: applySelectedSourceDeclaringReceiverCast(propertyAccess, expression.Expression!, receiver, sourceFile, input, diagnostics),
+    name: planIdentifierName(expression.name, "InvalidPropertyName", input, diagnostics, `Source-owned property '${sourceName}'`),
+  };
+}
+
+function applySelectedSourceDeclaringReceiverCast(
+  propertyAccess: Node,
+  receiverNode: Node,
+  receiver: CsharpExpression,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+): CsharpExpression {
+  const operation = input.facts.getFact(propertyAccess, csharpTargetOperationFactKey);
+  const operationDeclaringType = operation?.kind === "member"
+    ? operation.declaringType ?? getSourceDeclaringTargetType(operation.sourceDeclaringType, sourceFile, input)
+    : undefined;
+  if (operation?.kind !== "member" || operationDeclaringType === undefined) {
+    return receiver;
+  }
+  const declaredReceiverType = getDeclaredReceiverTargetType(receiverNode, sourceFile, input);
+  const unwrappedDeclaredReceiverType = unwrapNullableTargetType(declaredReceiverType);
+  if (unwrappedDeclaredReceiverType !== undefined && targetTypeRefEquals(unwrappedDeclaredReceiverType, operationDeclaringType)) {
+    return receiver;
+  }
+  const castType = csharpTypeFromTargetTypeRef(operationDeclaringType);
+  if (castType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, "Source-owned narrowed property access requires a renderable selected declaring target type before C# emission."));
+    return receiver;
+  }
+  return {
+    kind: "ParenthesizedExpression",
+    expression: {
+      kind: "CastExpression",
+      type: castType,
+      expression: receiver,
+    },
+  };
+}
+
+function getSourceDeclaringTargetType(
+  sourceDeclaringType: unknown,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): ReturnType<typeof getTargetTypeRefForNode> {
+  if (!isAstNode(sourceDeclaringType)) {
+    return undefined;
+  }
+  return getTargetTypeRefForNode(
+    input,
+    sourceDeclaringType,
+    input.ast.getSourceFile(sourceDeclaringType) ?? sourceFile,
+  );
+}
+
+function getDeclaredReceiverTargetType(
+  receiverNode: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): ReturnType<typeof getTargetTypeRefForNode> {
+  const reference = input.analysis.getProjectSourceReferenceForNode(receiverNode, { sourceFile });
+  const declaration = reference?.declaration;
+  const typeNode = declaration === undefined ? undefined : getNodeField(declaration, "Type");
+  if (typeNode !== undefined) {
+    return getTargetTypeRefForNode(input, typeNode, reference?.sourceFile ?? sourceFile);
+  }
+  return declaration === undefined
+    ? getTargetTypeRefForNode(input, receiverNode, sourceFile)
+    : getTargetTypeRefForNode(input, declaration, reference?.sourceFile ?? sourceFile);
+}
+
+function getNodeField(node: Node, field: string): Node | undefined {
+  const value = Object.getOwnPropertyDescriptor(node, field)?.value;
+  return isAstNode(value) ? value : undefined;
 }
 
 function planFinalizedCsharpPropertyOperation(
