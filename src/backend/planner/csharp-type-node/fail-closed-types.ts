@@ -24,6 +24,13 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
+import {
+  csharpQualifiedTypeRenderShape,
+  csharpTargetNamedType,
+} from "../../../source/csharp-source-semantics/target-types.js";
+import {
+  readCsharpTypescriptCompatibilityMode,
+} from "../../../options/csharp-target-options.js";
 
 export function getCsharpTypeFromTargetConversion(
   node: Node,
@@ -47,8 +54,15 @@ export function getCsharpTypeFromUnsupportedBroadTypeNode(
   input: TargetCompileInput,
   diagnostics?: TargetDiagnostic[],
 ): CsharpTypeNode | undefined {
-  if (input.ast.kindName(node) === KindAnyKeyword || input.ast.kindName(node) === KindUnknownKeyword) {
-    diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any and unknown cannot trickle into generated C#."));
+  if (input.ast.kindName(node) === KindAnyKeyword) {
+    if (readCsharpTypescriptCompatibilityMode(input.target) === "compat") {
+      return csharpTypeFromTargetTypeRef(csharpTargetNamedType("Tsonic.CSharp.Js.TsValue", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue")));
+    }
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; any cannot trickle into generated C# unless the selected target explicitly enables TypeScript compatibility carriers."));
+    return invalidCsharpType("any type");
+  }
+  if (input.ast.kindName(node) === KindUnknownKeyword) {
+    diagnostics?.push(unsupportedNodeDiagnostic(node, "C# emission requires a closed target type; unknown cannot trickle into generated C#."));
     return invalidCsharpType("any or unknown type");
   }
   if (input.ast.kindName(node) === KindObjectKeyword) {

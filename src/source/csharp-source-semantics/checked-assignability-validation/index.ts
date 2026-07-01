@@ -17,6 +17,7 @@ import type {
 } from "../../csharp-facts.js";
 import {
   csharpObservedTargetAssignabilityFactKey,
+  csharpTargetOperationFactKey,
 } from "../../csharp-facts.js";
 import {
   getAstReaderChildNodes,
@@ -25,8 +26,17 @@ import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
 import {
+  getNodeField,
+} from "../ast-utils.js";
+import {
   csharpTargetId,
 } from "../identity.js";
+import {
+  isClosedCompatRuntimeOperationFact,
+} from "../opaque-any-diagnostics/closed-compat.js";
+import {
+  getBinaryOperatorText,
+} from "../operator-syntax.js";
 import type {
   CsharpOperationsProviderHost,
 } from "../operations-provider.js";
@@ -115,6 +125,9 @@ function validateObservedAssignabilityFactsForNode(
   if (diagnoseAnyTypedBoundaryForNode(node, context)) {
     return;
   }
+  if (isCompatRuntimeAssignmentObservation(fact, context)) {
+    return;
+  }
   if (isInferredLocalAssignmentObservation(fact, context)) {
     return;
   }
@@ -138,6 +151,25 @@ function validateObservedAssignabilityFactsForNode(
     ],
     identity: `csharp-target-assignability:${subjectIdentity(fact.expression ?? fact.errorNode ?? fact.target)}`,
   });
+}
+
+function isCompatRuntimeAssignmentObservation(
+  fact: CsharpObservedTargetAssignabilityFact,
+  context: ExtensionObservationContext<"target.observePostCheckAssignability">,
+): boolean {
+  const compiler = context.compiler;
+  const target = asNode(fact.errorNode) ?? asNode(fact.target);
+  if (compiler === undefined || target === undefined) {
+    return false;
+  }
+  const parent = compiler.ast.parent(target);
+  if (parent === undefined || !compiler.ast.is.IsBinaryExpression(parent) || getBinaryOperatorText(compiler.ast, parent) !== "=") {
+    return false;
+  }
+  if (asNode(getNodeField(parent, "Left")) !== target) {
+    return false;
+  }
+  return isClosedCompatRuntimeOperationFact(context.factResolver.resolve(parent, csharpTargetOperationFactKey) ?? context.facts.get(parent, csharpTargetOperationFactKey));
 }
 
 function resolveObservedAssignabilitySource(

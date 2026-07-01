@@ -46,6 +46,9 @@ import {
   csharpProviderDiagnostic,
 } from "../diagnostics.js";
 import {
+  mapCsharpCompatRuntimeCheckedOperator,
+} from "../compat-runtime-checked-operations.js";
+import {
   getBitwiseLiteralOperandTargetTypeRefs,
   getCheckedOperatorOperandTargetTypeRefs,
   getOperatorSourceFile,
@@ -91,6 +94,10 @@ export function mapCsharpCheckedOperator(
   }
   if (existingCsharpOperation !== undefined) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' already has a finalized non-operator C# target operation.`);
+  }
+  const compatRuntimeOperator = mapCsharpCompatRuntimeCheckedOperator(request, context);
+  if (compatRuntimeOperator.kind !== "defer") {
+    return compatRuntimeOperator;
   }
   const typeofComparison = getTypeofComparisonOperation(request, context);
   if (typeofComparison !== undefined) {

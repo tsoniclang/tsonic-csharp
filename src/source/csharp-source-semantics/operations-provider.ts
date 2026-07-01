@@ -57,6 +57,11 @@ import {
   mapCsharpCheckedCall,
 } from "./checked-call-mapping/index.js";
 import {
+  mapCsharpCompatRuntimeCheckedCall,
+  mapCsharpCompatRuntimeCheckedElementAccess,
+  mapCsharpCompatRuntimeCheckedPropertyAccess,
+} from "./compat-runtime-checked-operations.js";
+import {
   mapCsharpCheckedElementAccess,
   mapCsharpCheckedPropertyAccess,
 } from "./checked-member-access-mapping.js";
@@ -151,6 +156,10 @@ export function createCsharpTargetOperationsProvider(
   return {
     identity,
     mapCheckedCall(request, context) {
+      const compatObservation = mapCsharpCompatRuntimeCheckedCall(request, context);
+      if (compatObservation.kind !== "defer") {
+        return compatObservation;
+      }
       const nodejsObservation = nodejsSurface?.mapCheckedCall(request, context) ?? deferObservation;
       if (nodejsObservation.kind !== "defer") {
         return nodejsObservation;
@@ -166,6 +175,10 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedCall(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedPropertyAccess(request, context) {
+      const compatObservation = mapCsharpCompatRuntimeCheckedPropertyAccess(request, context);
+      if (compatObservation.kind !== "defer") {
+        return compatObservation;
+      }
       if (jsSurface !== undefined) {
         ensureCsharpJsSurfaceSeedFacts(context, createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, surfaceAwareHost));
       }
@@ -180,6 +193,10 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedPropertyAccess(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedElementAccess(request, context) {
+      const compatObservation = mapCsharpCompatRuntimeCheckedElementAccess(request, context);
+      if (compatObservation.kind !== "defer") {
+        return compatObservation;
+      }
       if (jsSurface !== undefined) {
         ensureCsharpJsSurfaceSeedFacts(context, createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, surfaceAwareHost));
       }

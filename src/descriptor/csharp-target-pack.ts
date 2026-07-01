@@ -14,6 +14,7 @@ import type {
 import type { CompilerExtension } from "@tsonic/tsts";
 import { createCsharpBackend } from "../backend/csharp-backend.js";
 import {
+  readCsharpTypescriptCompatibilityMode,
   validateCsharpTargetOptions,
 } from "../options/csharp-target-options.js";
 import {
@@ -41,10 +42,11 @@ export function createCsharpTargetPack(): TargetPack {
           createCsharpTargetSemanticsExtension(context),
         ];
       },
-      runtimeContributions(_context: TargetRuntimeContributionContext): TargetRuntimeContributions {
+      runtimeContributions(context: TargetRuntimeContributionContext): TargetRuntimeContributions {
         return {
           references: [
             csharpRuntimeProjectReference("csharp-runtime", "Tsonic.CSharp.Runtime"),
+            ...csharpTypescriptCompatibilityRuntimeReferences(context),
           ],
         };
       },
@@ -96,4 +98,11 @@ function csharpRuntimeProjectReference(repositoryName: string, assemblyName: str
     kind: "project",
     include: resolve(targetPackageRoot, `../${repositoryName}/src/${assemblyName}/${assemblyName}.csproj`),
   };
+}
+
+function csharpTypescriptCompatibilityRuntimeReferences(context: TargetRuntimeContributionContext): readonly TargetRuntimeReference[] {
+  if (readCsharpTypescriptCompatibilityMode(context.target) !== "compat" || context.selectedSurfaces.some((surface) => surface.id === "js")) {
+    return [];
+  }
+  return [csharpRuntimeProjectReference("csharp-js", "Tsonic.CSharp.Js")];
 }

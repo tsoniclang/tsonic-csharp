@@ -1,6 +1,9 @@
 import {
   csharpTargetOperationFactKey,
 } from "../../csharp-facts.js";
+import {
+  runtimeCarrierFactKey,
+} from "@tsonic/tsts";
 import type {
   ExtensionLifecycleContext,
   Node,
@@ -12,6 +15,12 @@ import {
 import {
   getOpaqueAnyOperation,
 } from "./opaque-operation.js";
+import {
+  isCsharpAnyRuntimeCarrier,
+} from "../target-types.js";
+import {
+  getBinaryOperatorText,
+} from "../operator-syntax.js";
 import {
   hardRejectedCompatOperation,
 } from "./diagnostic-constants.js";
@@ -34,7 +43,7 @@ export function getUnsupportedCompatRuntimeOperation(
     return sourceOperation;
   }
   const operation = lifecycleContext.host.facts.get(node, csharpTargetOperationFactKey);
-  if (isClosedCompatRuntimeOperationFact(operation) && getOpaqueAnyOperation(node, lifecycleContext) === undefined) {
+  if (isClosedCompatRuntimeOperationFact(operation) && !isExplicitTypeScriptAnyCompatOperation(node, lifecycleContext)) {
     return hardRejectedCompatOperation(
       "non-any-compat-carrier",
       "C# compat-runtime carrier operation facts can only attach to explicit TypeScript any operations.",
@@ -42,6 +51,67 @@ export function getUnsupportedCompatRuntimeOperation(
     );
   }
   return undefined;
+}
+
+function isExplicitTypeScriptAnyCompatOperation(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
+): boolean {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return false;
+  }
+  if (getOpaqueAnyOperation(node, lifecycleContext) !== undefined) {
+    return true;
+  }
+  const ast = compiler.ast;
+  if (ast.is.IsCallExpression(node) || ast.is.IsNewExpression(node)) {
+    return isExplicitTypeScriptAnySubject(asNodeSubject(getNodeField(node, "Expression")), lifecycleContext);
+  }
+  if (ast.is.IsPropertyAccessExpression(node) || ast.is.IsElementAccessExpression(node)) {
+    return isExplicitTypeScriptAnySubject(asNodeSubject(getNodeField(node, "Expression")), lifecycleContext);
+  }
+  if (ast.is.IsBinaryExpression(node) && getBinaryOperatorText(ast, node) === "=") {
+    return isExplicitTypeScriptAnyAssignmentOperation(node, lifecycleContext);
+  }
+  return false;
+}
+
+function isExplicitTypeScriptAnyAssignmentOperation(
+  node: Node,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
+): boolean {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || !compiler.ast.is.IsBinaryExpression(node) || getBinaryOperatorText(compiler.ast, node) !== "=") {
+    return false;
+  }
+  const left = asNodeSubject(getNodeField(node, "Left"));
+  if (left === undefined) {
+    return false;
+  }
+  if (getOpaqueAnyOperation(left, lifecycleContext) !== undefined) {
+    return true;
+  }
+  if (compiler.ast.is.IsPropertyAccessExpression(left) || compiler.ast.is.IsElementAccessExpression(left)) {
+    return isExplicitTypeScriptAnySubject(asNodeSubject(getNodeField(left, "Expression")), lifecycleContext);
+  }
+  return false;
+}
+
+function isExplicitTypeScriptAnySubject(
+  subject: Node | undefined,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
+): boolean {
+  const compiler = lifecycleContext.compiler;
+  if (subject === undefined || compiler === undefined) {
+    return false;
+  }
+  if (isCsharpAnyRuntimeCarrier(lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier)) {
+    return true;
+  }
+  const sourceFile = compiler.ast.getSourceFile(subject);
+  const type = sourceFile === undefined ? undefined : compiler.checker.getTypeAtLocation(subject, { sourceFile });
+  return type !== undefined && compiler.typeShape.isAny(type);
 }
 
 export function getUnsupportedSourceCompatRuntimeOperation(

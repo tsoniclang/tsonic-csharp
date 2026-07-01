@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { planCsharpProjectFile } from "../dist/backend/planner/project-artifacts.js";
+import { createCsharpTargetPack } from "../dist/descriptor/csharp-target-pack.js";
 import { printCsharpProjectFile } from "../dist/print/csharp-project-printer.js";
 import { createDotnetToolchain } from "../dist/toolchain/dotnet-toolchain.js";
 
@@ -150,6 +151,28 @@ test("project artifact includes runtime references only from selected target or 
   assert.match(withRuntimeReferences, /<Reference Include="Example\.Assembly" HintPath="\.\.\/lib\/Example\.Assembly\.dll" \/>/);
 });
 
+test("target provider contributes closed compat carrier runtime without requiring the JS surface", () => {
+  const targetPack = createCsharpTargetPack();
+  const provider = targetPack.provider;
+  const jsSurface = targetPack.surfaces.find((surface) => surface.id === "js");
+
+  assert.ok(provider);
+  assert.ok(jsSurface);
+
+  const strictReferences = provider.runtimeContributions(fakeRuntimeContributionContext({ target: { id: "csharp", options: {} } })).references;
+  const compatReferences = provider.runtimeContributions(fakeRuntimeContributionContext({
+    target: { id: "csharp", options: { typescriptCompatibility: "compat" } },
+  })).references;
+  const compatWithJsSurfaceReferences = provider.runtimeContributions(fakeRuntimeContributionContext({
+    target: { id: "csharp", options: { typescriptCompatibility: "compat" } },
+    selectedSurfaces: [jsSurface],
+  })).references;
+
+  assert.equal(strictReferences.filter((reference) => reference.include.includes("Tsonic.CSharp.Js.csproj")).length, 0);
+  assert.equal(compatReferences.filter((reference) => reference.include.includes("Tsonic.CSharp.Js.csproj")).length, 1);
+  assert.equal(compatWithJsSurfaceReferences.filter((reference) => reference.include.includes("Tsonic.CSharp.Js.csproj")).length, 0);
+});
+
 test("dotnet toolchain reports deterministic source-to-source artifacts without publishing", () => {
   const toolchain = createDotnetToolchain({});
   const result = toolchain.prepare({
@@ -175,5 +198,20 @@ function fakeInput(options = {}, runtimeReferences = []) {
   return {
     target: { id: "csharp", options },
     runtimeReferences,
+  };
+}
+
+function fakeRuntimeContributionContext(options = {}) {
+  return {
+    project: { targets: [] },
+    target: options.target ?? { id: "csharp", options: {} },
+    selectedPackages: options.selectedPackages ?? [],
+    selectedSurfaces: options.selectedSurfaces ?? [],
+    paths: {
+      projectFilePath: "tsonic.json",
+      projectRoot: ".",
+      outputRoot: "out",
+      targetOutputRoot: "out/csharp",
+    },
   };
 }

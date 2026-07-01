@@ -121,7 +121,7 @@ export function tryPlanCompatRuntimeCall(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!isOpaqueAnyReceiver(calleeNode, sourceFile, input)) {
+  if (!isCompatRuntimeCallableReceiver(calleeNode, sourceFile, input)) {
     return undefined;
   }
   return planCompatRuntimeReceiverOperation(operationNode, calleeNode, false, argumentNodes, "C# compat-runtime any call", sourceFile, input, diagnostics, planExpression);
@@ -136,7 +136,7 @@ export function tryPlanCompatRuntimeConstruct(
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
 ): CsharpExpression | undefined {
-  if (!isOpaqueAnyReceiver(calleeNode, sourceFile, input)) {
+  if (!isCompatRuntimeCallableReceiver(calleeNode, sourceFile, input)) {
     return undefined;
   }
   return planCompatRuntimeReceiverOperation(operationNode, calleeNode, false, argumentNodes, "C# compat-runtime any construct", sourceFile, input, diagnostics, planExpression);
@@ -291,4 +291,13 @@ function isOpaqueAnyReceiver(
   input: TargetCompileInput,
 ): boolean {
   return isCsharpAnyRuntimeCarrier(getRuntimeCarrierForExpression(input, receiverNode, sourceFile));
+}
+
+function isCompatRuntimeCallableReceiver(
+  receiverNode: Node | undefined,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): boolean {
+  const carrier = getRuntimeCarrierForExpression(input, receiverNode, sourceFile);
+  return isCsharpAnyRuntimeCarrier(carrier) || isCsharpClosedCompatRuntimeCarrier(carrier);
 }
