@@ -8,7 +8,10 @@ import {
 import { planArrayLiteralExpressionWithCarrier } from "../dist/backend/planner/array-literals/index.js";
 import {
   csharpListTargetType,
+  csharpQualifiedTypeRenderShape,
+  csharpReadOnlyListTargetType,
   csharpStringTargetType,
+  csharpTargetNamedType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 import {
   csharpJsArrayCarrierTargetType,
@@ -193,6 +196,64 @@ test("native collection spread emits only from finalized collection element fact
       elements: [{ kind: "LiteralExpression", value: 3 }],
     },
   ]);
+});
+
+test("native collection literals use provider construction metadata instead of target id branches", () => {
+  const sourceExample = `
+    const value: IReadOnlyList<number> = [1, 2];
+  `;
+  assert.match(sourceExample, /IReadOnlyList/);
+
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+    numericLiteral("2"),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput(),
+    diagnostics,
+    csharpReadOnlyListTargetType(int32Type()),
+    planner,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(planned.kind, "ObjectCreationExpression");
+  assert.equal(planned.type.name, "List");
+  assert.equal(planned.arguments[0].expression.kind, "ArrayCreationExpression");
+});
+
+test("native collection literals reject provider element metadata without construction metadata", () => {
+  const sourceExample = `
+    const value: ProviderSequence<number> = [1];
+  `;
+  assert.match(sourceExample, /ProviderSequence/);
+
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+  ]);
+  const diagnostics = [];
+  const providerSequence = csharpTargetNamedType(
+    "Example.ProviderSequence`1",
+    [int32Type()],
+    csharpQualifiedTypeRenderShape("Example", "ProviderSequence"),
+    { arrayLiteralElementType: int32Type() },
+  );
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput(),
+    diagnostics,
+    providerSequence,
+    planner,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /array-literal construction type metadata/);
 });
 
 function arrayLiteral(elements) {

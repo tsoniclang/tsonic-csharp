@@ -15,7 +15,8 @@ export type CsharpArrayCarrierRequirement =
   | "index-read"
   | "length-read"
   | "dense-mutation"
-  | "full-js";
+  | "full-js"
+  | "unresolved-structural-use";
 
 export type LifecycleContext = {
   readonly host: ExtensionObservationContext["host"];

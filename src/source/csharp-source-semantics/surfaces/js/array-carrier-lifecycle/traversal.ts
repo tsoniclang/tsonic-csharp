@@ -5,6 +5,7 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
+  getNodeList,
   visitAstReaderNodes,
 } from "../../../ast-utils.js";
 import type {
@@ -24,6 +25,7 @@ import type {
   ArrayParameterAnalysis,
   ArrayLocalAnalysis,
   ArrayReturnAnalysis,
+  CsharpArrayCarrierRequirement,
   LifecycleContext,
 } from "./types.js";
 import {
@@ -54,7 +56,7 @@ export function collectArrayParameters(
       return;
     }
     const name = asNodeSubject(getNodeField(node, "name"));
-    if (name === undefined || !compiler.ast.is.IsIdentifier(name)) {
+    if (name === undefined || (!compiler.ast.is.IsIdentifier(name) && compiler.ast.kindName(name) !== "KindArrayBindingPattern")) {
       return;
     }
     const elementTypeNode = asNodeSubject(getNodeField(typeNode, "ElementType"));
@@ -62,11 +64,16 @@ export function collectArrayParameters(
     if (elementType === undefined) {
       return;
     }
-    const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile) ??
-      getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
+    const nameIsIdentifier = compiler.ast.is.IsIdentifier(name);
+    const symbol = nameIsIdentifier
+      ? getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile) ??
+        getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile)
+      : undefined;
     const semanticType = compiler.checker.getTypeFromTypeNode(typeNode, { sourceFile }) ??
       compiler.checker.getTypeAtLocation(name, { sourceFile });
-    const sourceUses = collectArrayStructuralUsesForSymbol(sourceFile, symbol, lifecycleContext);
+    const sourceUses = nameIsIdentifier
+      ? collectArrayStructuralUsesForSymbol(sourceFile, symbol, lifecycleContext)
+      : [];
     parameters.push({
       parameter: node,
       name,
@@ -75,10 +82,23 @@ export function collectArrayParameters(
       semanticType,
       elementType,
       sourceUses,
-      carrierRequirements: carrierRequirementsForArrayStructuralUses(sourceUses, elementType, lifecycleContext, host),
+      carrierRequirements: nameIsIdentifier
+        ? carrierRequirementsForArrayStructuralUses(sourceUses, elementType, lifecycleContext, host)
+        : carrierRequirementsForArrayBindingPattern(name),
     });
   });
   return parameters;
+}
+
+function carrierRequirementsForArrayBindingPattern(pattern: Node): ReadonlySet<CsharpArrayCarrierRequirement> {
+  const requirements = new Set<CsharpArrayCarrierRequirement>();
+  for (const element of getNodeList(getNodeField(pattern, "Elements"))) {
+    requirements.add("index-read");
+    if (asNodeSubject(getNodeField(element, "Initializer")) !== undefined || asNodeSubject(getNodeField(element, "DotDotDotToken")) !== undefined) {
+      requirements.add("length-read");
+    }
+  }
+  return requirements;
 }
 
 export function collectArrayReturnTypeNodes(

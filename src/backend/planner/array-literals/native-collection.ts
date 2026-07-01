@@ -32,7 +32,7 @@ import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
 import {
-  csharpListTargetType,
+  getCsharpArrayLiteralConstructionTargetType,
   getCsharpArrayLiteralElementTargetType,
 } from "../../../source/csharp-source-semantics/target-types.js";
 import type {
@@ -53,9 +53,10 @@ export function planNativeCollectionArrayLiteralExpression(
 ): CsharpExpression | undefined {
   const literal = AsArrayLiteralExpression(node)!;
   const elementType = csharpTypeFromTargetTypeRef(elementCarrier);
-  const collectionType = csharpTypeFromTargetTypeRef(concreteDenseArrayLiteralCollectionType(carrier, elementCarrier));
+  const constructionCarrier = getCsharpArrayLiteralConstructionTargetType(carrier);
+  const collectionType = constructionCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(constructionCarrier);
   if (elementType === undefined || collectionType === undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection and element carrier types before C# emission."));
+    diagnostics.push(unsupportedNodeDiagnostic(node, "Array literal emission requires renderable provider collection element and array-literal construction type metadata before C# emission."));
     return undefined;
   }
   if (!(literal.Elements?.Nodes ?? []).some((element) => HasSourceKind(input.ast, element, KindSpreadElement))) {
@@ -87,15 +88,6 @@ export function planNativeCollectionArrayLiteralExpression(
     };
   }
   return jsArrayHelperCall("concat", chunks.map((chunk) => ({ kind: "Argument", expression: chunk })));
-}
-
-function concreteDenseArrayLiteralCollectionType(
-  carrier: TargetTypeRef,
-  elementCarrier: TargetTypeRef,
-): TargetTypeRef {
-  return carrier.kind === "target-named" && carrier.id === "System.Collections.Generic.List`1"
-    ? carrier
-    : csharpListTargetType(elementCarrier);
 }
 
 function createNativeCollectionSpreadChunks(

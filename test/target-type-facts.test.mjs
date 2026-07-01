@@ -25,6 +25,7 @@ import {
   csharpVoidTargetType,
   csharpEnumerableTargetType,
   getCsharpArrayLiteralElementTargetType,
+  getCsharpArrayLiteralConstructionTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpReadOnlyIndexableCollectionElementTargetType,
   isCsharpDenseMutableCollectionTargetType,
@@ -95,7 +96,32 @@ test("collection literal acceptance requires explicit C# target metadata", () =>
   });
 
   assert.equal(getCsharpArrayLiteralElementTargetType(rawEnumerable), undefined);
+  assert.equal(getCsharpArrayLiteralConstructionTargetType(rawEnumerable), undefined);
   assert.deepEqual(getCsharpArrayLiteralElementTargetType(enrichedEnumerable), intType);
+});
+
+test("collection literal construction requires explicit C# target metadata", () => {
+  const intType = { kind: "source-primitive", name: "int32" };
+  const list = csharpListTargetType(intType);
+  const enumerable = csharpEnumerableTargetType(intType);
+  const readOnlyList = csharpReadOnlyListTargetType(intType);
+
+  assert.deepEqual(getCsharpArrayLiteralConstructionTargetType(list), {
+    kind: "target-named",
+    id: "System.Collections.Generic.List`1",
+    typeArguments: [intType],
+    csharpRender: {
+      kind: "named",
+      namespace: ["System", "Collections", "Generic"],
+      name: "List",
+    },
+    csharpArrayLiteralElementType: intType,
+    csharpEnumerableElementType: intType,
+    csharpReadOnlyIndexableElementType: intType,
+    csharpDenseMutableElementType: intType,
+  });
+  assert.equal(getCsharpArrayLiteralConstructionTargetType(enumerable)?.id, "System.Collections.Generic.List`1");
+  assert.equal(getCsharpArrayLiteralConstructionTargetType(readOnlyList)?.id, "System.Collections.Generic.List`1");
 });
 
 test("collection shape matching requires explicit C# target metadata", () => {

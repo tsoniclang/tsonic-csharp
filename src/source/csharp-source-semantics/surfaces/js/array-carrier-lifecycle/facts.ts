@@ -7,6 +7,9 @@ import {
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import {
+  csharpProviderDiagnostic,
+} from "../../../diagnostics.js";
+import {
   csharpArrayBoundaryFactKey,
   csharpArrayCarrierFactKey,
 } from "../../../../csharp-facts.js";
@@ -27,6 +30,7 @@ import type {
   ArrayLocalAnalysis,
   ArrayParameterAnalysis,
   ArrayReturnAnalysis,
+  CsharpArrayCarrierRequirement,
   LifecycleContext,
 } from "./types.js";
 
@@ -35,6 +39,9 @@ export function recordArrayParameterFacts(
   lifecycleContext: LifecycleContext,
   context: ExtensionObservationContext,
 ): void {
+  if (appendUnresolvedArrayCarrierDiagnostic(parameter.name, parameter.carrierRequirements, lifecycleContext)) {
+    return;
+  }
   const boundary = boundaryFactForArrayParameter(parameter);
   const carrier: CsharpArrayCarrierFact = {
     sourceKind: "ts-array",
@@ -61,6 +68,9 @@ export function recordArrayLocalFacts(
   local: ArrayLocalAnalysis,
   lifecycleContext: LifecycleContext,
 ): void {
+  if (appendUnresolvedArrayCarrierDiagnostic(local.name, local.carrierRequirements, lifecycleContext)) {
+    return;
+  }
   const boundary = boundaryFactForLocalArray(local);
   const carrier: CsharpArrayCarrierFact = {
     sourceKind: "ts-array",
@@ -158,6 +168,28 @@ function boundaryFactForLocalArray(local: ArrayLocalAnalysis): CsharpArrayBounda
     carrierRequirements: local.carrierRequirements,
   };
   return boundaryFactForArrayParameter(parameterEquivalent);
+}
+
+function appendUnresolvedArrayCarrierDiagnostic(
+  node: Node,
+  requirements: ReadonlySet<CsharpArrayCarrierRequirement>,
+  lifecycleContext: LifecycleContext,
+): boolean {
+  if (!requirements.has("unresolved-structural-use")) {
+    return false;
+  }
+  lifecycleContext.host.diagnostics.append({
+    ...csharpProviderDiagnostic(
+      "tsonic.csharp.operations",
+      "CSHARP_JS_ARRAY_CARRIER_REQUIREMENT_NOT_PROVEN",
+      9100175,
+      "C# JS surface array carrier selection requires selected TSTS declaration identity and provider target member metadata for every structural property, call, and argument use; unresolved structural use prevents selecting a carrier lane.",
+      [{ message: `Observed structural requirements: ${Array.from(requirements).sort().join(",")}.` }],
+    ),
+    nodeOrSpan: node,
+    identity: `csharp-js-array-carrier-requirement-not-proven:${getParameterName(node)}`,
+  });
+  return true;
 }
 
 function getParameterName(name: Node): string {

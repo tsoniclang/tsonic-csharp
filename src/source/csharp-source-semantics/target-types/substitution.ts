@@ -16,6 +16,7 @@ export function substituteTargetTypeParameters(
       return substitutions.get(type.name) ?? type;
     case "target-named":
       const arrayLiteralElementType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType;
+      const arrayLiteralConstructionType = (type as CsharpTargetNamedTypeRef).csharpArrayLiteralConstructionType;
       const enumerableElementType = (type as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
       const readOnlyIndexableElementType = (type as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
       const denseMutableElementType = (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
@@ -28,6 +29,9 @@ export function substituteTargetTypeParameters(
         ...(arrayLiteralElementType === undefined
           ? {}
           : { csharpArrayLiteralElementType: substituteTargetTypeParameters(arrayLiteralElementType, substitutions) }),
+        ...(arrayLiteralConstructionType === undefined
+          ? {}
+          : { csharpArrayLiteralConstructionType: substituteTargetTypeParameters(arrayLiteralConstructionType, substitutions) }),
         ...(enumerableElementType === undefined
           ? {}
           : { csharpEnumerableElementType: substituteTargetTypeParameters(enumerableElementType, substitutions) }),
