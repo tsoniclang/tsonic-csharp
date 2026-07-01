@@ -26,6 +26,18 @@ import {
   nodeFsPromisesModuleSpecifier,
   nodeFsUnsupportedTargetIdentities,
 } from "../dist/source/csharp-source-semantics/provider-packages/nodejs/filesystem/index.js";
+import {
+  nodeCryptoCallTargetMembers,
+  nodeCryptoClassCallTargetMembers,
+  nodeCryptoModuleSpecifier,
+  nodeCryptoUnsupportedTargetIdentities,
+} from "../dist/source/csharp-source-semantics/provider-packages/nodejs/crypto.js";
+import {
+  nodeOsCallTargetMembers,
+  nodeOsModuleSpecifier,
+  nodeOsPropertyTargetMembers,
+  nodeOsUnsupportedTargetIdentities,
+} from "../dist/source/csharp-source-semantics/provider-packages/nodejs/os.js";
 
 test("NodeJS provider package exposes completion metadata for assigned modules", () => {
   const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
@@ -73,6 +85,26 @@ test("NodeJS fs provider metadata exposes every supported operation row by provi
 
   for (const row of nodeFsPromisesCallTargetMembers()) {
     assertModuleExport(bindingProvider, nodeFsPromisesModuleSpecifier, row.exportName, row.signatureId, row.targetMemberId);
+  }
+});
+
+test("NodeJS Buffer, crypto, and os provider metadata exposes operation rows by provider identity", () => {
+  const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
+
+  for (const row of nodeCryptoCallTargetMembers()) {
+    assertModuleExport(bindingProvider, nodeCryptoModuleSpecifier, row.exportName, row.signatureId, row.targetMemberId);
+  }
+
+  for (const row of nodeCryptoClassCallTargetMembers()) {
+    assertClassMember(bindingProvider, nodeCryptoModuleSpecifier, row.exportName, row.memberName, row.signatureId, row.targetMemberId);
+  }
+
+  for (const row of nodeOsCallTargetMembers()) {
+    assertModuleExport(bindingProvider, nodeOsModuleSpecifier, row.exportName, row.signatureId, row.member.id);
+  }
+
+  for (const row of nodeOsPropertyTargetMembers()) {
+    assertModuleValue(bindingProvider, nodeOsModuleSpecifier, row.exportName, row.member.id);
   }
 });
 
@@ -243,16 +275,12 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
   const facts = new TestFactStore();
   const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const cryptoCipherSignature = {};
-  const osCpusSignature = {};
-  const osConstantsDeclaration = {};
   const processStdinDeclaration = {};
   const utilFormatSignature = {};
   const urlPatternTestSignature = {};
   const staleReaddirSignature = {};
   const staleReaddirCall = {};
   facts.set(cryptoCipherSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("crypto", "createCipheriv", "node:crypto.createCipheriv(System.String,System.Object,System.Object)"));
-  facts.set(osCpusSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:os", "cpus", "node:os.cpus()"));
-  facts.set(osConstantsDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("os", "constants"));
   facts.set(processStdinDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("process", "stdin"));
   facts.set(utilFormatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "format", "node:util.format(System.Object,System.Object[])"));
   facts.set(urlPatternTestSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:url", "URLPattern", "test", "node:url.URLPattern.test", "node:url.URLPattern.test(System.String)"));
@@ -267,9 +295,29 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
     ));
     assertUnsupportedCall(provider, facts, selectedSignature, unsupported.targetIdentityId);
   }
+  for (const unsupported of nodeCryptoUnsupportedTargetIdentities()) {
+    const selectedSignature = {};
+    facts.set(selectedSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration(
+      nodeCryptoModuleSpecifier,
+      unsupported.exportName,
+      unsupported.signatureId,
+    ));
+    assertUnsupportedCall(provider, facts, selectedSignature, unsupported.targetIdentityId);
+  }
+  for (const unsupported of nodeOsUnsupportedTargetIdentities()) {
+    const selectedDeclaration = {};
+    facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration(
+      nodeOsModuleSpecifier,
+      unsupported.exportName,
+      unsupported.signatureId,
+    ));
+    if (unsupported.signatureId === undefined) {
+      assertUnsupportedProperty(provider, facts, selectedDeclaration, unsupported.targetIdentityId);
+    } else {
+      assertUnsupportedCall(provider, facts, selectedDeclaration, unsupported.targetIdentityId);
+    }
+  }
   assertUnsupportedCall(provider, facts, cryptoCipherSignature, "unsupported:Tsonic.CSharp.Node.crypto.createCipheriv(System.String,System.Object,System.Object)");
-  assertUnsupportedCall(provider, facts, osCpusSignature, "unsupported:Tsonic.CSharp.Node.os.cpus()");
-  assertUnsupportedProperty(provider, facts, osConstantsDeclaration, "unsupported:Tsonic.CSharp.Node.os.constants");
   assertUnsupportedProperty(provider, facts, processStdinDeclaration, "unsupported:Tsonic.CSharp.Node.process.stdin");
   assertUnsupportedCall(provider, facts, utilFormatSignature, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
   assertUnsupportedCall(provider, facts, urlPatternTestSignature, "unsupported:Tsonic.CSharp.Node.URLPattern.test(System.String)");
@@ -458,20 +506,24 @@ function assertModuleExport(bindingProvider, moduleSpecifier, exportName, signat
   }
 }
 
-function assertClassMember(bindingProvider, moduleSpecifier, exportName, memberName, signatureId) {
+function assertClassMember(bindingProvider, moduleSpecifier, exportName, memberName, signatureId, targetIdentityId) {
   const resolution = bindingProvider.resolveModule(moduleSpecifier, {});
   assert.equal(resolution.kind, "virtual");
   const model = bindingProvider.getDeclarationModel(resolution);
   const declaration = model.exports.find((entry) => entry.name === exportName);
   const member = declaration?.members?.find((entry) => entry.name === memberName);
-  assert.equal(member?.signatures?.[0]?.id, signatureId);
+  assert.ok(member?.signatures?.some((signature) => signature.id === signatureId));
   const identity = bindingProvider.getTargetIdentity({
     moduleSpecifier,
     exportName,
     memberName,
     signatureId,
   });
-  assert.ok(identity?.id);
+  if (targetIdentityId === undefined) {
+    assert.ok(identity?.id);
+  } else {
+    assert.equal(identity?.id, targetIdentityId);
+  }
 }
 
 function assertClassProperty(bindingProvider, moduleSpecifier, exportName, memberName, memberId, targetIdentityId = memberId) {
@@ -485,6 +537,19 @@ function assertClassProperty(bindingProvider, moduleSpecifier, exportName, membe
     moduleSpecifier,
     exportName,
     memberName,
+  });
+  assert.equal(identity?.id, targetIdentityId);
+}
+
+function assertModuleValue(bindingProvider, moduleSpecifier, exportName, targetIdentityId) {
+  const resolution = bindingProvider.resolveModule(moduleSpecifier, {});
+  assert.equal(resolution.kind, "virtual");
+  const model = bindingProvider.getDeclarationModel(resolution);
+  const declaration = model.exports.find((entry) => entry.name === exportName);
+  assert.equal(declaration?.kind, "value");
+  const identity = bindingProvider.getTargetIdentity({
+    moduleSpecifier,
+    exportName,
   });
   assert.equal(identity?.id, targetIdentityId);
 }
