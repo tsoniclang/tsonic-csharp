@@ -15,6 +15,16 @@ export function csharpAnyRuntimeCarrier(): TargetTypeRef {
   return { kind: "opaque", id: "any" };
 }
 
+export function csharpTsValueTargetType(): TargetTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Js.TsValue", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue"));
+}
+
+export function csharpTsThrownValueExceptionTargetType(): TargetTypeRef {
+  return csharpTargetNamedType("Tsonic.CSharp.Js.TsThrownValueException", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsThrownValueException"), {
+    throwable: true,
+  });
+}
+
 export function csharpRuntimeUnionTargetType(arms: readonly TargetTypeRef[]): CsharpRuntimeUnionTargetTypeRef | undefined {
   if (arms.length < 2 || arms.length > 8) {
     return undefined;
@@ -35,6 +45,10 @@ export function csharpRuntimeUnionTargetType(arms: readonly TargetTypeRef[]): Cs
 
 export function isCsharpAnyRuntimeCarrier(type: TargetTypeRef | undefined): boolean {
   return type?.kind === "opaque" && type.id === "any";
+}
+
+export function isCsharpTsValueTargetType(type: TargetTypeRef | undefined): boolean {
+  return type?.kind === "target-named" && type.id === "Tsonic.CSharp.Js.TsValue";
 }
 
 export function isCsharpClosedCompatRuntimeCarrier(type: TargetTypeRef | undefined): boolean {

@@ -167,7 +167,7 @@ export function resolveTargetTypeRefForSubjectCore(
   if (expressionResult !== undefined) {
     return expressionResult;
   }
-  const catchVariableType = getCatchVariableTargetTypeRef(subject, context, host.getCatchExceptionTargetTypeRef?.());
+  const catchVariableType = getCatchVariableTargetTypeRef(subject, context, host.getCatchVariableTargetTypeRef?.());
   if (catchVariableType !== undefined) {
     return catchVariableType;
   }

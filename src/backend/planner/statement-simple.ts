@@ -43,6 +43,13 @@ import {
   resolveRuntimeCarrierForExpression,
 } from "./runtime-carriers.js";
 import {
+  readCsharpTypescriptCompatibilityMode,
+} from "../../options/csharp-target-options.js";
+import {
+  csharpThrownValueFromExpression,
+  isCsharpCompatThrowableValueCarrier,
+} from "./exception-flow.js";
+import {
   findControlLabel,
 } from "./statement-labels.js";
 import {
@@ -140,6 +147,18 @@ export function planThrowStatement(
   const carrierResolution = resolveRuntimeCarrierForExpression(input, statement.Expression, sourceFile);
   const carrier = probeCarrierFromResolution(carrierResolution);
   if (!isCsharpThrowableCarrier(carrier)) {
+    if (readCsharpTypescriptCompatibilityMode(input.target) === "compat" && isCsharpCompatThrowableValueCarrier(carrier)) {
+      const expression = planExpression(statement.Expression, sourceFile, input, diagnostics, state);
+      const wrapped = expression === undefined ? undefined : csharpThrownValueFromExpression(expression);
+      if (wrapped === undefined) {
+        diagnostics.push(unsupportedNodeDiagnostic(statement.Expression, "Throw statements require a renderable closed TsThrownValueException carrier before C# compatibility emission."));
+        return [];
+      }
+      return [{
+        kind: "ThrowStatement",
+        expression: wrapped,
+      }];
+    }
     const detail = carrier === undefined
       ? missingCarrierDiagnosticDetail(carrierResolution, "Runtime carrier fact is missing for the thrown expression.")
       : { reason: "Resolved thrown expression carrier is not a target throwable carrier.", evidence: [] };

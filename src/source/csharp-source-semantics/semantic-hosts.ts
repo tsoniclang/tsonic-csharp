@@ -24,6 +24,7 @@ import {
 import {
   csharpBaseTargetTypeFromBinding,
   csharpExceptionTargetType,
+  csharpTsValueTargetType,
 } from "./target-types.js";
 import {
   resolveFunctionTargetTypeRefFromSignatureLikeSubject,
@@ -108,7 +109,7 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
   const targetTypeResolutionHost = {
     getCsharpTargetBindingByTargetId: (targetId: string) => dotnetProvider.findTargetBindingByTargetId(targetId),
     getCsharpTargetBindingByMetadataName: (metadataName: string) => dotnetProvider.findTargetBindingByMetadataName(metadataName),
-    getCatchExceptionTargetTypeRef: () => csharpExceptionTargetType(),
+    getCatchVariableTargetTypeRef: () => typescriptCompatibilityMode === "compat" ? csharpTsValueTargetType() : csharpExceptionTargetType(),
     getBaseTargetTypeRef: (type: TargetTypeRef) => {
       if (type.kind !== "target-named") {
         return undefined;
@@ -180,7 +181,7 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
     getTargetTypeRefForSubject,
     getTargetTypeRefForType,
     getTargetTypeRefForSyntaxNode,
-    getCatchExceptionTargetTypeRef: targetTypeResolutionHost.getCatchExceptionTargetTypeRef,
+    getCatchVariableTargetTypeRef: targetTypeResolutionHost.getCatchVariableTargetTypeRef,
     getCsharpObjectShapeFactForSubject,
     getRecordedCsharpObjectShapeFactForSubject,
   } satisfies CsharpRuntimeCarrierSemanticsHost;

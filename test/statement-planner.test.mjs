@@ -27,6 +27,7 @@ import {
   KindIdentifier,
   KindLabeledStatement,
   KindNumericLiteral,
+  KindObjectBindingPattern,
   KindObjectLiteralExpression,
   KindSwitchStatement,
   KindTryStatement,
@@ -45,6 +46,7 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
+  csharpTsValueTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("switch statements emit grouped Roslyn sections and deterministic fallthrough", () => {
@@ -615,6 +617,45 @@ test("throw statements accept provider-backed exception carriers only through th
   }]);
 });
 
+test("compat throw statements wrap closed non-exception carriers through finalized runtime facts", () => {
+  const diagnostics = [];
+  const thrown = identifier("message");
+  const statement = throwStatement(thrown);
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    target: { id: "csharp", options: { typescriptCompatibility: "compat" } },
+    runtimeCarrierFacts: new Map([
+      [thrown, { carrier: csharpStringTargetType() }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [{
+    kind: "ThrowStatement",
+    expression: {
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: {
+          kind: "QualifiedName",
+          left: {
+            kind: "QualifiedName",
+            left: {
+              kind: "QualifiedName",
+              left: { kind: "IdentifierName", name: "Tsonic" },
+              name: "CSharp",
+            },
+            name: "Js",
+          },
+          name: "TsThrownValueException",
+        },
+        name: "from",
+      },
+      arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "message" } }],
+    },
+  }]);
+});
+
 test("destructuring assignment statements fail closed without ordinary assignment fallback", () => {
   const diagnostics = [];
   const arrayAssignment = expressionStatement(binaryExpression(
@@ -710,6 +751,93 @@ test("try statements emit Roslyn catch and finally bodies from finalized excepti
   }]);
 });
 
+test("compat catch variables materialize closed TsValue carriers from caught exceptions", () => {
+  const diagnostics = [];
+  const thrown = identifier("message");
+  const catchName = identifier("caught");
+  const catchVariable = {
+    Kind: KindVariableDeclaration,
+    name: catchName,
+  };
+  const statement = tryStatement(
+    block([throwStatement(thrown)]),
+    catchClause(catchVariable, block([expressionStatement(catchName)])),
+    block([]),
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    target: { id: "csharp", options: { typescriptCompatibility: "compat" } },
+    runtimeCarrierFacts: new Map([
+      [thrown, { carrier: csharpStringTargetType() }],
+      [catchName, { carrier: csharpTsValueTargetType() }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output[0].kind, "TryStatement");
+  assert.deepEqual(output[0].catchClause, {
+    kind: "CatchClause",
+    variableType: {
+      kind: "QualifiedName",
+      left: { kind: "IdentifierName", name: "System" },
+      name: "Exception",
+    },
+    variableName: "__tsonic_catch0",
+    body: {
+      kind: "Block",
+      statements: [
+        {
+          kind: "LocalDeclarationStatement",
+          type: {
+            kind: "QualifiedName",
+            left: {
+              kind: "QualifiedName",
+              left: {
+                kind: "QualifiedName",
+                left: { kind: "IdentifierName", name: "Tsonic" },
+                name: "CSharp",
+              },
+              name: "Js",
+            },
+            name: "TsValue",
+          },
+          name: "caught",
+          initializer: {
+            kind: "InvocationExpression",
+            callee: {
+              kind: "SimpleMemberAccessExpression",
+              receiver: {
+                kind: "QualifiedName",
+                left: {
+                  kind: "QualifiedName",
+                  left: {
+                    kind: "QualifiedName",
+                    left: { kind: "IdentifierName", name: "Tsonic" },
+                    name: "CSharp",
+                  },
+                  name: "Js",
+                },
+                name: "TsThrownValueException",
+              },
+              name: "toValue",
+            },
+            arguments: [{ kind: "Argument", expression: { kind: "IdentifierName", name: "__tsonic_catch0" } }],
+          },
+        },
+        {
+          kind: "ExpressionStatement",
+          expression: {
+            kind: "AssignmentExpression",
+            left: { kind: "IdentifierName", name: "_" },
+            operatorToken: { kind: "EqualsToken" },
+            right: { kind: "IdentifierName", name: "caught" },
+          },
+        },
+      ],
+    },
+  });
+});
+
 test("catch variables fail closed without finalized exception carrier facts", () => {
   const diagnostics = [];
   const catchName = identifier("caught");
@@ -763,7 +891,30 @@ test("catch variables reject finalized non-throwable carrier facts", () => {
     body: { kind: "Block", statements: [] },
   });
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Resolved catch variable carrier is not a renderable target throwable carrier/);
+  assert.match(diagnostics[0].message, /Resolved catch variable carrier is neither a target throwable carrier nor a closed TsValue compatibility catch carrier/);
+});
+
+test("catch destructuring rejects until thrown-value extraction facts are available", () => {
+  const diagnostics = [];
+  const catchPattern = { Kind: KindObjectBindingPattern };
+  const statement = tryStatement(
+    block([]),
+    catchClause({
+      Kind: KindVariableDeclaration,
+      name: catchPattern,
+    }, block([])),
+    undefined,
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput(), diagnostics, createDestructuringPlannerState());
+
+  assert.equal(output[0].kind, "TryStatement");
+  assert.deepEqual(output[0].catchClause, {
+    kind: "CatchClause",
+    body: { kind: "Block", statements: [] },
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Catch destructuring requires a closed thrown-value carrier/);
 });
 
 function switchStatement(expression, clauses) {
@@ -951,6 +1102,7 @@ function fakeInput(options = {}) {
   return {
     ast: fakeAst,
     sourceFiles: [],
+    target: options.target ?? { id: "csharp", options: { typescriptCompatibility: "strict-native" } },
     facts: {
       getDefaultValueFact: () => undefined,
       getArgumentPassingFact: () => undefined,

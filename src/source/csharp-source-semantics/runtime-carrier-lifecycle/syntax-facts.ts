@@ -11,6 +11,7 @@ import {
   csharpObjectShapeFactKey,
 } from "../../csharp-facts.js";
 import {
+  isLiteralValueSyntaxNode,
   isSemanticTypeQueryableValueExpressionNode,
 } from "../ast-utils.js";
 import {
@@ -54,7 +55,7 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
     return;
   }
   const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
-  const catchVariableCarrier = getCatchVariableTargetTypeRef(node, context, host.getCatchExceptionTargetTypeRef?.());
+  const catchVariableCarrier = getCatchVariableTargetTypeRef(node, context, host.getCatchVariableTargetTypeRef?.());
   if (catchVariableCarrier !== undefined) {
     const fact = { carrier: catchVariableCarrier };
     const evidence = [{ message: "C# catch variable runtime carrier recorded from finalized provider exception policy." }];
@@ -128,5 +129,6 @@ function isRuntimeCarrierSyntaxFactCandidate(
   }
   return ast.is.IsRegularExpressionLiteral(node) ||
     ast.is.IsNewExpression(node) ||
+    isLiteralValueSyntaxNode(ast, node) ||
     isSemanticTypeQueryableValueExpressionNode(ast, node);
 }

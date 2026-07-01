@@ -198,7 +198,7 @@ function hasOpaqueAnyCarrier(
   const type = compiler.checker.getTypeAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) });
   return type !== undefined &&
     (
-      compiler.typeShape.isAny(type) ||
+      compiler.typeShape?.isAny(type) === true ||
       isCsharpAnyRuntimeCarrier(context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier)
     );
 }
