@@ -23,6 +23,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
+  tryPlanRuntimeUnionTypeTest,
+} from "./runtime-union-projections.js";
+import {
   CsharpTargetOperatorOperation,
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
@@ -130,6 +133,18 @@ export function tryPlanTypeofComparisonExpression(
   const planned = planExpression(operand, sourceFile, input, diagnostics);
   if (planned === undefined) {
     return undefined;
+  }
+  const runtimeUnionTest = tryPlanRuntimeUnionTypeTest(
+    operand,
+    comparison.targetType,
+    sourceFile,
+    input,
+    diagnostics,
+    planned,
+    comparison.negated === true,
+  );
+  if (runtimeUnionTest !== undefined) {
+    return runtimeUnionTest;
   }
   return {
     kind: "IsPatternExpression",

@@ -159,6 +159,28 @@ test("narrowed branch expression emits the concrete finalized carrier value dire
   assert.doesNotMatch(printCsharpExpression(output), /As[0-9]|__tsonic_value/);
 });
 
+test("narrowed runtime union storage emits finalized arm projection", () => {
+  const value = identifier("value");
+  const declarationName = identifier("value");
+  const declaration = { Kind: "KindParameter", name: declarationName };
+  const sourceFile = {};
+  const carrier = runtimeUnionCarrier();
+  const diagnostics = [];
+
+  const output = planExpression(value, sourceFile, fakeInput({
+    projectSourceReferenceSubject: value,
+    projectSourceReference: { declaration, sourceFile },
+    runtimeCarrierFacts: new Map([
+      [value, { carrier: csharpStringTargetType() }],
+      [declaration, { carrier }],
+      [declarationName, { carrier }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(output), "value.As2()");
+});
+
 function createCompilerSession(sourceText) {
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -221,7 +243,8 @@ function fakeInput(options = {}) {
       getSelectedTargetCall: () => undefined,
       getSelectedTargetOperator: () => undefined,
       getContextualTargetTypeFact: () => undefined,
-      getRuntimeCarrierFact: (subject) => subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined,
+      getRuntimeCarrierFact: (subject) => options.runtimeCarrierFacts?.get(subject) ??
+        (subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined),
       getObjectShapeFact: () => undefined,
       getTargetBindingFact: () => undefined,
       getSourcePrimitiveFact: () => undefined,
@@ -245,7 +268,9 @@ function fakeInput(options = {}) {
       getSymbolDeclarations: () => [],
       getTypeSymbol: () => undefined,
       getTypeAliasSymbol: () => undefined,
-      getProjectSourceReferenceForNode: () => undefined,
+      getProjectSourceReferenceForNode: (subject) => subject === options.projectSourceReferenceSubject
+        ? options.projectSourceReference
+        : undefined,
       getObjectShapeForNode: () => undefined,
       getResolvedSymbol: () => undefined,
       getSymbolAtLocation: () => undefined,
@@ -256,8 +281,10 @@ function fakeInput(options = {}) {
     targetFacts: {
       getTargetBinding: () => undefined,
       getTargetBindingForReference: () => undefined,
-      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
-      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution(subject === options.runtimeCarrierSubject ? options.runtimeCarrier?.carrier : undefined),
+      resolveRuntimeCarrier: (subject) => resolvedCarrierResolution((options.runtimeCarrierFacts?.get(subject) ??
+        (subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined))?.carrier),
+      resolveRuntimeCarrierForNode: (subject) => resolvedCarrierResolution((options.runtimeCarrierFacts?.get(subject) ??
+        (subject === options.runtimeCarrierSubject ? options.runtimeCarrier : undefined))?.carrier),
       resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
       resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
       resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
