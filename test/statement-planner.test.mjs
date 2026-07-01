@@ -31,6 +31,7 @@ import {
   KindObjectBindingPattern,
   KindObjectLiteralExpression,
   KindSpreadElement,
+  KindStringLiteral,
   KindSwitchStatement,
   KindTryStatement,
   KindTrueKeyword,
@@ -45,6 +46,7 @@ import {
 } from "../dist/source/csharp-facts.js";
 import {
   csharpExceptionTargetType,
+  csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
@@ -53,6 +55,9 @@ import {
   csharpVoidTargetType,
   csharpTsValueTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpJsArrayCarrierTargetType,
+} from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
 
 test("switch statements emit grouped Roslyn sections and deterministic fallthrough", () => {
   const diagnostics = [];
@@ -818,6 +823,122 @@ test("array destructuring assignment consumes finalized target carrier resolutio
   ]);
 });
 
+test("array destructuring assignment consumes read-only indexable carrier facts", () => {
+  const sourceExample = "[first, ...rest] = values;";
+  assert.match(sourceExample, /\.\.\.rest/);
+  const diagnostics = [];
+  const source = identifier("values");
+  const restElement = {
+    Kind: KindSpreadElement,
+    Expression: identifier("rest"),
+  };
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first"), restElement] },
+    },
+    source,
+  );
+  const carrier = providerReadOnlyIndexableTargetType(csharpSourcePrimitiveTargetType("int32"));
+
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[1].expression.right, {
+    kind: "ElementAccessExpression",
+    receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+    argument: { kind: "LiteralExpression", value: 0 },
+  });
+  assert.deepEqual(output[2].expression.right, {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: {
+        kind: "QualifiedName",
+        left: {
+          kind: "QualifiedName",
+          left: {
+            kind: "QualifiedName",
+            left: { kind: "IdentifierName", name: "Tsonic" },
+            name: "CSharp",
+          },
+          name: "Js",
+        },
+        name: "Array",
+      },
+      name: "slice",
+    },
+    arguments: [
+      { kind: "Argument", expression: { kind: "IdentifierName", name: "__tsonic_destructure0" } },
+      { kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } },
+    ],
+  });
+});
+
+test("array destructuring assignment over JSArray carriers uses finalized hole checks for defaults", () => {
+  const sourceExample = "[first = 7] = values;";
+  assert.match(sourceExample, /first = 7/);
+  const diagnostics = [];
+  const source = identifier("values");
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [binaryExpression(identifier("first"), numeric("7"))] },
+    },
+    source,
+  );
+  const carrier = csharpJsArrayCarrierTargetType(csharpSourcePrimitiveTargetType("int32"));
+
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[1].expression.right.condition, {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+      name: "hasIndex",
+    },
+    arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: 0 } }],
+  });
+});
+
 test("tuple destructuring assignment emits rest tuple from finalized carrier facts", () => {
   const diagnostics = [];
   const source = identifier("values");
@@ -1135,6 +1256,132 @@ test("object-shape destructuring assignment statements emit storage writes from 
       },
     },
   ]);
+});
+
+test("object-shape destructuring assignment defaults use finalized nullable member carriers", () => {
+  const sourceExample = "({ value = 7 } = input);";
+  assert.match(sourceExample, /value = 7/);
+  const diagnostics = [];
+  const source = identifier("input");
+  const assignment = binaryExpression(
+    {
+      Kind: KindObjectLiteralExpression,
+      Properties: {
+        Nodes: [
+          { Kind: "KindShorthandPropertyAssignment", name: identifier("value"), ObjectAssignmentInitializer: numeric("7") },
+        ],
+      },
+    },
+    source,
+  );
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InputShape",
+      csharpRender: { kind: "named", name: "__InputShape" },
+    },
+    members: [
+      {
+        sourceName: "value",
+        targetName: "Value",
+        memberKind: "property",
+        optional: true,
+        type: csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("int32")),
+      },
+    ],
+  };
+
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      objectShapeFacts: new Map([[source, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[1].expression.right, {
+    kind: "BinaryExpression",
+    left: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+      name: "Value",
+    },
+    operatorToken: { kind: "QuestionQuestionToken" },
+    right: { kind: "LiteralExpression", value: 7 },
+  });
+});
+
+test("object-shape destructuring assignment supports finalized string-literal property keys", () => {
+  const sourceExample = '({ "wire-name": value } = input);';
+  assert.match(sourceExample, /wire-name/);
+  const diagnostics = [];
+  const source = identifier("input");
+  const assignment = binaryExpression(
+    {
+      Kind: KindObjectLiteralExpression,
+      Properties: {
+        Nodes: [
+          { Kind: "KindPropertyAssignment", name: stringLiteral("wire-name"), Initializer: identifier("value") },
+        ],
+      },
+    },
+    source,
+  );
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InputShape",
+      csharpRender: { kind: "named", name: "__InputShape" },
+    },
+    members: [
+      {
+        sourceName: "wire-name",
+        targetName: "WireName",
+        memberKind: "property",
+        type: csharpStringTargetType(),
+      },
+    ],
+  };
+
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      objectShapeFacts: new Map([[source, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output[1].expression.right, {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+    name: "WireName",
+  });
 });
 
 test("try statements emit Roslyn catch and finally bodies from finalized exception facts", () => {
@@ -1534,6 +1781,13 @@ function numeric(text) {
   };
 }
 
+function stringLiteral(text) {
+  return {
+    Kind: KindStringLiteral,
+    Text: text,
+  };
+}
+
 function trueKeyword() {
   return {
     Kind: KindTrueKeyword,
@@ -1651,6 +1905,15 @@ const sourceFile = {
   FileName: "/src/index.ts",
   IsDeclarationFile: false,
 };
+
+function providerReadOnlyIndexableTargetType(elementType) {
+  return csharpTargetNamedType(
+    "Example.ProviderReadOnlyIndexable`1",
+    [elementType],
+    csharpQualifiedTypeRenderShape("Example", "ProviderReadOnlyIndexable"),
+    { readOnlyIndexableElementType: elementType },
+  );
+}
 
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),

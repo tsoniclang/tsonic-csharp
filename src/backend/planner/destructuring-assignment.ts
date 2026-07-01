@@ -18,6 +18,7 @@ import {
   KindShorthandPropertyAssignment,
   KindSpreadAssignment,
   KindSpreadElement,
+  KindStringLiteral,
   Node_Text,
   Node_Expression,
   SourceKind,
@@ -59,6 +60,7 @@ import {
   csharpTypeFromObjectShapeFact,
   objectShapeStorageMemberName,
 } from "./object-shapes.js";
+import { planObjectShapeDefaultProjection } from "./object-shape-defaults.js";
 import {
   csharpTypeFromTargetTypeRef,
   targetTypeRefsMatch,
@@ -74,8 +76,8 @@ import type {
 } from "./expression-planner-types.js";
 import {
   csharpListTargetType,
-  getCsharpArrayLiteralElementTargetType,
   getCsharpNullableElementTargetType,
+  getCsharpReadOnlyIndexableCollectionElementTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
 import {
   getCsharpArrayLengthMember,
@@ -544,18 +546,37 @@ function planArrayAssignmentDefaultProjection(
   }
   return {
     kind: "ConditionalExpression",
-    condition: {
-      kind: "BinaryExpression",
-      left: {
-        kind: "SimpleMemberAccessExpression",
-        receiver: sourceExpression,
-        name: sourceCarrier.lengthMember,
-      },
-      operatorToken: { kind: "GreaterThanToken" },
-      right: { kind: "LiteralExpression", value: index },
-    },
+    condition: arrayAssignmentDefaultPresenceCondition(sourceExpression, index, sourceCarrier),
     whenTrue: projected,
     whenFalse,
+  };
+}
+
+function arrayAssignmentDefaultPresenceCondition(
+  sourceExpression: CsharpExpression,
+  index: number,
+  sourceCarrier: Extract<AssignmentArrayCarrier, { readonly kind: "array" }>,
+): CsharpExpression {
+  if (isCsharpJsArrayCarrierTargetType(sourceCarrier.carrier)) {
+    return {
+      kind: "InvocationExpression",
+      callee: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: sourceExpression,
+        name: "hasIndex",
+      },
+      arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: index } }],
+    };
+  }
+  return {
+    kind: "BinaryExpression",
+    left: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: sourceExpression,
+      name: sourceCarrier.lengthMember,
+    },
+    operatorToken: { kind: "GreaterThanToken" },
+    right: { kind: "LiteralExpression", value: index },
   };
 }
 
@@ -614,7 +635,7 @@ function assignmentArrayCarrier(sourceCarrier: TargetTypeRef | undefined): Assig
   if (sourceCarrier === undefined) {
     return undefined;
   }
-  const element = getCsharpArrayLiteralElementTargetType(sourceCarrier);
+  const element = getCsharpReadOnlyIndexableCollectionElementTargetType(sourceCarrier);
   const lengthMember = getCsharpArrayLengthMember(sourceCarrier);
   if (element === undefined || lengthMember === undefined) {
     return undefined;
@@ -660,10 +681,6 @@ function planObjectAssignmentElement(
   if (element.kind === "object-rest") {
     return planObjectAssignmentRestElement(element, sourceExpression, objectShape, extractedSourceNames, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
   }
-  if (element.initializer !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(element.initializer, "Destructuring assignment defaults require finalized undefined/default-value semantics before C# emission."));
-    return [];
-  }
   const sourceName = getObjectAssignmentPropertySourceName(element, input, diagnostics);
   if (sourceName === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, "Object destructuring assignment property must match a finalized provider object-shape member."));
@@ -680,11 +697,19 @@ function planObjectAssignmentElement(
     diagnostics.push(unsupportedNodeDiagnostic(element.sourceNode, `Object-shape member '${member.sourceName}' must carry a renderable target type before C# emission.`));
     return [];
   }
-  return planAssignmentTargetFromProjection(element.target, {
+  const projected: CsharpExpression = {
     kind: "SimpleMemberAccessExpression",
     receiver: sourceExpression,
     name: member.targetName,
-  }, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, member.type, planDefaultExpressionWithExpectedType);
+  };
+  if (element.initializer === undefined) {
+    return planAssignmentTargetFromProjection(element.target, projected, projectedType, element.sourceNode, sourceFile, input, diagnostics, state, member.type, planDefaultExpressionWithExpectedType);
+  }
+  const defaultedProjection = planObjectShapeDefaultProjection(projected, member, element.initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
+  if (defaultedProjection === undefined) {
+    return [];
+  }
+  return planAssignmentTargetFromProjection(element.target, defaultedProjection.expression, defaultedProjection.type, element.sourceNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier, planDefaultExpressionWithExpectedType);
 }
 
 function planObjectAssignmentRestElement(
@@ -775,8 +800,8 @@ function getObjectAssignmentPropertySourceName(
   if (propertyName === undefined) {
     return undefined;
   }
-  if (!HasSourceKind(input.ast, propertyName, KindIdentifier)) {
-    diagnostics?.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring assignment from object-shape facts supports only identifier property names."));
+  if (!HasSourceKind(input.ast, propertyName, KindIdentifier) && !HasSourceKind(input.ast, propertyName, KindStringLiteral)) {
+    diagnostics?.push(unsupportedNodeDiagnostic(propertyName, "Object destructuring assignment from object-shape facts supports only identifier or string-literal property names."));
     return undefined;
   }
   return Node_Text(propertyName);
