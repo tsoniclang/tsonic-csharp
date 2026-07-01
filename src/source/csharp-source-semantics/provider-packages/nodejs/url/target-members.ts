@@ -4,7 +4,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   targetParameter,
-} from "../../js/source-library.js";
+} from "../../../surfaces/js/source-library.js";
 import {
   nodejsClassCallTargetMetadata,
   nodejsClassPropertyTargetMetadata,

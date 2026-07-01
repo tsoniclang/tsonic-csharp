@@ -680,7 +680,7 @@ test("architecture validator rejects provider-row target members built from sour
 
 test("architecture validator rejects Node target member synthesis from source names", () => {
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/nodejs/path/calls.ts",
+    "src/source/csharp-source-semantics/provider-packages/nodejs/path/calls.ts",
     `
       return {
         member: {
@@ -707,7 +707,7 @@ test("architecture validator rejects Node target member synthesis from source na
   );
 
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/nodejs/url/declarations.ts",
+    "src/source/csharp-source-semantics/provider-packages/nodejs/url/declarations.ts",
     `
       members: nodeUrlUnsupportedClassMemberDeclarations()
         .filter((member) => member.exportName === exportName)
@@ -717,7 +717,7 @@ test("architecture validator rejects Node target member synthesis from source na
   );
 
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/nodejs/filesystem/calls.ts",
+    "src/source/csharp-source-semantics/provider-packages/nodejs/filesystem/calls.ts",
     `
       const member = entries.find((row) => row.signatureId === signatureId);
     `,
@@ -743,7 +743,7 @@ test("architecture validator rejects executable selectors in metadata-policy fil
   );
 
   assertFindings(
-    "src/source/csharp-source-semantics/surfaces/nodejs/provider-metadata/fs.ts",
+    "src/source/csharp-source-semantics/provider-packages/nodejs/provider-metadata/fs.ts",
     `
       export const fsRows = [{
         sourceIdentity: "fs.readFile",
@@ -758,7 +758,7 @@ test("architecture validator rejects executable selectors in metadata-policy fil
 
   assert.deepEqual(
     findingIds(
-      "src/source/csharp-source-semantics/surfaces/nodejs/provider-metadata/fs.ts",
+      "src/source/csharp-source-semantics/provider-packages/nodejs/provider-metadata/fs.ts",
       `
         export const fsRows = [{
           sourceIdentity: "fs.readFile",

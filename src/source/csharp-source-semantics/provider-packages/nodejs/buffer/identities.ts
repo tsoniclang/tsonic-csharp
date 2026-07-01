@@ -1,7 +1,7 @@
 import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-} from "../../js/source-library.js";
+} from "../../../surfaces/js/source-library.js";
 
 export const nodeBufferModuleSpecifier = "node:buffer";
 export const nodeBufferExportName = "Buffer";

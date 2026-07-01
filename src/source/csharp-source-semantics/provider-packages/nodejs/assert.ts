@@ -10,7 +10,7 @@ import {
   csharpTargetNamedType,
   csharpVoidTargetType,
   targetParameter,
-} from "../js/source-library.js";
+} from "../../surfaces/js/source-library.js";
 import {
   getNodejsProviderExportSignatureDeclarationMetadata,
   nodejsProviderExportSignatureDeclarationMetadataIndex,

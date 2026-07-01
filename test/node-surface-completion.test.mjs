@@ -9,19 +9,17 @@ import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
 import { csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import {
   createCsharpJsSurfaceExtension,
-  createCsharpNodejsSurfaceExtension,
+  createCsharpNodejsProviderPackageExtension,
   createCsharpSourceSemanticsExtension,
   createCsharpTargetSemanticsExtension,
 } from "../dist/index.js";
 import {
-  createCsharpNodejsSurfaceOperationsProvider,
-} from "../dist/source/csharp-source-semantics/surface-extensions.js";
-import {
-  createCsharpNodejsSurfaceBindingProvider,
-} from "../dist/source/csharp-source-semantics/surfaces/nodejs/index.js";
+  createCsharpNodejsProviderPackageBindingProvider,
+  createCsharpNodejsProviderPackageOperationsProvider,
+} from "../dist/source/csharp-source-semantics/provider-packages/nodejs/index.js";
 
-test("NodeJS surface exposes completion metadata for assigned modules", () => {
-  const bindingProvider = createCsharpNodejsSurfaceBindingProvider();
+test("NodeJS provider package exposes completion metadata for assigned modules", () => {
+  const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
 
   assertModuleExport(bindingProvider, "node:fs", "watchFile", "node:fs.watchFile(System.String,Function)");
   assertModuleExport(bindingProvider, "node:path", "format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)");
@@ -34,9 +32,9 @@ test("NodeJS surface exposes completion metadata for assigned modules", () => {
   assertClassMember(bindingProvider, "node:url", "URLSearchParams", "append", "node:url.URLSearchParams.append(System.String,System.String)");
 });
 
-test("NodeJS surface maps closed operations from selected provider identities", () => {
+test("NodeJS provider package maps closed operations from selected provider identities", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const readFileCall = {};
   const readFileSignature = {};
   const pathParseCall = {};
@@ -89,9 +87,9 @@ test("NodeJS surface maps closed operations from selected provider identities", 
   assertSelectedMember(urlCanParseResult, "Tsonic.CSharp.Node.URL.canParse(System.String,Tsonic.CSharp.Node.URL)");
 });
 
-test("NodeJS surface hard-rejects selected unsupported provider identities", () => {
+test("NodeJS provider package hard-rejects selected unsupported provider identities", () => {
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const fsWatchFileSignature = {};
   const bufferIsBufferSignature = {};
   const bufferPoolSizeDeclaration = {};
@@ -125,11 +123,11 @@ test("NodeJS surface hard-rejects selected unsupported provider identities", () 
   assertUnsupportedCall(provider, facts, urlAppendSignature, "unsupported:Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
 });
 
-test("NodeJS surface requires selected signatures before target member selection", () => {
+test("NodeJS provider package requires selected signatures before target member selection", () => {
   const call = {};
   const selectedDeclaration = {};
   const facts = new TestFactStore();
-  const provider = createCsharpNodejsSurfaceOperationsProvider();
+  const provider = createCsharpNodejsProviderPackageOperationsProvider();
   facts.set(selectedDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration(
     "node:buffer",
     "Buffer",
@@ -154,7 +152,7 @@ test("selected NodeJS Buffer source type-checks compare provider declarations", 
       const right = Buffer.from("expected", "utf8");
       return Buffer.compare(left, right);
     }
-  `, { selectedSurfaces: [{ id: "js" }, { id: "nodejs" }] });
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 });
@@ -197,14 +195,14 @@ function assertSelectedMember(result, memberId) {
 function assertUnsupportedCall(provider, facts, selectedSignature, targetIdentityId) {
   const result = provider.mapCheckedCall(nodejsCallRequest({}, selectedSignature), fakeContext(facts));
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
   assert.equal(result.diagnostic.evidence?.[0]?.details?.targetIdentityId, targetIdentityId);
 }
 
 function assertUnsupportedProperty(provider, facts, selectedDeclaration, targetIdentityId) {
   const result = provider.mapCheckedPropertyAccess(nodejsPropertyRequest({}, selectedDeclaration), fakeContext(facts));
   assert.equal(result.kind, "reject");
-  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
   assert.equal(result.diagnostic.evidence?.[0]?.details?.targetIdentityId, targetIdentityId);
 }
 
@@ -226,6 +224,7 @@ function createCsharpSession(sourceText, options = {}) {
     },
     target,
     selectedSurfaces: options.selectedSurfaces ?? [],
+    selectedPackages: options.selectedPackages ?? [],
   };
   return createCompilerSessionFromFiles({
     currentDirectory: "/src",
@@ -247,9 +246,12 @@ function createCsharpSession(sourceText, options = {}) {
         ...context.selectedSurfaces.flatMap((surface) =>
           surface.id === "js"
             ? [createCsharpJsSurfaceExtension({ ...context, surface, targetPack: fakeTargetPack })]
-            : surface.id === "nodejs"
-              ? [createCsharpNodejsSurfaceExtension({ ...context, surface, targetPack: fakeTargetPack })]
-              : []
+            : []
+        ),
+        ...context.selectedPackages.flatMap((providerPackage) =>
+          providerPackage.id === "nodejs"
+            ? [createCsharpNodejsProviderPackageExtension({ ...context, package: providerPackage, targetPack: fakeTargetPack })]
+            : []
         ),
       ],
     },
@@ -294,7 +296,7 @@ function nodejsPropertyRequest(expression, sourceSelectedSymbol) {
 
 function nodejsVirtualDeclaration(moduleSpecifier, exportName, signatureId) {
   return {
-    providerId: "tsonic.csharp.nodejs-surface-provider",
+    providerId: "tsonic.csharp.provider-package.nodejs",
     providerVersion: "0.0.1",
     providerModuleId: moduleSpecifier,
     moduleSpecifier,

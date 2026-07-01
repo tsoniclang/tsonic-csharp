@@ -13,7 +13,7 @@ import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
   targetParameter,
-} from "../js/source-library.js";
+} from "../../surfaces/js/source-library.js";
 import {
   getNodejsProviderExportDeclarationTargetMember,
   getNodejsProviderExportSignatureDeclarationTargetMember,

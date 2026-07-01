@@ -11,10 +11,10 @@ import {
   csharpStringTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
-} from "../../js/source-library.js";
+} from "../../../surfaces/js/source-library.js";
 import {
   csharpJsDateTargetType,
-} from "../../js/date/index.js";
+} from "../../../surfaces/js/date/index.js";
 import {
   nodeBufferExportName,
   nodeBufferModuleSpecifier,

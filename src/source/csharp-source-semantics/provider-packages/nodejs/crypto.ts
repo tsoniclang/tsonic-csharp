@@ -12,7 +12,7 @@ import {
   csharpStringTargetType,
   csharpTargetNamedType,
   targetParameter,
-} from "../js/source-library.js";
+} from "../../surfaces/js/source-library.js";
 import {
   nodeBufferExportName,
   nodeBufferModuleSpecifier,

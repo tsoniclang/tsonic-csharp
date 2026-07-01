@@ -5,6 +5,7 @@ export {
   getNodejsUnsupportedTargetIdentityFromMetadata,
 } from "./members/metadata-index.js";
 export {
+  getCsharpNodejsElementOperationForReceiverType,
   getCsharpNodejsPropertyOperation,
 } from "./members/property-operations.js";
 export {

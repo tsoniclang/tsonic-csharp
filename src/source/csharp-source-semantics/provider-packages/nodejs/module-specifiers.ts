@@ -49,6 +49,10 @@ const canonicalBySpecifier = new Map<string, string>([
   [nodeUrlModuleSpecifier, nodeUrlModuleSpecifier],
 ]);
 
+export function nodejsProviderPackageOwnedModuleSpecifiers(): readonly string[] {
+  return Array.from(canonicalBySpecifier.keys());
+}
+
 export function canonicalNodejsModuleSpecifier(specifier: string | undefined): string | undefined {
   return specifier === undefined ? undefined : canonicalBySpecifier.get(specifier);
 }

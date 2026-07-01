@@ -3,7 +3,7 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-} from "../../js/source-library.js";
+} from "../../../surfaces/js/source-library.js";
 
 export const nodeBufferStringTargetType = csharpStringTargetType();
 export const nodeBufferIntTargetType = csharpSourcePrimitiveTargetType("int32");

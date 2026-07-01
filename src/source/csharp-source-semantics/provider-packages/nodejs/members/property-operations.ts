@@ -1,5 +1,6 @@
 import type {
   TargetOperationFact,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetOperationFact,
@@ -13,6 +14,7 @@ import type {
   NodejsProviderDeclarationIdentity,
 } from "../identity.js";
 import {
+  getNodejsIndexerTargetMemberFromReceiverTypeMetadata,
   getNodejsPropertyTargetMemberFromMetadata,
 } from "./metadata-index.js";
 
@@ -20,6 +22,18 @@ export function getCsharpNodejsPropertyOperation(
   declaration: NodejsProviderDeclarationIdentity,
 ): { readonly operation: TargetOperationFact; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
   const member = getNodejsPropertyTargetMemberFromMetadata(declaration);
+  return operationFromNodejsTargetMember(member);
+}
+
+export function getCsharpNodejsElementOperationForReceiverType(
+  receiverType: TargetTypeRef | undefined,
+): { readonly operation: TargetOperationFact; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
+  return operationFromNodejsTargetMember(getNodejsIndexerTargetMemberFromReceiverTypeMetadata(receiverType));
+}
+
+function operationFromNodejsTargetMember(
+  member: ReturnType<typeof getNodejsPropertyTargetMemberFromMetadata>,
+): { readonly operation: TargetOperationFact; readonly csharpOperation: CsharpTargetOperationFact } | undefined {
   return member === undefined
     ? undefined
     : {

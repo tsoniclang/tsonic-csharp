@@ -32,6 +32,9 @@ import {
   createCsharpTargetOperationsProvider,
 } from "./operations-provider.js";
 import {
+  createCsharpProviderPackageOperationsMappers,
+} from "./provider-packages/index.js";
+import {
   recordCsharpRuntimeCarrierFactsBeforeFinalization,
 } from "./runtime-carriers.js";
 import {
@@ -90,7 +93,6 @@ import {
 export function createCsharpTargetSemanticsExtension(context: TargetProviderContext): CompilerExtension {
   const hosts = getCsharpExtensionSemanticHosts(context);
   const jsSurfaceSelected = context.selectedSurfaces.some((surface) => surface.id === "js");
-  const nodejsSurfaceSelected = context.selectedSurfaces.some((surface) => surface.id === "nodejs");
   return {
     identity: {
       id: csharpTargetSemanticsExtensionId,
@@ -113,7 +115,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       }));
       extensionContext.registerTargetSemanticProvider(createCsharpTargetOperationsProvider(hosts.operationsProviderHost, {
         jsSurface: jsSurfaceSelected,
-        nodejsSurface: nodejsSurfaceSelected,
+        providerPackageMappers: createCsharpProviderPackageOperationsMappers(context),
       }));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         runBeforeFinalizedStage("target-name-facts", () => recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext));

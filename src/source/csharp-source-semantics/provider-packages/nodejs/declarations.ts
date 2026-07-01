@@ -3,6 +3,7 @@ import {
 } from "@tsonic/tsts";
 import type {
   CheckedCallMappingRequest,
+  CheckedElementAccessMappingRequest,
   CheckedPropertyAccessMappingRequest,
   ExtensionFactSubject,
   ExtensionObservationContext,
@@ -15,6 +16,7 @@ import {
   getCsharpCheckedCallRequestContext,
 } from "../../checked-call-request-context.js";
 import {
+  getCsharpCheckedElementAccessRequestContext,
   getCsharpCheckedPropertyAccessRequestContext,
 } from "../../checked-member-access-request-context.js";
 import type {
@@ -61,6 +63,23 @@ export function getNodejsCheckedPropertyDeclaration(
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): NodejsProviderDeclarationIdentity | undefined {
   const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
+  for (const subject of [
+    request.sourceSelectedSymbol,
+    requestContext.sourceSelectedDeclaration,
+  ]) {
+    const declaration = getProviderExportDeclaration(context, subject);
+    if (declaration !== undefined) {
+      return declaration;
+    }
+  }
+  return undefined;
+}
+
+export function getNodejsCheckedElementDeclaration(
+  request: CheckedElementAccessMappingRequest,
+  context: ExtensionObservationContext<"operation.mapCheckedElementAccess">,
+): NodejsProviderDeclarationIdentity | undefined {
+  const requestContext = getCsharpCheckedElementAccessRequestContext(request, context);
   for (const subject of [
     request.sourceSelectedSymbol,
     requestContext.sourceSelectedDeclaration,

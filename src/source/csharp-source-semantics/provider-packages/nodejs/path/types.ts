@@ -10,7 +10,7 @@ import {
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpTargetNamedType,
-} from "../../js/source-library.js";
+} from "../../../surfaces/js/source-library.js";
 
 export const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
 export const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;

@@ -3,7 +3,7 @@ import type {
 } from "../../../target-types.js";
 import {
   targetParameter,
-} from "../../js/source-library.js";
+} from "../../../surfaces/js/source-library.js";
 import {
   nodeBufferAllocExportName,
   nodeBufferAllocTargetMemberId,

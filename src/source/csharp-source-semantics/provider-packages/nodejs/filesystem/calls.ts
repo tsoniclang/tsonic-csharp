@@ -7,7 +7,7 @@ import type {
 import {
   csharpNullableValueTargetType,
   targetParameter,
-} from "../../js/source-library.js";
+} from "../../../surfaces/js/source-library.js";
 import {
   nodejsModuleCallTargetMetadata,
 } from "../members/target-member-metadata.js";

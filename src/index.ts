@@ -5,7 +5,8 @@ export {
   createCsharpTargetSemanticsExtension,
   createCsharpSourceSemanticsExtension,
   createCsharpJsSurfaceExtension,
-  createCsharpNodejsSurfaceExtension,
+  createCsharpNodejsProviderPackageExtension,
+  nodejsProviderPackageModuleOwnership,
 } from "./source/csharp-source-semantics.js";
 export type {
   CsharpArgument,

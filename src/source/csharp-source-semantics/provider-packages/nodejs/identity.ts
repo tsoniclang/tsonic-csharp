@@ -10,13 +10,13 @@ import {
   csharpTargetId,
 } from "../../identity.js";
 
-export const csharpNodejsSurfaceProviderIdentity = {
-  id: "tsonic.csharp.nodejs-surface-provider",
+export const csharpNodejsProviderPackageProviderIdentity = {
+  id: "tsonic.csharp.provider-package.nodejs",
   version: csharpProviderVersion,
   target: csharpTargetId,
   extensionContractVersion: TstsProviderContractVersion,
   providerKind: "binding",
-  displayName: "Tsonic C# NodeJS surface provider",
+  displayName: "Tsonic C# NodeJS provider package",
 } satisfies ProviderIdentity;
 
 export interface NodejsProviderDeclarationIdentity {
@@ -40,8 +40,8 @@ export function nodejsExportDeclarationIdentity(
   exportName: string,
 ): NodejsProviderDeclarationIdentity {
   return {
-    providerId: csharpNodejsSurfaceProviderIdentity.id,
-    providerVersion: csharpNodejsSurfaceProviderIdentity.version,
+    providerId: csharpNodejsProviderPackageProviderIdentity.id,
+    providerVersion: csharpNodejsProviderPackageProviderIdentity.version,
     providerModuleId: moduleSpecifier,
     moduleSpecifier,
     virtualFileName: csharpNodejsVirtualDeclarationFileName(moduleSpecifier),
@@ -103,5 +103,5 @@ export function nodejsProviderDeclarationIdentityKey(declaration: NodejsProvider
 export function isCsharpNodejsProviderDeclaration(
   declaration: ProviderVirtualDeclarationFact,
 ): declaration is ProviderVirtualDeclarationFact & NodejsProviderDeclarationIdentity {
-  return declaration.providerId === csharpNodejsSurfaceProviderIdentity.id;
+  return declaration.providerId === csharpNodejsProviderPackageProviderIdentity.id;
 }
