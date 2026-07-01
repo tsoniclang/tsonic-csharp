@@ -14,6 +14,7 @@ export const ModifierFlagsAmbient = 1 << 7;
 export const ModifierFlagsStatic = 1 << 8;
 export const ModifierFlagsAccessor = 1 << 9;
 export const ModifierFlagsAsync = 1 << 10;
+export const ModifierFlagsConst = 1 << 12;
 export const NodeFlagsConst = 1 << 1;
 
 export function HasSyntacticModifier(node: Node, flag: number): boolean {

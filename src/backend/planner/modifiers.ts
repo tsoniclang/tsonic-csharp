@@ -4,6 +4,7 @@ import {
   ModifierFlagsAccessor,
   ModifierFlagsAmbient,
   ModifierFlagsAsync,
+  ModifierFlagsConst,
   ModifierFlagsOverride,
   ModifierFlagsPrivate,
   ModifierFlagsProtected,
@@ -23,6 +24,7 @@ const typeScriptOnlyRuntimeShapeModifiers = [
   { flag: ModifierFlagsOverride, name: "override" },
   { flag: ModifierFlagsAmbient, name: "declare" },
   { flag: ModifierFlagsAccessor, name: "accessor" },
+  { flag: ModifierFlagsConst, name: "const" },
 ] as const;
 
 export function diagnoseTypeScriptOnlyRuntimeShapeModifiers(
