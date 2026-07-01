@@ -224,6 +224,67 @@ test("C# parameter-passing validation rejects selected byref members without sou
   assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
 });
 
+test("C# provider does not refine exact selected byref call signatures to by-value siblings", () => {
+  const provider = getNativeSemanticProvider();
+  const argument = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const selectedDeclaration = {};
+  const containerSymbol = {};
+  const recordedFacts = [];
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    members: [
+      method("Example.Target.update(System.Int32)", int32, {
+        sourceName: "update",
+        targetName: "Update",
+        overloadGroup: "Example.Target.update",
+      }),
+      {
+        ...method("Example.Target.update(ref System.Int32)", int32, {
+          sourceName: "update",
+          targetName: "Update",
+          overloadGroup: "Example.Target.update",
+        }),
+        parameters: [targetParameter("value", int32, "byref-readwrite")],
+      },
+    ],
+  };
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call: {},
+    callee: {},
+    calleePropertyName: "update",
+    sourceSelectedDeclaration: selectedDeclaration,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [argument],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    sourcePrimitiveSubject: argument,
+    sourcePrimitive: {
+      kind: "int32",
+      runtimeBase: "number",
+      signed: true,
+      width: 32,
+    },
+    virtualDeclarationSubject: selectedDeclaration,
+    virtualDeclaration: {
+      ...virtualMember("Example.Target.update", "update"),
+      signatureId: "Example.Target.update(ref System.Int32)",
+    },
+    recordedFacts,
+  }));
+
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
+});
+
 test("C# provider rejects missing or mutated target parameter-mode facts before recording selected operations", () => {
   const provider = getNativeSemanticProvider();
   const int32 = { kind: "source-primitive", name: "int32" };
@@ -1969,11 +2030,12 @@ test("C# provider maps calls from TSTS-selected callee symbol virtual declaratio
   assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
 });
 
-test("C# provider refines exact selected signatures inside the selected overload group when target facts contradict the TS-selected signature", () => {
+test("C# provider rejects exact selected signatures when target facts contradict the TS-selected signature", () => {
   const provider = getNativeSemanticProvider();
   const selectedDeclaration = {};
   const containerSymbol = {};
   const argument = {};
+  const recordedFacts = [];
   const binding = {
     id: "Example.Target",
     sourceName: "Target",
@@ -2015,10 +2077,12 @@ test("C# provider refines exact selected signatures inside the selected overload
       memberId: "Example.Target.m",
       signatureId: "Example.Target.m(System.Byte)",
     },
+    recordedFacts,
   }));
 
-  assert.equal(result.kind, "accept");
-  assert.equal(result.value.selectedSignature.member.id, "Example.Target.m(System.Int32)");
+  assert.equal(result.kind, "reject");
+  assert.equal(result.diagnostic.extensionCode, "CSHARP_TARGET_MEMBER_NOT_FOUND");
+  assert.equal(recordedFacts.some((fact) => fact.key === csharpTargetOperationFactKey), false);
 });
 
 test("C# provider selects within provider source-projection signature groups using target facts", () => {
@@ -2801,15 +2865,18 @@ test("C# provider maps selected byref indexers from source marker target express
     targetName: "RefIndexer",
     target: "csharp",
     kind: "class",
-    members: [{
-      id: "Example.RefIndexer.Item(out System.Int32)",
-      sourceName: "item",
-      targetName: "Item",
-      kind: "indexer",
-      parameters: [targetParameter("value", int32, "byref-writeonly-must-init")],
-      returnType: csharpStringType(),
-      overloadGroup: "Example.RefIndexer.Item",
-    }],
+    members: [
+      indexer("Example.RefIndexer.Item(System.Int32)", int32, { sourceName: "item", overloadGroup: "Example.RefIndexer.Item" }),
+      {
+        id: "Example.RefIndexer.Item(out System.Int32)",
+        sourceName: "item",
+        targetName: "Item",
+        kind: "indexer",
+        parameters: [targetParameter("value", int32, "byref-writeonly-must-init")],
+        returnType: csharpStringType(),
+        overloadGroup: "Example.RefIndexer.Item",
+      },
+    ],
   };
 
   const result = provider.mapCheckedElementAccess({

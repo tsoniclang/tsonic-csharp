@@ -63,15 +63,7 @@ export function findTargetMemberForCall(
     };
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
     if (selectedMember !== undefined) {
-      const exact = selectExactTargetMember(
-        selectedMember,
-        selectionRequest,
-        context,
-        resolveTargetTypeRef,
-        options,
-      );
-      return exact ?? refineSelectedTargetMemberFromOverloadGroup(
-        csharpBinding,
+      return selectExactTargetMember(
         selectedMember,
         selectionRequest,
         context,
@@ -147,21 +139,10 @@ export function findTargetMemberForElementAccess(
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
     if (selectedMember !== undefined) {
-      const exact = selectExactTargetMember(
+      return selectExactTargetMember(
         selectedMember,
         {
           arguments: [request.argument],
-        },
-        context,
-        resolveTargetTypeRef,
-        options,
-      );
-      return exact ?? refineSelectedTargetMemberFromOverloadGroup(
-        csharpBinding,
-        selectedMember,
-        {
-          arguments: [request.argument],
-          sourceSelectedSignature: declaration,
         },
         context,
         resolveTargetTypeRef,
@@ -330,26 +311,6 @@ function getTargetMemberCandidatesForMemberId(
     return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
   }
   return members.filter((member) => member.overloadGroup === memberId);
-}
-
-function refineSelectedTargetMemberFromOverloadGroup(
-  binding: CsharpTargetBindingFact | undefined,
-  selectedMember: CsharpTargetMember,
-  request: Parameters<typeof selectTargetMember>[1],
-  context: Parameters<typeof selectTargetMember>[2],
-  resolveTargetTypeRef: Parameters<typeof selectTargetMember>[3],
-  options: TargetMemberSelectionOptions,
-): CsharpTargetMember | undefined {
-  const candidates = getTargetMemberCandidatesForSelectedMember(binding?.members ?? [], selectedMember);
-  return candidates.length <= 1
-    ? undefined
-    : selectTargetMember(
-        candidates,
-        request,
-        context,
-        resolveTargetTypeRef,
-        options,
-      );
 }
 
 function getTargetMemberById(
