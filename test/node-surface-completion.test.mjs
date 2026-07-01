@@ -19,6 +19,13 @@ import {
   createCsharpNodejsProviderPackageOperationsMappers,
   createCsharpNodejsProviderPackageOperationsProvider,
 } from "../dist/source/csharp-source-semantics/provider-packages/nodejs/index.js";
+import {
+  nodeFsCallTargetMembers,
+  nodeFsModuleSpecifier,
+  nodeFsPromisesCallTargetMembers,
+  nodeFsPromisesModuleSpecifier,
+  nodeFsUnsupportedTargetIdentities,
+} from "../dist/source/csharp-source-semantics/provider-packages/nodejs/filesystem/index.js";
 
 test("NodeJS provider package exposes completion metadata for assigned modules", () => {
   const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
@@ -55,6 +62,18 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   assertDefaultModuleProperty(bindingProvider, "node:process", "NodeProcessModule", "platform", "node:process.NodeProcessModule.platform", "Tsonic.CSharp.Node.process.platform");
   assertDefaultModuleCall(bindingProvider, "node:util", "NodeUtilModule", "toUSVString", "node:util.toUSVString(System.String)", "Tsonic.CSharp.Node.util.toUSVString(System.String)");
   assertDefaultModuleCall(bindingProvider, "node:url", "NodeUrlModule", "pathToFileURL", "node:url.pathToFileURL(System.String)", "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
+});
+
+test("NodeJS fs provider metadata exposes every supported operation row by provider signature identity", () => {
+  const bindingProvider = createCsharpNodejsProviderPackageBindingProvider();
+
+  for (const row of nodeFsCallTargetMembers()) {
+    assertModuleExport(bindingProvider, nodeFsModuleSpecifier, row.exportName, row.signatureId, row.targetMemberId);
+  }
+
+  for (const row of nodeFsPromisesCallTargetMembers()) {
+    assertModuleExport(bindingProvider, nodeFsPromisesModuleSpecifier, row.exportName, row.signatureId, row.targetMemberId);
+  }
 });
 
 test("NodeJS provider package maps closed operations from selected provider identities", () => {
@@ -223,7 +242,6 @@ test("NodeJS provider package maps closed operations from selected provider iden
 test("NodeJS provider package hard-rejects selected unsupported provider identities", () => {
   const facts = new TestFactStore();
   const provider = createCsharpNodejsProviderPackageOperationsProvider();
-  const fsWatchFileSignature = {};
   const cryptoCipherSignature = {};
   const osCpusSignature = {};
   const osConstantsDeclaration = {};
@@ -232,7 +250,6 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
   const urlPatternTestSignature = {};
   const staleReaddirSignature = {};
   const staleReaddirCall = {};
-  facts.set(fsWatchFileSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "watchFile", "node:fs.watchFile(System.String,Function)"));
   facts.set(cryptoCipherSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("crypto", "createCipheriv", "node:crypto.createCipheriv(System.String,System.Object,System.Object)"));
   facts.set(osCpusSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:os", "cpus", "node:os.cpus()"));
   facts.set(osConstantsDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("os", "constants"));
@@ -241,7 +258,15 @@ test("NodeJS provider package hard-rejects selected unsupported provider identit
   facts.set(urlPatternTestSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:url", "URLPattern", "test", "node:url.URLPattern.test", "node:url.URLPattern.test(System.String)"));
   facts.set(staleReaddirSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "readdirSync", "node:fs.readdirSync(System.String,System.Boolean)"));
 
-  assertUnsupportedCall(provider, facts, fsWatchFileSignature, "unsupported:Tsonic.CSharp.Node.fs.watchFile(System.String,Function)");
+  for (const unsupported of nodeFsUnsupportedTargetIdentities()) {
+    const selectedSignature = {};
+    facts.set(selectedSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration(
+      nodeFsModuleSpecifier,
+      unsupported.exportName,
+      unsupported.signatureId,
+    ));
+    assertUnsupportedCall(provider, facts, selectedSignature, unsupported.targetIdentityId);
+  }
   assertUnsupportedCall(provider, facts, cryptoCipherSignature, "unsupported:Tsonic.CSharp.Node.crypto.createCipheriv(System.String,System.Object,System.Object)");
   assertUnsupportedCall(provider, facts, osCpusSignature, "unsupported:Tsonic.CSharp.Node.os.cpus()");
   assertUnsupportedProperty(provider, facts, osConstantsDeclaration, "unsupported:Tsonic.CSharp.Node.os.constants");
@@ -415,7 +440,7 @@ test("selected NodeJS default module imports type-check through provider-package
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.url.pathToFileURL(System.String)"));
 });
 
-function assertModuleExport(bindingProvider, moduleSpecifier, exportName, signatureId) {
+function assertModuleExport(bindingProvider, moduleSpecifier, exportName, signatureId, targetIdentityId) {
   const resolution = bindingProvider.resolveModule(moduleSpecifier, {});
   assert.equal(resolution.kind, "virtual");
   const model = bindingProvider.getDeclarationModel(resolution);
@@ -426,7 +451,11 @@ function assertModuleExport(bindingProvider, moduleSpecifier, exportName, signat
     exportName,
     signatureId,
   });
-  assert.ok(identity?.id);
+  if (targetIdentityId === undefined) {
+    assert.ok(identity?.id);
+  } else {
+    assert.equal(identity?.id, targetIdentityId);
+  }
 }
 
 function assertClassMember(bindingProvider, moduleSpecifier, exportName, memberName, signatureId) {
