@@ -47,6 +47,7 @@ test("strict-native hard-rejects opaque any operations without carrier operation
     value();
     new value();
     value + 1;
+    void value;
   `);
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
@@ -63,6 +64,7 @@ test("compat mode records closed carrier operation facts for opaque any operatio
     value["name"];
     value();
     new value();
+    void value.name;
   `, { typescriptCompatibility: "compat" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
@@ -75,10 +77,13 @@ test("compat mode records closed carrier operation facts for opaque any operatio
     ...collectNodesByKind(sourceFile, session.ast, "KindCallExpression"),
     ...collectNodesByKind(sourceFile, session.ast, "KindNewExpression"),
     ...collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression"),
+    ...collectNodesByKind(sourceFile, session.ast, "KindVoidExpression"),
   ];
   assert.deepEqual(operationNodes.map((node) =>
     extensionHost.facts.get(node, csharpTargetOperationFactKey)?.declaringType?.id
   ), [
+    "Tsonic.CSharp.Js.TsValue",
+    "Tsonic.CSharp.Js.TsValue",
     "Tsonic.CSharp.Js.TsValue",
     "Tsonic.CSharp.Js.TsValue",
     "Tsonic.CSharp.Js.TsValue",
@@ -127,6 +132,35 @@ test("compat mode records closed carrier facts for exported any parameter operat
     "tsonic.csharp.compat.any.property-read:create",
     "tsonic.csharp.compat.any.call",
   ]);
+});
+
+test("compat mode deterministically rejects unsupported explicit any operator forms", () => {
+  const session = createNativeSession(`
+    declare let value: any;
+    class Example {}
+
+    value << 1;
+    value & 1;
+    value ** 2;
+    value += 1;
+    value **= 2;
+    "name" in value;
+    value instanceof Example;
+    (value(), 1);
+    delete value.name;
+  `, { typescriptCompatibility: "compat" });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const diagnostics = extensionHost.diagnostics.all().map((diagnostic) => diagnostic.message);
+
+  for (const operator of ["<<", "&", "**", "+=", "**=", "in", "instanceof", ",", "delete"]) {
+    assert.ok(
+      diagnostics.some((message) => message.includes(`operator '${operator}'`)),
+      `missing deterministic diagnostic for any operator ${operator}: ${diagnostics.join("\n")}`,
+    );
+  }
 });
 
 test("strict-native hard-rejects object-literal prototype mutation syntax", () => {
@@ -635,6 +669,7 @@ function expectedOpaqueAnyOperationMessages(compatibilityMode) {
     "C# call emission",
     "C# construct emission",
     "C# '+' operator emission",
+    "C# 'void' operator emission",
   ].map((description) => `${description} ${suffix}`);
 }
 

@@ -19,6 +19,7 @@ import {
   KindNumericLiteral,
   KindPropertyAccessExpression,
   KindTypeOfExpression,
+  KindVoidExpression,
 } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import {
@@ -215,12 +216,14 @@ test("compat any operators render static runtime helper calls from finalized ope
   const plus = binary(value, one, "KindPlusToken");
   const equal = binary(value, one, "KindEqualsEqualsEqualsToken");
   const typeOf = typeOfExpression(value);
+  const voidValue = voidExpression(value);
   const input = fakeInput({
     runtimeCarriers: new Map([[value, anyCarrierFact()]]),
     selectedOperators: new Map([
       [plus, selectedOperator("tsonic.csharp.compat.any.operator:+", "+")],
       [equal, selectedOperator("tsonic.csharp.compat.any.operator:===", "===")],
       [typeOf, selectedOperator("tsonic.csharp.compat.any.operator:typeof", "typeof")],
+      [voidValue, selectedOperator("tsonic.csharp.compat.any.operator:void", "void")],
     ]),
     operations: new Map([
       [plus, compatRuntimeStaticOperation("tsonic.csharp.compat.any.operator:+", "ApplyCompatBinary", [
@@ -236,22 +239,29 @@ test("compat any operators render static runtime helper calls from finalized ope
       [typeOf, compatRuntimeStaticOperation("tsonic.csharp.compat.any.operator:typeof", "ApplyCompatTypeof", [
         { kind: "source-argument", index: 0 },
       ], stringCarrier())],
+      [voidValue, compatRuntimeStaticOperation("tsonic.csharp.compat.any.operator:void", "ApplyCompatVoid", [
+        { kind: "source-argument", index: 0 },
+      ])],
     ]),
   });
   const plusDiagnostics = [];
   const equalDiagnostics = [];
   const typeOfDiagnostics = [];
+  const voidDiagnostics = [];
 
   const plusOutput = planExpression(plus, {}, input, plusDiagnostics);
   const equalOutput = planExpression(equal, {}, input, equalDiagnostics);
   const typeOfOutput = planExpression(typeOf, {}, input, typeOfDiagnostics);
+  const voidOutput = planExpression(voidValue, {}, input, voidDiagnostics);
 
   assert.deepEqual(plusDiagnostics, []);
   assert.deepEqual(equalDiagnostics, []);
   assert.deepEqual(typeOfDiagnostics, []);
+  assert.deepEqual(voidDiagnostics, []);
   assert.equal(printCsharpExpression(plusOutput), 'Tsonic.CSharp.Js.TsValue.ApplyCompatBinary(value, "+", 1)');
   assert.equal(printCsharpExpression(equalOutput), 'Tsonic.CSharp.Js.TsValue.ApplyCompatBinaryBoolean(value, "===", 1)');
   assert.equal(printCsharpExpression(typeOfOutput), "Tsonic.CSharp.Js.TsValue.ApplyCompatTypeof(value)");
+  assert.equal(printCsharpExpression(voidOutput), "Tsonic.CSharp.Js.TsValue.ApplyCompatVoid(value)");
 });
 
 test("source-owned selected call facts bypass provider-call ownership gates", () => {
@@ -512,6 +522,13 @@ function binary(left, right, operator = KindEqualsToken) {
 function typeOfExpression(expression) {
   return {
     Kind: KindTypeOfExpression,
+    Expression: expression,
+  };
+}
+
+function voidExpression(expression) {
+  return {
+    Kind: KindVoidExpression,
     Expression: expression,
   };
 }

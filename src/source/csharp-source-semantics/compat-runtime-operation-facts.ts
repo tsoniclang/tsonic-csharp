@@ -140,6 +140,9 @@ function getCompatRuntimeOperationFact(
   if (ast.is.IsTypeOfExpression(node)) {
     return compatAnyUnaryOperatorOperation("typeof");
   }
+  if (ast.kindName(node) === "KindVoidExpression") {
+    return compatAnyUnaryOperatorOperation("void");
+  }
   return undefined;
 }
 

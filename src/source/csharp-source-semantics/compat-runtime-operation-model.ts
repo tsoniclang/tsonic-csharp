@@ -79,7 +79,7 @@ export function compatAnyUnaryOperatorOperation(operator: string): CsharpTargetM
   const resultType = compatUnaryOperatorResultType(operator);
   return compatRuntimeStaticMethodOperation(`tsonic.csharp.compat.any.operator:${operator}`, memberName, [
     { kind: "source-argument", index: 0 },
-    ...(memberName === "ApplyCompatTypeof" ? [] : [{ kind: "literal" as const, value: operator }]),
+    ...(compatUnaryOperatorRuntimeMemberRequiresOperatorLiteral(memberName) ? [{ kind: "literal" as const, value: operator }] : []),
   ], resultType);
 }
 
@@ -154,7 +154,7 @@ function compatBooleanOperator(operator: string): boolean {
   }
 }
 
-function compatUnaryOperatorRuntimeMember(operator: string): "ApplyCompatUnary" | "ApplyCompatUnaryBoolean" | "ApplyCompatTypeof" | undefined {
+function compatUnaryOperatorRuntimeMember(operator: string): "ApplyCompatUnary" | "ApplyCompatUnaryBoolean" | "ApplyCompatTypeof" | "ApplyCompatVoid" | undefined {
   switch (operator) {
     case "+":
     case "-":
@@ -164,9 +164,17 @@ function compatUnaryOperatorRuntimeMember(operator: string): "ApplyCompatUnary" 
       return "ApplyCompatUnaryBoolean";
     case "typeof":
       return "ApplyCompatTypeof";
+    case "void":
+      return "ApplyCompatVoid";
     default:
       return undefined;
   }
+}
+
+function compatUnaryOperatorRuntimeMemberRequiresOperatorLiteral(
+  memberName: "ApplyCompatUnary" | "ApplyCompatUnaryBoolean" | "ApplyCompatTypeof" | "ApplyCompatVoid",
+): boolean {
+  return memberName === "ApplyCompatUnary" || memberName === "ApplyCompatUnaryBoolean";
 }
 
 function compatUnaryOperatorResultType(operator: string): TargetTypeRef {

@@ -10,6 +10,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
+  getAstReaderChildNodes,
   getNodeField,
 } from "../ast-utils.js";
 import {
@@ -81,10 +82,24 @@ function isExplicitTypeScriptAnyCompatOperation(
   if (ast.is.IsTypeOfExpression(node)) {
     return isExplicitTypeScriptAnySubject(asNodeSubject(getNodeField(node, "Expression")), lifecycleContext);
   }
+  if (ast.kindName(node) === "KindVoidExpression") {
+    const operand = getUnaryExpressionOperand(node, ast);
+    return isExplicitTypeScriptAnySubject(operand, lifecycleContext) ||
+      (operand !== undefined && getOpaqueAnyOperation(operand, lifecycleContext) !== undefined);
+  }
   if (ast.is.IsDeleteExpression(node)) {
     return isExplicitTypeScriptAnyDeleteExpression(node, lifecycleContext);
   }
   return false;
+}
+
+function getUnaryExpressionOperand(
+  node: Node,
+  ast: NonNullable<ExtensionLifecycleContext["compiler"]>["ast"],
+): Node | undefined {
+  return asNodeSubject(getNodeField(node, "Expression")) ??
+    asNodeSubject(getNodeField(node, "Operand")) ??
+    getAstReaderChildNodes(ast, node).map(asNodeSubject).find((child): child is Node => child !== undefined);
 }
 
 function isExplicitTypeScriptAnyAssignmentOperation(

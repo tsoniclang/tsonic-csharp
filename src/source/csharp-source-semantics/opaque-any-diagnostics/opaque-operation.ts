@@ -7,6 +7,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
+  getAstReaderChildNodes,
   getNodeField,
 } from "../ast-utils.js";
 import {
@@ -70,6 +71,12 @@ export function getOpaqueAnyOperation(
       ? { kind: "operator", description: "C# 'typeof' operator emission" }
       : undefined;
   }
+  if (ast.kindName(node) === "KindVoidExpression") {
+    const operand = getUnaryExpressionOperand(node, ast);
+    return operand !== undefined && (hasOpaqueAnyCarrier(operand, lifecycleContext) || getOpaqueAnyOperation(operand, lifecycleContext) !== undefined)
+      ? { kind: "operator", description: "C# 'void' operator emission" }
+      : undefined;
+  }
   if (ast.is.IsDeleteExpression(node)) {
     const operand = asNodeSubject(getNodeField(node, "Expression"));
     return isAnyDeleteOperand(operand, ast, lifecycleContext)
@@ -77,6 +84,15 @@ export function getOpaqueAnyOperation(
       : undefined;
   }
   return undefined;
+}
+
+function getUnaryExpressionOperand(
+  node: Node,
+  ast: NonNullable<ExtensionLifecycleContext["compiler"]>["ast"],
+): Node | undefined {
+  return asNodeSubject(getNodeField(node, "Expression")) ??
+    asNodeSubject(getNodeField(node, "Operand")) ??
+    getAstReaderChildNodes(ast, node).map(asNodeSubject).find((child): child is Node => child !== undefined);
 }
 
 function isAnyDeleteOperand(

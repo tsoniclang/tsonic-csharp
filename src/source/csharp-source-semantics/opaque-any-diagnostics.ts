@@ -164,6 +164,9 @@ function isUnsupportedCompatAnyOperator(
     const operator = getPrefixUnaryOperatorText(ast, node);
     return operator !== undefined && compatAnyUnaryOperatorOperation(operator) === undefined;
   }
+  if (ast.kindName(node) === "KindVoidExpression") {
+    return compatAnyUnaryOperatorOperation("void") === undefined;
+  }
   if (ast.is.IsDeleteExpression(node)) {
     return true;
   }

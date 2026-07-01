@@ -17,6 +17,7 @@ import {
   KindTemplateExpression,
   KindTypeOfExpression,
   KindTypeAssertionExpression,
+  KindVoidExpression,
   SourceKind,
   isAstNode,
 } from "./source-ast.js";
@@ -57,6 +58,9 @@ import {
 import {
   planTemplateExpression,
 } from "./expression-template-strings.js";
+import {
+  planVoidExpression,
+} from "./expression-void.js";
 import {
   planPostfixUnaryExpression,
   planPrefixUnaryExpression,
@@ -120,6 +124,8 @@ function planExpressionCore(
       return planRegularExpressionLiteral(node, sourceFile, input, diagnostics);
     case KindTypeOfExpression:
       return planTypeofExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
+    case KindVoidExpression:
+      return planVoidExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindDeleteExpression:
       return tryPlanJsArrayDeleteExpression(node, sourceFile, input, diagnostics, scopedPlanExpression);
     case KindArrayLiteralExpression: {

@@ -159,6 +159,8 @@ function getOperatorTextFromKindName(kind: string): string | undefined {
       return "-";
     case "KindAsteriskToken":
       return "*";
+    case "KindAsteriskAsteriskToken":
+      return "**";
     case "KindSlashToken":
       return "/";
     case "KindPercentToken":
@@ -171,6 +173,8 @@ function getOperatorTextFromKindName(kind: string): string | undefined {
       return "-=";
     case "KindAsteriskEqualsToken":
       return "*=";
+    case "KindAsteriskAsteriskEqualsToken":
+      return "**=";
     case "KindSlashEqualsToken":
       return "/=";
     case "KindPercentEqualsToken":
@@ -195,6 +199,8 @@ function getOperatorTextFromKindName(kind: string): string | undefined {
       return ">>>=";
     case "KindExclamationToken":
       return "!";
+    case "KindInstanceOfKeyword":
+      return "instanceof";
     case "KindTildeToken":
       return "~";
     case "KindPlusPlusToken":
