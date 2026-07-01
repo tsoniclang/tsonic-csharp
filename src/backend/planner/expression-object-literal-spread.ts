@@ -42,25 +42,25 @@ export function planObjectShapeSpreadAssignments(
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
   planExpression: ExpressionPlanner,
-): readonly CsharpObjectInitializerAssignment[] {
+): readonly CsharpObjectInitializerAssignment[] | undefined {
   const spread = AsSpreadAssignment(spreadNode);
   const expression = spread?.Expression;
   if (expression === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires a source expression."));
-    return [];
+    return undefined;
   }
   if (!HasSourceKind(input.ast, expression, KindIdentifier)) {
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires a single-evaluation provider lowering for non-identifier spread expressions before C# emission."));
-    return [];
+    return undefined;
   }
   const sourceShape = getExpectedObjectShapeFact(expression, sourceFile, input);
   if (sourceShape === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(spreadNode, "Object literal spread requires finalized provider object-shape facts for the spread expression before C# emission."));
-    return [];
+    return undefined;
   }
   const sourceExpression = planExpression(expression, sourceFile, input, diagnostics);
   if (sourceExpression === undefined) {
-    return [];
+    return undefined;
   }
   const assignments: CsharpObjectInitializerAssignment[] = [];
   for (const sourceMember of sourceShape.members) {
@@ -70,12 +70,12 @@ export function planObjectShapeSpreadAssignments(
         ? `Object literal spread source member '${sourceMember.sourceName}' requires a finalized target object-shape member carrier before C# emission.`
         : csharpObjectShapeMemberLookupFailureMessage(targetMemberLookup, "Object literal spread target shape");
       diagnostics.push(unsupportedNodeDiagnostic(spreadNode, message));
-      return [];
+      return undefined;
     }
     const targetMember = targetMemberLookup.member;
     if (!objectShapeMemberTypesMatch(sourceMember, targetMember)) {
       diagnostics.push(unsupportedNodeDiagnostic(spreadNode, `Object literal spread member '${sourceMember.sourceName}' requires matching finalized source and target member carriers.`));
-      return [];
+      return undefined;
     }
     assignments.push({
       kind: "AssignmentExpression",

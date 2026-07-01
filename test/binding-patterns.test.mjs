@@ -10,6 +10,9 @@ import {
   planParameterBindingPrelude,
 } from "../dist/backend/planner/bindings.js";
 import {
+  planParametersWithPrelude,
+} from "../dist/backend/planner/parameters.js";
+import {
   csharpObjectShapeFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
@@ -472,6 +475,112 @@ test("array binding defaults emit finalized length-guarded projections", () => {
   assert.equal(diagnostics.length, 0);
 });
 
+test("destructured parameters allocate synthetic parameters and emit fixed rest default prelude from facts", () => {
+  const sourceExample = `
+    export function sum([first = 42, second, ...rest]: number[]): number {
+      return first + second + rest.length;
+    }
+  `;
+  assert.match(sourceExample, /\[first = 42, second, \.\.\.rest\]/);
+
+  const first = identifier("first");
+  const second = identifier("second");
+  const rest = identifier("rest");
+  const pattern = arrayBindingPattern([
+    bindingElement(first, { initializer: numericLiteral("42") }),
+    bindingElement(second),
+    bindingElement(rest, { rest: true }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const sourceCarrier = { kind: "array", element: { kind: "source-primitive", name: "int32" } };
+  const diagnostics = [];
+
+  const planned = planParametersWithPrelude(
+    [parameter],
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([
+        [pattern, { carrier: sourceCarrier }],
+        [parameter, { carrier: sourceCarrier }],
+      ]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned.parameters, [{
+    name: "__tsonic_param0",
+    type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+    attributes: undefined,
+  }]);
+  assert.deepEqual(planned.prelude, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "first",
+      type: { kind: "PredefinedType", name: "int" },
+      initializer: {
+        kind: "ConditionalExpression",
+        condition: {
+          kind: "BinaryExpression",
+          left: {
+            kind: "SimpleMemberAccessExpression",
+            receiver: { kind: "IdentifierName", name: "__tsonic_param0" },
+            name: "Length",
+          },
+          operatorToken: { kind: "GreaterThanToken" },
+          right: { kind: "LiteralExpression", value: 0 },
+        },
+        whenTrue: {
+          kind: "ElementAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_param0" },
+          argument: { kind: "LiteralExpression", value: 0 },
+        },
+        whenFalse: { kind: "LiteralExpression", value: 42 },
+      },
+    },
+    {
+      kind: "LocalDeclarationStatement",
+      name: "second",
+      type: { kind: "PredefinedType", name: "int" },
+      initializer: {
+        kind: "ElementAccessExpression",
+        receiver: { kind: "IdentifierName", name: "__tsonic_param0" },
+        argument: { kind: "LiteralExpression", value: 1 },
+      },
+    },
+    {
+      kind: "LocalDeclarationStatement",
+      name: "rest",
+      type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+      initializer: {
+        kind: "InvocationExpression",
+        callee: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: {
+            kind: "QualifiedName",
+            left: {
+              kind: "QualifiedName",
+              left: {
+                kind: "QualifiedName",
+                left: { kind: "IdentifierName", name: "Tsonic" },
+                name: "CSharp",
+              },
+              name: "Runtime",
+            },
+            name: "ArrayHelpers",
+          },
+          name: "Slice",
+        },
+        arguments: [
+          { kind: "Argument", expression: { kind: "IdentifierName", name: "__tsonic_param0" } },
+          { kind: "Argument", expression: { kind: "LiteralExpression", value: 2 } },
+        ],
+      },
+    },
+  ]);
+});
+
 test("object rename and rest destructuring emit from finalized object-shape facts", () => {
   const renamed = identifier("renamed");
   const rest = identifier("rest");
@@ -782,6 +891,7 @@ const sourceFile = {};
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
+  getSourceFile: () => sourceFile,
   name: (node) => node?.name,
   text: (node) => String(node?.Text ?? ""),
   is: {
