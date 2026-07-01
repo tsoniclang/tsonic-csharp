@@ -32,6 +32,9 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
+import {
+  tryPlanCompatRuntimeUnaryOperator,
+} from "./compat-runtime-operations.js";
 
 export function planPrefixUnaryExpression(
   node: Node,
@@ -49,6 +52,14 @@ export function planPrefixUnaryExpression(
   if (selectedOperator === undefined) {
     const ownership = getProviderOperationOwnership(expression.Operand, sourceFile, input);
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# prefix unary operator emission requires a selected provider operator fact.", ownership);
+    return undefined;
+  }
+  const compatRuntimeOperatorDiagnosticsStart = diagnostics.length;
+  const compatRuntimeOperator = tryPlanCompatRuntimeUnaryOperator(node, expression.Operand, sourceFile, input, diagnostics, planExpression);
+  if (compatRuntimeOperator !== undefined) {
+    return compatRuntimeOperator;
+  }
+  if (diagnostics.length > compatRuntimeOperatorDiagnosticsStart) {
     return undefined;
   }
   const csharpOperator = input.facts.getFact(node, csharpTargetOperationFactKey);

@@ -380,12 +380,14 @@ test("compat mode records opaque any construction operation facts", () => {
   assert.equal(extensionHost.facts.get(newExpression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.construct");
 });
 
-test("compat mode records opaque any call and element facts but leaves operators unsupported without a closed operator contract", () => {
+test("compat mode records opaque any call, element, and supported operator facts", () => {
   const session = createNativeSession(`
     declare let value: any;
     value();
     value["name"];
     value + 1;
+    value === 1;
+    !value;
   `, { typescriptCompatibility: "compat" });
   const sourceFile = session.getSourceFile("/src/index.ts");
   assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
@@ -393,14 +395,33 @@ test("compat mode records opaque any call and element facts but leaves operators
   const extensionHost = session.finalizeExtensions();
   const callExpression = collectNodesByKind(sourceFile, session.ast, "KindCallExpression")[0];
   const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
-  const binaryExpression = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression")[0];
+  const binaryExpressions = collectNodesByKind(sourceFile, session.ast, "KindBinaryExpression");
+  const prefixUnaryExpression = collectNodesByKind(sourceFile, session.ast, "KindPrefixUnaryExpression")[0];
 
-  assert.deepEqual(anyOperationDiagnostics(extensionHost).map((diagnostic) => diagnostic.message), [
-    "C# '+' operator emission uses TypeScript any in compatibility mode without finalized target operation facts.",
-  ]);
+  assert.deepEqual(anyOperationDiagnostics(extensionHost).map((diagnostic) => diagnostic.message), []);
   assert.equal(extensionHost.facts.get(callExpression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.call");
   assert.equal(extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.element-read");
-  assert.equal(extensionHost.facts.get(binaryExpression, csharpTargetOperationFactKey), undefined);
+  assert.equal(extensionHost.facts.get(binaryExpressions[0], csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:+");
+  assert.equal(extensionHost.facts.get(binaryExpressions[1], csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:===");
+  assert.equal(extensionHost.facts.get(prefixUnaryExpression, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:!");
+});
+
+test("compat mode hard rejects unsupported opaque any operators without fallback", () => {
+  const session = createNativeSession(`
+    declare let value: any;
+    value << 1;
+  `, { typescriptCompatibility: "compat" });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const diagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
+    diagnostic.extensionCode === "CSHARP_COMPAT_ANY_OPERATOR_UNSUPPORTED"
+  );
+
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /operator '<<'/u);
+  assert.equal(anyOperationDiagnostics(extensionHost).length, 0);
 });
 
 test("strict-native rejects opaque any when only an unclosed selected signature fact exists", () => {

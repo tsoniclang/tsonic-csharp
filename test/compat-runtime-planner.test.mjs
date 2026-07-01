@@ -208,6 +208,42 @@ test("compat any call and construct render closed carrier operations from explic
   assert.equal(printCsharpExpression(constructOutput), "constructorValue.ConstructCompat(2)");
 });
 
+test("compat any operators render static runtime helper calls from finalized operation facts", () => {
+  const value = identifier("value");
+  const one = numeric("1");
+  const plus = binary(value, one, "KindPlusToken");
+  const equal = binary(value, one, "KindEqualsEqualsEqualsToken");
+  const input = fakeInput({
+    runtimeCarriers: new Map([[value, anyCarrierFact()]]),
+    selectedOperators: new Map([
+      [plus, selectedOperator("tsonic.csharp.compat.any.operator:+", "+")],
+      [equal, selectedOperator("tsonic.csharp.compat.any.operator:===", "===")],
+    ]),
+    operations: new Map([
+      [plus, compatRuntimeStaticOperation("tsonic.csharp.compat.any.operator:+", "ApplyCompatBinary", [
+        { kind: "source-argument", index: 0 },
+        { kind: "literal", value: "+" },
+        { kind: "source-argument", index: 1 },
+      ])],
+      [equal, compatRuntimeStaticOperation("tsonic.csharp.compat.any.operator:===", "ApplyCompatBinaryBoolean", [
+        { kind: "source-argument", index: 0 },
+        { kind: "literal", value: "===" },
+        { kind: "source-argument", index: 1 },
+      ], boolCarrier())],
+    ]),
+  });
+  const plusDiagnostics = [];
+  const equalDiagnostics = [];
+
+  const plusOutput = planExpression(plus, {}, input, plusDiagnostics);
+  const equalOutput = planExpression(equal, {}, input, equalDiagnostics);
+
+  assert.deepEqual(plusDiagnostics, []);
+  assert.deepEqual(equalDiagnostics, []);
+  assert.equal(printCsharpExpression(plusOutput), 'Tsonic.CSharp.Js.TsValue.ApplyCompatBinary(value, "+", 1)');
+  assert.equal(printCsharpExpression(equalOutput), 'Tsonic.CSharp.Js.TsValue.ApplyCompatBinaryBoolean(value, "===", 1)');
+});
+
 test("source-owned selected call facts bypass provider-call ownership gates", () => {
   const handler = identifier("handler");
   const call = callExpression(handler, []);
@@ -294,7 +330,7 @@ function fakeInput(options = {}) {
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
       getSelectedTargetCall: (subject) => options.selectedCalls?.get(subject),
-      getSelectedTargetOperator: () => undefined,
+      getSelectedTargetOperator: (subject) => options.selectedOperators?.get(subject),
       getContextualTargetTypeFact: () => undefined,
       getRuntimeCarrierFact: (subject) => options.runtimeCarriers?.get(subject),
       getObjectShapeFact: () => undefined,
@@ -370,11 +406,39 @@ function compatRuntimeOperation(memberName, argumentProjection) {
   };
 }
 
+function compatRuntimeStaticOperation(operationId, memberName, argumentProjection, resultType = tsValueCarrier()) {
+  return {
+    kind: "member",
+    operationId,
+    operationKind: "method",
+    memberName,
+    static: true,
+    declaringType: tsValueCarrier(),
+    resultType,
+    argumentProjection,
+  };
+}
+
+function selectedOperator(operationId, targetOperation) {
+  return {
+    operationId,
+    operationKind: "operator",
+    targetOperation,
+  };
+}
+
 function tsValueCarrier() {
   return {
     kind: "target-named",
     id: "Tsonic.CSharp.Js.TsValue",
     csharpRender: { kind: "named", namespace: ["Tsonic", "CSharp", "Js"], name: "TsValue" },
+  };
+}
+
+function boolCarrier() {
+  return {
+    kind: "source-primitive",
+    name: "bool",
   };
 }
 
@@ -418,12 +482,12 @@ function newExpression(expression, args) {
   };
 }
 
-function binary(left, right) {
+function binary(left, right, operator = KindEqualsToken) {
   return {
     Kind: KindBinaryExpression,
     Left: left,
     Right: right,
-    OperatorToken: { Kind: KindEqualsToken },
+    OperatorToken: { Kind: operator },
   };
 }
 

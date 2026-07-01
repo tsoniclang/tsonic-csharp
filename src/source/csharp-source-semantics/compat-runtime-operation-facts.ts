@@ -20,6 +20,7 @@ import {
 } from "./ast-utils.js";
 import {
   getBinaryOperatorText,
+  getPrefixUnaryOperatorText,
 } from "./operator-syntax.js";
 import {
   targetOperation,
@@ -28,10 +29,12 @@ import {
 import {
   compatAnyCallOperation,
   compatAnyConstructOperation,
+  compatAnyBinaryOperatorOperation,
   compatAnyElementReadOperation,
   compatAnyElementWriteOperation,
   compatAnyPropertyReadOperation,
   compatAnyPropertyWriteOperation,
+  compatAnyUnaryOperatorOperation,
   csharpCompatRuntimeEvidence,
 } from "./compat-runtime-operation-model.js";
 import {
@@ -74,10 +77,22 @@ function recordCompatRuntimeOperationFactsForSourceFile(
       return;
     }
     lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, operation, csharpCompatRuntimeEvidence);
-    recordTargetOperationFact(lifecycleContext.host, node, targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
+    recordTargetOperationFact(lifecycleContext.host, node, targetOperation(operation.operationId, targetOperationKind(operation), targetOperationName(operation), {
       resultType: operation.resultType,
     }), csharpCompatRuntimeEvidence);
   });
+}
+
+function targetOperationKind(operation: CsharpTargetMemberOperationFact): "property" | "method" | "indexer" | "operator" | "constructor" | "iteration" {
+  return operation.operationId.startsWith("tsonic.csharp.compat.any.operator:")
+    ? "operator"
+    : operation.operationKind;
+}
+
+function targetOperationName(operation: CsharpTargetMemberOperationFact): string {
+  return operation.operationId.startsWith("tsonic.csharp.compat.any.operator:")
+    ? operation.operationId.slice("tsonic.csharp.compat.any.operator:".length)
+    : operation.memberName;
 }
 
 function getCompatRuntimeOperationFact(
@@ -111,6 +126,16 @@ function getCompatRuntimeOperationFact(
   }
   if (ast.is.IsNewExpression(node)) {
     return compatAnyConstructOperation(callArgumentCount(node));
+  }
+  if (ast.is.IsBinaryExpression(node)) {
+    const operator = getBinaryOperatorText(ast, node);
+    return operator === undefined || operator === "="
+      ? undefined
+      : compatAnyBinaryOperatorOperation(operator);
+  }
+  if (ast.is.IsPrefixUnaryExpression(node)) {
+    const operator = getPrefixUnaryOperatorText(ast, node);
+    return operator === undefined ? undefined : compatAnyUnaryOperatorOperation(operator);
   }
   return undefined;
 }

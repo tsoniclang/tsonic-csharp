@@ -131,6 +131,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         runBeforeFinalizedStage("runtime-carrier-facts-after-shapes", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
         runBeforeFinalizedStage("object-rest-binding-facts", () => recordCsharpObjectRestBindingFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
         runBeforeFinalizedStage("object-shape-property-access-facts", () => recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
+        runBeforeFinalizedStage("compat-runtime-operation-facts", () => recordCsharpCompatRuntimeOperationFactsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("checked-operator-facts", () => recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost));
         runBeforeFinalizedStage("native-array-facts", () => recordCsharpNativeArrayFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("target-constraint-validation", () => validateCsharpTargetConstraintFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
@@ -140,7 +141,6 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
           runBeforeFinalizedStage("js-surface-operation-facts-append", () => recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "append" }));
           runBeforeFinalizedStage("runtime-carrier-facts-after-js-operations", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
         }
-        runBeforeFinalizedStage("compat-runtime-operation-facts", () => recordCsharpCompatRuntimeOperationFactsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("selected-call-operation-facts", () => recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("opaque-any-diagnostics", () => diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("observed-assignability-validation", () => validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));

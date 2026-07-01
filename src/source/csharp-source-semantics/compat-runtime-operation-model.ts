@@ -6,6 +6,7 @@ import type {
   CsharpTargetOperationArgument,
 } from "../csharp-facts.js";
 import {
+  csharpBooleanTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
 } from "./target-types.js";
@@ -50,6 +51,35 @@ export function compatAnyConstructOperation(argumentCount: number): CsharpTarget
   return compatRuntimeMethodOperation("tsonic.csharp.compat.any.construct", "ConstructCompat", sourceArgumentProjection(argumentCount));
 }
 
+export function compatAnyBinaryOperatorOperation(operator: string): CsharpTargetMemberOperationFact | undefined {
+  const memberName = compatBinaryOperatorRuntimeMember(operator);
+  if (memberName === undefined) {
+    return undefined;
+  }
+  const resultType = compatBooleanOperator(operator)
+    ? csharpBooleanTargetType()
+    : tsValueType;
+  return compatRuntimeStaticMethodOperation(`tsonic.csharp.compat.any.operator:${operator}`, memberName, [
+    { kind: "source-argument", index: 0 },
+    { kind: "literal", value: operator },
+    { kind: "source-argument", index: 1 },
+  ], resultType);
+}
+
+export function compatAnyUnaryOperatorOperation(operator: string): CsharpTargetMemberOperationFact | undefined {
+  const memberName = compatUnaryOperatorRuntimeMember(operator);
+  if (memberName === undefined) {
+    return undefined;
+  }
+  const resultType = operator === "!"
+    ? csharpBooleanTargetType()
+    : tsValueType;
+  return compatRuntimeStaticMethodOperation(`tsonic.csharp.compat.any.operator:${operator}`, memberName, [
+    { kind: "source-argument", index: 0 },
+    { kind: "literal", value: operator },
+  ], resultType);
+}
+
 export function compatAnySelectedTargetMember(operation: CsharpTargetMemberOperationFact): TargetMember {
   return {
     id: operation.operationId,
@@ -68,6 +98,54 @@ export function compatAnySelectedTargetMember(operation: CsharpTargetMemberOpera
   };
 }
 
+function compatBinaryOperatorRuntimeMember(operator: string): "ApplyCompatBinary" | "ApplyCompatBinaryBoolean" | undefined {
+  if (compatBooleanOperator(operator)) {
+    return "ApplyCompatBinaryBoolean";
+  }
+  switch (operator) {
+    case "+":
+    case "-":
+    case "*":
+    case "/":
+    case "%":
+    case "??":
+    case "&&":
+    case "||":
+      return "ApplyCompatBinary";
+    default:
+      return undefined;
+  }
+}
+
+function compatBooleanOperator(operator: string): boolean {
+  switch (operator) {
+    case "==":
+    case "!=":
+    case "===":
+    case "!==":
+    case "<":
+    case "<=":
+    case ">":
+    case ">=":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function compatUnaryOperatorRuntimeMember(operator: string): "ApplyCompatUnary" | "ApplyCompatUnaryBoolean" | undefined {
+  switch (operator) {
+    case "+":
+    case "-":
+    case "~":
+      return "ApplyCompatUnary";
+    case "!":
+      return "ApplyCompatUnaryBoolean";
+    default:
+      return undefined;
+  }
+}
+
 function compatRuntimeMethodOperation(
   operationId: string,
   memberName: string,
@@ -80,6 +158,24 @@ function compatRuntimeMethodOperation(
     memberName,
     declaringType: tsValueType,
     resultType: tsValueType,
+    argumentProjection,
+  };
+}
+
+function compatRuntimeStaticMethodOperation(
+  operationId: string,
+  memberName: string,
+  argumentProjection: readonly CsharpTargetOperationArgument[],
+  resultType = tsValueType,
+): CsharpTargetMemberOperationFact {
+  return {
+    kind: "member",
+    operationId,
+    operationKind: "method",
+    memberName,
+    static: true,
+    declaringType: tsValueType,
+    resultType,
     argumentProjection,
   };
 }

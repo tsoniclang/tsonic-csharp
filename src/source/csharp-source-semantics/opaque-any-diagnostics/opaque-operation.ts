@@ -60,6 +60,11 @@ export function getOpaqueAnyOperation(
       ? { kind: "operator", description: `C# '${operator}' operator emission` }
       : undefined;
   }
+  if (ast.is.IsPrefixUnaryExpression(node)) {
+    return hasOpaqueAnyCarrier(asNodeSubject(getNodeField(node, "Operand")), lifecycleContext)
+      ? { kind: "operator", description: "C# prefix unary operator emission" }
+      : undefined;
+  }
   return undefined;
 }
 

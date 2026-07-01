@@ -1,6 +1,7 @@
 import {
   acceptObservation,
   deferObservation,
+  rejectObservation,
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -23,16 +24,21 @@ import {
 import {
   compatAnyCallOperation,
   compatAnyConstructOperation,
+  compatAnyBinaryOperatorOperation,
   compatAnyElementReadOperation,
   compatAnyElementWriteOperation,
   compatAnyPropertyReadOperation,
   compatAnyPropertyWriteOperation,
   compatAnySelectedTargetMember,
+  compatAnyUnaryOperatorOperation,
   csharpCompatRuntimeEvidence,
 } from "./compat-runtime-operation-model.js";
 import {
   csharpTargetId,
 } from "./identity.js";
+import {
+  csharpProviderDiagnostic,
+} from "./diagnostics.js";
 import {
   targetOperation,
   recordCsharpTargetOperation,
@@ -97,16 +103,38 @@ export function mapCsharpCompatRuntimeCheckedOperator(
   request: CheckedOperatorMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedOperator">,
 ): ExtensionObservation<CheckedOperationMappingResult> {
-  if (!requestTargetsCsharp(request.target) || request.operator !== "=") {
+  if (!requestTargetsCsharp(request.target)) {
     return deferObservation;
   }
-  const operation = getCompatRuntimeAssignmentOperation(request.expression, context);
-  if (operation === undefined) {
+  if (request.operator === "=") {
+    const operation = getCompatRuntimeAssignmentOperation(request.expression, context);
+    if (operation === undefined) {
+      return deferObservation;
+    }
+    recordCsharpTargetOperation(context, request.expression, operation, csharpCompatRuntimeEvidence);
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
+        resultType: operation.resultType,
+      }),
+    }, csharpCompatRuntimeEvidence);
+  }
+  if (!hasOpaqueAnyCarrier(request.left, context) && !hasOpaqueAnyCarrier(request.right, context)) {
     return deferObservation;
+  }
+  const operation = request.right === undefined
+    ? compatAnyUnaryOperatorOperation(request.operator)
+    : compatAnyBinaryOperatorOperation(request.operator);
+  if (operation === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(
+      context.extensionId,
+      "CSHARP_COMPAT_ANY_OPERATOR_UNSUPPORTED",
+      9100157,
+      `C# compatibility mode has no closed compat-runtime carrier operation for TypeScript any operator '${request.operator}'.`,
+    ));
   }
   recordCsharpTargetOperation(context, request.expression, operation, csharpCompatRuntimeEvidence);
   return acceptObservation<CheckedOperationMappingResult>({
-    operation: targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
+    operation: targetOperation(operation.operationId, "operator", request.operator, {
       resultType: operation.resultType,
     }),
   }, csharpCompatRuntimeEvidence);

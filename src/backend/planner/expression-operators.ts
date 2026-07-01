@@ -40,6 +40,7 @@ import {
 } from "./destructuring-assignment.js";
 import {
   tryPlanCompatRuntimeElementSet,
+  tryPlanCompatRuntimeOperator,
   tryPlanCompatRuntimePropertySet,
 } from "./compat-runtime-operations.js";
 import {
@@ -129,6 +130,14 @@ export function tryPlanBinaryExpression(
     const rightOwnership = getProviderOperationOwnership(right, sourceFile, input);
     const ownership = combineOwnership(leftOwnership, rightOwnership);
     pushMissingTargetFactDiagnostic(diagnostics, node, "C# binary operator emission requires a selected provider operator fact.", ownership);
+    return undefined;
+  }
+  const compatRuntimeOperatorDiagnosticsStart = diagnostics.length;
+  const compatRuntimeOperator = tryPlanCompatRuntimeOperator(node, left, right, sourceFile, input, diagnostics, planExpression);
+  if (compatRuntimeOperator !== undefined) {
+    return compatRuntimeOperator;
+  }
+  if (diagnostics.length > compatRuntimeOperatorDiagnosticsStart) {
     return undefined;
   }
   const csharpOperator = input.facts.getFact(node, csharpTargetOperationFactKey);
