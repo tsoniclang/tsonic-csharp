@@ -1,4 +1,5 @@
 import type {
+  Node,
   SourceFile,
 } from "@tsonic/tsts";
 import {
@@ -128,6 +129,10 @@ export function collectArrayLocalDeclarations(
   const locals: ArrayLocalAnalysis[] = [];
   visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
     if (!compiler.ast.is.IsVariableDeclaration(node)) {
+      const bindingElement = collectArrayBindingElementLocal(node, sourceFile, lifecycleContext, context, host);
+      if (bindingElement !== undefined) {
+        locals.push(bindingElement);
+      }
       return;
     }
     const initializer = asNodeSubject(getNodeField(node, "Initializer"));
@@ -161,6 +166,47 @@ export function collectArrayLocalDeclarations(
     });
   });
   return locals;
+}
+
+function collectArrayBindingElementLocal(
+  node: Node,
+  sourceFile: SourceFile,
+  lifecycleContext: LifecycleContext,
+  context: ReturnType<typeof createRuntimeCarrierLifecycleObservationContext>,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
+): ArrayLocalAnalysis | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined || compiler.ast.kindName(node) !== "KindBindingElement") {
+    return undefined;
+  }
+  const name = asNodeSubject(getNodeField(node, "name"));
+  if (name === undefined || !compiler.ast.is.IsIdentifier(name)) {
+    return undefined;
+  }
+  const semanticType = compiler.checker.getTypeAtLocation(name, { sourceFile });
+  if (semanticType === undefined || !isSourceStandardLibraryArrayLikeType(semanticType, context)) {
+    return undefined;
+  }
+  const targetType = host.getTargetTypeRefForSubject(semanticType, context, { allowSemanticTypeQuery: true, sourceFile });
+  const elementType = targetType?.kind === "array"
+    ? targetType.element
+    : getCsharpArrayLiteralElementTargetType(targetType) ??
+      getCsharpCollectionElementTargetType(targetType);
+  if (elementType === undefined) {
+    return undefined;
+  }
+  const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile) ??
+    getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
+  const sourceUses = collectArrayStructuralUsesForSymbol(sourceFile, symbol, lifecycleContext);
+  return {
+    declaration: node,
+    name,
+    symbol,
+    semanticType,
+    elementType,
+    sourceUses,
+    carrierRequirements: carrierRequirementsForArrayStructuralUses(sourceUses, elementType, lifecycleContext, host),
+  };
 }
 
 function getArrayElementTypeFromLocalDeclaration(

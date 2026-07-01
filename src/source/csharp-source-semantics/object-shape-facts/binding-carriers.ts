@@ -11,6 +11,7 @@ import type {
   CsharpObjectShapeFact,
 } from "../../csharp-facts.js";
 import {
+  csharpObjectShapeFactKey,
   resolveCsharpObjectShapeMemberByFinalizedSourceName,
 } from "../../csharp-facts.js";
 import {
@@ -40,22 +41,24 @@ export function recordObjectBindingMemberRuntimeCarriers(
   resolveObjectShape: CsharpObjectShapeFactResolver,
 ): void {
   const compiler = lifecycleContext.compiler;
-  if (compiler === undefined || compiler.ast.kindName(node) !== "KindVariableDeclaration") {
+  if (compiler === undefined || compiler.ast.kindName(node) !== "KindObjectBindingPattern") {
     return;
   }
-  const pattern = asNodeSubject(getNodeField(node, "name"));
-  if (pattern === undefined || compiler.ast.kindName(pattern) !== "KindObjectBindingPattern") {
-    return;
-  }
-  const sourceExpression = asNodeSubject(getNodeField(node, "Initializer"));
-  const declaredType = asNodeSubject(getNodeField(node, "Type"));
+  const pattern = node;
+  const bindingOwner = asNodeSubject(getNodeField(pattern, "Parent"));
+  const sourceExpression = asNodeSubject(getNodeField(bindingOwner, "Initializer"));
+  const declaredType = asNodeSubject(getNodeField(bindingOwner, "Type"));
   const objectShape = resolveObjectShape(sourceExpression, context, host) ??
-    resolveObjectShape(declaredType, context, host);
+    resolveObjectShape(declaredType, context, host) ??
+    resolveObjectShape(bindingOwner, context, host);
   if (objectShape === undefined) {
     return;
   }
   const evidence = [{ message: "C# runtime carrier propagated from finalized object-shape destructuring member facts." }];
   for (const bindingElement of getNodeList(getNodeField(pattern, "Elements"))) {
+    if (getNodeField(bindingElement, "DotDotDotToken") !== undefined) {
+      continue;
+    }
     const bindingName = asNodeSubject(getNodeField(bindingElement, "name"));
     if (bindingName === undefined || compiler.ast.kindName(bindingName) !== "KindIdentifier") {
       continue;
@@ -72,9 +75,17 @@ export function recordObjectBindingMemberRuntimeCarriers(
     const fact = { carrier: member.type };
     lifecycleContext.host.facts.set(bindingElement, runtimeCarrierFactKey, fact, evidence);
     lifecycleContext.host.facts.set(bindingName, runtimeCarrierFactKey, fact, evidence);
+    const bindingObjectShape = resolveObjectShape(bindingName, context, host);
+    if (bindingObjectShape !== undefined) {
+      lifecycleContext.host.facts.set(bindingElement, csharpObjectShapeFactKey, bindingObjectShape, evidence);
+      lifecycleContext.host.facts.set(bindingName, csharpObjectShapeFactKey, bindingObjectShape, evidence);
+    }
     const symbol = getSafeObjectShapeSymbol(bindingName, sourceFile, context);
     if (symbol !== undefined) {
       lifecycleContext.host.facts.set(symbol, runtimeCarrierFactKey, fact, evidence);
+      if (bindingObjectShape !== undefined) {
+        lifecycleContext.host.facts.set(symbol, csharpObjectShapeFactKey, bindingObjectShape, evidence);
+      }
     }
   }
 }

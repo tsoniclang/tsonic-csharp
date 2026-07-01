@@ -28,6 +28,7 @@ import {
   tsonicCoreSourceSemanticsModules,
 } from "@tsonic/source-core";
 import {
+  csharpArrayBoundaryFactKey,
   csharpObjectShapeFactKey,
   csharpAttributeApplicationFactKey,
   csharpTargetOperationFactKey,
@@ -1712,6 +1713,153 @@ test("source-semantics propagates object-shape callable carriers through destruc
   assert.deepEqual(carrier.typeArguments?.map((argument) => argument.kind === "source-primitive" ? argument.name : argument.id), ["float64", "float64"]);
 });
 
+test("source-semantics propagates object-shape callable carriers through parameter destructuring", () => {
+  const sourceText = `
+    export interface Named {
+      name: string;
+      run(value: number): number;
+    }
+
+    export function invoke({ run }: Named): number {
+      return run(2);
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const callRun = collectIdentifiersByText(sourceFile, session.ast, "run")
+    .find((node) => session.ast.kindName(session.ast.parent(node)) === "KindCallExpression");
+  assert.ok(callRun);
+  const carrier = extensionHost.facts.get(callRun, runtimeCarrierFactKey)?.carrier;
+
+  assert.equal(carrier?.kind, "target-named");
+  assert.equal(carrier.id, "System.Func`2");
+  assert.deepEqual(carrier.typeArguments?.map((argument) => argument.kind === "source-primitive" ? argument.name : argument.id), ["float64", "float64"]);
+});
+
+test("source-semantics records object-shape facts for destructured object bindings before later member access", () => {
+  const sourceText = `
+    export interface Outer {
+      child: {
+        label: string;
+        value: number;
+      };
+    }
+
+    export function label(input: Outer): string {
+      const { child } = input;
+      return child.label;
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      noLib: true,
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const childReceiver = collectIdentifiersByText(sourceFile, session.ast, "child")
+    .find((node) => session.ast.kindName(session.ast.parent(node)) === "KindPropertyAccessExpression");
+  assert.ok(childReceiver);
+  const childShape = extensionHost.facts.get(childReceiver, csharpObjectShapeFactKey);
+  const propertyAccess = session.ast.parent(childReceiver);
+  const operation = extensionHost.facts.get(propertyAccess, targetOperationFactKey);
+  const csharpOperation = extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey);
+
+  assert.equal(childShape?.members.some((member) => member.sourceName === "label"), true);
+  assert.equal(operation?.operationKind, "property");
+  assert.equal(operation.targetOperation, "label");
+  assert.equal(csharpOperation?.memberName, "label");
+});
+
+test("source-semantics records array boundary facts for destructured rest bindings before later length access", () => {
+  const sourceText = `
+    export function tailLength(values: number[]): number {
+      const [, ...tail] = values;
+      return tail.length;
+    }
+  `;
+  const context = {
+    ...csharpProviderContext(),
+    selectedSurfaces: [{ id: "js" }],
+  };
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(context),
+        createCsharpTargetSemanticsExtension(context),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const tailBinding = collectIdentifiersByText(sourceFile, session.ast, "tail")
+    .find((node) => session.ast.kindName(session.ast.parent(node)) === "KindBindingElement");
+  assert.ok(tailBinding);
+  const tailReceiver = collectIdentifiersByText(sourceFile, session.ast, "tail")
+    .find((node) => session.ast.kindName(session.ast.parent(node)) === "KindPropertyAccessExpression");
+  assert.ok(tailReceiver);
+  const boundary = extensionHost.facts.get(tailBinding, csharpArrayBoundaryFactKey);
+  const propertyAccess = session.ast.parent(tailReceiver);
+  const operation = extensionHost.facts.get(propertyAccess, targetOperationFactKey);
+  const csharpOperation = extensionHost.facts.get(propertyAccess, csharpTargetOperationFactKey);
+
+  assert.equal(boundary?.publicShape, "IReadOnlyList<T>");
+  assert.equal(boundary.coreCarrierLane, "native-read-indexable");
+  assert.equal(operation?.operationKind, "property");
+  assert.equal(operation.targetOperation, "length");
+  assert.equal(csharpOperation?.memberName, "Count");
+});
+
 function collectFacts(sourceFile, ast, extensionHost) {
   const facts = [];
   visit(sourceFile);
@@ -1882,6 +2030,7 @@ function csharpProviderContext(options = {}) {
       targets: [target],
     },
     target,
+    selectedPackages: [],
     selectedSurfaces: [],
   };
 }
