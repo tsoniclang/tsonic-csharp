@@ -173,6 +173,10 @@ export function collectArrayLocalDeclarations(
     const symbol = getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile) ??
       getSymbolForDeclarationLookup(compiler.ast, compiler.checker, name, sourceFile);
     const sourceUses = collectArrayStructuralUsesForSymbol(sourceFile, symbol, lifecycleContext);
+    const carrierRequirements = new Set(carrierRequirementsForArrayStructuralUses(sourceUses, elementType, lifecycleContext, host));
+    if (initializer !== undefined && arrayLiteralHasElision(initializer, compiler.ast)) {
+      carrierRequirements.add("full-js");
+    }
     locals.push({
       declaration: node,
       name,
@@ -182,10 +186,17 @@ export function collectArrayLocalDeclarations(
       semanticType,
       elementType,
       sourceUses,
-      carrierRequirements: carrierRequirementsForArrayStructuralUses(sourceUses, elementType, lifecycleContext, host),
+      carrierRequirements,
     });
   });
   return locals;
+}
+
+function arrayLiteralHasElision(node: Node, ast: NonNullable<LifecycleContext["compiler"]>["ast"]): boolean {
+  if (!ast.is.IsArrayLiteralExpression(node)) {
+    return false;
+  }
+  return getNodeList(getNodeField(node, "Elements")).some((element) => ast.kindName(element) === "KindOmittedExpression");
 }
 
 function collectArrayBindingElementLocal(

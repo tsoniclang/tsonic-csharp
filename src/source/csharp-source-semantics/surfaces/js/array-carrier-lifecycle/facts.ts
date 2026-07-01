@@ -140,6 +140,7 @@ function arrayLocalFactSubjects(local: ArrayLocalAnalysis): readonly ExtensionFa
   const subjects: readonly (ExtensionFactSubject | undefined)[] = [
     local.declaration,
     local.name,
+    local.initializer,
     local.typeNode,
     local.symbol,
   ];
@@ -150,6 +151,7 @@ function arrayLocalRuntimeCarrierSubjects(local: ArrayLocalAnalysis): readonly E
   const subjects: readonly (ExtensionFactSubject | undefined)[] = [
     local.declaration,
     local.name,
+    local.initializer,
     local.typeNode,
     local.symbol,
   ];

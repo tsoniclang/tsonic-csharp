@@ -137,12 +137,12 @@ export function getCsharpTypeForNode(
     return explicitTypeSyntax;
   }
   const arrayBoundaryType = getCsharpTypeFromArrayBoundaryFact(node, input);
-  if (arrayBoundaryType !== undefined) {
-    return arrayBoundaryType;
-  }
   const nodeCarrierType = getCsharpTypeFromRuntimeCarrier(node, input);
   if (nodeCarrierType !== undefined) {
     return nodeCarrierType;
+  }
+  if (arrayBoundaryType !== undefined) {
+    return arrayBoundaryType;
   }
   const collectionType = getCsharpTypeFromArrayOrTupleTypeNode(node, sourceFile, input, getCsharpTypeForNode, diagnostics);
   if (collectionType !== undefined) {

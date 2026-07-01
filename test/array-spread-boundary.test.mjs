@@ -20,6 +20,7 @@ import {
   KindArrayLiteralExpression,
   KindIdentifier,
   KindNumericLiteral,
+  KindOmittedExpression,
   KindSpreadElement,
 } from "../dist/backend/planner/source-ast.js";
 
@@ -156,6 +157,65 @@ test("JSArray spread rejects finalized non-JSArray carriers without treating the
   assert.doesNotMatch(diagnostics[0].message, /carrier fact is missing/);
 });
 
+test("JSArray sparse literal emits holes only from finalized JSArray carrier facts", () => {
+  const sourceExample = `
+    const values = [1, , 3];
+  `;
+  assert.match(sourceExample, /\[1, , 3\]/);
+
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+    omittedExpression(),
+    numericLiteral("3"),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput(),
+    diagnostics,
+    csharpJsArrayCarrierTargetType(int32Type()),
+    planner,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(planned.kind, "InvocationExpression");
+  assert.equal(planned.callee.name, "fromSparse");
+  assert.deepEqual(planned.arguments, [
+    { kind: "Argument", expression: { kind: "LiteralExpression", value: 3 } },
+    { kind: "Argument", expression: { kind: "TupleExpression", elements: [{ kind: "LiteralExpression", value: 0 }, { kind: "LiteralExpression", value: 1 }] } },
+    { kind: "Argument", expression: { kind: "TupleExpression", elements: [{ kind: "LiteralExpression", value: 2 }, { kind: "LiteralExpression", value: 3 }] } },
+  ]);
+});
+
+test("dense array carriers reject sparse literal elisions instead of compacting holes", () => {
+  const sourceExample = `
+    const values: number[] = [1, , 3];
+  `;
+  assert.match(sourceExample, /\[1, , 3\]/);
+
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+    omittedExpression(),
+    numericLiteral("3"),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput(),
+    diagnostics,
+    int32ArrayType(),
+    planner,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Sparse array literal elisions require closed JSArray hole construction facts/);
+});
+
 test("native collection spread emits only from finalized collection element facts", () => {
   const sourceExample = `
     declare const tail: number[];
@@ -281,6 +341,12 @@ function numericLiteral(text) {
   return {
     Kind: KindNumericLiteral,
     Text: text,
+  };
+}
+
+function omittedExpression() {
+  return {
+    Kind: KindOmittedExpression,
   };
 }
 

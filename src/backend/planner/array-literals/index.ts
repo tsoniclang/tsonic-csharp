@@ -78,7 +78,7 @@ export function planArrayLiteralExpressionWithCarrier(
   planner: ArrayLiteralPlanner,
   carrierResolution?: ReturnType<typeof resolveRuntimeCarrierForExpression>,
 ): CsharpExpression | undefined {
-  if (arrayLiteralHasElision(node, input)) {
+  if (arrayLiteralHasElision(node, input) && !isCsharpJsArrayCarrierTargetType(carrier)) {
     return rejectSparseArrayLiteralElision(node, diagnostics);
   }
   if (carrier?.kind === "array") {
