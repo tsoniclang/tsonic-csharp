@@ -28,6 +28,7 @@ export function rejectUnsupportedCsharpJsSourceLibraryCall(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
   unsupportedOperation?: JsSurfaceUnsupportedOperation,
+  nodeOrSpan?: unknown,
 ): ExtensionObservation<CheckedCallMappingResult> | undefined {
   if (
     unsupportedOperation === undefined &&
@@ -41,12 +42,14 @@ export function rejectUnsupportedCsharpJsSourceLibraryCall(
     9100130,
     `C# JS surface hard-rejected selected TypeScript standard-library call '${sourceLibraryMemberIdentity(sourceMember)}': ${unsupportedOperation?.reason ?? "no closed operation facts exist for the selected JS surface operation."}`,
     unsupportedSurfaceOperationEvidence(sourceMember, unsupportedOperation),
+    nodeOrSpan,
   ));
 }
 
 export function rejectUnmappedCsharpJsSourceLibraryCall(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
+  nodeOrSpan?: unknown,
 ): ExtensionObservation<CheckedCallMappingResult> {
   return rejectObservation(host.csharpProviderDiagnostic(
     host.extensionId,
@@ -62,12 +65,14 @@ export function rejectUnmappedCsharpJsSourceLibraryCall(
       ],
       capabilityId: "diagnostic.unsupported-selected-surface-operation",
     }),
+    nodeOrSpan,
   ));
 }
 
 export function rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
+  nodeOrSpan?: unknown,
 ): ExtensionObservation<CheckedOperationMappingResult> | undefined {
   if (!sourceLibraryMemberMatches(sourceMember, unsupportedSourceLibraryMemberIdentityPolicy)) {
     return undefined;
@@ -78,12 +83,14 @@ export function rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(
     9100130,
     `C# JS surface has no closed operation facts for checked TypeScript standard-library property '${sourceLibraryMemberIdentity(sourceMember)}'.`,
     unsupportedSurfaceOperationEvidence(sourceMember, undefined),
+    nodeOrSpan,
   ));
 }
 
 export function rejectUnmappedCsharpJsSourceLibraryPropertyAccess(
   sourceMember: SourceLibraryMember,
   host: CsharpJsSurfaceHost,
+  nodeOrSpan?: unknown,
 ): ExtensionObservation<CheckedOperationMappingResult> {
   return rejectObservation(host.csharpProviderDiagnostic(
     host.extensionId,
@@ -99,6 +106,7 @@ export function rejectUnmappedCsharpJsSourceLibraryPropertyAccess(
       ],
       capabilityId: "diagnostic.unsupported-selected-surface-operation",
     }),
+    nodeOrSpan,
   ));
 }
 

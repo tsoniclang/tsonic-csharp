@@ -109,6 +109,7 @@ export interface CsharpJsSurfaceHost {
     numericCode: number,
     message: string,
     evidence?: readonly ExtensionEvidence[],
+    nodeOrSpan?: unknown,
   ) => ExtensionDiagnostic;
 }
 

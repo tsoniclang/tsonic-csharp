@@ -151,6 +151,7 @@ export function createCsharpNodejsProviderPackageMappers(extensionId: string): C
             9100202,
             `C# NodeJS provider package requires a selected provider signature for checked ${formatNodejsDeclarationIdentity(missingSignatureDeclaration)}.`,
             missingNodejsSelectedSignatureEvidence(missingSignatureDeclaration),
+            request.call,
           ));
         }
         return deferObservation;
@@ -159,7 +160,7 @@ export function createCsharpNodejsProviderPackageMappers(extensionId: string): C
       if (member === undefined) {
         const unsupported = getNodejsUnsupportedTargetIdentityFromMetadata(declaration);
         if (unsupported !== undefined) {
-          return rejectObservation(unsupportedNodejsProviderPackageOperationDiagnostic(extensionId, "call", declaration, unsupported));
+          return rejectObservation(unsupportedNodejsProviderPackageOperationDiagnostic(extensionId, "call", declaration, unsupported, request.call));
         }
         return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_CALL_NOT_MAPPED", 9100200, `C# NodeJS provider package could not map checked ${formatNodejsDeclarationIdentity(declaration)} to a target member.`));
       }
@@ -179,7 +180,7 @@ export function createCsharpNodejsProviderPackageMappers(extensionId: string): C
       if (operation === undefined) {
         const unsupported = getNodejsUnsupportedTargetIdentityFromMetadata(declaration);
         if (unsupported !== undefined) {
-          return rejectObservation(unsupportedNodejsProviderPackageOperationDiagnostic(extensionId, "property", declaration, unsupported));
+          return rejectObservation(unsupportedNodejsProviderPackageOperationDiagnostic(extensionId, "property", declaration, unsupported, request.expression));
         }
         return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_PROPERTY_NOT_MAPPED", 9100201, `C# NodeJS provider package could not map checked ${formatNodejsDeclarationIdentity(declaration)} to a target property.`));
       }
@@ -207,7 +208,7 @@ export function createCsharpNodejsProviderPackageMappers(extensionId: string): C
         }
         const unsupported = getNodejsUnsupportedTargetIdentityFromMetadata(declaration);
         if (unsupported !== undefined) {
-          return rejectObservation(unsupportedNodejsProviderPackageOperationDiagnostic(extensionId, "element", declaration, unsupported));
+          return rejectObservation(unsupportedNodejsProviderPackageOperationDiagnostic(extensionId, "element", declaration, unsupported, request.expression));
         }
         return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_NODEJS_ELEMENT_ACCESS_NOT_MAPPED", 9100204, `C# NodeJS provider package could not map checked element access ${formatNodejsDeclarationIdentity(declaration)} to a target indexer.`));
       }
@@ -234,6 +235,7 @@ function unsupportedNodejsProviderPackageOperationDiagnostic(
   operationKind: "call" | "element" | "property",
   declaration: NodejsProviderDeclarationIdentity,
   unsupported: NodejsUnsupportedTargetIdentity,
+  nodeOrSpan?: unknown,
 ): ExtensionDiagnostic {
   return csharpProviderDiagnostic(
     extensionId,
@@ -241,6 +243,7 @@ function unsupportedNodejsProviderPackageOperationDiagnostic(
     9100203,
     `C# NodeJS provider package hard-rejected selected ${operationKind} ${formatNodejsDeclarationIdentity(declaration)}: ${unsupported.displayName} has no closed target/runtime operation metadata.`,
     unsupportedNodejsProviderPackageOperationEvidence(declaration, unsupported),
+    nodeOrSpan,
   );
 }
 

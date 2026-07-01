@@ -2268,6 +2268,7 @@ test("JS surface hard-rejects declared unsupported selected operations with evid
 
   assert.equal(result.kind, "reject");
   assert.equal(result.diagnostic.extensionCode, "CSHARP_JS_SURFACE_OPERATION_UNSUPPORTED");
+  assert.equal(result.diagnostic.nodeOrSpan, call);
   assert.match(result.diagnostic.message, /Promise\.then/);
   assert.match(result.diagnostic.message, /Promise\/Task carrier/);
   assert.equal(result.diagnostic.evidence?.[0]?.details?.capabilityId, "diagnostic.unsupported-selected-surface-operation");
@@ -2978,11 +2979,13 @@ test("NodeJS provider package fails closed for unsupported assert provider ident
 
   assert.equal(deepStrictEqualResult.kind, "reject");
   assert.equal(deepStrictEqualResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.equal(deepStrictEqualResult.diagnostic.nodeOrSpan, deepStrictEqualCall);
   assert.match(deepStrictEqualResult.diagnostic.message, /node:assert\/strict/);
   assert.match(deepStrictEqualResult.diagnostic.message, /deepStrictEqual/);
   assert.equal(deepStrictEqualResult.diagnostic.evidence?.[0]?.details?.capabilityId, "diagnostic.unsupported-selected-surface-operation");
   assert.equal(matchResult.kind, "reject");
   assert.equal(matchResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.equal(matchResult.diagnostic.nodeOrSpan, matchCall);
   assert.match(matchResult.diagnostic.message, /match/);
 });
 
@@ -3164,6 +3167,7 @@ test("NodeJS provider package fails closed for unsupported util provider identit
 
   assert.equal(formatResult.kind, "reject");
   assert.equal(formatResult.diagnostic.extensionCode, "CSHARP_NODEJS_PROVIDER_PACKAGE_OPERATION_UNSUPPORTED");
+  assert.equal(formatResult.diagnostic.nodeOrSpan, formatCall);
   assert.match(formatResult.diagnostic.message, /node:util/);
   assert.match(formatResult.diagnostic.message, /format/);
   assert.equal(formatResult.diagnostic.evidence?.[0]?.details?.targetIdentityId, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");

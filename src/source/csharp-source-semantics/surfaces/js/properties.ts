@@ -246,16 +246,16 @@ function mapCsharpSourceLibraryPropertyOperation(
     return undefined;
   }
   if (precheck === "reject-unmapped") {
-    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
+    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host, request.expression);
   }
-  const unsupported = rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
+  const unsupported = rejectUnsupportedCsharpJsSourceLibraryPropertyAccess(sourceMember, host, request.expression);
   if (unsupported !== undefined) {
     return unsupported;
   }
   if (sourceLibraryPropertyRequiresFinalCarrierSelection(selectedIdentity) && options.phase !== "finalization") {
     const deferredOperation = csharpJsSourceLibraryPropertyDeferredOperation(selectedIdentity);
     if (deferredOperation === undefined) {
-      return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
+      return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host, request.expression);
     }
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(
@@ -272,11 +272,11 @@ function mapCsharpSourceLibraryPropertyOperation(
     return undefined;
   }
   if (!sourceLibraryPropertyReceiverHasClosedFacts(receiverType, selectedIdentity, host)) {
-    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
+    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host, request.expression);
   }
   const member = getSourceLibraryPropertyMember(selectedIdentity, receiverType, host);
   if (member === undefined) {
-    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host);
+    return rejectUnmappedCsharpJsSourceLibraryPropertyAccess(sourceMember, host, request.expression);
   }
   recordCsharpTargetOperation(context, request.expression, csharpTargetOperationFromMember(member), [{ message: `C# JS surface property operation recorded from checked TypeScript library declaration '${sourceLibraryMemberIdentity(sourceMember)}'.` }]);
   return acceptObservation<CheckedOperationMappingResult>({
