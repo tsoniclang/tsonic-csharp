@@ -16,6 +16,9 @@ import {
 import {
   nodejsModuleCallTargetMetadata,
 } from "./members/target-member-metadata.js";
+import {
+  nodejsDefaultModuleObjectExports,
+} from "./module-defaults.js";
 import type {
   NodejsModuleCallTargetMetadata,
   NodejsModuleCallTargetMetadataRow,
@@ -62,7 +65,7 @@ export const nodeUtilToUsvStringExportName = "toUSVString";
 export const nodeUtilToUsvStringSignatureId = "node:util.toUSVString(System.String)";
 
 export function nodeUtilExports(): readonly ProviderExportDeclaration[] {
-  return [
+  const exports = [
     ...nodeUtilUnsupportedTargetIdentities().map((identity) =>
       unsupportedUtilFunction(identity.exportName, identity.signatureId, unsupportedUtilParameters(identity.exportName, identity.signatureId))
     ),
@@ -76,6 +79,10 @@ export function nodeUtilExports(): readonly ProviderExportDeclaration[] {
         returnType: providerReturnType,
       }],
     })),
+  ];
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodeUtilModuleSpecifier, exports),
   ];
 }
 

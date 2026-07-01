@@ -70,6 +70,10 @@ import {
   nodejsExportMemberSignatureDeclarationIdentity,
   nodejsExportSignatureDeclarationIdentity,
 } from "../identity.js";
+import {
+  nodejsDefaultModuleMemberDeclarationIdentities,
+  nodejsDefaultModuleMemberSymbolIdentities,
+} from "../module-defaults.js";
 import type {
   NodejsProviderDeclarationIdentity,
 } from "../identity.js";
@@ -141,9 +145,11 @@ function moduleCallRecords(
   return entries.map((entry) => ({
     declarationIdentities: [
       nodejsExportSignatureDeclarationIdentity(moduleSpecifier, entry.exportName, entry.signatureId),
+      ...nodejsDefaultModuleMemberDeclarationIdentities(moduleSpecifier, entry.exportName, entry.signatureId),
     ],
     symbolIdentities: [
       { moduleSpecifier, exportName: entry.exportName, signatureId: entry.signatureId },
+      ...nodejsDefaultModuleMemberSymbolIdentities(moduleSpecifier, entry.exportName, entry.signatureId),
     ],
     member: entry.member,
   }));
@@ -156,9 +162,11 @@ function modulePropertyRecords(
   return entries.map((entry) => ({
     declarationIdentities: [
       nodejsExportDeclarationIdentity(moduleSpecifier, entry.exportName),
+      ...nodejsDefaultModuleMemberDeclarationIdentities(moduleSpecifier, entry.exportName, undefined),
     ],
     symbolIdentities: [
       { moduleSpecifier, exportName: entry.exportName },
+      ...nodejsDefaultModuleMemberSymbolIdentities(moduleSpecifier, entry.exportName, undefined),
     ],
     member: entry.member,
   }));
@@ -206,6 +214,9 @@ function unsupportedRecords(
         exportName: identity.exportName,
         ...(identity.memberName !== undefined ? { memberName: identity.memberName } : {}),
       },
+      ...(identity.memberName === undefined
+        ? nodejsDefaultModuleMemberSymbolIdentities(moduleSpecifier, identity.exportName, undefined)
+        : []),
       ...(identity.signatureId === undefined
         ? []
         : [{
@@ -213,7 +224,10 @@ function unsupportedRecords(
             exportName: identity.exportName,
             ...(identity.memberName !== undefined ? { memberName: identity.memberName } : {}),
             signatureId: identity.signatureId,
-          }]),
+          },
+          ...(identity.memberName === undefined
+            ? nodejsDefaultModuleMemberSymbolIdentities(moduleSpecifier, identity.exportName, identity.signatureId)
+            : [])]),
     ],
     identity,
   }));

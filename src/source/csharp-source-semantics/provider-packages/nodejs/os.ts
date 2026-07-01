@@ -20,6 +20,9 @@ import {
   nodejsModuleCallTargetMetadata,
   nodejsModulePropertyTargetMetadata,
 } from "./members/target-member-metadata.js";
+import {
+  nodejsDefaultModuleObjectExports,
+} from "./module-defaults.js";
 import type {
   NodejsUnsupportedTargetIdentity,
 } from "./members/types.js";
@@ -53,7 +56,7 @@ export const nodeOsPlatformExportName = "platform";
 export const nodeOsPlatformSignatureId = "node:os.platform()";
 
 export function nodeOsExports(): readonly ProviderExportDeclaration[] {
-  return [
+  const exports = [
     ...nodeOsCallTargetMembers().map(({ exportName, signatureId, providerReturnType }) => ({
       id: `node:os.${exportName}`,
       name: exportName,
@@ -71,6 +74,10 @@ export function nodeOsExports(): readonly ProviderExportDeclaration[] {
       type: providerType,
     })),
     ...nodeOsUnsupportedExportDeclarations(),
+  ];
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodeOsModuleSpecifier, exports),
   ];
 }
 

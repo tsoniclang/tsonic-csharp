@@ -7,10 +7,20 @@ import {
 import {
   nodeBufferFunctionExports,
 } from "./functions.js";
+import {
+  nodeBufferModuleSpecifier,
+} from "../identities.js";
+import {
+  nodejsDefaultModuleObjectExports,
+} from "../../module-defaults.js";
 
 export function nodeBufferExports(): readonly ProviderExportDeclaration[] {
-  return [
+  const exports = [
     nodeBufferClassExport(),
     ...nodeBufferFunctionExports(),
+  ];
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodeBufferModuleSpecifier, exports),
   ];
 }

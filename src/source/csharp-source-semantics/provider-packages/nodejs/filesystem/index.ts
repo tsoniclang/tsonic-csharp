@@ -10,6 +10,13 @@ import {
 import {
   nodeFsPromisesExportDeclarations,
 } from "./promises.js";
+import {
+  nodeFsModuleSpecifier,
+  nodeFsPromisesModuleSpecifier,
+} from "./identities.js";
+import {
+  nodejsDefaultModuleObjectExports,
+} from "../module-defaults.js";
 
 export {
   nodeFsModuleSpecifier,
@@ -49,12 +56,20 @@ export {
 } from "./stats.js";
 
 export function nodeFsExports(): readonly ProviderExportDeclaration[] {
-  return [
+  const exports = [
     nodeFsStatsExportDeclaration(),
     ...nodeFsCallExportDeclarations(),
+  ];
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodeFsModuleSpecifier, exports),
   ];
 }
 
 export function nodeFsPromisesExports(): readonly ProviderExportDeclaration[] {
-  return nodeFsPromisesExportDeclarations();
+  const exports = nodeFsPromisesExportDeclarations();
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodeFsPromisesModuleSpecifier, exports),
+  ];
 }

@@ -18,6 +18,9 @@ import {
 import {
   nodejsModuleCallTargetMetadata,
 } from "./members/target-member-metadata.js";
+import {
+  nodejsDefaultModuleObjectExports,
+} from "./module-defaults.js";
 import type {
   NodejsModuleCallTargetMetadata,
   NodejsModuleCallTargetMetadataRow,
@@ -71,7 +74,7 @@ export const nodeAssertIfErrorExportName = "ifError";
 export const nodeAssertIfErrorSignatureId = "node:assert.ifError(System.Object)";
 
 export function nodeAssertExports(): readonly ProviderExportDeclaration[] {
-  return [
+  const exports = [
     ...nodeAssertUnsupportedTargetIdentities().map((identity) =>
       unsupportedAssertFunction(identity.exportName, identity.signatureId, unsupportedAssertParameters(identity.exportName, identity.signatureId))
     ),
@@ -85,6 +88,10 @@ export function nodeAssertExports(): readonly ProviderExportDeclaration[] {
         returnType: providerReturnType,
       }],
     })),
+  ];
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodeAssertModuleSpecifier, exports),
   ];
 }
 

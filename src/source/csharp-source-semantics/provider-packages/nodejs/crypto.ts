@@ -26,6 +26,9 @@ import {
   nodejsClassCallTargetMetadata,
   nodejsModuleCallTargetMetadata,
 } from "./members/target-member-metadata.js";
+import {
+  nodejsDefaultModuleObjectExports,
+} from "./module-defaults.js";
 import type {
   NodejsUnsupportedTargetIdentity,
 } from "./members/types.js";
@@ -71,7 +74,7 @@ export function nodeCryptoExports(): readonly ProviderExportDeclaration[] {
   for (const member of nodeCryptoCallTargetMembers()) {
     membersByExportName.set(member.exportName, [...membersByExportName.get(member.exportName) ?? [], member]);
   }
-  return [
+  const exports = [
     nodeCryptoHashExportDeclaration(),
     nodeCryptoHmacExportDeclaration(),
     ...nodeCryptoUnsupportedFunctionDeclarations(),
@@ -85,6 +88,10 @@ export function nodeCryptoExports(): readonly ProviderExportDeclaration[] {
         returnType: member.providerReturnType,
       })),
     })),
+  ];
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodeCryptoModuleSpecifier, exports),
   ];
 }
 

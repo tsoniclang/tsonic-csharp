@@ -25,6 +25,9 @@ import {
   nodejsModuleCallTargetMetadata,
   nodejsModulePropertyTargetMetadata,
 } from "./members/target-member-metadata.js";
+import {
+  nodejsDefaultModuleObjectExports,
+} from "./module-defaults.js";
 import type {
   NodejsModuleCallTargetMetadata,
   NodejsModuleCallTargetMetadataRow,
@@ -81,7 +84,7 @@ export const nodeProcessProcessMemoryUsageExportName = "MemoryUsage";
 export const nodeProcessProcessVersionsExportName = "ProcessVersions";
 
 export function nodeProcessExports(): readonly ProviderExportDeclaration[] {
-  return [
+  const exports = [
     nodeProcessEnvExportDeclaration(),
     nodeProcessMemoryUsageExportDeclaration(),
     nodeProcessVersionsExportDeclaration(),
@@ -102,6 +105,10 @@ export function nodeProcessExports(): readonly ProviderExportDeclaration[] {
       type: providerType,
     })),
     ...nodeProcessUnsupportedExportDeclarations(),
+  ];
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodeProcessModuleSpecifier, exports),
   ];
 }
 

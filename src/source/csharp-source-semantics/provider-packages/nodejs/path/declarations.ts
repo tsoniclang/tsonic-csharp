@@ -13,9 +13,15 @@ import {
 import {
   nodePathPropertyTargetMembers,
 } from "./properties.js";
+import {
+  nodePathModuleSpecifier,
+} from "./identity.js";
+import {
+  nodejsDefaultModuleObjectExports,
+} from "../module-defaults.js";
 
 export function nodePathExports(): readonly ProviderExportDeclaration[] {
-  return [
+  const exports = [
     nodePathParsedPathExportDeclaration(),
     nodePathPathModuleExportDeclaration(),
     ...nodePathCallTargetMembers().map(({ exportName, signatureId, providerParameters, providerReturnType }) => ({
@@ -34,5 +40,9 @@ export function nodePathExports(): readonly ProviderExportDeclaration[] {
       kind: "value" as const,
       type: providerType,
     })),
+  ];
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodePathModuleSpecifier, exports),
   ];
 }

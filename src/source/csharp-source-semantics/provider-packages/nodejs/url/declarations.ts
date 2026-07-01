@@ -24,16 +24,26 @@ import {
   nodeUrlUrlSearchParamsUnsupportedClassMemberDeclarations,
   nodeUrlUrlUnsupportedClassMemberDeclarations,
 } from "./unsupported.js";
+import {
+  nodejsDefaultModuleObjectExports,
+} from "../module-defaults.js";
+import {
+  nodeUrlModuleSpecifier,
+} from "./identities.js";
 import type {
   NodeUrlUnsupportedClassMemberDeclaration,
 } from "./unsupported.js";
 
 export function nodeUrlExports(): readonly ProviderExportDeclaration[] {
-  return [
+  const exports = [
     nodeUrlUrlExportDeclaration(),
     nodeUrlUrlSearchParamsExportDeclaration(),
     nodeUrlUrlPatternExportDeclaration(),
     ...nodeUrlFunctionExportDeclarations(),
+  ];
+  return [
+    ...exports,
+    ...nodejsDefaultModuleObjectExports(nodeUrlModuleSpecifier, exports),
   ];
 }
 

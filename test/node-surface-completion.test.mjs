@@ -37,6 +37,12 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   assertClassProperty(bindingProvider, "node:process", "MemoryUsage", "rss", "Tsonic.CSharp.Node.MemoryUsage.rss");
   assertModuleExport(bindingProvider, "node:util", "format", "node:util.format(System.Object,System.Object[])");
   assertClassMember(bindingProvider, "node:url", "URLSearchParams", "append", "node:url.URLSearchParams.append(System.String,System.String)");
+  assertDefaultModuleCall(bindingProvider, "node:fs", "NodeFsModule", "existsSync", "node:fs.existsSync(System.String)", "Tsonic.CSharp.Node.fs.existsSync(System.String)");
+  assertDefaultModuleCall(bindingProvider, "node:path", "NodePathModule", "join", "node:path.join(System.String[])", "Tsonic.CSharp.Node.path.join(System.String[])");
+  assertDefaultModuleCall(bindingProvider, "node:process", "NodeProcessModule", "cwd", "node:process.cwd()", "Tsonic.CSharp.Node.process.cwd()");
+  assertDefaultModuleProperty(bindingProvider, "node:process", "NodeProcessModule", "platform", "node:process.NodeProcessModule.platform", "Tsonic.CSharp.Node.process.platform");
+  assertDefaultModuleCall(bindingProvider, "node:util", "NodeUtilModule", "toUSVString", "node:util.toUSVString(System.String)", "Tsonic.CSharp.Node.util.toUSVString(System.String)");
+  assertDefaultModuleCall(bindingProvider, "node:url", "NodeUrlModule", "pathToFileURL", "node:url.pathToFileURL(System.String)", "Tsonic.CSharp.Node.url.pathToFileURL(System.String)");
 });
 
 test("NodeJS provider package maps closed operations from selected provider identities", () => {
@@ -72,6 +78,11 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const processUptimeSignature = {};
   const utilCall = {};
   const utilSignature = {};
+  const defaultFsExistsCall = {};
+  const defaultFsExistsSignature = {};
+  const defaultProcessPlatformExpression = {};
+  const defaultProcessPlatformDeclaration = {};
+  const defaultUtilFormatSignature = {};
   const urlCanParseCall = {};
   const urlCanParseSignature = {};
   facts.set(readFileSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "readFileSync", "node:fs.readFileSync(System.String,System.String)"));
@@ -89,6 +100,9 @@ test("NodeJS provider package maps closed operations from selected provider iden
   facts.set(processMemoryRssDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:process", "MemoryUsage", "rss", "Tsonic.CSharp.Node.MemoryUsage.rss"));
   facts.set(processUptimeSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "uptime", "node:process.uptime()"));
   facts.set(utilSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "toUSVString", "node:util.toUSVString(System.String)"));
+  facts.set(defaultFsExistsSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:fs", "NodeFsModule", "existsSync", "node:fs.NodeFsModule.existsSync", "node:fs.existsSync(System.String)"));
+  facts.set(defaultProcessPlatformDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:process", "NodeProcessModule", "platform", "node:process.NodeProcessModule.platform"));
+  facts.set(defaultUtilFormatSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:util", "NodeUtilModule", "format", "node:util.NodeUtilModule.format", "node:util.format(System.Object,System.Object[])"));
   facts.set(urlCanParseSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("url", "URL", "canParse", "node:url.URL.canParse", "node:url.URL.canParse(System.String,Tsonic.CSharp.Node.URL)"));
 
   const readFileResult = provider.mapCheckedCall(nodejsCallRequest(readFileCall, readFileSignature), fakeContext(facts));
@@ -106,6 +120,8 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const processMemoryRssResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(processMemoryRssExpression, processMemoryRssDeclaration), fakeContext(facts));
   const processUptimeResult = provider.mapCheckedCall(nodejsCallRequest(processUptimeCall, processUptimeSignature), fakeContext(facts));
   const utilResult = provider.mapCheckedCall(nodejsCallRequest(utilCall, utilSignature), fakeContext(facts));
+  const defaultFsExistsResult = provider.mapCheckedCall(nodejsCallRequest(defaultFsExistsCall, defaultFsExistsSignature), fakeContext(facts));
+  const defaultProcessPlatformResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(defaultProcessPlatformExpression, defaultProcessPlatformDeclaration), fakeContext(facts));
   const urlCanParseResult = provider.mapCheckedCall(nodejsCallRequest(urlCanParseCall, urlCanParseSignature), fakeContext(facts));
 
   assertSelectedMember(readFileResult, "Tsonic.CSharp.Node.fs.readFileSync(System.String,System.String)");
@@ -129,6 +145,11 @@ test("NodeJS provider package maps closed operations from selected provider iden
   assert.equal(facts.get(processMemoryRssExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.MemoryUsage.rss");
   assertSelectedMember(processUptimeResult, "Tsonic.CSharp.Node.process.uptime()");
   assertSelectedMember(utilResult, "Tsonic.CSharp.Node.util.toUSVString(System.String)");
+  assertSelectedMember(defaultFsExistsResult, "Tsonic.CSharp.Node.fs.existsSync(System.String)");
+  assert.equal(defaultProcessPlatformResult.kind, "accept");
+  assert.equal(defaultProcessPlatformResult.value.operation.operationId, "Tsonic.CSharp.Node.process.platform");
+  assert.equal(facts.get(defaultProcessPlatformExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.platform");
+  assertUnsupportedCall(provider, facts, defaultUtilFormatSignature, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
   assertSelectedMember(urlCanParseResult, "Tsonic.CSharp.Node.URL.canParse(System.String,Tsonic.CSharp.Node.URL)");
 });
 
@@ -227,6 +248,41 @@ test("selected NodeJS fs promises source type-checks and maps through provider-p
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.stat(System.String)"));
 });
 
+test("selected NodeJS default module imports type-check through provider-package declarations", () => {
+  const session = createCsharpSession(`
+    import fs from "node:fs";
+    import path from "node:path";
+    import process from "node:process";
+    import util from "node:util";
+    import url from "node:url";
+
+    export function defaultModulePath(input: string): string {
+      return path.join(process.cwd(), util.toUSVString(input));
+    }
+
+    export function defaultModuleExists(input: string): boolean {
+      return fs.existsSync(input);
+    }
+
+    export function defaultModuleFileUrl(input: string): string {
+      return url.pathToFileURL(input).href;
+    }
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const selectedMemberIds = collectFactValues(sourceFile, session, extensionHost, selectedTargetSignatureFactKey)
+    .map((fact) => fact.member.id);
+
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs.existsSync(System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.path.join(System.String[])"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.process.cwd()"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.util.toUSVString(System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.url.pathToFileURL(System.String)"));
+});
+
 function assertModuleExport(bindingProvider, moduleSpecifier, exportName, signatureId) {
   const resolution = bindingProvider.resolveModule(moduleSpecifier, {});
   assert.equal(resolution.kind, "virtual");
@@ -270,6 +326,41 @@ function assertClassProperty(bindingProvider, moduleSpecifier, exportName, membe
     memberName,
   });
   assert.equal(identity?.id, memberId);
+}
+
+function assertDefaultModuleCall(bindingProvider, moduleSpecifier, interfaceName, memberName, signatureId, targetIdentityId) {
+  const member = assertDefaultModuleMember(bindingProvider, moduleSpecifier, interfaceName, memberName);
+  assert.equal(member?.signatures?.[0]?.id, signatureId);
+  const identity = bindingProvider.getTargetIdentity({
+    moduleSpecifier,
+    exportName: interfaceName,
+    memberName,
+    signatureId,
+  });
+  assert.equal(identity?.id, targetIdentityId);
+}
+
+function assertDefaultModuleProperty(bindingProvider, moduleSpecifier, interfaceName, memberName, memberId, targetIdentityId) {
+  const member = assertDefaultModuleMember(bindingProvider, moduleSpecifier, interfaceName, memberName);
+  assert.equal(member?.id, memberId);
+  const identity = bindingProvider.getTargetIdentity({
+    moduleSpecifier,
+    exportName: interfaceName,
+    memberName,
+  });
+  assert.equal(identity?.id, targetIdentityId);
+}
+
+function assertDefaultModuleMember(bindingProvider, moduleSpecifier, interfaceName, memberName) {
+  const resolution = bindingProvider.resolveModule(moduleSpecifier, {});
+  assert.equal(resolution.kind, "virtual");
+  const model = bindingProvider.getDeclarationModel(resolution);
+  const defaultDeclaration = model.exports.find((entry) => entry.exportKind === "default");
+  assert.equal(defaultDeclaration?.type?.kind, "provider-ref");
+  assert.equal(defaultDeclaration?.type?.exportName, interfaceName);
+  const moduleDeclaration = model.exports.find((entry) => entry.name === interfaceName);
+  assert.equal(moduleDeclaration?.kind, "interface");
+  return moduleDeclaration.members?.find((entry) => entry.name === memberName);
 }
 
 function assertSelectedMember(result, memberId) {
