@@ -30,6 +30,7 @@ import {
   KindNumericLiteral,
   KindObjectBindingPattern,
   KindObjectLiteralExpression,
+  KindSpreadElement,
   KindSwitchStatement,
   KindTryStatement,
   KindTrueKeyword,
@@ -811,6 +812,97 @@ test("array destructuring assignment consumes finalized target carrier resolutio
           kind: "ElementAccessExpression",
           receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
           argument: { kind: "LiteralExpression", value: 0 },
+        },
+      },
+    },
+  ]);
+});
+
+test("tuple destructuring assignment emits rest tuple from finalized carrier facts", () => {
+  const diagnostics = [];
+  const source = identifier("values");
+  const restElement = {
+    Kind: KindSpreadElement,
+    Expression: identifier("rest"),
+  };
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first"), restElement] },
+    },
+    source,
+  );
+  const stringType = csharpStringTargetType();
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const boolType = csharpSourcePrimitiveTargetType("bool");
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier: { kind: "tuple", elements: [stringType, intType, boolType] } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: {
+        kind: "TupleType",
+        elements: [
+          { kind: "PredefinedType", name: "string" },
+          { kind: "PredefinedType", name: "int" },
+          { kind: "PredefinedType", name: "bool" },
+        ],
+      },
+      initializer: { kind: "IdentifierName", name: "values" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "first" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          name: "Item1",
+        },
+      },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "rest" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "TupleExpression",
+          elements: [
+            {
+              kind: "SimpleMemberAccessExpression",
+              receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+              name: "Item2",
+            },
+            {
+              kind: "SimpleMemberAccessExpression",
+              receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+              name: "Item3",
+            },
+          ],
         },
       },
     },
