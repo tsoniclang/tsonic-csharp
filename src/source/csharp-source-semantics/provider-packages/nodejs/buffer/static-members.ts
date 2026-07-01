@@ -27,6 +27,8 @@ import {
   nodeBufferFromStringTargetMemberId,
   nodeBufferIsAsciiExportName,
   nodeBufferIsAsciiTargetMemberId,
+  nodeBufferIsBufferExportName,
+  nodeBufferIsBufferTargetMemberId,
   nodeBufferIsEncodingExportName,
   nodeBufferIsEncodingTargetMemberId,
   nodeBufferIsUtf8ExportName,
@@ -34,12 +36,17 @@ import {
   nodeBufferModuleTargetType,
   nodeBufferOfExportName,
   nodeBufferOfTargetMemberId,
+  nodeBufferPoolSizeExportName,
+  nodeBufferPoolSizeTargetMemberId,
   nodeBufferTargetType,
+  nodeBufferTranscodeExportName,
+  nodeBufferTranscodeTargetMemberId,
 } from "./identities.js";
 import {
   nodeBufferBoolTargetType,
   nodeBufferIntTargetType,
   nodeBufferNullableIntTargetType,
+  nodeBufferObjectTargetType,
   nodeBufferStringTargetType,
 } from "./helpers.js";
 
@@ -172,6 +179,32 @@ export function getNodeBufferConcatTargetMember(): CsharpTargetMember {
   };
 }
 
+export function getNodeBufferIsBufferTargetMember(): CsharpTargetMember {
+  return {
+    id: nodeBufferIsBufferTargetMemberId,
+    sourceName: nodeBufferIsBufferExportName,
+    targetName: "isBuffer",
+    kind: "method",
+    parameters: [targetParameter("value", nodeBufferObjectTargetType)],
+    returnType: nodeBufferBoolTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
+}
+
+export function getNodeBufferPoolSizeTargetMember(): CsharpTargetMember {
+  return {
+    id: nodeBufferPoolSizeTargetMemberId,
+    sourceName: nodeBufferPoolSizeExportName,
+    targetName: "poolSize",
+    kind: "property",
+    parameters: [],
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+    static: true,
+  };
+}
+
 export function getNodeBufferIsEncodingTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferIsEncodingTargetMemberId,
@@ -194,6 +227,23 @@ export function getNodeBufferOfTargetMember(): CsharpTargetMember {
     parameters: [targetParameter("items", nodeBufferIntTargetType, { paramsArray: true })],
     returnType: nodeBufferTargetType,
     declaringType: nodeBufferTargetType,
+    static: true,
+  };
+}
+
+export function getNodeBufferTranscodeTargetMember(): CsharpTargetMember {
+  return {
+    id: nodeBufferTranscodeTargetMemberId,
+    sourceName: nodeBufferTranscodeExportName,
+    targetName: "transcode",
+    kind: "method",
+    parameters: [
+      targetParameter("source", nodeBufferTargetType),
+      targetParameter("fromEncoding", nodeBufferStringTargetType),
+      targetParameter("toEncoding", nodeBufferStringTargetType),
+    ],
+    returnType: nodeBufferTargetType,
+    declaringType: nodeBufferModuleTargetType,
     static: true,
   };
 }

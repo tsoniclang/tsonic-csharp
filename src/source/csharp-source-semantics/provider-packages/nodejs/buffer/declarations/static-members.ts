@@ -25,16 +25,22 @@ import {
   nodeBufferFromNumberArraySignatureId,
   nodeBufferFromStringMemberId,
   nodeBufferFromStringSignatureId,
+  nodeBufferIsBufferExportName,
+  nodeBufferIsBufferMemberId,
+  nodeBufferIsBufferSignatureId,
   nodeBufferIsEncodingExportName,
   nodeBufferIsEncodingMemberId,
   nodeBufferIsEncodingSignatureId,
   nodeBufferOfExportName,
   nodeBufferOfMemberId,
   nodeBufferOfSignatureId,
+  nodeBufferPoolSizeExportName,
+  nodeBufferPoolSizeMemberId,
 } from "../identities.js";
 import {
   nodeBufferBoolProviderType,
   nodeBufferNumberProviderType,
+  nodeBufferObjectProviderType,
   nodeBufferProviderType,
   nodeBufferStringProviderType,
 } from "../provider-types.js";
@@ -143,6 +149,24 @@ export function nodeBufferStaticMemberDeclarations(): ProviderClassMembers {
         ],
         returnType: nodeBufferProviderType,
       }],
+    },
+    {
+      id: nodeBufferIsBufferMemberId,
+      name: nodeBufferIsBufferExportName,
+      kind: "method",
+      static: true,
+      signatures: [{
+        id: nodeBufferIsBufferSignatureId,
+        parameters: [{ name: "value", type: nodeBufferObjectProviderType }],
+        returnType: nodeBufferBoolProviderType,
+      }],
+    },
+    {
+      id: nodeBufferPoolSizeMemberId,
+      name: nodeBufferPoolSizeExportName,
+      kind: "property",
+      static: true,
+      type: nodeBufferNumberProviderType,
     },
     {
       id: nodeBufferIsEncodingMemberId,

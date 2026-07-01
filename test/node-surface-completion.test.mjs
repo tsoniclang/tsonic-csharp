@@ -31,12 +31,17 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   assertClassMember(bindingProvider, "node:buffer", "Buffer", "readUInt8", "node:buffer.Buffer.readUInt8(System.Int32)");
   assertClassMember(bindingProvider, "node:buffer", "Buffer", "writeUInt8", "node:buffer.Buffer.writeUInt8(System.Byte,System.Int32)");
   assertClassMember(bindingProvider, "node:buffer", "Buffer", "isBuffer", "node:buffer.Buffer.isBuffer(System.Object)");
+  assertClassProperty(bindingProvider, "node:buffer", "Buffer", "poolSize", "node:buffer.Buffer.poolSize", "Tsonic.CSharp.Node.Buffer.poolSize");
+  assertModuleExport(bindingProvider, "node:buffer", "transcode", "node:buffer.transcode(Tsonic.CSharp.Node.Buffer,System.String,System.String)");
   assertModuleExport(bindingProvider, "node:crypto", "createCipheriv", "node:crypto.createCipheriv(System.String,System.Object,System.Object)");
   assertModuleExport(bindingProvider, "node:os", "cpus", "node:os.cpus()");
+  assertModuleExport(bindingProvider, "node:process", "hrtime", "node:process.hrtime(System.Double[])");
   assertModuleExport(bindingProvider, "node:process", "memoryUsage", "node:process.memoryUsage()");
   assertClassProperty(bindingProvider, "node:process", "MemoryUsage", "rss", "Tsonic.CSharp.Node.MemoryUsage.rss");
+  assertModuleExport(bindingProvider, "node:util", "styleText", "node:util.styleText(System.String,System.String)");
   assertModuleExport(bindingProvider, "node:util", "format", "node:util.format(System.Object,System.Object[])");
   assertClassMember(bindingProvider, "node:url", "URLSearchParams", "append", "node:url.URLSearchParams.append(System.String,System.String)");
+  assertClassProperty(bindingProvider, "node:url", "URLSearchParams", "size", "node:url.URLSearchParams.size", "Tsonic.CSharp.Node.URLSearchParams.size");
   assertDefaultModuleCall(bindingProvider, "node:fs", "NodeFsModule", "existsSync", "node:fs.existsSync(System.String)", "Tsonic.CSharp.Node.fs.existsSync(System.String)");
   assertDefaultModuleCall(bindingProvider, "node:path", "NodePathModule", "join", "node:path.join(System.String[])", "Tsonic.CSharp.Node.path.join(System.String[])");
   assertDefaultModuleCall(bindingProvider, "node:process", "NodeProcessModule", "cwd", "node:process.cwd()", "Tsonic.CSharp.Node.process.cwd()");
@@ -66,10 +71,17 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const bufferReadUInt8Signature = {};
   const bufferWriteUInt8Call = {};
   const bufferWriteUInt8Signature = {};
+  const bufferIsBufferSignature = {};
+  const bufferPoolSizeExpression = {};
+  const bufferPoolSizeDeclaration = {};
+  const bufferTranscodeCall = {};
+  const bufferTranscodeSignature = {};
   const cryptoHmacCall = {};
   const cryptoHmacSignature = {};
   const osHomedirCall = {};
   const osHomedirSignature = {};
+  const processHrtimeCall = {};
+  const processHrtimeSignature = {};
   const processMemoryCall = {};
   const processMemorySignature = {};
   const processMemoryRssExpression = {};
@@ -78,6 +90,8 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const processUptimeSignature = {};
   const utilCall = {};
   const utilSignature = {};
+  const utilStyleTextCall = {};
+  const utilStyleTextSignature = {};
   const defaultFsExistsCall = {};
   const defaultFsExistsSignature = {};
   const defaultProcessPlatformExpression = {};
@@ -85,6 +99,10 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const defaultUtilFormatSignature = {};
   const urlCanParseCall = {};
   const urlCanParseSignature = {};
+  const urlSearchParamsAppendCall = {};
+  const urlSearchParamsAppendSignature = {};
+  const urlSearchParamsSizeExpression = {};
+  const urlSearchParamsSizeDeclaration = {};
   facts.set(readFileSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "readFileSync", "node:fs.readFileSync(System.String,System.String)"));
   facts.set(pathParseSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:path", "parse", "node:path.parse(System.String)"));
   facts.set(fsPromisesReadSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs/promises", "readFile", "node:fs/promises.readFile(System.String,System.String)"));
@@ -94,16 +112,23 @@ test("NodeJS provider package maps closed operations from selected provider iden
   facts.set(bufferIncludesSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "includes", "node:buffer.Buffer.includes", "node:buffer.Buffer.includes(System.Object,System.Int32,System.String)"));
   facts.set(bufferReadUInt8Signature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "readUInt8", "node:buffer.Buffer.readUInt8", "node:buffer.Buffer.readUInt8(System.Int32)"));
   facts.set(bufferWriteUInt8Signature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "writeUInt8", "node:buffer.Buffer.writeUInt8", "node:buffer.Buffer.writeUInt8(System.Byte,System.Int32)"));
+  facts.set(bufferIsBufferSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "isBuffer", "node:buffer.Buffer.isBuffer", "node:buffer.Buffer.isBuffer(System.Object)"));
+  facts.set(bufferPoolSizeDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "poolSize", "node:buffer.Buffer.poolSize"));
+  facts.set(bufferTranscodeSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:buffer", "transcode", "node:buffer.transcode(Tsonic.CSharp.Node.Buffer,System.String,System.String)"));
   facts.set(cryptoHmacSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:crypto", "createHmac", "node:crypto.createHmac(System.String,Tsonic.CSharp.Node.Buffer)"));
   facts.set(osHomedirSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("os", "homedir", "node:os.homedir()"));
+  facts.set(processHrtimeSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "hrtime", "node:process.hrtime(System.Double[])"));
   facts.set(processMemorySignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "memoryUsage", "node:process.memoryUsage()"));
   facts.set(processMemoryRssDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:process", "MemoryUsage", "rss", "Tsonic.CSharp.Node.MemoryUsage.rss"));
   facts.set(processUptimeSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:process", "uptime", "node:process.uptime()"));
   facts.set(utilSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "toUSVString", "node:util.toUSVString(System.String)"));
+  facts.set(utilStyleTextSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "styleText", "node:util.styleText(System.String,System.String)"));
   facts.set(defaultFsExistsSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:fs", "NodeFsModule", "existsSync", "node:fs.NodeFsModule.existsSync", "node:fs.existsSync(System.String)"));
   facts.set(defaultProcessPlatformDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:process", "NodeProcessModule", "platform", "node:process.NodeProcessModule.platform"));
   facts.set(defaultUtilFormatSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:util", "NodeUtilModule", "format", "node:util.NodeUtilModule.format", "node:util.format(System.Object,System.Object[])"));
   facts.set(urlCanParseSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("url", "URL", "canParse", "node:url.URL.canParse", "node:url.URL.canParse(System.String,Tsonic.CSharp.Node.URL)"));
+  facts.set(urlSearchParamsAppendSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:url", "URLSearchParams", "append", "node:url.URLSearchParams.append", "node:url.URLSearchParams.append(System.String,System.String)"));
+  facts.set(urlSearchParamsSizeDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:url", "URLSearchParams", "size", "node:url.URLSearchParams.size"));
 
   const readFileResult = provider.mapCheckedCall(nodejsCallRequest(readFileCall, readFileSignature), fakeContext(facts));
   const pathParseResult = provider.mapCheckedCall(nodejsCallRequest(pathParseCall, pathParseSignature), fakeContext(facts));
@@ -114,15 +139,22 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const bufferIncludesResult = provider.mapCheckedCall(nodejsCallRequest(bufferIncludesCall, bufferIncludesSignature), fakeContext(facts));
   const bufferReadUInt8Result = provider.mapCheckedCall(nodejsCallRequest(bufferReadUInt8Call, bufferReadUInt8Signature), fakeContext(facts));
   const bufferWriteUInt8Result = provider.mapCheckedCall(nodejsCallRequest(bufferWriteUInt8Call, bufferWriteUInt8Signature), fakeContext(facts));
+  const bufferIsBufferResult = provider.mapCheckedCall(nodejsCallRequest({}, bufferIsBufferSignature), fakeContext(facts));
+  const bufferPoolSizeResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(bufferPoolSizeExpression, bufferPoolSizeDeclaration), fakeContext(facts));
+  const bufferTranscodeResult = provider.mapCheckedCall(nodejsCallRequest(bufferTranscodeCall, bufferTranscodeSignature), fakeContext(facts));
   const cryptoHmacResult = provider.mapCheckedCall(nodejsCallRequest(cryptoHmacCall, cryptoHmacSignature), fakeContext(facts));
   const osHomedirResult = provider.mapCheckedCall(nodejsCallRequest(osHomedirCall, osHomedirSignature), fakeContext(facts));
+  const processHrtimeResult = provider.mapCheckedCall(nodejsCallRequest(processHrtimeCall, processHrtimeSignature), fakeContext(facts));
   const processMemoryResult = provider.mapCheckedCall(nodejsCallRequest(processMemoryCall, processMemorySignature), fakeContext(facts));
   const processMemoryRssResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(processMemoryRssExpression, processMemoryRssDeclaration), fakeContext(facts));
   const processUptimeResult = provider.mapCheckedCall(nodejsCallRequest(processUptimeCall, processUptimeSignature), fakeContext(facts));
   const utilResult = provider.mapCheckedCall(nodejsCallRequest(utilCall, utilSignature), fakeContext(facts));
+  const utilStyleTextResult = provider.mapCheckedCall(nodejsCallRequest(utilStyleTextCall, utilStyleTextSignature), fakeContext(facts));
   const defaultFsExistsResult = provider.mapCheckedCall(nodejsCallRequest(defaultFsExistsCall, defaultFsExistsSignature), fakeContext(facts));
   const defaultProcessPlatformResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(defaultProcessPlatformExpression, defaultProcessPlatformDeclaration), fakeContext(facts));
   const urlCanParseResult = provider.mapCheckedCall(nodejsCallRequest(urlCanParseCall, urlCanParseSignature), fakeContext(facts));
+  const urlSearchParamsAppendResult = provider.mapCheckedCall(nodejsCallRequest(urlSearchParamsAppendCall, urlSearchParamsAppendSignature), fakeContext(facts));
+  const urlSearchParamsSizeResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(urlSearchParamsSizeExpression, urlSearchParamsSizeDeclaration), fakeContext(facts));
 
   assertSelectedMember(readFileResult, "Tsonic.CSharp.Node.fs.readFileSync(System.String,System.String)");
   assertSelectedMember(pathParseResult, "Tsonic.CSharp.Node.path.parse(System.String)");
@@ -136,8 +168,14 @@ test("NodeJS provider package maps closed operations from selected provider iden
   assertSelectedMember(bufferIncludesResult, "Tsonic.CSharp.Node.Buffer.includes(System.Object,System.Int32,System.String)");
   assertSelectedMember(bufferReadUInt8Result, "Tsonic.CSharp.Node.Buffer.readUInt8(System.Int32)");
   assertSelectedMember(bufferWriteUInt8Result, "Tsonic.CSharp.Node.Buffer.writeUInt8(System.Byte,System.Int32)");
+  assertSelectedMember(bufferIsBufferResult, "Tsonic.CSharp.Node.Buffer.isBuffer(System.Object)");
+  assert.equal(bufferPoolSizeResult.kind, "accept");
+  assert.equal(bufferPoolSizeResult.value.operation.operationId, "Tsonic.CSharp.Node.Buffer.poolSize");
+  assert.equal(facts.get(bufferPoolSizeExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.Buffer.poolSize");
+  assertSelectedMember(bufferTranscodeResult, "Tsonic.CSharp.Node.buffer.transcode(Tsonic.CSharp.Node.Buffer,System.String,System.String)");
   assertSelectedMember(cryptoHmacResult, "Tsonic.CSharp.Node.crypto.createHmac(System.String,Tsonic.CSharp.Node.Buffer)");
   assertSelectedMember(osHomedirResult, "Tsonic.CSharp.Node.os.homedir()");
+  assertSelectedMember(processHrtimeResult, "Tsonic.CSharp.Node.process.hrtime(System.Double[])");
   assertSelectedMember(processMemoryResult, "Tsonic.CSharp.Node.process.memoryUsage()");
   assert.equal(processMemoryResult.value.selectedSignature.member.returnType.id, "Tsonic.CSharp.Node.MemoryUsage");
   assert.equal(processMemoryRssResult.kind, "accept");
@@ -145,45 +183,44 @@ test("NodeJS provider package maps closed operations from selected provider iden
   assert.equal(facts.get(processMemoryRssExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.MemoryUsage.rss");
   assertSelectedMember(processUptimeResult, "Tsonic.CSharp.Node.process.uptime()");
   assertSelectedMember(utilResult, "Tsonic.CSharp.Node.util.toUSVString(System.String)");
+  assertSelectedMember(utilStyleTextResult, "Tsonic.CSharp.Node.util.styleText(System.String,System.String)");
   assertSelectedMember(defaultFsExistsResult, "Tsonic.CSharp.Node.fs.existsSync(System.String)");
   assert.equal(defaultProcessPlatformResult.kind, "accept");
   assert.equal(defaultProcessPlatformResult.value.operation.operationId, "Tsonic.CSharp.Node.process.platform");
   assert.equal(facts.get(defaultProcessPlatformExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.process.platform");
   assertUnsupportedCall(provider, facts, defaultUtilFormatSignature, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
   assertSelectedMember(urlCanParseResult, "Tsonic.CSharp.Node.URL.canParse(System.String,Tsonic.CSharp.Node.URL)");
+  assertSelectedMember(urlSearchParamsAppendResult, "Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
+  assert.equal(urlSearchParamsSizeResult.kind, "accept");
+  assert.equal(urlSearchParamsSizeResult.value.operation.operationId, "Tsonic.CSharp.Node.URLSearchParams.size");
+  assert.equal(facts.get(urlSearchParamsSizeExpression, csharpTargetOperationFactKey)?.operationId, "Tsonic.CSharp.Node.URLSearchParams.size");
 });
 
 test("NodeJS provider package hard-rejects selected unsupported provider identities", () => {
   const facts = new TestFactStore();
   const provider = createCsharpNodejsProviderPackageOperationsProvider();
   const fsWatchFileSignature = {};
-  const bufferIsBufferSignature = {};
-  const bufferPoolSizeDeclaration = {};
   const cryptoCipherSignature = {};
   const osCpusSignature = {};
   const osConstantsDeclaration = {};
   const processStdinDeclaration = {};
   const utilFormatSignature = {};
-  const urlAppendSignature = {};
+  const urlPatternTestSignature = {};
   facts.set(fsWatchFileSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:fs", "watchFile", "node:fs.watchFile(System.String,Function)"));
-  facts.set(bufferIsBufferSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "isBuffer", "node:buffer.Buffer.isBuffer", "node:buffer.Buffer.isBuffer(System.Object)"));
-  facts.set(bufferPoolSizeDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "poolSize", "node:buffer.Buffer.poolSize"));
   facts.set(cryptoCipherSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("crypto", "createCipheriv", "node:crypto.createCipheriv(System.String,System.Object,System.Object)"));
   facts.set(osCpusSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:os", "cpus", "node:os.cpus()"));
   facts.set(osConstantsDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("os", "constants"));
   facts.set(processStdinDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("process", "stdin"));
   facts.set(utilFormatSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "format", "node:util.format(System.Object,System.Object[])"));
-  facts.set(urlAppendSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:url", "URLSearchParams", "append", "node:url.URLSearchParams.append", "node:url.URLSearchParams.append(System.String,System.String)"));
+  facts.set(urlPatternTestSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:url", "URLPattern", "test", "node:url.URLPattern.test", "node:url.URLPattern.test(System.String)"));
 
   assertUnsupportedCall(provider, facts, fsWatchFileSignature, "unsupported:Tsonic.CSharp.Node.fs.watchFile(System.String,Function)");
-  assertUnsupportedCall(provider, facts, bufferIsBufferSignature, "unsupported:Tsonic.CSharp.Node.Buffer.isBuffer(System.Object)");
-  assertUnsupportedProperty(provider, facts, bufferPoolSizeDeclaration, "unsupported:Tsonic.CSharp.Node.Buffer.poolSize");
   assertUnsupportedCall(provider, facts, cryptoCipherSignature, "unsupported:Tsonic.CSharp.Node.crypto.createCipheriv(System.String,System.Object,System.Object)");
   assertUnsupportedCall(provider, facts, osCpusSignature, "unsupported:Tsonic.CSharp.Node.os.cpus()");
   assertUnsupportedProperty(provider, facts, osConstantsDeclaration, "unsupported:Tsonic.CSharp.Node.os.constants");
   assertUnsupportedProperty(provider, facts, processStdinDeclaration, "unsupported:Tsonic.CSharp.Node.process.stdin");
   assertUnsupportedCall(provider, facts, utilFormatSignature, "unsupported:Tsonic.CSharp.Node.util.format(System.Object,System.Object[])");
-  assertUnsupportedCall(provider, facts, urlAppendSignature, "unsupported:Tsonic.CSharp.Node.URLSearchParams.append(System.String,System.String)");
+  assertUnsupportedCall(provider, facts, urlPatternTestSignature, "unsupported:Tsonic.CSharp.Node.URLPattern.test(System.String)");
 });
 
 test("NodeJS provider package requires selected signatures before target member selection", () => {
@@ -208,13 +245,13 @@ test("NodeJS provider package requires selected signatures before target member 
 
 test("selected NodeJS Buffer source type-checks compare provider declarations", () => {
   const session = createCsharpSession(`
-    import { Buffer } from "buffer";
+    import { Buffer, transcode } from "buffer";
 
     export function compareBuffers(text: string): number {
       const left = Buffer.from(text, "utf8");
       const right = Buffer.from("expected", "utf8");
       left.writeUInt8(72, 0);
-      return Buffer.compare(left, right) + left.indexOf("e") + left.readUInt8(0) + (left.includes("x") ? 1 : 0);
+      return Buffer.compare(left, right) + left.indexOf("e") + left.readUInt8(0) + (left.includes("x") ? 1 : 0) + transcode(left, "utf8", "utf8").length + (Buffer.isBuffer(left) ? Buffer.poolSize : 0);
     }
   `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -223,7 +260,7 @@ test("selected NodeJS Buffer source type-checks compare provider declarations", 
 
 test("selected NodeJS fs promises source type-checks and maps through provider-package declarations", () => {
   const session = createCsharpSession(`
-    import { readFile, stat, writeFile } from "node:fs/promises";
+    import { chmod, cp, readFile, readlink, realpath, rmdir, stat, symlink, writeFile } from "node:fs/promises";
 
     export function load(path: string): Promise<string> {
       return readFile(path, "utf8");
@@ -233,6 +270,14 @@ test("selected NodeJS fs promises source type-checks and maps through provider-p
       await writeFile(path, "hello", "utf8");
       const stats = await stat(path);
       return stats.size;
+    }
+
+    export async function prepareLink(target: string, path: string): Promise<string> {
+      await symlink(target, path);
+      await chmod(path, 420);
+      await cp(target, path + ".copy", true);
+      await rmdir(path + ".dir", true);
+      return (await readlink(path)) + (await realpath(path));
     }
   `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
   const sourceFile = session.getSourceFile("/src/index.ts");
@@ -246,6 +291,37 @@ test("selected NodeJS fs promises source type-checks and maps through provider-p
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.readFile(System.String,System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.writeFile(System.String,System.String,System.String)"));
   assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.stat(System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.symlink(System.String,System.String,System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.chmod(System.String,System.Int32)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.cp(System.String,System.String,System.Boolean)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.rmdir(System.String,System.Boolean)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.readlink(System.String)"));
+  assert.ok(selectedMemberIds.includes("Tsonic.CSharp.Node.fs_promises.realpath(System.String)"));
+});
+
+test("selected NodeJS URLSearchParams source type-checks through closed provider declarations", () => {
+  const session = createCsharpSession(`
+    import { URL, URLSearchParams } from "node:url";
+
+    export function query(input: string): string {
+      const params = new URLSearchParams("a=1");
+      params.append("b", input);
+      params.set("a", "2");
+      return (params.get("a") ?? "") + params.getAll("a")[0] + params.toString();
+    }
+
+    export function querySize(): number {
+      return new URLSearchParams("a=1").size;
+    }
+
+    export function liveQuery(input: string): string {
+      const url = new URL("https://example.com/?q=" + input);
+      url.searchParams.append("page", "1");
+      return url.searchParams.get("page") ?? "";
+    }
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
 });
 
 test("selected NodeJS default module imports type-check through provider-package declarations", () => {
@@ -313,7 +389,7 @@ function assertClassMember(bindingProvider, moduleSpecifier, exportName, memberN
   assert.ok(identity?.id);
 }
 
-function assertClassProperty(bindingProvider, moduleSpecifier, exportName, memberName, memberId) {
+function assertClassProperty(bindingProvider, moduleSpecifier, exportName, memberName, memberId, targetIdentityId = memberId) {
   const resolution = bindingProvider.resolveModule(moduleSpecifier, {});
   assert.equal(resolution.kind, "virtual");
   const model = bindingProvider.getDeclarationModel(resolution);
@@ -325,7 +401,7 @@ function assertClassProperty(bindingProvider, moduleSpecifier, exportName, membe
     exportName,
     memberName,
   });
-  assert.equal(identity?.id, memberId);
+  assert.equal(identity?.id, targetIdentityId);
 }
 
 function assertDefaultModuleCall(bindingProvider, moduleSpecifier, interfaceName, memberName, signatureId, targetIdentityId) {

@@ -53,6 +53,9 @@ import {
   nodeBufferFromNumberArraySignatureId,
   nodeBufferFromStringSignatureId,
   nodeBufferFromExportName,
+  nodeBufferIsBufferExportName,
+  nodeBufferIsBufferMemberId,
+  nodeBufferIsBufferSignatureId,
   nodeBufferIsAsciiExportName,
   nodeBufferIsAsciiSignatureId,
   nodeBufferIsEncodingMemberId,
@@ -64,6 +67,7 @@ import {
   nodeBufferOfExportName,
   nodeBufferOfMemberId,
   nodeBufferOfSignatureId,
+  nodeBufferPoolSizeMemberId,
   nodeBufferReadUInt8ExportName,
   nodeBufferReadUInt8MemberId,
   nodeBufferReadUInt8SignatureId,
@@ -76,6 +80,8 @@ import {
   nodeBufferToStringExportName,
   nodeBufferToStringMemberId,
   nodeBufferToStringSignatureId,
+  nodeBufferTranscodeExportName,
+  nodeBufferTranscodeSignatureId,
   nodeBufferWriteExportName,
   nodeBufferWriteMemberId,
   nodeBufferWriteSignatureId,
@@ -111,9 +117,12 @@ import {
   getNodeBufferFromNumberArrayTargetMember,
   getNodeBufferFromStringTargetMember,
   getNodeBufferIsAsciiTargetMember,
+  getNodeBufferIsBufferTargetMember,
   getNodeBufferIsEncodingTargetMember,
   getNodeBufferIsUtf8TargetMember,
   getNodeBufferOfTargetMember,
+  getNodeBufferPoolSizeTargetMember,
+  getNodeBufferTranscodeTargetMember,
 } from "./static-members.js";
 
 export {
@@ -126,6 +135,7 @@ export function nodeBufferModuleCallTargetMembers(): readonly NodejsModuleCallTa
     { exportName: nodeBufferBtoaExportName, signatureId: nodeBufferBtoaSignatureId, member: getNodeBufferBtoaTargetMember() },
     { exportName: nodeBufferIsAsciiExportName, signatureId: nodeBufferIsAsciiSignatureId, member: getNodeBufferIsAsciiTargetMember() },
     { exportName: nodeBufferIsUtf8ExportName, signatureId: nodeBufferIsUtf8SignatureId, member: getNodeBufferIsUtf8TargetMember() },
+    { exportName: nodeBufferTranscodeExportName, signatureId: nodeBufferTranscodeSignatureId, member: getNodeBufferTranscodeTargetMember() },
   ];
 }
 
@@ -140,6 +150,7 @@ export function nodeBufferClassCallTargetMembers(): readonly NodejsClassCallTarg
     nodeBufferClassCallTargetMember(nodeBufferByteLengthExportName, nodeBufferByteLengthMemberId, nodeBufferByteLengthSignatureId, getNodeBufferByteLengthTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferCompareExportName, nodeBufferCompareMemberId, nodeBufferCompareSignatureId, getNodeBufferCompareTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferConcatExportName, nodeBufferConcatMemberId, nodeBufferConcatSignatureId, getNodeBufferConcatTargetMember()),
+    nodeBufferClassCallTargetMember(nodeBufferIsBufferExportName, nodeBufferIsBufferMemberId, nodeBufferIsBufferSignatureId, getNodeBufferIsBufferTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferIsEncodingExportName, nodeBufferIsEncodingMemberId, nodeBufferIsEncodingSignatureId, getNodeBufferIsEncodingTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferOfExportName, nodeBufferOfMemberId, nodeBufferOfSignatureId, getNodeBufferOfTargetMember()),
     nodeBufferClassCallTargetMember(nodeBufferEqualsExportName, nodeBufferEqualsMemberId, nodeBufferEqualsSignatureId, getNodeBufferEqualsTargetMember()),
@@ -164,6 +175,12 @@ export function nodeBufferClassPropertyTargetMembers(): readonly NodejsClassProp
       memberName: "length",
       memberId: nodeBufferLengthMemberId,
       member: getNodeBufferLengthTargetMember(),
+    },
+    {
+      exportName: nodeBufferExportName,
+      memberName: "poolSize",
+      memberId: nodeBufferPoolSizeMemberId,
+      member: getNodeBufferPoolSizeTargetMember(),
     },
   ];
 }

@@ -10,6 +10,8 @@ import {
   nodeBufferIsAsciiSignatureId,
   nodeBufferIsUtf8ExportName,
   nodeBufferIsUtf8SignatureId,
+  nodeBufferTranscodeExportName,
+  nodeBufferTranscodeSignatureId,
 } from "../identities.js";
 import {
   nodeBufferBoolProviderType,
@@ -60,6 +62,20 @@ export function nodeBufferFunctionExports(): readonly ProviderExportDeclaration[
         id: nodeBufferIsUtf8SignatureId,
         parameters: [{ name: "value", type: nodeBufferProviderType }],
         returnType: nodeBufferBoolProviderType,
+      }],
+    },
+    {
+      id: "node:buffer.transcode",
+      name: nodeBufferTranscodeExportName,
+      kind: "function",
+      signatures: [{
+        id: nodeBufferTranscodeSignatureId,
+        parameters: [
+          { name: "source", type: nodeBufferProviderType },
+          { name: "fromEncoding", type: nodeBufferStringProviderType },
+          { name: "toEncoding", type: nodeBufferStringProviderType },
+        ],
+        returnType: nodeBufferProviderType,
       }],
     },
     ...nodeBufferUnsupportedFunctionExports(),

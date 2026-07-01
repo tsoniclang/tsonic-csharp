@@ -4,14 +4,18 @@ import type {
 } from "@tsonic/tsts";
 import {
   nodeUrlUrlExportName,
+  nodeUrlUrlSearchParamsExportName,
 } from "./identities.js";
 import {
   urlTargetType,
+  urlSearchParamsTargetType,
 } from "./helpers.js";
 import {
   nodeUrlCallTargetMembers,
-  nodeUrlClassCallTargetMembers,
-  nodeUrlClassPropertyTargetMembers,
+  nodeUrlUrlClassCallTargetMembers,
+  nodeUrlUrlClassPropertyTargetMembers,
+  nodeUrlUrlSearchParamsClassCallTargetMembers,
+  nodeUrlUrlSearchParamsClassPropertyTargetMembers,
 } from "./target-members.js";
 import type {
   NodeUrlCallTargetMember,
@@ -21,7 +25,6 @@ import type {
 import {
   nodeUrlUnsupportedFunctionDeclarations,
   nodeUrlUrlPatternUnsupportedClassMemberDeclarations,
-  nodeUrlUrlSearchParamsUnsupportedClassMemberDeclarations,
   nodeUrlUrlUnsupportedClassMemberDeclarations,
 } from "./unsupported.js";
 import {
@@ -82,8 +85,8 @@ function nodeUrlUrlExportDeclaration(): ProviderExportDeclaration {
       displayName: "Tsonic.CSharp.Node.URL",
     },
     members: [
-      ...providerMembersForUrlClassCalls(nodeUrlClassCallTargetMembers()),
-      ...nodeUrlClassPropertyTargetMembers().map(providerMemberForUrlClassProperty),
+      ...providerMembersForUrlClassCalls(nodeUrlUrlClassCallTargetMembers()),
+      ...nodeUrlUrlClassPropertyTargetMembers().map(providerMemberForUrlClassProperty),
       ...nodeUrlUrlUnsupportedClassMemberDeclarations()
         .map(providerMemberForUnsupportedUrlClassMember),
     ],
@@ -91,7 +94,20 @@ function nodeUrlUrlExportDeclaration(): ProviderExportDeclaration {
 }
 
 function nodeUrlUrlSearchParamsExportDeclaration(): ProviderExportDeclaration {
-  return unsupportedClassExportDeclaration("URLSearchParams", nodeUrlUrlSearchParamsUnsupportedClassMemberDeclarations());
+  return {
+    id: `node:url.${nodeUrlUrlSearchParamsExportName}`,
+    name: nodeUrlUrlSearchParamsExportName,
+    kind: "class",
+    targetIdentity: {
+      target: "csharp",
+      id: urlSearchParamsTargetType.id,
+      displayName: "Tsonic.CSharp.Node.URLSearchParams",
+    },
+    members: [
+      ...providerMembersForUrlClassCalls(nodeUrlUrlSearchParamsClassCallTargetMembers()),
+      ...nodeUrlUrlSearchParamsClassPropertyTargetMembers().map(providerMemberForUrlClassProperty),
+    ],
+  };
 }
 
 function nodeUrlUrlPatternExportDeclaration(): ProviderExportDeclaration {

@@ -11,14 +11,6 @@ import {
   nodeBufferExportName,
   nodeBufferModuleSpecifier,
 } from "./identities.js";
-import {
-  nodeBufferBoolProviderType,
-  nodeBufferNumberProviderType,
-  nodeBufferProviderType,
-  nodeBufferStringProviderType,
-} from "./provider-types.js";
-
-const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
 
 export function nodeBufferUnsupportedTargetIdentities(): readonly NodejsUnsupportedTargetIdentity[] {
   return [
@@ -81,46 +73,15 @@ export function nodeBufferUnsupportedClassMemberDeclarations(): readonly Provide
 }
 
 function nodeBufferUnsupportedFunctionDeclarations(): readonly NodeBufferUnsupportedFunctionDeclaration[] {
-  return [
-    {
-      exportName: "transcode",
-      signatureId: "node:buffer.transcode(Tsonic.CSharp.Node.Buffer,System.String,System.String)",
-      targetIdentityId: "unsupported:Tsonic.CSharp.Node.buffer.transcode(Tsonic.CSharp.Node.Buffer,System.String,System.String)",
-      displayName: "unsupported NodeJS buffer.transcode",
-      providerParameters: [
-        { name: "source", type: nodeBufferProviderType },
-        { name: "fromEncoding", type: nodeBufferStringProviderType },
-        { name: "toEncoding", type: nodeBufferStringProviderType },
-      ],
-      providerReturnType: nodeBufferProviderType,
-    },
-  ];
+  return [];
 }
 
 function nodeBufferUnsupportedClassMethodDeclarations(): readonly NodeBufferUnsupportedClassMethodDeclaration[] {
-  return [
-    {
-      memberName: "isBuffer",
-      memberId: "node:buffer.Buffer.isBuffer",
-      signatureId: "node:buffer.Buffer.isBuffer(System.Object)",
-      targetIdentityId: "unsupported:Tsonic.CSharp.Node.Buffer.isBuffer(System.Object)",
-      displayName: "unsupported NodeJS Buffer.isBuffer",
-      providerParameters: [{ name: "value", type: unknownProviderType }],
-      providerReturnType: nodeBufferBoolProviderType,
-    },
-  ];
+  return [];
 }
 
 function nodeBufferUnsupportedClassPropertyDeclarations(): readonly NodeBufferUnsupportedClassPropertyDeclaration[] {
-  return [
-    {
-      memberName: "poolSize",
-      memberId: "node:buffer.Buffer.poolSize",
-      targetIdentityId: "unsupported:Tsonic.CSharp.Node.Buffer.poolSize",
-      displayName: "unsupported NodeJS Buffer.poolSize",
-      providerType: nodeBufferNumberProviderType,
-    },
-  ];
+  return [];
 }
 
 interface NodeBufferUnsupportedFunctionDeclaration {

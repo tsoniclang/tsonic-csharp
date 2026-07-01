@@ -4,6 +4,7 @@ import type {
   ProviderTypeExpression,
 } from "@tsonic/tsts";
 import {
+  csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
@@ -26,6 +27,7 @@ import type {
 
 const unknownProviderType = { kind: "unknown" } satisfies ProviderTypeExpression;
 const stringProviderType = { kind: "string" } satisfies ProviderTypeExpression;
+const numberProviderType = { kind: "number" } satisfies ProviderTypeExpression;
 const boolProviderType = { kind: "boolean" } satisfies ProviderTypeExpression;
 const voidProviderType = { kind: "void" } satisfies ProviderTypeExpression;
 const callbackProviderType = {
@@ -34,6 +36,7 @@ const callbackProviderType = {
   returnType: voidProviderType,
 } satisfies ProviderTypeExpression;
 const stringTargetType = csharpStringTargetType();
+const intTargetType = csharpSourcePrimitiveTargetType("int32");
 const utilTargetType = csharpTargetNamedType("Tsonic.CSharp.Node.util", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Node", "util"));
 
 type NodeUtilCallTargetMember = NodejsModuleCallTargetMetadata;
@@ -97,7 +100,30 @@ export function nodeUtilUnsupportedTargetIdentities(): readonly NodeUtilUnsuppor
 
 export function nodeUtilCallTargetMembers(): readonly NodeUtilCallTargetMember[] {
   const stringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType });
+  const numberParameter = (name: string): ProviderParameterDeclaration => ({ name, type: numberProviderType });
   return [
+    utilCall({ exportName: "convertProcessSignalToExitCode", signatureId: "node:util.convertProcessSignalToExitCode(System.String)", targetMemberId: "Tsonic.CSharp.Node.util.convertProcessSignalToExitCode(System.String)", sourceName: "convertProcessSignalToExitCode", targetName: "convertProcessSignalToExitCode", providerParameters: [
+      stringParameter("signal"),
+    ], providerReturnType: numberProviderType, targetParameters: [
+      targetParameter("signal", stringTargetType),
+    ], targetReturnType: intTargetType }),
+    utilCall({ exportName: "getSystemErrorMessage", signatureId: "node:util.getSystemErrorMessage(System.Int32)", targetMemberId: "Tsonic.CSharp.Node.util.getSystemErrorMessage(System.Int32)", sourceName: "getSystemErrorMessage", targetName: "getSystemErrorMessage", providerParameters: [
+      numberParameter("err"),
+    ], providerReturnType: stringProviderType, targetParameters: [
+      targetParameter("errorNumber", intTargetType),
+    ], targetReturnType: stringTargetType }),
+    utilCall({ exportName: "getSystemErrorName", signatureId: "node:util.getSystemErrorName(System.Int32)", targetMemberId: "Tsonic.CSharp.Node.util.getSystemErrorName(System.Int32)", sourceName: "getSystemErrorName", targetName: "getSystemErrorName", providerParameters: [
+      numberParameter("err"),
+    ], providerReturnType: stringProviderType, targetParameters: [
+      targetParameter("errorNumber", intTargetType),
+    ], targetReturnType: stringTargetType }),
+    utilCall({ exportName: "styleText", signatureId: "node:util.styleText(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.util.styleText(System.String,System.String)", sourceName: "styleText", targetName: "styleText", providerParameters: [
+      stringParameter("format"),
+      stringParameter("text"),
+    ], providerReturnType: stringProviderType, targetParameters: [
+      targetParameter("format", stringTargetType),
+      targetParameter("text", stringTargetType),
+    ], targetReturnType: stringTargetType }),
     utilCall({ exportName: nodeUtilStripVtControlCharactersExportName, signatureId: nodeUtilStripVtControlCharactersSignatureId, targetMemberId: "Tsonic.CSharp.Node.util.stripVTControlCharacters(System.String)", sourceName: "stripVTControlCharacters", targetName: "stripVTControlCharacters", providerParameters: [
       stringParameter("str"),
     ], providerReturnType: stringProviderType, targetParameters: [

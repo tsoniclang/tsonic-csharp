@@ -75,6 +75,7 @@ export function nodeFsPromisesExportDeclarations(): readonly ProviderExportDecla
 export function nodeFsPromisesCallTargetMembers(): readonly NodeFsCallTargetMember[] {
   const stringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType });
   const optionalStringParameter = (name: string): ProviderParameterDeclaration => ({ name, type: stringProviderType, optional: true });
+  const numberParameter = (name: string): ProviderParameterDeclaration => ({ name, type: numberProviderType });
   const optionalNumberParameter = (name: string): ProviderParameterDeclaration => ({ name, type: numberProviderType, optional: true });
   const optionalBoolParameter = (name: string): ProviderParameterDeclaration => ({ name, type: boolProviderType, optional: true });
   return [
@@ -87,10 +88,19 @@ export function nodeFsPromisesCallTargetMembers(): readonly NodeFsCallTargetMemb
       targetParameter("data", stringTargetType),
       targetParameter("encoding", stringTargetType, { optional: true }),
     ], targetReturnType: taskTargetType(voidTargetType) }),
+    fsPromiseCall({ exportName: "chmod", signatureId: "node:fs/promises.chmod(System.String,System.Int32)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.chmod(System.String,System.Int32)", sourceName: "chmod", targetName: "chmod", providerParameters: [stringParameter("path"), numberParameter("mode")], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
+      targetParameter("path", stringTargetType),
+      targetParameter("mode", intTargetType),
+    ], targetReturnType: taskTargetType(voidTargetType) }),
     fsPromiseCall({ exportName: "copyFile", signatureId: "node:fs/promises.copyFile(System.String,System.String,System.Int32)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.copyFile(System.String,System.String,System.Int32)", sourceName: "copyFile", targetName: "copyFile", providerParameters: [stringParameter("src"), stringParameter("dest"), optionalNumberParameter("mode")], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
       targetParameter("src", stringTargetType),
       targetParameter("dest", stringTargetType),
       targetParameter("mode", intTargetType, { optional: true }),
+    ], targetReturnType: taskTargetType(voidTargetType) }),
+    fsPromiseCall({ exportName: "cp", signatureId: "node:fs/promises.cp(System.String,System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.cp(System.String,System.String,System.Boolean)", sourceName: "cp", targetName: "cp", providerParameters: [stringParameter("src"), stringParameter("dest"), optionalBoolParameter("recursive")], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
+      targetParameter("src", stringTargetType),
+      targetParameter("dest", stringTargetType),
+      targetParameter("recursive", boolTargetType, { optional: true }),
     ], targetReturnType: taskTargetType(voidTargetType) }),
     fsPromiseCall({ exportName: "mkdir", signatureId: "node:fs/promises.mkdir(System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.mkdir(System.String,System.Boolean)", sourceName: "mkdir", targetName: "mkdir", providerParameters: [stringParameter("path"), optionalBoolParameter("recursive")], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
       targetParameter("path", stringTargetType),
@@ -107,6 +117,12 @@ export function nodeFsPromisesCallTargetMembers(): readonly NodeFsCallTargetMemb
       targetParameter("path", stringTargetType),
       targetParameter("withFileTypes", boolTargetType, { optional: true }),
     ], targetReturnType: taskTargetType({ kind: "array", element: stringTargetType }) }),
+    fsPromiseCall({ exportName: "readlink", signatureId: "node:fs/promises.readlink(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.readlink(System.String)", sourceName: "readlink", targetName: "readlink", providerParameters: [stringParameter("path")], providerReturnType: promiseProviderType(stringProviderType), targetParameters: [
+      targetParameter("path", stringTargetType),
+    ], targetReturnType: taskTargetType(stringTargetType) }),
+    fsPromiseCall({ exportName: "realpath", signatureId: "node:fs/promises.realpath(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.realpath(System.String)", sourceName: "realpath", targetName: "realpath", providerParameters: [stringParameter("path")], providerReturnType: promiseProviderType(stringProviderType), targetParameters: [
+      targetParameter("path", stringTargetType),
+    ], targetReturnType: taskTargetType(stringTargetType) }),
     fsPromiseCall({ exportName: "rename", signatureId: "node:fs/promises.rename(System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.rename(System.String,System.String)", sourceName: "rename", targetName: "rename", providerParameters: [stringParameter("oldPath"), stringParameter("newPath")], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
       targetParameter("oldPath", stringTargetType),
       targetParameter("newPath", stringTargetType),
@@ -115,9 +131,18 @@ export function nodeFsPromisesCallTargetMembers(): readonly NodeFsCallTargetMemb
       targetParameter("path", stringTargetType),
       targetParameter("recursive", boolTargetType, { optional: true }),
     ], targetReturnType: taskTargetType(voidTargetType) }),
+    fsPromiseCall({ exportName: "rmdir", signatureId: "node:fs/promises.rmdir(System.String,System.Boolean)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.rmdir(System.String,System.Boolean)", sourceName: "rmdir", targetName: "rmdir", providerParameters: [stringParameter("path"), optionalBoolParameter("recursive")], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
+      targetParameter("path", stringTargetType),
+      targetParameter("recursive", boolTargetType, { optional: true }),
+    ], targetReturnType: taskTargetType(voidTargetType) }),
     fsPromiseCall({ exportName: "stat", signatureId: "node:fs/promises.stat(System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.stat(System.String)", sourceName: "stat", targetName: "stat", providerParameters: [stringParameter("path")], providerReturnType: promiseProviderType(statsProviderType), targetParameters: [
       targetParameter("path", stringTargetType),
     ], targetReturnType: taskTargetType(statsTargetType) }),
+    fsPromiseCall({ exportName: "symlink", signatureId: "node:fs/promises.symlink(System.String,System.String,System.String)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.symlink(System.String,System.String,System.String)", sourceName: "symlink", targetName: "symlink", providerParameters: [stringParameter("target"), stringParameter("path"), optionalStringParameter("type")], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
+      targetParameter("target", stringTargetType),
+      targetParameter("path", stringTargetType),
+      targetParameter("type", stringTargetType, { optional: true }),
+    ], targetReturnType: taskTargetType(voidTargetType) }),
     fsPromiseCall({ exportName: "truncate", signatureId: "node:fs/promises.truncate(System.String,System.Int64)", targetMemberId: "Tsonic.CSharp.Node.fs_promises.truncate(System.String,System.Int64)", sourceName: "truncate", targetName: "truncate", providerParameters: [stringParameter("path"), optionalNumberParameter("len")], providerReturnType: promiseProviderType(voidProviderType), targetParameters: [
       targetParameter("path", stringTargetType),
       targetParameter("len", longTargetType, { optional: true }),

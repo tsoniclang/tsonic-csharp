@@ -151,10 +151,14 @@ export function getNodeProcessPropertyTargetMember(exportName: string | undefine
 export function nodeProcessCallTargetMembers(): readonly NodeProcessCallTargetMember[] {
   const stringParameter = (name: string) => ({ name, type: stringProviderType });
   const optionalNumberParameter = (name: string) => ({ name, type: numberProviderType, optional: true });
+  const numberArrayProviderType = { kind: "array", elementType: numberProviderType } satisfies ProviderTypeExpression;
+  const numberArrayTargetType = { kind: "array", element: doubleTargetType } as const;
   return [
+    processCall({ exportName: "availableMemory", signatureId: "node:process.availableMemory()", targetMemberId: "Tsonic.CSharp.Node.process.availableMemory()", sourceName: "availableMemory", targetName: "availableMemory", providerParameters: [], providerReturnType: numberProviderType, targetParameters: [], targetReturnType: longTargetType }),
     processCall({ exportName: "chdir", signatureId: "node:process.chdir(System.String)", targetMemberId: "Tsonic.CSharp.Node.process.chdir(System.String)", sourceName: "chdir", targetName: "chdir", providerParameters: [stringParameter("directory")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("directory", stringTargetType),
     ], targetReturnType: voidTargetType }),
+    processCall({ exportName: "constrainedMemory", signatureId: "node:process.constrainedMemory()", targetMemberId: "Tsonic.CSharp.Node.process.constrainedMemory()", sourceName: "constrainedMemory", targetName: "constrainedMemory", providerParameters: [], providerReturnType: numberProviderType, targetParameters: [], targetReturnType: longTargetType }),
     processCall({ exportName: nodeProcessCwdExportName, signatureId: nodeProcessCwdSignatureId, targetMemberId: "Tsonic.CSharp.Node.process.cwd()", sourceName: "cwd", targetName: "cwd", providerParameters: [], providerReturnType: stringProviderType, targetParameters: [], targetReturnType: stringTargetType }),
     processCall({ exportName: "exit", signatureId: "node:process.exit(System.Nullable`1)", targetMemberId: "Tsonic.CSharp.Node.process.exit(System.Nullable`1)", sourceName: "exit", targetName: "exit", providerParameters: [optionalNumberParameter("code")], providerReturnType: voidProviderType, targetParameters: [
       targetParameter("code", csharpNullableValueTargetType(intTargetType), { optional: true }),
@@ -166,6 +170,11 @@ export function nodeProcessCallTargetMembers(): readonly NodeProcessCallTargetMe
       targetParameter("pid", intTargetType),
       targetParameter("signal", objectTargetType, { optional: true, csharpAcceptsClosedSourceArgument: true }),
     ], targetReturnType: boolTargetType }),
+    processCall({ exportName: "hrtime", signatureId: "node:process.hrtime(System.Double[])", targetMemberId: "Tsonic.CSharp.Node.process.hrtime(System.Double[])", sourceName: "hrtime", targetName: "hrtime", providerParameters: [
+      { name: "time", type: numberArrayProviderType, optional: true },
+    ], providerReturnType: numberArrayProviderType, targetParameters: [
+      targetParameter("previous", numberArrayTargetType, { optional: true }),
+    ], targetReturnType: numberArrayTargetType }),
     processCall({ exportName: nodeProcessMemoryUsageExportName, signatureId: nodeProcessMemoryUsageSignatureId, targetMemberId: "Tsonic.CSharp.Node.process.memoryUsage()", sourceName: "memoryUsage", targetName: "memoryUsage", providerParameters: [], providerReturnType: processMemoryUsageProviderType, targetParameters: [], targetReturnType: processMemoryUsageTargetType }),
     processCall({ exportName: "uptime", signatureId: "node:process.uptime()", targetMemberId: "Tsonic.CSharp.Node.process.uptime()", sourceName: "uptime", targetName: "uptime", providerParameters: [], providerReturnType: numberProviderType, targetParameters: [], targetReturnType: doubleTargetType }),
   ];
@@ -426,14 +435,6 @@ const nodeProcessUnsupportedExports = [
     targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.stderr",
     displayName: "unsupported NodeJS process.stderr",
     providerType: unknownProviderType,
-  },
-  {
-    exportName: "hrtime",
-    signatureId: "node:process.hrtime(System.Int32[])",
-    targetIdentityId: "unsupported:Tsonic.CSharp.Node.process.hrtime(System.Int32[])",
-    displayName: "unsupported NodeJS process.hrtime",
-    providerParameters: [{ name: "time", type: { kind: "array", elementType: numberProviderType }, optional: true }],
-    providerType: { kind: "array", elementType: numberProviderType },
   },
   {
     exportName: "nextTick",
