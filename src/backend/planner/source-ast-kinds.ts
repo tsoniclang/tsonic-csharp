@@ -72,6 +72,7 @@ export const KindReturnStatement = "KindReturnStatement";
 export const KindSatisfiesExpression = "KindSatisfiesExpression";
 export const KindSetAccessor = "KindSetAccessor";
 export const KindShorthandPropertyAssignment = "KindShorthandPropertyAssignment";
+export const KindSourceFile = "KindSourceFile";
 export const KindSpreadAssignment = "KindSpreadAssignment";
 export const KindSpreadElement = "KindSpreadElement";
 export const KindStringLiteral = "KindStringLiteral";

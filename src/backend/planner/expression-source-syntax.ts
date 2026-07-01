@@ -62,6 +62,9 @@ import {
   getCsharpTaskResultTargetType,
   csharpVoidTargetType,
 } from "../../source/csharp-source-semantics/target-types.js";
+import {
+  planThisExpression,
+} from "./expression-this.js";
 
 export function tryPlanSourceSyntaxExpression(
   node: Node,
@@ -128,7 +131,7 @@ export function tryPlanSourceSyntaxExpression(
     case KindNullKeyword:
       return { kind: "LiteralExpression", value: null };
     case KindThisKeyword:
-      return { kind: "IdentifierName", name: "this" };
+      return planThisExpression(node, sourceFile, input, diagnostics);
     case KindSuperKeyword:
       return { kind: "IdentifierName", name: "base" };
     case KindAsExpression:

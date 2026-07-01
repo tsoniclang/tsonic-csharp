@@ -7,6 +7,13 @@ import {
 } from "./helpers/target-facts.mjs";
 import { planArrayLiteralExpressionWithCarrier } from "../dist/backend/planner/array-literals/index.js";
 import {
+  csharpListTargetType,
+  csharpStringTargetType,
+} from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpJsArrayCarrierTargetType,
+} from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
+import {
   KindArrayLiteralExpression,
   KindIdentifier,
   KindNumericLiteral,
@@ -88,6 +95,106 @@ test("array spread missing facts fail closed before partial C# array creation", 
   assert.deepEqual(diagnostics[0].evidence, ["TSTS accepted spread syntax, but no target array carrier was recorded"]);
 });
 
+test("array spread rejects finalized carriers with mismatched element facts", () => {
+  const sourceExample = `
+    declare const tail: string[];
+    const value: number[] = [1, ...tail];
+  `;
+  assert.match(sourceExample, /string\[\]/);
+
+  const tail = identifier("tail");
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+    spreadElement(tail),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, stringArrayType()]]) }),
+    diagnostics,
+    int32ArrayType(),
+    planner,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Finalized spread carrier does not match the target array carrier/);
+  assert.doesNotMatch(diagnostics[0].message, /carrier fact is missing/);
+});
+
+test("JSArray spread rejects finalized non-JSArray carriers without treating them as missing", () => {
+  const sourceExample = `
+    declare const tail: number[];
+    declare const values: JSArray<number>;
+    const value = [...tail];
+  `;
+  assert.match(sourceExample, /JSArray/);
+
+  const tail = identifier("tail");
+  const literal = arrayLiteral([
+    spreadElement(tail),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, int32ArrayType()]]) }),
+    diagnostics,
+    csharpJsArrayCarrierTargetType(int32Type()),
+    planner,
+  );
+
+  assert.equal(planned, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Finalized spread carrier is not a JSArray carrier/);
+  assert.doesNotMatch(diagnostics[0].message, /carrier fact is missing/);
+});
+
+test("native collection spread emits only from finalized collection element facts", () => {
+  const sourceExample = `
+    declare const tail: number[];
+    const value: List<number> = [1, ...tail, 3];
+  `;
+  assert.match(sourceExample, /\.\.\.tail/);
+
+  const tail = identifier("tail");
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+    spreadElement(tail),
+    numericLiteral("3"),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, int32ArrayType()]]) }),
+    diagnostics,
+    csharpListTargetType(int32Type()),
+    planner,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(planned.kind, "InvocationExpression");
+  assert.equal(planned.callee.name, "concat");
+  assert.deepEqual(planned.arguments.map((argument) => argument.expression), [
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [{ kind: "LiteralExpression", value: 1 }],
+    },
+    { kind: "IdentifierName", name: "tail" },
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [{ kind: "LiteralExpression", value: 3 }],
+    },
+  ]);
+});
+
 function arrayLiteral(elements) {
   return {
     Kind: KindArrayLiteralExpression,
@@ -135,8 +242,19 @@ function planFixtureExpression(node) {
 function int32ArrayType() {
   return {
     kind: "array",
-    element: { kind: "source-primitive", name: "int32" },
+    element: int32Type(),
   };
+}
+
+function stringArrayType() {
+  return {
+    kind: "array",
+    element: csharpStringTargetType(),
+  };
+}
+
+function int32Type() {
+  return { kind: "source-primitive", name: "int32" };
 }
 
 function fakeInput(options = {}) {

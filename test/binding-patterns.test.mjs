@@ -16,6 +16,12 @@ import {
   csharpObjectShapeFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
+  csharpReadOnlyListTargetType,
+} from "../dist/source/csharp-source-semantics/target-types.js";
+import {
+  csharpJsArrayCarrierTargetType,
+} from "../dist/source/csharp-source-semantics/surfaces/js/array-target-type.js";
+import {
   KindArrayBindingPattern,
   KindBindingElement,
   KindIdentifier,
@@ -581,6 +587,115 @@ test("destructured parameters allocate synthetic parameters and emit fixed rest 
   ]);
 });
 
+test("array destructuring over finalized read-only collection carriers emits Count and slice helper projections", () => {
+  const first = identifier("first");
+  const rest = identifier("rest");
+  const pattern = arrayBindingPattern([
+    bindingElement(first, { initializer: numericLiteral("7") }),
+    bindingElement(rest, { rest: true }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const sourceCarrier = csharpReadOnlyListTargetType(int32Type());
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: sourceCarrier }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(statements.length, 2);
+  assert.deepEqual(statements[0].initializer, {
+    kind: "ConditionalExpression",
+    condition: {
+      kind: "BinaryExpression",
+      left: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        name: "Count",
+      },
+      operatorToken: { kind: "GreaterThanToken" },
+      right: { kind: "LiteralExpression", value: 0 },
+    },
+    whenTrue: {
+      kind: "ElementAccessExpression",
+      receiver: { kind: "IdentifierName", name: "value" },
+      argument: { kind: "LiteralExpression", value: 0 },
+    },
+    whenFalse: { kind: "LiteralExpression", value: 7 },
+  });
+  assert.deepEqual(statements[1].initializer, {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: {
+        kind: "QualifiedName",
+        left: {
+          kind: "QualifiedName",
+          left: {
+            kind: "QualifiedName",
+            left: { kind: "IdentifierName", name: "Tsonic" },
+            name: "CSharp",
+          },
+          name: "Js",
+        },
+        name: "Array",
+      },
+      name: "slice",
+    },
+    arguments: [
+      { kind: "Argument", expression: { kind: "IdentifierName", name: "value" } },
+      { kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } },
+    ],
+  });
+});
+
+test("array destructuring over finalized JSArray carriers emits JSArray length and instance slice projections", () => {
+  const first = identifier("first");
+  const rest = identifier("rest");
+  const pattern = arrayBindingPattern([
+    bindingElement(first, { initializer: numericLiteral("7") }),
+    bindingElement(rest, { rest: true }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const sourceCarrier = csharpJsArrayCarrierTargetType(int32Type());
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      runtimeCarriers: new Map([[parameter, { carrier: sourceCarrier }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(statements.length, 2);
+  assert.deepEqual(statements[0].initializer.condition.left, {
+    kind: "SimpleMemberAccessExpression",
+    receiver: { kind: "IdentifierName", name: "value" },
+    name: "length",
+  });
+  assert.deepEqual(statements[1].initializer, {
+    kind: "InvocationExpression",
+    callee: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "value" },
+      name: "slice",
+    },
+    arguments: [{ kind: "Argument", expression: { kind: "LiteralExpression", value: 1 } }],
+  });
+});
+
 test("object rename and rest destructuring emit from finalized object-shape facts", () => {
   const renamed = identifier("renamed");
   const rest = identifier("rest");
@@ -730,6 +845,76 @@ test("object rest destructuring rejects rest shape facts that retain extracted m
   }]);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /rest shape must exclude explicitly extracted member 'source'/);
+});
+
+test("object rest destructuring rejects rest member carrier mismatches", () => {
+  const renamed = identifier("renamed");
+  const rest = identifier("rest");
+  const sourceMember = {
+    sourceName: "source",
+    targetName: "Source",
+    memberKind: "property",
+    type: { kind: "source-primitive", name: "int32" },
+  };
+  const keepMember = {
+    sourceName: "keep",
+    targetName: "Keep",
+    memberKind: "property",
+    type: { kind: "source-primitive", name: "bool" },
+  };
+  const mismatchedKeepMember = {
+    ...keepMember,
+    type: { kind: "source-primitive", name: "string" },
+  };
+  const sourceShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__SourceShape",
+      csharpRender: { kind: "named", name: "__SourceShape" },
+    },
+    members: [sourceMember, keepMember],
+  };
+  const restShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__RestShape",
+      csharpRender: { kind: "named", name: "__RestShape" },
+    },
+    members: [mismatchedKeepMember],
+  };
+  const pattern = objectBindingPattern([
+    bindingElement(renamed, { propertyName: identifier("source") }),
+    bindingElement(rest, { rest: true }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({
+      objectShapes: new Map([
+        [parameter, sourceShape],
+        [rest, restShape],
+      ]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "renamed",
+    type: { kind: "PredefinedType", name: "int" },
+    initializer: {
+      kind: "SimpleMemberAccessExpression",
+      receiver: { kind: "IdentifierName", name: "value" },
+      name: "Source",
+    },
+  }]);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires matching finalized source and rest member carriers/);
 });
 
 test("object destructuring defaults fail closed until undefined/default facts exist", () => {
@@ -887,6 +1072,10 @@ function runtimeCarrierResolution(options, runtimeCarriers, subject) {
 }
 
 const sourceFile = {};
+
+function int32Type() {
+  return { kind: "source-primitive", name: "int32" };
+}
 
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),

@@ -143,7 +143,12 @@ function createNativeCollectionSpreadChunks(
     const spreadCarrier = probeCarrierFromResolution(spreadCarrierResolution);
     const spreadType = spreadCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(spreadCarrier);
     if (spreadType === undefined || !arraySpreadElementCarrierMatches(elementCarrier, spreadCarrier)) {
-      const detail = missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.");
+      const detail = spreadCarrier === undefined
+        ? missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.")
+        : {
+            reason: "Finalized spread carrier element type does not match the target collection element type.",
+            evidence: [],
+          };
       diagnostics.push(unsupportedNodeDiagnostic(element, `JS surface array spread requires a finalized provider collection carrier with matching element type before C# emission. ${detail.reason}`, detail.evidence));
       return undefined;
     }

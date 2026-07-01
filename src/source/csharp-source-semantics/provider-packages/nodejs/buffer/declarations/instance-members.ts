@@ -11,7 +11,19 @@ import {
   nodeBufferEqualsExportName,
   nodeBufferEqualsMemberId,
   nodeBufferEqualsSignatureId,
+  nodeBufferIncludesExportName,
+  nodeBufferIncludesMemberId,
+  nodeBufferIncludesSignatureId,
+  nodeBufferIndexOfExportName,
+  nodeBufferIndexOfMemberId,
+  nodeBufferIndexOfSignatureId,
+  nodeBufferLastIndexOfExportName,
+  nodeBufferLastIndexOfMemberId,
+  nodeBufferLastIndexOfSignatureId,
   nodeBufferLengthMemberId,
+  nodeBufferReadUInt8ExportName,
+  nodeBufferReadUInt8MemberId,
+  nodeBufferReadUInt8SignatureId,
   nodeBufferSliceExportName,
   nodeBufferSliceMemberId,
   nodeBufferSliceSignatureId,
@@ -24,6 +36,9 @@ import {
   nodeBufferWriteExportName,
   nodeBufferWriteMemberId,
   nodeBufferWriteSignatureId,
+  nodeBufferWriteUInt8ExportName,
+  nodeBufferWriteUInt8MemberId,
+  nodeBufferWriteUInt8SignatureId,
 } from "../identities.js";
 import {
   nodeBufferBoolProviderType,
@@ -35,6 +50,14 @@ import {
 type ProviderClassMembers = NonNullable<ProviderExportDeclaration["members"]>;
 
 export function nodeBufferInstanceMemberDeclarations(): ProviderClassMembers {
+  const bufferSearchValueProviderType = {
+    kind: "union",
+    types: [
+      nodeBufferStringProviderType,
+      nodeBufferNumberProviderType,
+      nodeBufferProviderType,
+    ],
+  } as const;
   return [
     {
       id: nodeBufferLengthMemberId,
@@ -76,6 +99,48 @@ export function nodeBufferInstanceMemberDeclarations(): ProviderClassMembers {
         id: nodeBufferEqualsSignatureId,
         parameters: [{ name: "otherBuffer", type: nodeBufferProviderType }],
         returnType: nodeBufferBoolProviderType,
+      }],
+    },
+    {
+      id: nodeBufferIncludesMemberId,
+      name: nodeBufferIncludesExportName,
+      kind: "method",
+      signatures: [{
+        id: nodeBufferIncludesSignatureId,
+        parameters: [
+          { name: "value", type: bufferSearchValueProviderType },
+          { name: "byteOffset", type: nodeBufferNumberProviderType, optional: true },
+          { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+        ],
+        returnType: nodeBufferBoolProviderType,
+      }],
+    },
+    {
+      id: nodeBufferIndexOfMemberId,
+      name: nodeBufferIndexOfExportName,
+      kind: "method",
+      signatures: [{
+        id: nodeBufferIndexOfSignatureId,
+        parameters: [
+          { name: "value", type: bufferSearchValueProviderType },
+          { name: "byteOffset", type: nodeBufferNumberProviderType, optional: true },
+          { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+        ],
+        returnType: nodeBufferNumberProviderType,
+      }],
+    },
+    {
+      id: nodeBufferLastIndexOfMemberId,
+      name: nodeBufferLastIndexOfExportName,
+      kind: "method",
+      signatures: [{
+        id: nodeBufferLastIndexOfSignatureId,
+        parameters: [
+          { name: "value", type: bufferSearchValueProviderType },
+          { name: "byteOffset", type: nodeBufferNumberProviderType, optional: true },
+          { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+        ],
+        returnType: nodeBufferNumberProviderType,
       }],
     },
     {
@@ -129,6 +194,29 @@ export function nodeBufferInstanceMemberDeclarations(): ProviderClassMembers {
           { name: "offset", type: nodeBufferNumberProviderType, optional: true },
           { name: "length", type: nodeBufferNumberProviderType, optional: true },
           { name: "encoding", type: nodeBufferStringProviderType, optional: true },
+        ],
+        returnType: nodeBufferNumberProviderType,
+      }],
+    },
+    {
+      id: nodeBufferReadUInt8MemberId,
+      name: nodeBufferReadUInt8ExportName,
+      kind: "method",
+      signatures: [{
+        id: nodeBufferReadUInt8SignatureId,
+        parameters: [{ name: "offset", type: nodeBufferNumberProviderType, optional: true }],
+        returnType: nodeBufferNumberProviderType,
+      }],
+    },
+    {
+      id: nodeBufferWriteUInt8MemberId,
+      name: nodeBufferWriteUInt8ExportName,
+      kind: "method",
+      signatures: [{
+        id: nodeBufferWriteUInt8SignatureId,
+        parameters: [
+          { name: "value", type: nodeBufferNumberProviderType },
+          { name: "offset", type: nodeBufferNumberProviderType, optional: true },
         ],
         returnType: nodeBufferNumberProviderType,
       }],

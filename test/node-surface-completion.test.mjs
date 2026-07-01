@@ -26,6 +26,9 @@ test("NodeJS provider package exposes completion metadata for assigned modules",
   assertModuleExport(bindingProvider, "node:fs/promises", "readFile", "node:fs/promises.readFile(System.String,System.String)");
   assertModuleExport(bindingProvider, "node:path", "format", "node:path.format(Tsonic.CSharp.Node.ParsedPath)");
   assertClassMember(bindingProvider, "node:buffer", "Buffer", "compare", "node:buffer.Buffer.compare(Tsonic.CSharp.Node.Buffer,Tsonic.CSharp.Node.Buffer)");
+  assertClassMember(bindingProvider, "node:buffer", "Buffer", "includes", "node:buffer.Buffer.includes(System.Object,System.Int32,System.String)");
+  assertClassMember(bindingProvider, "node:buffer", "Buffer", "readUInt8", "node:buffer.Buffer.readUInt8(System.Int32)");
+  assertClassMember(bindingProvider, "node:buffer", "Buffer", "writeUInt8", "node:buffer.Buffer.writeUInt8(System.Byte,System.Int32)");
   assertClassMember(bindingProvider, "node:buffer", "Buffer", "isBuffer", "node:buffer.Buffer.isBuffer(System.Object)");
   assertModuleExport(bindingProvider, "node:crypto", "createCipheriv", "node:crypto.createCipheriv(System.String,System.Object,System.Object)");
   assertModuleExport(bindingProvider, "node:os", "cpus", "node:os.cpus()");
@@ -49,6 +52,12 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const processCwdSignature = {};
   const bufferCompareCall = {};
   const bufferCompareSignature = {};
+  const bufferIncludesCall = {};
+  const bufferIncludesSignature = {};
+  const bufferReadUInt8Call = {};
+  const bufferReadUInt8Signature = {};
+  const bufferWriteUInt8Call = {};
+  const bufferWriteUInt8Signature = {};
   const cryptoHmacCall = {};
   const cryptoHmacSignature = {};
   const osHomedirCall = {};
@@ -63,6 +72,9 @@ test("NodeJS provider package maps closed operations from selected provider iden
   facts.set(parsedBaseDeclaration, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:path", "ParsedPath", "base", "node:path.ParsedPath.base"));
   facts.set(processCwdSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("process", "cwd", "node:process.cwd()"));
   facts.set(bufferCompareSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("buffer", "Buffer", "compare", "node:buffer.Buffer.compare", "node:buffer.Buffer.compare(Tsonic.CSharp.Node.Buffer,Tsonic.CSharp.Node.Buffer)"));
+  facts.set(bufferIncludesSignature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "includes", "node:buffer.Buffer.includes", "node:buffer.Buffer.includes(System.Object,System.Int32,System.String)"));
+  facts.set(bufferReadUInt8Signature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "readUInt8", "node:buffer.Buffer.readUInt8", "node:buffer.Buffer.readUInt8(System.Int32)"));
+  facts.set(bufferWriteUInt8Signature, providerVirtualDeclarationFactKey, nodejsVirtualMemberDeclaration("node:buffer", "Buffer", "writeUInt8", "node:buffer.Buffer.writeUInt8", "node:buffer.Buffer.writeUInt8(System.Byte,System.Int32)"));
   facts.set(cryptoHmacSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:crypto", "createHmac", "node:crypto.createHmac(System.String,Tsonic.CSharp.Node.Buffer)"));
   facts.set(osHomedirSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("os", "homedir", "node:os.homedir()"));
   facts.set(utilSignature, providerVirtualDeclarationFactKey, nodejsVirtualDeclaration("node:util", "toUSVString", "node:util.toUSVString(System.String)"));
@@ -74,6 +86,9 @@ test("NodeJS provider package maps closed operations from selected provider iden
   const parsedBaseResult = provider.mapCheckedPropertyAccess(nodejsPropertyRequest(parsedBaseExpression, parsedBaseDeclaration), fakeContext(facts));
   const processCwdResult = provider.mapCheckedCall(nodejsCallRequest(processCwdCall, processCwdSignature), fakeContext(facts));
   const bufferCompareResult = provider.mapCheckedCall(nodejsCallRequest(bufferCompareCall, bufferCompareSignature), fakeContext(facts));
+  const bufferIncludesResult = provider.mapCheckedCall(nodejsCallRequest(bufferIncludesCall, bufferIncludesSignature), fakeContext(facts));
+  const bufferReadUInt8Result = provider.mapCheckedCall(nodejsCallRequest(bufferReadUInt8Call, bufferReadUInt8Signature), fakeContext(facts));
+  const bufferWriteUInt8Result = provider.mapCheckedCall(nodejsCallRequest(bufferWriteUInt8Call, bufferWriteUInt8Signature), fakeContext(facts));
   const cryptoHmacResult = provider.mapCheckedCall(nodejsCallRequest(cryptoHmacCall, cryptoHmacSignature), fakeContext(facts));
   const osHomedirResult = provider.mapCheckedCall(nodejsCallRequest(osHomedirCall, osHomedirSignature), fakeContext(facts));
   const utilResult = provider.mapCheckedCall(nodejsCallRequest(utilCall, utilSignature), fakeContext(facts));
@@ -88,6 +103,9 @@ test("NodeJS provider package maps closed operations from selected provider iden
   assertSelectedMember(processCwdResult, "Tsonic.CSharp.Node.process.cwd()");
   assertSelectedMember(bufferCompareResult, "Tsonic.CSharp.Node.Buffer.compare(Tsonic.CSharp.Node.Buffer,Tsonic.CSharp.Node.Buffer)");
   assert.equal(bufferCompareResult.value.selectedSignature.member.static, true);
+  assertSelectedMember(bufferIncludesResult, "Tsonic.CSharp.Node.Buffer.includes(System.Object,System.Int32,System.String)");
+  assertSelectedMember(bufferReadUInt8Result, "Tsonic.CSharp.Node.Buffer.readUInt8(System.Int32)");
+  assertSelectedMember(bufferWriteUInt8Result, "Tsonic.CSharp.Node.Buffer.writeUInt8(System.Byte,System.Int32)");
   assertSelectedMember(cryptoHmacResult, "Tsonic.CSharp.Node.crypto.createHmac(System.String,Tsonic.CSharp.Node.Buffer)");
   assertSelectedMember(osHomedirResult, "Tsonic.CSharp.Node.os.homedir()");
   assertSelectedMember(utilResult, "Tsonic.CSharp.Node.util.toUSVString(System.String)");
@@ -157,7 +175,8 @@ test("selected NodeJS Buffer source type-checks compare provider declarations", 
     export function compareBuffers(text: string): number {
       const left = Buffer.from(text, "utf8");
       const right = Buffer.from("expected", "utf8");
-      return Buffer.compare(left, right);
+      left.writeUInt8(72, 0);
+      return Buffer.compare(left, right) + left.indexOf("e") + left.readUInt8(0) + (left.includes("x") ? 1 : 0);
     }
   `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
   const sourceFile = session.getSourceFile("/src/index.ts");

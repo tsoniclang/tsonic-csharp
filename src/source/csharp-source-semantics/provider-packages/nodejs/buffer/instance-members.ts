@@ -11,7 +11,15 @@ import {
   nodeBufferCopyTargetMemberId,
   nodeBufferEqualsExportName,
   nodeBufferEqualsTargetMemberId,
+  nodeBufferIncludesExportName,
+  nodeBufferIncludesTargetMemberId,
+  nodeBufferIndexOfExportName,
+  nodeBufferIndexOfTargetMemberId,
+  nodeBufferLastIndexOfExportName,
+  nodeBufferLastIndexOfTargetMemberId,
   nodeBufferLengthTargetMemberId,
+  nodeBufferReadUInt8ExportName,
+  nodeBufferReadUInt8TargetMemberId,
   nodeBufferSliceExportName,
   nodeBufferSliceTargetMemberId,
   nodeBufferSubarrayExportName,
@@ -19,13 +27,17 @@ import {
   nodeBufferTargetType,
   nodeBufferToStringExportName,
   nodeBufferToStringTargetMemberId,
+  nodeBufferWriteUInt8ExportName,
+  nodeBufferWriteUInt8TargetMemberId,
   nodeBufferWriteExportName,
   nodeBufferWriteTargetMemberId,
 } from "./identities.js";
 import {
+  nodeBufferByteTargetType,
   nodeBufferBoolTargetType,
   nodeBufferIntTargetType,
   nodeBufferNullableIntTargetType,
+  nodeBufferObjectTargetType,
   nodeBufferStringTargetType,
   nodeBufferToStringEndTargetType,
 } from "./helpers.js";
@@ -83,6 +95,40 @@ export function getNodeBufferCopyTargetMember(): CsharpTargetMember {
   };
 }
 
+export function getNodeBufferIncludesTargetMember(): CsharpTargetMember {
+  return nodeBufferSearchTargetMember({
+    targetMemberId: nodeBufferIncludesTargetMemberId,
+    sourceName: nodeBufferIncludesExportName,
+    targetName: "includes",
+    returnType: nodeBufferBoolTargetType,
+  });
+}
+
+export function getNodeBufferIndexOfTargetMember(): CsharpTargetMember {
+  return nodeBufferSearchTargetMember({
+    targetMemberId: nodeBufferIndexOfTargetMemberId,
+    sourceName: nodeBufferIndexOfExportName,
+    targetName: "indexOf",
+    returnType: nodeBufferIntTargetType,
+  });
+}
+
+export function getNodeBufferLastIndexOfTargetMember(): CsharpTargetMember {
+  return {
+    id: nodeBufferLastIndexOfTargetMemberId,
+    sourceName: nodeBufferLastIndexOfExportName,
+    targetName: "lastIndexOf",
+    kind: "method",
+    parameters: [
+      targetParameter("value", nodeBufferObjectTargetType, { csharpAcceptsClosedSourceArgument: true }),
+      targetParameter("byteOffset", nodeBufferNullableIntTargetType(), { optional: true }),
+      targetParameter("encoding", nodeBufferStringTargetType, { optional: true }),
+    ],
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
 export function getNodeBufferSliceTargetMember(): CsharpTargetMember {
   return nodeBufferRangeTargetMember({
     targetMemberId: nodeBufferSliceTargetMemberId,
@@ -115,6 +161,18 @@ export function getNodeBufferToStringTargetMember(): CsharpTargetMember {
   };
 }
 
+export function getNodeBufferReadUInt8TargetMember(): CsharpTargetMember {
+  return {
+    id: nodeBufferReadUInt8TargetMemberId,
+    sourceName: nodeBufferReadUInt8ExportName,
+    targetName: "readUInt8",
+    kind: "method",
+    parameters: [targetParameter("offset", nodeBufferIntTargetType, { optional: true })],
+    returnType: nodeBufferByteTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
 export function getNodeBufferWriteTargetMember(): CsharpTargetMember {
   return {
     id: nodeBufferWriteTargetMemberId,
@@ -128,6 +186,42 @@ export function getNodeBufferWriteTargetMember(): CsharpTargetMember {
       targetParameter("encoding", nodeBufferStringTargetType, { optional: true }),
     ],
     returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
+export function getNodeBufferWriteUInt8TargetMember(): CsharpTargetMember {
+  return {
+    id: nodeBufferWriteUInt8TargetMemberId,
+    sourceName: nodeBufferWriteUInt8ExportName,
+    targetName: "writeUInt8",
+    kind: "method",
+    parameters: [
+      targetParameter("value", nodeBufferByteTargetType),
+      targetParameter("offset", nodeBufferIntTargetType, { optional: true }),
+    ],
+    returnType: nodeBufferIntTargetType,
+    declaringType: nodeBufferTargetType,
+  };
+}
+
+function nodeBufferSearchTargetMember(row: {
+  readonly targetMemberId: string;
+  readonly sourceName: string;
+  readonly targetName: string;
+  readonly returnType: CsharpTargetMember["returnType"];
+}): CsharpTargetMember {
+  return {
+    id: row.targetMemberId,
+    sourceName: row.sourceName,
+    targetName: row.targetName,
+    kind: "method",
+    parameters: [
+      targetParameter("value", nodeBufferObjectTargetType, { csharpAcceptsClosedSourceArgument: true }),
+      targetParameter("byteOffset", nodeBufferIntTargetType, { optional: true }),
+      targetParameter("encoding", nodeBufferStringTargetType, { optional: true }),
+    ],
+    returnType: row.returnType,
     declaringType: nodeBufferTargetType,
   };
 }

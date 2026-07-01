@@ -7,7 +7,9 @@ import {
 
 export const nodeBufferStringTargetType = csharpStringTargetType();
 export const nodeBufferIntTargetType = csharpSourcePrimitiveTargetType("int32");
+export const nodeBufferByteTargetType = csharpSourcePrimitiveTargetType("uint8");
 export const nodeBufferBoolTargetType = csharpSourcePrimitiveTargetType("bool");
+export const nodeBufferObjectTargetType = csharpTargetNamedType("System.Object", undefined, { kind: "predefined", name: "object" });
 
 export function nodeBufferNullableIntTargetType() {
   return csharpNullableValueTargetType(nodeBufferIntTargetType);

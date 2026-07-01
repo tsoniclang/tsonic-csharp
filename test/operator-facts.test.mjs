@@ -18,10 +18,13 @@ import {
   KindObjectLiteralExpression,
   KindPostfixUnaryExpression,
   KindPropertyAccessExpression,
+  KindMethodDeclaration,
   KindPrefixUnaryExpression,
   KindRegularExpressionLiteral,
+  KindThisKeyword,
   KindTemplateExpression,
   ModifierFlagsAsync,
+  ModifierFlagsStatic,
 } from "../dist/backend/planner/source-ast.js";
 import { printCsharpExpression } from "../dist/print/csharp-printer.js";
 import {
@@ -707,6 +710,84 @@ test("await expression statement allows finalized non-generic Task carrier", () 
   assert.equal(printCsharpExpression(output), "await task");
 });
 
+test("this expression emission requires finalized instance receiver facts", () => {
+  const thisExpression = thisKeyword();
+  const method = parented(node(KindMethodDeclaration, {}), node("KindClassDeclaration"));
+  thisExpression.Parent = method;
+  const receiverType = csharpTargetNamedType("Counter");
+  const diagnostics = [];
+
+  const output = planExpression(thisExpression, {}, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [thisExpression, { carrier: receiverType }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "IdentifierName");
+  assert.equal(printCsharpExpression(output), "this");
+});
+
+test("this expression emission accepts lexical arrows only through an instance receiver", () => {
+  const thisExpression = thisKeyword();
+  const arrow = node(KindArrowFunction, {});
+  const method = parented(node(KindMethodDeclaration, {}), node("KindClassDeclaration"));
+  thisExpression.Parent = arrow;
+  arrow.Parent = method;
+  const diagnostics = [];
+
+  const output = planExpression(thisExpression, {}, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [thisExpression, { carrier: csharpTargetNamedType("Counter") }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.kind, "IdentifierName");
+  assert.equal(printCsharpExpression(output), "this");
+});
+
+test("this expression emission rejects dynamic and static receiver contexts", () => {
+  const staticThis = thisKeyword();
+  const staticMethod = parented(node(KindMethodDeclaration, { ModifierFlags: ModifierFlagsStatic }), node("KindClassDeclaration"));
+  staticThis.Parent = staticMethod;
+  const functionThis = thisKeyword();
+  functionThis.Parent = node("KindFunctionDeclaration");
+  const topLevelThis = thisKeyword();
+  topLevelThis.Parent = node("KindSourceFile");
+  const objectMethodThis = thisKeyword();
+  objectMethodThis.Parent = parented(node(KindMethodDeclaration), node(KindObjectLiteralExpression));
+  const fieldInitializerThis = thisKeyword();
+  fieldInitializerThis.Parent = parented(node("KindPropertyDeclaration"), node("KindClassDeclaration"));
+  const diagnostics = [];
+
+  assert.equal(planExpression(staticThis, {}, fakeInput(), diagnostics), undefined);
+  assert.equal(planExpression(functionThis, {}, fakeInput(), diagnostics), undefined);
+  assert.equal(planExpression(topLevelThis, {}, fakeInput(), diagnostics), undefined);
+  assert.equal(planExpression(objectMethodThis, {}, fakeInput(), diagnostics), undefined);
+  assert.equal(planExpression(fieldInitializerThis, {}, fakeInput(), diagnostics), undefined);
+
+  assert.equal(diagnostics.length, 5);
+  assert.match(diagnostics[0].message, /static class member receiver/);
+  assert.match(diagnostics[1].message, /dynamic function receiver/);
+  assert.match(diagnostics[2].message, /top-level module receiver/);
+  assert.match(diagnostics[3].message, /object-literal or non-class method receiver/);
+  assert.match(diagnostics[4].message, /class field initializer receiver/);
+});
+
+test("this expression emission fails closed without receiver carrier facts", () => {
+  const thisExpression = thisKeyword();
+  const method = parented(node(KindMethodDeclaration, {}), node("KindClassDeclaration"));
+  thisExpression.Parent = method;
+  const diagnostics = [];
+
+  const output = planExpression(thisExpression, {}, fakeInput(), diagnostics);
+
+  assert.equal(output, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /requires a finalized runtime carrier fact for the TSTS-selected instance receiver/);
+});
+
 test("async lambda emission accepts finalized Task-returning delegate facts", () => {
   const sourceExample = `
     const callback: () => Promise<number> = async () => 1;
@@ -793,6 +874,24 @@ function asyncArrowFunction(body) {
     Parameters: { Nodes: [] },
     Body: body,
   };
+}
+
+function thisKeyword() {
+  return {
+    Kind: KindThisKeyword,
+  };
+}
+
+function node(kind, properties = {}) {
+  return {
+    Kind: kind,
+    ...properties,
+  };
+}
+
+function parented(child, parent) {
+  child.Parent = parent;
+  return child;
 }
 
 function identifier(name) {
@@ -985,6 +1084,7 @@ function runtimeCarrierResolution(options, subject) {
 const fakeAst = {
   kindName: (node) => node === undefined ? "Undefined" : String(node.Kind),
   kindNameFromKind: (kind) => kind === undefined ? "Undefined" : String(kind),
+  parent: (node) => node?.Parent,
   getSourceFile: () => undefined,
   is: {
     IsKeywordTypeNode: () => false,

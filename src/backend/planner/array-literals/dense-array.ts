@@ -202,7 +202,12 @@ function createArraySpreadChunks(
       continue;
     }
     if (spreadType === undefined || !sameCsharpType(spreadType, expectedArrayType)) {
-      const detail = missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.");
+      const detail = spreadCarrier === undefined
+        ? missingCarrierDiagnosticDetail(spreadCarrierResolution, "Runtime carrier fact is missing for the array spread expression.")
+        : {
+            reason: "Finalized spread carrier does not match the target array carrier.",
+            evidence: [],
+          };
       diagnostics.push(unsupportedNodeDiagnostic(element, `Array spread requires a finalized provider array carrier matching the target array element type before C# emission. ${detail.reason}`, detail.evidence));
       return undefined;
     }
