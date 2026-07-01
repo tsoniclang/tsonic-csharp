@@ -38,6 +38,7 @@ import {
 } from "../dist/backend/planner/source-ast.js";
 import {
   csharpObjectShapeFactKey,
+  csharpTargetOperationFactKey,
   csharpTargetIterationFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
@@ -688,6 +689,167 @@ test("destructuring assignment statements fail closed without ordinary assignmen
   assert.match(diagnostics[1].message, /Destructuring assignment emission requires finalized target storage and extraction facts/);
 });
 
+test("array destructuring assignment statements emit storage writes from finalized facts", () => {
+  const diagnostics = [];
+  const source = identifier("values");
+  const assignment = binaryExpression(
+    {
+      Kind: KindArrayLiteralExpression,
+      Elements: { Nodes: [identifier("first"), identifier("second")] },
+    },
+    source,
+  );
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      runtimeCarrierFacts: new Map([[source, { carrier: { kind: "array", element: intType } }]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "ArrayType", elementType: { kind: "PredefinedType", name: "int" } },
+      initializer: { kind: "IdentifierName", name: "values" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "first" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "ElementAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          argument: { kind: "LiteralExpression", value: 0 },
+        },
+      },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "second" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "ElementAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          argument: { kind: "LiteralExpression", value: 1 },
+        },
+      },
+    },
+  ]);
+});
+
+test("object-shape destructuring assignment statements emit storage writes from finalized facts", () => {
+  const diagnostics = [];
+  const source = identifier("input");
+  const assignment = binaryExpression(
+    {
+      Kind: KindObjectLiteralExpression,
+      Properties: {
+        Nodes: [
+          { Kind: "KindShorthandPropertyAssignment", name: identifier("value") },
+          { Kind: "KindPropertyAssignment", name: identifier("label"), Initializer: identifier("name") },
+        ],
+      },
+    },
+    source,
+  );
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__InputShape",
+      csharpRender: { kind: "named", name: "__InputShape" },
+    },
+    members: [
+      {
+        sourceName: "value",
+        targetName: "Value",
+        memberKind: "property",
+        type: csharpSourcePrimitiveTargetType("int32"),
+      },
+      {
+        sourceName: "label",
+        targetName: "Label",
+        memberKind: "property",
+        type: csharpStringTargetType(),
+      },
+    ],
+  };
+  const output = planStatements(
+    expressionStatement(assignment),
+    sourceFile,
+    fakeInput({
+      selectedOperatorFacts: new Map([[assignment, {
+        operationId: "tsonic.csharp.operator.assign",
+        operationKind: "operator",
+        targetOperation: "=",
+      }]]),
+      csharpOperationFacts: new Map([[assignment, {
+        kind: "operator-token",
+        operationId: "tsonic.csharp.operator.assign",
+        operator: "=",
+      }]]),
+      objectShapeFacts: new Map([[source, objectShape]]),
+    }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [
+    {
+      kind: "LocalDeclarationStatement",
+      name: "__tsonic_destructure0",
+      type: { kind: "IdentifierName", name: "__InputShape" },
+      initializer: { kind: "IdentifierName", name: "input" },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "value" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          name: "Value",
+        },
+      },
+    },
+    {
+      kind: "ExpressionStatement",
+      expression: {
+        kind: "AssignmentExpression",
+        left: { kind: "IdentifierName", name: "name" },
+        operatorToken: { kind: "EqualsToken" },
+        right: {
+          kind: "SimpleMemberAccessExpression",
+          receiver: { kind: "IdentifierName", name: "__tsonic_destructure0" },
+          name: "Label",
+        },
+      },
+    },
+  ]);
+});
+
 test("try statements emit Roslyn catch and finally bodies from finalized exception facts", () => {
   const sourceExample = `
     try {
@@ -1110,7 +1272,7 @@ function fakeInput(options = {}) {
       getSelectedTargetProperty: () => undefined,
       getSelectedTargetElementAccess: () => undefined,
       getSelectedTargetCall: () => undefined,
-      getSelectedTargetOperator: () => undefined,
+      getSelectedTargetOperator: (subject) => options.selectedOperatorFacts?.get(subject),
       getContextualTargetTypeFact: () => undefined,
       getRuntimeCarrierFact: (subject) => options.runtimeCarrierFacts?.get(subject),
       getObjectShapeFact: () => undefined,
@@ -1130,6 +1292,9 @@ function fakeInput(options = {}) {
         }
         if (key === csharpObjectShapeFactKey) {
           return options.objectShapeFacts?.get(subject);
+        }
+        if (key === csharpTargetOperationFactKey) {
+          return options.csharpOperationFacts?.get(subject);
         }
         return undefined;
       },

@@ -54,6 +54,9 @@ import {
   getOperatorSourceFile,
 } from "./operands.js";
 import {
+  asNodeSubject,
+} from "../ast-utils.js";
+import {
   getCheckedOperatorOperandQuery,
   getCsharpOperatorResultTypeRefForOperator,
   operatorRequiresSelectedProviderIdentity,
@@ -126,6 +129,13 @@ export function mapCsharpCheckedOperator(
   const bitwiseLiteralOperands = getBitwiseLiteralOperandTargetTypeRefs(request.operator, operands.left, operands.right, request.left, request.right, context);
   const left = bitwiseLiteralOperands.left;
   const right = bitwiseLiteralOperands.right;
+  if (request.operator === "=" && isDestructuringAssignmentTarget(request.left, context) && right !== undefined) {
+    const operationId = `tsonic.csharp.operator.${targetOperator}`;
+    recordCsharpTargetOperation(context, request.expression, csharpTargetTokenOperatorOperation(operationId, targetOperator, right), [{ message: "C# destructuring assignment token operation recorded after TSTS accepted the source assignment and the right-hand carrier was finalized." }]);
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(operationId, "operator", targetOperator, { resultType: right }),
+    }, [{ message: "C# destructuring assignment selected from checked TSTS assignment and finalized right-hand carrier facts." }]);
+  }
   if (left === undefined || (request.right !== undefined && right === undefined)) {
     return deferObservation;
   }
@@ -162,6 +172,18 @@ export function mapCsharpCheckedOperator(
       { resultType },
     ),
   }, [{ message: "C# source operator selected after TSTS accepted the operation." }]);
+}
+
+function isDestructuringAssignmentTarget(
+  subject: unknown,
+  context: ExtensionObservationContext,
+): boolean {
+  const node = asNodeSubject(subject);
+  if (node === undefined || context.compiler === undefined) {
+    return false;
+  }
+  const kind = context.compiler.ast.kindName(node);
+  return kind === "KindArrayLiteralExpression" || kind === "KindObjectLiteralExpression";
 }
 
 function rejectMissingCsharpOperatorFact(

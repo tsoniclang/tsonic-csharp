@@ -2,6 +2,7 @@ import {
   AsBreakStatement,
   AsContinueStatement,
   AsExpressionStatement,
+  AsParenthesizedExpression,
   AsReturnStatement,
   AsThrowStatement,
   AsVoidExpression,
@@ -31,7 +32,7 @@ import {
 } from "./diagnostics.js";
 import {
   isDestructuringAssignmentExpression,
-  pushMissingDestructuringAssignmentFactsDiagnostic,
+  planDestructuringAssignmentStatement,
 } from "./destructuring-assignment.js";
 import {
   planExpression,
@@ -52,6 +53,9 @@ import {
 import {
   findControlLabel,
 } from "./statement-labels.js";
+import {
+  createDestructuringPlannerState,
+} from "./binding-state.js";
 import {
   expressionStatement,
   isCsharpThrowableCarrier,
@@ -206,9 +210,9 @@ export function planExpressionStatement(
     return [];
   }
   const expression = AsExpressionStatement(node)!.Expression;
-  if (isDestructuringAssignmentExpression(expression, input)) {
-    pushMissingDestructuringAssignmentFactsDiagnostic(expression!, diagnostics);
-    return [];
+  const assignmentExpression = destructuringAssignmentExpressionStatementExpression(expression);
+  if (isDestructuringAssignmentExpression(assignmentExpression, input)) {
+    return planDestructuringAssignmentStatement(assignmentExpression, sourceFile, input, diagnostics, state ?? createDestructuringPlannerState(assignmentExpression, input.ast), planExpression, planExpressionWithExpectedType) ?? [];
   }
   if (HasSourceKind(input.ast, expression, KindVoidExpression)) {
     const voidExpression = AsVoidExpression(expression!)!;
@@ -217,4 +221,10 @@ export function planExpressionStatement(
   }
   const planned = planExpression(expression!, sourceFile, input, diagnostics, state);
   return planned === undefined ? [] : [expressionStatement(planDiscardedExpression(planned))];
+}
+
+function destructuringAssignmentExpressionStatementExpression(
+  expression: Node | undefined,
+): Node | undefined {
+  return AsParenthesizedExpression(expression)?.Expression ?? expression;
 }
