@@ -1598,6 +1598,31 @@ test("selected JS surface preserves provider-returned native array length from s
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
 
+test("selected JS surface records awaited provider-native array result carriers", () => {
+  const session = createCsharpSession(`
+    import { readdir } from "node:fs/promises";
+
+    export async function count(path: string): Promise<number> {
+      const entries = await readdir(path);
+      return entries.length;
+    }
+  `, { selectedSurfaces: [{ id: "js" }], selectedPackages: [{ id: "nodejs" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const awaitExpression = collectNodesByKind(sourceFile, session.ast, "KindAwaitExpression")[0];
+  const lengthAccess = collectNodesByKind(sourceFile, session.ast, "KindPropertyAccessExpression")
+    .find((node) => session.ast.text(session.ast.name(node)) === "length");
+
+  assert.ok(awaitExpression);
+  assert.ok(lengthAccess);
+  assert.equal(extensionHost.facts.get(awaitExpression, runtimeCarrierFactKey)?.carrier.kind, "array");
+  assert.equal(extensionHost.facts.get(lengthAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
+  assert.equal(extensionHost.facts.get(lengthAccess, csharpTargetOperationFactKey)?.memberName, "Length");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});
+
 test("selected JS surface finalizes Array length construction to JSArray carrier", () => {
   const session = createCsharpSession(`
     import type { int32 } from "@tsonic/core/types.js";

@@ -34,6 +34,7 @@ import {
 import {
   getCsharpArrayLiteralElementTargetType,
   getCsharpCollectionElementTargetType,
+  getCsharpTaskResultTargetType,
 } from "../../../target-types.js";
 
 export function collectArrayParameters(
@@ -278,5 +279,17 @@ function initializerHasExplicitNativeArrayTarget(
     allowSemanticTypeQuery: false,
     sourceFile,
   });
-  return targetType?.kind === "array";
+  if (targetType?.kind === "array") {
+    return true;
+  }
+  if (compiler?.ast.is.IsAwaitExpression(initializer) !== true) {
+    return false;
+  }
+  const awaitedExpression = asNodeSubject(getNodeField(initializer, "Expression"));
+  const awaitedType = host.getTargetTypeRefForSubject(awaitedExpression, context, {
+    allowRuntimeCarrier: false,
+    allowSemanticTypeQuery: false,
+    sourceFile,
+  });
+  return getCsharpTaskResultTargetType(awaitedType)?.kind === "array";
 }

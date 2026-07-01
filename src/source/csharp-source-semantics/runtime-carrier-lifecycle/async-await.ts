@@ -23,11 +23,18 @@ import type {
 import {
   setRuntimeCarrierFactIfUnresolved,
 } from "./fact-writes.js";
+import type {
+  CsharpRuntimeCarrierSemanticsHost,
+} from "../runtime-carrier-types.js";
+import {
+  createRuntimeCarrierLifecycleObservationContext,
+} from "../runtime-carrier-context.js";
 
 export function recordCsharpAsyncAwaitRuntimeCarrierFacts(
   lifecycleContext: RuntimeCarrierLifecycleFactsContext,
   sourceFile: SourceFile,
   nodes: readonly Node[],
+  host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
   const compiler = lifecycleContext.compiler;
   if (compiler === undefined) {
@@ -37,22 +44,23 @@ export function recordCsharpAsyncAwaitRuntimeCarrierFacts(
     if (compiler.ast.kindName(node) !== "KindAwaitExpression") {
       continue;
     }
-    recordAwaitExpressionRuntimeCarrierFact(lifecycleContext, node);
+    recordAwaitExpressionRuntimeCarrierFact(lifecycleContext, node, sourceFile, host);
   }
-  void sourceFile;
 }
 
 function recordAwaitExpressionRuntimeCarrierFact(
   lifecycleContext: RuntimeCarrierLifecycleFactsContext,
   awaitExpression: Node,
+  sourceFile: SourceFile,
+  host: CsharpRuntimeCarrierSemanticsHost,
 ): void {
   const awaitedExpression = asNodeSubject(getNodeField(awaitExpression, "Expression"));
-  const awaitedCarrier = getResolvedRuntimeCarrierFact(lifecycleContext, awaitedExpression)?.carrier;
+  const awaitedCarrier = getResolvedRuntimeCarrierFact(lifecycleContext, awaitedExpression, sourceFile, host)?.carrier;
   const awaitResultCarrier = getCsharpTaskResultTargetType(awaitedCarrier);
   if (awaitResultCarrier === undefined) {
     return;
   }
-  const existing = getResolvedRuntimeCarrierFact(lifecycleContext, awaitExpression);
+  const existing = getResolvedRuntimeCarrierFact(lifecycleContext, awaitExpression, sourceFile, host);
   if (existing !== undefined && !targetTypeRefEquals(existing.carrier, awaitResultCarrier)) {
     return;
   }
@@ -69,9 +77,22 @@ function recordAwaitExpressionRuntimeCarrierFact(
 function getResolvedRuntimeCarrierFact(
   lifecycleContext: RuntimeCarrierLifecycleFactsContext,
   subject: ExtensionFactSubject | undefined,
+  sourceFile: SourceFile,
+  host: CsharpRuntimeCarrierSemanticsHost,
 ): RuntimeCarrierFact | undefined {
-  return subject === undefined
-    ? undefined
-    : lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey) ??
-      lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey);
+  if (subject === undefined) {
+    return undefined;
+  }
+  const fact = lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey) ??
+    lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey);
+  if (fact !== undefined) {
+    return fact;
+  }
+  const context = createRuntimeCarrierLifecycleObservationContext(lifecycleContext);
+  const carrier = host.getTargetTypeRefForSubject(subject, context, {
+    allowRuntimeCarrier: true,
+    allowSemanticTypeQuery: false,
+    sourceFile,
+  });
+  return carrier === undefined ? undefined : { carrier };
 }

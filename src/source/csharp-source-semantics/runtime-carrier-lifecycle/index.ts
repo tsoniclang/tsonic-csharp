@@ -79,7 +79,7 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
     runRuntimeCarrierStage(lifecycleContext, "expected-facts", sourceFile, () => propagateRuntimeCarrierExpectedFacts(lifecycleContext, sourceFile, nodes, host));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
-    runRuntimeCarrierStage(lifecycleContext, "async-await-facts", sourceFile, () => recordCsharpAsyncAwaitRuntimeCarrierFacts(lifecycleContext, sourceFile, nodes));
+    runRuntimeCarrierStage(lifecycleContext, "async-await-facts", sourceFile, () => recordCsharpAsyncAwaitRuntimeCarrierFacts(lifecycleContext, sourceFile, nodes, host));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
     runRuntimeCarrierStage(lifecycleContext, "declaration-return-facts", sourceFile, () => recordDeclarationReturnRuntimeCarrierFacts(lifecycleContext, sourceFile, nodes, host));
