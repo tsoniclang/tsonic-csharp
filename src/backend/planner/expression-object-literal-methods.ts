@@ -27,12 +27,10 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
-  planBlockStatements,
-} from "./statements.js";
-import {
   isAsyncExpression,
   csharpDelegateSignatureFromTargetTypeRef,
   lambdaTargetContextFromTargetRef,
+  planLambdaBlockBody,
   planLambdaParameters,
 } from "./expression-lambdas.js";
 import {
@@ -95,13 +93,15 @@ function planObjectLiteralMethodAsLambda(
     diagnostics.push(unsupportedNodeDiagnostic(methodNode, "Object literal method emission requires a method body."));
     return undefined;
   }
+  const targetContext = lambdaTargetContextFromTargetRef(expectedTargetType);
+  const body = planLambdaBlockBody(methodNode, method.Body, sourceFile, input, diagnostics, undefined, targetContext);
+  if (body === undefined) {
+    return undefined;
+  }
   return {
     kind: "LambdaExpression",
     ...(isAsyncExpression(methodNode) ? { async: true } : {}),
-    parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, undefined, lambdaTargetContextFromTargetRef(expectedTargetType)),
-    body: {
-      kind: "Block",
-      statements: planBlockStatements(method.Body, sourceFile, input, diagnostics),
-    },
+    parameters: planLambdaParameters(method.Parameters?.Nodes ?? [], sourceFile, input, diagnostics, undefined, targetContext),
+    body,
   };
 }

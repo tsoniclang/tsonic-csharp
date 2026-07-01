@@ -3,21 +3,31 @@ import assert from "node:assert/strict";
 import {
   missingCarrierResolution,
   missingParameterCarrierResolution,
+  resolvedCarrierResolution,
 } from "./helpers/target-facts.mjs";
 import {
+  KindAwaitExpression,
   KindClassDeclaration,
   KindClassStaticBlockDeclaration,
+  KindFunctionDeclaration,
   KindIdentifier,
   KindMethodDeclaration,
+  KindParameter,
   KindPrivateIdentifier,
   KindPropertyDeclaration,
+  KindReturnStatement,
   ModifierFlagsAbstract,
+  ModifierFlagsAsync,
   ModifierFlagsPrivate,
   ModifierFlagsStatic,
 } from "../dist/backend/planner/source-ast.js";
-import { planClassDeclaration } from "../dist/backend/planner/declarations.js";
+import { planClassDeclaration, planFunctionDeclaration } from "../dist/backend/planner/declarations.js";
 import { printCsharpCompilationUnit } from "../dist/print/csharp-printer.js";
 import { csharpTargetNameFactKey } from "../dist/source/csharp-facts.js";
+import {
+  csharpSourcePrimitiveTargetType,
+  csharpTaskTargetType,
+} from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("class declarations emit public/static members and static blocks through Roslyn AST", () => {
   const sourceExample = `
@@ -172,6 +182,103 @@ test("abstract classes and members are deterministic diagnostics until provider 
   assert.match(diagnostics[1].message, /TypeScript-only modifier 'abstract' on method declaration/);
 });
 
+test("async function declarations consume finalized Task return and await result facts", () => {
+  const sourceExample = `
+    async function load(task: Promise<number>): Promise<number> {
+      return await task;
+    }
+  `;
+  assert.match(sourceExample, /async function load/);
+  assert.match(sourceExample, /await task/);
+
+  const sourceFile = sourceFileNode("/src/async.ts");
+  const taskName = identifier("task");
+  const taskTypeNode = typeNode("Promise<number>");
+  const awaited = node(KindAwaitExpression, { Expression: taskName });
+  const functionDeclaration = node(KindFunctionDeclaration, {
+    name: identifier("load"),
+    ModifierFlags: ModifierFlagsAsync,
+    Parameters: { Nodes: [
+      node(KindParameter, { name: taskName, Type: taskTypeNode }),
+    ] },
+    Body: block([
+      node(KindReturnStatement, { Expression: awaited }),
+    ]),
+  });
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const taskType = csharpTaskTargetType(intType);
+  const diagnostics = [];
+
+  const planned = planFunctionDeclaration(functionDeclaration, sourceFile, fakeInput(sourceFile, {
+    declarationReturnCarriers: new Map([
+      [functionDeclaration, { carrier: taskType }],
+    ]),
+    runtimeCarrierFacts: new Map([
+      [taskTypeNode, { carrier: taskType }],
+      [taskName, { carrier: taskType }],
+      [awaited, { carrier: intType }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(planned.modifiers, ["public", "static", "async"]);
+  assert.deepEqual(planned.returnType, {
+    kind: "QualifiedName",
+    left: {
+      kind: "QualifiedName",
+      left: {
+        kind: "QualifiedName",
+        left: { kind: "IdentifierName", name: "System" },
+        name: "Threading",
+      },
+      name: "Tasks",
+    },
+    name: "Task",
+    typeArguments: [{ kind: "PredefinedType", name: "int" }],
+  });
+  assert.deepEqual(planned.parameters[0], {
+    name: "task",
+    type: planned.returnType,
+    attributes: undefined,
+  });
+  assert.deepEqual(planned.body.statements, [{
+    kind: "ReturnStatement",
+    expression: {
+      kind: "AwaitExpression",
+      expression: { kind: "IdentifierName", name: "task" },
+    },
+  }]);
+});
+
+test("async function declarations fail closed without Promise/Task return facts", () => {
+  const sourceExample = `
+    async function load() {
+      return 1;
+    }
+  `;
+  assert.match(sourceExample, /return 1/);
+
+  const sourceFile = sourceFileNode("/src/async-missing.ts");
+  const functionDeclaration = node(KindFunctionDeclaration, {
+    name: identifier("load"),
+    ModifierFlags: ModifierFlagsAsync,
+    Parameters: { Nodes: [] },
+    Body: block([
+      node(KindReturnStatement, { Expression: node("KindNumericLiteral", { Text: "1" }) }),
+    ]),
+  });
+  const diagnostics = [];
+
+  planFunctionDeclaration(functionDeclaration, sourceFile, fakeInput(sourceFile), diagnostics);
+
+  assert.ok(diagnostics.some((diagnostic) =>
+    /C# function declaration emission requires a finalized signature return carrier/.test(diagnostic.message)
+  ));
+  assert.ok(diagnostics.some((diagnostic) =>
+    /Async C# function declaration emission requires finalized Promise\/Task result carrier facts/.test(diagnostic.message)
+  ));
+});
+
 function node(kind, properties = {}) {
   return { Kind: kind, ...properties };
 }
@@ -208,8 +315,14 @@ function property(name, type, modifierFlags = 0) {
   });
 }
 
+function typeNode(text) {
+  return node(KindIdentifier, { Text: text });
+}
+
 function fakeInput(sourceFile, options = {}) {
   const targetNames = options.targetNames ?? new Map();
+  const runtimeCarrierFacts = options.runtimeCarrierFacts ?? new Map();
+  const declarationReturnCarriers = options.declarationReturnCarriers ?? new Map();
   return {
     ast: {
       kindName: (candidate) => String(candidate?.Kind),
@@ -236,7 +349,7 @@ function fakeInput(sourceFile, options = {}) {
       getFact: (subject, key) => key === csharpTargetNameFactKey && targetNames.has(subject)
         ? { name: targetNames.get(subject) }
         : undefined,
-      getRuntimeCarrierFact: () => undefined,
+      getRuntimeCarrierFact: (subject) => runtimeCarrierFacts.get(subject),
       getTargetBindingFact: () => undefined,
       getAttributeFact: () => undefined,
       getSourcePrimitiveFact: () => undefined,
@@ -274,14 +387,23 @@ function fakeInput(sourceFile, options = {}) {
     targetFacts: {
       getTargetBinding: () => undefined,
       getTargetBindingForReference: () => undefined,
-      resolveRuntimeCarrier: () => missingCarrierResolution(),
-      resolveRuntimeCarrierForNode: () => missingCarrierResolution(),
+      resolveRuntimeCarrier: (subject) => runtimeCarrierResolution(runtimeCarrierFacts, subject),
+      resolveRuntimeCarrierForNode: (subject) => runtimeCarrierResolution(runtimeCarrierFacts, subject),
       resolveCallReturnRuntimeCarrier: () => missingCarrierResolution(),
-      resolveDeclarationReturnCarrier: () => missingCarrierResolution(),
+      resolveDeclarationReturnCarrier: (subject) => declarationReturnCarriers.has(subject)
+        ? resolvedCarrierResolution(declarationReturnCarriers.get(subject).carrier)
+        : missingCarrierResolution(),
       resolveCallParameterRuntimeCarriers: () => missingParameterCarrierResolution(),
     },
     types: emptyTypeQueries(),
   };
+}
+
+function runtimeCarrierResolution(runtimeCarrierFacts, subject) {
+  const fact = runtimeCarrierFacts.get(subject);
+  return fact === undefined
+    ? missingCarrierResolution()
+    : resolvedCarrierResolution(fact.carrier);
 }
 
 function children(candidate) {

@@ -41,8 +41,10 @@ import {
 } from "../dist/source/csharp-facts.js";
 import {
   csharpExceptionTargetType,
+  csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
   csharpStringTargetType,
+  csharpTargetNamedType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 
 test("switch statements emit grouped Roslyn sections and deterministic fallthrough", () => {
@@ -584,6 +586,35 @@ test("throw statements require finalized throwable target carriers", () => {
   }]);
 });
 
+test("throw statements accept provider-backed exception carriers only through throwable metadata", () => {
+  const sourceExample = `
+    import { CustomException } from "@example/errors";
+    throw error;
+  `;
+  assert.match(sourceExample, /CustomException/);
+  const diagnostics = [];
+  const thrown = identifier("error");
+  const statement = throwStatement(thrown);
+  const customException = csharpTargetNamedType(
+    "Example.Errors.CustomException",
+    undefined,
+    csharpQualifiedTypeRenderShape("Example.Errors", "CustomException"),
+    { throwable: true },
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [thrown, { carrier: customException }],
+    ]),
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(output, [{
+    kind: "ThrowStatement",
+    expression: { kind: "IdentifierName", name: "error" },
+  }]);
+});
+
 test("destructuring assignment statements fail closed without ordinary assignment fallback", () => {
   const diagnostics = [];
   const arrayAssignment = expressionStatement(binaryExpression(
@@ -617,9 +648,23 @@ test("destructuring assignment statements fail closed without ordinary assignmen
 });
 
 test("try statements emit Roslyn catch and finally bodies from finalized exception facts", () => {
+  const sourceExample = `
+    try {
+      throw error;
+    } catch (caught) {
+    } finally {
+    }
+  `;
+  assert.match(sourceExample, /finally/);
   const diagnostics = [];
   const thrown = identifier("error");
   const catchName = identifier("caught");
+  const customException = csharpTargetNamedType(
+    "Example.Errors.CustomException",
+    undefined,
+    csharpQualifiedTypeRenderShape("Example.Errors", "CustomException"),
+    { throwable: true },
+  );
   const catchVariable = {
     Kind: KindVariableDeclaration,
     name: catchName,
@@ -632,8 +677,8 @@ test("try statements emit Roslyn catch and finally bodies from finalized excepti
 
   const output = planStatements(statement, sourceFile, fakeInput({
     runtimeCarrierFacts: new Map([
-      [thrown, { carrier: csharpExceptionTargetType() }],
-      [catchName, { carrier: csharpExceptionTargetType() }],
+      [thrown, { carrier: customException }],
+      [catchName, { carrier: customException }],
     ]),
   }), diagnostics, createDestructuringPlannerState());
 
@@ -651,8 +696,12 @@ test("try statements emit Roslyn catch and finally bodies from finalized excepti
       kind: "CatchClause",
       variableType: {
         kind: "QualifiedName",
-        left: { kind: "IdentifierName", name: "System" },
-        name: "Exception",
+        left: {
+          kind: "QualifiedName",
+          left: { kind: "IdentifierName", name: "Example" },
+          name: "Errors",
+        },
+        name: "CustomException",
       },
       variableName: "caught",
       body: { kind: "Block", statements: [] },
@@ -682,6 +731,39 @@ test("catch variables fail closed without finalized exception carrier facts", ()
   });
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Catch variables require finalized TSTS\/provider exception-carrier facts/);
+});
+
+test("catch variables reject finalized non-throwable carrier facts", () => {
+  const sourceExample = `
+    try {
+    } catch (message) {
+    }
+  `;
+  assert.match(sourceExample, /catch \(message\)/);
+  const diagnostics = [];
+  const catchName = identifier("message");
+  const statement = tryStatement(
+    block([]),
+    catchClause({
+      Kind: KindVariableDeclaration,
+      name: catchName,
+    }, block([])),
+    undefined,
+  );
+
+  const output = planStatements(statement, sourceFile, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [catchName, { carrier: csharpStringTargetType() }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.equal(output[0].kind, "TryStatement");
+  assert.deepEqual(output[0].catchClause, {
+    kind: "CatchClause",
+    body: { kind: "Block", statements: [] },
+  });
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /Resolved catch variable carrier is not a renderable target throwable carrier/);
 });
 
 function switchStatement(expression, clauses) {
