@@ -115,6 +115,7 @@ export function targetMemberMissEvidence(
         hasReceiver: requestContext.calleeReceiver !== undefined,
         selectedMemberId: declaration?.memberId,
         selectedSignatureId: declaration?.signatureId,
+        sourceSelectedSignatureAvailable: request.sourceSelectedSignature !== undefined,
         selectedExportName: declaration?.exportName,
         selectedMemberName: declaration?.memberName,
         selectedTargetIdentity: declaration?.targetIdentity,

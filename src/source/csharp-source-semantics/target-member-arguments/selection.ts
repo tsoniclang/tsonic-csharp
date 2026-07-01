@@ -208,12 +208,26 @@ function getCheckedExpressionTargetTypeRef(
 }
 
 function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetParameter): boolean {
-  return parameter.csharpAcceptsCheckedSourceArgument === true;
+  return parameter.csharpAcceptsCheckedSourceArgument === true ||
+    (parameter.passingMode !== "by-value" && targetParameterTypeIsSourcePrimitiveCarrier(parameter.type));
 }
 
 function targetParameterAcceptsClosedSourceArgument(parameter: CsharpTargetParameter): boolean {
   return parameter.csharpAcceptsClosedSourceArgument === true ||
     targetParameterAcceptsCheckedSourceArgument(parameter);
+}
+
+function targetParameterTypeIsSourcePrimitiveCarrier(type: CsharpTargetParameter["type"]): boolean {
+  switch (type.kind) {
+    case "source-primitive":
+      return true;
+    case "array":
+      return targetParameterTypeIsSourcePrimitiveCarrier(type.element);
+    case "tuple":
+      return type.elements.every(targetParameterTypeIsSourcePrimitiveCarrier);
+    default:
+      return false;
+  }
 }
 
 function getTargetArgumentSubjectsForMember(

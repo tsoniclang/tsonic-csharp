@@ -54,15 +54,24 @@ export function findTargetMemberForCall(
 ): CsharpTargetMember | undefined {
   const csharpBinding = csharpTargetBindingFact(binding);
   const requestContext = getCsharpCheckedCallRequestContext(request, context);
+  const checkedSourceSelection = getCheckedSourceSelectionEvidence(request.sourceSelectedSignature, declaration);
   if (declaration?.signatureId !== undefined) {
     const selectionRequest = {
       arguments: request.arguments,
       receiver: requestContext.calleeReceiver,
-      sourceSelectedSignature: request.sourceSelectedSignature,
+      sourceSelectedSignature: checkedSourceSelection,
     };
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
     if (selectedMember !== undefined) {
-      return selectExactTargetMember(
+      const exact = selectExactTargetMember(
+        selectedMember,
+        selectionRequest,
+        context,
+        resolveTargetTypeRef,
+        options,
+      );
+      return exact ?? refineSelectedTargetMemberFromOverloadGroup(
+        csharpBinding,
         selectedMember,
         selectionRequest,
         context,
@@ -97,7 +106,7 @@ export function findTargetMemberForCall(
       {
         arguments: request.arguments,
         receiver: requestContext.calleeReceiver,
-        sourceSelectedSignature: request.sourceSelectedSignature,
+        sourceSelectedSignature: checkedSourceSelection,
       },
       context,
       resolveTargetTypeRef,
@@ -111,12 +120,19 @@ export function findTargetMemberForCall(
         {
           arguments: request.arguments,
           receiver: requestContext.calleeReceiver,
-          sourceSelectedSignature: request.sourceSelectedSignature,
+          sourceSelectedSignature: checkedSourceSelection,
         },
         context,
         resolveTargetTypeRef,
         options,
       );
+}
+
+function getCheckedSourceSelectionEvidence(
+  sourceSelectedSignature: CheckedCallMappingRequest["sourceSelectedSignature"],
+  declaration: ProviderVirtualDeclarationFact | undefined,
+): unknown {
+  return sourceSelectedSignature ?? (declaration?.signatureId === undefined ? undefined : declaration);
 }
 
 export function findTargetMemberForElementAccess(
@@ -131,10 +147,21 @@ export function findTargetMemberForElementAccess(
   if (declaration?.signatureId !== undefined) {
     const selectedMember = getTargetMemberById(csharpBinding, declaration.signatureId);
     if (selectedMember !== undefined) {
-      return selectExactTargetMember(
+      const exact = selectExactTargetMember(
         selectedMember,
         {
           arguments: [request.argument],
+        },
+        context,
+        resolveTargetTypeRef,
+        options,
+      );
+      return exact ?? refineSelectedTargetMemberFromOverloadGroup(
+        csharpBinding,
+        selectedMember,
+        {
+          arguments: [request.argument],
+          sourceSelectedSignature: declaration,
         },
         context,
         resolveTargetTypeRef,
@@ -303,6 +330,26 @@ function getTargetMemberCandidatesForMemberId(
     return getTargetMemberCandidatesForSelectedMember(members, selectedMember);
   }
   return members.filter((member) => member.overloadGroup === memberId);
+}
+
+function refineSelectedTargetMemberFromOverloadGroup(
+  binding: CsharpTargetBindingFact | undefined,
+  selectedMember: CsharpTargetMember,
+  request: Parameters<typeof selectTargetMember>[1],
+  context: Parameters<typeof selectTargetMember>[2],
+  resolveTargetTypeRef: Parameters<typeof selectTargetMember>[3],
+  options: TargetMemberSelectionOptions,
+): CsharpTargetMember | undefined {
+  const candidates = getTargetMemberCandidatesForSelectedMember(binding?.members ?? [], selectedMember);
+  return candidates.length <= 1
+    ? undefined
+    : selectTargetMember(
+        candidates,
+        request,
+        context,
+        resolveTargetTypeRef,
+        options,
+      );
 }
 
 function getTargetMemberById(
