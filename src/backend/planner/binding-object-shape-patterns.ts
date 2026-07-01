@@ -15,11 +15,16 @@ import type {
 } from "../roslyn/syntax.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
+import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import { csharpTypeFromObjectShapeFact, objectShapeStorageMemberName } from "./object-shapes.js";
 import { csharpTypeFromTargetTypeRef, targetTypeRefsMatch } from "./target-types.js";
 import type { CsharpObjectShapeFact } from "../../source/csharp-facts.js";
+import {
+  getCsharpNullableElementTargetType,
+  isCsharpValueTypeTargetType,
+} from "../../source/csharp-source-semantics/target-types.js";
 import {
   csharpObjectShapeMemberLookupFailureMessage,
   resolveCsharpObjectShapeMemberByFinalizedSourceName,
@@ -34,6 +39,7 @@ export function planObjectShapeBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
+  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   const elements = AsBindingPattern(patternNode)?.Elements?.Nodes ?? [];
   const explicitlyExtractedSourceNames = collectObjectShapeExtractedSourceNames(elements, input);
@@ -41,7 +47,7 @@ export function planObjectShapeBindingPattern(
     if (elementNode === undefined) {
       return [];
     }
-    return planObjectShapeBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planObjectShapeBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
   });
 }
 
@@ -55,6 +61,7 @@ function planObjectShapeBindingElement(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
+  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   const element = AsBindingElement(elementNode);
   if (element === undefined) {
@@ -63,10 +70,6 @@ function planObjectShapeBindingElement(
   }
   if (element.DotDotDotToken !== undefined) {
     return planObjectShapeRestBindingElement(elementNode, sourceExpression, objectShape, explicitlyExtractedSourceNames, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
-  }
-  if (element.Initializer !== undefined) {
-    diagnostics.push(unsupportedNodeDiagnostic(element.Initializer, "Destructuring defaults require finalized undefined/default-value semantics before C# emission."));
-    return [];
   }
   const name = element.name;
   if (name === undefined) {
@@ -94,7 +97,57 @@ function planObjectShapeBindingElement(
     receiver: sourceExpression,
     name: member.targetName,
   };
-  return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, member.type);
+  if (element.Initializer === undefined) {
+    return planBindingNameFromProjection(name, projected, projectedType, elementNode, sourceFile, input, diagnostics, state, member.type);
+  }
+  const defaultedProjection = planObjectShapeBindingDefaultProjection(projected, member, element.Initializer, sourceFile, input, diagnostics, state, planDefaultExpressionWithExpectedType);
+  if (defaultedProjection === undefined) {
+    return [];
+  }
+  return planBindingNameFromProjection(name, defaultedProjection.expression, defaultedProjection.type, elementNode, sourceFile, input, diagnostics, state, defaultedProjection.carrier);
+}
+
+function planObjectShapeBindingDefaultProjection(
+  projected: CsharpExpression,
+  member: CsharpObjectShapeFact["members"][number],
+  initializer: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  state: DestructuringPlannerState,
+  planDefaultExpressionWithExpectedType: BindingDefaultExpressionPlanner | undefined,
+): { readonly expression: CsharpExpression; readonly type: NonNullable<ReturnType<typeof csharpTypeFromTargetTypeRef>>; readonly carrier: NonNullable<CsharpObjectShapeFact["members"][number]["type"]> } | undefined {
+  if (planDefaultExpressionWithExpectedType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(initializer, "Object destructuring defaults require the active expression planner before C# emission."));
+    return undefined;
+  }
+  const defaultCarrier = getCsharpNullableElementTargetType(member.type) ?? member.type;
+  const nullableSourceCarrier = getCsharpNullableElementTargetType(member.type);
+  if (member.optional === true && nullableSourceCarrier === undefined && isCsharpValueTypeTargetType(member.type)) {
+    diagnostics.push(unsupportedNodeDiagnostic(initializer, `Object-shape member '${member.sourceName}' default requires optional value-type members to carry a nullable target carrier before C# emission.`));
+    return undefined;
+  }
+  const defaultType = csharpTypeFromTargetTypeRef(defaultCarrier);
+  if (defaultType === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(initializer, `Object-shape member '${member.sourceName}' default requires a renderable finalized target carrier before C# emission.`));
+    return undefined;
+  }
+  const whenFalse = planDefaultExpressionWithExpectedType(initializer, sourceFile, input, diagnostics, defaultType, initializer, state);
+  if (whenFalse === undefined) {
+    return undefined;
+  }
+  return {
+    expression: nullableSourceCarrier === undefined && member.optional !== true
+      ? projected
+      : {
+          kind: "BinaryExpression",
+          left: projected,
+          operatorToken: { kind: "QuestionQuestionToken" },
+          right: whenFalse,
+        },
+    type: defaultType,
+    carrier: defaultCarrier,
+  };
 }
 
 function planObjectShapeRestBindingElement(

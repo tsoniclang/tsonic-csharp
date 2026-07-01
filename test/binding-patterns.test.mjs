@@ -16,6 +16,7 @@ import {
   csharpObjectShapeFactKey,
 } from "../dist/source/csharp-facts.js";
 import {
+  csharpNullableValueTargetType,
   csharpReadOnlyListTargetType,
 } from "../dist/source/csharp-source-semantics/target-types.js";
 import {
@@ -962,7 +963,7 @@ test("object rest destructuring rejects rest member carrier mismatches", () => {
   assert.match(diagnostics[0].message, /requires matching finalized source and rest member carriers/);
 });
 
-test("object destructuring defaults fail closed until undefined/default facts exist", () => {
+test("object destructuring defaults emit from finalized nullable object-shape member facts", () => {
   const count = identifier("count");
   const pattern = objectBindingPattern([
     bindingElement(count, { initializer: numericLiteral("1") }),
@@ -978,7 +979,57 @@ test("object destructuring defaults fail closed until undefined/default facts ex
       sourceName: "count",
       targetName: "Count",
       memberKind: "property",
-      type: { kind: "source-primitive", name: "int32" },
+      type: csharpNullableValueTargetType(int32Type()),
+      optional: true,
+    }],
+  };
+  const diagnostics = [];
+
+  const statements = planParameterBindingPrelude(
+    pattern,
+    "value",
+    sourceFile,
+    fakeInput({ objectShapes: new Map([[parameter, objectShape]]) }),
+    diagnostics,
+    createDestructuringPlannerState(),
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.deepEqual(statements, [{
+    kind: "LocalDeclarationStatement",
+    name: "count",
+    type: { kind: "PredefinedType", name: "int" },
+    initializer: {
+      kind: "BinaryExpression",
+      left: {
+        kind: "SimpleMemberAccessExpression",
+        receiver: { kind: "IdentifierName", name: "value" },
+        name: "Count",
+      },
+      operatorToken: { kind: "QuestionQuestionToken" },
+      right: { kind: "LiteralExpression", value: 1 },
+    },
+  }]);
+});
+
+test("object destructuring defaults fail closed for optional value members without nullable carrier facts", () => {
+  const count = identifier("count");
+  const pattern = objectBindingPattern([
+    bindingElement(count, { initializer: numericLiteral("1") }),
+  ]);
+  const parameter = parameterDeclaration(pattern);
+  const objectShape = {
+    targetType: {
+      kind: "target-named",
+      id: "__Shape",
+      csharpRender: { kind: "named", name: "__Shape" },
+    },
+    members: [{
+      sourceName: "count",
+      targetName: "Count",
+      memberKind: "property",
+      type: int32Type(),
+      optional: true,
     }],
   };
   const diagnostics = [];
@@ -994,7 +1045,7 @@ test("object destructuring defaults fail closed until undefined/default facts ex
 
   assert.deepEqual(statements, []);
   assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0].message, /Destructuring defaults require finalized undefined\/default-value semantics/);
+  assert.match(diagnostics[0].message, /requires optional value-type members to carry a nullable target carrier/);
 });
 
 function parameterDeclaration(name, options = {}) {

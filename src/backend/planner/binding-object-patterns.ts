@@ -9,6 +9,7 @@ import type {
 } from "../roslyn/syntax.js";
 import type { DestructuringPlannerState } from "./binding-state.js";
 import type { BindingProjectionPlanner } from "./binding-pattern-contracts.js";
+import type { BindingDefaultExpressionPlanner } from "./binding-array-patterns.js";
 import { getCsharpObjectShapeFactForNode } from "./csharp-fact-queries.js";
 import { csharpTypeFromObjectShapeFact } from "./object-shapes.js";
 import { getSemanticOwnership, pushMissingTargetFactDiagnostic } from "./semantic-guards.js";
@@ -30,11 +31,12 @@ export function planObjectBindingPattern(
   diagnostics: TargetDiagnostic[],
   state: DestructuringPlannerState,
   planBindingNameFromProjection: BindingProjectionPlanner,
+  planDefaultExpressionWithExpectedType?: BindingDefaultExpressionPlanner,
 ): readonly CsharpStatement[] {
   const objectShape = getObjectShapeForBindingSource(sourceNode, sourceFile, input);
   if (objectShape !== undefined) {
     csharpTypeFromObjectShapeFact(input, objectShape, diagnostics, patternNode);
-    return planObjectShapeBindingPattern(patternNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection);
+    return planObjectShapeBindingPattern(patternNode, sourceExpression, objectShape, sourceFile, input, diagnostics, state, planBindingNameFromProjection, planDefaultExpressionWithExpectedType);
   }
   const ownership = getSemanticOwnership(sourceNode, sourceFile, input);
   const sourceOwnedBindingElement = isSourceOwnedBindingElement(sourceNode, sourceFile, input);
