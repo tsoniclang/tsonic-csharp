@@ -39,6 +39,37 @@ test("planner renders target conversion method facts as C# AST calls", () => {
   assert.equal(printCsharpExpression(expression), "System.Convert.ToByte(true)");
 });
 
+test("planner renders generic target conversion method facts as C# AST calls", () => {
+  const value = trueKeyword();
+  const diagnostics = [];
+  const intType = { kind: "source-primitive", name: "int32" };
+  const expression = planExpression(value, {}, fakeInput({
+    conversionSubject: value,
+    conversion: {
+      convertedType: intType,
+      operation: {
+        operationId: "tsonic.csharp.compat.any.typed-boundary-cast:source:int32",
+        operationKind: "method",
+        targetOperation: "CastCompat",
+      },
+    },
+    csharpOperationSubject: value,
+    csharpOperation: {
+      kind: "member",
+      operationId: "tsonic.csharp.compat.any.typed-boundary-cast:source:int32",
+      operationKind: "method",
+      memberName: "CastCompat",
+      static: true,
+      declaringType: csharpTargetNamedType("Tsonic.CSharp.Js.TsValue", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Js", "TsValue")),
+      resultType: intType,
+      typeArguments: [intType],
+    },
+  }), diagnostics);
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(printCsharpExpression(expression), "Tsonic.CSharp.Js.TsValue.CastCompat<int>(true)");
+});
+
 test("planner leaves provider-proven identity conversions unwrapped", () => {
   const value = trueKeyword();
   const diagnostics = [];

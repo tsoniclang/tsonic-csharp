@@ -1,5 +1,6 @@
 import type {
   TargetMember,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
   CsharpTargetMemberOperationFact,
@@ -10,6 +11,9 @@ import {
   csharpQualifiedTypeRenderShape,
   csharpTargetNamedType,
 } from "./target-types.js";
+import {
+  targetTypeRefKey,
+} from "./target-ref-utils.js";
 
 export const csharpCompatRuntimeEvidence = Object.freeze([
   { message: "C# compat-runtime operation fact finalized from explicit TypeScript any carrier and compat target mode." },
@@ -78,6 +82,24 @@ export function compatAnyUnaryOperatorOperation(operator: string): CsharpTargetM
     { kind: "source-argument", index: 0 },
     { kind: "literal", value: operator },
   ], resultType);
+}
+
+export function compatAnyTypedBoundaryCastOperation(targetType: TargetTypeRef): CsharpTargetMemberOperationFact {
+  return compatRuntimeStaticMethodOperation(
+    `tsonic.csharp.compat.any.typed-boundary-cast:${targetTypeRefKey(targetType)}`,
+    "CastCompat",
+    [{ kind: "source-argument", index: 0 }],
+    targetType,
+    [targetType],
+  );
+}
+
+export function compatAnyTypedBoundaryBoxOperation(sourceType: TargetTypeRef): CsharpTargetMemberOperationFact {
+  return compatRuntimeStaticMethodOperation(
+    `tsonic.csharp.compat.any.typed-boundary-box:${targetTypeRefKey(sourceType)}`,
+    "from",
+    [{ kind: "source-argument", index: 0 }],
+  );
 }
 
 export function compatAnySelectedTargetMember(operation: CsharpTargetMemberOperationFact): TargetMember {
@@ -166,7 +188,8 @@ function compatRuntimeStaticMethodOperation(
   operationId: string,
   memberName: string,
   argumentProjection: readonly CsharpTargetOperationArgument[],
-  resultType = tsValueType,
+  resultType: TargetTypeRef = tsValueType,
+  typeArguments: readonly TargetTypeRef[] = [],
 ): CsharpTargetMemberOperationFact {
   return {
     kind: "member",
@@ -176,6 +199,7 @@ function compatRuntimeStaticMethodOperation(
     static: true,
     declaringType: tsValueType,
     resultType,
+    ...(typeArguments.length === 0 ? {} : { typeArguments }),
     argumentProjection,
   };
 }
