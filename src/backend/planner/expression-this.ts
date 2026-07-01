@@ -81,7 +81,7 @@ function classifyThisBinding(node: Node, input: TargetCompileInput): ThisBinding
       return unsupportedThis("class static block receiver");
     }
     if (HasSourceKind(input.ast, current, KindFunctionDeclaration) || HasSourceKind(input.ast, current, KindFunctionExpression)) {
-      return unsupportedThis("dynamic function receiver");
+      return unsupportedThis("runtime-bound function receiver");
     }
     if (HasSourceKind(input.ast, current, KindSourceFile)) {
       return unsupportedThis("top-level module receiver");

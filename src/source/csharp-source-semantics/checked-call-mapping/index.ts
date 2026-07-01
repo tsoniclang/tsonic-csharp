@@ -10,6 +10,8 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
+  ProviderVirtualDeclarationFact,
+  SelectedTargetSignatureFact,
   Signature,
 } from "@tsonic/tsts";
 import {
@@ -41,15 +43,20 @@ import {
 } from "../selected-target-source-signature.js";
 import {
   csharpSourceOwnedSelectedSignatureFact,
+  isCsharpSourceOwnedSelectedSignature,
 } from "../source-owned-selected-signature.js";
 import type {
   TargetMemberSelectionOptions,
+} from "../target-member-arguments/index.js";
+import {
+  getTargetArgumentConversionTypes,
 } from "../target-member-arguments/index.js";
 import {
   findUnsupportedProviderTargetMember,
 } from "../provider-unsupported-members.js";
 import {
   targetMemberIsClosed,
+  targetTypeRefEquals,
 } from "../target-ref-utils.js";
 import {
   csharpTargetMemberFact,
@@ -124,6 +131,15 @@ export function mapCsharpCheckedCall(
   }
   const existingSelectedSignature = context.facts.get(request.call, selectedTargetSignatureFactKey);
   if (existingSelectedSignature !== undefined) {
+    const existingSignatureDiagnostic = getSelectedSignatureArgumentConversionDiagnostic(
+      existingSelectedSignature,
+      request.arguments.length,
+      request.call,
+      extensionId,
+    );
+    if (existingSignatureDiagnostic !== undefined) {
+      return rejectObservation(existingSignatureDiagnostic);
+    }
     const existingSelectedMember = csharpTargetMemberFact(existingSelectedSignature.member);
     if (
       existingSelectedMember !== undefined &&
@@ -183,6 +199,23 @@ export function mapCsharpCheckedCall(
   const targetBinding = binding.target === csharpTargetId
     ? host.getCsharpTargetBindingByTargetId(binding.id) ?? binding
     : binding;
+  if (request.sourceSelectedSignature !== undefined && getVirtualDeclarationSignatureId(virtualDeclaration) === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_SELECTED_PROVIDER_SIGNATURE_NOT_PROVEN",
+      9100162,
+      `C# provider resolved target binding '${targetBinding.id}', but TSTS did not prove the selected provider signature identity for checked call '${requestContext.calleePropertyName ?? "<anonymous>"}'.`,
+      [{
+        message: "Missing selected provider signature identity",
+        details: {
+          bindingId: targetBinding.id,
+          selectedMemberId: virtualDeclaration?.memberId,
+          selectedSignatureId: virtualDeclaration?.signatureId,
+          sourceSelectedSignatureAvailable: true,
+        },
+      }],
+    ));
+  }
   const unsupportedSelectedMember = findUnsupportedProviderTargetMember(targetBinding, virtualDeclaration);
   if (getVirtualDeclarationSignatureId(virtualDeclaration) !== undefined && unsupportedSelectedMember !== undefined) {
     return rejectUnsupportedTargetMember(extensionId, targetBinding.id, unsupportedSelectedMember);
@@ -245,14 +278,111 @@ export function mapCsharpCheckedCall(
   if (csharpMember === undefined || !targetMemberIsClosed(csharpMember)) {
     return rejectObservation(csharpProviderDiagnostic(extensionId, "CSHARP_TARGET_MEMBER_NOT_RENDERABLE", 9100104, `C# provider selected '${member.id}', but no closed renderable C# target member fact could be produced from provider target identity.`));
   }
+  const sourceSelectedMember = targetMemberAsSourceSelectedSignature(csharpMember, {
+    firstArgumentReceiver: csharpMember.receiverPassing === "first-argument" && !providerStaticContainerReceiver,
+  });
+  const argumentConversions = getTargetArgumentConversionTypes(sourceSelectedMember.parameters, request.arguments.length);
+  if (argumentConversions === undefined) {
+    return rejectObservation(csharpProviderDiagnostic(
+      extensionId,
+      "CSHARP_TARGET_ARGUMENT_CONVERSIONS_NOT_PROVEN",
+      9100163,
+      `C# provider selected target member '${csharpMember.id}', but argument conversion facts could not be closed for the checked call.`,
+      [targetArgumentConversionMissEvidence(csharpMember.id, sourceSelectedMember, request.arguments.length, virtualDeclaration)],
+    ));
+  }
   recordCsharpTargetOperation(context, request.call, csharpTargetOperationFromMember(csharpMember), [{ message: "C# target call operation finalized from checked TSTS selection and provider target identity." }]);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: {
-      member: targetMemberAsSourceSelectedSignature(csharpMember, {
-        firstArgumentReceiver: csharpMember.receiverPassing === "first-argument" && !providerStaticContainerReceiver,
-      }),
+      member: sourceSelectedMember,
+      argumentConversions,
+      ...(virtualDeclaration?.signatureId === undefined ? {} : { providerDeclaration: virtualDeclaration }),
     },
   }, [{ message: "C# target call selected from checked TSTS provider declaration." }]);
+}
+
+function getSelectedSignatureArgumentConversionDiagnostic(
+  selectedSignature: SelectedTargetSignatureFact,
+  argumentCount: number,
+  call: CheckedCallMappingRequest["call"],
+  extensionId: string,
+): ReturnType<typeof csharpProviderDiagnostic> | undefined {
+  if (isCsharpSourceOwnedSelectedSignature(selectedSignature)) {
+    return undefined;
+  }
+  const expectedConversions = getTargetArgumentConversionTypes(
+    csharpTargetMemberFact(selectedSignature.member)?.parameters ?? [],
+    argumentCount,
+  );
+  if (expectedConversions === undefined || selectedSignature.argumentConversions === undefined) {
+    return {
+      ...csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_TARGET_ARGUMENT_CONVERSIONS_NOT_PROVEN",
+        9100163,
+        `C# provider selected target member '${selectedSignature.member.id}', but finalized selected-signature argument conversion facts were missing for the checked call.`,
+        [{
+          message: "Missing selected target argument conversions",
+          details: {
+            selectedMemberId: selectedSignature.member.id,
+            argumentCount,
+            parameterCount: selectedSignature.member.parameters.length,
+          },
+        }],
+      ),
+      nodeOrSpan: call,
+    };
+  }
+  if (!targetArgumentConversionsEqual(expectedConversions, selectedSignature.argumentConversions)) {
+    return {
+      ...csharpProviderDiagnostic(
+        extensionId,
+        "CSHARP_TARGET_ARGUMENT_CONVERSIONS_MISMATCH",
+        9100164,
+        `C# provider selected target member '${selectedSignature.member.id}', but finalized selected-signature argument conversion facts do not match the selected parameter facts.`,
+        [{
+          message: "Mismatched selected target argument conversions",
+          details: {
+            selectedMemberId: selectedSignature.member.id,
+            expectedConversions,
+            actualConversions: selectedSignature.argumentConversions,
+          },
+        }],
+      ),
+      nodeOrSpan: call,
+    };
+  }
+  return undefined;
+}
+
+function targetArgumentConversionsEqual(
+  expected: NonNullable<SelectedTargetSignatureFact["argumentConversions"]>,
+  actual: NonNullable<SelectedTargetSignatureFact["argumentConversions"]>,
+): boolean {
+  return expected.length === actual.length &&
+    expected.every((expectedConversion, index) => {
+      const actualConversion = actual[index];
+      return actualConversion !== undefined && targetTypeRefEquals(expectedConversion, actualConversion);
+    });
+}
+
+function targetArgumentConversionMissEvidence(
+  selectedTargetMemberId: string,
+  sourceSelectedMember: SelectedTargetSignatureFact["member"],
+  argumentCount: number,
+  virtualDeclaration: ProviderVirtualDeclarationFact | undefined,
+) {
+  return {
+    message: "C# provider selected target binding and member identity, but could not derive selected-signature argument conversions from target parameter facts.",
+    details: {
+      selectedTargetMemberId,
+      selectedSourceMemberId: sourceSelectedMember.id,
+      argumentCount,
+      parameterCount: sourceSelectedMember.parameters.length,
+      selectedMemberId: virtualDeclaration?.memberId,
+      selectedSignatureId: virtualDeclaration?.signatureId,
+    },
+  };
 }
 
 function getReceiverDeclaringTargetType(

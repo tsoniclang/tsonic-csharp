@@ -89,6 +89,10 @@ export function createCsharpNodejsProviderPackageExtension(context: TargetProvid
   };
 }
 
+export function createCsharpNodejsProviderPackageOperationsMappers(_context: TargetProviderPackageContext): readonly CsharpNodejsProviderPackageMappers[] {
+  return [createCsharpNodejsProviderPackageMappers(csharpNodejsProviderPackageExtensionId)];
+}
+
 export function createCsharpNodejsProviderPackageOperationsProvider(): TargetSemanticProvider {
   const mapper = createCsharpNodejsProviderPackageMappers(csharpNodejsProviderPackageExtensionId);
   return {

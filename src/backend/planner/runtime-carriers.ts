@@ -10,6 +10,7 @@ import {
   asNodeSubject,
 } from "../../source/fact-subjects.js";
 import {
+  sourceLocationEvidence,
   unsupportedNodeDiagnostic,
 } from "./diagnostics.js";
 
@@ -143,7 +144,10 @@ export function missingCarrierDiagnosticDetail(
   }
   return {
     reason: resolution.reason,
-    evidence: resolution.evidence.map((entry) => entry.message),
+    evidence: resolution.evidence.flatMap((entry) => [
+      entry.message,
+      ...sourceLocationEvidence(asNodeSubject(entry.subject)),
+    ]),
   };
 }
 

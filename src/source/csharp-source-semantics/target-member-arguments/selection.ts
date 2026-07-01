@@ -74,7 +74,10 @@ export function selectExactTargetMember(
     if (parameter === undefined || argument === undefined) {
       return undefined;
     }
-    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context);
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context, {
+      parameterIndex: index,
+      selectedProviderDeclaration: request.selectedProviderDeclaration,
+    });
     if (effectiveArgument === undefined) {
       return undefined;
     }
@@ -134,7 +137,10 @@ function targetMemberMatch(
     if (parameter === undefined || argument === undefined) {
       return undefined;
     }
-    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context);
+    const effectiveArgument = getEffectiveArgumentForTargetParameter(parameter, argument, context, {
+      parameterIndex: index,
+      selectedProviderDeclaration: request.selectedProviderDeclaration,
+    });
     if (effectiveArgument === undefined) {
       return undefined;
     }

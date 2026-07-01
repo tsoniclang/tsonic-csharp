@@ -6,6 +6,7 @@ export {
   createCsharpSourceSemanticsExtension,
   createCsharpJsSurfaceExtension,
   createCsharpNodejsProviderPackageExtension,
+  createCsharpNodejsProviderPackageOperationsMappers,
   nodejsProviderPackageModuleOwnership,
 } from "./source/csharp-source-semantics.js";
 export type {

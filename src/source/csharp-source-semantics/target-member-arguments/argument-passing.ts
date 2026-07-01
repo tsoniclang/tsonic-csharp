@@ -6,15 +6,26 @@ import type {
   ArgumentPassingMode,
   ExtensionFactSubject,
   ExtensionObservationContext,
+  ProviderDeclarationIdentity,
   TargetParameter,
 } from "@tsonic/tsts";
+import {
+  targetTypeRefEquals,
+} from "../target-ref-utils.js";
 
 export function getEffectiveArgumentForTargetParameter(
   parameter: TargetParameter,
   argument: ExtensionFactSubject,
   context: ExtensionObservationContext,
+  options: {
+    readonly parameterIndex?: number;
+    readonly selectedProviderDeclaration?: ProviderDeclarationIdentity;
+  } = {},
 ): { readonly subject: ExtensionFactSubject; readonly passing?: ArgumentPassingFact } | undefined {
   const passing = getArgumentPassingFact(argument, context);
+  if (passing !== undefined && !argumentPassingFactMatchesTargetParameter(parameter, passing, options)) {
+    return undefined;
+  }
   if (parameter.passingMode === "by-value") {
     return passing === undefined
       ? { subject: argument }
@@ -59,4 +70,63 @@ function getArgumentPassingFact(
 
 function argumentPassingModeMatchesTargetParameter(expected: ArgumentPassingMode, actual: ArgumentPassingMode): boolean {
   return expected === actual;
+}
+
+function argumentPassingFactMatchesTargetParameter(
+  parameter: TargetParameter,
+  passing: ArgumentPassingFact,
+  options: {
+    readonly parameterIndex?: number;
+    readonly selectedProviderDeclaration?: ProviderDeclarationIdentity;
+  },
+): boolean {
+  if (passing.parameterIndex !== undefined && options.parameterIndex !== undefined && passing.parameterIndex !== options.parameterIndex) {
+    return false;
+  }
+  if (passing.targetParameter !== undefined && !targetParameterFactsMatch(parameter, passing.targetParameter)) {
+    return false;
+  }
+  if (
+    passing.selectedSignature !== undefined &&
+    options.selectedProviderDeclaration !== undefined &&
+    !providerDeclarationIdentitiesMatch(options.selectedProviderDeclaration, passing.selectedSignature)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function targetParameterFactsMatch(expected: TargetParameter, actual: TargetParameter): boolean {
+  return expected.name === actual.name &&
+    expected.passingMode === actual.passingMode &&
+    expected.optional === actual.optional &&
+    expected.paramsArray === actual.paramsArray &&
+    targetTypeRefEquals(expected.type, actual.type);
+}
+
+function providerDeclarationIdentitiesMatch(
+  expected: ProviderDeclarationIdentity,
+  actual: ProviderDeclarationIdentity,
+): boolean {
+  return expected.providerId === actual.providerId &&
+    expected.providerVersion === actual.providerVersion &&
+    expected.providerModuleId === actual.providerModuleId &&
+    expected.moduleSpecifier === actual.moduleSpecifier &&
+    expected.virtualFileName === actual.virtualFileName &&
+    expected.exportName === actual.exportName &&
+    expected.exportId === actual.exportId &&
+    expected.memberName === actual.memberName &&
+    expected.memberId === actual.memberId &&
+    expected.signatureId === actual.signatureId &&
+    optionalTargetTypeRefEquals(expected.targetIdentity, actual.targetIdentity);
+}
+
+function optionalTargetTypeRefEquals(
+  expected: ProviderDeclarationIdentity["targetIdentity"],
+  actual: ProviderDeclarationIdentity["targetIdentity"],
+): boolean {
+  if (expected === undefined || actual === undefined) {
+    return expected === actual;
+  }
+  return targetTypeRefEquals(expected, actual);
 }

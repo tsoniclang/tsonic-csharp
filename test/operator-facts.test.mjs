@@ -769,7 +769,7 @@ test("this expression emission rejects dynamic and static receiver contexts", ()
 
   assert.equal(diagnostics.length, 5);
   assert.match(diagnostics[0].message, /static class member receiver/);
-  assert.match(diagnostics[1].message, /dynamic function receiver/);
+  assert.match(diagnostics[1].message, /runtime-bound function receiver/);
   assert.match(diagnostics[2].message, /top-level module receiver/);
   assert.match(diagnostics[3].message, /object-literal or non-class method receiver/);
   assert.match(diagnostics[4].message, /class field initializer receiver/);

@@ -9,13 +9,9 @@ import type {
 } from "@tsonic/tsts";
 import type {
   TargetProviderContext,
+  TargetProviderPackageContext,
+  TargetProviderPackageImplementation,
 } from "@tsonic/target-api";
-import {
-  csharpNodejsProviderPackageExtensionId,
-} from "../identity.js";
-import {
-  createCsharpNodejsProviderPackageMappers,
-} from "./nodejs/index.js";
 
 export interface CsharpProviderPackageOperationsMapper {
   readonly mapCheckedCall?: (
@@ -32,12 +28,24 @@ export interface CsharpProviderPackageOperationsMapper {
   ) => ExtensionObservation<CheckedOperationMappingResult>;
 }
 
+export interface CsharpProviderPackageOperationMapperContributor extends TargetProviderPackageImplementation {
+  readonly createCsharpOperationsMappers?: (
+    context: TargetProviderPackageContext,
+  ) => readonly CsharpProviderPackageOperationsMapper[];
+}
+
 export function createCsharpProviderPackageOperationsMappers(
-  context: Pick<TargetProviderContext, "selectedPackages">,
+  context: TargetProviderContext,
 ): readonly CsharpProviderPackageOperationsMapper[] {
-  return context.selectedPackages.flatMap((providerPackage) =>
-    providerPackage.id === "nodejs"
-      ? [createCsharpNodejsProviderPackageMappers(csharpNodejsProviderPackageExtensionId)]
-      : []
-  );
+  return context.selectedPackages.flatMap((providerPackage) => {
+    const contributor = providerPackage as CsharpProviderPackageOperationMapperContributor;
+    return contributor.createCsharpOperationsMappers?.({
+      project: context.project,
+      target: context.target,
+      targetPack: context.targetPack,
+      selectedPackages: context.selectedPackages,
+      selectedSurfaces: context.selectedSurfaces,
+      package: providerPackage,
+    }) ?? [];
+  });
 }
