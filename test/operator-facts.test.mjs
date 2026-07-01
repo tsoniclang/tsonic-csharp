@@ -702,12 +702,29 @@ test("await expression statement allows finalized non-generic Task carrier", () 
   const output = planExpression(expression, {}, fakeInput({
     runtimeCarrierFacts: new Map([
       [awaited, { carrier: csharpTaskTargetType(csharpVoidTargetType()) }],
+      [expression, { carrier: csharpVoidTargetType() }],
     ]),
   }), diagnostics);
 
   assert.deepEqual(diagnostics, []);
   assert.equal(output.kind, "AwaitExpression");
   assert.equal(printCsharpExpression(output), "await task");
+});
+
+test("await expression statement rejects missing void await-result carrier facts", () => {
+  const awaited = identifier("task");
+  const expression = awaitExpression(awaited);
+  const diagnostics = [];
+
+  const output = planExpression(expression, {}, fakeInput({
+    runtimeCarrierFacts: new Map([
+      [awaited, { carrier: csharpTaskTargetType(csharpVoidTargetType()) }],
+    ]),
+  }), diagnostics);
+
+  assert.equal(output, undefined);
+  assert.equal(diagnostics.length, 1);
+  assert.match(diagnostics[0].message, /await-result carrier to match the awaited Promise\/Task result carrier/);
 });
 
 test("this expression emission requires finalized instance receiver facts", () => {

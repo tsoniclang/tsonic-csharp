@@ -9,6 +9,7 @@ import type {
 import {
   asNodeSubject,
   getNodeField,
+  nodeHasModifierKind,
 } from "../ast-utils.js";
 import {
   getBinaryOperatorText,
@@ -19,6 +20,9 @@ import type {
 import {
   resolveDeclarationTypeRuntimeCarrierFact,
 } from "./declaration-propagation.js";
+import {
+  getCsharpTaskResultTargetType,
+} from "../target-types.js";
 import type {
   RuntimeCarrierLifecycleFactsContext,
 } from "./context.js";
@@ -99,8 +103,13 @@ function getEnclosingReturnRuntimeCarrierFact(
       kind === "KindGetAccessor"
     ) {
       const typeNode = asNodeSubject(getNodeField(current, "Type"));
-      return lifecycleContext.host.facts.get(typeNode, runtimeCarrierFactKey) ??
+      const declarationReturnFact = lifecycleContext.host.facts.get(typeNode, runtimeCarrierFactKey) ??
         resolveDeclarationTypeRuntimeCarrierFact(lifecycleContext, typeNode, host);
+      if (!nodeHasModifierKind(compiler.ast, current, "KindAsyncKeyword")) {
+        return declarationReturnFact;
+      }
+      const asyncResultCarrier = getCsharpTaskResultTargetType(declarationReturnFact?.carrier);
+      return asyncResultCarrier === undefined ? undefined : { carrier: asyncResultCarrier };
     }
     current = compiler.ast.parent(current);
   }

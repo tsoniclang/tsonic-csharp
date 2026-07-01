@@ -1713,6 +1713,58 @@ test("source-semantics propagates object-shape callable carriers through destruc
   assert.deepEqual(carrier.typeArguments?.map((argument) => argument.kind === "source-primitive" ? argument.name : argument.id), ["float64", "float64"]);
 });
 
+test("source-semantics records Promise/Task await result carrier facts", () => {
+  const sourceText = `
+    export async function tick(): Promise<void> {
+      return;
+    }
+
+    export async function run(): Promise<string> {
+      await tick();
+      return "done";
+    }
+  `;
+  const session = createCompilerSessionFromFiles({
+    currentDirectory: "/src",
+    files: new Map([
+      ["/src/index.ts", sourceText],
+    ]),
+    compilerOptions: {
+      module: "esnext",
+      moduleResolution: "bundler",
+    },
+    extensionHostOptions: {
+      activeTarget: "csharp",
+      extensions: csharpTestExtensions(
+        createCsharpSourceSemanticsExtension(csharpProviderContext()),
+        createCsharpTargetSemanticsExtension(csharpProviderContext()),
+      ),
+    },
+  });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const tickCall = collectCallsByCalleeText(sourceFile, session.ast, "tick")[0];
+  const awaitExpression = collectNodesByKind(sourceFile, session.ast, "KindAwaitExpression")[0];
+  const returnLiteral = collectNodesByKind(sourceFile, session.ast, "KindStringLiteral")
+    .find((node) => session.ast.text(node) === "done");
+
+  assert.ok(tickCall);
+  assert.ok(awaitExpression);
+  assert.ok(returnLiteral);
+
+  const tickCallCarrier = extensionHost.facts.get(tickCall, runtimeCarrierFactKey)?.carrier;
+  const awaitResultCarrier = extensionHost.facts.get(awaitExpression, runtimeCarrierFactKey)?.carrier;
+  const returnLiteralCarrier = extensionHost.facts.get(returnLiteral, runtimeCarrierFactKey)?.carrier;
+
+  assert.equal(tickCallCarrier?.id, "System.Threading.Tasks.Task");
+  assert.equal(tickCallCarrier?.csharpTaskResultType?.id, "System.Void");
+  assert.equal(awaitResultCarrier?.id, "System.Void");
+  assert.equal(returnLiteralCarrier?.id, "System.String");
+});
+
 test("source-semantics propagates object-shape callable carriers through parameter destructuring", () => {
   const sourceText = `
     export interface Named {

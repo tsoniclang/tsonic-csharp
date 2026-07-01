@@ -21,6 +21,9 @@ import {
   propagateCsharpExpectedRuntimeCarrierFactFromContext,
 } from "./expected-context-propagation.js";
 import {
+  recordCsharpAsyncAwaitRuntimeCarrierFacts,
+} from "./async-await.js";
+import {
   propagateCsharpRuntimeCarrierFactFromDeclarationInitializer,
 } from "./initializer-propagation.js";
 import {
@@ -74,6 +77,9 @@ export function recordCsharpRuntimeCarrierFactsBeforeFinalization(
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
     runRuntimeCarrierStage(lifecycleContext, "expected-facts", sourceFile, () => propagateRuntimeCarrierExpectedFacts(lifecycleContext, sourceFile, nodes, host));
+  }
+  for (const { sourceFile, nodes } of nodesBySourceFile) {
+    runRuntimeCarrierStage(lifecycleContext, "async-await-facts", sourceFile, () => recordCsharpAsyncAwaitRuntimeCarrierFacts(lifecycleContext, sourceFile, nodes));
   }
   for (const { sourceFile, nodes } of nodesBySourceFile) {
     runRuntimeCarrierStage(lifecycleContext, "declaration-return-facts", sourceFile, () => recordDeclarationReturnRuntimeCarrierFacts(lifecycleContext, sourceFile, nodes, host));

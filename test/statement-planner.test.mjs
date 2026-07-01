@@ -768,7 +768,10 @@ test("await expression statements emit await directly instead of assigning void 
     statement,
     sourceFile,
     fakeInput({
-      runtimeCarrierFacts: new Map([[task, { carrier: csharpTaskTargetType(csharpVoidTargetType()) }]]),
+      runtimeCarrierFacts: new Map([
+        [task, { carrier: csharpTaskTargetType(csharpVoidTargetType()) }],
+        [statement.Expression, { carrier: csharpVoidTargetType() }],
+      ]),
     }),
     diagnostics,
   );
