@@ -652,6 +652,7 @@ function csharpProviderContext(target = { id: "csharp" }) {
       targets: [target],
     },
     target,
+    selectedPackages: [],
     selectedSurfaces: [],
   };
 }

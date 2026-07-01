@@ -657,6 +657,7 @@ function csharpProviderContext(targetOptions) {
       targets: [target],
     },
     target,
+    selectedPackages: [],
     selectedSurfaces: [],
   };
 }
