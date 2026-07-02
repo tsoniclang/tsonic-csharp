@@ -388,6 +388,7 @@ test("strict-native rejects every opaque any operation even when compatibility f
     value();
     new value();
     value + 1;
+    void value;
   `, { typescriptCompatibility: "strict-native" }, [
     createTestDynamicOperationFactExtension("KindPropertyAccessExpression"),
     createTestDynamicOperationFactExtension("KindElementAccessExpression"),

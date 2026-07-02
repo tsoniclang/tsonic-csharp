@@ -200,6 +200,7 @@ const objectTargetMemberMetadata = [
       targetParameter("sources", objectTargetType, {
         paramsArray: true,
         csharpAcceptsCheckedSourceArgument: true,
+        csharpAcceptsClosedSourceArgument: true,
       }),
     ],
     returnType: jsObjectCarrierType,

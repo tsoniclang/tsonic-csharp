@@ -52,6 +52,9 @@ import {
   mapCsharpCompatRuntimeCheckedOperator,
 } from "../compat-runtime-checked-operations.js";
 import {
+  isClosedCompatRuntimeOperationFact,
+} from "../opaque-any-diagnostics/closed-compat.js";
+import {
   getBitwiseLiteralOperandTargetTypeRefs,
   getCheckedOperatorOperandTargetTypeRefs,
   getOperatorSourceFile,
@@ -85,12 +88,6 @@ export function mapCsharpCheckedOperator(
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
   }
-  const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
-  if (existingOperation !== undefined) {
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: existingOperation,
-    }, [{ message: "C# source operator reused existing finalized target operation for repeated checked-operator observation." }]);
-  }
   const existingCsharpOperation = context.factResolver.resolve(request.expression, csharpTargetOperationFactKey);
   if (existingCsharpOperation?.kind === "operator-token") {
     return acceptObservation<CheckedOperationMappingResult>({
@@ -99,8 +96,21 @@ export function mapCsharpCheckedOperator(
       }),
     }, [{ message: "C# source operator reused existing finalized C# operator-token fact for repeated checked-operator observation." }]);
   }
+  if (existingCsharpOperation?.kind === "member" && isClosedCompatRuntimeOperationFact(existingCsharpOperation)) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: targetOperation(existingCsharpOperation.operationId, "method", existingCsharpOperation.memberName, {
+        resultType: existingCsharpOperation.resultType,
+      }),
+    }, [{ message: "C# source operator reused existing finalized closed compat-runtime C# operation fact for repeated checked-operator observation." }]);
+  }
   if (existingCsharpOperation !== undefined) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' already has a finalized non-operator C# target operation.`);
+  }
+  const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
+  if (existingOperation !== undefined) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: existingOperation,
+    }, [{ message: "C# source operator reused existing finalized target operation for repeated checked-operator observation." }]);
   }
   const compatRuntimeOperator = typescriptCompatibilityMode === "compat"
     ? mapCsharpCompatRuntimeCheckedOperator(request, context)

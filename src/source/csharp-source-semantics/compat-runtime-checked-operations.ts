@@ -15,6 +15,7 @@ import type {
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
+  Type,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -42,6 +43,7 @@ import {
 import {
   targetOperation,
   recordCsharpTargetOperation,
+  recordTargetOperationFact,
 } from "./operations.js";
 import {
   getBinaryOperatorText,
@@ -49,17 +51,12 @@ import {
 import {
   isCsharpAnyRuntimeCarrier,
 } from "./target-types.js";
-import {
-  getCsharpCheckedPropertyAccessRequestContext,
-} from "./checked-member-access-request-context.js";
-
 export function mapCsharpCompatRuntimeCheckedPropertyAccess(
   request: CheckedPropertyAccessMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
 ): ExtensionObservation<CheckedOperationMappingResult> {
   if (
     !requestTargetsCsharp(request.target) ||
-    hasCheckedStaticPropertySelection(request, context) ||
     !hasOpaqueAnyCarrier(request.receiver, context)
   ) {
     return deferObservation;
@@ -91,13 +88,16 @@ export function mapCsharpCompatRuntimeCheckedCall(
   request: CheckedCallMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
 ): ExtensionObservation<CheckedCallMappingResult> {
-  if (!requestTargetsCsharp(request.target) || hasCheckedStaticCallSelection(request) || !hasOpaqueAnyCarrier(request.callee, context)) {
+  if (!requestTargetsCsharp(request.target) || !hasOpaqueAnyCarrier(request.callee, context)) {
     return deferObservation;
   }
   const operation = callExpressionIsConstruct(request.call, context)
     ? compatAnyConstructOperation(request.arguments.length)
     : compatAnyCallOperation(request.arguments.length);
   recordCsharpTargetOperation(context, request.call, operation, csharpCompatRuntimeEvidence);
+  recordTargetOperationFact(context, request.call, targetOperation(operation.operationId, operation.operationKind, operation.memberName, {
+    resultType: operation.resultType,
+  }), csharpCompatRuntimeEvidence);
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: {
       member: compatAnySelectedTargetMember(operation),
@@ -202,27 +202,16 @@ function hasOpaqueAnyCarrier(
   if (node === undefined || compiler === undefined) {
     return false;
   }
-  let type: ExtensionFactSubject | undefined;
+  let type: Type | undefined;
   try {
-    type = compiler.checker.getTypeAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) }) as ExtensionFactSubject | undefined;
+    type = compiler.checker.getTypeAtLocation(node, { sourceFile: compiler.ast.getSourceFile(node) });
   } catch {
     return false;
   }
-  return type !== undefined &&
-    isCsharpAnyRuntimeCarrier(context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier);
-}
-
-function hasCheckedStaticCallSelection(request: CheckedCallMappingRequest): boolean {
-  return request.sourceSelectedSignature !== undefined || request.sourceSelectedDeclaration !== undefined;
-}
-
-function hasCheckedStaticPropertySelection(
-  request: CheckedPropertyAccessMappingRequest,
-  context: ExtensionObservationContext<"operation.mapCheckedPropertyAccess">,
-): boolean {
-  const requestContext = getCsharpCheckedPropertyAccessRequestContext(request, context);
-  return requestContext.sourceSelectedDeclaration !== undefined ||
-    requestContext.sourceSelectedSymbol !== undefined;
+  return type !== undefined && (
+    compiler.typeShape.isAny(type) ||
+    isCsharpAnyRuntimeCarrier(context.factResolver.resolve(type, runtimeCarrierFactKey)?.carrier)
+  );
 }
 
 function requestTargetsCsharp(target: string | undefined): boolean {

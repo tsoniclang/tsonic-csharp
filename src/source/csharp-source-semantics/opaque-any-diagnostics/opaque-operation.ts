@@ -4,6 +4,7 @@ import {
 import type {
   ExtensionLifecycleContext,
   Node,
+  Type,
 } from "@tsonic/tsts";
 import {
   asNodeSubject,
@@ -98,7 +99,7 @@ function getUnaryExpressionOperand(
 function isAnyDeleteOperand(
   operand: Node | undefined,
   ast: NonNullable<ExtensionLifecycleContext["compiler"]>["ast"],
-  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
 ): boolean {
   if (operand === undefined) {
     return false;
@@ -114,10 +115,29 @@ function isAnyDeleteOperand(
 
 function hasOpaqueAnyCarrier(
   subject: Node | undefined,
-  lifecycleContext: Pick<ExtensionLifecycleContext, "host">,
+  lifecycleContext: Pick<ExtensionLifecycleContext, "host" | "compiler">,
 ): boolean {
   if (subject === undefined) {
     return false;
   }
-  return isCsharpAnyRuntimeCarrier(lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier);
+  if (
+    isCsharpAnyRuntimeCarrier(lifecycleContext.host.facts.get(subject, runtimeCarrierFactKey)?.carrier) ||
+    isCsharpAnyRuntimeCarrier(lifecycleContext.host.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier)
+  ) {
+    return true;
+  }
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return false;
+  }
+  let semanticType: Type | undefined;
+  try {
+    semanticType = compiler.checker.getTypeAtLocation(subject, { sourceFile: compiler.ast.getSourceFile(subject) });
+  } catch {
+    return false;
+  }
+  return semanticType !== undefined && (
+    compiler.typeShape.isAny(semanticType) ||
+    isCsharpAnyRuntimeCarrier(lifecycleContext.host.factResolver.resolve(semanticType, runtimeCarrierFactKey)?.carrier)
+  );
 }
