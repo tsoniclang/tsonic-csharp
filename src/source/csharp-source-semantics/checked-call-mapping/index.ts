@@ -2,6 +2,7 @@ import {
   acceptObservation,
   deferObservation,
   rejectObservation,
+  runtimeCarrierFactKey,
   selectedTargetSignatureFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -13,6 +14,7 @@ import type {
   ProviderVirtualDeclarationFact,
   SelectedTargetSignatureFact,
   Signature,
+  TargetTypeRef,
 } from "@tsonic/tsts";
 import {
   csharpTargetOperationFactKey,
@@ -56,6 +58,7 @@ import {
 } from "../provider-unsupported-members.js";
 import {
   targetMemberIsClosed,
+  targetTypeRefContainsSourcePrimitive,
   targetTypeRefEquals,
 } from "../target-ref-utils.js";
 import {
@@ -405,6 +408,11 @@ function acceptSourceOwnedCheckedCall(
     return undefined;
   }
   const returnType = getSourceOwnedCallReturnType(request, context, host);
+  if (returnType !== undefined && context.facts.get(request.call, runtimeCarrierFactKey) === undefined) {
+    context.facts.set(request.call, runtimeCarrierFactKey, { carrier: returnType }, [{
+      message: "C# source-owned call runtime carrier recorded from TSTS-selected project source declaration return facts.",
+    }]);
+  }
   return acceptObservation<CheckedCallMappingResult>({
     selectedSignature: csharpSourceOwnedSelectedSignatureFact({
       ...(request.sourceSelectedSignature === undefined ? {} : { sourceSignature: request.sourceSelectedSignature }),
@@ -419,12 +427,8 @@ function getSourceOwnedCallReturnType(
   context: ExtensionObservationContext<"operation.mapCheckedCall">,
   host: CsharpOperationsProviderHost,
 ): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
-  const directReturnType = host.getTargetTypeRefForSubject(request.sourceReturnType, context);
-  if (directReturnType !== undefined) {
-    return directReturnType;
-  }
   const checkedCallType = host.getTargetTypeRefForSubject(request.call, context, { allowSemanticTypeQuery: false });
-  if (checkedCallType !== undefined) {
+  if (isFinalizedSourceOwnedReturnCarrier(checkedCallType)) {
     return checkedCallType;
   }
   const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
@@ -434,13 +438,18 @@ function getSourceOwnedCallReturnType(
   if (annotatedReturnTargetType !== undefined) {
     return annotatedReturnTargetType;
   }
+  const directReturnType = host.getTargetTypeRefForSubject(request.sourceReturnType, context);
+  if (isFinalizedSourceOwnedReturnCarrier(directReturnType)) {
+    return directReturnType;
+  }
   const checker = context.compiler?.checker;
   if (checker === undefined || request.sourceSelectedSignature === undefined || host.getTargetTypeRefForType === undefined) {
     return undefined;
   }
   const sourceFile = signatureDeclaration === undefined ? undefined : context.compiler?.ast.getSourceFile(signatureDeclaration);
   const sourceReturnType = checker.getReturnTypeOfSignature(request.sourceSelectedSignature as Signature, { sourceFile });
-  return host.getTargetTypeRefForType(sourceReturnType, context, { sourceFile });
+  const semanticReturnType = host.getTargetTypeRefForType(sourceReturnType, context, { sourceFile });
+  return isFinalizedSourceOwnedReturnCarrier(semanticReturnType) ? semanticReturnType : undefined;
 }
 
 function getSourceOwnedCallableReturnTypeNode(
@@ -463,12 +472,28 @@ function getSourceOwnedCallableReturnTargetType(
   host: CsharpOperationsProviderHost,
 ): ReturnType<CsharpOperationsProviderHost["getTargetTypeRefForSubject"]> {
   const direct = host.getTargetTypeRefForSubject(returnTypeNode, context);
-  if (direct !== undefined || returnTypeNode === undefined || host.getTargetTypeRefForType === undefined) {
+  if (isFinalizedSourceOwnedReturnCarrier(direct, returnTypeNode, context) || returnTypeNode === undefined || host.getTargetTypeRefForType === undefined) {
     return direct;
   }
   const sourceFile = context.compiler?.ast.getSourceFile(returnTypeNode);
   const semanticType = context.compiler?.checker.getTypeFromTypeNode(returnTypeNode, { sourceFile });
-  return host.getTargetTypeRefForType(semanticType, context, { sourceFile });
+  const semantic = host.getTargetTypeRefForType(semanticType, context, { sourceFile });
+  return isFinalizedSourceOwnedReturnCarrier(semantic, returnTypeNode, context) ? semantic : undefined;
+}
+
+function isFinalizedSourceOwnedReturnCarrier(
+  carrier: TargetTypeRef | undefined,
+  returnTypeNode?: Node,
+  context?: ExtensionObservationContext<"operation.mapCheckedCall">,
+): carrier is TargetTypeRef {
+  if (carrier === undefined) {
+    return false;
+  }
+  const returnTypeKind = returnTypeNode === undefined ? undefined : context?.compiler?.ast.kindName(returnTypeNode);
+  if (returnTypeKind === "KindArrayType" && carrier.kind === "array") {
+    return false;
+  }
+  return !(returnTypeNode === undefined && carrier.kind === "array" && targetTypeRefContainsSourcePrimitive(carrier));
 }
 
 function getSourceOwnedCallDeclaration(

@@ -100,6 +100,36 @@ test("source-owned checked calls close over selected declaration return annotati
   assert.equal(result.value.selectedSignature.member.returnType, float64);
 });
 
+test("source-owned checked calls do not close raw TypeScript array annotations as native array returns", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const returnType = node("KindArrayType", sourceFile);
+  const functionDeclaration = node("KindFunctionDeclaration", sourceFile, { Type: returnType });
+  const callee = node("KindIdentifier", sourceFile);
+  const call = node("KindCallExpression", sourceFile);
+  const symbol = { Flags: 0, Name: "compose" };
+  const rawSourceArray = {
+    kind: "array",
+    element: { kind: "source-primitive", name: "int32" },
+  };
+
+  const result = sourceOwnedProvider(new Map([
+    [returnType, rawSourceArray],
+  ])).mapCheckedCall({
+    target: "csharp",
+    call,
+    callee,
+    sourceCalleeSymbol: symbol,
+    sourceSelectedDeclaration: functionDeclaration,
+    arguments: [],
+  }, fakeObservationContext({
+    declarationsBySymbol: new Map([[symbol, [functionDeclaration]]]),
+  }));
+
+  assert.equal(result.kind, "accept");
+  assert.equal(isCsharpSourceOwnedSelectedSignature(result.value.selectedSignature), true);
+  assert.equal(result.value.selectedSignature.member.returnType, undefined);
+});
+
 test("source-owned checked calls close over callable type return annotations", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const returnType = node("KindNumberKeyword", sourceFile);

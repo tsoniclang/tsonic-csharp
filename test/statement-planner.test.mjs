@@ -12,6 +12,12 @@ import {
   planStatements,
 } from "../dist/backend/planner/statements.js";
 import {
+  planLocalDeclaration,
+} from "../dist/backend/planner/locals.js";
+import {
+  printCsharpType,
+} from "../dist/print/csharp-printer.js";
+import {
   KindBlock,
   KindBreakStatement,
   KindContinueStatement,
@@ -46,6 +52,7 @@ import {
 } from "../dist/source/csharp-facts.js";
 import {
   csharpExceptionTargetType,
+  csharpListTargetType,
   csharpNullableValueTargetType,
   csharpQualifiedTypeRenderShape,
   csharpSourcePrimitiveTargetType,
@@ -91,6 +98,27 @@ test("switch statements emit grouped Roslyn sections and deterministic fallthrou
       },
     ],
   }]);
+});
+
+test("inferred local declarations use finalized initializer carrier resolution", () => {
+  const diagnostics = [];
+  const initializer = identifier("composeResult");
+  const declaration = {
+    Kind: KindVariableDeclaration,
+    name: identifier("values"),
+    Initializer: initializer,
+  };
+  const listCarrier = csharpListTargetType(csharpSourcePrimitiveTargetType("int32"));
+
+  const output = planLocalDeclaration(declaration, sourceFile, fakeInput({
+    resolvedRuntimeCarrierFacts: new Map([
+      [initializer, { carrier: listCarrier }],
+    ]),
+  }), diagnostics, createDestructuringPlannerState());
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(output.name, "values");
+  assert.equal(printCsharpType(output.type), "System.Collections.Generic.List<int>");
 });
 
 test("switch statements diagnose non-constant labels instead of inventing C# lowering", () => {

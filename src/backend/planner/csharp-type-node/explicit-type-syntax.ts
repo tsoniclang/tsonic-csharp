@@ -72,6 +72,23 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   if (arrayBoundaryType !== undefined) {
     return arrayBoundaryType;
   }
+  const directTargetType = getTargetTypeRefForNode(input, node, sourceFile);
+  if (directTargetType !== undefined) {
+    if (!targetTypePreservesSourcePrimitiveEvidence(input, node, sourceFile, directTargetType)) {
+      diagnostics?.push({
+        ...unsupportedNodeDiagnostic(
+          node,
+          "C# type emission requires transformed source-core primitive type syntax to preserve explicit target primitive evidence; backend must not collapse source-core primitives to TypeScript primitive fallbacks.",
+        ),
+        evidence: describeSourcePrimitiveEvidence(input, node, sourceFile),
+      });
+      return invalidCsharpType("source primitive type transform");
+    }
+    const directType = csharpTypeFromTargetTypeRef(directTargetType);
+    if (directType !== undefined) {
+      return directType;
+    }
+  }
   const collectionType = getCsharpTypeFromArrayOrTupleTypeNode(node, sourceFile, input, resolveCsharpType, diagnostics);
   if (collectionType !== undefined) {
     return collectionType;
@@ -91,23 +108,6 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   const typeAlias = getCsharpTypeFromTypeAliasReferenceNode(node, sourceFile, input, resolveCsharpType, diagnostics);
   if (typeAlias !== undefined) {
     return typeAlias;
-  }
-  const directTargetType = getTargetTypeRefForNode(input, node, sourceFile);
-  if (directTargetType !== undefined) {
-    if (!targetTypePreservesSourcePrimitiveEvidence(input, node, sourceFile, directTargetType)) {
-      diagnostics?.push({
-        ...unsupportedNodeDiagnostic(
-          node,
-          "C# type emission requires transformed source-core primitive type syntax to preserve explicit target primitive evidence; backend must not collapse source-core primitives to TypeScript primitive fallbacks.",
-        ),
-        evidence: describeSourcePrimitiveEvidence(input, node, sourceFile),
-      });
-      return invalidCsharpType("source primitive type transform");
-    }
-    const directType = csharpTypeFromTargetTypeRef(directTargetType);
-    if (directType !== undefined) {
-      return directType;
-    }
   }
   return getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
 }

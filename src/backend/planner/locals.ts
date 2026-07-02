@@ -4,7 +4,9 @@ import {
   AsVariableDeclaration,
   HasSourceKind,
   KindArrowFunction,
+  KindCallExpression,
   KindFunctionExpression,
+  KindNewExpression,
 } from "./source-ast.js";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
@@ -35,7 +37,7 @@ export function planLocalDeclaration(
   state: DestructuringPlannerState,
 ): CsharpLocalDeclaration {
   const variable = AsVariableDeclaration(declarationNode)!;
-  const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, input) ?? variable.name ?? variable.Initializer;
+  const typeSubject = variable.Type ?? getInitializerTypeSubject(variable.Initializer, sourceFile, input) ?? variable.name ?? variable.Initializer;
   const expectedTargetType = getTargetTypeRefForNode(input, typeSubject, sourceFile) ??
     getTargetTypeRefForNode(input, variable.name, sourceFile);
   const explicitType = variable.Type === undefined
@@ -85,6 +87,7 @@ export function planLocalDeclarationStatements(
 
 function getInitializerTypeSubject(
   initializer: Node | undefined,
+  sourceFile: SourceFile,
   input: TargetCompileInput,
 ): Node | undefined {
   if (initializer === undefined) {
@@ -98,7 +101,11 @@ function getInitializerTypeSubject(
   if (HasSourceKind(input.ast, initializer, KindArrowFunction) || HasSourceKind(input.ast, initializer, KindFunctionExpression)) {
     return initializer;
   }
+  if (HasSourceKind(input.ast, initializer, KindCallExpression) || HasSourceKind(input.ast, initializer, KindNewExpression)) {
+    return initializer;
+  }
   return input.facts.getRuntimeCarrierFact(initializer) !== undefined ||
+    input.targetFacts.resolveRuntimeCarrierForNode(initializer, { sourceFile }).kind === "resolved" ||
     input.facts.getTargetConversionFact(initializer)?.convertedType !== undefined ||
     input.facts.getFact(initializer, csharpTargetOperationFactKey) !== undefined
     ? initializer

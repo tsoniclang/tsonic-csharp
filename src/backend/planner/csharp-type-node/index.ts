@@ -83,7 +83,7 @@ export function getCsharpTypeForNode(
   if (sourceNewExpressionType !== undefined) {
     return sourceNewExpressionType;
   }
-  const sourceCallReturnType = getCsharpTypeFromResolvedSourceCallReturn(node, sourceFile, input, getCsharpTypeForNode, diagnostics);
+  const sourceCallReturnType = getCsharpTypeFromResolvedSourceCallReturn(node, sourceFile, input, diagnostics);
   if (sourceCallReturnType !== undefined) {
     return sourceCallReturnType;
   }

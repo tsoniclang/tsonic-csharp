@@ -3,6 +3,10 @@ import type {
   SourceFile,
 } from "@tsonic/tsts";
 import {
+  runtimeCarrierFactKey,
+  selectedTargetSignatureFactKey,
+} from "@tsonic/tsts";
+import {
   asNodeSubject,
   getNodeField,
   getNodeList,
@@ -272,6 +276,20 @@ function initializerHasExplicitNativeArrayTarget(
 ): boolean {
   const compiler = context.compiler;
   if (compiler?.ast.is.IsArrayLiteralExpression(initializer) === true) {
+    return false;
+  }
+  const recordedCarrier = context.host.facts.get(initializer, runtimeCarrierFactKey)?.carrier ??
+    context.host.factResolver.resolve(initializer, runtimeCarrierFactKey)?.carrier;
+  if (recordedCarrier?.kind === "array") {
+    return true;
+  }
+  const selectedReturn = context.host.facts.get(initializer, selectedTargetSignatureFactKey)?.member.returnType ??
+    context.host.factResolver.resolve(initializer, selectedTargetSignatureFactKey)?.member.returnType;
+  if (selectedReturn?.kind === "array") {
+    return true;
+  }
+  const initializerKind = compiler?.ast.kindName(initializer);
+  if (initializerKind === "KindCallExpression" || initializerKind === "KindNewExpression") {
     return false;
   }
   const targetType = host.getTargetTypeRefForSubject(initializer, context, {

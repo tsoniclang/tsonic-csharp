@@ -83,11 +83,11 @@ export function recordArrayLocalFacts(
   const evidence = [{
     message: `C# JS surface local array carrier selected from generic structural source analysis requirements: ${Array.from(local.carrierRequirements).sort().join(",") || "none"}.`,
   }];
-  for (const subject of arrayLocalFactSubjects(local)) {
+  for (const subject of arrayLocalFactSubjects(local, lifecycleContext)) {
     lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
   }
-  for (const subject of arrayLocalRuntimeCarrierSubjects(local)) {
+  for (const subject of arrayLocalRuntimeCarrierSubjects(local, lifecycleContext)) {
     lifecycleContext.host.facts.set(subject, runtimeCarrierFactKey, { carrier: boundary.coreCarrierType }, evidence);
   }
 }
@@ -136,26 +136,36 @@ function arrayRuntimeCarrierSubjects(parameter: ArrayParameterAnalysis): readonl
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
 
-function arrayLocalFactSubjects(local: ArrayLocalAnalysis): readonly ExtensionFactSubject[] {
+function arrayLocalFactSubjects(local: ArrayLocalAnalysis, lifecycleContext: LifecycleContext): readonly ExtensionFactSubject[] {
   const subjects: readonly (ExtensionFactSubject | undefined)[] = [
     local.declaration,
     local.name,
-    local.initializer,
+    arrayLiteralInitializerSubject(local, lifecycleContext),
     local.typeNode,
     local.symbol,
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }
 
-function arrayLocalRuntimeCarrierSubjects(local: ArrayLocalAnalysis): readonly ExtensionFactSubject[] {
+function arrayLocalRuntimeCarrierSubjects(local: ArrayLocalAnalysis, lifecycleContext: LifecycleContext): readonly ExtensionFactSubject[] {
   const subjects: readonly (ExtensionFactSubject | undefined)[] = [
     local.declaration,
     local.name,
-    local.initializer,
+    arrayLiteralInitializerSubject(local, lifecycleContext),
     local.typeNode,
     local.symbol,
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
+}
+
+function arrayLiteralInitializerSubject(
+  local: ArrayLocalAnalysis,
+  lifecycleContext: LifecycleContext,
+): ExtensionFactSubject | undefined {
+  const initializer = local.initializer;
+  return initializer !== undefined && lifecycleContext.compiler?.ast.is.IsArrayLiteralExpression(initializer) === true
+    ? initializer
+    : undefined;
 }
 
 function boundaryFactForLocalArray(local: ArrayLocalAnalysis): CsharpArrayBoundaryFact {

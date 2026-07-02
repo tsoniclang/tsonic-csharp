@@ -89,5 +89,5 @@ function laneForArrayRequirements(requirements: ReadonlySet<CsharpArrayCarrierRe
   if (requirements.has("sequential-read")) {
     return "native-read-sequence";
   }
-  return "native-array-required";
+  return "native-dense-mutable";
 }
