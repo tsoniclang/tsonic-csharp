@@ -80,11 +80,15 @@ test("array spread missing facts fail closed before partial C# array creation", 
     spreadElement(tail),
     numericLiteral("3"),
   ]);
+  const sourceText = "const value = [1, ...tail, 3];\n";
+  const sourceFile = sourceFileNode("/repo/src/array-spread.ts", sourceText);
+  literal.Elements.Nodes[1].Loc = span(sourceText, "...tail");
+  attachSourceFile(sourceFile, literal);
   const diagnostics = [];
 
   const planned = planArrayLiteralExpressionWithCarrier(
     literal,
-    {},
+    sourceFile,
     fakeInput({
       missingRuntimeCarrierReason: "spread operand carrier was not finalized",
       missingRuntimeCarrierEvidence: [{ message: "TSTS accepted spread syntax, but no target array carrier was recorded" }],
@@ -97,7 +101,15 @@ test("array spread missing facts fail closed before partial C# array creation", 
   assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /spread operand carrier was not finalized/);
-  assert.deepEqual(diagnostics[0].evidence, ["TSTS accepted spread syntax, but no target array carrier was recorded"]);
+  assert.ok(diagnostics[0].evidence?.includes("TSTS accepted spread syntax, but no target array carrier was recorded"));
+  assert.ok(diagnostics[0].evidence?.includes("source.span=1:19-1:26"));
+  assert.deepEqual(diagnostics[0].sourceSpan, {
+    fileName: "/repo/src/array-spread.ts",
+    line: 1,
+    column: 19,
+    endLine: 1,
+    endColumn: 26,
+  });
 });
 
 test("array spread rejects finalized carriers with mismatched element facts", () => {
@@ -216,11 +228,15 @@ test("array spread rejects non-identifier tuple operands until single-evaluation
   const literal = arrayLiteral([
     spreadElement(tail),
   ]);
+  const sourceText = "const value = [...makeTail()];\n";
+  const sourceFile = sourceFileNode("/repo/src/array-spread.ts", sourceText);
+  literal.Elements.Nodes[0].Loc = span(sourceText, "...makeTail()");
+  attachSourceFile(sourceFile, literal);
   const diagnostics = [];
 
   const planned = planArrayLiteralExpressionWithCarrier(
     literal,
-    {},
+    sourceFile,
     fakeInput({ runtimeCarriers: new Map([[tail, tupleType([int32Type(), int32Type()])]]) }),
     diagnostics,
     int32ArrayType(),
@@ -230,6 +246,14 @@ test("array spread rejects non-identifier tuple operands until single-evaluation
   assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /single-evaluation provider lowering/);
+  assert.ok(diagnostics[0].evidence?.includes("source.span=1:16-1:29"));
+  assert.deepEqual(diagnostics[0].sourceSpan, {
+    fileName: "/repo/src/array-spread.ts",
+    line: 1,
+    column: 16,
+    endLine: 1,
+    endColumn: 29,
+  });
 });
 
 test("JSArray spread rejects finalized non-JSArray carriers without treating them as missing", () => {
@@ -571,6 +595,44 @@ function omittedExpression() {
   return {
     Kind: KindOmittedExpression,
   };
+}
+
+function sourceFileNode(fileName, text) {
+  return {
+    Kind: "KindSourceFile",
+    Statements: { Nodes: [] },
+    FileName: () => fileName,
+    Text: () => text,
+    Loc: { pos: 0, end: text.length },
+  };
+}
+
+function attachSourceFile(sourceFile, root) {
+  sourceFile.Statements = { Nodes: [root] };
+  setParentRecursive(root, sourceFile);
+}
+
+function setParentRecursive(subject, parent) {
+  if (subject === undefined || subject === null || typeof subject !== "object") {
+    return;
+  }
+  subject.Parent = parent;
+  for (const child of childNodes(subject)) {
+    setParentRecursive(child, subject);
+  }
+}
+
+function childNodes(subject) {
+  return [
+    ...(subject.Elements?.Nodes ?? []),
+    subject.Expression,
+  ].filter((child) => child !== undefined);
+}
+
+function span(text, token) {
+  const pos = text.indexOf(token);
+  assert.notEqual(pos, -1, `missing token '${token}'`);
+  return { pos, end: pos + token.length };
 }
 
 const planner = {

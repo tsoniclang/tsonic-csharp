@@ -906,6 +906,10 @@ test("object spread assignments emit only from finalized source and target objec
 
 test("object spread fails closed without finalized source object-shape facts", () => {
   const spread = spreadAssignment(identifier("source"));
+  const sourceText = "const value = { ...source };\n";
+  const sourceFile = sourceFileNode("/repo/src/object-spread.ts", sourceText);
+  spread.Loc = span(sourceText, "...source");
+  attachSourceFile(sourceFile, objectLiteral([spread]));
   const diagnostics = [];
 
   const assignments = planObjectShapeSpreadAssignments(
@@ -923,7 +927,7 @@ test("object spread fails closed without finalized source object-shape facts", (
         type: { kind: "source-primitive", name: "int32" },
       }],
     },
-    {},
+    sourceFile,
     fakeInput(),
     diagnostics,
     planExpression,
@@ -932,10 +936,22 @@ test("object spread fails closed without finalized source object-shape facts", (
   assert.equal(assignments, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal spread requires finalized provider object-shape facts/);
+  assert.ok(diagnostics[0].evidence?.includes("source.span=1:17-1:26"));
+  assert.deepEqual(diagnostics[0].sourceSpan, {
+    fileName: "/repo/src/object-spread.ts",
+    line: 1,
+    column: 17,
+    endLine: 1,
+    endColumn: 26,
+  });
 });
 
 test("object spread rejects non-identifier expressions until single-evaluation facts exist", () => {
   const spread = spreadAssignment(objectLiteral([]));
+  const sourceText = "const value = { ...{} };\n";
+  const sourceFile = sourceFileNode("/repo/src/object-spread.ts", sourceText);
+  spread.Loc = span(sourceText, "...{}");
+  attachSourceFile(sourceFile, objectLiteral([spread]));
   const diagnostics = [];
 
   const assignments = planObjectShapeSpreadAssignments(
@@ -948,7 +964,7 @@ test("object spread rejects non-identifier expressions until single-evaluation f
       },
       members: [],
     },
-    {},
+    sourceFile,
     fakeInput(),
     diagnostics,
     planExpression,
@@ -957,6 +973,14 @@ test("object spread rejects non-identifier expressions until single-evaluation f
   assert.equal(assignments, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /requires a single-evaluation provider lowering/);
+  assert.ok(diagnostics[0].evidence?.includes("source.span=1:17-1:22"));
+  assert.deepEqual(diagnostics[0].sourceSpan, {
+    fileName: "/repo/src/object-spread.ts",
+    line: 1,
+    column: 17,
+    endLine: 1,
+    endColumn: 22,
+  });
 });
 
 test("object literal spread missing facts fail closed before partial C# object creation", () => {
@@ -968,10 +992,14 @@ test("object literal spread missing facts fail closed before partial C# object c
   assert.match(sourceExample, /\.\.\.source/);
 
   const source = identifier("source");
+  const sourceText = "const value: Shape = { count: 1, ...source };\n";
+  const sourceFile = sourceFileNode("/repo/src/object-spread.ts", sourceText);
   const literal = objectLiteral([
     propertyAssignment(identifier("count"), numericLiteral("1")),
     spreadAssignment(source),
   ]);
+  literal.Properties.Nodes[1].Loc = span(sourceText, "...source");
+  attachSourceFile(sourceFile, literal);
   const shape = {
     targetType: {
       kind: "target-named",
@@ -997,7 +1025,7 @@ test("object literal spread missing facts fail closed before partial C# object c
 
   const planned = planObjectLiteralExpressionWithExpectedType(
     literal,
-    {},
+    sourceFile,
     fakeInput({ objectShapes: new Map([[literal, shape]]) }),
     diagnostics,
     { kind: "IdentifierName", name: "__Shape" },
@@ -1009,6 +1037,14 @@ test("object literal spread missing facts fail closed before partial C# object c
   assert.equal(planned, undefined);
   assert.equal(diagnostics.length, 1);
   assert.match(diagnostics[0].message, /Object literal spread requires finalized provider object-shape facts/);
+  assert.ok(diagnostics[0].evidence?.includes("source.span=1:34-1:43"));
+  assert.deepEqual(diagnostics[0].sourceSpan, {
+    fileName: "/repo/src/object-spread.ts",
+    line: 1,
+    column: 34,
+    endLine: 1,
+    endColumn: 43,
+  });
 });
 
 function identifier(text) {
@@ -1108,6 +1144,50 @@ function block(statements) {
 
 function stringLiteral(text) {
   return { Kind: KindStringLiteral, Text: text };
+}
+
+function sourceFileNode(fileName, text) {
+  return {
+    Kind: "KindSourceFile",
+    Statements: { Nodes: [] },
+    FileName: () => fileName,
+    Text: () => text,
+    Loc: { pos: 0, end: text.length },
+  };
+}
+
+function attachSourceFile(sourceFile, root) {
+  sourceFile.Statements = { Nodes: [root] };
+  setParentRecursive(root, sourceFile);
+}
+
+function setParentRecursive(subject, parent) {
+  if (subject === undefined || subject === null || typeof subject !== "object") {
+    return;
+  }
+  subject.Parent = parent;
+  for (const child of childNodes(subject)) {
+    setParentRecursive(child, subject);
+  }
+}
+
+function childNodes(subject) {
+  return [
+    ...(subject.Properties?.Nodes ?? []),
+    ...(subject.Elements?.Nodes ?? []),
+    subject.Expression,
+    subject.Initializer,
+    subject.name,
+    subject.Left,
+    subject.Right,
+    subject.ArgumentExpression,
+  ].filter((child) => child !== undefined);
+}
+
+function span(text, token) {
+  const pos = text.indexOf(token);
+  assert.notEqual(pos, -1, `missing token '${token}'`);
+  return { pos, end: pos + token.length };
 }
 
 function trueKeyword() {
