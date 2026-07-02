@@ -8,6 +8,7 @@ import {
 import type {
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
+  ExtensionFactSubject,
   ExtensionObservation,
   ExtensionObservationContext,
   Node,
@@ -18,6 +19,7 @@ import type {
 } from "@tsonic/tsts";
 import {
   csharpTargetOperationFactKey,
+  csharpSourceReturnCarrierFactKey,
 } from "../../csharp-facts.js";
 import {
   csharpProviderDiagnostic,
@@ -432,11 +434,25 @@ function getSourceOwnedCallReturnType(
     return checkedCallType;
   }
   const signatureDeclaration = getSignatureDeclaration(request.sourceSelectedSignature, context);
-  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ?? signatureDeclaration ?? getUniqueCalleeDeclaration(request, context);
+  const uniqueCalleeDeclaration = getUniqueCalleeDeclaration(request, context);
+  const selectedDeclaration = asNodeSubject(request.sourceSelectedDeclaration) ?? signatureDeclaration ?? uniqueCalleeDeclaration;
   const annotatedReturnType = getSourceOwnedCallableReturnTypeNode(selectedDeclaration, context);
   const annotatedReturnTargetType = getSourceOwnedCallableReturnTargetType(annotatedReturnType, context, host);
   if (annotatedReturnTargetType !== undefined) {
     return annotatedReturnTargetType;
+  }
+  const selectedDeclarationReturnCarrier = getSourceReturnCarrierForSubjects([
+    selectedDeclaration,
+    signatureDeclaration,
+    uniqueCalleeDeclaration,
+    request.sourceCalleeSymbol,
+  ], context);
+  if (isFinalizedSourceOwnedReturnCarrier(selectedDeclarationReturnCarrier)) {
+    return selectedDeclarationReturnCarrier;
+  }
+  const finalizedReturnCarrier = getRuntimeCarrierForSubject(request.sourceReturnType, context);
+  if (isFinalizedSourceOwnedReturnCarrier(finalizedReturnCarrier)) {
+    return finalizedReturnCarrier;
   }
   const directReturnType = host.getTargetTypeRefForSubject(request.sourceReturnType, context);
   if (isFinalizedSourceOwnedReturnCarrier(directReturnType)) {
@@ -450,6 +466,34 @@ function getSourceOwnedCallReturnType(
   const sourceReturnType = checker.getReturnTypeOfSignature(request.sourceSelectedSignature as Signature, { sourceFile });
   const semanticReturnType = host.getTargetTypeRefForType(sourceReturnType, context, { sourceFile });
   return isFinalizedSourceOwnedReturnCarrier(semanticReturnType) ? semanticReturnType : undefined;
+}
+
+function getSourceReturnCarrierForSubjects(
+  subjects: readonly (ExtensionFactSubject | undefined)[],
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): TargetTypeRef | undefined {
+  for (const subject of subjects) {
+    if (subject === undefined) {
+      continue;
+    }
+    const carrier = context.facts.get(subject, csharpSourceReturnCarrierFactKey)?.carrier ??
+      context.factResolver.resolve(subject, csharpSourceReturnCarrierFactKey)?.carrier;
+    if (carrier !== undefined) {
+      return carrier;
+    }
+  }
+  return undefined;
+}
+
+function getRuntimeCarrierForSubject(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext<"operation.mapCheckedCall">,
+): TargetTypeRef | undefined {
+  if (subject === undefined) {
+    return undefined;
+  }
+  return context.facts.get(subject, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier;
 }
 
 function getSourceOwnedCallableReturnTypeNode(

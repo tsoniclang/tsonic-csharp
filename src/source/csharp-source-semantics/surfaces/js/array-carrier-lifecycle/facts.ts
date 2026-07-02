@@ -12,6 +12,7 @@ import {
 import {
   csharpArrayBoundaryFactKey,
   csharpArrayCarrierFactKey,
+  csharpSourceReturnCarrierFactKey,
 } from "../../../../csharp-facts.js";
 import type {
   CsharpArrayCarrierFact,
@@ -21,6 +22,7 @@ import {
   csharpListTargetType,
 } from "../../../target-types.js";
 import {
+  setRuntimeCarrierFactIfAbsentOrStronger,
   setRuntimeCarrierFactIfUnresolved,
 } from "../../../runtime-carrier-lifecycle/fact-writes.js";
 import {
@@ -97,8 +99,9 @@ export function recordArrayReturnFacts(
   lifecycleContext: LifecycleContext,
 ): void {
   const list = csharpListTargetType(returnType.elementType);
-  const evidence = [{ message: "C# JS surface array return boundary selected List<T> for ordinary TypeScript Array<T> return value." }];
-  lifecycleContext.host.facts.set(returnType.typeNode, csharpArrayBoundaryFactKey, {
+  const evidenceMessage = "C# JS surface array return boundary selected List<T> for ordinary TypeScript Array<T> return value.";
+  const evidence = [{ message: evidenceMessage }];
+  const boundary: CsharpArrayBoundaryFact = {
     publicShape: "List<T>",
     publicType: list,
     coreCarrierLane: "native-dense-mutable",
@@ -106,16 +109,26 @@ export function recordArrayReturnFacts(
     preservesMutationVisibility: true,
     requiresCopyIn: false,
     requiresCopyOut: false,
-  }, evidence);
-  lifecycleContext.host.facts.set(returnType.typeNode, csharpArrayCarrierFactKey, {
+  };
+  const carrier: CsharpArrayCarrierFact = {
     sourceKind: "ts-array",
     lane: "native-dense-mutable",
     elementType: returnType.elementType,
     carrierType: list,
     mutationVisibility: "caller-visible",
     boundary: "exported-api",
-  }, evidence);
-  setRuntimeCarrierFactIfUnresolved(lifecycleContext, returnType.typeNode, { carrier: list }, evidence);
+  };
+  for (const subject of arrayReturnFactSubjects(returnType)) {
+    lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
+    lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);
+    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: list }, evidenceMessage);
+  }
+  for (const subject of returnType.sourceReturnSubjects) {
+    lifecycleContext.host.facts.set(subject, csharpSourceReturnCarrierFactKey, { carrier: list }, evidence);
+  }
+  for (const subject of returnType.returnExpressions) {
+    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: list }, evidenceMessage);
+  }
 }
 
 function arrayFactSubjects(parameter: ArrayParameterAnalysis): readonly ExtensionFactSubject[] {
@@ -154,6 +167,13 @@ function arrayLocalRuntimeCarrierSubjects(local: ArrayLocalAnalysis, lifecycleCo
     arrayLiteralInitializerSubject(local, lifecycleContext),
     local.typeNode,
     local.symbol,
+  ];
+  return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
+}
+
+function arrayReturnFactSubjects(returnType: ArrayReturnAnalysis): readonly ExtensionFactSubject[] {
+  const subjects: readonly (ExtensionFactSubject | undefined)[] = [
+    returnType.typeNode,
   ];
   return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
 }

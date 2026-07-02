@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCompilerSessionFromFiles, formatDiagnostics, providerVirtualDeclarationFactKey, runtimeCarrierFactKey, selectedTargetSignatureFactKey, targetOperationFactKey } from "@tsonic/tsts";
 import { createTsonicCoreSourceExtension } from "@tsonic/source-core";
-import { csharpArrayBoundaryFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
+import { csharpArrayBoundaryFactKey, csharpSourceReturnCarrierFactKey, csharpTargetIterationFactKey, csharpTargetMutationOperationFactKey, csharpTargetOperationFactKey } from "../dist/source/csharp-facts.js";
 import {
   createCsharpJsSurfaceExtension,
   createCsharpNodejsProviderPackageExtension,
@@ -1667,6 +1667,29 @@ test("selected JS surface finalizes Array length assignment as value-producing s
   assert.equal(operation?.operationKind, "method");
   assert.equal(operation?.memberName, "setLength");
   assert.equal(operation?.resultType?.name, "int32");
+  assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
+});
+
+test("selected JS surface records inferred source-owned array return carriers on declarations", () => {
+  const session = createCsharpSession(`
+    import type { int32 } from "@tsonic/core/types.js";
+
+    export function make(value: int32) {
+      return [value, value];
+    }
+
+    const values = make(1);
+  `, { selectedSurfaces: [{ id: "js" }] });
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  assert.equal(formatDiagnostics(session.ensureChecked(sourceFile)), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const functionDeclaration = collectNodesByKind(sourceFile, session.ast, "KindFunctionDeclaration")[0];
+  const returnCarrier = extensionHost.facts.get(functionDeclaration, csharpSourceReturnCarrierFactKey)?.carrier;
+
+  assert.ok(functionDeclaration);
+  assert.equal(returnCarrier?.id, "System.Collections.Generic.List`1");
+  assert.equal(returnCarrier?.typeArguments?.[0]?.name, "float64");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).join("\n"), "");
 });
 

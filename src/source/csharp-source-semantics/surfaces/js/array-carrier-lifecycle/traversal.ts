@@ -1,6 +1,9 @@
 import type {
+  ExtensionFactSubject,
   Node,
   SourceFile,
+  TargetTypeRef,
+  Type,
 } from "@tsonic/tsts";
 import {
   runtimeCarrierFactKey,
@@ -132,19 +135,19 @@ export function collectArrayReturnTypeNodes(
       return;
     }
     const typeNode = asNodeSubject(getNodeField(node, "Type"));
-    if (typeNode === undefined) {
-      return;
-    }
-    const arrayTypeNode = getSourceArrayTypeNodeFromDeclaredType(typeNode, sourceFile, context);
-    if (arrayTypeNode === undefined) {
-      return;
-    }
-    const elementTypeNode = asNodeSubject(getNodeField(arrayTypeNode, "ElementType"));
-    const elementType = host.getTargetTypeRefForSubject(elementTypeNode, context, { allowSemanticTypeQuery: true, sourceFile });
+    const semanticType = getDeclarationReturnSemanticType(node, sourceFile, lifecycleContext);
+    const elementType = getArrayReturnElementType(typeNode, semanticType, sourceFile, context, host);
     if (elementType === undefined) {
       return;
     }
-    returns.push({ typeNode, elementType });
+    returns.push({
+      declaration: node,
+      ...(typeNode === undefined ? {} : { typeNode }),
+      ...(semanticType === undefined ? {} : { semanticType }),
+      sourceReturnSubjects: getArrayReturnSourceSubjects(node, sourceFile, lifecycleContext),
+      returnExpressions: getArrayReturnExpressionSubjects(node, lifecycleContext),
+      elementType,
+    });
   });
   return returns;
 }
@@ -275,6 +278,174 @@ function getArrayElementTypeFromLocalDeclaration(
     ? targetType.element
     : getCsharpArrayLiteralElementTargetType(targetType) ??
       getCsharpCollectionElementTargetType(targetType);
+}
+
+function getArrayReturnElementType(
+  typeNode: ReturnType<typeof asNodeSubject>,
+  semanticType: Type | undefined,
+  sourceFile: SourceFile,
+  context: ReturnType<typeof createRuntimeCarrierLifecycleObservationContext>,
+  host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
+): TargetTypeRef | undefined {
+  const compiler = context.compiler;
+  const arrayTypeNode = getSourceArrayTypeNodeFromDeclaredType(typeNode, sourceFile, context);
+  if (arrayTypeNode !== undefined && compiler !== undefined) {
+    return host.getTargetTypeRefForSubject(asNodeSubject(getNodeField(arrayTypeNode, "ElementType")), context, { allowSemanticTypeQuery: true, sourceFile });
+  }
+  if (semanticType === undefined || !isSourceStandardLibraryArrayLikeType(semanticType, context)) {
+    return undefined;
+  }
+  const targetType = host.getTargetTypeRefForSubject(semanticType, context, { allowSemanticTypeQuery: true, sourceFile });
+  return targetType?.kind === "array"
+    ? targetType.element
+    : getCsharpArrayLiteralElementTargetType(targetType) ??
+      getCsharpCollectionElementTargetType(targetType);
+}
+
+function getDeclarationReturnSemanticType(
+  declaration: Node,
+  sourceFile: SourceFile,
+  lifecycleContext: LifecycleContext,
+): Type | undefined {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return undefined;
+  }
+  const declarationType = compiler.checker.getTypeAtLocation(declaration, { sourceFile });
+  const name = compiler.ast.name(declaration);
+  const nameType = name === undefined
+    ? undefined
+    : compiler.checker.getTypeAtLocation(name, { sourceFile });
+  const symbol = name === undefined
+    ? undefined
+    : compiler.checker.getSymbolAtLocation(name, { sourceFile });
+  const resolvedSymbol = name === undefined
+    ? undefined
+    : compiler.checker.getResolvedSymbol(name, { sourceFile });
+  const symbolType = symbol === undefined
+    ? undefined
+    : compiler.checker.getTypeOfSymbol(symbol, { sourceFile });
+  const resolvedSymbolType = resolvedSymbol === undefined
+    ? undefined
+    : compiler.checker.getTypeOfSymbol(resolvedSymbol, { sourceFile });
+  const signature = compiler.typeShape.getCallSignatures(declarationType, { sourceFile })[0] ??
+    compiler.typeShape.getCallSignatures(nameType, { sourceFile })[0] ??
+    compiler.typeShape.getCallSignatures(symbolType, { sourceFile })[0] ??
+    compiler.typeShape.getCallSignatures(resolvedSymbolType, { sourceFile })[0];
+  return signature === undefined
+    ? undefined
+    : compiler.typeShape.getReturnTypeOfSignature(signature, { sourceFile });
+}
+
+function getArrayReturnSourceSubjects(
+  declaration: Node,
+  sourceFile: SourceFile,
+  lifecycleContext: LifecycleContext,
+): readonly ExtensionFactSubject[] {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return [declaration];
+  }
+  const owner = getCallableOwnerDeclaration(declaration, compiler.ast);
+  const declarationName = asNodeSubject(getNodeField(declaration, "name"));
+  const ownerName = owner === undefined
+    ? undefined
+    : asNodeSubject(getNodeField(owner, "name"));
+  const symbol =
+    getSymbolForDeclarationLookup(compiler.ast, compiler.checker, declaration, sourceFile) ??
+    getSymbolForOptionalDeclarationLookup(declarationName, sourceFile, lifecycleContext) ??
+    getSymbolForOptionalDeclarationLookup(owner, sourceFile, lifecycleContext) ??
+    getSymbolForOptionalDeclarationLookup(ownerName, sourceFile, lifecycleContext);
+  const subjects: readonly (ExtensionFactSubject | undefined)[] = [
+    declaration,
+    owner,
+    declarationName,
+    ownerName,
+    symbol,
+  ];
+  return subjects.filter((subject): subject is ExtensionFactSubject => subject !== undefined);
+}
+
+function getArrayReturnExpressionSubjects(
+  declaration: Node,
+  lifecycleContext: LifecycleContext,
+): readonly Node[] {
+  const compiler = lifecycleContext.compiler;
+  if (compiler === undefined) {
+    return [];
+  }
+  const ast = compiler.ast;
+  const body = asNodeSubject(getNodeField(declaration, "Body"));
+  const subjects: Node[] = [];
+  if (body !== undefined && ast.kindName(body) !== "KindBlock") {
+    subjects.push(body);
+  }
+  visitAstReaderNodes(ast, declaration, (node) => {
+    if (ast.kindName(node) !== "KindReturnStatement" || getNearestFunctionLikeAncestor(node, ast) !== declaration) {
+      return;
+    }
+    const expression = asNodeSubject(getNodeField(node, "Expression"));
+    if (expression !== undefined) {
+      subjects.push(expression);
+    }
+  });
+  return Array.from(new Set(subjects));
+}
+
+function getNearestFunctionLikeAncestor(
+  node: Node,
+  ast: NonNullable<LifecycleContext["compiler"]>["ast"],
+): Node | undefined {
+  for (let parent = asNodeSubject(getNodeField(node, "Parent")); parent !== undefined; parent = asNodeSubject(getNodeField(parent, "Parent"))) {
+    if (isFunctionLikeDeclaration(parent, ast)) {
+      return parent;
+    }
+  }
+  return undefined;
+}
+
+function isFunctionLikeDeclaration(
+  node: Node,
+  ast: NonNullable<LifecycleContext["compiler"]>["ast"],
+): boolean {
+  switch (ast.kindName(node)) {
+    case "KindFunctionDeclaration":
+    case "KindMethodDeclaration":
+    case "KindArrowFunction":
+    case "KindFunctionExpression":
+    case "KindGetAccessor":
+    case "KindSetAccessor":
+    case "KindConstructor":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function getSymbolForOptionalDeclarationLookup(
+  node: Node | undefined,
+  sourceFile: SourceFile,
+  lifecycleContext: LifecycleContext,
+): ReturnType<typeof getSymbolForDeclarationLookup> {
+  const compiler = lifecycleContext.compiler;
+  return compiler === undefined || node === undefined
+    ? undefined
+    : getSymbolForDeclarationLookup(compiler.ast, compiler.checker, node, sourceFile);
+}
+
+function getCallableOwnerDeclaration(
+  declaration: Node,
+  ast: NonNullable<LifecycleContext["compiler"]>["ast"],
+): Node | undefined {
+  if (ast.kindName(declaration) !== "KindArrowFunction" && ast.kindName(declaration) !== "KindFunctionExpression") {
+    return undefined;
+  }
+  const parent = asNodeSubject(getNodeField(declaration, "Parent"));
+  return ast.kindName(parent) === "KindVariableDeclaration" ||
+    ast.kindName(parent) === "KindPropertyAssignment" ||
+    ast.kindName(parent) === "KindPropertyDeclaration"
+    ? parent
+    : undefined;
 }
 
 function getSourceArrayTypeNodeFromDeclaredType(

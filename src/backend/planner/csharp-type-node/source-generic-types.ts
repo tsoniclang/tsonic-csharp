@@ -6,6 +6,7 @@ import {
   KindNewExpression,
 } from "../source-ast.js";
 import type {
+  TargetTypeRef,
   Node,
   SourceFile,
 } from "@tsonic/tsts";
@@ -35,6 +36,12 @@ import {
 import {
   getCsharpTypeFromProjectSourceReference,
 } from "../project-source-types.js";
+import {
+  isCsharpSourceOwnedSelectedSignature,
+} from "../../../source/csharp-source-semantics/source-owned-selected-signature.js";
+import {
+  csharpSourceReturnCarrierFactKey,
+} from "../../../source/csharp-facts.js";
 import type {
   CsharpTypeResolver,
 } from "./types.js";
@@ -49,9 +56,19 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
     return undefined;
   }
   const call = AsCallExpression(node)!;
+  const selectedCall = input.facts.getSelectedTargetCall(node);
   const ownership = getCallableSemanticOwnership(call.Expression, sourceFile, input);
-  if (!ownership.sourceOwned) {
+  if (!ownership.sourceOwned && !isCsharpSourceOwnedSelectedSignature(selectedCall)) {
     return undefined;
+  }
+  const sourceReturnCarrier = getSourceReturnCarrierFromSelectedDeclaration(call, sourceFile, input);
+  if (sourceReturnCarrier !== undefined) {
+    const csharpType = csharpTypeFromTargetTypeRef(sourceReturnCarrier);
+    if (csharpType === undefined) {
+      diagnostics?.push(unsupportedNodeDiagnostic(node, "Resolved source-owned declaration return carrier requires a renderable C# type before emission."));
+      return invalidCsharpType("source call return carrier");
+    }
+    return csharpType;
   }
   const carrierResolution = input.targetFacts.resolveCallReturnRuntimeCarrier(node, { sourceFile });
   const carrier = probeCarrierFromResolution(carrierResolution);
@@ -72,6 +89,26 @@ export function getCsharpTypeFromResolvedSourceCallReturn(
     detail.evidence,
   ));
   return invalidCsharpType("source call return carrier");
+}
+
+function getSourceReturnCarrierFromSelectedDeclaration(
+  call: NonNullable<ReturnType<typeof AsCallExpression>>,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): TargetTypeRef | undefined {
+  const reference = input.analysis.getProjectSourceReferenceForNode(call.Expression, { sourceFile });
+  const declaration = reference?.declaration;
+  const name = declaration === undefined ? undefined : input.ast.name(declaration);
+  for (const subject of [declaration, name, reference?.symbol]) {
+    if (subject === undefined) {
+      continue;
+    }
+    const carrier = input.facts.getFact(subject, csharpSourceReturnCarrierFactKey)?.carrier;
+    if (carrier !== undefined) {
+      return carrier;
+    }
+  }
+  return undefined;
 }
 
 export function getCsharpTypeFromSourceNewExpression(

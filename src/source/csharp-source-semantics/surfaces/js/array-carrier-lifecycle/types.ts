@@ -1,5 +1,6 @@
 import type {
   ExtensionObservationContext,
+  ExtensionFactSubject,
   Node,
   Symbol,
   TargetTypeRef,
@@ -38,7 +39,11 @@ export interface ArrayParameterAnalysis {
 }
 
 export interface ArrayReturnAnalysis {
-  readonly typeNode: Node;
+  readonly declaration: Node;
+  readonly typeNode?: Node;
+  readonly semanticType?: Type;
+  readonly sourceReturnSubjects: readonly ExtensionFactSubject[];
+  readonly returnExpressions: readonly Node[];
   readonly elementType: TargetTypeRef;
 }
 

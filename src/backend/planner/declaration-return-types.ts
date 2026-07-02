@@ -3,6 +3,9 @@ import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import { getCsharpTypeForNode, invalidCsharpType } from "./csharp-types.js";
 import { unsupportedNodeDiagnostic } from "./diagnostics.js";
 import {
+  csharpSourceReturnCarrierFactKey,
+} from "../../source/csharp-facts.js";
+import {
   getTargetTypeRefForNode,
   probeCarrierFromResolution,
   missingCarrierDiagnosticDetail,
@@ -21,6 +24,15 @@ export function getExplicitReturnType(
   diagnostics: TargetDiagnostic[],
 ): ReturnType<typeof getCsharpTypeForNode> {
   if (typeNode === undefined) {
+    const sourceReturnCarrier = input.facts.getFact(declarationNode, csharpSourceReturnCarrierFactKey)?.carrier;
+    if (sourceReturnCarrier !== undefined) {
+      const sourceReturnType = csharpTypeFromTargetTypeRef(sourceReturnCarrier);
+      if (sourceReturnType !== undefined) {
+        return sourceReturnType;
+      }
+      diagnostics.push(unsupportedNodeDiagnostic(declarationNode, `C# ${context} emission requires a renderable source-owned return carrier fact.`));
+      return invalidCsharpType(`${context} return type`);
+    }
     const returnCarrierResolution = input.targetFacts.resolveDeclarationReturnCarrier(declarationNode, { sourceFile });
     const returnCarrier = probeCarrierFromResolution(returnCarrierResolution);
     const inferred = returnCarrier === undefined ? undefined : csharpTypeFromTargetTypeRef(returnCarrier);
