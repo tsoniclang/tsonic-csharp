@@ -15,6 +15,7 @@ import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
 import { planExpression } from "../dist/backend/planner/expressions.js";
 import {
   KindIdentifier,
+  KindPropertyAccessExpression,
   KindNumericLiteral,
   KindUnionType,
 } from "../dist/backend/planner/source-ast.js";
@@ -22,7 +23,10 @@ import {
   printCsharpExpression,
   printCsharpType,
 } from "../dist/print/csharp-printer.js";
-import { csharpTargetConversionOperationFactKey } from "../dist/source/csharp-facts.js";
+import {
+  csharpTargetConversionOperationFactKey,
+  csharpTargetOperationFactKey,
+} from "../dist/source/csharp-facts.js";
 import {
   csharpQualifiedTypeRenderShape,
   csharpRuntimeUnionTargetType,
@@ -116,6 +120,40 @@ test("source semantics keeps narrowed branch carrier direct instead of union-car
   assert.ok(valueCarriers.some((carrier) => carrierKey(carrier) === "target:System.String"));
   assert.ok(valueCarriers.some((carrier) => carrierKey(carrier) === "target:Tsonic.CSharp.Runtime.Union`2"));
   assert.equal(valueCarriers.some((carrier) => /As[0-9]|__tsonic_value/.test(JSON.stringify(carrier))), false);
+});
+
+test("object-shape union property facts preserve selected declaring carriers", () => {
+  const sourceText = `
+    type Circle = { kind: "circle"; radius: number };
+    type Square = { kind: "square"; size: number };
+    type Shape = Circle | Square;
+
+    export function describe(shape: Shape): string {
+      if (shape.kind === "circle") {
+        return \`circle:\${shape.radius}\`;
+      }
+      return \`square:\${shape.size}\`;
+    }
+  `;
+  const session = createCompilerSession(sourceText);
+  const sourceFile = session.getSourceFile("/src/index.ts");
+  const diagnostics = session.ensureChecked(sourceFile);
+  assert.equal(formatDiagnostics(diagnostics), "");
+
+  const extensionHost = session.finalizeExtensions();
+  const operations = collectNodesByKind(sourceFile, session.ast, KindPropertyAccessExpression)
+    .map((node) => extensionHost.facts.get(node, csharpTargetOperationFactKey))
+    .filter((operation) => operation?.kind === "member");
+  const radius = operations.find((operation) => operation.memberName === "radius");
+  const size = operations.find((operation) => operation.memberName === "size");
+  const kind = operations.find((operation) => operation.memberName === "kind");
+
+  assert.equal(radius?.declaringType?.kind, "target-named");
+  assert.match(radius.declaringType.id, /^__TsonicShape_/);
+  assert.equal(size?.declaringType?.kind, "target-named");
+  assert.match(size.declaringType.id, /^__TsonicShape_/);
+  assert.notEqual(radius.declaringType.id, size.declaringType.id);
+  assert.equal(kind?.sourceDeclaringType !== undefined || kind?.declaringType !== undefined, true);
 });
 
 test("union type annotation emission consumes finalized runtime union carrier facts", () => {

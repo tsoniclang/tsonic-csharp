@@ -38,6 +38,7 @@ export function recordCsharpObjectShapeFactOnRuntimeCarrierSubjects(
   const sourceDeclaredStruct = isSourceDeclaredStructObjectShapeFact(objectShape);
   if (!sourceDeclaredStruct) {
     context.facts.set(request.type, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to runtime carrier type." }]);
+    context.facts.set(objectShape.targetType, csharpObjectShapeFactKey, objectShape, [{ message: "C# object-shape fact attached to finalized target carrier type." }]);
   }
   if (sourceDeclaredStruct) {
     return;

@@ -2,6 +2,9 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
+  CsharpObjectShapeFact,
+} from "../../csharp-facts.js";
+import type {
   CsharpRuntimeUnionTargetTypeRef,
   CsharpTargetNamedTypeRef,
   CsharpTaskTargetTypeRef,
@@ -22,6 +25,7 @@ export function substituteTargetTypeParameters(
       const denseMutableElementType = (type as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
       const taskResultType = (type as Partial<CsharpTaskTargetTypeRef>).csharpTaskResultType;
       const runtimeUnionArms = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionArms;
+      const runtimeUnionObjectShapes = (type as Partial<CsharpRuntimeUnionTargetTypeRef>).csharpRuntimeUnionObjectShapes;
       const delegateSignature = (type as CsharpTargetNamedTypeRef).csharpDelegateSignature;
       return {
         ...type,
@@ -47,6 +51,9 @@ export function substituteTargetTypeParameters(
         ...(runtimeUnionArms === undefined
           ? {}
           : { csharpRuntimeUnionArms: runtimeUnionArms.map((arm) => substituteTargetTypeParameters(arm, substitutions)) }),
+        ...(runtimeUnionObjectShapes === undefined
+          ? {}
+          : { csharpRuntimeUnionObjectShapes: runtimeUnionObjectShapes.map((objectShape) => substituteObjectShapeFactTargetTypeParameters(objectShape, substitutions)) }),
         ...(delegateSignature === undefined
           ? {}
           : {
@@ -76,4 +83,23 @@ export function substituteTargetTypeParameters(
     case "target-specific":
       return type;
   }
+}
+
+function substituteObjectShapeFactTargetTypeParameters(
+  objectShape: CsharpObjectShapeFact | undefined,
+  substitutions: ReadonlyMap<string, TargetTypeRef>,
+): CsharpObjectShapeFact | undefined {
+  return objectShape === undefined
+    ? undefined
+    : {
+        ...objectShape,
+        targetType: substituteTargetTypeParameters(objectShape.targetType, substitutions),
+        members: objectShape.members.map((member) => ({
+          ...member,
+          type: substituteTargetTypeParameters(member.type, substitutions),
+        })),
+        ...(objectShape.implements === undefined
+          ? {}
+          : { implements: objectShape.implements.map((implemented) => substituteTargetTypeParameters(implemented, substitutions)) }),
+      };
 }

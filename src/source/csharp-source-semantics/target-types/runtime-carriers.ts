@@ -1,4 +1,7 @@
 import type {
+  CsharpObjectShapeFact,
+} from "../../csharp-facts.js";
+import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
@@ -37,7 +40,10 @@ export function csharpRuntimeUndefinedTargetType(): TargetTypeRef {
   return csharpTargetNamedType("Tsonic.CSharp.Runtime.Undefined", undefined, csharpQualifiedTypeRenderShape("Tsonic.CSharp.Runtime", "Undefined"));
 }
 
-export function csharpRuntimeUnionTargetType(arms: readonly TargetTypeRef[]): CsharpRuntimeUnionTargetTypeRef | undefined {
+export function csharpRuntimeUnionTargetType(
+  arms: readonly TargetTypeRef[],
+  objectShapes?: readonly (CsharpObjectShapeFact | undefined)[],
+): CsharpRuntimeUnionTargetTypeRef | undefined {
   if (arms.length < 2 || arms.length > 8) {
     return undefined;
   }
@@ -52,6 +58,7 @@ export function csharpRuntimeUnionTargetType(arms: readonly TargetTypeRef[]): Cs
     typeArguments: arms,
     ...(targetType.csharpRender !== undefined ? { csharpRender: targetType.csharpRender } : {}),
     csharpRuntimeUnionArms: arms,
+    ...(objectShapes === undefined || objectShapes.every((objectShape) => objectShape === undefined) ? {} : { csharpRuntimeUnionObjectShapes: objectShapes }),
   } satisfies CsharpRuntimeUnionTargetTypeRef;
 }
 

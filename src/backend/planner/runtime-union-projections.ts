@@ -89,6 +89,29 @@ export function tryPlanRuntimeUnionTypeTest(
     : test;
 }
 
+export function tryPlanRuntimeUnionProjectionToTargetType(
+  node: Node,
+  targetType: TargetTypeRef,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+  diagnostics: TargetDiagnostic[],
+  baseExpression: CsharpExpression,
+): CsharpExpression | undefined {
+  const storageCarrier = getRuntimeUnionStorageCarrier(node, sourceFile, input);
+  if (!isCsharpRuntimeUnionTargetType(storageCarrier)) {
+    return undefined;
+  }
+  const armIndex = runtimeUnionArmIndex(storageCarrier, targetType);
+  if (armIndex === undefined) {
+    diagnostics.push(unsupportedNodeDiagnostic(
+      node,
+      "Runtime union member projection requires the selected declaring target type to match a finalized runtime-union arm.",
+    ));
+    return undefined;
+  }
+  return runtimeUnionArmProjection(baseExpression, armIndex);
+}
+
 function getRuntimeUnionStorageCarrier(
   node: Node,
   sourceFile: SourceFile,

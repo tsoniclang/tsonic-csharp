@@ -66,6 +66,7 @@ export function mapCsharpObjectShapeCheckedPropertyAccess(
   }
   const operationId = `tsonic.csharp.objectShape.${request.propertyName}`;
   recordCsharpTargetOperation(context, request.expression, csharpTargetMemberOperation(operationId, member.memberKind === "method" ? "method" : "property", member.targetName, {
+    declaringType: objectShape.targetType,
     resultType: member.type,
   }), [{ message: "C# object-shape member operation recorded from finalized structural shape fact." }]);
   return acceptObservation<CheckedOperationMappingResult>({

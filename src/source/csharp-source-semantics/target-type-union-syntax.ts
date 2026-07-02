@@ -25,11 +25,19 @@ import {
   isTstsUndefinedType,
 } from "./nullish-types.js";
 import type {
+  CsharpObjectShapeFact,
+} from "../csharp-facts.js";
+import type {
   CsharpTargetTypeResolutionHost,
 } from "./target-type-resolution.js";
 import type {
   CsharpRecursiveTargetTypeResolver,
 } from "./target-type-syntax-types.js";
+
+interface ResolvedUnionMemberTargetType {
+  readonly targetType: TargetTypeRef;
+  readonly objectShape?: CsharpObjectShapeFact;
+}
 
 export function getNullableUnionTargetTypeRefFromSyntax(
   node: Node,
@@ -44,7 +52,7 @@ export function getNullableUnionTargetTypeRefFromSyntax(
     return undefined;
   }
   const inner = resolveUnionMemberTargetType(nonNullish[0]!, context, options, host, resolver);
-  return inner === undefined ? undefined : csharpNullableTargetType(inner);
+  return inner === undefined ? undefined : csharpNullableTargetType(inner.targetType);
 }
 
 export function getRuntimeUnionTargetTypeRefFromSyntax(
@@ -62,14 +70,15 @@ export function getRuntimeUnionTargetTypeRefFromSyntax(
   if (nonNullish.length < 2) {
     return undefined;
   }
-  const memberCarriers = members.map((member) => resolveUnionMemberTargetType(member, context, options, host, resolver));
-  if (!memberCarriers.every((member): member is TargetTypeRef => member !== undefined)) {
+  const memberResults = members.map((member) => resolveUnionMemberTargetType(member, context, options, host, resolver));
+  if (!memberResults.every((member): member is ResolvedUnionMemberTargetType => member !== undefined)) {
     return undefined;
   }
+  const memberCarriers = memberResults.map((member) => member.targetType);
   if (memberCarriers.some((member, index) => memberCarriers.some((candidate, candidateIndex) => candidateIndex < index && targetTypeRefEquals(candidate, member)))) {
     return undefined;
   }
-  return csharpRuntimeUnionTargetType(memberCarriers);
+  return csharpRuntimeUnionTargetType(memberCarriers, memberResults.map((member) => member.objectShape));
 }
 
 function resolveUnionMemberTargetType(
@@ -78,21 +87,42 @@ function resolveUnionMemberTargetType(
   options: TargetTypeRefResolutionOptions,
   host: CsharpTargetTypeResolutionHost,
   resolver: CsharpRecursiveTargetTypeResolver,
-): TargetTypeRef | undefined {
+): ResolvedUnionMemberTargetType | undefined {
   const nullishCarrier = resolveNullishUnionMemberTargetType(node, context);
   if (nullishCarrier !== undefined) {
-    return nullishCarrier;
+    return { targetType: nullishCarrier };
   }
+  const objectShape = getUnionMemberObjectShape(node, context, host);
   const syntaxType = resolver.resolveSubject(node, context, options, host);
   if (syntaxType !== undefined) {
-    return syntaxType;
+    return { targetType: syntaxType, ...(objectShape === undefined ? {} : { objectShape }) };
   }
   const sourceFile = context.compiler?.ast.getSourceFile(node);
   const semanticType = sourceFile === undefined
     ? undefined
     : context.compiler?.checker.getTypeFromTypeNode(node, { sourceFile });
-  return resolver.resolveType(semanticType, context, options, host) ??
+  const semanticObjectShape = objectShape ?? host.getCsharpObjectShapeFactForSubject(semanticType, context);
+  const semanticTarget = resolver.resolveType(semanticType, context, options, host) ??
     resolver.resolveType(semanticType, context, { ...options, allowRuntimeCarrier: true }, host);
+  return semanticTarget === undefined
+    ? undefined
+    : { targetType: semanticTarget, ...(semanticObjectShape === undefined ? {} : { objectShape: semanticObjectShape }) };
+}
+
+function getUnionMemberObjectShape(
+  node: Node,
+  context: ExtensionObservationContext,
+  host: CsharpTargetTypeResolutionHost,
+): CsharpObjectShapeFact | undefined {
+  const direct = host.getCsharpObjectShapeFactForSubject(node, context);
+  if (direct !== undefined) {
+    return direct;
+  }
+  const sourceFile = context.compiler?.ast.getSourceFile(node);
+  const semanticType = sourceFile === undefined
+    ? undefined
+    : context.compiler?.checker.getTypeFromTypeNode(node, { sourceFile });
+  return host.getCsharpObjectShapeFactForSubject(semanticType, context);
 }
 
 function resolveNullishUnionMemberTargetType(

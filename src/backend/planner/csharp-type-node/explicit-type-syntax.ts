@@ -32,8 +32,8 @@ import {
   getTargetTypeRefForNode,
 } from "../runtime-carriers.js";
 import {
-  csharpTypeFromTargetTypeRef,
-} from "../target-types.js";
+  csharpTypeFromTargetTypeRefWithObjectShapeDeclarations,
+} from "../target-type-object-shapes.js";
 import {
   unsupportedNodeDiagnostic,
 } from "../diagnostics.js";
@@ -84,7 +84,7 @@ export function getCsharpTypeFromExplicitTypeSyntax(
       });
       return invalidCsharpType("source primitive type transform");
     }
-    const directType = csharpTypeFromTargetTypeRef(directTargetType);
+    const directType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, directTargetType, diagnostics, node);
     if (directType !== undefined) {
       return directType;
     }

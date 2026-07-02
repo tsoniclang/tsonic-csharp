@@ -27,6 +27,7 @@ export function recordCsharpObjectShapeFactForSubject(
   if (subject !== undefined) {
     context.facts.set(subject, csharpObjectShapeFactKey, fact, evidence);
   }
+  context.facts.set(fact.targetType, csharpObjectShapeFactKey, fact, evidence);
   for (const semanticSubject of getSemanticSubjects(subject, context)) {
     if (subjectHasSourceDeclaredStructRuntimeCarrier(semanticSubject, context) && !isSourceDeclaredStructObjectShapeFact(fact)) {
       continue;

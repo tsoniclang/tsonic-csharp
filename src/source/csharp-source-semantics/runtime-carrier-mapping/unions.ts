@@ -10,6 +10,9 @@ import type {
 import type {
   CsharpObjectShapeFact,
 } from "../../csharp-facts.js";
+import {
+  csharpObjectShapeFactKey,
+} from "../../csharp-facts.js";
 import type {
   CsharpRuntimeCarrierSemanticsHost,
 } from "../runtime-carrier-types.js";
@@ -48,14 +51,15 @@ export function getRuntimeUnionCarrier(
   if (nonNullishMembers.length < 2) {
     return undefined;
   }
-  const memberCarriers = members.map((member) => getUnionConstituentRuntimeCarrier(member, context, host)?.carrier);
-  if (!memberCarriers.every((member): member is RuntimeCarrierFactResult["carrier"] => member !== undefined)) {
+  const memberResults = members.map((member) => getUnionConstituentRuntimeCarrier(member, context, host));
+  if (!memberResults.every((member): member is CommonUnionRuntimeCarrier => member !== undefined)) {
     return undefined;
   }
+  const memberCarriers = memberResults.map((member) => member.carrier);
   if (containsDuplicateTargetCarrier(memberCarriers)) {
     return undefined;
   }
-  return csharpRuntimeUnionTargetType(memberCarriers);
+  return csharpRuntimeUnionTargetType(memberCarriers, memberResults.map((member) => member.objectShape));
 }
 
 export function getCommonNonNullishUnionRuntimeCarrier(
@@ -105,6 +109,9 @@ function getUnionConstituentRuntimeCarrier(
   const carrier = runtimeCarrier ??
     objectShape?.targetType ??
     host.getTargetTypeRefForType(type, context, { allowRuntimeCarrier: true });
+  if (objectShape !== undefined && carrier !== undefined && targetTypeRefEquals(objectShape.targetType, carrier)) {
+    context.facts.set(objectShape.targetType, csharpObjectShapeFactKey, objectShape, [{ message: "C# union constituent object-shape fact attached to finalized target carrier type." }]);
+  }
   return carrier === undefined
     ? undefined
     : {

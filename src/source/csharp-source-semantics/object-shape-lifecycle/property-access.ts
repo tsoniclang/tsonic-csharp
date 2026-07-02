@@ -88,6 +88,7 @@ export function recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(
         { resultType: member.type },
       ), [{ message: "C# object-shape property access selected from finalized structural shape fact." }]);
       lifecycleContext.host.facts.set(node, csharpTargetOperationFactKey, csharpTargetMemberOperation(operationId, member.memberKind === "method" ? "method" : "property", member.targetName, {
+        declaringType: objectShape.targetType,
         resultType: member.type,
       }), [{ message: "C# object-shape member operation recorded from finalized structural shape fact." }]);
       setRuntimeCarrierFactIfAbsent(lifecycleContext, node, { carrier: member.type }, "C# object-shape property access result carrier recorded from finalized structural shape fact.");

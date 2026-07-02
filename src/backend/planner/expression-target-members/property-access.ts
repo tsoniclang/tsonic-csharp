@@ -39,6 +39,9 @@ import {
   targetStaticMemberExpression,
 } from "../expression-selected-target-members.js";
 import {
+  tryPlanRuntimeUnionProjectionToTargetType,
+} from "../runtime-union-projections.js";
+import {
   isCsharpSourceOwnedPropertyOperation,
   csharpTargetOperationFactKey,
   csharpObjectShapeMemberLookupFailureMessage,
@@ -53,6 +56,9 @@ import {
 import {
   csharpTypeFromTargetTypeRef,
 } from "../target-types.js";
+import {
+  csharpTypeFromTargetTypeRefWithObjectShapeDeclarations,
+} from "../target-type-object-shapes.js";
 import {
   tryPlanCompatRuntimePropertyGet,
 } from "../compat-runtime-operations.js";
@@ -146,24 +152,21 @@ function planSourceOwnedPropertyAccess(
   }
   return {
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-    receiver: applySelectedSourceDeclaringReceiverCast(propertyAccess, expression.Expression!, receiver, sourceFile, input, diagnostics),
+    receiver: applySelectedDeclaringReceiverProjection(propertyAccess, expression.Expression!, receiver, getSelectedSourceOperationDeclaringType(propertyAccess, sourceFile, input), sourceFile, input, diagnostics),
     name: planIdentifierName(expression.name, "InvalidPropertyName", input, diagnostics, `Source-owned property '${sourceName}'`),
   };
 }
 
-function applySelectedSourceDeclaringReceiverCast(
+function applySelectedDeclaringReceiverProjection(
   propertyAccess: Node,
   receiverNode: Node,
   receiver: CsharpExpression,
+  operationDeclaringType: ReturnType<typeof getTargetTypeRefForNode>,
   sourceFile: SourceFile,
   input: TargetCompileInput,
   diagnostics: TargetDiagnostic[],
 ): CsharpExpression {
-  const operation = input.facts.getFact(propertyAccess, csharpTargetOperationFactKey);
-  const operationDeclaringType = operation?.kind === "member"
-    ? operation.declaringType ?? getSourceDeclaringTargetType(operation.sourceDeclaringType, sourceFile, input)
-    : undefined;
-  if (operation?.kind !== "member" || operationDeclaringType === undefined) {
+  if (operationDeclaringType === undefined) {
     return receiver;
   }
   const declaredReceiverType = getDeclaredReceiverTargetType(receiverNode, sourceFile, input);
@@ -171,7 +174,15 @@ function applySelectedSourceDeclaringReceiverCast(
   if (unwrappedDeclaredReceiverType !== undefined && targetTypeRefEquals(unwrappedDeclaredReceiverType, operationDeclaringType)) {
     return receiver;
   }
-  const castType = csharpTypeFromTargetTypeRef(operationDeclaringType);
+  const diagnosticStart = diagnostics.length;
+  const runtimeUnionProjection = tryPlanRuntimeUnionProjectionToTargetType(receiverNode, operationDeclaringType, sourceFile, input, diagnostics, receiver);
+  if (runtimeUnionProjection !== undefined) {
+    return runtimeUnionProjection;
+  }
+  if (diagnostics.length > diagnosticStart) {
+    return receiver;
+  }
+  const castType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, operationDeclaringType, diagnostics, propertyAccess);
   if (castType === undefined) {
     diagnostics.push(unsupportedNodeDiagnostic(propertyAccess, "Source-owned narrowed property access requires a renderable selected declaring target type before C# emission."));
     return receiver;
@@ -184,6 +195,17 @@ function applySelectedSourceDeclaringReceiverCast(
       expression: receiver,
     },
   };
+}
+
+function getSelectedSourceOperationDeclaringType(
+  propertyAccess: Node,
+  sourceFile: SourceFile,
+  input: TargetCompileInput,
+): ReturnType<typeof getTargetTypeRefForNode> {
+  const operation = input.facts.getFact(propertyAccess, csharpTargetOperationFactKey);
+  return operation?.kind === "member"
+    ? operation.declaringType ?? getSourceDeclaringTargetType(operation.sourceDeclaringType, sourceFile, input)
+    : undefined;
 }
 
 function getSourceDeclaringTargetType(
@@ -248,7 +270,7 @@ function planFinalizedCsharpPropertyOperation(
   }
   return {
     kind: expression.QuestionDotToken === undefined ? "SimpleMemberAccessExpression" : "ConditionalAccessExpression",
-    receiver: receiverExpression,
+    receiver: applySelectedDeclaringReceiverProjection(propertyAccess, expression.Expression!, receiverExpression, csharpOperation.declaringType, sourceFile, input, diagnostics),
     name: csharpOperation.memberName,
   };
 }

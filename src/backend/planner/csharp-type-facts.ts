@@ -25,6 +25,9 @@ import {
   csharpTypeFromTargetTypeRef,
 } from "./target-types.js";
 import {
+  csharpTypeFromTargetTypeRefWithObjectShapeDeclarations,
+} from "./target-type-object-shapes.js";
+import {
   invalidCsharpType,
   predefined,
 } from "./csharp-type-primitives.js";
@@ -52,7 +55,7 @@ export function getCsharpTypeFromSelectedTargetCall(
   if (returnType === undefined) {
     return undefined;
   }
-  const csharpType = csharpTypeFromTargetTypeRef(returnType);
+  const csharpType = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, returnType, diagnostics, node);
   if (csharpType === undefined) {
     diagnostics?.push(unsupportedNodeDiagnostic(node, "Selected target call requires a renderable return type before C# type emission."));
     return invalidCsharpType("selected target call return type");
@@ -122,7 +125,7 @@ export function getCsharpTypeForUnionTypeNode(
 ): CsharpTypeNode {
   const contextualTargetType = input.facts.getContextualTargetTypeFact(node)?.targetType;
   if (contextualTargetType !== undefined) {
-    const contextual = csharpTypeFromTargetTypeRef(contextualTargetType);
+    const contextual = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, contextualTargetType, diagnostics, node);
     if (contextual !== undefined) {
       return contextual;
     }
@@ -133,14 +136,14 @@ export function getCsharpTypeForUnionTypeNode(
   }
   const runtimeCarrier = input.facts.getRuntimeCarrierFact(node)?.carrier;
   if (runtimeCarrier !== undefined) {
-    const carrier = csharpTypeFromTargetTypeRef(runtimeCarrier);
+    const carrier = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, runtimeCarrier, diagnostics, node);
     if (carrier !== undefined) {
       return carrier;
     }
   }
   const semanticRuntimeCarrier = getTargetTypeRefForNode(input, node, sourceFile);
   if (semanticRuntimeCarrier !== undefined) {
-    const carrier = csharpTypeFromTargetTypeRef(semanticRuntimeCarrier);
+    const carrier = csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, semanticRuntimeCarrier, diagnostics, node);
     if (carrier !== undefined) {
       return carrier;
     }
@@ -217,7 +220,7 @@ export function getCsharpTypeFromRuntimeCarrier(subject: Node, input: TargetComp
     return undefined;
   }
   const carrier = getTargetTypeRefForNode(input, subject, sourceFile);
-  return carrier === undefined ? undefined : csharpTypeFromTargetTypeRef(carrier);
+  return carrier === undefined ? undefined : csharpTypeFromTargetTypeRefWithObjectShapeDeclarations(input, carrier, undefined, subject);
 }
 
 export function getCsharpTypeFromSourcePrimitiveTypeReference(

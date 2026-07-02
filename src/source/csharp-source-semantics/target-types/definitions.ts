@@ -6,6 +6,7 @@ import type {
   TargetTypeRef,
 } from "@tsonic/tsts";
 import type {
+  CsharpObjectShapeFact,
   CsharpTypeofRuntimeKind,
 } from "../../csharp-facts.js";
 
@@ -145,4 +146,5 @@ export type CsharpTaskTargetTypeRef = CsharpTargetNamedTypeRef & {
 
 export type CsharpRuntimeUnionTargetTypeRef = CsharpTargetNamedTypeRef & {
   readonly csharpRuntimeUnionArms: readonly TargetTypeRef[];
+  readonly csharpRuntimeUnionObjectShapes?: readonly (CsharpObjectShapeFact | undefined)[];
 };
