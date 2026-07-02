@@ -58,6 +58,9 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
   }
   const node = asNodeSubject(subject);
   const sourceFile = node === undefined ? undefined : compiler.ast.getSourceFile(node);
+  if (node !== undefined && objectShapeRuntimeNodeIsFunctionLike(node, compiler.ast)) {
+    return undefined;
+  }
   const semanticType = asType(subject) ??
     getSemanticTypeForObjectShapeSubject(node, context, sourceFile);
   if (semanticType === undefined ||
@@ -132,4 +135,14 @@ export function deriveCsharpObjectShapeFactForSemanticSubject(
     members: resolvedMembers,
     ...(implementsTypes === undefined ? {} : { implements: implementsTypes }),
   };
+}
+
+function objectShapeRuntimeNodeIsFunctionLike(
+  node: NonNullable<ReturnType<typeof asNodeSubject>>,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+): boolean {
+  return ast.is.IsFunctionDeclaration(node) ||
+    ast.is.IsFunctionExpression(node) ||
+    ast.is.IsArrowFunction(node) ||
+    ast.is.IsMethodDeclaration(node);
 }

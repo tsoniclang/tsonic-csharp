@@ -19,7 +19,7 @@ export interface SourceLibraryMember {
   readonly name: string;
 }
 
-export type SourceLibraryDeclaringKey = "Array" | "ReadonlyArray" | "String" | "Number" | "Boolean" | "RegExp" | "Date" | "Math" | "Promise" | "Object" | "JSON" | "Console" | "Map" | "ReadonlyMap" | "Set" | "ReadonlySet";
+export type SourceLibraryDeclaringKey = "Array" | "ReadonlyArray" | "String" | "Number" | "Boolean" | "RegExp" | "Date" | "Math" | "Promise" | "Generator" | "AsyncGenerator" | "Iterator" | "AsyncIterator" | "Iterable" | "AsyncIterable" | "IterableIterator" | "AsyncIterableIterator" | "Object" | "JSON" | "Console" | "Map" | "ReadonlyMap" | "Set" | "ReadonlySet";
 
 export type SourceLibraryTypeName = SourceLibraryDeclaringKey | "Record";
 
@@ -175,6 +175,14 @@ const sourceLibraryDeclaringNames: ReadonlySet<SourceLibraryDeclaringKey> = new 
   "Date",
   "Math",
   "Promise",
+  "Generator",
+  "AsyncGenerator",
+  "Iterator",
+  "AsyncIterator",
+  "Iterable",
+  "AsyncIterable",
+  "IterableIterator",
+  "AsyncIterableIterator",
   "Object",
   "JSON",
   "Console",

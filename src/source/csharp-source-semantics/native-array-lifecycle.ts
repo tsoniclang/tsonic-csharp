@@ -50,6 +50,7 @@ import {
 } from "./target-rules.js";
 import {
   asNativeArrayTargetType,
+  getNativeArrayReceiverType as getResolvedNativeArrayReceiverType,
 } from "./checked-member-access-mapping/lifecycle-helpers.js";
 
 type LifecycleContext = {
@@ -203,7 +204,11 @@ function getNativeArrayReceiverType(
   context: ExtensionObservationContext,
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
-  void host;
+  const semanticType = context.compiler?.checker.getTypeAtLocation(receiver, { sourceFile });
+  const resolved = getResolvedNativeArrayReceiverType(semanticType, receiver, context, host);
+  if (resolved !== undefined) {
+    return resolved;
+  }
   const boundaryCarrier = getCsharpArrayBoundaryCoreCarrierForReference(receiver, context, sourceFile);
   if (boundaryCarrier !== undefined) {
     return asNativeArrayTargetType(unwrapNullableTargetType(boundaryCarrier));

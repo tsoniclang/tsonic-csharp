@@ -1,7 +1,9 @@
 import {
+  argumentPassingFactKey,
   rejectObservation,
 } from "@tsonic/tsts";
 import type {
+  ArgumentPassingFact,
   CheckedCallMappingRequest,
   CheckedCallMappingResult,
   ExtensionEvidence,
@@ -121,10 +123,40 @@ export function targetMemberMissEvidence(
         selectedTargetIdentity: declaration?.targetIdentity,
         declaringTargetType: options.declaringTargetType,
         firstArgumentReceiver: options.firstArgumentReceiver === false ? false : options.firstArgumentReceiver !== undefined,
+        argumentPassingFacts: request.arguments.map((argument, index) => argumentPassingMissDetails(context, argument, index)),
         candidateMemberIds: (binding.members ?? []).map((candidate) => candidate.id),
       },
     },
   ];
+}
+
+function argumentPassingMissDetails(
+  context: ExtensionObservationContext,
+  argument: CheckedCallMappingRequest["arguments"][number],
+  index: number,
+): unknown {
+  const factContext = context as {
+    readonly factResolver?: ExtensionObservationContext["factResolver"];
+    readonly facts?: ExtensionObservationContext["facts"];
+  };
+  const passing = factContext.factResolver?.resolve(argument, argumentPassingFactKey) ??
+    factContext.facts?.get(argument, argumentPassingFactKey);
+  return summarizeArgumentPassingFact(passing as ArgumentPassingFact | undefined, index);
+}
+
+function summarizeArgumentPassingFact(passing: ArgumentPassingFact | undefined, index: number): unknown {
+  if (passing === undefined) {
+    return { index, present: false };
+  }
+  return {
+    index,
+    present: true,
+    mode: passing.mode,
+    parameterIndex: passing.parameterIndex,
+    targetParameter: passing.targetParameter,
+    selectedSignature: passing.selectedSignature,
+    hasTargetExpression: passing.targetExpression !== undefined,
+  };
 }
 
 export function getConstructorDeclaringTargetType(

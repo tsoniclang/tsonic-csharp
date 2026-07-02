@@ -16,6 +16,7 @@ export type SourceStandardLibraryTypeCategory =
   | "collection"
   | "date"
   | "json"
+  | "iterator"
   | "math"
   | "number"
   | "object"
@@ -108,6 +109,14 @@ const sourceStandardLibraryTypePolicies: readonly SourceStandardLibraryTypeClass
   { name: "Date", category: "date" },
   { name: "Math", category: "math" },
   { name: "Promise", category: "promise" },
+  { name: "Generator", category: "iterator" },
+  { name: "AsyncGenerator", category: "iterator" },
+  { name: "Iterator", category: "iterator" },
+  { name: "AsyncIterator", category: "iterator" },
+  { name: "Iterable", category: "iterator" },
+  { name: "AsyncIterable", category: "iterator" },
+  { name: "IterableIterator", category: "iterator" },
+  { name: "AsyncIterableIterator", category: "iterator" },
   { name: "Object", category: "object" },
   { name: "JSON", category: "json" },
   { name: "Console", category: "object" },

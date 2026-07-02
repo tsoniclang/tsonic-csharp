@@ -171,7 +171,11 @@ function applySelectedDeclaringReceiverProjection(
   }
   const declaredReceiverType = getDeclaredReceiverTargetType(receiverNode, sourceFile, input);
   const unwrappedDeclaredReceiverType = unwrapNullableTargetType(declaredReceiverType);
-  if (unwrappedDeclaredReceiverType !== undefined && targetTypeRefEquals(unwrappedDeclaredReceiverType, operationDeclaringType)) {
+  if (
+    unwrappedDeclaredReceiverType !== undefined &&
+    (targetTypeRefEquals(unwrappedDeclaredReceiverType, operationDeclaringType) ||
+      receiverSatisfiesOpenSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType))
+  ) {
     return receiver;
   }
   const diagnosticStart = diagnostics.length;
@@ -195,6 +199,26 @@ function applySelectedDeclaringReceiverProjection(
       expression: receiver,
     },
   };
+}
+
+function receiverSatisfiesOpenSelectedDeclaringType(
+  receiverType: ReturnType<typeof unwrapNullableTargetType>,
+  declaringType: ReturnType<typeof getTargetTypeRefForNode>,
+): boolean {
+  if (receiverType === undefined || declaringType === undefined) {
+    return false;
+  }
+  if (receiverType.kind === "array" && declaringType.kind === "array") {
+    return declaringType.element.kind === "type-parameter";
+  }
+  if (receiverType.kind === "target-named" && declaringType.kind === "target-named" && receiverType.id === declaringType.id) {
+    const declaringArguments = declaringType.typeArguments ?? [];
+    const receiverArguments = receiverType.typeArguments ?? [];
+    return declaringArguments.length === receiverArguments.length &&
+      declaringArguments.length > 0 &&
+      declaringArguments.every((argument) => argument.kind === "type-parameter");
+  }
+  return false;
 }
 
 function getSelectedSourceOperationDeclaringType(

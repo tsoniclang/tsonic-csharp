@@ -1918,6 +1918,87 @@ test("C# provider closes ref out and in parameter modes from selected provider m
   ]);
 });
 
+test("C# provider refines selected provider overload group from finalized byref argument facts", () => {
+  const selectedSignature = {};
+  const containerSymbol = {};
+  const call = {};
+  const refCall = {};
+  const value = {};
+  const int32 = { kind: "source-primitive", name: "int32" };
+  const int64 = { kind: "source-primitive", name: "int64" };
+  const targetType = {
+    kind: "target-named",
+    id: "Example.Target",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Target" },
+  };
+  const byValueDeclaration = {
+    ...virtualMember("Example.Target..ctor", "constructor"),
+    signatureId: "Example.Target..ctor(System.Int32,System.String)",
+    targetIdentity: targetType,
+  };
+  const byValueMember = {
+    id: byValueDeclaration.signatureId,
+    sourceName: "constructor",
+    targetName: ".ctor",
+    kind: "constructor",
+    declaringType: targetType,
+    parameters: [
+      targetParameter("value", int32),
+      targetParameterWithOptions("label", csharpStringType(), { optional: true }),
+    ],
+    overloadGroup: "Example.Target..ctor",
+  };
+  const refParameter = targetParameter("value", int64, "byref-readwrite");
+  const refMember = {
+    id: "Example.Target..ctor(ref System.Int64)",
+    sourceName: "constructor",
+    targetName: ".ctor",
+    kind: "constructor",
+    declaringType: targetType,
+    parameters: [refParameter],
+    overloadGroup: "Example.Target..ctor",
+  };
+  const binding = {
+    id: "Example.Target",
+    sourceName: "Target",
+    targetName: "Target",
+    target: "csharp",
+    kind: "class",
+    csharpRender: { kind: "named", namespace: ["Example"], name: "Target" },
+    members: [byValueMember, refMember],
+  };
+  const provider = getNativeSemanticProvider({ bindings: [binding] });
+
+  const result = provider.mapCheckedCall({
+    target: "csharp",
+    call,
+    callee: {},
+    sourceSelectedSignature: selectedSignature,
+    sourceSelectedContainerSymbol: containerSymbol,
+    arguments: [refCall],
+  }, fakeObservationContext({
+    targetBindingSubject: containerSymbol,
+    targetBinding: binding,
+    virtualSignatureSubject: selectedSignature,
+    virtualSignatureDeclaration: byValueDeclaration,
+    argumentPassingSubject: refCall,
+    argumentPassing: {
+      mode: "byref-readwrite",
+      targetExpression: value,
+    },
+    sourcePrimitiveSubject: value,
+    sourcePrimitive: {
+      kind: "int64",
+      runtimeBase: "number",
+      signed: true,
+      width: 64,
+    },
+  }));
+
+  assert.equal(result.kind, "accept", result.kind === "reject" ? result.diagnostic.message : undefined);
+  assert.equal(result.value.selectedSignature.member.id, refMember.id);
+});
+
 test("C# provider rejects argument-passing facts tied to another selected provider signature", () => {
   const selectedSignature = {};
   const containerSymbol = {};
@@ -4068,6 +4149,16 @@ function constructorMember(id, parameterType) {
       passingMode: "by-value",
     }],
     overloadGroup: "Example.Target..ctor",
+  };
+}
+
+function targetParameterWithOptions(name, type, options = {}) {
+  return {
+    name,
+    type,
+    passingMode: options.passingMode ?? "by-value",
+    ...(options.optional === true ? { optional: true } : {}),
+    ...(options.paramsArray === true ? { paramsArray: true } : {}),
   };
 }
 

@@ -66,7 +66,8 @@ export function planSelectedTargetCallArguments(
     const parameter = getTargetParameterForArgument(member.parameters, index + parameterOffset);
     const parameterTargetType = parameter?.type;
     const renderTargetType = parameter === undefined ? undefined : getTargetParameterRenderType(parameter);
-    const expectedType = renderTargetType === undefined ? undefined : getExpectedArgumentRenderType(argument, renderTargetType, input, argumentArrayLiteralElementTypes?.[index + parameterOffset]);
+    const arrayLiteralElementType = argumentArrayLiteralElementTypes?.[index + parameterOffset];
+    const expectedType = renderTargetType === undefined ? undefined : getExpectedArgumentRenderType(argument, renderTargetType, input, arrayLiteralElementType);
     const planned = planCallArgument(argument, sourceFile, input, diagnostics, expectedType, undefined, parameterTargetType, parameter?.passingMode ?? "by-value");
     if (planned === undefined) {
       return undefined;

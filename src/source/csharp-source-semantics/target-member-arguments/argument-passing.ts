@@ -83,9 +83,6 @@ function argumentPassingFactMatchesTargetParameter(
   if (passing.parameterIndex !== undefined && options.parameterIndex !== undefined && passing.parameterIndex !== options.parameterIndex) {
     return false;
   }
-  if (passing.targetParameter !== undefined && !targetParameterFactsMatch(parameter, passing.targetParameter)) {
-    return false;
-  }
   if (
     passing.selectedSignature !== undefined &&
     options.selectedProviderDeclaration !== undefined &&
@@ -93,15 +90,32 @@ function argumentPassingFactMatchesTargetParameter(
   ) {
     return false;
   }
+  if (
+    passing.targetParameter !== undefined &&
+    !targetParameterFactsMatch(parameter, passing.targetParameter) &&
+    !byValueSelectedSignatureParameterFactsAreCompatible(parameter, passing, options)
+  ) {
+    return false;
+  }
   return true;
 }
 
-function targetParameterFactsMatch(expected: TargetParameter, actual: TargetParameter): boolean {
-  return expected.name === actual.name &&
-    expected.passingMode === actual.passingMode &&
-    expected.optional === actual.optional &&
-    expected.paramsArray === actual.paramsArray &&
-    targetTypeRefEquals(expected.type, actual.type);
+function byValueSelectedSignatureParameterFactsAreCompatible(
+  parameter: TargetParameter,
+  passing: ArgumentPassingFact,
+  options: {
+    readonly selectedProviderDeclaration?: ProviderDeclarationIdentity;
+  },
+): boolean {
+  return parameter.passingMode === "by-value" &&
+    passing.mode === "by-value" &&
+    passing.selectedSignature !== undefined &&
+    options.selectedProviderDeclaration !== undefined &&
+    providerDeclarationIdentitiesMatch(options.selectedProviderDeclaration, passing.selectedSignature) &&
+    passing.targetParameter !== undefined &&
+    passing.targetParameter.passingMode === "by-value" &&
+    passing.targetParameter.optional === parameter.optional &&
+    passing.targetParameter.paramsArray === parameter.paramsArray;
 }
 
 function providerDeclarationIdentitiesMatch(
@@ -119,6 +133,14 @@ function providerDeclarationIdentitiesMatch(
     expected.memberId === actual.memberId &&
     expected.signatureId === actual.signatureId &&
     optionalTargetTypeRefEquals(expected.targetIdentity, actual.targetIdentity);
+}
+
+function targetParameterFactsMatch(expected: TargetParameter, actual: TargetParameter): boolean {
+  return expected.name === actual.name &&
+    expected.passingMode === actual.passingMode &&
+    expected.optional === actual.optional &&
+    expected.paramsArray === actual.paramsArray &&
+    targetTypeRefEquals(expected.type, actual.type);
 }
 
 function optionalTargetTypeRefEquals(

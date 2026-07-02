@@ -63,7 +63,7 @@ export function getCsharpObjectShapeFactForSubject(
   if (recorded !== undefined) {
     return recorded;
   }
-  const derived = deriveCsharpObjectShapeFactForCanonicalSubject(subject, context, host);
+  const derived = safeDeriveCsharpObjectShapeFactForCanonicalSubject(subject, context, host);
   if (derived === undefined) {
     return undefined;
   }
@@ -98,6 +98,18 @@ export function recordCsharpObjectShapeFactsBeforeFinalization(
     visitAstReaderNodes(compiler.ast, sourceFile, (node) => {
       recordObjectBindingMemberRuntimeCarriers(lifecycleContext, sourceFile, node, context, host, getCsharpObjectShapeFactForSubject);
     });
+  }
+}
+
+function safeDeriveCsharpObjectShapeFactForCanonicalSubject(
+  subject: ExtensionFactSubject | undefined,
+  context: ExtensionObservationContext,
+  host: CsharpObjectShapeSemanticsHost,
+): CsharpObjectShapeFact | undefined {
+  try {
+    return deriveCsharpObjectShapeFactForCanonicalSubject(subject, context, host);
+  } catch {
+    return undefined;
   }
 }
 

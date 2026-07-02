@@ -175,7 +175,15 @@ export function getCsharpTypeForNode(
     }
   }
   void nodeType;
-  const sourceText = input.ast.text(node);
+  const sourceText = safeNodeText(input, node);
   diagnostics?.push(unsupportedNodeDiagnostic(node, `C# emission requires a closed target type from TSTS/provider facts; backend diagnostics must not render semantic type strings as C# type evidence. Kind: ${input.ast.kindName(node)}.${sourceText.length === 0 ? "" : ` Source: ${sourceText}.`}`));
   return invalidCsharpType("unsupported semantic type");
+}
+
+function safeNodeText(input: TargetCompileInput, node: Node): string {
+  try {
+    return input.ast.text(node);
+  } catch {
+    return "";
+  }
 }

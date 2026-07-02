@@ -219,8 +219,7 @@ function targetParameterAcceptsCheckedSourceArgument(parameter: CsharpTargetPara
 }
 
 function targetParameterAcceptsClosedSourceArgument(parameter: CsharpTargetParameter): boolean {
-  return parameter.csharpAcceptsClosedSourceArgument === true ||
-    targetParameterAcceptsCheckedSourceArgument(parameter);
+  return parameter.csharpAcceptsClosedSourceArgument === true;
 }
 
 function targetParameterTypeIsSourcePrimitiveCarrier(type: CsharpTargetParameter["type"]): boolean {

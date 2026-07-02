@@ -159,14 +159,35 @@ function substituteTargetTypeRef(type: TargetTypeRef, typeArgumentMap: ReadonlyM
     case "type-parameter":
       return typeArgumentMap.get(type.name) ?? type;
     case "target-named":
+      const csharpType = type as CsharpTargetNamedTypeRef;
       return {
         ...type,
         ...(type.typeArguments !== undefined
           ? { typeArguments: type.typeArguments.map((argument) => substituteTargetTypeRef(argument, typeArgumentMap)) }
           : {}),
-        ...((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType === undefined
+        ...(csharpType.csharpArrayLiteralElementType === undefined
           ? {}
-          : { csharpArrayLiteralElementType: substituteTargetTypeRef((type as CsharpTargetNamedTypeRef).csharpArrayLiteralElementType!, typeArgumentMap) }),
+          : { csharpArrayLiteralElementType: substituteTargetTypeRef(csharpType.csharpArrayLiteralElementType, typeArgumentMap) }),
+        ...(csharpType.csharpArrayLiteralConstructionType === undefined
+          ? {}
+          : { csharpArrayLiteralConstructionType: substituteTargetTypeRef(csharpType.csharpArrayLiteralConstructionType, typeArgumentMap) }),
+        ...(csharpType.csharpEnumerableElementType === undefined
+          ? {}
+          : { csharpEnumerableElementType: substituteTargetTypeRef(csharpType.csharpEnumerableElementType, typeArgumentMap) }),
+        ...(csharpType.csharpReadOnlyIndexableElementType === undefined
+          ? {}
+          : { csharpReadOnlyIndexableElementType: substituteTargetTypeRef(csharpType.csharpReadOnlyIndexableElementType, typeArgumentMap) }),
+        ...(csharpType.csharpDenseMutableElementType === undefined
+          ? {}
+          : { csharpDenseMutableElementType: substituteTargetTypeRef(csharpType.csharpDenseMutableElementType, typeArgumentMap) }),
+        ...(csharpType.csharpDelegateSignature === undefined
+          ? {}
+          : {
+              csharpDelegateSignature: {
+                parameters: csharpType.csharpDelegateSignature.parameters.map((parameter) => substituteTargetTypeRef(parameter, typeArgumentMap)),
+                returnType: substituteTargetTypeRef(csharpType.csharpDelegateSignature.returnType, typeArgumentMap),
+              },
+            }),
       };
     case "array":
       return { ...type, element: substituteTargetTypeRef(type.element, typeArgumentMap) };
