@@ -201,6 +201,52 @@ test("nullish coalescing result uses nullable-left target type before expression
   assert.deepEqual(context.writes[0].value.resultType, charType);
 });
 
+test("checked numeric arithmetic widens finalized operator result facts from operand carriers", () => {
+  const left = identifier("left");
+  const right = identifier("right");
+  const expression = binary(left, right);
+  const intType = csharpSourcePrimitiveTargetType("int32");
+  const doubleType = csharpSourcePrimitiveTargetType("float64");
+  const context = fakeObservationContext();
+  const result = mapCsharpCheckedOperator({
+    expression,
+    operator: "+",
+    left,
+    right,
+    target: "csharp",
+  }, context, fakeOperatorHostWithSubjects(new Map([
+    [left, intType],
+    [right, doubleType],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.operation.resultType, doubleType);
+  assert.equal(context.writes.length, 1);
+  assert.deepEqual(context.writes[0].value.resultType, doubleType);
+});
+
+test("checked string concatenation records string result when either operand is string", () => {
+  const left = identifier("left");
+  const right = identifier("right");
+  const expression = binary(left, right);
+  const context = fakeObservationContext();
+  const result = mapCsharpCheckedOperator({
+    expression,
+    operator: "+",
+    left,
+    right,
+    target: "csharp",
+  }, context, fakeOperatorHostWithSubjects(new Map([
+    [left, csharpSourcePrimitiveTargetType("int32")],
+    [right, csharpStringTargetType()],
+  ])));
+
+  assert.equal(result.kind, "accept");
+  assert.deepEqual(result.value.operation.resultType, csharpStringTargetType());
+  assert.equal(context.writes.length, 1);
+  assert.deepEqual(context.writes[0].value.resultType, csharpStringTargetType());
+});
+
 test("target operation structural identity ignores checker-added provenance", () => {
   const expression = identifier("value");
   const operation = {
