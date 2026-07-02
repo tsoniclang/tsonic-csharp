@@ -5,9 +5,13 @@ import {
   HasSourceKind,
   KindArrowFunction,
   KindCallExpression,
+  KindBinaryExpression,
   KindFunctionExpression,
   KindNewExpression,
 } from "./source-ast.js";
+import {
+  targetOperationFactKey,
+} from "@tsonic/tsts";
 import type { Node, SourceFile } from "@tsonic/tsts";
 import type { TargetCompileInput, TargetDiagnostic } from "@tsonic/target-api";
 import type { CsharpLocalDeclaration, CsharpStatement } from "../roslyn/syntax.js";
@@ -28,6 +32,12 @@ import type { DestructuringPlannerState } from "./bindings.js";
 import {
   csharpTargetOperationFactKey,
 } from "../../source/csharp-facts.js";
+import {
+  asTargetTypeRef,
+} from "../../source/fact-subjects.js";
+import {
+  csharpTypeFromTargetTypeRef,
+} from "./target-types.js";
 
 export function planLocalDeclaration(
   declarationNode: Node,
@@ -52,6 +62,7 @@ export function planLocalDeclaration(
   const type = inferredLambdaType ??
     explicitType ??
     constAssertionType ??
+    getClosedInitializerInferredType(variable.Initializer, input) ??
     getCsharpTypeForNode(typeSubject, sourceFile, input, undefined, diagnostics);
   const name = declareCsharpLocalBindingName(variable.name, sourceFile, input, diagnostics, state, "Local binding name", "LocalDeclarationStatement");
   return {
@@ -62,6 +73,28 @@ export function planLocalDeclaration(
       ? { initializer: planExpressionWithExpectedType(variable.Initializer, sourceFile, input, diagnostics, type, variable.Type ?? variable.name, state, expectedTargetType) }
       : {}),
   };
+}
+
+function getClosedInitializerInferredType(
+  initializer: Node | undefined,
+  input: TargetCompileInput,
+): CsharpLocalDeclaration["type"] | undefined {
+  const csharpOperation = initializer === undefined
+    ? undefined
+    : input.facts.getFact(initializer, csharpTargetOperationFactKey);
+  const targetOperation = initializer === undefined
+    ? undefined
+    : input.facts.getFact(initializer, targetOperationFactKey);
+  if (
+    initializer === undefined ||
+    !HasSourceKind(input.ast, initializer, KindBinaryExpression) ||
+    (csharpOperation === undefined && targetOperation === undefined)
+  ) {
+    return undefined;
+  }
+  const resultType = asTargetTypeRef(csharpOperation?.resultType ?? targetOperation?.resultType);
+  return (resultType === undefined ? undefined : csharpTypeFromTargetTypeRef(resultType)) ??
+    { kind: "IdentifierName", name: "var" };
 }
 
 export function planLocalDeclarationStatements(

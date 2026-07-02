@@ -85,6 +85,9 @@ import {
   resolveSourceLibraryMemberIdentity,
 } from "./source-library.js";
 import {
+  getReferencedDeclarationTargetTypeRef,
+} from "./referenced-declaration-target.js";
+import {
   getCsharpCheckedElementAccessRequestContext,
   getCsharpCheckedPropertyAccessRequestContext,
 } from "./checked-member-access-request-context.js";
@@ -289,7 +292,9 @@ export function createCsharpJsSurfaceHost(
       candidates: readonly TargetMember[],
       request: {
         readonly arguments: readonly ExtensionFactSubject[];
+        readonly argumentTargetTypes?: readonly (TargetTypeRef | undefined)[];
         readonly receiver?: ExtensionFactSubject;
+        readonly receiverTargetType?: TargetTypeRef;
         readonly sourceSelectedSignature?: unknown;
       },
       context: ExtensionObservationContext,
@@ -298,10 +303,14 @@ export function createCsharpJsSurfaceHost(
       selectTargetMember(candidates, request, context, (subject, resolutionContext, resolutionOptions) =>
         subject === undefined
           ? undefined
-          : resolutionContext.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
+          : subject === request.receiver && request.receiverTargetType !== undefined
+            ? request.receiverTargetType
+          : request.argumentTargetTypes?.[request.arguments.indexOf(subject)] ??
+            resolutionContext.factResolver.resolve(subject, selectedTargetSignatureFactKey)?.member.returnType ??
             resolutionContext.factResolver.resolve(subject, runtimeCarrierFactKey)?.carrier ??
             resolutionContext.facts.get(subject, selectedTargetSignatureFactKey)?.member.returnType ??
             resolutionContext.facts.get(subject, runtimeCarrierFactKey)?.carrier ??
+            getReferencedDeclarationTargetTypeRef(subject, resolutionContext, host.getTargetTypeRefForSubject, resolutionOptions) ??
             host.getTargetTypeRefForSubject(subject, resolutionContext, resolutionOptions), {
         getBaseTargetTypeRef: host.getBaseTargetTypeRef,
         ...options,

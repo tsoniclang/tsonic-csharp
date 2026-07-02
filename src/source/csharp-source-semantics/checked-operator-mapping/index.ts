@@ -89,6 +89,12 @@ export function mapCsharpCheckedOperator(
     return deferObservation;
   }
   const existingCsharpOperation = context.factResolver.resolve(request.expression, csharpTargetOperationFactKey);
+  const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
+  if (existingOperation !== undefined) {
+    return acceptObservation<CheckedOperationMappingResult>({
+      operation: existingOperation,
+    }, [{ message: "C# source operator reused existing finalized target operation for repeated checked-operator observation." }]);
+  }
   if (existingCsharpOperation?.kind === "operator-token") {
     return acceptObservation<CheckedOperationMappingResult>({
       operation: targetOperation(existingCsharpOperation.operationId, "operator", existingCsharpOperation.operator, {
@@ -105,12 +111,6 @@ export function mapCsharpCheckedOperator(
   }
   if (existingCsharpOperation !== undefined) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' already has a finalized non-operator C# target operation.`);
-  }
-  const existingOperation = context.factResolver.resolve(request.expression, targetOperationFactKey);
-  if (existingOperation !== undefined) {
-    return acceptObservation<CheckedOperationMappingResult>({
-      operation: existingOperation,
-    }, [{ message: "C# source operator reused existing finalized target operation for repeated checked-operator observation." }]);
   }
   const compatRuntimeOperator = typescriptCompatibilityMode === "compat"
     ? mapCsharpCompatRuntimeCheckedOperator(request, context)

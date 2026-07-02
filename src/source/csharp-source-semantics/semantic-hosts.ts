@@ -114,6 +114,10 @@ export function createCsharpExtensionSemanticHosts(context: Pick<TargetProviderC
       if (type.kind !== "target-named") {
         return undefined;
       }
+      const sourceBaseType = (type as { readonly csharpBaseType?: TargetTypeRef }).csharpBaseType;
+      if (sourceBaseType !== undefined) {
+        return sourceBaseType;
+      }
       const binding = dotnetProvider.findTargetBindingByTargetId(type.id);
       return binding === undefined
         ? undefined

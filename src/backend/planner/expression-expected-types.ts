@@ -174,7 +174,7 @@ export function planExpressionWithExpectedTypeCore(
     return planTupleLiteralExpression(node, sourceFile, input, diagnostics, planners, expectedType);
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedType.kind === "ArrayType") {
-    return planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType, planners);
+    return planArrayLiteralExpression(node, sourceFile, input, diagnostics, expectedType.elementType, planners, expectedTargetType?.kind === "array" ? expectedTargetType.element : undefined);
   }
   if (HasSourceKind(input.ast, node, KindArrayLiteralExpression) && expectedTargetType !== undefined && expectedTargetType.kind !== "array" && expectedTargetType.kind !== "tuple") {
     return planArrayLiteralExpressionWithCarrier(node, sourceFile, input, diagnostics, expectedTargetType, planners);

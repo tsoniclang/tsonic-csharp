@@ -79,6 +79,21 @@ export function getCsharpTypeForNode(
   if (node === undefined) {
     return errorType;
   }
+  const nodeType = IsTypeSyntaxNode(input.ast, node)
+    ? input.analysis.getTypeFromTypeNode(node, { sourceFile })
+    : input.analysis.getTypeAtLocation(node, { sourceFile });
+  const nodeTypeParameterName = nodeType === undefined
+    ? undefined
+    : getCsharpTypeParameterName(nodeType, input);
+  if (nodeTypeParameterName !== undefined) {
+    return { kind: "IdentifierName", name: nodeTypeParameterName };
+  }
+  if (IsTypeSyntaxNode(input.ast, node) && input.ast.kindName(node) !== KindTypeLiteral && !isUnionTypeNode(input, node)) {
+    const explicitTypeSyntax = getCsharpTypeFromExplicitTypeSyntax(node, sourceFile, input, getCsharpTypeForNode, diagnostics);
+    if (explicitTypeSyntax !== undefined) {
+      return explicitTypeSyntax;
+    }
+  }
   const sourceNewExpressionType = getCsharpTypeFromSourceNewExpression(node, sourceFile, input, getCsharpTypeForNode, diagnostics);
   if (sourceNewExpressionType !== undefined) {
     return sourceNewExpressionType;
@@ -116,15 +131,6 @@ export function getCsharpTypeForNode(
   }
   if (isUnionTypeNode(input, node)) {
     return getCsharpTypeForUnionTypeNode(node, sourceFile, input, diagnostics);
-  }
-  const nodeType = IsTypeSyntaxNode(input.ast, node)
-    ? input.analysis.getTypeFromTypeNode(node, { sourceFile })
-    : input.analysis.getTypeAtLocation(node, { sourceFile });
-  const nodeTypeParameterName = nodeType === undefined
-    ? undefined
-    : getCsharpTypeParameterName(nodeType, input);
-  if (nodeTypeParameterName !== undefined) {
-    return { kind: "IdentifierName", name: nodeTypeParameterName };
   }
   if (input.ast.kindName(node) === KindArrowFunction || input.ast.kindName(node) === KindFunctionExpression) {
     const contextualCallableType = getCsharpCallableContextualType(node, input);

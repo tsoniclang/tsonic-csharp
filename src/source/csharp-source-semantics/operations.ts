@@ -251,6 +251,11 @@ export function recordCsharpTargetOperation(
   operation: CsharpTargetOperationFact,
   evidence: readonly ExtensionEvidence[] = [],
 ): void {
+  const existing = context.facts.get(subject, csharpTargetOperationFactKey) ??
+    context.factResolver.resolve(subject, csharpTargetOperationFactKey);
+  if (existing !== undefined && csharpTargetOperationFactKey.equals(existing, operation)) {
+    return;
+  }
   context.facts.set(subject, csharpTargetOperationFactKey, operation, evidence);
 }
 

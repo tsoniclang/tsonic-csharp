@@ -68,11 +68,14 @@ export function carrierRequirementsForStructuralCallArgumentUse(
   lifecycleContext: LifecycleContext,
   host: Pick<CsharpOperationsProviderHost, "getTargetTypeRefForSubject" | "getTargetTypeRefForType">,
 ): readonly CsharpArrayCarrierRequirement[] {
+  const selectedIdentity = getSelectedSourceIdentityForStructuralUse(use, lifecycleContext);
+  if (selectedIdentity !== undefined && selectedIdentityRequiresFullJsArrayArgument(selectedIdentity, use.argumentIndex)) {
+    return ["full-js"];
+  }
   const selectedSignatureRequirements = carrierRequirementsForSelectedSignatureArgumentUse(use, lifecycleContext, host);
   if (selectedSignatureRequirements.length > 0) {
     return selectedSignatureRequirements;
   }
-  const selectedIdentity = getSelectedSourceIdentityForStructuralUse(use, lifecycleContext);
   if (selectedIdentity === undefined || use.argumentIndex === undefined) {
     return ["unresolved-structural-use"];
   }
@@ -86,6 +89,18 @@ export function carrierRequirementsForStructuralCallArgumentUse(
       .map((member) => targetParameterForArgumentIndex(member.parameters, argumentIndex)?.type)
       .filter((type): type is TargetTypeRef => type !== undefined),
   );
+}
+
+const fullJsArrayStaticArgumentIdentities = new Set([
+  "Array.from",
+  "Array.isArray",
+]);
+
+function selectedIdentityRequiresFullJsArrayArgument(
+  selectedIdentity: JsSurfaceSelectedSourceIdentity,
+  argumentIndex: number | undefined,
+): boolean {
+  return argumentIndex === 0 && fullJsArrayStaticArgumentIdentities.has(selectedIdentity.key);
 }
 
 function carrierRequirementsForSelectedSignatureArgumentUse(

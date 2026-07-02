@@ -90,7 +90,9 @@ export interface CsharpJsSurfaceHost {
     candidates: readonly TargetMember[],
     request: {
       readonly arguments: readonly ExtensionFactSubject[];
+      readonly argumentTargetTypes?: readonly (TargetTypeRef | undefined)[];
       readonly receiver?: ExtensionFactSubject;
+      readonly receiverTargetType?: TargetTypeRef;
       readonly sourceSelectedSignature?: unknown;
     },
     context: ExtensionObservationContext,

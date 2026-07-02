@@ -54,7 +54,7 @@ export function recordCsharpSourceDeclarationFactsBeforeFinalization(
         recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, structDeclaration.targetType, structDeclaration.objectShape);
         return;
       }
-      const declarationTarget = getSourceDeclarationTargetType(compiler.ast, node, context);
+      const declarationTarget = getSourceDeclarationTargetType(compiler.ast, node, context, host);
       if (declarationTarget !== undefined) {
         recordSourceDeclarationTarget(lifecycleContext, sourceFile, node, declarationTarget);
         return;

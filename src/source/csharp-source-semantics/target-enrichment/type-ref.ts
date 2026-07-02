@@ -131,11 +131,13 @@ function preserveCsharpTargetNamedMetadata(
   const enumerableElementType = (original as CsharpTargetNamedTypeRef).csharpEnumerableElementType;
   const readOnlyIndexableElementType = (original as CsharpTargetNamedTypeRef).csharpReadOnlyIndexableElementType;
   const denseMutableElementType = (original as CsharpTargetNamedTypeRef).csharpDenseMutableElementType;
+  const baseType = (original as CsharpTargetNamedTypeRef).csharpBaseType;
   const enrichedArrayLiteralElementType = enrichOptionalCsharpTargetTypeRef(arrayLiteralElementType, host);
   const enrichedArrayLiteralConstructionType = enrichOptionalCsharpTargetTypeRef(arrayLiteralConstructionType, host);
   const enrichedEnumerableElementType = enrichOptionalCsharpTargetTypeRef(enumerableElementType, host);
   const enrichedReadOnlyIndexableElementType = enrichOptionalCsharpTargetTypeRef(readOnlyIndexableElementType, host);
   const enrichedDenseMutableElementType = enrichOptionalCsharpTargetTypeRef(denseMutableElementType, host);
+  const enrichedBaseType = enrichOptionalCsharpTargetTypeRef(baseType, host);
   preserved = {
     ...preserved,
     ...(enrichedArrayLiteralElementType !== undefined ? { csharpArrayLiteralElementType: enrichedArrayLiteralElementType } : {}),
@@ -143,6 +145,7 @@ function preserveCsharpTargetNamedMetadata(
     ...(enrichedEnumerableElementType !== undefined ? { csharpEnumerableElementType: enrichedEnumerableElementType } : {}),
     ...(enrichedReadOnlyIndexableElementType !== undefined ? { csharpReadOnlyIndexableElementType: enrichedReadOnlyIndexableElementType } : {}),
     ...(enrichedDenseMutableElementType !== undefined ? { csharpDenseMutableElementType: enrichedDenseMutableElementType } : {}),
+    ...(enrichedBaseType !== undefined ? { csharpBaseType: enrichedBaseType } : {}),
   };
   return preserved;
 }

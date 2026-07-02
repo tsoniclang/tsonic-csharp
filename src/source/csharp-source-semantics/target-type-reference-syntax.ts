@@ -176,7 +176,11 @@ function getRecordDictionaryTypeRefFromTypeReference(
   resolver: CsharpRecursiveTargetTypeResolver,
 ): TargetTypeRef | undefined {
   const ast = context.compiler?.ast;
-  if (ast === undefined || !subjects.some((subject) => isRecordDeclarationSubject(subject, context))) {
+  if (
+    ast === undefined ||
+    (!subjects.some((subject) => isRecordDeclarationSubject(subject, context)) &&
+      !isRecordTypeReferenceName(currentNode, ast))
+  ) {
     return undefined;
   }
   const typeArguments = ast.typeArguments(currentNode).map((argument) => resolver.resolveSubject(argument, context, options, host));
@@ -184,6 +188,14 @@ function getRecordDictionaryTypeRefFromTypeReference(
     return undefined;
   }
   return getCsharpRecordDictionaryTargetType(typeArguments[0]!, typeArguments[1]!, host);
+}
+
+function isRecordTypeReferenceName(
+  node: Node,
+  ast: NonNullable<ExtensionObservationContext["compiler"]>["ast"],
+): boolean {
+  const typeName = asNodeSubject(getNodeField(node, "TypeName"));
+  return typeName !== undefined && (getNodeNameText(typeName) === "Record" || ast.text(typeName) === "Record");
 }
 
 function isRecordDeclarationSubject(

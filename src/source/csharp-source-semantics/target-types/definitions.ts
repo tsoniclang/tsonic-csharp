@@ -21,6 +21,7 @@ export type CsharpTargetNamedTypeRef = Extract<TargetTypeRef, { readonly kind: "
   readonly csharpTypeofRuntimeKind?: CsharpTypeofRuntimeKind;
   readonly csharpSpecialType?: "string" | "void" | "nullable";
   readonly csharpSourceDeclarationKind?: "class" | "interface" | "enum" | "struct";
+  readonly csharpBaseType?: TargetTypeRef;
   readonly csharpValueType?: true;
   readonly csharpArrayLiteralElementType?: TargetTypeRef;
   readonly csharpArrayLiteralConstructionType?: TargetTypeRef;

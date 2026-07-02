@@ -60,6 +60,13 @@ function optionalObjectParameter(name: string): ConsoleTargetParameter {
   });
 }
 
+function optionalStringArrayParameter(name: string): ConsoleTargetParameter {
+  return targetParameter(name, { kind: "array", element: stringTargetType }, {
+    optional: true,
+    csharpAcceptsClosedSourceArgument: true,
+  });
+}
+
 function optionalStringParameter(name: string): ConsoleTargetParameter {
   return targetParameter(name, stringTargetType, { optional: true });
 }
@@ -88,7 +95,7 @@ const consoleTargetMemberMetadata = [
   }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.dir", sourceName: "dir", targetName: "dir", parameters: [optionalObjectParameter("item"), optionalObjectParameter("options")] }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.dirxml", sourceName: "dirxml", targetName: "dirxml", parameters: [consoleDataParameter()] }),
-  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.table", sourceName: "table", targetName: "table", parameters: [optionalObjectParameter("tabularData"), optionalObjectParameter("properties")] }),
+  consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.table", sourceName: "table", targetName: "table", parameters: [optionalObjectParameter("tabularData"), optionalStringArrayParameter("properties")] }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.time", sourceName: "time", targetName: "time", parameters: [optionalStringParameter("label")] }),
   consoleMethodMetadata({ id: "Tsonic.CSharp.Js.console.timeEnd", sourceName: "timeEnd", targetName: "timeEnd", parameters: [optionalStringParameter("label")] }),
   consoleMethodMetadata({

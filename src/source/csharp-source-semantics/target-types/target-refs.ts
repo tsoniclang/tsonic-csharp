@@ -22,6 +22,7 @@ export function csharpTargetNamedType(
     readonly delegateSignature?: CsharpTargetNamedTypeRef["csharpDelegateSignature"];
     readonly specialType?: CsharpTargetNamedTypeRef["csharpSpecialType"];
     readonly sourceDeclarationKind?: CsharpTargetNamedTypeRef["csharpSourceDeclarationKind"];
+    readonly baseType?: TargetTypeRef;
     readonly throwable?: true;
     readonly typeofRuntimeKind?: CsharpTypeofRuntimeKind;
     readonly valueType?: true;
@@ -40,6 +41,7 @@ export function csharpTargetNamedType(
     ...(metadata.delegateSignature !== undefined ? { csharpDelegateSignature: metadata.delegateSignature } : {}),
     ...(metadata.specialType !== undefined ? { csharpSpecialType: metadata.specialType } : {}),
     ...(metadata.sourceDeclarationKind !== undefined ? { csharpSourceDeclarationKind: metadata.sourceDeclarationKind } : {}),
+    ...(metadata.baseType !== undefined ? { csharpBaseType: metadata.baseType } : {}),
     ...(metadata.throwable === true ? { csharpThrowable: true } : {}),
     ...(metadata.typeofRuntimeKind !== undefined ? { csharpTypeofRuntimeKind: metadata.typeofRuntimeKind } : {}),
     ...(metadata.valueType === true ? { csharpValueType: true } : {}),

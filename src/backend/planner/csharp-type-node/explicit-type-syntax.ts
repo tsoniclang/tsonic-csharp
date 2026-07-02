@@ -76,6 +76,10 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   if (projectSourceType !== undefined) {
     return projectSourceType;
   }
+  const typeAlias = getCsharpTypeFromTypeAliasReferenceNode(node, sourceFile, input, resolveCsharpType, diagnostics);
+  if (typeAlias !== undefined) {
+    return typeAlias;
+  }
   const directTargetType = getTargetTypeRefForNode(input, node, sourceFile);
   if (directTargetType !== undefined) {
     if (!targetTypePreservesSourcePrimitiveEvidence(input, node, sourceFile, directTargetType)) {
@@ -104,10 +108,6 @@ export function getCsharpTypeFromExplicitTypeSyntax(
   const sourcePrimitiveType = getCsharpTypeFromSourcePrimitiveTypeReference(node, sourceFile, input);
   if (sourcePrimitiveType !== undefined) {
     return sourcePrimitiveType;
-  }
-  const typeAlias = getCsharpTypeFromTypeAliasReferenceNode(node, sourceFile, input, resolveCsharpType, diagnostics);
-  if (typeAlias !== undefined) {
-    return typeAlias;
   }
   return getCsharpTypeFromTargetBindingForReference(node, sourceFile, input, diagnostics);
 }

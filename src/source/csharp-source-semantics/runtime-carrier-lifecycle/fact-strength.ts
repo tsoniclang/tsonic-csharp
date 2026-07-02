@@ -13,5 +13,16 @@ export function shouldReplaceUseSiteRuntimeCarrier(existing: TargetTypeRef, repl
   if (isSourceDeclarationCarrier(existing) && !isSourceDeclarationCarrier(replacement)) {
     return true;
   }
+  if (isBroadNumericFallback(existing) && isExplicitSourcePrimitive(replacement)) {
+    return true;
+  }
   return false;
+}
+
+function isBroadNumericFallback(type: TargetTypeRef): boolean {
+  return type.kind === "source-primitive" && type.name === "float64";
+}
+
+function isExplicitSourcePrimitive(type: TargetTypeRef): boolean {
+  return type.kind === "source-primitive" && type.name !== "float64";
 }

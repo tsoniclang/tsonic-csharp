@@ -258,6 +258,13 @@ function getDeclaredReceiverTargetType(
   if (typeNode !== undefined) {
     return getTargetTypeRefForNode(input, typeNode, reference?.sourceFile ?? sourceFile);
   }
+  const declarationName = declaration === undefined
+    ? undefined
+    : getNodeField(declaration, "name") ?? getNodeField(declaration, "Name");
+  const declarationNameType = getTargetTypeRefForNode(input, declarationName, reference?.sourceFile ?? sourceFile);
+  if (declarationNameType !== undefined) {
+    return declarationNameType;
+  }
   return declaration === undefined
     ? getTargetTypeRefForNode(input, receiverNode, sourceFile)
     : getTargetTypeRefForNode(input, declaration, reference?.sourceFile ?? sourceFile);

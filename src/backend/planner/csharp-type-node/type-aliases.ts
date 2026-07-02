@@ -33,7 +33,7 @@ export function getCsharpTypeFromTypeAliasReferenceNode(
   if (input.ast.kindName(node) !== KindTypeReference) {
     return undefined;
   }
-  const typeName = getNodeField(node, "TypeName");
+  const typeName = getNodeField(node, "TypeName") ?? getNodeField(node, "typeName");
   const declarations = [
     input.analysis.getSymbolAtLocation(typeName, { sourceFile }),
     input.analysis.getResolvedSymbol(typeName, { sourceFile }),

@@ -54,6 +54,7 @@ export function mapCsharpIterationOperationRows(
 ): ExtensionObservation<CheckedOperationMappingResult> {
   const matching = rows.filter((row) => row.sourceIterationKind === request.kind);
   if (matching.length === 0) {
+    void extensionId;
     return deferObservation;
   }
   if (matching.length > 1) {

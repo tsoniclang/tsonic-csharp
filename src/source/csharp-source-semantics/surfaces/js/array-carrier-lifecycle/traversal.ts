@@ -1,5 +1,6 @@
 import type {
   ExtensionFactSubject,
+  ExtensionObservationContext,
   Node,
   SourceFile,
   TargetTypeRef,
@@ -46,6 +47,9 @@ import {
   getCsharpCollectionElementTargetType,
   getCsharpTaskResultTargetType,
 } from "../../../target-types.js";
+import {
+  isCsharpJsArrayCarrierTargetType,
+} from "../array-target-type.js";
 
 export function collectArrayParameters(
   sourceFile: SourceFile,
@@ -200,6 +204,9 @@ export function collectArrayLocalDeclarations(
     if (initializer !== undefined && arrayLiteralHasElision(initializer, compiler.ast)) {
       carrierRequirements.add("full-js");
     }
+    if (initializer !== undefined && initializerHasFullJsArrayCarrier(initializer, context)) {
+      carrierRequirements.add("full-js");
+    }
     locals.push({
       declaration: node,
       name,
@@ -213,6 +220,17 @@ export function collectArrayLocalDeclarations(
     });
   });
   return locals;
+}
+
+function initializerHasFullJsArrayCarrier(
+  initializer: Node,
+  context: ExtensionObservationContext,
+): boolean {
+  const carrier = context.facts.get(initializer, runtimeCarrierFactKey)?.carrier ??
+    context.factResolver.resolve(initializer, runtimeCarrierFactKey)?.carrier ??
+    context.facts.get(initializer, selectedTargetSignatureFactKey)?.member.returnType ??
+    context.factResolver.resolve(initializer, selectedTargetSignatureFactKey)?.member.returnType;
+  return isCsharpJsArrayCarrierTargetType(carrier);
 }
 
 function arrayLiteralHasElision(node: Node, ast: NonNullable<LifecycleContext["compiler"]>["ast"]): boolean {

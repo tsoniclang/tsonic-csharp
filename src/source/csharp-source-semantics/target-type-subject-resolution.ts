@@ -90,6 +90,12 @@ export function resolveTargetTypeRefForSubjectCore(
   const node = asNodeSubject(subject);
   const checker = context.compiler?.checker;
   const ast = context.compiler?.ast;
+  if (node !== undefined && ast !== undefined && isTypeSyntaxNode(ast, node)) {
+    const syntaxType = getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
+    if (syntaxType !== undefined) {
+      return syntaxType;
+    }
+  }
   const directFact = resolveTargetTypeRefFromSubjectFacts(
     subject,
     context,
@@ -106,12 +112,6 @@ export function resolveTargetTypeRefForSubjectCore(
   );
   if (directFact !== undefined && node !== undefined && ast !== undefined && isTypeSyntaxNode(ast, node)) {
     return directFact;
-  }
-  if (node !== undefined && ast !== undefined && isTypeSyntaxNode(ast, node)) {
-    const syntaxType = getTargetTypeRefFromSyntax(subject, context, options, host, recursiveTargetTypeResolver);
-    if (syntaxType !== undefined) {
-      return syntaxType;
-    }
   }
   const referenceFact = resolveTargetTypeRefFromReferenceFacts(
     subject,
