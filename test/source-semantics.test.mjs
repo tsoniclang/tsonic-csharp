@@ -303,10 +303,10 @@ test("source-semantics keeps any declarations opaque while strict-native rejects
   assert.deepEqual(objectCarriers, []);
   const elementAccess = collectNodesByKind(sourceFile, session.ast, "KindElementAccessExpression")[0];
   const call = collectNodesByKind(sourceFile, session.ast, "KindCallExpression")[0];
-  assert.equal(extensionHost.facts.get(elementAccess, runtimeCarrierFactKey)?.carrier?.id, "Tsonic.CSharp.Js.TsValue");
-  assert.equal(extensionHost.facts.get(call, runtimeCarrierFactKey)?.carrier?.id, "Tsonic.CSharp.Js.TsValue");
-  assert.equal(extensionHost.facts.get(elementAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.element-read");
-  assert.equal(extensionHost.facts.get(call, selectedTargetSignatureFactKey)?.member.id, "tsonic.csharp.compat.any.call");
+  assert.equal(extensionHost.facts.get(elementAccess, runtimeCarrierFactKey)?.carrier?.id, "any");
+  assert.equal(extensionHost.facts.get(call, runtimeCarrierFactKey)?.carrier?.id, "any");
+  assert.equal(extensionHost.facts.get(elementAccess, targetOperationFactKey), undefined);
+  assert.equal(extensionHost.facts.get(call, selectedTargetSignatureFactKey), undefined);
   const anyOperationDiagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
     diagnostic.extensionCode === "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED"
   );
@@ -351,8 +351,8 @@ test("source-semantics rejects strict-native opaque any operator facts", () => {
     .find((node) => session.ast.parent(node) === binary);
 
   assert.deepEqual(extensionHost.facts.get(dynamicUse, runtimeCarrierFactKey)?.carrier, { kind: "opaque", id: "any" });
-  assert.equal(extensionHost.facts.get(binary, targetOperationFactKey)?.operationId, "tsonic.csharp.compat.any.operator:+");
-  assert.equal(extensionHost.facts.get(binary, csharpTargetOperationFactKey)?.memberName, "ApplyCompatBinary");
+  assert.equal(extensionHost.facts.get(binary, targetOperationFactKey), undefined);
+  assert.equal(extensionHost.facts.get(binary, csharpTargetOperationFactKey), undefined);
   const anyOperationDiagnostics = extensionHost.diagnostics.all().filter((diagnostic) =>
     diagnostic.extensionCode === "CSHARP_ANY_DYNAMIC_OPERATION_UNSUPPORTED"
   );

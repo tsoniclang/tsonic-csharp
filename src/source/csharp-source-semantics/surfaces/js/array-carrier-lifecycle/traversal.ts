@@ -39,6 +39,9 @@ import {
   isSourceStandardLibraryArrayLikeType,
 } from "../../../source-type-classification.js";
 import {
+  isTypeOperatorNode,
+} from "../../../ast-utils/type-syntax.js";
+import {
   getCsharpArrayLiteralElementTargetType,
   getCsharpCollectionElementTargetType,
   getCsharpTaskResultTargetType,
@@ -461,7 +464,7 @@ function getSourceArrayTypeNodeFromDeclaredType(
   if (compiler.ast.is.IsArrayTypeNode(typeNode)) {
     return typeNode;
   }
-  if (!compiler.ast.is.IsTypeOperatorNode(typeNode)) {
+  if (!isTypeOperatorNode(compiler.ast, typeNode)) {
     return undefined;
   }
   const innerTypeNode = asNodeSubject(getNodeField(typeNode, "Type"));
@@ -480,7 +483,7 @@ function isReadonlySourceArrayDeclaredType(
   context: ReturnType<typeof createRuntimeCarrierLifecycleObservationContext>,
 ): boolean {
   const compiler = context.compiler;
-  if (typeNode === undefined || compiler === undefined || !compiler.ast.is.IsTypeOperatorNode(typeNode)) {
+  if (typeNode === undefined || compiler === undefined || !isTypeOperatorNode(compiler.ast, typeNode)) {
     return false;
   }
   const innerTypeNode = asNodeSubject(getNodeField(typeNode, "Type"));

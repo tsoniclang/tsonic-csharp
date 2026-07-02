@@ -32,6 +32,9 @@ import {
 import {
   getTargetTypeRefFromTypeReferenceSyntax,
 } from "./target-type-reference-syntax.js";
+import {
+  isTypeOperatorNode,
+} from "./ast-utils/type-syntax.js";
 import type {
   CsharpRecursiveTargetTypeResolver,
 } from "./target-type-syntax-types.js";
@@ -132,7 +135,7 @@ function getSourceArrayLikeTypeOperatorArrayNode(
 ): Node | undefined {
   const ast = context.compiler?.ast;
   const checker = context.compiler?.checker;
-  if (ast === undefined || checker === undefined || !ast.is.IsTypeOperatorNode(node)) {
+  if (ast === undefined || checker === undefined || !isTypeOperatorNode(ast, node)) {
     return undefined;
   }
   const innerType = asNodeSubject(getNodeField(node, "Type"));

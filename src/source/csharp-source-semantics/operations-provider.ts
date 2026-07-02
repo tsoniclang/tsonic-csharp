@@ -37,6 +37,9 @@ import {
   selectTargetMember,
 } from "./target-member-selection.js";
 import type { TargetMemberSelectionOptions, TargetTypeRefResolutionOptions } from "./target-member-selection.js";
+import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
 import {
   createCsharpJsSurfaceMappers,
 } from "./surfaces/js/index.js";
@@ -123,6 +126,7 @@ export function createCsharpNativeOperationsProvider(host: CsharpOperationsProvi
 export interface CsharpTargetOperationsProviderOptions {
   readonly jsSurface?: boolean;
   readonly providerPackageMappers?: readonly CsharpProviderPackageOperationsMapper[];
+  readonly typescriptCompatibilityMode?: TargetTypescriptCompatibilityMode;
 }
 
 export function createCsharpTargetOperationsProvider(
@@ -141,6 +145,7 @@ export function createCsharpTargetOperationsProvider(
     ? createCsharpJsSurfaceMappers(createCsharpJsSurfaceHost(csharpJsSurfaceExtensionId, host))
     : undefined;
   const providerPackageMappers = options.providerPackageMappers ?? [];
+  const typescriptCompatibilityMode = options.typescriptCompatibilityMode ?? "strict-native";
   const surfaceAwareHost: CsharpOperationsProviderHost = {
     ...host,
     mapRuntimeCarrier(request, context) {
@@ -153,7 +158,9 @@ export function createCsharpTargetOperationsProvider(
   return {
     identity,
     mapCheckedCall(request, context) {
-      const compatObservation = mapCsharpCompatRuntimeCheckedCall(request, context);
+      const compatObservation = typescriptCompatibilityMode === "compat"
+        ? mapCsharpCompatRuntimeCheckedCall(request, context)
+        : deferObservation;
       if (compatObservation.kind !== "defer") {
         return compatObservation;
       }
@@ -174,7 +181,9 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedCall(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedPropertyAccess(request, context) {
-      const compatObservation = mapCsharpCompatRuntimeCheckedPropertyAccess(request, context);
+      const compatObservation = typescriptCompatibilityMode === "compat"
+        ? mapCsharpCompatRuntimeCheckedPropertyAccess(request, context)
+        : deferObservation;
       if (compatObservation.kind !== "defer") {
         return compatObservation;
       }
@@ -194,7 +203,9 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedPropertyAccess(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedElementAccess(request, context) {
-      const compatObservation = mapCsharpCompatRuntimeCheckedElementAccess(request, context);
+      const compatObservation = typescriptCompatibilityMode === "compat"
+        ? mapCsharpCompatRuntimeCheckedElementAccess(request, context)
+        : deferObservation;
       if (compatObservation.kind !== "defer") {
         return compatObservation;
       }
@@ -214,7 +225,7 @@ export function createCsharpTargetOperationsProvider(
       return mapCsharpCheckedElementAccess(request, context, identity.id, surfaceAwareHost);
     },
     mapCheckedOperator(request, context) {
-      return mapCsharpCheckedOperator(request, context, surfaceAwareHost);
+      return mapCsharpCheckedOperator(request, context, surfaceAwareHost, typescriptCompatibilityMode);
     },
     observePostCheckAssignability(request, context) {
       return observeCsharpPostCheckAssignability(request, context, surfaceAwareHost);

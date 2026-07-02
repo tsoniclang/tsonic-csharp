@@ -6,6 +6,9 @@ import {
   targetOperationFactKey,
 } from "@tsonic/tsts";
 import type {
+  TargetTypescriptCompatibilityMode,
+} from "@tsonic/target-api";
+import type {
   CheckedOperationMappingResult,
   CheckedOperatorMappingRequest,
   ExtensionObservation,
@@ -77,6 +80,7 @@ export function mapCsharpCheckedOperator(
   request: CheckedOperatorMappingRequest,
   context: ExtensionObservationContext<"operation.mapCheckedOperator">,
   host: CsharpOperationsProviderHost,
+  typescriptCompatibilityMode: TargetTypescriptCompatibilityMode = "strict-native",
 ): ExtensionObservation<CheckedOperationMappingResult> {
   if (request.target !== undefined && request.target !== csharpTargetId) {
     return deferObservation;
@@ -98,7 +102,9 @@ export function mapCsharpCheckedOperator(
   if (existingCsharpOperation !== undefined) {
     return rejectMissingCsharpOperatorFact(context.extensionId, `C# operator '${request.operator}' already has a finalized non-operator C# target operation.`);
   }
-  const compatRuntimeOperator = mapCsharpCompatRuntimeCheckedOperator(request, context);
+  const compatRuntimeOperator = typescriptCompatibilityMode === "compat"
+    ? mapCsharpCompatRuntimeCheckedOperator(request, context)
+    : deferObservation;
   if (compatRuntimeOperator.kind !== "defer") {
     return compatRuntimeOperator;
   }

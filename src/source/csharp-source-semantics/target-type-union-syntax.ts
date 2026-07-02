@@ -101,7 +101,7 @@ function resolveUnionMemberTargetType(
   const semanticType = sourceFile === undefined
     ? undefined
     : context.compiler?.checker.getTypeFromTypeNode(node, { sourceFile });
-  const semanticObjectShape = objectShape ?? host.getCsharpObjectShapeFactForSubject(semanticType, context);
+  const semanticObjectShape = objectShape ?? getObjectShapeFactForSubject(host, semanticType, context);
   const semanticTarget = resolver.resolveType(semanticType, context, options, host) ??
     resolver.resolveType(semanticType, context, { ...options, allowRuntimeCarrier: true }, host);
   return semanticTarget === undefined
@@ -114,7 +114,7 @@ function getUnionMemberObjectShape(
   context: ExtensionObservationContext,
   host: CsharpTargetTypeResolutionHost,
 ): CsharpObjectShapeFact | undefined {
-  const direct = host.getCsharpObjectShapeFactForSubject(node, context);
+  const direct = getObjectShapeFactForSubject(host, node, context);
   if (direct !== undefined) {
     return direct;
   }
@@ -122,7 +122,15 @@ function getUnionMemberObjectShape(
   const semanticType = sourceFile === undefined
     ? undefined
     : context.compiler?.checker.getTypeFromTypeNode(node, { sourceFile });
-  return host.getCsharpObjectShapeFactForSubject(semanticType, context);
+  return getObjectShapeFactForSubject(host, semanticType, context);
+}
+
+function getObjectShapeFactForSubject(
+  host: CsharpTargetTypeResolutionHost,
+  subject: unknown,
+  context: ExtensionObservationContext,
+): CsharpObjectShapeFact | undefined {
+  return host.getCsharpObjectShapeFactForSubject?.(subject as Parameters<CsharpTargetTypeResolutionHost["getCsharpObjectShapeFactForSubject"]>[0], context);
 }
 
 function resolveNullishUnionMemberTargetType(

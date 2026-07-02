@@ -116,6 +116,7 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
       extensionContext.registerTargetSemanticProvider(createCsharpTargetOperationsProvider(hosts.operationsProviderHost, {
         jsSurface: jsSurfaceSelected,
         providerPackageMappers: createCsharpProviderPackageOperationsMappers(context),
+        typescriptCompatibilityMode: hosts.typescriptCompatibilityMode,
       }));
       extensionContext.registerLifecycleHook<BeforeSemanticsFinalizedLifecycleRequest>(ExtensionLifecycleEvent.beforeSemanticsFinalized, (_request, lifecycleContext) => {
         runBeforeFinalizedStage("target-name-facts", () => recordCsharpTargetNameFactsBeforeFinalization(lifecycleContext));
