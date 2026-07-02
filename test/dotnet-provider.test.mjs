@@ -1676,6 +1676,31 @@ test(".NET reflection provider exposes readable fields with readonly facts", () 
   ));
 });
 
+test(".NET provider declaration model rejects static methods that collide with instance source names", () => {
+  const provider = createDotnetReflectionTypeDataProvider({ disablePersistentCache: true });
+  const module = provider.getModule("@tsonic/dotnet/System.js", { requestedExports: ["DateTime", "DateTimeOffset"] });
+  assert.equal("exports" in module, true, JSON.stringify(module));
+
+  const model = dotnetModuleToProviderDeclarationModel(module);
+  assert.equal(validateDotnetProviderDeclarationModelContract(model), undefined);
+
+  for (const typeName of ["DateTime", "DateTimeOffset"]) {
+    const declaration = model.exports.find((candidate) => candidate.name === typeName);
+    assert.ok(declaration, typeName);
+    const equalsMembers = declaration.members?.filter((member) => member.name === "equals") ?? [];
+    assert.equal(equalsMembers.length, 1, typeName);
+    assert.equal(new Set(equalsMembers.map((member) => member.id)).size, equalsMembers.length, typeName);
+    assert.ok(equalsMembers.some((member) => member.static !== true), typeName);
+    const rawDeclaration = module.exports.find((candidate) => candidate.sourceName === typeName);
+    assert.ok(rawDeclaration?.unsupportedMembers?.some((member) =>
+      member.memberKind === "method" &&
+      member.sourceName === "equals" &&
+      member.static === true &&
+      /same source-visible name/.test(member.reason)
+    ), typeName);
+  }
+});
+
 test(".NET reflection provider exposes unique nested CLR types as source declarations", () => {
   const provider = createDotnetReflectionTypeDataProvider();
   const systemModule = provider.getModule("@tsonic/dotnet/System.js", {});

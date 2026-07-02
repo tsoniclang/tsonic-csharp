@@ -132,9 +132,13 @@ function mergeProviderMemberWithLocalBase(
 }
 
 function dotnetProviderMemberId(member: DotnetMemberDeclaration): string {
-  return member.kind === "constructor"
-    ? dotnetMetadataNameWithoutSignature(member.targetId)
-    : member.targetId;
+  if (member.kind === "constructor") {
+    return dotnetMetadataNameWithoutSignature(member.targetId);
+  }
+  if (member.kind === "method") {
+    return `${member.targetId}#${member.static === true ? "static" : "instance"}`;
+  }
+  return member.targetId;
 }
 
 function dotnetMetadataNameWithoutSignature(metadataName: string): string {
