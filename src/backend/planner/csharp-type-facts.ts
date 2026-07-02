@@ -158,7 +158,7 @@ function getCsharpTypeFromNullableUnionSyntax(
   if (unionTypes.length < 2) {
     return undefined;
   }
-  const nonNullish = unionTypes.filter((item) => !isNullishTypeSyntax(item, input));
+  const nonNullish = unionTypes.filter((item) => !isNullishTypeSyntax(item, sourceFile, input));
   if (nonNullish.length !== 1 || nonNullish.length === unionTypes.length) {
     return undefined;
   }
@@ -178,16 +178,16 @@ function getUnionTypeConstituents(node: Node, input: TargetCompileInput): readon
     : direct;
 }
 
-function isNullishTypeSyntax(node: Node, input: TargetCompileInput): boolean {
+function isNullishTypeSyntax(node: Node, sourceFile: SourceFile, input: TargetCompileInput): boolean {
+  const semanticType = input.analysis.getTypeFromTypeNode(node, { sourceFile });
+  if (semanticType !== undefined) {
+    return input.types.isNullish(semanticType);
+  }
   const kind = input.ast.kindName(node);
   if (kind === "KindNullKeyword" || kind === "KindUndefinedKeyword") {
     return true;
   }
-  if (kind !== "KindTypeReference") {
-    return false;
-  }
-  const typeName = asNodeSubject(getNodeField(node, "TypeName") ?? getNodeField(node, "typeName"));
-  return typeName !== undefined && input.ast.text(typeName) === "undefined";
+  return false;
 }
 
 function getCsharpTypeFromUnionConstituentSyntax(

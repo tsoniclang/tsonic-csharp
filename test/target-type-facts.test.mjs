@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { getCsharpTypeForNode } from "../dist/backend/planner/csharp-types.js";
 import { getExplicitReturnType } from "../dist/backend/planner/declaration-return-types.js";
 import { planTypeParameters } from "../dist/backend/planner/type-parameters.js";
-import { KindIdentifier, KindTypeReference } from "../dist/backend/planner/source-ast.js";
+import { KindIdentifier, KindTypeReference, KindUnionType } from "../dist/backend/planner/source-ast.js";
 import { isCsharpThrowableCarrier } from "../dist/backend/planner/statement-output.js";
 import { printCsharpType } from "../dist/print/csharp-printer.js";
 import { csharpTargetTypeParameterConstraintFactKey } from "../dist/source/csharp-facts.js";
@@ -49,6 +49,9 @@ import {
   csharpJsDateTargetType,
   isCsharpJsDateRuntimeCarrier,
 } from "../dist/source/csharp-source-semantics/surfaces/js/date/index.js";
+import {
+  getNullableUnionTargetTypeRefFromSyntax,
+} from "../dist/source/csharp-source-semantics/target-type-union-syntax.js";
 import {
   missingCarrierResolution,
   missingParameterCarrierResolution,
@@ -390,6 +393,68 @@ test("advanced erased type syntax emits only from finalized runtime carrier fact
   assert.match(diagnostics[1].message, /requires a closed target type from TSTS\/provider facts/);
 });
 
+test("nullable union syntax uses TSTS nullish type facts instead of undefined spelling", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const numberType = { Kind: "KindNumberKeyword" };
+  const undefinedReference = typeReferenceNode("undefined");
+  const aliasReference = typeReferenceNode("undefined");
+  const nullishSemanticType = { kind: "semantic-undefined" };
+  const aliasSemanticType = { kind: "semantic-user-alias" };
+
+  const nullableDiagnostics = [];
+  const nullableType = getCsharpTypeForNode(unionTypeNode(numberType, undefinedReference), sourceFile, fakeTypeInput(sourceFile, {
+    semanticTypes: new Map([[undefinedReference, nullishSemanticType]]),
+    nullishSemanticTypes: new Set([nullishSemanticType]),
+  }), undefined, nullableDiagnostics);
+
+  const aliasDiagnostics = [];
+  const aliasType = getCsharpTypeForNode(unionTypeNode(numberType, aliasReference), sourceFile, fakeTypeInput(sourceFile, {
+    semanticTypes: new Map([[aliasReference, aliasSemanticType]]),
+  }), undefined, aliasDiagnostics);
+
+  assert.equal(printCsharpType(nullableType), "double?");
+  assert.equal(nullableDiagnostics.length, 0);
+  assert.equal(aliasType.kind, "InvalidType");
+  assert.equal(aliasDiagnostics.length, 1);
+  assert.match(aliasDiagnostics[0].message, /Union type annotations require finalized TSTS\/provider storage facts/);
+});
+
+test("source semantic nullable union syntax uses TSTS nullish type facts instead of undefined spelling", () => {
+  const sourceFile = sourceFileNode("/src/index.ts");
+  const numberType = { Kind: "KindNumberKeyword" };
+  const undefinedReference = typeReferenceNode("undefined");
+  const aliasReference = typeReferenceNode("undefined");
+  const nullishSemanticType = { kind: "semantic-undefined" };
+  const aliasSemanticType = { kind: "semantic-user-alias" };
+  const resolver = {
+    resolveSubject: (subject) => subject === numberType ? csharpSourcePrimitiveTargetType("float64") : undefined,
+    resolveType: () => undefined,
+  };
+
+  const nullable = getNullableUnionTargetTypeRefFromSyntax(
+    unionTypeNode(numberType, undefinedReference),
+    fakeObservationContext(sourceFile, {
+      semanticTypes: new Map([[undefinedReference, nullishSemanticType]]),
+      nullishSemanticTypes: new Set([nullishSemanticType]),
+    }),
+    {},
+    {},
+    resolver,
+  );
+  const alias = getNullableUnionTargetTypeRefFromSyntax(
+    unionTypeNode(numberType, aliasReference),
+    fakeObservationContext(sourceFile, {
+      semanticTypes: new Map([[aliasReference, aliasSemanticType]]),
+    }),
+    {},
+    {},
+    resolver,
+  );
+
+  assert.deepEqual(nullable, csharpNullableValueTargetType(csharpSourcePrimitiveTargetType("float64")));
+  assert.equal(alias, undefined);
+});
+
 test("backend type rendering rejects primitive semantic shapes without finalized carriers", () => {
   const sourceFile = sourceFileNode("/src/index.ts");
   const value = { Kind: KindIdentifier, Text: "value" };
@@ -439,8 +504,37 @@ function typeReferenceNode(name, typeArguments = []) {
   };
 }
 
+function unionTypeNode(...types) {
+  return {
+    Kind: KindUnionType,
+    Types: { Nodes: types },
+  };
+}
+
 function sourceFileNode(fileName) {
   return { Kind: "KindSourceFile", FileName: fileName, IsDeclarationFile: false, Statements: { Nodes: [] } };
+}
+
+function fakeObservationContext(sourceFile, options = {}) {
+  return {
+    compiler: {
+      ast: {
+        kindName: (node) => String(node?.Kind),
+        text: (node) => String(node?.Text ?? ""),
+        getSourceFile: () => sourceFile,
+        is: {
+          IsLiteralTypeNode: () => false,
+          IsTypeReferenceNode: (node) => node?.Kind === KindTypeReference,
+        },
+      },
+      checker: {
+        getTypeFromTypeNode: (subject) => options.semanticTypes?.get(subject),
+      },
+      typeShape: {
+        isNullish: (type) => options.nullishSemanticTypes?.has(type) === true,
+      },
+    },
+  };
 }
 
 function sourcePrimitive(kind) {
@@ -562,7 +656,7 @@ function fakeTypeInput(sourceFile, options = {}) {
       isTuple: () => false,
       isArrayLike: () => false,
       isTypeReference: () => false,
-      isNullish: () => false,
+      isNullish: (type) => options.nullishSemanticTypes?.has(type) === true,
       getCallSignatures: () => [],
       getReturnTypeOfSignature: () => undefined,
       getUnionOrIntersectionTypes: () => [],

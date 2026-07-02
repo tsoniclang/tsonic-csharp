@@ -86,9 +86,17 @@ function resolveUnionMemberTargetType(
 }
 
 function isNullishTypeSyntax(node: Node, context: ExtensionObservationContext): boolean {
-  const ast = context.compiler?.ast;
-  if (ast === undefined) {
+  const compiler = context.compiler;
+  const ast = compiler?.ast;
+  if (compiler === undefined || ast === undefined) {
     return false;
+  }
+  const sourceFile = ast.getSourceFile(node);
+  const semanticType = sourceFile === undefined
+    ? undefined
+    : compiler.checker.getTypeFromTypeNode(node, { sourceFile });
+  if (semanticType !== undefined) {
+    return compiler.typeShape.isNullish(semanticType);
   }
   const kind = ast.kindName(node);
   if (kind === "KindNullKeyword" || kind === "KindUndefinedKeyword") {
@@ -98,10 +106,6 @@ function isNullishTypeSyntax(node: Node, context: ExtensionObservationContext): 
     const literal = asNodeSubject(getNodeField(node, "Literal"));
     const literalKind = ast.kindName(literal);
     return literalKind === "KindNullKeyword" || literalKind === "KindUndefinedKeyword";
-  }
-  if (ast.is.IsTypeReferenceNode(node)) {
-    const typeName = asNodeSubject(getNodeField(node, "TypeName"));
-    return ast.text(typeName) === "undefined";
   }
   return false;
 }
