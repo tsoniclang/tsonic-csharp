@@ -42,6 +42,7 @@ export interface ArrayReturnAnalysis {
   readonly declaration: Node;
   readonly typeNode?: Node;
   readonly semanticType?: Type;
+  readonly readonlySourceContract: boolean;
   readonly sourceReturnSubjects: readonly ExtensionFactSubject[];
   readonly returnExpressions: readonly Node[];
   readonly elementType: TargetTypeRef;

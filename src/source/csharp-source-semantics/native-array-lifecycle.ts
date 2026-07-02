@@ -17,6 +17,9 @@ import {
   getNodeField,
   visitAstReaderNodes,
 } from "./ast-utils.js";
+import {
+  getCsharpArrayBoundaryCoreCarrierForReference,
+} from "./surfaces/js/array-boundary-facts.js";
 import type {
   CsharpOperationsProviderHost,
 } from "./operations-provider.js";
@@ -201,7 +204,10 @@ function getNativeArrayReceiverType(
   host: CsharpOperationsProviderHost,
 ): TargetTypeRef | undefined {
   void host;
-  void sourceFile;
+  const boundaryCarrier = getCsharpArrayBoundaryCoreCarrierForReference(receiver, context, sourceFile);
+  if (boundaryCarrier !== undefined) {
+    return asNativeArrayTargetType(unwrapNullableTargetType(boundaryCarrier));
+  }
   return asNativeArrayTargetType(unwrapNullableTargetType(
     context.factResolver.resolve(receiver, runtimeCarrierFactKey)?.carrier ??
       context.host.facts.get(receiver, runtimeCarrierFactKey)?.carrier,

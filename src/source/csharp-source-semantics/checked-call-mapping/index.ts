@@ -410,7 +410,7 @@ function acceptSourceOwnedCheckedCall(
     return undefined;
   }
   const returnType = getSourceOwnedCallReturnType(request, context, host);
-  if (returnType !== undefined && context.facts.get(request.call, runtimeCarrierFactKey) === undefined) {
+  if (returnType !== undefined && returnType.kind !== "array" && context.facts.get(request.call, runtimeCarrierFactKey) === undefined) {
     context.facts.set(request.call, runtimeCarrierFactKey, { carrier: returnType }, [{
       message: "C# source-owned call runtime carrier recorded from TSTS-selected project source declaration return facts.",
     }]);

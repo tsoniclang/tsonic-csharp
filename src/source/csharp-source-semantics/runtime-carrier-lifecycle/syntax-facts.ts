@@ -1,4 +1,5 @@
 import {
+  selectedTargetSignatureFactKey,
   runtimeCarrierFactKey,
 } from "@tsonic/tsts";
 import type {
@@ -34,6 +35,9 @@ import {
 import {
   targetTypeRefIsClosed,
 } from "../target-ref-utils.js";
+import {
+  isCsharpSourceOwnedSelectedSignature,
+} from "../source-owned-selected-signature.js";
 import {
   getCallableExpressionRuntimeCarrierTargetTypeRef,
 } from "./callable-expressions.js";
@@ -81,6 +85,9 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
   if (!isRuntimeCarrierSyntaxFactCandidate(compiler.ast, node)) {
     return;
   }
+  if (isSourceOwnedArrayOperationExpression(lifecycleContext, node)) {
+    return;
+  }
   const carrier = getObservedRuntimeCarrierSyntaxTargetTypeRef(lifecycleContext, node, host) ??
     getClosedSyntaxRuntimeCarrier(lifecycleContext, node, host) ??
     getCallableExpressionRuntimeCarrierTargetTypeRef(lifecycleContext, node, host) ??
@@ -92,6 +99,20 @@ export function recordCsharpRuntimeCarrierSyntaxFact(
   const fact = { carrier };
   const evidence = [{ message: "C# runtime carrier recorded from source syntax/provider facts." }];
   lifecycleContext.host.facts.set(node, runtimeCarrierFactKey, fact, evidence);
+}
+
+function isSourceOwnedArrayOperationExpression(
+  lifecycleContext: RuntimeCarrierLifecycleFactsContext,
+  node: Node,
+): boolean {
+  const ast = lifecycleContext.compiler?.ast;
+  if (ast === undefined || (!ast.is.IsCallExpression(node) && !ast.is.IsNewExpression(node) && !ast.is.IsAwaitExpression(node))) {
+    return false;
+  }
+  const selected = lifecycleContext.host.facts.get(node, selectedTargetSignatureFactKey);
+  return selected !== undefined &&
+    isCsharpSourceOwnedSelectedSignature(selected) &&
+    selected.member.returnType?.kind === "array";
 }
 
 function getClosedSyntaxRuntimeCarrier(

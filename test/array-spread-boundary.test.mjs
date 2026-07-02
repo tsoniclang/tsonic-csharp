@@ -386,6 +386,48 @@ test("native collection spread emits only from finalized collection element fact
   ]);
 });
 
+test("native readonly collection spread emits from finalized collection element facts", () => {
+  const sourceExample = `
+    declare const tail: readonly number[];
+    const value: readonly number[] = [1, ...tail, 3];
+  `;
+  assert.match(sourceExample, /readonly number\[\]/);
+
+  const tail = identifier("tail");
+  const literal = arrayLiteral([
+    numericLiteral("1"),
+    spreadElement(tail),
+    numericLiteral("3"),
+  ]);
+  const diagnostics = [];
+
+  const planned = planArrayLiteralExpressionWithCarrier(
+    literal,
+    {},
+    fakeInput({ runtimeCarriers: new Map([[tail, csharpReadOnlyListTargetType(int32Type())]]) }),
+    diagnostics,
+    csharpReadOnlyListTargetType(int32Type()),
+    planner,
+  );
+
+  assert.deepEqual(diagnostics, []);
+  assert.equal(planned.kind, "InvocationExpression");
+  assert.equal(planned.callee.name, "concat");
+  assert.deepEqual(planned.arguments.map((argument) => argument.expression), [
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [{ kind: "LiteralExpression", value: 1 }],
+    },
+    { kind: "IdentifierName", name: "tail" },
+    {
+      kind: "ArrayCreationExpression",
+      elementType: { kind: "PredefinedType", name: "int" },
+      elements: [{ kind: "LiteralExpression", value: 3 }],
+    },
+  ]);
+});
+
 test("native collection spread accepts provider enumerable carriers without array-literal metadata", () => {
   const sourceExample = `
     declare const tail: ProviderEnumerable<number>;

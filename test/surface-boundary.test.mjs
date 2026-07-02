@@ -1566,8 +1566,9 @@ test("selected JS surface finalizes array element and length operations from car
 
   assert.ok(elementAccess);
   assert.ok(lengthAccess);
-  assert.equal(extensionHost.facts.get(elementAccess, targetOperationFactKey)?.operationId, "tsonic.dotnet.System.Array`1.Item(System.Int32)");
-  assert.equal(extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey)?.operationId, "tsonic.dotnet.System.Array`1.Item(System.Int32)");
+  assert.equal(extensionHost.facts.get(elementAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
+  assert.equal(extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey)?.operationId, "tsonic.csharp.js.array.indexer");
+  assert.equal(extensionHost.facts.get(elementAccess, csharpTargetOperationFactKey)?.memberName, "Item");
   assert.equal(extensionHost.facts.get(lengthAccess, targetOperationFactKey)?.operationId, "tsonic.csharp.js.Array.length");
   assert.equal(extensionHost.facts.get(lengthAccess, csharpTargetOperationFactKey)?.memberName, "Count");
   assert.equal(extensionHost.diagnostics.all().map((diagnostic) => diagnostic.extensionCode).includes("CSHARP_JS_ARRAY_ELEMENT_ACCESS_REQUIRES_CARRIER"), false);

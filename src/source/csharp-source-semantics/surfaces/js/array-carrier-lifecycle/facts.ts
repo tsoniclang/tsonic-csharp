@@ -20,6 +20,7 @@ import type {
 } from "../../../../csharp-facts.js";
 import {
   csharpListTargetType,
+  csharpReadOnlyListTargetType,
 } from "../../../target-types.js";
 import {
   setRuntimeCarrierFactIfAbsentOrStronger,
@@ -98,36 +99,40 @@ export function recordArrayReturnFacts(
   returnType: ArrayReturnAnalysis,
   lifecycleContext: LifecycleContext,
 ): void {
-  const list = csharpListTargetType(returnType.elementType);
-  const evidenceMessage = "C# JS surface array return boundary selected List<T> for ordinary TypeScript Array<T> return value.";
+  const carrierType = returnType.readonlySourceContract
+    ? csharpReadOnlyListTargetType(returnType.elementType)
+    : csharpListTargetType(returnType.elementType);
+  const evidenceMessage = returnType.readonlySourceContract
+    ? "C# JS surface array return boundary selected IReadOnlyList<T> for readonly TypeScript array return value."
+    : "C# JS surface array return boundary selected List<T> for ordinary TypeScript Array<T> return value.";
   const evidence = [{ message: evidenceMessage }];
   const boundary: CsharpArrayBoundaryFact = {
-    publicShape: "List<T>",
-    publicType: list,
-    coreCarrierLane: "native-dense-mutable",
-    coreCarrierType: list,
-    preservesMutationVisibility: true,
+    publicShape: returnType.readonlySourceContract ? "IReadOnlyList<T>" : "List<T>",
+    publicType: carrierType,
+    coreCarrierLane: returnType.readonlySourceContract ? "native-read-indexable" : "native-dense-mutable",
+    coreCarrierType: carrierType,
+    preservesMutationVisibility: !returnType.readonlySourceContract,
     requiresCopyIn: false,
     requiresCopyOut: false,
   };
   const carrier: CsharpArrayCarrierFact = {
     sourceKind: "ts-array",
-    lane: "native-dense-mutable",
+    lane: returnType.readonlySourceContract ? "native-read-indexable" : "native-dense-mutable",
     elementType: returnType.elementType,
-    carrierType: list,
-    mutationVisibility: "caller-visible",
+    carrierType,
+    mutationVisibility: returnType.readonlySourceContract ? "none" : "caller-visible",
     boundary: "exported-api",
   };
   for (const subject of arrayReturnFactSubjects(returnType)) {
     lifecycleContext.host.facts.set(subject, csharpArrayBoundaryFactKey, boundary, evidence);
     lifecycleContext.host.facts.set(subject, csharpArrayCarrierFactKey, carrier, evidence);
-    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: list }, evidenceMessage);
+    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
   }
   for (const subject of returnType.sourceReturnSubjects) {
-    lifecycleContext.host.facts.set(subject, csharpSourceReturnCarrierFactKey, { carrier: list }, evidence);
+    lifecycleContext.host.facts.set(subject, csharpSourceReturnCarrierFactKey, { carrier: carrierType }, evidence);
   }
   for (const subject of returnType.returnExpressions) {
-    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: list }, evidenceMessage);
+    setRuntimeCarrierFactIfAbsentOrStronger(lifecycleContext, subject, { carrier: carrierType }, evidenceMessage);
   }
 }
 

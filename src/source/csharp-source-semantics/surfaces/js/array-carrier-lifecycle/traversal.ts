@@ -144,6 +144,7 @@ export function collectArrayReturnTypeNodes(
       declaration: node,
       ...(typeNode === undefined ? {} : { typeNode }),
       ...(semanticType === undefined ? {} : { semanticType }),
+      readonlySourceContract: isReadonlySourceArrayDeclaredType(typeNode, sourceFile, context),
       sourceReturnSubjects: getArrayReturnSourceSubjects(node, sourceFile, lifecycleContext),
       returnExpressions: getArrayReturnExpressionSubjects(node, lifecycleContext),
       elementType,
@@ -471,6 +472,23 @@ function getSourceArrayTypeNodeFromDeclaredType(
   return semanticType !== undefined && isSourceStandardLibraryArrayLikeType(semanticType, context)
     ? innerTypeNode
     : undefined;
+}
+
+function isReadonlySourceArrayDeclaredType(
+  typeNode: ReturnType<typeof asNodeSubject>,
+  sourceFile: SourceFile,
+  context: ReturnType<typeof createRuntimeCarrierLifecycleObservationContext>,
+): boolean {
+  const compiler = context.compiler;
+  if (typeNode === undefined || compiler === undefined || !compiler.ast.is.IsTypeOperatorNode(typeNode)) {
+    return false;
+  }
+  const innerTypeNode = asNodeSubject(getNodeField(typeNode, "Type"));
+  if (innerTypeNode === undefined || !compiler.ast.is.IsArrayTypeNode(innerTypeNode)) {
+    return false;
+  }
+  const semanticType = compiler.checker.getTypeFromTypeNode(typeNode, { sourceFile });
+  return semanticType !== undefined && isSourceStandardLibraryArrayLikeType(semanticType, context);
 }
 
 function initializerHasExplicitNativeArrayTarget(

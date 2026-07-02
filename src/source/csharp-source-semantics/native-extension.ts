@@ -135,16 +135,18 @@ export function createCsharpTargetSemanticsExtension(context: TargetProviderCont
         runBeforeFinalizedStage("object-shape-property-access-facts", () => recordCsharpObjectShapePropertyAccessFactsBeforeFinalization(lifecycleContext, hosts.objectShapeLifecycleHost));
         runBeforeFinalizedStage("compat-runtime-operation-facts", () => recordCsharpCompatRuntimeOperationFactsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("checked-operator-facts", () => recordCsharpCheckedOperatorFactsBeforeFinalization(lifecycleContext, hosts.checkedOperatorLifecycleHost));
-        runBeforeFinalizedStage("native-array-facts", () => recordCsharpNativeArrayFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("target-constraint-validation", () => validateCsharpTargetConstraintFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         if (jsSurfaceSelected) {
           runBeforeFinalizedStage("js-surface-operation-facts-suppress", () => recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "suppress" }));
           runBeforeFinalizedStage("runtime-carrier-facts-after-js-surface", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
-          runBeforeFinalizedStage("js-surface-operation-facts-append", () => recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "append" }));
-          runBeforeFinalizedStage("runtime-carrier-facts-after-js-operations", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
         }
         runBeforeFinalizedStage("selected-call-operation-facts", () => recordCsharpSelectedCallOperationFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
         runBeforeFinalizedStage("runtime-carrier-facts-after-selected-calls", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
+        runBeforeFinalizedStage("native-array-facts", () => recordCsharpNativeArrayFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost));
+        if (jsSurfaceSelected) {
+          runBeforeFinalizedStage("js-surface-operation-facts-append", () => recordCsharpJsSurfaceOperationFactsBeforeFinalization(lifecycleContext, hosts, { diagnostics: "append" }));
+          runBeforeFinalizedStage("runtime-carrier-facts-after-js-operations", () => recordCsharpRuntimeCarrierFactsBeforeFinalization(lifecycleContext, csharpTargetId, hosts.runtimeCarrierHost));
+        }
         runBeforeFinalizedStage("opaque-any-diagnostics", () => diagnoseOpaqueAnyOperationsBeforeFinalization(lifecycleContext, hosts.typescriptCompatibilityMode));
         runBeforeFinalizedStage("observed-assignability-validation", () => validateCsharpObservedAssignabilityFactsBeforeFinalization(lifecycleContext, hosts.operationsProviderHost, hosts.typescriptCompatibilityMode));
       });
