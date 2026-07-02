@@ -28,6 +28,7 @@ export {
   getCsharpSourceStructDeclarationTargetForSubject,
 } from "./source-declaration-facts/struct-declaration.js";
 export {
+  getSourceDeclarationTargetType,
   sourceDeclarationTargetType,
 } from "./source-declaration-facts/target-type.js";
 

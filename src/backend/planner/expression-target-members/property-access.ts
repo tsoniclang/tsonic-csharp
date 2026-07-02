@@ -174,6 +174,7 @@ function applySelectedDeclaringReceiverProjection(
   if (
     unwrappedDeclaredReceiverType !== undefined &&
     (targetTypeRefEquals(unwrappedDeclaredReceiverType, operationDeclaringType) ||
+      receiverExtendsSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType, input) ||
       receiverSatisfiesOpenSelectedDeclaringType(unwrappedDeclaredReceiverType, operationDeclaringType))
   ) {
     return receiver;
@@ -219,6 +220,102 @@ function receiverSatisfiesOpenSelectedDeclaringType(
       declaringArguments.every((argument) => argument.kind === "type-parameter");
   }
   return false;
+}
+
+function receiverExtendsSelectedDeclaringType(
+  receiverType: ReturnType<typeof unwrapNullableTargetType>,
+  declaringType: ReturnType<typeof getTargetTypeRefForNode>,
+  input: TargetCompileInput,
+): boolean {
+  if (receiverType === undefined || declaringType === undefined) {
+    return false;
+  }
+  for (let baseType = getCsharpBaseTargetType(receiverType, input); baseType !== undefined; baseType = getCsharpBaseTargetType(baseType, input)) {
+    if (targetTypeRefEquals(baseType, declaringType)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function getCsharpBaseTargetType(
+  type: ReturnType<typeof unwrapNullableTargetType>,
+  input: TargetCompileInput,
+): ReturnType<typeof unwrapNullableTargetType> {
+  if (type?.kind !== "target-named") {
+    return undefined;
+  }
+  const metadataBaseType = unwrapNullableTargetType((type as { readonly csharpBaseType?: ReturnType<typeof unwrapNullableTargetType> }).csharpBaseType);
+  if (metadataBaseType !== undefined) {
+    return metadataBaseType;
+  }
+  return getSourceClassBaseTargetType(type, input);
+}
+
+function getSourceClassBaseTargetType(
+  type: Extract<ReturnType<typeof unwrapNullableTargetType>, { readonly kind: "target-named" }>,
+  input: TargetCompileInput,
+): ReturnType<typeof unwrapNullableTargetType> {
+  if ((type as { readonly csharpSourceDeclarationKind?: unknown }).csharpSourceDeclarationKind !== "class") {
+    return undefined;
+  }
+  const declaration = findSourceClassDeclarationByTargetId(type.id, input);
+  const heritage = declaration === undefined ? undefined : input.ast.extendsHeritageElements(declaration)[0];
+  if (heritage === undefined) {
+    return undefined;
+  }
+  const expression = getNodeField(heritage, "Expression") ??
+    getNodeField(heritage, "expression") ??
+    heritage;
+  const expressionSourceFile = input.ast.getSourceFile(expression) ?? input.ast.getSourceFile(declaration);
+  return expressionSourceFile === undefined
+    ? undefined
+    : unwrapNullableTargetType(getTargetTypeRefForNode(input, expression, expressionSourceFile));
+}
+
+function findSourceClassDeclarationByTargetId(
+  targetId: string,
+  input: TargetCompileInput,
+): Node | undefined {
+  for (const sourceFile of input.sourceFiles) {
+    const declaration = findSourceClassDeclarationByTargetIdInSubtree(sourceFile, targetId, input);
+    if (declaration !== undefined) {
+      return declaration;
+    }
+  }
+  return undefined;
+}
+
+function findSourceClassDeclarationByTargetIdInSubtree(
+  node: Node,
+  targetId: string,
+  input: TargetCompileInput,
+): Node | undefined {
+  if (input.ast.kindName(node) === "KindClassDeclaration" && getSourceClassDeclarationTargetId(node, input) === targetId) {
+    return node;
+  }
+  for (const child of input.ast.children(node)) {
+    if (child === undefined) {
+      continue;
+    }
+    const declaration = findSourceClassDeclarationByTargetIdInSubtree(child, targetId, input);
+    if (declaration !== undefined) {
+      return declaration;
+    }
+  }
+  return undefined;
+}
+
+function getSourceClassDeclarationTargetId(
+  declaration: Node,
+  input: TargetCompileInput,
+): string | undefined {
+  const name = getNodeField(declaration, "name");
+  if (name === undefined) {
+    return undefined;
+  }
+  const text = input.ast.text(name);
+  return text.length === 0 ? undefined : text;
 }
 
 function getSelectedSourceOperationDeclaringType(

@@ -552,11 +552,17 @@ function getSourceOwnedConstructionReturnType(
   if (targetTypeArguments.some((argument) => argument === undefined)) {
     return undefined;
   }
-  return sourceDeclarationTargetType(
-    getNodeNameText(classDeclaration),
-    "KindClassDeclaration",
-    targetTypeArguments as readonly TargetTypeRef[],
-  );
+  const targetType = context.factResolver.resolve(classDeclaration, runtimeCarrierFactKey)?.carrier ??
+    sourceDeclarationTargetType(getNodeNameText(classDeclaration), "KindClassDeclaration");
+  if (targetType === undefined) {
+    return undefined;
+  }
+  return targetTypeArguments.length === 0 || targetType.kind !== "target-named"
+    ? targetType
+    : {
+        ...targetType,
+        typeArguments: targetTypeArguments as readonly TargetTypeRef[],
+      };
 }
 
 function getConstructedSourceClassDeclaration(

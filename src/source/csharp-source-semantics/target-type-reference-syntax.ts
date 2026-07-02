@@ -1,4 +1,5 @@
 import {
+  runtimeCarrierFactKey,
   sourcePrimitiveFactKey,
   targetBindingFactKey,
 } from "@tsonic/tsts";
@@ -258,14 +259,27 @@ function getTargetTypeRefFromSourceDeclarationReference(
       if (getSourceLibraryDeclarationName(declaration, context) !== undefined) {
         continue;
       }
-      return sourceDeclarationTargetType(
-        getNodeNameText(declaration),
-        kind,
-        typeArguments as readonly TargetTypeRef[],
-      );
+      const recordedTarget = context.factResolver.resolve(declaration, runtimeCarrierFactKey)?.carrier;
+      const targetType = recordedTarget ?? sourceDeclarationTargetType(getNodeNameText(declaration), kind);
+      if (targetType === undefined) {
+        continue;
+      }
+      return applyResolvedSourceDeclarationTypeArguments(targetType, typeArguments as readonly TargetTypeRef[]);
     }
   }
   return undefined;
+}
+
+function applyResolvedSourceDeclarationTypeArguments(
+  targetType: TargetTypeRef,
+  typeArguments: readonly TargetTypeRef[],
+): TargetTypeRef {
+  return typeArguments.length === 0 || targetType.kind !== "target-named"
+    ? targetType
+    : {
+        ...targetType,
+        typeArguments,
+      };
 }
 
 function getTargetTypeRefFromTypeAliasDeclarations(
