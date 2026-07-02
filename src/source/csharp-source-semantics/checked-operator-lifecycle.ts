@@ -278,17 +278,24 @@ function getCheckedExpressionTargetTypeRef(
   if (sourceFile === undefined) {
     return undefined;
   }
+  const expressionTarget = host.getTargetTypeRefForSubject(subject, context, {
+    ...options,
+    sourceFile,
+  });
+  if (expressionTarget !== undefined && expressionTarget.kind !== "type-parameter") {
+    return expressionTarget;
+  }
   const checker = context.compiler?.checker;
   const node = asNodeSubject(subject);
   if (node === undefined || checker === undefined) {
-    return undefined;
+    return expressionTarget;
   }
   try {
     return host.getTargetTypeRefForSubject(checker.getTypeAtLocation(node, { sourceFile }), context, {
       ...options,
       sourceFile,
-    });
+    }) ?? expressionTarget;
   } catch {
-    return undefined;
+    return expressionTarget;
   }
 }
