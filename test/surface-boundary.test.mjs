@@ -1726,7 +1726,7 @@ test("selected JS surface finalizes unchanged chained standard-library TypeScrip
       const keys = Object.keys(values).join("|");
       const encoded = JSON.stringify(JSON.parse(text));
       const stamp = new Date(0).toISOString();
-      const matched = /ok/u.test(encoded);
+      const matched = /ok/.test(encoded);
       console.log(normalized, joined, keys, stamp, matched, Math.max(values.length, 1));
       return normalized + joined + keys + encoded + stamp;
     }

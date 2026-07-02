@@ -235,7 +235,7 @@ test(".NET provider exposes explicit native Array as a provider-owned C# array p
   const create = providerArray.members.find((member) => member.name === "create");
   const length = providerArray.members.find((member) => member.name === "length");
   const indexer = providerArray.members.find((member) => member.kind === "indexer");
-  assert.equal(create.id, dotnetNativeArrayCreateMemberId);
+  assert.equal(create.id, `${dotnetNativeArrayCreateMemberId}#static`);
   assert.equal(create.static, true);
   assert.deepEqual(create.signatures[0].typeParameters, [{ name: "T" }]);
   assert.deepEqual(create.signatures[0].returnType, {
